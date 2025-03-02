@@ -20,6 +20,39 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Playwright Test Integration
+
+This project includes integration with Playwright for end-to-end testing. The Playground component allows you to:
+
+1. Write and execute Playwright tests directly in the browser
+2. View test results in an HTML report
+3. Save and manage test cases
+
+### Using the Playground
+
+1. Navigate to `/playground` in your browser
+2. Write your Playwright test in the code editor
+3. Click the "Run Test" button to execute the test
+4. View the test results in the "Report" tab
+
+### Example Test
+
+```javascript
+const { test, expect } = require('@playwright/test');
+
+test('basic test', async ({ page }) => {
+  // Navigate to a website
+  await page.goto('https://example.com');
+  
+  // Expect the page title to contain a specific string
+  await expect(page).toHaveTitle(/Example Domain/);
+});
+```
+
+### Test Results
+
+Test results are stored in the `public/test-results` directory and can be accessed through the browser at `/test-results/report/index.html`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
