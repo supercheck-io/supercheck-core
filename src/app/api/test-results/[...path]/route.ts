@@ -1,9 +1,11 @@
-import { getContentType } from "@/lib/test-execution";
+import { getContentType, toUrlPath } from "@/lib/test-execution";
 import { NextRequest, NextResponse } from "next/server";
-import { join } from "path";
+import path from "path";
 import { createReadStream } from "fs";
 import { stat, readFile } from "fs/promises";
 import { existsSync } from "fs";
+
+const { join, normalize, sep, posix } = path;
 
 export async function GET(
   request: NextRequest,
@@ -17,12 +19,9 @@ export async function GET(
       return new Response("Not Found", { status: 404 });
     }
 
-    // Construct the file path
-    const filePath = join(
-      process.cwd(),
-      "public",
-      "test-results",
-      ...pathSegments
+    // Construct the file path with normalization for cross-platform compatibility
+    const filePath = normalize(
+      join(process.cwd(), "public", "test-results", ...pathSegments)
     );
 
     // Check if the file exists
@@ -39,7 +38,8 @@ export async function GET(
     // If it's an HTML file, inject the dark theme script
     if (contentType === "text/html") {
       const htmlContent = content.toString();
-      const darkThemeScriptPath = "/test-results/dark-theme.js";
+      // Always use forward slashes for URLs, even on Windows
+      const darkThemeScriptPath = toUrlPath("/test-results/dark-theme.js");
       
       // Check if the HTML already has a closing body tag
       if (htmlContent.includes('</body>')) {

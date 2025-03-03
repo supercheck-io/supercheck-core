@@ -1,4 +1,4 @@
-import { spawnSync } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import {
   writeFile,
   mkdir,
@@ -9,11 +9,12 @@ import {
   stat,
 } from "fs/promises";
 import fs from "fs";
-import { join, relative, dirname } from "path";
+import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { validateCode } from "./code-validation";
 
 const { existsSync } = fs;
+const { join, normalize, sep, posix } = path;
 
 /**
  * Get content type based on file extension
@@ -34,6 +35,14 @@ export function getContentType(path: string) {
 }
 
 /**
+ * Convert a file path to a URL path (with forward slashes)
+ */
+export function toUrlPath(filePath: string): string {
+  // Always use forward slashes for URLs, even on Windows
+  return filePath.split(sep).join(posix.sep);
+}
+
+/**
  * Execute a Playwright test script and generate HTML report
  */
 export async function executeTest(code: string): Promise<{
@@ -46,10 +55,10 @@ export async function executeTest(code: string): Promise<{
 }> {
   // Generate a unique ID for this test run
   const testId = uuidv4();
-  const publicDir = join(process.cwd(), "public");
-  const testResultsDir = join(publicDir, "test-results", testId);
-  const reportDir = join(testResultsDir, "report");
-  const testsDir = join(publicDir, "tests");
+  const publicDir = normalize(join(process.cwd(), "public"));
+  const testResultsDir = normalize(join(publicDir, "test-results", testId));
+  const reportDir = normalize(join(testResultsDir, "report"));
+  const testsDir = normalize(join(publicDir, "tests"));
   let testPath = "";
 
   try {
@@ -78,7 +87,7 @@ export async function executeTest(code: string): Promise<{
     );
 
     // Create a unique test file
-    testPath = join(testsDir, `test-${testId}.spec.js`);
+    testPath = normalize(join(testsDir, `test-${testId}.spec.js`));
 
     // Wrap code in test if needed
     const testContent = code.includes("import { test, expect }")
@@ -102,50 +111,58 @@ test('test', async ({ page }) => {
       console.log(`Report directory: ${reportDir}`);
 
       // Check if playwright-report directory exists in root and remove it
-      const playwrightReportDir = join(process.cwd(), "playwright-report");
+      const playwrightReportDir = normalize(join(process.cwd(), "playwright-report"));
       if (existsSync(playwrightReportDir)) {
         await rm(playwrightReportDir, { recursive: true, force: true });
       }
 
       // Check if test-results directory exists in root and remove it
-      const rootTestResultsDir = join(process.cwd(), "test-results");
+      const rootTestResultsDir = normalize(join(process.cwd(), "test-results"));
       if (existsSync(rootTestResultsDir)) {
         await rm(rootTestResultsDir, { recursive: true, force: true });
       }
 
-      const {
-        status,
-        stdout,
-        stderr: stderrOutput,
-      } = spawnSync(
-        "npx",
-        ["playwright", "test", testPath, "--config=playwright.config.mjs"],
-        {
-          env: {
-            ...process.env,
-            PLAYWRIGHT_HTML_REPORT: reportDir,
-            PLAYWRIGHT_OUTPUT_DIR: testResultsDir, // Set output dir to the test ID folder
-            PLAYWRIGHT_OPEN_REPORT: "never", // Prevent auto-opening the report
-          },
-          encoding: "utf8",
-          cwd: process.cwd(),
-          timeout: 30000, // 30 second timeout
-        }
-      );
+      // Determine the command to run based on the OS
+      const isWindows = process.platform === 'win32';
+      
+      // For Windows, we need to use different command execution
+      const command = isWindows ? 'npx.cmd' : 'npx';
+      const args = ["playwright", "test", testPath, "--config=playwright.config.mjs"];
+      
+      // Set environment variables for the process
+      const env = {
+        ...process.env,
+        PLAYWRIGHT_HTML_REPORT: reportDir,
+        PLAYWRIGHT_OUTPUT_DIR: testResultsDir,
+        PLAYWRIGHT_OPEN_REPORT: "never",
+      };
+      
+      // Use spawnSync for cross-platform compatibility
+      const spawnResult = spawnSync(command, args, {
+        env,
+        encoding: "utf8",
+        cwd: process.cwd(),
+        timeout: 30000, // 30 second timeout
+        shell: isWindows, // Use shell on Windows to handle command execution properly
+      });
+      
+      const status = spawnResult.status ?? 1; // Default to error if status is null
+      const stdout = spawnResult.stdout || "";
+      const stderrOutput = spawnResult.stderr || "";
 
       console.log(`Test execution completed with status: ${status}`);
 
       // Capture stdout and stderr regardless of test success/failure
       result = {
-        stdout: stdout || "",
-        stderr: stderrOutput || "",
+        stdout: stdout,
+        stderr: stderrOutput,
       };
 
       // Determine success based on exit code
       success = status === 0;
 
       // Check if the HTML report was generated
-      const htmlReportPath = join(reportDir, "index.html");
+      const htmlReportPath = normalize(join(reportDir, "index.html"));
       console.log(`Checking for HTML report at: ${htmlReportPath}`);
 
       // If the HTML report still doesn't exist, create a minimal one
@@ -173,8 +190,8 @@ test('test', async ({ page }) => {
         console.log("HTML report was successfully generated");
       }
 
-      // Build the report URL to return to the client
-      const reportUrl = `/api/test-results/${testId}/report/index.html`;
+      // Build the report URL to return to the client - always use forward slashes for URLs
+      const reportUrl = toUrlPath(`/api/test-results/${testId}/report/index.html`);
       console.log(`Report URL: ${reportUrl}`);
 
       // Cleanup temporary test file
@@ -184,8 +201,8 @@ test('test', async ({ page }) => {
 
         // Check for and remove any root playwright directories
         const playwrightDirs = [
-          join(process.cwd(), "playwright-report"),
-          join(process.cwd(), "test-results"),
+          normalize(join(process.cwd(), "playwright-report")),
+          normalize(join(process.cwd(), "test-results")),
         ];
 
         for (const dir of playwrightDirs) {
@@ -225,7 +242,7 @@ test('test', async ({ page }) => {
           await mkdir(reportDir, { recursive: true });
         }
 
-        const htmlReportPath = join(reportDir, "index.html");
+        const htmlReportPath = normalize(join(reportDir, "index.html"));
         const minimalHtml = `
         <html>
           <head><title>Test Error</title></head>
@@ -248,8 +265,8 @@ test('test', async ({ page }) => {
         }
 
         const playwrightDirs = [
-          join(process.cwd(), "playwright-report"),
-          join(process.cwd(), "test-results"),
+          normalize(join(process.cwd(), "playwright-report")),
+          normalize(join(process.cwd(), "test-results")),
         ];
 
         for (const dir of playwrightDirs) {
@@ -265,7 +282,7 @@ test('test', async ({ page }) => {
       return {
         success: false,
         error: errorMessage,
-        reportUrl: `/api/test-results/${testId}/report/index.html`,
+        reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
         testId,
         stdout: result.stdout,
         stderr: result.stderr,
@@ -289,7 +306,7 @@ test('test', async ({ page }) => {
         await mkdir(reportDir, { recursive: true });
       }
 
-      const htmlReportPath = join(reportDir, "index.html");
+      const htmlReportPath = normalize(join(reportDir, "index.html"));
       const minimalHtml = `
       <html>
         <head><title>Test Error</title></head>
@@ -312,8 +329,8 @@ test('test', async ({ page }) => {
       }
 
       const playwrightDirs = [
-        join(process.cwd(), "playwright-report"),
-        join(process.cwd(), "test-results"),
+        normalize(join(process.cwd(), "playwright-report")),
+        normalize(join(process.cwd(), "test-results")),
       ];
 
       for (const dir of playwrightDirs) {
@@ -329,7 +346,7 @@ test('test', async ({ page }) => {
     return {
       success: false,
       error: errorMessage,
-      reportUrl: `/api/test-results/${testId}/report/index.html`,
+      reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
       testId,
       stdout: "",
       stderr: errorMessage,
