@@ -253,14 +253,14 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
                     <TabsList className="grid w-[400px] grid-cols-2">
                       <TabsTrigger
                         value="editor"
-                        className="flex items-center gap-2 "
+                        className="flex items-center gap-2 cursor-pointer"
                       >
                         <Code className="h-4 w-4" />
                         <span>Editor</span>
                       </TabsTrigger>
                       <TabsTrigger
                         value="report"
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-2 cursor-pointer"
                       >
                         <FileText className="h-4 w-4" />
                         <span>Report</span>
@@ -327,18 +327,18 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
                     className="h-screen border-0 p-0 mt-0"
                   >
                     {isRunning ? (
-                      <div className="flex h-full min-h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
+                      <div className="flex h-full min-h-[calc(100vh-11rem)] items-center justify-center bg-[#1e1e1e]">
                         <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
                           <LoaderIcon className="h-8 w-8 animate-spin" />
                           <p>Please wait, running test...</p>
                         </div>
                       </div>
                     ) : reportUrl ? (
-                      <div className="report-iframe-wrapper h-full min-h-[calc(100vh-10rem)] w-full">
+                      <div className="report-iframe-wrapper h-full min-h-[calc(100vh-11rem)] w-full">
                         <iframe
                           key={reportUrl}
                           src={reportUrl}
-                          className="h-full min-h-[calc(100vh-10rem)] w-full"
+                          className="h-full min-h-[calc(100vh-11rem)] w-full"
                           sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
                           allow="cross-origin-isolated"
                           onError={(e) => {
@@ -347,7 +347,7 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
                         />
                       </div>
                     ) : (
-                      <div className="flex h-full  min-h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
+                      <div className="flex h-full  min-h-[calc(100vh-11rem)] items-center justify-center bg-[#1e1e1e]">
                         <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
                           <FileText className="h-8 w-8" />
                           <p>Run a test to see the HTML report</p>
@@ -371,7 +371,7 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
               <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tr-lg">
                 <div className="flex items-center gap-2 py-2">
                   <FileText className="h-4 w-4" />
-                  <h2 className="text-sm font-medium">Test Case Details</h2>
+                  <h2 className="text-sm font-medium">Test Details</h2>
                 </div>
               </div>
               <ScrollArea className="flex-1">

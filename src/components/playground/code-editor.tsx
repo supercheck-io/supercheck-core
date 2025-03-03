@@ -10,7 +10,7 @@ const CodeEditor = forwardRef((props: CodeEditorProps, ref) => {
     useState<React.ComponentType<any> | null>(null);
 
   useEffect(() => {
-    import("./monaco-editor.client").then((module) => {
+    import("./monaco-editor").then((module) => {
       setClientEditor(() => module.MonacoEditorClient);
     });
   }, []);

@@ -240,7 +240,7 @@ declare module "@playwright/test" {
   return (
     <div className="flex flex-1 h-screen w-full relative">
       <Editor
-        height="calc(100vh - 10rem)"
+        height="calc(100vh - 11rem)"
         defaultLanguage="javascript"
         value={value}
         onChange={onChange}
