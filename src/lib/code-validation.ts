@@ -1,7 +1,7 @@
-import * as acorn from 'acorn';
+import * as acorn from "acorn";
+import type { Node } from "acorn";
 
-// Define blocked modules & identifiers
-const BLOCKED_MODULES = [
+const BLOCKED_MODULES: string[] = [
   "fs",
   "child_process",
   "cluster",
@@ -13,60 +13,81 @@ const BLOCKED_MODULES = [
   "os",
   "inspector",
 ];
-const BLOCKED_IDENTIFIERS = ["process", "Buffer", "global"];
+const BLOCKED_IDENTIFIERS: string[] = ["process", "Buffer", "global"];
+
+/**
+ * Type guard to check if a value is an Acorn AST node.
+ */
+function isNode(x: unknown): x is Node {
+  return typeof x === "object" && x !== null && "type" in x;
+}
 
 /**
  * Recursively walk an AST node structure.
+ * @param node - An AST node, an array of nodes, or null.
+ * @param visitors - An object mapping node type names to visitor functions.
  */
-function walkAst(node: any, visitors: Record<string, (node: any) => void>) {
+function walkAst(
+  node: Node | Node[] | null,
+  visitors: Record<string, (node: Node) => void>
+): void {
   if (Array.isArray(node)) {
     node.forEach((child) => walkAst(child, visitors));
     return;
   }
-  if (!node || typeof node.type !== "string") return;
+  if (!node || !isNode(node)) return;
 
   if (visitors[node.type]) {
     visitors[node.type](node);
   }
 
-  for (const key in node) {
-    if (Object.prototype.hasOwnProperty.call(node, key)) {
-      const child = node[key];
-      if (child && typeof child === "object") {
-        walkAst(child, visitors);
-      }
+  // Iterate over the node's own properties.
+  for (const key of Object.keys(node)) {
+    // We use a type assertion here because acorn nodes are untyped.
+    const child = (node as unknown as Record<string, unknown>)[key];
+    if (Array.isArray(child)) {
+      walkAst(child, visitors);
+    } else if (child && typeof child === "object" && isNode(child)) {
+      walkAst(child, visitors);
     }
   }
 }
 
 /**
  * Validate user script by scanning its AST:
- * - Block references to BLOCKED_MODULES in imports
- * - Block usage of BLOCKED_IDENTIFIERS
- * - Check for infinite loops or suspicious patterns (eval, new Function, etc.)
+ * - Block references to BLOCKED_MODULES in imports.
+ * - Block usage of BLOCKED_IDENTIFIERS.
+ * - Check for infinite loops or suspicious patterns.
  */
 export function validateCode(code: string): { valid: boolean; error?: string } {
-  let ast;
+  let ast: Node;
   try {
-    ast = acorn.parse(code, { ecmaVersion: 2020, sourceType: "module" });
-  } catch (err: any) {
-    return { valid: false, error: `Syntax Error: ${err.message}` };
+    ast = acorn.parse(code, {
+      ecmaVersion: 2020,
+      sourceType: "module",
+    }) as Node;
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      return { valid: false, error: `Syntax Error: ${err.message}` };
+    }
+    return { valid: false, error: "Syntax Error" };
   }
 
   try {
     walkAst(ast, {
       ImportDeclaration(node) {
-        const moduleName = node.source.value;
-        if (BLOCKED_MODULES.includes(moduleName)) {
+        // Using a cast here since acorn's AST types might not include `source`
+        const moduleName = (node as any).source?.value as string | undefined;
+        if (moduleName && BLOCKED_MODULES.includes(moduleName)) {
           throw new Error(
             `Security Error: Importing module '${moduleName}' is not allowed.`
           );
         }
       },
       ImportExpression(node) {
-        if (node.source?.type === "Literal") {
-          const moduleName = node.source.value;
-          if (BLOCKED_MODULES.includes(moduleName)) {
+        if ((node as any).source?.type === "Literal") {
+          const moduleName = (node as any).source.value as string | undefined;
+          if (moduleName && BLOCKED_MODULES.includes(moduleName)) {
             throw new Error(
               `Security Error: Dynamic import of module '${moduleName}' is not allowed.`
             );
@@ -74,10 +95,9 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
         }
       },
       Identifier(node) {
-        if (BLOCKED_IDENTIFIERS.includes(node.name)) {
-          throw new Error(
-            `Security Error: Usage of '${node.name}' is not allowed.`
-          );
+        const name = (node as any).name as string | undefined;
+        if (name && BLOCKED_IDENTIFIERS.includes(name)) {
+          throw new Error(`Security Error: Usage of '${name}' is not allowed.`);
         }
       },
     });
@@ -117,6 +137,6 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
     if (error instanceof Error) {
       return { valid: false, error: error.message };
     }
-    return { valid: false, error: 'Unknown validation error' };
+    return { valid: false, error: "Unknown validation error" };
   }
 }

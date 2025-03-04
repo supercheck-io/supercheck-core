@@ -1,4 +1,4 @@
-import { getContentType, toUrlPath } from "@/lib/test-execution";
+import { getContentType } from "@/lib/test-execution";
 import { NextRequest } from "next/server";
 import path from "path";
 import { readFile } from "fs/promises";
@@ -34,25 +34,7 @@ export async function GET(
     // Get the content type based on file extension
     const contentType = getContentType(filePath);
 
-    // If it's an HTML file, inject the dark theme script
-    if (contentType === "text/html") {
-      const htmlContent = content.toString();
-      // Always use forward slashes for URLs, even on Windows
-      const darkThemeScriptPath = toUrlPath("/test-results/dark-theme.js");
-
-      // Check if the HTML already has a closing body tag
-      if (htmlContent.includes("</body>")) {
-        const modifiedContent = htmlContent.replace(
-          "</body>",
-          `<script src="${darkThemeScriptPath}"></script></body>`
-        );
-        return new Response(modifiedContent, {
-          headers: {
-            "Content-Type": contentType,
-          },
-        });
-      }
-    }
+    // Removed the dark theme injection block
 
     // Return the file content with appropriate content type
     return new Response(content, {

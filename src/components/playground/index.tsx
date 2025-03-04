@@ -1,6 +1,5 @@
 "use client";
 import {
-  ClipboardMinus,
   Zap,
   Save,
   LoaderIcon,
@@ -60,9 +59,6 @@ export default function Playground() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("editor");
   const [isRunning, setIsRunning] = useState(false);
-  const [isTestSuccessful, setIsTestSuccessful] = useState<boolean | null>(
-    null
-  );
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [testId, setTestId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -166,11 +162,6 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
     }
   };
 
-  const updateTestStatus = (success: boolean) => {
-    setIsTestSuccessful(success);
-    setActiveTab("report");
-  };
-
   const runPlaywrightTest = async () => {
     setIsRunning(true);
     try {
@@ -186,7 +177,7 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
         method: "POST",
         body: formData,
         headers: {
-          'Accept': '*/*',
+          Accept: "*/*",
         },
         signal: AbortSignal.timeout(60000), // 60 seconds timeout
       });
@@ -194,7 +185,7 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
       if (!response.ok) {
         const errorText = await response.text();
         let errorMessage = `HTTP error! status: ${response.status}`;
-        
+
         try {
           // Try to parse as JSON
           const errorJson = JSON.parse(errorText);
@@ -205,15 +196,17 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
             errorMessage = errorText;
           }
         }
-        
+
         // Check for SSL-related errors
-        if (errorMessage.includes('SSL') || 
-            errorMessage.includes('certificate') || 
-            errorMessage.includes('CERT_') || 
-            errorMessage.includes('security')) {
+        if (
+          errorMessage.includes("SSL") ||
+          errorMessage.includes("certificate") ||
+          errorMessage.includes("CERT_") ||
+          errorMessage.includes("security")
+        ) {
           errorMessage = `SSL Certificate Error: ${errorMessage}\n\nThis may be due to corporate firewall or SSL inspection. Please contact your IT department.`;
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -238,7 +231,6 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
           duration: 10000, // Show for longer - 10 seconds
         });
         setErrorMessage(result.error);
-        updateTestStatus(false);
         // Keep focus on editor when there's no report
         if (!result.reportUrl) {
           setActiveTab("editor");
@@ -250,7 +242,6 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
           variant: "default",
         });
         setErrorMessage(null);
-        updateTestStatus(true);
       }
     } catch (error) {
       console.error("Error running test:", error);
@@ -259,7 +250,6 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
         description: "An error occurred while running the test.",
         variant: "destructive",
       });
-      updateTestStatus(false);
     } finally {
       setIsRunning(false);
     }
@@ -328,7 +318,8 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
                       {errorMessage && (
                         <Alert
                           variant="destructive"
-                          className=" absolute top-0 left-0 right-0 z-10 backdrop-blur-xl"
+                          onClose={() => setErrorMessage(null)}
+                          className="absolute top-0 left-0 right-0 z-10 backdrop-blur-xl"
                         >
                           <AlertCircle className="h-4 w-4" />
                           <AlertTitle>Error</AlertTitle>

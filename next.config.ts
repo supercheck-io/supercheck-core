@@ -2,13 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  // Increase timeout for API routes to handle corporate networks
-  api: {
-    responseLimit: false,
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-    externalResolver: true,
+  experimental: {
+    // Add any experimental features here
+    serverComponentsExternalPackages: [],
   },
   // Configure server options
   serverRuntimeConfig: {
