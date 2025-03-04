@@ -243,11 +243,12 @@ export const jobTestCases = sqliteTable(
       .references(() => testCases.id),
     orderPosition: int("order_position"),
   },
-  (table) => {
-    return {
-      pk: primaryKey(table.jobId, table.testCaseId),
-    };
-  }
+  (table) => [
+    primaryKey({
+      name: "job_test_cases_pk",
+      columns: [table.jobId, table.testCaseId],
+    }),
+  ]
 );
 export const jobTestCasesJobIdIdx = index("job_test_cases_job_id_idx").on(
   jobTestCases.jobId

@@ -1,13 +1,5 @@
-import { spawn, spawnSync } from "child_process";
-import {
-  writeFile,
-  mkdir,
-  readFile,
-  readdir,
-  unlink,
-  rm,
-  stat,
-} from "fs/promises";
+import { spawnSync } from "child_process";
+import { writeFile, mkdir, unlink, rm } from "fs/promises";
 import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
@@ -111,7 +103,9 @@ test('test', async ({ page }) => {
       console.log(`Report directory: ${reportDir}`);
 
       // Check if playwright-report directory exists in root and remove it
-      const playwrightReportDir = normalize(join(process.cwd(), "playwright-report"));
+      const playwrightReportDir = normalize(
+        join(process.cwd(), "playwright-report")
+      );
       if (existsSync(playwrightReportDir)) {
         await rm(playwrightReportDir, { recursive: true, force: true });
       }
@@ -123,12 +117,17 @@ test('test', async ({ page }) => {
       }
 
       // Determine the command to run based on the OS
-      const isWindows = process.platform === 'win32';
-      
+      const isWindows = process.platform === "win32";
+
       // For Windows, we need to use different command execution
-      const command = isWindows ? 'npx.cmd' : 'npx';
-      const args = ["playwright", "test", testPath, "--config=playwright.config.mjs"];
-      
+      const command = isWindows ? "npx.cmd" : "npx";
+      const args = [
+        "playwright",
+        "test",
+        testPath,
+        "--config=playwright.config.mjs",
+      ];
+
       // Set environment variables for the process
       const env = {
         ...process.env,
@@ -136,7 +135,7 @@ test('test', async ({ page }) => {
         PLAYWRIGHT_OUTPUT_DIR: testResultsDir,
         PLAYWRIGHT_OPEN_REPORT: "never",
       };
-      
+
       // Use spawnSync for cross-platform compatibility
       const spawnResult = spawnSync(command, args, {
         env,
@@ -145,7 +144,7 @@ test('test', async ({ page }) => {
         timeout: 30000, // 30 second timeout
         shell: isWindows, // Use shell on Windows to handle command execution properly
       });
-      
+
       const status = spawnResult.status ?? 1; // Default to error if status is null
       const stdout = spawnResult.stdout || "";
       const stderrOutput = spawnResult.stderr || "";
@@ -191,7 +190,9 @@ test('test', async ({ page }) => {
       }
 
       // Build the report URL to return to the client - always use forward slashes for URLs
-      const reportUrl = toUrlPath(`/api/test-results/${testId}/report/index.html`);
+      const reportUrl = toUrlPath(
+        `/api/test-results/${testId}/report/index.html`
+      );
       console.log(`Report URL: ${reportUrl}`);
 
       // Cleanup temporary test file
