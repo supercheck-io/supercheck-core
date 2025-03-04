@@ -59,11 +59,11 @@ export async function executeTest(code: string): Promise<{
     if (!validationResult.valid) {
       return {
         success: false,
-        error: validationResult.error,
+        error: validationResult.error || null,
         reportUrl: null,
         testId,
         stdout: "",
-        stderr: validationResult.error,
+        stderr: validationResult.error || "",
       };
     }
 

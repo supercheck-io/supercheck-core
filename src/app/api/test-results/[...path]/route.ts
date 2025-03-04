@@ -1,11 +1,10 @@
 import { getContentType, toUrlPath } from "@/lib/test-execution";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import path from "path";
-import { createReadStream } from "fs";
-import { stat, readFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 
-const { join, normalize, sep, posix } = path;
+const { join, normalize } = path;
 
 export async function GET(
   request: NextRequest,
@@ -31,20 +30,20 @@ export async function GET(
 
     // Read the file content
     const content = await readFile(filePath);
-    
+
     // Get the content type based on file extension
     const contentType = getContentType(filePath);
-    
+
     // If it's an HTML file, inject the dark theme script
     if (contentType === "text/html") {
       const htmlContent = content.toString();
       // Always use forward slashes for URLs, even on Windows
       const darkThemeScriptPath = toUrlPath("/test-results/dark-theme.js");
-      
+
       // Check if the HTML already has a closing body tag
-      if (htmlContent.includes('</body>')) {
+      if (htmlContent.includes("</body>")) {
         const modifiedContent = htmlContent.replace(
-          '</body>',
+          "</body>",
           `<script src="${darkThemeScriptPath}"></script></body>`
         );
         return new Response(modifiedContent, {

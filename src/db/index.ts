@@ -71,7 +71,7 @@ async function main() {
   await db.insert(organizationMembers).values({
     userId,
     organizationId: orgId,
-    role: "owner", // from your enum: 'owner' | 'admin' | 'read-write' | 'read-only'
+    role: "admin", 
     invitedBy: null,
   });
   console.log("Inserted org membership for user -> org");
