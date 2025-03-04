@@ -185,10 +185,36 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
       const response = await fetch("/api/test", {
         method: "POST",
         body: formData,
+        headers: {
+          'Accept': '*/*',
+        },
+        signal: AbortSignal.timeout(60000), // 60 seconds timeout
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          // Try to parse as JSON
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorMessage;
+        } catch (e) {
+          // If not JSON, use the text
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+        
+        // Check for SSL-related errors
+        if (errorMessage.includes('SSL') || 
+            errorMessage.includes('certificate') || 
+            errorMessage.includes('CERT_') || 
+            errorMessage.includes('security')) {
+          errorMessage = `SSL Certificate Error: ${errorMessage}\n\nThis may be due to corporate firewall or SSL inspection. Please contact your IT department.`;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();

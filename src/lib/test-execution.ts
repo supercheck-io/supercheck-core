@@ -134,6 +134,12 @@ test('test', async ({ page }) => {
         PLAYWRIGHT_HTML_REPORT: reportDir,
         PLAYWRIGHT_OUTPUT_DIR: testResultsDir,
         PLAYWRIGHT_OPEN_REPORT: "never",
+        // Disable SSL certificate validation for Node.js API calls
+        NODE_TLS_REJECT_UNAUTHORIZED: "0",
+        // Additional environment variables for corporate environments
+        HTTPS_PROXY: process.env.HTTPS_PROXY || process.env.https_proxy || "",
+        HTTP_PROXY: process.env.HTTP_PROXY || process.env.http_proxy || "",
+        NO_PROXY: process.env.NO_PROXY || process.env.no_proxy || "",
       };
 
       // Use spawnSync for cross-platform compatibility
@@ -141,7 +147,7 @@ test('test', async ({ page }) => {
         env,
         encoding: "utf8",
         cwd: process.cwd(),
-        timeout: 30000, // 30 second timeout
+        timeout: 60000, // Increase timeout to 60 seconds for corporate networks
         shell: isWindows, // Use shell on Windows to handle command execution properly
       });
 
@@ -181,6 +187,16 @@ test('test', async ({ page }) => {
             <h1>Test Failed</h1>
             <p>The test failed to generate a proper report.</p>
             <pre>${result.stderr || "No error details available"}</pre>
+            ${
+              result.stderr?.includes("SSL") ||
+              result.stderr?.includes("certificate")
+                ? `<div style="background-color: #ffe6e6; padding: 10px; margin-top: 20px; border: 1px solid #ff9999;">
+              <h2>SSL Certificate Error Detected</h2>
+              <p>This appears to be an SSL certificate validation error, which is common in corporate environments with firewalls or SSL inspection.</p>
+              <p>The application has been configured to bypass SSL validation, but your environment may require additional configuration.</p>
+            </div>`
+                : ""
+            }
           </body>
         </html>`;
 
