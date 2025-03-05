@@ -106,6 +106,7 @@ const testQueue = async.queue(
           success: false,
           error: error.message,
         });
+        task.reject(error);
       } else if (typeof error === "object" && error !== null) {
         testStatusMap.set(task.testId, {
           testId: task.testId,
@@ -114,9 +115,18 @@ const testQueue = async.queue(
           error: (error as TestResult).error,
           reportUrl: (error as TestResult).reportUrl,
         });
+        task.reject(error as Error | TestResult);
+      } else {
+        // Handle primitive error types
+        const errorMessage = String(error);
+        testStatusMap.set(task.testId, {
+          testId: task.testId,
+          status: "completed",
+          success: false,
+          error: errorMessage,
+        });
+        task.reject(new Error(errorMessage));
       }
-
-      task.reject(error);
     } finally {
       callback();
     }
@@ -950,46 +960,46 @@ async function executeTestInChildProcess(
             <title>Test Error</title>
             <style>
               body {
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                background-color: #f8f8f8;
-                color: #333;
+                font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
                 margin: 0;
                 padding: 20px;
-                line-height: 1.6;
+                background-color: #1e1e1e;
+                color: #d4d4d4;
               }
               .container {
                 max-width: 800px;
                 margin: 0 auto;
-                background-color: white;
-                border-radius: 8px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                background-color: #1e1e1e;
                 padding: 20px;
+                border-radius: 5px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
               }
               h1 {
-                color: #dc2626;
+                color: #e06c75;
                 margin-top: 0;
               }
-              .error-box {
-                background-color: #fef2f2;
-                border-left: 4px solid #dc2626;
-                padding: 15px;
-                margin: 20px 0;
+              h2 {
+                color: #e5c07b;
               }
               pre {
-                background-color: #f1f5f9;
+                background-color: #252526;
                 padding: 15px;
-                border-radius: 4px;
+                border-radius: 5px;
                 overflow-x: auto;
+                color: #d4d4d4;
+                border: 1px solid #333;
               }
             </style>
           </head>
           <body>
             <div class="container">
               <h1>Unexpected Test Error</h1>
-              <div class="error-box">
-                <h2>Error Details</h2>
-                <p>${error instanceof Error ? error.message : String(error)}</p>
-              </div>
+              <h2>Error Details</h2>
+              <pre>${
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+              }</pre>
               <h2>Stack Trace</h2>
               <pre>${
                 error instanceof Error
@@ -1042,54 +1052,51 @@ async function createErrorReport(
 ): Promise<void> {
   // Check if the report exists
   const reportExists = fs.existsSync(htmlReportPath);
-
   const errorHtml = `
   <!DOCTYPE html>
-  <html>
+  <html lang="en">
     <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Test Error</title>
       <style>
         body {
-          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-          background-color: #f8f8f8;
-          color: #333;
+          font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
           margin: 0;
           padding: 20px;
-          line-height: 1.6;
+          background-color: #1e1e1e;
+          color: #d4d4d4;
         }
         .container {
           max-width: 800px;
           margin: 0 auto;
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          background-color: #1e1e1e;
           padding: 20px;
+          border-radius: 5px;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
         }
         h1 {
-          color: #dc2626;
+          color: #e06c75;
           margin-top: 0;
         }
-        .error-box {
-          background-color: #fef2f2;
-          border-left: 4px solid #dc2626;
-          padding: 15px;
-          margin: 20px 0;
+        h2 {
+          color: #e5c07b;
         }
         pre {
-          background-color: #f1f5f9;
+          background-color: #252526;
           padding: 15px;
-          border-radius: 4px;
+          border-radius: 5px;
           overflow-x: auto;
+          color: #d4d4d4;
+          border: 1px solid #333;
         }
       </style>
     </head>
     <body>
       <div class="container">
         <h1>Test Error</h1>
-        <div class="error-box">
-          <h2>Error Details</h2>
-          <p>${errorMessage}</p>
-        </div>
+        <h2>Error Details</h2>
+        <pre>${errorMessage}</pre>
         <h2>Test Output</h2>
         <pre>${stdout}</pre>
         <h2>Test Errors</h2>
@@ -1159,33 +1166,41 @@ export async function executeTest(code: string): Promise<TestResult> {
       // Generate error report
       const errorHtml = `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
         <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Test Failed - Validation Error</title>
           <style>
             body {
-              font-family: Arial, sans-serif;
+              font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
               margin: 0;
               padding: 20px;
-              background-color: #f9f9f9;
+              background-color: #1e1e1e;
+              color: #d4d4d4;
             }
             .container {
               max-width: 800px;
               margin: 0 auto;
-              background-color: white;
+              background-color: #1e1e1e;
               padding: 20px;
               border-radius: 5px;
-              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
             }
             h1 {
-              color: #d32f2f;
+              color: #e06c75;
               margin-top: 0;
             }
+            h2 {
+              color: #e5c07b;
+            }
             pre {
-              background-color: #f5f5f5;
+              background-color: #252526;
               padding: 15px;
               border-radius: 5px;
               overflow-x: auto;
+              color: #d4d4d4;
+              border: 1px solid #333;
             }
           </style>
         </head>
@@ -1199,9 +1214,14 @@ export async function executeTest(code: string): Promise<TestResult> {
       </html>
       `;
 
-      // Save the error report
-      const htmlReportPath = normalize(join(reportDir, "index.html"));
-      await writeFile(htmlReportPath, errorHtml);
+      // Define the report directory
+      const publicDir = normalize(join(process.cwd(), "public"));
+      const testResultsDir = normalize(join(publicDir, "test-results", testId));
+      const reportDir = normalize(join(testResultsDir, "report"));
+
+      // Ensure the directory exists
+      await mkdir(dirname(join(reportDir, "index.html")), { recursive: true });
+      await writeFile(join(reportDir, "index.html"), errorHtml);
 
       return {
         success: false,
@@ -1344,33 +1364,41 @@ test('test', async ({ page }) => {
     try {
       const errorHtml = `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
         <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Test Failed - Setup Error</title>
           <style>
             body {
-              font-family: Arial, sans-serif;
+              font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
               margin: 0;
               padding: 20px;
-              background-color: #f9f9f9;
+              background-color: #1e1e1e;
+              color: #d4d4d4;
             }
             .container {
               max-width: 800px;
               margin: 0 auto;
-              background-color: white;
+              background-color: #1e1e1e;
               padding: 20px;
               border-radius: 5px;
-              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
             }
             h1 {
-              color: #d32f2f;
+              color: #e06c75;
               margin-top: 0;
             }
+            h2 {
+              color: #e5c07b;
+            }
             pre {
-              background-color: #f5f5f5;
+              background-color: #252526;
               padding: 15px;
               border-radius: 5px;
               overflow-x: auto;
+              color: #d4d4d4;
+              border: 1px solid #333;
             }
           </style>
         </head>
@@ -1383,6 +1411,11 @@ test('test', async ({ page }) => {
         </body>
       </html>
       `;
+
+      // Define the report directory
+      const publicDir = normalize(join(process.cwd(), "public"));
+      const testResultsDir = normalize(join(publicDir, "test-results", testId));
+      const reportDir = normalize(join(testResultsDir, "report"));
 
       // Ensure the directory exists
       await mkdir(dirname(join(reportDir, "index.html")), { recursive: true });

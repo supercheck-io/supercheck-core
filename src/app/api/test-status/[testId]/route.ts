@@ -43,15 +43,10 @@ function isReportComplete(content: string): boolean {
 /**
  * API route handler to get the status of a test
  */
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { testId: string } }
-) {
+export async function GET(request: NextRequest) {
+  const testId = request.nextUrl.pathname.split('/').pop();
+  
   try {
-    // In Next.js App Router, params needs to be awaited if it's a Promise
-    const paramData = params as unknown as Promise<{ testId: string }>;
-    const { testId } = await Promise.resolve(paramData);
-
     if (!testId) {
       return NextResponse.json(
         { error: "Test ID is required" },
@@ -59,69 +54,47 @@ export async function GET(
       );
     }
 
-    // Normalize the test ID and create paths
-    const normalizedTestId = testId.replace(/\\/g, "/");
-    const publicDir = normalize(join(process.cwd(), "public"));
-    const reportPath = normalize(
-      join(publicDir, "test-results", normalizedTestId, "report", "index.html")
-    );
+    // Get the test status from the test execution system
+    const status = getTestStatus(testId);
 
-    // Check test status from in-memory map
-    const testStatus = getTestStatus(normalizedTestId);
-
-    // If no test status found
-    if (!testStatus) {
+    // If we don't have a status, return a 404
+    if (!status) {
       return NextResponse.json(
-        { testId: normalizedTestId, status: "unknown" },
-        { status: 200 }
+        { error: "Test not found" },
+        { status: 404 }
       );
     }
 
-    // Look for the report file to determine if it exists and if it's complete
-    let reportUrl = null;
-    let reportComplete = false;
+    // Check if we have a report file
+    const reportPath = normalize(
+      join(process.cwd(), "public", "test-results", testId, "report", "index.html")
+    );
 
+    // Determine if the test is complete by checking the report content
+    let isComplete = status.status === "completed";
+
+    // If we have a report file, check its content to determine if it's complete
     if (existsSync(reportPath)) {
       try {
-        // Read the HTML report to check its content
-        const reportContent = readFileSync(reportPath, "utf8");
-        reportComplete = isReportComplete(reportContent);
-
-        // Create a URL path to the report
-        reportUrl = `/api/test-results/${normalizedTestId}/report/index.html`;
+        const reportContent = readFileSync(reportPath, "utf-8");
+        isComplete = isReportComplete(reportContent);
       } catch (error) {
-        console.error(`Error reading report for ${normalizedTestId}:`, error);
+        console.error(`Error reading report file for test ${testId}:`, error);
       }
     }
 
-    // Handle "running" status with report information
-    if (testStatus.status === "running") {
-      return NextResponse.json({
-        ...testStatus,
-        reportUrl,
-        reportComplete,
-      });
-    }
-
-    // For "completed" tests, include the report status
-    if (testStatus.status === "completed") {
-      return NextResponse.json({
-        ...testStatus,
-        reportUrl,
-        reportComplete,
-      });
-    }
-
-    // For "unknown" or other status tests, at least say if we have a report
+    // Return the status with the report URL
     return NextResponse.json({
-      ...testStatus,
-      reportUrl,
-      reportComplete,
+      ...status,
+      status: isComplete ? "completed" : "running",
+      reportUrl: `/api/test-results/${testId}/report/index.html`,
     });
   } catch (error) {
-    console.error("Error in test status API:", error);
+    console.error("Error in test status API route:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      {
+        error: error instanceof Error ? error.message : "An unknown error occurred",
+      },
       { status: 500 }
     );
   }

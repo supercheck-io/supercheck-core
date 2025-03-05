@@ -349,9 +349,11 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
             status: "completed",
             error: "Test status API failed repeatedly",
           });
-          toast.error(
-            "Test report could not be loaded. API errors exceeded limit."
-          );
+          toast({
+            title: "Error",
+            description: "Test report could not be loaded. API errors exceeded limit.",
+            variant: "destructive",
+          });
           return;
         }
 
@@ -485,9 +487,11 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
           status: "completed",
           error: "Test status API failed repeatedly",
         });
-        toast.error(
-          "Test report could not be loaded. API errors exceeded limit."
-        );
+        toast({
+          title: "Error",
+          description: "Test report could not be loaded. API errors exceeded limit.",
+          variant: "destructive",
+        });
         return;
       }
 
