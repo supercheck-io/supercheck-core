@@ -1,5 +1,5 @@
+import { executeTest, cleanupTestResults } from "@/lib/test-execution";
 import { NextRequest, NextResponse } from "next/server";
-import { executeTest } from "@/lib/test-execution";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +11,8 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await executeTest(code);
+
+    await cleanupTestResults();
 
     return NextResponse.json({
       success: result.success,

@@ -2,9 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  serverExternalPackages: ["child_process", "fs", "path"],
   experimental: {
     // Add any experimental features here
-    serverComponentsExternalPackages: [],
   },
   // Configure server options
   serverRuntimeConfig: {
@@ -20,6 +20,6 @@ const nextConfig: NextConfig = {
 
 // Set environment variable for Node.js to ignore SSL certificate errors
 // This is needed for corporate environments with SSL inspection
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 export default nextConfig;

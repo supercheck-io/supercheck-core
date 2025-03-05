@@ -77,7 +77,8 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
     walkAst(ast, {
       ImportDeclaration(node) {
         // Using a cast here since acorn's AST types might not include `source`
-        const moduleName = (node as any).source?.value as string | undefined;
+        const moduleName = (node as unknown as { source: { value: string } })
+          .source?.value as string | undefined;
         if (moduleName && BLOCKED_MODULES.includes(moduleName)) {
           throw new Error(
             `Security Error: Importing module '${moduleName}' is not allowed.`
@@ -85,8 +86,12 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
         }
       },
       ImportExpression(node) {
-        if ((node as any).source?.type === "Literal") {
-          const moduleName = (node as any).source.value as string | undefined;
+        if (
+          (node as unknown as { source: { type: string } }).source?.type ===
+          "Literal"
+        ) {
+          const moduleName = (node as unknown as { source: { value: string } })
+            .source.value as string | undefined;
           if (moduleName && BLOCKED_MODULES.includes(moduleName)) {
             throw new Error(
               `Security Error: Dynamic import of module '${moduleName}' is not allowed.`
@@ -95,7 +100,9 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
         }
       },
       Identifier(node) {
-        const name = (node as any).name as string | undefined;
+        const name = (node as unknown as { name: string }).name as
+          | string
+          | undefined;
         if (name && BLOCKED_IDENTIFIERS.includes(name)) {
           throw new Error(`Security Error: Usage of '${name}' is not allowed.`);
         }
