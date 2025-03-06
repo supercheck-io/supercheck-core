@@ -309,7 +309,7 @@ async function executeTestInChildProcess(
       const args = [
         "playwright",
         "test",
-        testPath,
+        testPath, // Ensure we're only running the specific test file
         "--config=playwright.config.mjs",
       ];
 
@@ -335,11 +335,12 @@ async function executeTestInChildProcess(
           NO_PROXY: process.env.NO_PROXY || process.env.no_proxy || "",
         },
         shell: isWindows, // Only use shell on Windows
+        windowsHide: true, // Hide the command prompt window on Windows
         cwd: process.cwd(),
         // Set stdio to pipe to capture output
         stdio: ["ignore", "pipe", "pipe"],
         // Detach for better process management
-        detached: true,
+        detached: false, // Change to false to prevent detached processes on Windows
       });
 
       // Process variables
