@@ -31,8 +31,7 @@ function isReportComplete(content: string): boolean {
     content.includes("Tests passed") ||
     content.includes("Tests failed") ||
     content.includes("Test Failed") ||
-    content.includes("test report") ||
-    content.includes("Test Timed Out") // Add timeout detection
+    content.includes("test report")
   ) {
     return true;
   }
@@ -46,7 +45,6 @@ function isReportComplete(content: string): boolean {
  */
 export async function GET(request: NextRequest) {
   const testId = request.nextUrl.pathname.split('/').pop();
-  const isWindows = process.platform === 'win32';
   
   try {
     if (!testId) {
@@ -74,7 +72,6 @@ export async function GET(request: NextRequest) {
 
     // Determine if the test is complete by checking the report content
     let isComplete = status.status === "completed";
-    let platformInfo = { platform: isWindows ? 'windows' : 'mac' };
 
     // If we have a report file, check its content to determine if it's complete
     if (existsSync(reportPath)) {
@@ -86,12 +83,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Return the status with the report URL and platform info
+    // Return the status with the report URL
     return NextResponse.json({
       ...status,
       status: isComplete ? "completed" : "running",
       reportUrl: `/api/test-results/${testId}/report/index.html`,
-      ...platformInfo
     });
   } catch (error) {
     console.error("Error in test status API route:", error);

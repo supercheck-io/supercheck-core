@@ -16,7 +16,7 @@ const { join, normalize, sep, posix, dirname } = path;
 const MAX_CONCURRENT_TESTS = 2;
 
 // Maximum time to wait for a test to complete
-const TEST_EXECUTION_TIMEOUT_MS = 300000; // 5 minutes
+const TEST_EXECUTION_TIMEOUT_MS = 120000; // 2 minutes
 
 // How often to recover trace files
 const TRACE_RECOVERY_INTERVAL_MS = 30000; // 30 seconds
@@ -217,42 +217,14 @@ async function executeTestInChildProcess(
       .loading { display: flex; align-items: center; margin: 20px 0; }
       .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #2563eb; animation: spin 1s linear infinite; margin-right: 15px; }
       @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      .status { margin-top: 20px; padding: 10px; background-color: #f0f9ff; border-radius: 4px; }
     </style>
-    <script>
-      // More robust auto-refresh mechanism with fallback
-      (function() {
-        const startTime = new Date().getTime();
-        const maxWaitTime = ${TEST_EXECUTION_TIMEOUT_MS}; // Unified timeout
-        
-        function checkStatus() {
-          // Check if we've been waiting too long
-          const elapsed = new Date().getTime() - startTime;
-          if (elapsed > maxWaitTime) {
-            document.getElementById('status-message').innerHTML = 
-              'Test is taking longer than expected. Still waiting for results...';
-          }
-          
-          // Reload the page
-          setTimeout(function() {
-            location.reload();
-          }, 3000); // Refresh every 3 seconds
-        }
-        
-        // Start checking status
-        setTimeout(checkStatus, 2000);
-      })();
-    </script>
+    <script>setTimeout(function() { location.reload(); }, 5000);</script>
   </head>
   <body>
     <div class="container">
       <h1>Test Execution in Progress</h1>
       <div class="loading"><div class="spinner"></div><div>Running your tests...</div></div>
       <p>Test ID: <code>${testId}</code></p>
-      <div class="status">
-        <p id="status-message">Initializing test environment...</p>
-        <p><small>Platform: ${process.platform === 'win32' ? 'Windows' : 'Mac/Unix'}</small></p>
-      </div>
     </div>
   </body>
 </html>`;
@@ -334,12 +306,10 @@ async function executeTestInChildProcess(
       // Determine the command to run based on the OS
       const isWindows = process.platform === "win32";
       const command = isWindows ? "npx.cmd" : "npx";
-
-      // Build the arguments array properly for both Windows and non-Windows platforms
       const args = [
         "playwright",
         "test",
-        testPath, // Use the path directly without quotes in the args array
+        testPath,
         "--config=playwright.config.mjs",
       ];
 
@@ -350,8 +320,7 @@ async function executeTestInChildProcess(
         env: {
           ...process.env,
           // Prevent the NODE_TLS_REJECT_UNAUTHORIZED warning in the child process
-          // For Windows, we need to explicitly set this to bypass SSL validation in corporate environments
-          ...(isWindows ? { NODE_TLS_REJECT_UNAUTHORIZED: "0" } : {}),
+          // NODE_TLS_REJECT_UNAUTHORIZED: "0",
           // Pass the test ID to make it available in the test
           TEST_ID: testId,
           // Add artifacts directories to avoid conflicts between parallel tests
@@ -364,27 +333,14 @@ async function executeTestInChildProcess(
           HTTPS_PROXY: process.env.HTTPS_PROXY || process.env.https_proxy || "",
           HTTP_PROXY: process.env.HTTP_PROXY || process.env.http_proxy || "",
           NO_PROXY: process.env.NO_PROXY || process.env.no_proxy || "",
-          // Windows-specific performance optimizations
-          ...(isWindows ? {
-            PLAYWRIGHT_BROWSERS_PATH: "0", // Use browsers from system path if available
-            PWDEBUG: "0", // Disable Playwright debugging
-            DEBUG: "", // Clear debug flags that might slow down execution
-          } : {}),
         },
         shell: isWindows, // Only use shell on Windows
-        windowsHide: true, // Hide the command prompt window on Windows
         cwd: process.cwd(),
         // Set stdio to pipe to capture output
         stdio: ["ignore", "pipe", "pipe"],
-        // Detached mode settings - different per platform
-        detached: isWindows, // Use detached on Windows for better performance
+        // Detach for better process management
+        detached: true,
       });
-
-      // On Windows, unref the process to prevent it from keeping the parent alive
-      // This allows it to run independently but still capture output
-      if (isWindows && childProcess.unref) {
-        childProcess.unref();
-      }
 
       // Process variables
       let stdoutChunks: string[] = [];
@@ -426,7 +382,7 @@ async function executeTestInChildProcess(
       const timeout = setTimeout(() => {
         if (childProcess && !childProcess.killed) {
           childProcess.kill();
-          const timeoutError = `Test execution timed out after ${TEST_EXECUTION_TIMEOUT_MS}ms`;
+          const timeoutError = "Test execution timed out after 2 minutes";
           console.error(timeoutError);
 
           // When test times out, we should still ensure we have a report
@@ -585,7 +541,7 @@ async function executeTestInChildProcess(
             stderr: stderrChunks.join(""),
           });
         }
-      }, TEST_EXECUTION_TIMEOUT_MS); // Unified timeout
+      }, TEST_EXECUTION_TIMEOUT_MS); // 2 minutes timeout
 
       childProcess.on("exit", async (code, signal) => {
         clearTimeout(timeout);
@@ -597,16 +553,6 @@ async function executeTestInChildProcess(
 
         const stdout = stdoutChunks.join("");
         const stderr = stderrChunks.join("");
-
-        // Delete the test file after execution
-        try {
-          if (fs.existsSync(testPath)) {
-            await unlink(testPath);
-            console.log(`Deleted test file: ${testPath}`);
-          }
-        } catch (err) {
-          console.error(`Error deleting test file ${testPath}:`, err);
-        }
 
         // Check if the test failed
         if (code !== 0) {
