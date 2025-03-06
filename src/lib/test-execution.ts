@@ -376,9 +376,15 @@ async function executeTestInChildProcess(
         cwd: process.cwd(),
         // Set stdio to pipe to capture output
         stdio: ["ignore", "pipe", "pipe"],
-        // Detached for better process management
-        detached: false, // Change to false to prevent detached processes on Windows
+        // Detached mode settings - different per platform
+        detached: isWindows, // Use detached on Windows for better performance
       });
+
+      // On Windows, unref the process to prevent it from keeping the parent alive
+      // This allows it to run independently but still capture output
+      if (isWindows && childProcess.unref) {
+        childProcess.unref();
+      }
 
       // Process variables
       let stdoutChunks: string[] = [];
