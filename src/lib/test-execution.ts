@@ -306,10 +306,25 @@ async function executeTestInChildProcess(
       // Determine the command to run based on the OS
       const isWindows = process.platform === "win32";
       const command = isWindows ? "npx.cmd" : "npx";
+
+      // For Windows, ensure we use a path that works with Playwright CLI
+      // Convert absolute path to a relative path from the current working directory
+      let testPathArg = testPath;
+      if (isWindows) {
+        // Get the relative path from cwd to the test file
+        const cwd = process.cwd();
+        if (testPath.startsWith(cwd)) {
+          // Make it relative to cwd
+          testPathArg = testPath.substring(cwd.length + 1);
+          // Ensure forward slashes for CLI arguments even on Windows
+          testPathArg = testPathArg.split(sep).join('/');
+        }
+      }
+
       const args = [
         "playwright",
         "test",
-        testPath,
+        testPathArg,
         "--config=playwright.config.mjs",
       ];
 
