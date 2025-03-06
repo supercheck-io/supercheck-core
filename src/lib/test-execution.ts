@@ -306,10 +306,16 @@ async function executeTestInChildProcess(
       // Determine the command to run based on the OS
       const isWindows = process.platform === "win32";
       const command = isWindows ? "npx.cmd" : "npx";
+
+      // For Windows, use the full path with quotes to ensure only this specific test is run
+      // For other platforms, use the relative path
+      const testPathArg = isWindows ? `"${testPath}"` : testPath;
+
       const args = [
         "playwright",
         "test",
-        testPath, // Ensure we're only running the specific test file
+        // On Windows, we need to be explicit about the test file to avoid running all tests
+        ...(isWindows ? [testPathArg] : [testPath]),
         "--config=playwright.config.mjs",
       ];
 
@@ -339,7 +345,7 @@ async function executeTestInChildProcess(
         cwd: process.cwd(),
         // Set stdio to pipe to capture output
         stdio: ["ignore", "pipe", "pipe"],
-        // Detach for better process management
+        // Detached for better process management
         detached: false, // Change to false to prevent detached processes on Windows
       });
 
@@ -554,6 +560,16 @@ async function executeTestInChildProcess(
 
         const stdout = stdoutChunks.join("");
         const stderr = stderrChunks.join("");
+
+        // Delete the test file after execution
+        try {
+          if (fs.existsSync(testPath)) {
+            await unlink(testPath);
+            console.log(`Deleted test file: ${testPath}`);
+          }
+        } catch (err) {
+          console.error(`Error deleting test file ${testPath}:`, err);
+        }
 
         // Check if the test failed
         if (code !== 0) {
