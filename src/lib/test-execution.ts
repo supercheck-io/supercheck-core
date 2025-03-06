@@ -307,15 +307,11 @@ async function executeTestInChildProcess(
       const isWindows = process.platform === "win32";
       const command = isWindows ? "npx.cmd" : "npx";
 
-      // For Windows, use the full path with quotes to ensure only this specific test is run
-      // For other platforms, use the relative path
-      const testPathArg = isWindows ? `"${testPath}"` : testPath;
-
+      // Build the arguments array properly for both Windows and non-Windows platforms
       const args = [
         "playwright",
         "test",
-        // On Windows, we need to be explicit about the test file to avoid running all tests
-        ...(isWindows ? [testPathArg] : [testPath]),
+        testPath, // Use the path directly without quotes in the args array
         "--config=playwright.config.mjs",
       ];
 
