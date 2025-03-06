@@ -55,7 +55,7 @@ const testCaseSchema = z.object({
   type: z.enum(["Functional", "Regression", "E2E", "Performance"], {
     required_error: "Type is required",
   }),
-  browser: z.array(z.string()).min(1, "At least one browser must be selected"),
+  browser: z.string().min(1, "Browser selection is required"),
   tags: z.string(),
   code: z.string().min(1, "Test script is required"),
 });
@@ -116,7 +116,7 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
     priority: "Medium",
     type: "Functional",
     tags: "",
-    browser: ["chromium"],
+    browser: "chromium",
   });
 
   const [initialFormValues, setInitialFormValues] = useState<TestCaseFormData>({
@@ -126,7 +126,7 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
     priority: "Medium",
     type: "Functional",
     tags: "",
-    browser: ["chromium"],
+    browser: "chromium",
   });
 
   const [initialEditorContent, setInitialEditorContent] =
@@ -351,7 +351,8 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
           });
           toast({
             title: "Error",
-            description: "Test report could not be loaded. API errors exceeded limit.",
+            description:
+              "Test report could not be loaded. API errors exceeded limit.",
             variant: "destructive",
           });
           return;
@@ -489,7 +490,8 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
         });
         toast({
           title: "Error",
-          description: "Test report could not be loaded. API errors exceeded limit.",
+          description:
+            "Test report could not be loaded. API errors exceeded limit.",
           variant: "destructive",
         });
         return;
@@ -812,32 +814,32 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
 
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Browser</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {["chromium", "firefox", "webkit"].map((browser) => (
-                          <Badge
-                            key={browser}
-                            variant={
-                              testCase.browser.includes(browser)
-                                ? "default"
-                                : "outline"
-                            }
-                            className="cursor-pointer"
-                            onClick={() => {
-                              const newBrowsers = testCase.browser.includes(
-                                browser
-                              )
-                                ? testCase.browser.filter((b) => b !== browser)
-                                : [...testCase.browser, browser];
-                              setTestCase({
-                                ...testCase,
-                                browser: newBrowsers,
-                              });
-                            }}
+                      <Tabs
+                        defaultValue="chromium"
+                        value={testCase.browser}
+                        onValueChange={(value) => {
+                          setTestCase({
+                            ...testCase,
+                            browser: value,
+                          });
+                        }}
+                        className="w-full"
+                      >
+                        <TabsList className="grid grid-cols-3 w-full h-8">
+                          <TabsTrigger
+                            value="chromium"
+                            className="text-xs py-1"
                           >
-                            {browser}
-                          </Badge>
-                        ))}
-                      </div>
+                            Chromium
+                          </TabsTrigger>
+                          <TabsTrigger value="firefox" className="text-xs py-1">
+                            Firefox
+                          </TabsTrigger>
+                          <TabsTrigger value="webkit" className="text-xs py-1">
+                            Webkit
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
                       {errors.browser && (
                         <p className="text-sm text-red-500">{errors.browser}</p>
                       )}

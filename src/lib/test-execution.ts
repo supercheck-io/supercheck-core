@@ -996,9 +996,7 @@ async function executeTestInChildProcess(
               <h1>Unexpected Test Error</h1>
               <h2>Error Details</h2>
               <pre>${
-                error instanceof Error
-                  ? error.message
-                  : String(error)
+                error instanceof Error ? error.message : String(error)
               }</pre>
               <h2>Stack Trace</h2>
               <pre>${
@@ -1187,12 +1185,9 @@ export async function executeTest(code: string): Promise<TestResult> {
               border-radius: 5px;
               box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
             }
-            h1 {
+            h3 {
               color: #e06c75;
               margin-top: 0;
-            }
-            h2 {
-              color: #e5c07b;
             }
             pre {
               background-color: #252526;
@@ -1206,8 +1201,7 @@ export async function executeTest(code: string): Promise<TestResult> {
         </head>
         <body>
           <div class="container">
-            <h1>Test Failed</h1>
-            <h2>Validation Error</h2>
+            <h3>Validation Error</h3>
             <pre>${validationResult.error || "Unknown validation error"}</pre>
           </div>
         </body>
