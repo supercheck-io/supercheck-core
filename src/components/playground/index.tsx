@@ -1,9 +1,6 @@
 "use client";
 import {
   FileTextIcon,
-  GanttChartIcon,
-  FrameIcon,
-  FileType,
   FileText,
   Code,
   AlertCircle,
@@ -29,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CodeEditor } from "./code-editor";
 import {
@@ -662,18 +658,18 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
                     className="h-screen border-0 p-0 mt-0"
                   >
                     {isRunning ? (
-                      <div className="flex h-full min-h-[calc(100vh-11rem)] items-center justify-center bg-[#1e1e1e]">
+                      <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
                         <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
                           <Loader2Icon className="h-8 w-8 animate-spin" />
                           <p>Please wait, running test...</p>
                         </div>
                       </div>
                     ) : reportUrl ? (
-                      <div className="report-iframe-wrapper h-full min-h-[calc(100vh-11rem)] w-full">
+                      <div className="report-iframe-wrapper h-[calc(100vh-10rem)] w-full">
                         <iframe
                           key={reportUrl}
                           src={reportUrl}
-                          className="h-full min-h-[calc(100vh-11rem)] w-full"
+                          className="h-[calc(100vh-10rem)] w-full"
                           sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
                           allow="cross-origin-isolated"
                           onError={(e) => {
@@ -682,7 +678,7 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
                         />
                       </div>
                     ) : (
-                      <div className="flex h-full  min-h-[calc(100vh-11rem)] items-center justify-center bg-[#1e1e1e]">
+                      <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
                         <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
                           <FileText className="h-8 w-8" />
                           <p>Run a test to see the HTML report</p>

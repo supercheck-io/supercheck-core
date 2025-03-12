@@ -1,55 +1,55 @@
-import { forwardRef, useEffect } from "react";
-import { Editor, useMonaco } from "@monaco-editor/react";
-import type { editor } from "monaco-editor";
+import { forwardRef, useEffect, useCallback } from "react";
+import { Editor, useMonaco, type EditorProps } from "@monaco-editor/react";
+
+// Define the editor type using the Monaco interface
+type MonacoEditor = Parameters<NonNullable<EditorProps["onMount"]>>[0];
 
 interface MonacoEditorProps {
   value: string;
   onChange: (value: string | undefined) => void;
 }
 
-export const MonacoEditorClient = forwardRef<
-  editor.IStandaloneCodeEditor,
-  MonacoEditorProps
->(({ value, onChange }, ref) => {
-  const monaco = useMonaco();
+export const MonacoEditorClient = forwardRef<MonacoEditor, MonacoEditorProps>(
+  ({ value, onChange }, ref) => {
+    const monaco = useMonaco();
 
-  useEffect(() => {
-    if (monaco) {
-      // Set eager model sync for immediate type loading
-      monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
+    useEffect(() => {
+      if (monaco) {
+        // Set eager model sync for immediate type loading
+        monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
 
-      // Configure JavaScript defaults
-      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-        target: monaco.languages.typescript.ScriptTarget.ESNext,
-        allowNonTsExtensions: true,
-        moduleResolution:
-          monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-        module: monaco.languages.typescript.ModuleKind.ESNext,
-        noEmit: true,
-        esModuleInterop: true,
-        allowJs: true,
-        checkJs: false,
-        strict: false,
-        noImplicitAny: false,
-        strictNullChecks: false,
-        strictFunctionTypes: false,
-        strictBindCallApply: false,
-        strictPropertyInitialization: false,
-        noImplicitThis: false,
-        alwaysStrict: false,
-      });
+        // Configure JavaScript defaults
+        monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+          target: monaco.languages.typescript.ScriptTarget.ESNext,
+          allowNonTsExtensions: true,
+          moduleResolution:
+            monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+          module: monaco.languages.typescript.ModuleKind.ESNext,
+          noEmit: true,
+          esModuleInterop: true,
+          allowJs: true,
+          checkJs: false,
+          strict: false,
+          noImplicitAny: false,
+          strictNullChecks: false,
+          strictFunctionTypes: false,
+          strictBindCallApply: false,
+          strictPropertyInitialization: false,
+          noImplicitThis: false,
+          alwaysStrict: false,
+        });
 
-      // Disable diagnostics but keep suggestions
-      monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-        noSemanticValidation: true,
-        noSyntaxValidation: true,
-        noSuggestionDiagnostics: false,
-        diagnosticCodesToIgnore: [1],
-      });
+        // Disable diagnostics but keep suggestions
+        monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+          noSemanticValidation: true,
+          noSyntaxValidation: true,
+          noSuggestionDiagnostics: false,
+          diagnosticCodesToIgnore: [1],
+        });
 
-      // Add Playwright types from your d.ts file
-      monaco.languages.typescript.javascriptDefaults.addExtraLib(
-        `
+        // Add Playwright types from your d.ts file
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(
+          `
 declare module "@playwright/test" {
   export interface Page {
     goto(
@@ -220,91 +220,115 @@ declare module "@playwright/test" {
 
   export const expect: Expect;
 }`,
-        "playwright.d.ts"
-      );
+          "playwright.d.ts"
+        );
 
-      // Add default imports
-      monaco.languages.typescript.javascriptDefaults.addExtraLib(
-        'import { test, expect } from "@playwright/test";',
-        "imports.d.ts"
-      );
+        // Add default imports
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(
+          'import { test, expect } from "@playwright/test";',
+          "imports.d.ts"
+        );
 
-      // Add basic types for immediate completion
-      monaco.languages.typescript.javascriptDefaults.addExtraLib(
-        'declare const page: import("@playwright/test").Page;',
-        "globals.d.ts"
-      );
-    }
-  }, [monaco]);
+        // Add basic types for immediate completion
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(
+          'declare const page: import("@playwright/test").Page;',
+          "globals.d.ts"
+        );
+      }
+    }, [monaco]);
 
-  return (
-    <div className="flex flex-1 h-screen w-full relative">
-      <Editor
-        height="calc(100vh - 11rem)"
-        defaultLanguage="javascript"
-        value={value}
-        onChange={onChange}
-        theme="vs-dark"
-        className="w-full absolute inset-0"
-        onMount={(editor) => {
-          if (ref && typeof ref === "object") {
-            ref.current = editor;
-          }
-          // Enable quick suggestions immediately
-          editor.updateOptions({
-            quickSuggestions: { other: true, comments: true, strings: true },
-            suggestOnTriggerCharacters: true,
+    // Add custom styles to remove all borders
+    const beforeMount = useCallback(() => {
+      // Add CSS rule to remove borders from editor components
+      const styleSheet = document.createElement("style");
+      styleSheet.textContent = `
+      .monaco-editor, .monaco-editor-background, .monaco-editor .margin,
+      .monaco-workbench .part.editor>.content .editor-group-container>.title,
+      .monaco-workbench .part.editor>.content .editor-group-container,
+      .monaco-editor .overflow-guard {
+        border: none !important;
+        outline: none !important;
+      }
+      .overflow-guard {
+        border-bottom: none !important;
+      }
+    `;
+      document.head.appendChild(styleSheet);
+    }, []);
+
+    return (
+      <div
+        className="flex flex-1 w-full relative overflow-hidden border-none outline-none monaco-wrapper"
+        style={{ borderBottom: "none" }}
+      >
+        <Editor
+          height="calc(100vh - 10rem)"
+          defaultLanguage="javascript"
+          value={value}
+          onChange={onChange}
+          theme="vs-dark"
+          className="w-full overflow-hidden border-none outline-none"
+          beforeMount={beforeMount}
+          onMount={(editor) => {
+            if (ref && typeof ref === "object") {
+              ref.current = editor;
+            }
+            // Enable quick suggestions immediately
+            editor.updateOptions({
+              quickSuggestions: { other: true, comments: true, strings: true },
+              suggestOnTriggerCharacters: true,
+              acceptSuggestionOnEnter: "on",
+              tabCompletion: "on",
+              wordBasedSuggestions: "currentDocument",
+              parameterHints: { enabled: true, cycle: true },
+            });
+          }}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 13,
+            wordWrap: "on",
+            padding: { top: 16, bottom: 16 },
+            automaticLayout: true,
+            roundedSelection: true,
+            scrollBeyondLastLine: false,
+            folding: true,
+            renderValidationDecorations: "off",
+            suggest: {
+              snippetsPreventQuickSuggestions: false,
+              showIcons: true,
+              showStatusBar: true,
+              preview: true,
+              filterGraceful: true,
+              selectionMode: "always",
+              showMethods: true,
+              showFunctions: true,
+              showConstructors: true,
+              showDeprecated: false,
+              matchOnWordStartOnly: false,
+              localityBonus: true,
+            },
+            parameterHints: {
+              enabled: true,
+              cycle: true,
+            },
+            inlineSuggest: {
+              enabled: true,
+            },
+            quickSuggestions: {
+              other: true,
+              comments: true,
+              strings: true,
+            },
+            acceptSuggestionOnCommitCharacter: true,
             acceptSuggestionOnEnter: "on",
             tabCompletion: "on",
             wordBasedSuggestions: "currentDocument",
-            parameterHints: { enabled: true, cycle: true },
-          });
-        }}
-        options={{
-          minimap: { enabled: false },
-          fontSize: 13.5,
-          wordWrap: "on",
-          padding: { top: 16 },
-          automaticLayout: true,
-          roundedSelection: true,
-          scrollBeyondLastLine: false,
-          folding: true,
-          renderValidationDecorations: "off",
-          suggest: {
-            snippetsPreventQuickSuggestions: false,
-            showIcons: true,
-            showStatusBar: true,
-            preview: true,
-            filterGraceful: true,
-            selectionMode: "always",
-            showMethods: true,
-            showFunctions: true,
-            showConstructors: true,
-            showDeprecated: false,
-            matchOnWordStartOnly: false,
-            localityBonus: true,
-          },
-          parameterHints: {
-            enabled: true,
-            cycle: true,
-          },
-          inlineSuggest: {
-            enabled: true,
-          },
-          quickSuggestions: {
-            other: true,
-            comments: true,
-            strings: true,
-          },
-          acceptSuggestionOnCommitCharacter: true,
-          acceptSuggestionOnEnter: "on",
-          tabCompletion: "on",
-          wordBasedSuggestions: "currentDocument",
-        }}
-      />
-    </div>
-  );
-});
+          }}
+        />
+      </div>
+    );
+  }
+);
 
 // Add displayName for better debugging and to fix the ESLint warning
 MonacoEditorClient.displayName = "MonacoEditorClient";

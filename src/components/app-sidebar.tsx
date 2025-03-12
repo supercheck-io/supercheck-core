@@ -1,30 +1,41 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 import {
   AudioWaveform,
-  BookOpen,
-  Bot,
+  BellRing,
+  Code,
   Command,
+  CalendarClock,
   Frame,
-  GalleryVerticalEnd,
+  ChartColumn,
+  Activity,
   Map,
   PieChart,
+  ChartBar,
+  NotepadText,
   Settings2,
   SquareTerminal,
-} from "lucide-react"
+  PlusIcon,
+  Shield,
+} from "lucide-react";
 
-import { NavMain } from "@/components/nav-main"
-import { NavProjects } from "@/components/nav-projects"
-import { NavUser } from "@/components/nav-user"
-import { TeamSwitcher } from "@/components/team-switcher"
+import { NavMain } from "@/components/nav-main";
+import { NavProjects } from "@/components/nav-projects";
+import { NavUser } from "@/components/nav-user";
+import { TeamSwitcher } from "@/components/team-switcher";
+import Link from "next/link";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarRail,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 
 // This is sample data.
 const data = {
@@ -35,8 +46,8 @@ const data = {
   },
   teams: [
     {
-      name: "Acme Inc",
-      logo: GalleryVerticalEnd,
+      name: "Supertest",
+      logo: Shield,
       plan: "Enterprise",
     },
     {
@@ -52,67 +63,67 @@ const data = {
   ],
   navMain: [
     {
+      title: "Dashboard",
+      url: "/",
+      icon: ChartColumn,
+      isActive: true,
+    },
+    {
       title: "Playground",
       url: "#",
       icon: SquareTerminal,
-      isActive: true,
+
       items: [
         {
-          title: "History",
+          title: "Browser test",
           url: "#",
         },
         {
-          title: "Starred",
+          title: "API test",
           url: "#",
         },
         {
-          title: "Settings",
+          title: "TCP test",
+          url: "#",
+        },
+
+        {
+          title: "Multistep test",
           url: "#",
         },
       ],
     },
     {
-      title: "Models",
-      url: "#",
-      icon: Bot,
-      items: [
-        {
-          title: "Genesis",
-          url: "#",
-        },
-        {
-          title: "Explorer",
-          url: "#",
-        },
-        {
-          title: "Quantum",
-          url: "#",
-        },
-      ],
+      title: "Tests",
+      url: "/tests",
+      icon: Code,
     },
     {
-      title: "Documentation",
-      url: "#",
-      icon: BookOpen,
-      items: [
-        {
-          title: "Introduction",
-          url: "#",
-        },
-        {
-          title: "Get Started",
-          url: "#",
-        },
-        {
-          title: "Tutorials",
-          url: "#",
-        },
-        {
-          title: "Changelog",
-          url: "#",
-        },
-      ],
+      title: "Jobs",
+      url: "/jobs",
+      icon: CalendarClock,
     },
+    {
+      title: "Runs",
+      url: "/runs",
+      icon: NotepadText,
+    },
+    {
+      title: "Heartbeats",
+      url: "/heartbests",
+      icon: Activity,
+    },
+    {
+      title: "Panels",
+      url: "/dashboards",
+      icon: ChartBar,
+    },
+    {
+      title: "Alerts",
+      url: "/alerts",
+      icon: BellRing,
+    },
+
     {
       title: "Settings",
       url: "#",
@@ -154,7 +165,7 @@ const data = {
       icon: Map,
     },
   ],
-}
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -163,6 +174,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
       <SidebarContent>
+        <SidebarGroup className="-mb-2 ">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <Link href="/create">
+                <SidebarMenuButton
+                  tooltip="Create"
+                  className="flex items-center justify-center bg-primary text-primary-foreground data-[active]:bg-primary data-[active]:text-primary-foreground active:bg-primary active:text-primary-foreground focus:bg-primary focus:text-primary-foreground max-w-[94%] ml-[3%] mr-[3%] "
+                >
+                  <PlusIcon className="h-4 w-4 ml-2" />
+                  <span>Create</span>
+                </SidebarMenuButton>
+              </Link>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
         <NavMain items={data.navMain} />
         <NavProjects projects={data.projects} />
       </SidebarContent>
@@ -171,5 +197,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

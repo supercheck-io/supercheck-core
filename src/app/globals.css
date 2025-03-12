@@ -141,3 +141,28 @@ iframe {
   border-radius: 0;
   overflow: hidden;
 }
+
+/* Monaco editor fixes - remove blue line and borders */
+.monaco-editor,
+.monaco-editor .overflow-guard,
+.monaco-editor-background,
+.monaco-editor .margin,
+.monaco-editor .editor-scrollable,
+.monaco-editor .decorationsOverviewRuler,
+.monaco-editor-background,
+.monaco-editor .scrollbar,
+.monaco-editor .scrollbar .slider {
+  border: none !important;
+  outline: none !important;
+}
+
+/* Apply !important to ensure it overrides any inline styles */
+.monaco-editor .overflow-guard {
+  border-bottom: none !important;
+}
+
+/* Add a small negative margin to hide any potential edge lines */
+.overflow-guard {
+  margin-bottom: -1px !important;
+
+}
