@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useCallback } from "react";
+import { forwardRef, useEffect, useCallback, useRef, memo } from "react";
 import { Editor, useMonaco, type EditorProps } from "@monaco-editor/react";
 
 // Define the editor type using the Monaco interface
@@ -9,47 +9,56 @@ interface MonacoEditorProps {
   onChange: (value: string | undefined) => void;
 }
 
-export const MonacoEditorClient = forwardRef<MonacoEditor, MonacoEditorProps>(
+// Use the memo HOC to prevent unnecessary re-renders
+export const MonacoEditorClient = memo(forwardRef<MonacoEditor, MonacoEditorProps>(
   ({ value, onChange }, ref) => {
     const monaco = useMonaco();
+    const editorInstanceRef = useRef<MonacoEditor | null>(null);
+    const styleSheetRef = useRef<HTMLStyleElement | null>(null);
+    const isInitialized = useRef(false);
 
+    // Configure Monaco once when it's available
     useEffect(() => {
-      if (monaco) {
-        // Set eager model sync for immediate type loading
-        monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
+      if (!monaco || isInitialized.current) return;
+      
+      // Mark as initialized to prevent configuration on re-renders
+      isInitialized.current = true;
 
-        // Configure JavaScript defaults
-        monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-          target: monaco.languages.typescript.ScriptTarget.ESNext,
-          allowNonTsExtensions: true,
-          moduleResolution:
-            monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-          module: monaco.languages.typescript.ModuleKind.ESNext,
-          noEmit: true,
-          esModuleInterop: true,
-          allowJs: true,
-          checkJs: false,
-          strict: false,
-          noImplicitAny: false,
-          strictNullChecks: false,
-          strictFunctionTypes: false,
-          strictBindCallApply: false,
-          strictPropertyInitialization: false,
-          noImplicitThis: false,
-          alwaysStrict: false,
-        });
+      // Set eager model sync for immediate type loading
+      monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
 
-        // Disable diagnostics but keep suggestions
-        monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-          noSemanticValidation: true,
-          noSyntaxValidation: true,
-          noSuggestionDiagnostics: false,
-          diagnosticCodesToIgnore: [1],
-        });
+      // Configure JavaScript defaults
+      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ESNext,
+        allowNonTsExtensions: true,
+        moduleResolution:
+          monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+        module: monaco.languages.typescript.ModuleKind.ESNext,
+        noEmit: true,
+        esModuleInterop: true,
+        allowJs: true,
+        checkJs: false,
+        strict: false,
+        noImplicitAny: false,
+        strictNullChecks: false,
+        strictFunctionTypes: false,
+        strictBindCallApply: false,
+        strictPropertyInitialization: false,
+        noImplicitThis: false,
+        alwaysStrict: false,
+      });
 
-        // Add Playwright types from your d.ts file
-        monaco.languages.typescript.javascriptDefaults.addExtraLib(
-          `
+      // Disable diagnostics but keep suggestions
+      monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: true,
+        noSyntaxValidation: true,
+        noSuggestionDiagnostics: false,
+        diagnosticCodesToIgnore: [1],
+      });
+
+      // Add Playwright types from your d.ts file
+      monaco.languages.typescript.javascriptDefaults.addExtraLib(
+        `
 declare module "@playwright/test" {
   export interface Page {
     goto(
@@ -220,41 +229,70 @@ declare module "@playwright/test" {
 
   export const expect: Expect;
 }`,
-          "playwright.d.ts"
-        );
+        "playwright.d.ts"
+      );
 
-        // Add default imports
-        monaco.languages.typescript.javascriptDefaults.addExtraLib(
-          'import { test, expect } from "@playwright/test";',
-          "imports.d.ts"
-        );
+      // Add default imports
+      monaco.languages.typescript.javascriptDefaults.addExtraLib(
+        'import { test, expect } from "@playwright/test";',
+        "imports.d.ts"
+      );
 
-        // Add basic types for immediate completion
-        monaco.languages.typescript.javascriptDefaults.addExtraLib(
-          'declare const page: import("@playwright/test").Page;',
-          "globals.d.ts"
-        );
-      }
+      // Add basic types for immediate completion
+      monaco.languages.typescript.javascriptDefaults.addExtraLib(
+        'declare const page: import("@playwright/test").Page;',
+        "globals.d.ts"
+      );
     }, [monaco]);
 
-    // Add custom styles to remove all borders
+    // Add custom styles to remove all borders, but only once
     const beforeMount = useCallback(() => {
-      // Add CSS rule to remove borders from editor components
-      const styleSheet = document.createElement("style");
-      styleSheet.textContent = `
-      .monaco-editor, .monaco-editor-background, .monaco-editor .margin,
-      .monaco-workbench .part.editor>.content .editor-group-container>.title,
-      .monaco-workbench .part.editor>.content .editor-group-container,
-      .monaco-editor .overflow-guard {
-        border: none !important;
-        outline: none !important;
+      // Check if the style already exists by ID
+      if (!document.getElementById('monaco-editor-styles')) {
+        const styleSheet = document.createElement("style");
+        styleSheet.id = "monaco-editor-styles";
+        styleSheet.textContent = `
+        .monaco-editor, .monaco-editor-background, .monaco-editor .margin,
+        .monaco-workbench .part.editor>.content .editor-group-container>.title,
+        .monaco-workbench .part.editor>.content .editor-group-container,
+        .monaco-editor .overflow-guard {
+          border: none !important;
+          outline: none !important;
+        }
+        .overflow-guard {
+          border-bottom: none !important;
+        }
+      `;
+        document.head.appendChild(styleSheet);
+        styleSheetRef.current = styleSheet;
       }
-      .overflow-guard {
-        border-bottom: none !important;
-      }
-    `;
-      document.head.appendChild(styleSheet);
     }, []);
+
+    // Handle editor mount - this should only happen once
+    const handleEditorMount = useCallback((editor: MonacoEditor) => {
+      // Store the editor instance in our ref
+      editorInstanceRef.current = editor;
+      
+      // Set the ref passed from the parent
+      if (ref && typeof ref === "object") {
+        ref.current = editor;
+      }
+      
+      // Enable quick suggestions immediately
+      editor.updateOptions({
+        quickSuggestions: { other: true, comments: true, strings: true },
+        suggestOnTriggerCharacters: true,
+        acceptSuggestionOnEnter: "on",
+        tabCompletion: "on",
+        wordBasedSuggestions: "currentDocument",
+        parameterHints: { enabled: true, cycle: true },
+      });
+    }, [ref]);
+
+    // Create a memoized callback for onChange to prevent unnecessary re-renders
+    const handleEditorChange = useCallback((value: string | undefined) => {
+      onChange(value);
+    }, [onChange]);
 
     return (
       <div
@@ -265,24 +303,11 @@ declare module "@playwright/test" {
           height="calc(100vh - 10rem)"
           defaultLanguage="javascript"
           value={value}
-          onChange={onChange}
+          onChange={handleEditorChange}
           theme="vs-dark"
           className="w-full overflow-hidden border-none outline-none"
           beforeMount={beforeMount}
-          onMount={(editor) => {
-            if (ref && typeof ref === "object") {
-              ref.current = editor;
-            }
-            // Enable quick suggestions immediately
-            editor.updateOptions({
-              quickSuggestions: { other: true, comments: true, strings: true },
-              suggestOnTriggerCharacters: true,
-              acceptSuggestionOnEnter: "on",
-              tabCompletion: "on",
-              wordBasedSuggestions: "currentDocument",
-              parameterHints: { enabled: true, cycle: true },
-            });
-          }}
+          onMount={handleEditorMount}
           options={{
             minimap: { enabled: false },
             fontSize: 13,
@@ -328,7 +353,7 @@ declare module "@playwright/test" {
       </div>
     );
   }
-);
+));
 
 // Add displayName for better debugging and to fix the ESLint warning
 MonacoEditorClient.displayName = "MonacoEditorClient";

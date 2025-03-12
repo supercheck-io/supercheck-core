@@ -40,7 +40,7 @@ import {
 // This is sample data.
 const data = {
   user: {
-    name: "shadcn",
+    name: "test user",
     email: "m@example.com",
     avatar: "/avatars/shadcn.jpg",
   },
@@ -76,20 +76,23 @@ const data = {
       items: [
         {
           title: "Browser test",
-          url: "#",
+          url: "/playground?scriptType=browser",
         },
         {
           title: "API test",
-          url: "#",
+          url: "/playground?scriptType=api",
         },
-        {
-          title: "TCP test",
-          url: "#",
-        },
-
         {
           title: "Multistep test",
-          url: "#",
+          url: "/playground?scriptType=multistep",
+        },
+        {
+          title: "WebSocket test",
+          url: "/playground?scriptType=websocket",
+        },
+        {
+          title: "Database test",
+          url: "/playground?scriptType=database",
         },
       ],
     },

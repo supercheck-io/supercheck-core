@@ -1,38 +1,51 @@
-import { useState, useEffect, forwardRef } from "react";
-import type { EditorProps } from "@monaco-editor/react";
-
-// Define the editor type using the Monaco interface
-type MonacoEditor = Parameters<NonNullable<EditorProps['onMount']>>[0];
+"use client";
+import { forwardRef, useEffect, useState, useRef } from "react";
+import { MonacoEditorClient } from "./monaco-editor";
 
 interface CodeEditorProps {
   value: string;
   onChange: (value: string | undefined) => void;
 }
 
+type MonacoEditor = any;
+
+// Make the component a client-side only component with dynamic loading
 const CodeEditor = forwardRef<MonacoEditor, CodeEditorProps>(
-  (props, ref) => {
-    const [ClientEditor, setClientEditor] = useState<
-      typeof import("./monaco-editor").MonacoEditorClient | null
-    >(null);
-
+  ({ value, onChange }, ref) => {
+    const [ClientEditor, setClientEditor] = useState<any>(null);
+    const isInitializedRef = useRef(false);
+    const forceRenderKey = useRef(Date.now());
+    
+    // Force a client-side re-render to ensure Monaco loads immediately
     useEffect(() => {
-      import("./monaco-editor").then((module) => {
-        setClientEditor(() => module.MonacoEditorClient);
-      });
+      if (typeof window !== 'undefined') {
+        // Dynamically import the editor component
+        import("./monaco-editor").then((mod) => {
+          setClientEditor(() => mod.MonacoEditorClient);
+          // Force re-render after setting the client editor
+          forceRenderKey.current = Date.now();
+          isInitializedRef.current = true;
+        });
+      }
     }, []);
-
+    
+    // If no editor yet, show a simple loading placeholder
+    if (!ClientEditor) {
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-black text-white p-4">
+          Loading editor...
+        </div>
+      );
+    }
+    
+    // Render with a key to force re-mount when needed
     return (
-      <div className="flex flex-col flex-1 w-full overflow-hidden" style={{ border: 'none', outline: 'none' }}>
-        {ClientEditor && (
-          <div className="w-full h-full" style={{ border: 'none', borderBottom: 'none' }}>
-            <ClientEditor
-              ref={ref}
-              value={props.value}
-              onChange={props.onChange}
-            />
-          </div>
-        )}
-      </div>
+      <ClientEditor
+        key={forceRenderKey.current}
+        ref={ref}
+        value={value}
+        onChange={onChange}
+      />
     );
   }
 );

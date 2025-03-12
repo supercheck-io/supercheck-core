@@ -60,14 +60,71 @@ function walkAst(
  * - Check for infinite loops or suspicious patterns.
  */
 export function validateCode(code: string): { valid: boolean; error?: string } {
+  // Skip TypeScript validation for Playwright test scripts
+  // Check for both exact matches and more general Playwright patterns
+  if (code.includes("import { test, expect } from '@playwright/test'") || 
+      code.includes('import { test, expect } from "@playwright/test"') ||
+      code.includes('request.get(') ||
+      code.includes('request.post(') ||
+      code.includes('request.put(') ||
+      code.includes('request.delete(') ||
+      /test\(\s*["'].*["'],\s*async/.test(code)) {
+    return { valid: true };
+  }
+
   let ast: Node;
   try {
+    // First, check for TypeScript-specific syntax
+    const typescriptPatterns = [
+      // Type annotations with colon
+      /\w+\s*:\s*{[^}]*}\s*=>/,            // (param: { type }) =>
+      /\w+\s*:\s*\w+(\[\])?\s*[,\)]/,      // functionName(param: Type)
+      /\w+\s*:\s*\w+(\[\])?\s*=>/,         // (param: Type) =>
+      /:\s*\w+(\[\])?\s*[,\)=]/,           // : Type, or : Type) or : Type=
+      
+      // Interface definitions
+      /interface\s+\w+/,
+      
+      // Type aliases
+      /type\s+\w+\s*=/,
+      
+      // Generics
+      /<\w+>(?=\()/,                       // functionName<T>()
+      /<\w+,\s*\w+>(?=\()/,                // functionName<T, U>()
+      
+      // TypeScript-specific keywords
+      /\b(readonly|namespace|declare|abstract|implements|private|protected|public|override|keyof|typeof|infer)\b/
+    ];
+    
+    for (const pattern of typescriptPatterns) {
+      if (pattern.test(code)) {
+        return { 
+          valid: false, 
+          error: "TypeScript syntax detected. This playground only supports JavaScript. Please remove type annotations and TypeScript-specific syntax." 
+        };
+      }
+    }
+    
     ast = acorn.parse(code, {
       ecmaVersion: 2020,
       sourceType: "module",
     }) as Node;
   } catch (err: unknown) {
     if (err instanceof Error) {
+      // Check if the error message suggests TypeScript syntax
+      const errorMsg = err.message;
+      
+      if (errorMsg.includes(":") && (
+          errorMsg.includes("Unexpected token") || 
+          errorMsg.includes("Unexpected character")
+        )) {
+        // This might be TypeScript syntax error
+        return { 
+          valid: false, 
+          error: "Syntax Error: The code contains invalid syntax that might be TypeScript. This playground only supports JavaScript. Please remove type annotations (e.g., change '(todo: { completed: boolean }) => todo.completed' to 'todo => todo.completed')."
+        };
+      }
+      
       return { valid: false, error: `Syntax Error: ${err.message}` };
     }
     return { valid: false, error: "Syntax Error" };

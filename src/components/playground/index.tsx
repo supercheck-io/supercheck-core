@@ -33,8 +33,9 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import type { editor } from "monaco-editor";
-import { cn } from "@/lib/utils"; // Changed to cn
+import type { editor } from "monaco-editor"; // Changed to import editor from monaco-editor
+import { cn } from "@/lib/utils"; 
+import { useSearchParams, useRouter } from 'next/navigation';
 
 const testCaseSchema = z.object({
   title: z
@@ -58,82 +59,36 @@ const testCaseSchema = z.object({
 
 type TestCaseFormData = z.infer<typeof testCaseSchema>;
 
-const Playground: React.FC = () => {
+interface PlaygroundProps {
+  scriptType?: string;
+}
+
+const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
   const { toast } = useToast();
+
+  // Script Types
+  const API_SCRIPT = "api";
+  const BROWSER_SCRIPT = "browser";
+  const WEBSOCKET_SCRIPT = "websocket";
+
   const [activeTab, setActiveTab] = useState<string>("editor");
   const [isRunning, setIsRunning] = useState(false);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [testId, setTestId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [editorContent, setEditorContent] = useState(`/**
- * This script tests the login functionality of the example.com website.
- * It ensures that users can log in with valid credentials and 
- * receive appropriate error messages for invalid credentials.
- */
-
-import { test, expect } from '@playwright/test';
-
-test('has title', async ({ page }) => {
-  await page.goto('https://playwright.dev/');
-
-  // Expect a title "to contain" a substring.
-  await expect(page).toHaveTitle(/Playwright/);
-});
-
-test('get started link', async ({ page }) => {
-  await page.goto('https://playwright.dev/');
-
-  // Click the get started link.
-  await page.getByRole('link', { name: 'Get started' }).click();
-
-  // Expects page to have a heading with the name of Installation.
-  await expect(page.getByRole('heading', { name: 'Installation' })).toBeVisible();
-});
-
-test('GET /todos/1 returns expected data', async ({ request }) => {
-  const response = await request.get('https://jsonplaceholder.typicode.com/todos/1');
-  expect(response.status()).toBe(200);
-  const responseData = await response.json();
-  expect(responseData).toEqual({
-    userId: 1,
-    id: 1,
-    title: 'delectus aut autem',
-    completed: false,
-  });
-  console.log(responseData);
-});
-
-`);
-
+  const [editorContent, setEditorContent] = useState("");
+  const [initialEditorContent, setInitialEditorContent] = useState("");
+  const [initialFormValues, setInitialFormValues] = useState({ code: "" });
+  const [scriptTypeState, setScriptType] = useState<string | null>(null);
   const [testCase, setTestCase] = useState<TestCaseFormData>({
     title: "",
     description: "",
-    code: editorContent,
+    code: "",
     priority: "Medium",
     type: "Functional",
     tags: "",
     browser: "chromium",
   });
-
-  const [initialFormValues, setInitialFormValues] = useState<TestCaseFormData>({
-    title: "",
-    description: "",
-    code: editorContent,
-    priority: "Medium",
-    type: "Functional",
-    tags: "",
-    browser: "chromium",
-  });
-
-  const [initialEditorContent, setInitialEditorContent] =
-    useState(editorContent);
-
-  const hasChanges = () => {
-    return (
-      JSON.stringify(testCase) !== JSON.stringify(initialFormValues) ||
-      editorContent !== initialEditorContent
-    );
-  };
 
   const [errors, setErrors] = useState<
     Partial<Record<keyof TestCaseFormData, string>>
@@ -159,6 +114,62 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
 
   // Add a completed flag to track if a test has been marked complete to stop polling
   const testCompleted = useRef<Record<string, boolean>>({});
+
+  // Add the missing editorInitialized ref
+  const editorInitialized = useRef(false);
+
+  // Get search params and router for client-side navigation
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  // Monitor URL search params changes and load scripts when navigation occurs
+  useEffect(() => {
+    const scriptTypeParam = searchParams.get('scriptType');
+    
+    // Always load the script on first render or when script type changes
+    const loadScriptForType = async () => {
+      if (scriptTypeParam) {
+        try {
+          // Import dynamically to avoid issues with circular dependencies
+          const { getSampleScript } = await import('@/lib/script-service');
+          // Fix the TypeScript error by using a type assertion
+          const script = getSampleScript(scriptTypeParam as "api" | "browser" | "websocket");
+          
+          // Update all related state to ensure consistency
+          setEditorContent(script);
+          setInitialEditorContent(script);
+          setInitialFormValues(prev => ({ ...prev, code: script }));
+          setTestCase(prev => ({ ...prev, code: script }));
+          setScriptType(scriptTypeParam);
+        } catch (error) {
+          console.error('Failed to load script for navigation:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load the script",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+    
+    loadScriptForType();
+    // We want this to run on mount and when searchParams changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Force Monaco editor to initialize on client side even with script params
+  useEffect(() => {
+    // This triggers a re-render once on the client side to ensure Monaco loads
+    const timer = setTimeout(() => {
+      if (typeof window !== 'undefined' && !editorInitialized.current) {
+        editorInitialized.current = true;
+        // Force a re-render by making a small state update
+        setEditorContent(prev => prev);
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     setTestCase((prev) => ({ ...prev, code: editorContent }));
@@ -568,6 +579,14 @@ test('GET /todos/1 returns expected data', async ({ request }) => {
       </div>
     );
   }, [testIds, pendingTestIds, completedTestIds, currentReportUrl]);
+
+  // Restore the hasChanges function that was accidentally removed
+  const hasChanges = () => {
+    return (
+      JSON.stringify(testCase) !== JSON.stringify(initialFormValues) ||
+      editorContent !== initialEditorContent
+    );
+  };
 
   return (
     <>
