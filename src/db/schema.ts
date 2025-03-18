@@ -2,13 +2,18 @@ import {
   int,
   sqliteTable,
   text,
-  blob,
+  // blob,
   primaryKey,
-  uniqueIndex,
+  // uniqueIndex,
   index,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import crypto from "crypto";
+import {
+  createInsertSchema,
+  createSelectSchema,
+  createUpdateSchema,
+} from "drizzle-zod";
 
 /* ================================
    USERS TABLE
@@ -17,18 +22,18 @@ import crypto from "crypto";
    an email (with a unique index), name fields, and timestamps
    for creation, update, and last login.
 =================================== */
-export const users = sqliteTable("users", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  email: text("email").notNull(),
-  firstName: text("first_name"),
-  lastName: text("last_name"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-  lastLogin: text("last_login"),
-});
-export const usersEmailIdx = uniqueIndex("users_email_idx").on(users.email);
+// export const users = sqliteTable("users", {
+//   id: text("id")
+//     .primaryKey()
+//     .$defaultFn(() => crypto.randomUUID()),
+//   email: text("email").notNull(),
+//   firstName: text("first_name"),
+//   lastName: text("last_name"),
+//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+//   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+//   lastLogin: text("last_login"),
+// });
+// export const usersEmailIdx = uniqueIndex("users_email_idx").on(users.email);
 
 /* ================================
    ORGANIZATIONS TABLE
@@ -37,37 +42,37 @@ export const usersEmailIdx = uniqueIndex("users_email_idx").on(users.email);
    to a user (ownerId) and includes metadata for custom fields and settings,
    billing information, status, quotas, and timestamps.
 =================================== */
-export type OrganizationMetadata = {
-  customFields?: Record<string, string>;
-  settings?: Record<string, unknown>;
-};
-export const organizations = sqliteTable("organizations", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull(),
-  ownerId: text("owner_id")
-    .notNull()
-    .references(() => users.id),
-  metadata: text("metadata", { mode: "json" }).$type<OrganizationMetadata>(),
-  billingPlan: text("billing_plan").notNull().default("free"),
-  status: text("status").notNull().default("active"),
-  subscriptionExpiresAt: text("subscription_expires_at"),
-  testQuota: int("test_quota").default(100),
-  maxParallelJobs: int("max_parallel_jobs").default(5),
-  retentionDays: int("retention_days").default(30),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
-export const organizationsOwnerIdx = uniqueIndex("organizations_owner_idx").on(
-  organizations.ownerId
-);
-export const organizationsNameIdx = index("organizations_name_idx").on(
-  organizations.name
-);
-export const organizationsStatusIdx = index("organizations_status_idx").on(
-  organizations.status
-);
+// export type OrganizationMetadata = {
+//   customFields?: Record<string, string>;
+//   settings?: Record<string, unknown>;
+// };
+// export const organizations = sqliteTable("organizations", {
+//   id: text("id")
+//     .primaryKey()
+//     .$defaultFn(() => crypto.randomUUID()),
+//   name: text("name").notNull(),
+//   ownerId: text("owner_id")
+//     .notNull()
+//     .references(() => users.id),
+//   metadata: text("metadata", { mode: "json" }).$type<OrganizationMetadata>(),
+//   billingPlan: text("billing_plan").notNull().default("free"),
+//   status: text("status").notNull().default("active"),
+//   subscriptionExpiresAt: text("subscription_expires_at"),
+//   testQuota: int("test_quota").default(100),
+//   maxParallelJobs: int("max_parallel_jobs").default(5),
+//   retentionDays: int("retention_days").default(30),
+//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+//   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+// });
+// export const organizationsOwnerIdx = uniqueIndex("organizations_owner_idx").on(
+//   organizations.ownerId
+// );
+// export const organizationsNameIdx = index("organizations_name_idx").on(
+//   organizations.name
+// );
+// export const organizationsStatusIdx = index("organizations_status_idx").on(
+//   organizations.status
+// );
 
 /* ================================
    ORGANIZATION MEMBERS TABLE
@@ -77,32 +82,32 @@ export const organizationsStatusIdx = index("organizations_status_idx").on(
    and when the membership was established.
    Uses a composite primary key on (userId, organizationId).
 =================================== */
-export type MemberRole = "admin" | "member" | "read-only";
-export const organizationMembers = sqliteTable(
-  "organization_members",
-  {
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organizations.id),
-    role: text("role").$type<MemberRole>().notNull().default("read-only"),
-    invitedBy: text("invited_by").references(() => users.id),
-    joinedAt: text("joined_at").default(sql`CURRENT_TIMESTAMP`),
-  },
-  (table) => {
-    return {
-      pk: primaryKey(table.userId, table.organizationId),
-    };
-  }
-);
-export const organizationMembersUserIdIdx = index("org_members_user_id_idx").on(
-  organizationMembers.userId
-);
-export const organizationMembersOrgIdIdx = index("org_members_org_id_idx").on(
-  organizationMembers.organizationId
-);
+// export type MemberRole = "admin" | "member" | "read-only";
+// export const organizationMembers = sqliteTable(
+//   "organization_members",
+//   {
+//     userId: text("user_id")
+//       .notNull()
+//       .references(() => users.id),
+//     organizationId: text("organization_id")
+//       .notNull()
+//       .references(() => organizations.id),
+//     role: text("role").$type<MemberRole>().notNull().default("read-only"),
+//     invitedBy: text("invited_by").references(() => users.id),
+//     joinedAt: text("joined_at").default(sql`CURRENT_TIMESTAMP`),
+//   },
+//   (table) => {
+//     return {
+//       pk: primaryKey(table.userId, table.organizationId),
+//     };
+//   }
+// );
+// export const organizationMembersUserIdIdx = index("org_members_user_id_idx").on(
+//   organizationMembers.userId
+// );
+// export const organizationMembersOrgIdIdx = index("org_members_org_id_idx").on(
+//   organizationMembers.organizationId
+// );
 
 /* ================================
    PROJECTS TABLE
@@ -111,29 +116,29 @@ export const organizationMembersOrgIdIdx = index("org_members_org_id_idx").on(
    Each project includes details such as its name, description,
    status (active, archived, or deleted), and timestamps.
 =================================== */
-export const projects = sqliteTable("projects", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organizations.id),
-  name: text("name").notNull(),
-  description: text("description"),
-  status: text("status")
-    .$type<"active" | "archived" | "deleted">()
-    .notNull()
-    .default("active"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
-export const projectsOrgIdIdx = index("projects_org_id_idx").on(
-  projects.organizationId
-);
-export const projectsNameIdx = index("projects_name_idx").on(projects.name);
-export const projectsStatusIdx = index("projects_status_idx").on(
-  projects.status
-);
+// export const projects = sqliteTable("projects", {
+//   id: text("id")
+//     .primaryKey()
+//     .$defaultFn(() => crypto.randomUUID()),
+//   organizationId: text("organization_id")
+//     .notNull()
+//     .references(() => organizations.id),
+//   name: text("name").notNull(),
+//   description: text("description"),
+//   status: text("status")
+//     .$type<"active" | "archived" | "deleted">()
+//     .notNull()
+//     .default("active"),
+//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+//   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+// });
+// export const projectsOrgIdIdx = index("projects_org_id_idx").on(
+//   projects.organizationId
+// );
+// export const projectsNameIdx = index("projects_name_idx").on(projects.name);
+// export const projectsStatusIdx = index("projects_status_idx").on(
+//   projects.status
+// );
 
 /* ================================
    TEST CASES TABLE
@@ -144,41 +149,37 @@ export const projectsStatusIdx = index("projects_status_idx").on(
    who created and last updated the test case.
 =================================== */
 export type TestPriority = "low" | "medium" | "high" | "critical";
-export type TestType = "browser" | "api" | "component" | "unit";
-export const testCases = sqliteTable("test_cases", {
+export type TestType = "browser" | "api" | "multistep" | "database";
+export const tests = sqliteTable("tests", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => projects.id),
+  // projectId: text("project_id")
+  //   .notNull()
+  //   .references(() => projects.id),
   title: text("title").notNull(),
   description: text("description"),
-  playwrightScript: text("playwright_script").notNull().default(""),
+  script: text("script").notNull().default(""),
   priority: text("priority").$type<TestPriority>().notNull().default("medium"),
   type: text("type").$type<TestType>().notNull().default("browser"),
   tags: text("tags", { mode: "json" })
     .$type<string[]>()
     .default(sql`'[]'`),
-  createdBy: text("created_by")
-    .notNull()
-    .references(() => users.id),
-  updatedBy: text("updated_by")
-    .notNull()
-    .references(() => users.id),
+  // createdBy: text("created_by")
+  //   .notNull()
+  //   .references(() => users.id),
+  // updatedBy: text("updated_by")
+  //   .notNull()
+  //   .references(() => users.id),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
-export const testCasesProjectIdIdx = index("test_cases_project_id_idx").on(
-  testCases.projectId
-);
-export const testCasesTitleIdx = index("test_cases_title_idx").on(
-  testCases.title
-);
-export const testCasesTypeIdx = index("test_cases_type_idx").on(testCases.type);
-export const testCasesPriorityIdx = index("test_cases_priority_idx").on(
-  testCases.priority
-);
+// export const testCasesProjectIdIdx = index("test_cases_project_id_idx").on(
+//   testCases.projectId
+// );
+export const testsTitleIdx = index("tests_title_idx").on(tests.title);
+export const testsTypeIdx = index("tests_type_idx").on(tests.type);
+export const testsPriorityIdx = index("tests_priority_idx").on(tests.priority);
 
 /* ================================
    JOBS TABLE
@@ -205,9 +206,9 @@ export const jobs = sqliteTable("jobs", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => projects.id),
+  // projectId: text("project_id")
+  //   .notNull()
+  //   .references(() => projects.id),
   name: text("name").notNull(),
   description: text("description"),
   cronSchedule: text("cron_schedule"),
@@ -220,7 +221,7 @@ export const jobs = sqliteTable("jobs", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
-export const jobsProjectIdIdx = index("jobs_project_id_idx").on(jobs.projectId);
+// export const jobsProjectIdIdx = index("jobs_project_id_idx").on(jobs.projectId);
 export const jobsStatusIdx = index("jobs_status_idx").on(jobs.status);
 export const jobsNextRunAtIdx = index("jobs_next_run_at_idx").on(
   jobs.nextRunAt
@@ -232,8 +233,8 @@ export const jobsNextRunAtIdx = index("jobs_next_run_at_idx").on(
    Maps test cases to jobs (many‑to‑many relationship) with an optional order
    field to define the sequence in which test cases should be executed.
 =================================== */
-export const jobTestCases = sqliteTable(
-  "job_test_cases",
+export const jobTests = sqliteTable(
+  "job_tests",
   {
     jobId: text("job_id")
       .notNull()
@@ -250,12 +251,12 @@ export const jobTestCases = sqliteTable(
     }),
   ]
 );
-export const jobTestCasesJobIdIdx = index("job_test_cases_job_id_idx").on(
-  jobTestCases.jobId
+export const jobTestsJobIdIdx = index("job_tests_job_id_idx").on(
+  jobTests.jobId
 );
-export const jobTestCasesTestCaseIdIdx = index(
-  "job_test_cases_test_case_id_idx"
-).on(jobTestCases.testCaseId);
+export const jobTestsTestCaseIdIdx = index("job_tests_test_case_id_idx").on(
+  jobTests.testCaseId
+);
 
 /* ================================
    TEST RUNS TABLE
@@ -323,33 +324,33 @@ export const testRunsCompletedAtIdx = index("test_runs_completed_at_idx").on(
    passed, failed, skipped, and flaky tests, duration, and browser performance
    metrics (stored as JSON). Tracks the report creation timestamp.
 =================================== */
-export type BrowserMetrics = {
-  performance?: Record<string, number>;
-  memory?: Record<string, number>;
-  timing?: Record<string, number>;
-};
-export const reports = sqliteTable("reports", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  jobId: text("job_id")
-    .notNull()
-    .references(() => jobs.id),
-  totalTests: int("total_tests").notNull(),
-  passedTests: int("passed_tests").notNull(),
-  failedTests: int("failed_tests").notNull(),
-  skippedTests: int("skipped_tests").default(0),
-  flakyTests: int("flaky_tests").default(0),
-  duration: text("duration").notNull(),
-  browserMetrics: text("browser_metrics", {
-    mode: "json",
-  }).$type<BrowserMetrics>(),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-});
-export const reportsJobIdIdx = index("reports_job_id_idx").on(reports.jobId);
-export const reportsCreatedAtIdx = index("reports_created_at_idx").on(
-  reports.createdAt
-);
+// export type BrowserMetrics = {
+//   performance?: Record<string, number>;
+//   memory?: Record<string, number>;
+//   timing?: Record<string, number>;
+// };
+// export const reports = sqliteTable("reports", {
+//   id: text("id")
+//     .primaryKey()
+//     .$defaultFn(() => crypto.randomUUID()),
+//   jobId: text("job_id")
+//     .notNull()
+//     .references(() => jobs.id),
+//   totalTests: int("total_tests").notNull(),
+//   passedTests: int("passed_tests").notNull(),
+//   failedTests: int("failed_tests").notNull(),
+//   skippedTests: int("skipped_tests").default(0),
+//   flakyTests: int("flaky_tests").default(0),
+//   duration: text("duration").notNull(),
+//   browserMetrics: text("browser_metrics", {
+//     mode: "json",
+//   }).$type<BrowserMetrics>(),
+//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+// });
+// export const reportsJobIdIdx = index("reports_job_id_idx").on(reports.jobId);
+// export const reportsCreatedAtIdx = index("reports_created_at_idx").on(
+//   reports.createdAt
+// );
 
 /* ================================
    AUDIT LOGS TABLE
@@ -358,34 +359,34 @@ export const reportsCreatedAtIdx = index("reports_created_at_idx").on(
    Includes details on the action, affected resource, changes made, and a
    timestamp of when the action occurred.
 =================================== */
-export type AuditDetails = {
-  resource?: string;
-  resourceId?: string;
-  changes?: Record<string, { before: unknown; after: unknown }>;
-  metadata?: Record<string, unknown>;
-};
-export const auditLogs = sqliteTable("audit_logs", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id").references(() => users.id),
-  organizationId: text("organization_id").references(() => organizations.id),
-  action: text("action").notNull(),
-  details: text("details", { mode: "json" }).$type<AuditDetails>(),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-});
-export const auditLogsUserIdIdx = index("audit_logs_user_id_idx").on(
-  auditLogs.userId
-);
-export const auditLogsOrgIdIdx = index("audit_logs_org_id_idx").on(
-  auditLogs.organizationId
-);
-export const auditLogsActionIdx = index("audit_logs_action_idx").on(
-  auditLogs.action
-);
-export const auditLogsCreatedAtIdx = index("audit_logs_created_at_idx").on(
-  auditLogs.createdAt
-);
+// export type AuditDetails = {
+//   resource?: string;
+//   resourceId?: string;
+//   changes?: Record<string, { before: unknown; after: unknown }>;
+//   metadata?: Record<string, unknown>;
+// };
+// export const auditLogs = sqliteTable("audit_logs", {
+//   id: text("id")
+//     .primaryKey()
+//     .$defaultFn(() => crypto.randomUUID()),
+//   userId: text("user_id").references(() => users.id),
+//   organizationId: text("organization_id").references(() => organizations.id),
+//   action: text("action").notNull(),
+//   details: text("details", { mode: "json" }).$type<AuditDetails>(),
+//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+// });
+// export const auditLogsUserIdIdx = index("audit_logs_user_id_idx").on(
+//   auditLogs.userId
+// );
+// export const auditLogsOrgIdIdx = index("audit_logs_org_id_idx").on(
+//   auditLogs.organizationId
+// );
+// export const auditLogsActionIdx = index("audit_logs_action_idx").on(
+//   auditLogs.action
+// );
+// export const auditLogsCreatedAtIdx = index("audit_logs_created_at_idx").on(
+//   auditLogs.createdAt
+// );
 
 /* ================================
    NOTIFICATIONS TABLE
@@ -394,43 +395,43 @@ export const auditLogsCreatedAtIdx = index("audit_logs_created_at_idx").on(
    Supports various types (email, slack, webhook, in‑app) and tracks
    notification content, status, and the time the notification was sent.
 =================================== */
-export type NotificationType = "email" | "slack" | "webhook" | "in-app";
-export type NotificationStatus = "pending" | "sent" | "failed" | "cancelled";
-export type NotificationContent = {
-  subject?: string;
-  body: string;
-  data?: Record<string, unknown>;
-};
-export const notifications = sqliteTable("notifications", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id),
-  type: text("type").$type<NotificationType>().notNull().default("email"),
-  content: text("content", { mode: "json" })
-    .$type<NotificationContent>()
-    .notNull(),
-  status: text("status")
-    .$type<NotificationStatus>()
-    .notNull()
-    .default("pending"),
-  sentAt: text("sent_at"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-});
-export const notificationsUserIdIdx = index("notifications_user_id_idx").on(
-  notifications.userId
-);
-export const notificationsStatusIdx = index("notifications_status_idx").on(
-  notifications.status
-);
-export const notificationsTypeIdx = index("notifications_type_idx").on(
-  notifications.type
-);
-export const notificationsCreatedAtIdx = index(
-  "notifications_created_at_idx"
-).on(notifications.createdAt);
+// export type NotificationType = "email" | "slack" | "webhook" | "in-app";
+// export type NotificationStatus = "pending" | "sent" | "failed" | "cancelled";
+// export type NotificationContent = {
+//   subject?: string;
+//   body: string;
+//   data?: Record<string, unknown>;
+// };
+// export const notifications = sqliteTable("notifications", {
+//   id: text("id")
+//     .primaryKey()
+//     .$defaultFn(() => crypto.randomUUID()),
+//   userId: text("user_id")
+//     .notNull()
+//     .references(() => users.id),
+//   type: text("type").$type<NotificationType>().notNull().default("email"),
+//   content: text("content", { mode: "json" })
+//     .$type<NotificationContent>()
+//     .notNull(),
+//   status: text("status")
+//     .$type<NotificationStatus>()
+//     .notNull()
+//     .default("pending"),
+//   sentAt: text("sent_at"),
+//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+// });
+// export const notificationsUserIdIdx = index("notifications_user_id_idx").on(
+//   notifications.userId
+// );
+// export const notificationsStatusIdx = index("notifications_status_idx").on(
+//   notifications.status
+// );
+// export const notificationsTypeIdx = index("notifications_type_idx").on(
+//   notifications.type
+// );
+// export const notificationsCreatedAtIdx = index(
+//   "notifications_created_at_idx"
+// ).on(notifications.createdAt);
 
 /* ================================
    INTEGRATIONS TABLE
@@ -440,28 +441,36 @@ export const notificationsCreatedAtIdx = index(
    and timestamps indicating when the integration was last used, created,
    or updated.
 =================================== */
-export type IntegrationConfig = {
-  webhookUrl?: string;
-  apiEndpoint?: string;
-  settings?: Record<string, unknown>;
-};
-export const integrations = sqliteTable("integrations", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => projects.id),
-  serviceName: text("service_name").notNull(),
-  config: text("config", { mode: "json" }).$type<IntegrationConfig>().notNull(),
-  encryptedApiToken: blob("encrypted_api_token"),
-  lastUsedAt: text("last_used_at"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
-export const integrationsProjectIdIdx = index("integrations_project_id_idx").on(
-  integrations.projectId
-);
-export const integrationsServiceNameIdx = index(
-  "integrations_service_name_idx"
-).on(integrations.serviceName);
+// export type IntegrationConfig = {
+//   webhookUrl?: string;
+//   apiEndpoint?: string;
+//   settings?: Record<string, unknown>;
+// };
+// export const integrations = sqliteTable("integrations", {
+//   id: text("id")
+//     .primaryKey()
+//     .$defaultFn(() => crypto.randomUUID()),
+//   projectId: text("project_id")
+//     .notNull()
+//     .references(() => projects.id),
+//   serviceName: text("service_name").notNull(),
+//   config: text("config", { mode: "json" }).$type<IntegrationConfig>().notNull(),
+//   encryptedApiToken: blob("encrypted_api_token"),
+//   lastUsedAt: text("last_used_at"),
+//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+//   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+// });
+// export const integrationsProjectIdIdx = index("integrations_project_id_idx").on(
+//   integrations.projectId
+// );
+// export const integrationsServiceNameIdx = index(
+//   "integrations_service_name_idx"
+// ).on(integrations.serviceName);
+
+export const testsInsertSchema = createInsertSchema(tests);
+export const testsUpdateSchema = createUpdateSchema(tests);
+export const testsSelectSchema = createSelectSchema(tests);
+
+export const jobsInsertSchema = createInsertSchema(jobs);
+export const jobsUpdateSchema = createUpdateSchema(jobs);
+export const jobsSelectSchema = createSelectSchema(jobs);

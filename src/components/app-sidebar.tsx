@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
-import { NavProjects } from "@/components/nav-projects";
+// import { NavProjects } from "@/components/nav-projects";
 import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
 import Link from "next/link";
@@ -183,7 +183,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <Link href="/create">
                 <SidebarMenuButton
                   tooltip="Create"
-                  className="flex items-center justify-center bg-primary text-primary-foreground data-[active]:bg-primary data-[active]:text-primary-foreground active:bg-primary active:text-primary-foreground focus:bg-primary focus:text-primary-foreground max-w-[94%] ml-[3%] mr-[3%] "
+                  className="flex items-center justify-center bg-primary text-primary-foreground data-[active]:bg-primary data-[active]:text-primary-foreground active:bg-primary active:text-primary-foreground focus:bg-primary focus:text-primary-foreground max-w-[94%] ml-[3%] mr-[3%] cursor-pointer "
                 >
                   <PlusIcon className="h-4 w-4 ml-2" />
                   <span>Create</span>
@@ -193,7 +193,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarGroup>
         <NavMain items={data.navMain} />
-        <NavProjects projects={data.projects} />
+        {/* <NavProjects projects={data.projects} /> */}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

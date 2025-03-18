@@ -10,7 +10,7 @@ import {
   ZapIcon,
   SaveIcon,
 } from "lucide-react";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,8 +34,8 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import type { editor } from "monaco-editor"; // Changed to import editor from monaco-editor
-import { cn } from "@/lib/utils"; 
-import { useSearchParams, useRouter } from 'next/navigation';
+import { cn } from "@/lib/utils";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const testCaseSchema = z.object({
   title: z
@@ -63,13 +63,8 @@ interface PlaygroundProps {
   scriptType?: string;
 }
 
-const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
+const Playground: React.FC<PlaygroundProps> = () => {
   const { toast } = useToast();
-
-  // Script Types
-  const API_SCRIPT = "api";
-  const BROWSER_SCRIPT = "browser";
-  const WEBSOCKET_SCRIPT = "websocket";
 
   const [activeTab, setActiveTab] = useState<string>("editor");
   const [isRunning, setIsRunning] = useState(false);
@@ -79,7 +74,7 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
   const [editorContent, setEditorContent] = useState("");
   const [initialEditorContent, setInitialEditorContent] = useState("");
   const [initialFormValues, setInitialFormValues] = useState({ code: "" });
-  const [scriptTypeState, setScriptType] = useState<string | null>(null);
+  // const [scriptTypeState, setScriptType] = useState<string | null>(null);
   const [testCase, setTestCase] = useState<TestCaseFormData>({
     title: "",
     description: "",
@@ -99,7 +94,7 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
   const [completedTestIds, setCompletedTestIds] = useState<string[]>([]);
   const [pendingTestIds, setPendingTestIds] = useState<string[]>([]);
   const [currentReportUrl, setCurrentReportUrl] = useState<string | null>(null);
-  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
+  // const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const pendingTests = new Map<
     string,
     { checkCount: number; errorCount: number }
@@ -120,29 +115,31 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
 
   // Get search params and router for client-side navigation
   const searchParams = useSearchParams();
-  const router = useRouter();
-  
+  // const router = useRouter();
+
   // Monitor URL search params changes and load scripts when navigation occurs
   useEffect(() => {
-    const scriptTypeParam = searchParams.get('scriptType');
-    
+    const scriptTypeParam = searchParams.get("scriptType");
+
     // Always load the script on first render or when script type changes
     const loadScriptForType = async () => {
       if (scriptTypeParam) {
         try {
           // Import dynamically to avoid issues with circular dependencies
-          const { getSampleScript } = await import('@/lib/script-service');
+          const { getSampleScript } = await import("@/lib/script-service");
           // Fix the TypeScript error by using a type assertion
-          const script = getSampleScript(scriptTypeParam as "api" | "browser" | "websocket");
-          
+          const script = getSampleScript(
+            scriptTypeParam as "api" | "browser" | "websocket"
+          );
+
           // Update all related state to ensure consistency
           setEditorContent(script);
           setInitialEditorContent(script);
-          setInitialFormValues(prev => ({ ...prev, code: script }));
-          setTestCase(prev => ({ ...prev, code: script }));
-          setScriptType(scriptTypeParam);
+          setInitialFormValues((prev) => ({ ...prev, code: script }));
+          setTestCase((prev) => ({ ...prev, code: script }));
+          // setScriptType(scriptTypeParam);
         } catch (error) {
-          console.error('Failed to load script for navigation:', error);
+          console.error("Failed to load script for navigation:", error);
           toast({
             title: "Error",
             description: "Failed to load the script",
@@ -151,7 +148,7 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
         }
       }
     };
-    
+
     loadScriptForType();
     // We want this to run on mount and when searchParams changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,13 +158,13 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
   useEffect(() => {
     // This triggers a re-render once on the client side to ensure Monaco loads
     const timer = setTimeout(() => {
-      if (typeof window !== 'undefined' && !editorInitialized.current) {
+      if (typeof window !== "undefined" && !editorInitialized.current) {
         editorInitialized.current = true;
         // Force a re-render by making a small state update
-        setEditorContent(prev => prev);
+        setEditorContent((prev) => prev);
       }
     }, 100);
-    
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -230,7 +227,7 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
         headers: {
           Accept: "*/*",
         },
-        signal: AbortSignal.timeout(60000), // 60 seconds timeout
+        signal: AbortSignal.timeout(5 * 60000), // 5 *60 seconds timeout
       });
 
       if (!response.ok) {
@@ -243,6 +240,7 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
         } catch (e) {
           // If parsing fails, use the raw text
           errorMessage = errorText || "Failed to run tests";
+          console.error("Failed to parse error response:", e);
         }
 
         // Ensure we show an appropriate error message for timeouts
@@ -286,7 +284,7 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
 
         // Start polling for this test's status
         await checkTestStatus(result.testId);
-        setTimeout(() => checkTestStatus(result.testId), 2000);
+        setTimeout(() => checkTestStatus(result.testId), 5000);
       }
 
       // Set the report URL immediately if available
@@ -317,14 +315,6 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
       setIsRunning(false);
     }
   };
-
-  // This function checks if all tests have completed
-  const checkAllTestsCompleted = useCallback(() => {
-    // If we have no pending tests, we can set isRunning to false
-    if (pendingTestIds.length === 0) {
-      setIsRunning(false);
-    }
-  }, [pendingTestIds]);
 
   // Poll for test status
   async function checkTestStatus(testId: string) {
@@ -399,7 +389,7 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
           }
 
           // Continue polling for a bit to ensure report is truly done
-          setTimeout(() => checkTestStatus(testId), 1000);
+          setTimeout(() => checkTestStatus(testId), 5000);
           return;
         }
 
@@ -480,7 +470,7 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
         }
 
         // Continue polling
-        setTimeout(() => checkTestStatus(testId), 2000);
+        setTimeout(() => checkTestStatus(testId), 5000);
         return;
       }
     } catch (error) {
@@ -520,7 +510,7 @@ const Playground: React.FC<PlaygroundProps> = ({ scriptType }) => {
     // Update state
     setReportUrl(reportUrlWithCache);
     setCurrentReportUrl(reportUrlWithCache);
-    setSelectedTestId(testId);
+    // setSelectedTestId(testId);
 
     // Switch to report tab
     setActiveTab("report");
