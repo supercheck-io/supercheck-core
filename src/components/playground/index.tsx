@@ -8,35 +8,25 @@ import {
   CheckCircleIcon,
   AlertTriangleIcon,
   ZapIcon,
-  SaveIcon,
 } from "lucide-react";
 import { useState, useRef, useEffect, useMemo } from "react";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CodeEditor } from "./code-editor";
+import { TestForm } from "./test-form";
+import type { editor } from "monaco-editor";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import type { editor } from "monaco-editor";
 import { cn } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
 import { testsInsertSchema, TestPriority, TestType } from "@/db/schema";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 
 // Using the testsInsertSchema from schema.ts with extensions for playground-specific fields
 const testCaseSchema = testsInsertSchema
@@ -52,21 +42,6 @@ const testCaseSchema = testsInsertSchema
     script: z.string().min(1, "Test script is required"),
   })
   .omit({ createdAt: true, updatedAt: true });
-
-// Map the database schema values to display values for the UI
-const priorityDisplayMap = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  critical: "Critical",
-};
-
-const typeDisplayMap = {
-  browser: "Browser",
-  api: "API",
-  multistep: "Multi-step",
-  database: "Database",
-};
 
 type TestCaseFormData = z.infer<typeof testCaseSchema>;
 
@@ -84,7 +59,9 @@ const Playground: React.FC<PlaygroundProps> = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState("");
   const [initialEditorContent, setInitialEditorContent] = useState("");
-  const [initialFormValues, setInitialFormValues] = useState({ code: "" });
+  const [initialFormValues, setInitialFormValues] = useState<
+    Partial<TestCaseFormData>
+  >({});
   // const [scriptTypeState, setScriptType] = useState<string | null>(null);
   const [testCase, setTestCase] = useState<TestCaseFormData>({
     title: "",
@@ -609,14 +586,6 @@ const Playground: React.FC<PlaygroundProps> = () => {
     );
   }, [testIds, pendingTestIds, completedTestIds, currentReportUrl]);
 
-  // Restore the hasChanges function that was accidentally removed
-  const hasChanges = () => {
-    return (
-      JSON.stringify(testCase) !== JSON.stringify(initialFormValues) ||
-      editorContent !== initialEditorContent
-    );
-  };
-
   return (
     <>
       <div className="md:hidden">{/* Mobile view */}</div>
@@ -756,202 +725,18 @@ const Playground: React.FC<PlaygroundProps> = () => {
               <ScrollArea className="flex-1">
                 <div className="space-y-4 p-4">
                   <div className="space-y-2">{TestsList}</div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Title</Label>
-                      <Input
-                        placeholder="Enter test case title"
-                        value={testCase.title}
-                        onChange={(e) =>
-                          setTestCase({
-                            ...testCase,
-                            title: e.target.value,
-                          })
-                        }
-                      />
-                      {errors.title && (
-                        <p className="text-sm text-red-500">{errors.title}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Description</Label>
-                      <Textarea
-                        placeholder="Enter test case description"
-                        value={testCase.description || ""}
-                        onChange={(e) =>
-                          setTestCase({
-                            ...testCase,
-                            description: e.target.value,
-                          })
-                        }
-                        className="min-h-[100px] resize-none"
-                      />
-                      {errors.description && (
-                        <p className="text-sm text-red-500">
-                          {errors.description}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Priority</Label>
-                        <Select
-                          value={testCase.priority}
-                          onValueChange={(value) =>
-                            setTestCase({
-                              ...testCase,
-                              priority: value as TestCaseFormData["priority"],
-                            })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select priority">
-                              {testCase.priority
-                                ? priorityDisplayMap[
-                                    testCase.priority as TestPriority
-                                  ]
-                                : "Select priority"}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">
-                              {priorityDisplayMap.low}
-                            </SelectItem>
-                            <SelectItem value="medium">
-                              {priorityDisplayMap.medium}
-                            </SelectItem>
-                            <SelectItem value="high">
-                              {priorityDisplayMap.high}
-                            </SelectItem>
-                            <SelectItem value="critical">
-                              {priorityDisplayMap.critical}
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {errors.priority && (
-                          <p className="text-sm text-red-500">
-                            {errors.priority}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Type</Label>
-                        <Select
-                          value={testCase.type}
-                          onValueChange={(value) =>
-                            setTestCase({
-                              ...testCase,
-                              type: value as TestCaseFormData["type"],
-                            })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select type">
-                              {testCase.type
-                                ? typeDisplayMap[testCase.type as TestType]
-                                : "Select type"}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="browser">
-                              {typeDisplayMap.browser}
-                            </SelectItem>
-                            <SelectItem value="api">
-                              {typeDisplayMap.api}
-                            </SelectItem>
-                            <SelectItem value="multistep">
-                              {typeDisplayMap.multistep}
-                            </SelectItem>
-                            <SelectItem value="database">
-                              {typeDisplayMap.database}
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {errors.type && (
-                          <p className="text-sm text-red-500">{errors.type}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* <div className="space-y-2">
-                      <Label className="text-sm font-medium">Browser</Label>
-                      <Tabs
-                        defaultValue="chromium"
-                        value={testCase.browser}
-                        onValueChange={(value) => {
-                          setTestCase({
-                            ...testCase,
-                            browser: value,
-                          });
-                        }}
-                        className="w-full"
-                      >
-                        <TabsList className="grid grid-cols-3 w-full h-8">
-                          <TabsTrigger
-                            value="chromium"
-                            className="text-xs py-1"
-                          >
-                            Chromium
-                          </TabsTrigger>
-                          <TabsTrigger value="firefox" className="text-xs py-1">
-                            Firefox
-                          </TabsTrigger>
-                          <TabsTrigger value="webkit" className="text-xs py-1">
-                            Webkit
-                          </TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                      {errors.browser && (
-                        <p className="text-sm text-red-500">{errors.browser}</p>
-                      )}
-                    </div> */}
-
-                    {/* <div className="space-y-2">
-                      <Label className="text-sm font-medium">Tags</Label>
-                      <Input
-                        placeholder="Enter comma-separated tags"
-                        value={testCase.tags}
-                        onChange={(e) =>
-                          setTestCase({ ...testCase, tags: e.target.value })
-                        }
-                      />
-                      {errors.tags && (
-                        <p className="text-sm text-red-500">{errors.tags}</p>
-                      )}
-                    </div> */}
-                    <div className="flex justify-end w-full">
-                      <Button
-                        onClick={() => {
-                          if (validateForm()) {
-                            setInitialFormValues({ code: editorContent });
-                            setInitialEditorContent(editorContent);
-                            toast({
-                              title: "Test Saved",
-                              description:
-                                "Your test has been saved successfully.",
-                              variant: "default",
-                            });
-                          } else {
-                            toast({
-                              title: "Validation Error",
-                              description:
-                                "Please fix the errors before saving.",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                        size="sm"
-                        className="flex items-center gap-2 w-[120px] mt-2 cursor-pointer"
-                        disabled={isRunning || !hasChanges()}
-                      >
-                        <SaveIcon className="h-4 w-4" />
-                        <span className="hidden sm:inline">Save</span>
-                      </Button>
-                    </div>
-                  </div>
+                  <TestForm
+                    testCase={testCase}
+                    setTestCase={setTestCase}
+                    errors={errors}
+                    editorContent={editorContent}
+                    isRunning={isRunning}
+                    validateForm={validateForm}
+                    setInitialFormValues={setInitialFormValues}
+                    setInitialEditorContent={setInitialEditorContent}
+                    initialFormValues={initialFormValues}
+                    initialEditorContent={initialEditorContent}
+                  />
                 </div>
               </ScrollArea>
             </div>

@@ -1,3 +1,5 @@
+"use client";
+
 // Adapted from shadcn/ui toast component
 // https://ui.shadcn.com/docs/components/toast
 

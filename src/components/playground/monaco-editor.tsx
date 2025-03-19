@@ -1,8 +1,6 @@
 import { forwardRef, useEffect, useCallback, useRef, memo } from "react";
-import { Editor, useMonaco, type EditorProps } from "@monaco-editor/react";
-
-// Define the editor type using the Monaco interface
-type MonacoEditor = Parameters<NonNullable<EditorProps["onMount"]>>[0];
+import { Editor, useMonaco } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 
 interface MonacoEditorProps {
   value: string;
@@ -10,10 +8,10 @@ interface MonacoEditorProps {
 }
 
 // Use the memo HOC to prevent unnecessary re-renders
-export const MonacoEditorClient = memo(forwardRef<MonacoEditor, MonacoEditorProps>(
+export const MonacoEditorClient = memo(forwardRef<editor.IStandaloneCodeEditor, MonacoEditorProps>(
   ({ value, onChange }, ref) => {
     const monaco = useMonaco();
-    const editorInstanceRef = useRef<MonacoEditor | null>(null);
+    const editorInstanceRef = useRef<editor.IStandaloneCodeEditor | null>(null);
     const styleSheetRef = useRef<HTMLStyleElement | null>(null);
     const isInitialized = useRef(false);
 
@@ -269,7 +267,7 @@ declare module "@playwright/test" {
     }, []);
 
     // Handle editor mount - this should only happen once
-    const handleEditorMount = useCallback((editor: MonacoEditor) => {
+    const handleEditorMount = useCallback((editor: editor.IStandaloneCodeEditor) => {
       // Store the editor instance in our ref
       editorInstanceRef.current = editor;
       
