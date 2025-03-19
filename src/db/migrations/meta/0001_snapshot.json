@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "44e5ac54-d3c2-4386-bf55-d4daf5223f0b",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "1801b123-18ac-427d-8ead-281da750cd15",
+  "prevId": "44e5ac54-d3c2-4386-bf55-d4daf5223f0b",
   "tables": {
     "job_tests": {
       "name": "job_tests",
@@ -319,14 +319,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'browser'"
-        },
-        "tags": {
-          "name": "tags",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'[]'"
         },
         "created_at": {
           "name": "created_at",

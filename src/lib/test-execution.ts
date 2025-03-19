@@ -317,7 +317,7 @@ async function executeTestInChildProcess(
           // Make it relative to cwd
           testPathArg = testPath.substring(cwd.length + 1);
           // Ensure forward slashes for CLI arguments even on Windows
-          testPathArg = testPathArg.split(sep).join('/');
+          testPathArg = testPathArg.split(sep).join("/");
         }
       }
 
@@ -354,12 +354,12 @@ async function executeTestInChildProcess(
         // Set stdio to pipe to capture output
         stdio: ["ignore", "pipe", "pipe"],
         // Detach for better process management
-        detached: true,
+        // detached: true,
       });
 
       // Process variables
-      let stdoutChunks: string[] = [];
-      let stderrChunks: string[] = [];
+      const stdoutChunks: string[] = [];
+      const stderrChunks: string[] = [];
 
       // Limit buffer size to avoid memory issues
       const MAX_CHUNKS = 500; // Store at most 500 chunks
@@ -391,7 +391,7 @@ async function executeTestInChildProcess(
       });
 
       // Start checking for the report file before the process completes
-      const startTime = Date.now();
+      // const startTime = Date.now();
 
       // Generate a timeout for the process
       const timeout = setTimeout(() => {

@@ -7,18 +7,18 @@ import { sql } from "drizzle-orm";
 // Import your Drizzle tables from the schema file
 import {
   // core tables
-  users,
-  organizations,
-  organizationMembers,
-  projects,
-  testCases,
+  // users,
+  // organizations,
+  // organizationMembers,
+  // projects,
+  // testCases,
   jobs,
-  jobTestCases,
+  // jobTestCases,
   testRuns,
-  reports,
-  auditLogs,
-  notifications,
-  integrations,
+  // reports,
+  // auditLogs,
+  // notifications,
+  // integrations,
 } from "./schema";
 
 // If you need random UUIDs for referencing in SQLite, you can use crypto.randomUUID():
@@ -71,7 +71,7 @@ async function main() {
   await db.insert(organizationMembers).values({
     userId,
     organizationId: orgId,
-    role: "admin", 
+    role: "admin",
     invitedBy: null,
   });
   console.log("Inserted org membership for user -> org");

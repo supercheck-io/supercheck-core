@@ -162,9 +162,9 @@ export const tests = sqliteTable("tests", {
   script: text("script").notNull().default(""),
   priority: text("priority").$type<TestPriority>().notNull().default("medium"),
   type: text("type").$type<TestType>().notNull().default("browser"),
-  tags: text("tags", { mode: "json" })
-    .$type<string[]>()
-    .default(sql`'[]'`),
+  // tags: text("tags", { mode: "json" })
+  //   .$type<string[]>()
+  //   .default(sql`'[]'`),
   // createdBy: text("created_by")
   //   .notNull()
   //   .references(() => users.id),
@@ -174,8 +174,8 @@ export const tests = sqliteTable("tests", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
-// export const testCasesProjectIdIdx = index("test_cases_project_id_idx").on(
-//   testCases.projectId
+// export const testsProjectIdIdx = index("tests_project_id_idx").on(
+//   tests.projectId
 // );
 export const testsTitleIdx = index("tests_title_idx").on(tests.title);
 export const testsTypeIdx = index("tests_type_idx").on(tests.type);
@@ -239,23 +239,23 @@ export const jobTests = sqliteTable(
     jobId: text("job_id")
       .notNull()
       .references(() => jobs.id),
-    testCaseId: text("test_case_id")
+    testId: text("test_case_id")
       .notNull()
-      .references(() => testCases.id),
+      .references(() => tests.id),
     orderPosition: int("order_position"),
   },
   (table) => [
     primaryKey({
       name: "job_test_cases_pk",
-      columns: [table.jobId, table.testCaseId],
+      columns: [table.jobId, table.testId],
     }),
   ]
 );
 export const jobTestsJobIdIdx = index("job_tests_job_id_idx").on(
   jobTests.jobId
 );
-export const jobTestsTestCaseIdIdx = index("job_tests_test_case_id_idx").on(
-  jobTests.testCaseId
+export const jobTestsTestIdIdx = index("job_tests_test_id_idx").on(
+  jobTests.testId
 );
 
 /* ================================
@@ -284,9 +284,6 @@ export const testRuns = sqliteTable("test_runs", {
   jobId: text("job_id")
     .notNull()
     .references(() => jobs.id),
-  testCaseId: text("test_case_id")
-    .notNull()
-    .references(() => testCases.id),
   status: text("status").$type<TestRunStatus>().notNull().default("pending"),
   duration: text("duration"),
   startedAt: text("started_at"),
@@ -304,9 +301,9 @@ export const testRuns = sqliteTable("test_runs", {
 export const testRunsJobIdIdx = index("test_runs_job_id_idx").on(
   testRuns.jobId
 );
-export const testRunsTestCaseIdIdx = index("test_runs_test_case_id_idx").on(
-  testRuns.testCaseId
-);
+// export const testRunsTestIdIdx = index("test_runs_test_id_idx").on(
+//   testRuns.testId
+// );
 export const testRunsStatusIdx = index("test_runs_status_idx").on(
   testRuns.status
 );

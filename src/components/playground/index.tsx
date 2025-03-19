@@ -33,29 +33,40 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import type { editor } from "monaco-editor"; // Changed to import editor from monaco-editor
+import type { editor } from "monaco-editor";
 import { cn } from "@/lib/utils";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { testsInsertSchema, TestPriority, TestType } from "@/db/schema";
 
-const testCaseSchema = z.object({
-  title: z
-    .string()
-    .min(1, "Title is required")
-    .max(100, "Title must be less than 100 characters"),
-  description: z
-    .string()
-    .min(1, "Description is required")
-    .max(1000, "Description must be less than 1000 characters"),
-  priority: z.enum(["Low", "Medium", "High", "Critical"], {
-    required_error: "Priority is required",
-  }),
-  type: z.enum(["Functional", "Regression", "E2E", "Performance"], {
-    required_error: "Type is required",
-  }),
-  browser: z.string().min(1, "Browser selection is required"),
-  tags: z.string(),
-  code: z.string().min(1, "Test script is required"),
-});
+// Using the testsInsertSchema from schema.ts with extensions for playground-specific fields
+const testCaseSchema = testsInsertSchema
+  .extend({
+    title: z
+      .string()
+      .min(1, "Title is required")
+      .max(100, "Title must be less than 100 characters"),
+    description: z
+      .string()
+      .min(1, "Description is required")
+      .max(1000, "Description must be less than 1000 characters"),
+    script: z.string().min(1, "Test script is required"),
+  })
+  .omit({ createdAt: true, updatedAt: true });
+
+// Map the database schema values to display values for the UI
+const priorityDisplayMap = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
+};
+
+const typeDisplayMap = {
+  browser: "Browser",
+  api: "API",
+  multistep: "Multi-step",
+  database: "Database",
+};
 
 type TestCaseFormData = z.infer<typeof testCaseSchema>;
 
@@ -78,11 +89,9 @@ const Playground: React.FC<PlaygroundProps> = () => {
   const [testCase, setTestCase] = useState<TestCaseFormData>({
     title: "",
     description: "",
-    code: "",
-    priority: "Medium",
-    type: "Functional",
-    tags: "",
-    browser: "chromium",
+    script: "", // Add script field to match the database schema
+    priority: "medium" as TestPriority, // Use lowercase values from the database schema
+    type: "browser" as TestType, // Use the values from the database schema
   });
 
   const [errors, setErrors] = useState<
@@ -101,7 +110,7 @@ const Playground: React.FC<PlaygroundProps> = () => {
   >();
 
   const [apiErrors, setApiErrors] = useState(0);
-  const [testStatus, setTestStatus] = useState<any>({});
+  const [testStatus, setTestStatus] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const forcedReloads = useRef(0);
   const completionCheckCount = useRef(0);
@@ -169,8 +178,24 @@ const Playground: React.FC<PlaygroundProps> = () => {
   }, []);
 
   useEffect(() => {
-    setTestCase((prev) => ({ ...prev, code: editorContent }));
-  }, [editorContent]);
+    const editor = editorRef.current;
+    if (editor) {
+      const model = editor.getModel();
+      if (model) {
+        const disposable = model.onDidChangeContent(() => {
+          const value = editor.getValue() || "";
+          setEditorContent(value);
+          // Keep code and script fields in sync
+          setTestCase((prev) => ({
+            ...prev,
+            code: value,
+            script: value,
+          }));
+        });
+        return () => disposable.dispose();
+      }
+    }
+  }, []);
 
   useEffect(() => {
     setApiErrors(0);
@@ -180,7 +205,13 @@ const Playground: React.FC<PlaygroundProps> = () => {
 
   const validateForm = () => {
     try {
-      testCaseSchema.parse(testCase);
+      // Before validation, ensure script field is synced with code field
+      const validationData = {
+        ...testCase,
+        script: editorContent,
+      };
+
+      testCaseSchema.parse(validationData);
       setErrors({});
       return true;
     } catch (error) {
@@ -214,7 +245,15 @@ const Playground: React.FC<PlaygroundProps> = () => {
 
     try {
       const formData = new FormData();
-      formData.append("code", editorRef.current?.getValue() || editorContent);
+      const codeValue = editorRef.current?.getValue() || editorContent;
+      formData.append("code", codeValue);
+
+      // Sync code with script field in testCase
+      setTestCase((prev) => ({
+        ...prev,
+        code: codeValue,
+        script: codeValue,
+      }));
 
       // If we have an existing test ID, send it with the request
       if (testId) {
@@ -541,7 +580,7 @@ const Playground: React.FC<PlaygroundProps> = () => {
                 variant={isActive ? "default" : "outline"}
                 size="sm"
                 className={cn(
-                  "text-xs",
+                  "text-xs cursor-pointer",
                   isPending && "animate-pulse",
                   isCompleted && !isActive && "opacity-70"
                 )}
@@ -739,7 +778,7 @@ const Playground: React.FC<PlaygroundProps> = () => {
                       <Label className="text-sm font-medium">Description</Label>
                       <Textarea
                         placeholder="Enter test case description"
-                        value={testCase.description}
+                        value={testCase.description || ""}
                         onChange={(e) =>
                           setTestCase({
                             ...testCase,
@@ -768,13 +807,27 @@ const Playground: React.FC<PlaygroundProps> = () => {
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select priority" />
+                            <SelectValue placeholder="Select priority">
+                              {testCase.priority
+                                ? priorityDisplayMap[
+                                    testCase.priority as TestPriority
+                                  ]
+                                : "Select priority"}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Low">Low</SelectItem>
-                            <SelectItem value="Medium">Medium</SelectItem>
-                            <SelectItem value="High">High</SelectItem>
-                            <SelectItem value="Critical">Critical</SelectItem>
+                            <SelectItem value="low">
+                              {priorityDisplayMap.low}
+                            </SelectItem>
+                            <SelectItem value="medium">
+                              {priorityDisplayMap.medium}
+                            </SelectItem>
+                            <SelectItem value="high">
+                              {priorityDisplayMap.high}
+                            </SelectItem>
+                            <SelectItem value="critical">
+                              {priorityDisplayMap.critical}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         {errors.priority && (
@@ -796,18 +849,24 @@ const Playground: React.FC<PlaygroundProps> = () => {
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select type" />
+                            <SelectValue placeholder="Select type">
+                              {testCase.type
+                                ? typeDisplayMap[testCase.type as TestType]
+                                : "Select type"}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Functional">
-                              Functional
+                            <SelectItem value="browser">
+                              {typeDisplayMap.browser}
                             </SelectItem>
-                            <SelectItem value="Regression">
-                              Regression
+                            <SelectItem value="api">
+                              {typeDisplayMap.api}
                             </SelectItem>
-                            <SelectItem value="E2E">E2E</SelectItem>
-                            <SelectItem value="Performance">
-                              Performance
+                            <SelectItem value="multistep">
+                              {typeDisplayMap.multistep}
+                            </SelectItem>
+                            <SelectItem value="database">
+                              {typeDisplayMap.database}
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -817,7 +876,7 @@ const Playground: React.FC<PlaygroundProps> = () => {
                       </div>
                     </div>
 
-                    <div className="space-y-2">
+                    {/* <div className="space-y-2">
                       <Label className="text-sm font-medium">Browser</Label>
                       <Tabs
                         defaultValue="chromium"
@@ -848,9 +907,9 @@ const Playground: React.FC<PlaygroundProps> = () => {
                       {errors.browser && (
                         <p className="text-sm text-red-500">{errors.browser}</p>
                       )}
-                    </div>
+                    </div> */}
 
-                    <div className="space-y-2">
+                    {/* <div className="space-y-2">
                       <Label className="text-sm font-medium">Tags</Label>
                       <Input
                         placeholder="Enter comma-separated tags"
@@ -862,12 +921,12 @@ const Playground: React.FC<PlaygroundProps> = () => {
                       {errors.tags && (
                         <p className="text-sm text-red-500">{errors.tags}</p>
                       )}
-                    </div>
-                    <div className="flex items-center justify-center w-full">
+                    </div> */}
+                    <div className="flex justify-end w-full">
                       <Button
                         onClick={() => {
                           if (validateForm()) {
-                            setInitialFormValues(testCase);
+                            setInitialFormValues({ code: editorContent });
                             setInitialEditorContent(editorContent);
                             toast({
                               title: "Test Saved",
@@ -885,7 +944,7 @@ const Playground: React.FC<PlaygroundProps> = () => {
                           }
                         }}
                         size="sm"
-                        className="flex items-center gap-2 w-[180px] mt-2"
+                        className="flex items-center gap-2 w-[120px] mt-2 cursor-pointer"
                         disabled={isRunning || !hasChanges()}
                       >
                         <SaveIcon className="h-4 w-4" />
