@@ -60,15 +60,52 @@ function walkAst(
  * - Check for infinite loops or suspicious patterns.
  */
 export function validateCode(code: string): { valid: boolean; error?: string } {
+  // Check for potentially dangerous patterns in all scripts
+  // Simple infinite loop detection
+  const infiniteLoopPatterns = [
+    /while\s*\(\s*true\s*\)/,
+    /for\s*\(\s*;\s*;\s*\)/,
+    /while\s*\(\s*1\s*\)/,
+    /for\s*\(\s*;[^;]*true[^;]*;\s*\)/,
+  ];
+  if (infiniteLoopPatterns.some((p) => p.test(code))) {
+    return {
+      valid: false,
+      error: "Security Error: Potential infinite loop detected.",
+    };
+  }
+
+  // Block dangerous patterns (eval, new Function, etc.)
+  const dangerousPatterns = [
+    /eval\s*\(/,
+    /new\s+Function\s*\(/,
+    /\bFunction\s*\(/,
+    /document\.write/,
+    /\bwebpack\b/,
+    /\brequire\.resolve\b/,
+    /\b__dirname\b/,
+    /\b__filename\b/,
+  ];
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(code)) {
+      return {
+        valid: false,
+        error: `Security Error: Potentially dangerous code pattern detected: ${pattern}`,
+      };
+    }
+  }
+
   // Skip TypeScript validation for Playwright test scripts
   // Check for both exact matches and more general Playwright patterns
-  if (code.includes("import { test, expect } from '@playwright/test'") || 
-      code.includes('import { test, expect } from "@playwright/test"') ||
-      code.includes('request.get(') ||
-      code.includes('request.post(') ||
-      code.includes('request.put(') ||
-      code.includes('request.delete(') ||
-      /test\(\s*["'].*["'],\s*async/.test(code)) {
+  if (
+    code.includes("import { test, expect } from '@playwright/test'") ||
+    code.includes('import { test, expect } from "@playwright/test"') ||
+    code.includes("request.get(") ||
+    code.includes("request.post(") ||
+    code.includes("request.put(") ||
+    code.includes("request.delete(") ||
+    /test\(\s*["'].*["'],\s*async/.test(code)
+  ) {
     return { valid: true };
   }
 
@@ -77,34 +114,35 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
     // First, check for TypeScript-specific syntax
     const typescriptPatterns = [
       // Type annotations with colon
-      /\w+\s*:\s*{[^}]*}\s*=>/,            // (param: { type }) =>
-      /\w+\s*:\s*\w+(\[\])?\s*[,\)]/,      // functionName(param: Type)
-      /\w+\s*:\s*\w+(\[\])?\s*=>/,         // (param: Type) =>
-      /:\s*\w+(\[\])?\s*[,\)=]/,           // : Type, or : Type) or : Type=
-      
+      /\w+\s*:\s*{[^}]*}\s*=>/, // (param: { type }) =>
+      /\w+\s*:\s*\w+(\[\])?\s*[,\)]/, // functionName(param: Type)
+      /\w+\s*:\s*\w+(\[\])?\s*=>/, // (param: Type) =>
+      /:\s*\w+(\[\])?\s*[,\)=]/, // : Type, or : Type) or : Type=
+
       // Interface definitions
       /interface\s+\w+/,
-      
+
       // Type aliases
       /type\s+\w+\s*=/,
-      
+
       // Generics
-      /<\w+>(?=\()/,                       // functionName<T>()
-      /<\w+,\s*\w+>(?=\()/,                // functionName<T, U>()
-      
+      /<\w+>(?=\()/, // functionName<T>()
+      /<\w+,\s*\w+>(?=\()/, // functionName<T, U>()
+
       // TypeScript-specific keywords
-      /\b(readonly|namespace|declare|abstract|implements|private|protected|public|override|keyof|typeof|infer)\b/
+      /\b(readonly|namespace|declare|abstract|implements|private|protected|public|override|keyof|typeof|infer)\b/,
     ];
-    
+
     for (const pattern of typescriptPatterns) {
       if (pattern.test(code)) {
-        return { 
-          valid: false, 
-          error: "TypeScript syntax detected. This playground only supports JavaScript. Please remove type annotations and TypeScript-specific syntax." 
+        return {
+          valid: false,
+          error:
+            "TypeScript syntax detected. This playground only supports JavaScript. Please remove type annotations and TypeScript-specific syntax.",
         };
       }
     }
-    
+
     ast = acorn.parse(code, {
       ecmaVersion: 2020,
       sourceType: "module",
@@ -113,18 +151,20 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
     if (err instanceof Error) {
       // Check if the error message suggests TypeScript syntax
       const errorMsg = err.message;
-      
-      if (errorMsg.includes(":") && (
-          errorMsg.includes("Unexpected token") || 
-          errorMsg.includes("Unexpected character")
-        )) {
+
+      if (
+        errorMsg.includes(":") &&
+        (errorMsg.includes("Unexpected token") ||
+          errorMsg.includes("Unexpected character"))
+      ) {
         // This might be TypeScript syntax error
-        return { 
-          valid: false, 
-          error: "Syntax Error: The code contains invalid syntax that might be TypeScript. This playground only supports JavaScript. Please remove type annotations (e.g., change '(todo: { completed: boolean }) => todo.completed' to 'todo => todo.completed')."
+        return {
+          valid: false,
+          error:
+            "Syntax Error: The code contains invalid syntax that might be TypeScript. This playground only supports JavaScript. Please remove type annotations (e.g., change '(todo: { completed: boolean }) => todo.completed' to 'todo => todo.completed').",
         };
       }
-      
+
       return { valid: false, error: `Syntax Error: ${err.message}` };
     }
     return { valid: false, error: "Syntax Error" };
@@ -165,36 +205,6 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
         }
       },
     });
-
-    // Simple infinite loop detection
-    const infiniteLoopPatterns = [
-      /while\s*\(\s*true\s*\)/,
-      /for\s*\(\s*;\s*;\s*\)/,
-      /while\s*\(\s*1\s*\)/,
-      /for\s*\(\s*;[^;]*true[^;]*;\s*\)/,
-    ];
-    if (infiniteLoopPatterns.some((p) => p.test(code))) {
-      throw new Error("Security Error: Potential infinite loop detected.");
-    }
-
-    // Block dangerous patterns (eval, new Function, etc.)
-    const dangerousPatterns = [
-      /eval\s*\(/,
-      /new\s+Function\s*\(/,
-      /\bFunction\s*\(/,
-      /document\.write/,
-      /\bwebpack\b/,
-      /\brequire\.resolve\b/,
-      /\b__dirname\b/,
-      /\b__filename\b/,
-    ];
-    for (const pattern of dangerousPatterns) {
-      if (pattern.test(code)) {
-        throw new Error(
-          `Security Error: Potentially dangerous code pattern detected: ${pattern}`
-        );
-      }
-    }
 
     return { valid: true };
   } catch (error) {

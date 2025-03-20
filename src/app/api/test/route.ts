@@ -3,14 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const code = formData.get("code") as string;
+    // Parse JSON data instead of form data
+    const data = await request.json();
+    const script = data.script as string;
 
-    if (!code) {
-      return NextResponse.json({ error: "No code provided" }, { status: 400 });
+    if (!script) {
+      return NextResponse.json({ error: "No script provided" }, { status: 400 });
     }
 
-    const result = await executeTest(code);
+    const result = await executeTest(script);
 
     await cleanupTestResults();
 

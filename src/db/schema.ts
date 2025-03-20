@@ -159,7 +159,7 @@ export const tests = sqliteTable("tests", {
   //   .references(() => projects.id),
   title: text("title").notNull(),
   description: text("description"),
-  script: text("script").notNull().default(""),
+  script: text("script").notNull().default(""), // Store Base64-encoded script content
   priority: text("priority").$type<TestPriority>().notNull().default("medium"),
   type: text("type").$type<TestType>().notNull().default("browser"),
   // tags: text("tags", { mode: "json" })

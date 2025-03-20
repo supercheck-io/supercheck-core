@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +11,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SaveIcon } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { testsInsertSchema, TestPriority, TestType } from "@/db/schema";
 import { saveTest } from "@/actions/save-test";
+import { decodeTestScript } from "@/actions/save-test";
 import { useRouter } from "next/navigation";
 
 // Map the database schema values to display values for the UI
@@ -40,54 +41,188 @@ const testCaseSchema = testsInsertSchema
       .max(100, "Title must be less than 100 characters"),
     description: z
       .string()
-      .min(1, "Description is required")
-      .max(1000, "Description must be less than 1000 characters"),
+      .nullable()
+      .transform((val) => (val === null ? "" : val)) // Convert null to empty string
+      .pipe(z.string().min(1, "Description is required").max(1000, "Description must be less than 1000 characters")),
     script: z.string().min(1, "Test script is required"),
-    code: z.string().optional(),
   })
   .omit({ createdAt: true, updatedAt: true });
 
 type TestCaseFormData = z.infer<typeof testCaseSchema>;
 
-type TestFormProps = {
-  testCase: TestCaseFormData;
-  setTestCase: React.Dispatch<React.SetStateAction<TestCaseFormData>>;
+interface TestFormProps {
+  testCase: {
+    title: string;
+    description: string | null;
+    priority: TestPriority;
+    type: TestType;
+    script?: string;
+  };
+  setTestCase: React.Dispatch<React.SetStateAction<{
+    title: string;
+    description: string | null;
+    priority: TestPriority;
+    type: TestType;
+    script?: string;
+  }>>;
   errors: Record<string, string>;
+  validateForm: () => boolean;
   editorContent: string;
   isRunning: boolean;
-  validateForm: () => boolean;
-  setInitialFormValues: (values: Partial<TestCaseFormData>) => void;
   setInitialEditorContent: (content: string) => void;
-  initialFormValues: Partial<TestCaseFormData>;
+  initialFormValues: Partial<{
+    title: string;
+    description: string | null;
+    priority: TestPriority;
+    type: TestType;
+    script?: string;
+  }>;
   initialEditorContent: string;
-};
+  testId?: string | null;
+}
 
 export function TestForm({
   testCase,
   setTestCase,
   errors,
+  validateForm,
   editorContent,
   isRunning,
-  validateForm,
-  setInitialFormValues,
   setInitialEditorContent,
   initialFormValues,
-  initialEditorContent,
+  initialEditorContent: initialEditorContentProp,
+  testId,
 }: TestFormProps) {
   const router = useRouter();
+  const [formChanged, setFormChanged] = useState(false);
+  const [justUpdated, setJustUpdated] = useState(false);
 
-  // Check if the form has changes compared to initial values
-  const hasChangesLocal = () => {
-    const formChanged =
+  // Track if form has changes compared to initial values
+  const hasChangesLocal = useCallback(() => {
+    // Check if any form field has changed
+    const formFieldsChanged =
       testCase.title !== (initialFormValues.title || "") ||
       testCase.description !== (initialFormValues.description || "") ||
       testCase.priority !== (initialFormValues.priority || "medium") ||
       testCase.type !== (initialFormValues.type || "browser");
 
-    const scriptChanged = editorContent !== initialEditorContent;
+    // Check if editor content has changed
+    const editorChanged = editorContent !== initialEditorContentProp;
 
-    return formChanged || scriptChanged;
+    return formFieldsChanged || editorChanged;
+  }, [testCase, editorContent, initialFormValues, initialEditorContentProp]);
+
+  // Update formChanged state whenever form values change
+  useEffect(() => {
+    setFormChanged(hasChangesLocal());
+    
+    // If there are changes, reset the justUpdated flag
+    if (hasChangesLocal()) {
+      setJustUpdated(false);
+    }
+  }, [testCase, editorContent, initialFormValues, initialEditorContentProp, hasChangesLocal]);
+
+  // Reset the update state
+  const resetUpdateState = () => {
+    setJustUpdated(false);
+    setFormChanged(false);
   };
+
+  // Make the resetUpdateState function available to the parent component
+  useEffect(() => {
+    // When testId changes, reset the update state
+    resetUpdateState();
+  }, [testId]);
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validateForm()) {
+      // Convert the editor content to base64 before saving
+      // Use the browser's btoa function for base64 encoding
+      const base64Script = btoa(
+        unescape(encodeURIComponent(editorContent))
+      );
+
+      // Update the test case with base64-encoded script
+      const updatedTestCase = {
+        ...testCase,
+        script: base64Script,
+      };
+
+      try {
+        // If we have a testId, update the existing test
+        if (testId) {
+          const result = await saveTest({
+            id: testId,
+            ...updatedTestCase,
+          });
+
+          if (result.success) {
+            // Update form state
+            setJustUpdated(true);
+            setFormChanged(false);
+
+            toast.success("Test updated successfully.");
+
+            // Stay on the same page after updating
+          } else {
+            toast.error(result.error || "Failed to update test.");
+          }
+        } else {
+          // Save as a new test
+          const result = await saveTest(updatedTestCase);
+          
+          if (result.success) {
+            toast.success("Test saved successfully.");
+
+            // Navigate to the playground page with the test ID
+            router.push(`/playground/${result.id}`);
+          } else {
+            toast.error(result.error || "Failed to save test.");
+          }
+        }
+      } catch (error) {
+        console.error("Error saving test:", error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "An error occurred while saving the test."
+        );
+      }
+    } else {
+      // Show validation errors
+      const errorMessages = Object.values(errors).filter(Boolean);
+      const errorDescription = errorMessages.length > 0 
+        ? errorMessages.join('\n') 
+        : "Please fix the form errors before saving.";
+      
+      toast.error(errorDescription);
+    }
+  };
+
+  // Decode the script when the component mounts or when initialEditorContent changes
+  React.useEffect(() => {
+    // Only try to decode if there's content and it might be base64
+    if (initialEditorContentProp && initialEditorContentProp.trim() !== "") {
+      const decodeScript = async () => {
+        try {
+          // Try to decode the script
+          const decodedScript = await decodeTestScript(initialEditorContentProp);
+
+          // Only update if the decoded script is different
+          if (decodedScript !== initialEditorContentProp) {
+            setInitialEditorContent(decodedScript);
+          }
+        } catch (error) {
+          console.error("Error decoding script:", error);
+          // If decoding fails, keep the original content
+        }
+      };
+
+      decodeScript();
+    }
+  }, [initialEditorContentProp, setInitialEditorContent]);
 
   return (
     <div className="p-2 space-y-4">
@@ -115,7 +250,7 @@ export function TestForm({
         </label>
         <Textarea
           id="description"
-          value={testCase.description}
+          value={testCase.description || ""}
           onChange={(e) =>
             setTestCase((prev) => ({
               ...prev,
@@ -208,62 +343,28 @@ export function TestForm({
         </div>
       </div>
 
-      <div className="flex justify-end w-full">
-        <Button
-          onClick={async () => {
-            if (validateForm()) {
-              // Update the editor content in the test case
-              const updatedTestCase = {
-                ...testCase,
-                script: editorContent
-              };
-              
-              try {
-                // Save the test to the database
-                const result = await saveTest(updatedTestCase);
-                
-                if (result.success) {
-                  // Update local state
-                  setInitialFormValues(updatedTestCase);
-                  setInitialEditorContent(editorContent);
-                  
-                  toast({
-                    title: "Test Saved",
-                    description: "Your test has been saved successfully.",
-                    variant: "default",
-                  });
-                  
-                  // Navigate to the tests page
-                  router.push(`/tests/${result.id}`);
-                } else {
-                  toast({
-                    title: "Save Error",
-                    description: result.error || "Failed to save test.",
-                    variant: "destructive",
-                  });
-                }
-              } catch (error) {
-                toast({
-                  title: "Save Error",
-                  description: error instanceof Error ? error.message : "An unknown error occurred.",
-                  variant: "destructive",
-                });
-              }
-            } else {
-              toast({
-                title: "Validation Error",
-                description: "Please fix the errors before saving.",
-                variant: "destructive",
-              });
-            }
-          }}
-          size="sm"
-          className="flex items-center gap-2 w-[150px] mt-4 cursor-pointer"
-          disabled={isRunning || !hasChangesLocal()}
-        >
-          <SaveIcon className="h-4 w-4" />
-          <span className="hidden sm:inline">Save</span>
-        </Button>
+      <div className="flex justify-end">
+        {testId ? (
+          <Button
+            type="submit"
+            onClick={handleSubmit}
+            className="flex items-center gap-2 w-[150px] mt-4 cursor-pointer"
+            disabled={isRunning || (!formChanged || justUpdated)}
+          >
+            <SaveIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Update</span>
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            onClick={handleSubmit}
+            className="flex items-center gap-2 w-[150px] mt-4 cursor-pointer"
+            disabled={isRunning}
+          >
+            <SaveIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Save</span>
+          </Button>
+        )}
       </div>
     </div>
   );

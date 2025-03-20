@@ -8,55 +8,58 @@ interface MonacoEditorProps {
 }
 
 // Use the memo HOC to prevent unnecessary re-renders
-export const MonacoEditorClient = memo(forwardRef<editor.IStandaloneCodeEditor, MonacoEditorProps>(
-  ({ value, onChange }, ref) => {
-    const monaco = useMonaco();
-    const editorInstanceRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-    const styleSheetRef = useRef<HTMLStyleElement | null>(null);
-    const isInitialized = useRef(false);
+export const MonacoEditorClient = memo(
+  forwardRef<editor.IStandaloneCodeEditor, MonacoEditorProps>(
+    ({ value, onChange }, ref) => {
+      const monaco = useMonaco();
+      const editorInstanceRef = useRef<editor.IStandaloneCodeEditor | null>(
+        null
+      );
+      const styleSheetRef = useRef<HTMLStyleElement | null>(null);
+      const isInitialized = useRef(false);
 
-    // Configure Monaco once when it's available
-    useEffect(() => {
-      if (!monaco || isInitialized.current) return;
-      
-      // Mark as initialized to prevent configuration on re-renders
-      isInitialized.current = true;
+      // Configure Monaco once when it's available
+      useEffect(() => {
+        if (!monaco || isInitialized.current) return;
 
-      // Set eager model sync for immediate type loading
-      monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
+        // Mark as initialized to prevent configuration on re-renders
+        isInitialized.current = true;
 
-      // Configure JavaScript defaults
-      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-        target: monaco.languages.typescript.ScriptTarget.ESNext,
-        allowNonTsExtensions: true,
-        moduleResolution:
-          monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-        module: monaco.languages.typescript.ModuleKind.ESNext,
-        noEmit: true,
-        esModuleInterop: true,
-        allowJs: true,
-        checkJs: false,
-        strict: false,
-        noImplicitAny: false,
-        strictNullChecks: false,
-        strictFunctionTypes: false,
-        strictBindCallApply: false,
-        strictPropertyInitialization: false,
-        noImplicitThis: false,
-        alwaysStrict: false,
-      });
+        // Set eager model sync for immediate type loading
+        monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
 
-      // Disable diagnostics but keep suggestions
-      monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-        noSemanticValidation: true,
-        noSyntaxValidation: true,
-        noSuggestionDiagnostics: false,
-        diagnosticCodesToIgnore: [1],
-      });
+        // Configure JavaScript defaults
+        monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+          target: monaco.languages.typescript.ScriptTarget.ESNext,
+          allowNonTsExtensions: true,
+          moduleResolution:
+            monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+          module: monaco.languages.typescript.ModuleKind.ESNext,
+          noEmit: true,
+          esModuleInterop: true,
+          allowJs: true,
+          checkJs: false,
+          strict: false,
+          noImplicitAny: false,
+          strictNullChecks: false,
+          strictFunctionTypes: false,
+          strictBindCallApply: false,
+          strictPropertyInitialization: false,
+          noImplicitThis: false,
+          alwaysStrict: false,
+        });
 
-      // Add Playwright types from your d.ts file
-      monaco.languages.typescript.javascriptDefaults.addExtraLib(
-        `
+        // Disable diagnostics but keep suggestions
+        monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+          noSemanticValidation: true,
+          noSyntaxValidation: true,
+          noSuggestionDiagnostics: false,
+          diagnosticCodesToIgnore: [1],
+        });
+
+        // Add Playwright types from your d.ts file
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(
+          `
 declare module "@playwright/test" {
   export interface Page {
     goto(
@@ -227,29 +230,29 @@ declare module "@playwright/test" {
 
   export const expect: Expect;
 }`,
-        "playwright.d.ts"
-      );
+          "playwright.d.ts"
+        );
 
-      // Add default imports
-      monaco.languages.typescript.javascriptDefaults.addExtraLib(
-        'import { test, expect } from "@playwright/test";',
-        "imports.d.ts"
-      );
+        // Add default imports
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(
+          'import { test, expect } from "@playwright/test";',
+          "imports.d.ts"
+        );
 
-      // Add basic types for immediate completion
-      monaco.languages.typescript.javascriptDefaults.addExtraLib(
-        'declare const page: import("@playwright/test").Page;',
-        "globals.d.ts"
-      );
-    }, [monaco]);
+        // Add basic types for immediate completion
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(
+          'declare const page: import("@playwright/test").Page;',
+          "globals.d.ts"
+        );
+      }, [monaco]);
 
-    // Add custom styles to remove all borders, but only once
-    const beforeMount = useCallback(() => {
-      // Check if the style already exists by ID
-      if (!document.getElementById('monaco-editor-styles')) {
-        const styleSheet = document.createElement("style");
-        styleSheet.id = "monaco-editor-styles";
-        styleSheet.textContent = `
+      // Add custom styles to remove all borders, but only once
+      const beforeMount = useCallback(() => {
+        // Check if the style already exists by ID
+        if (!document.getElementById("monaco-editor-styles")) {
+          const styleSheet = document.createElement("style");
+          styleSheet.id = "monaco-editor-styles";
+          styleSheet.textContent = `
         .monaco-editor, .monaco-editor-background, .monaco-editor .margin,
         .monaco-workbench .part.editor>.content .editor-group-container>.title,
         .monaco-workbench .part.editor>.content .editor-group-container,
@@ -261,97 +264,104 @@ declare module "@playwright/test" {
           border-bottom: none !important;
         }
       `;
-        document.head.appendChild(styleSheet);
-        styleSheetRef.current = styleSheet;
-      }
-    }, []);
+          document.head.appendChild(styleSheet);
+          styleSheetRef.current = styleSheet;
+        }
+      }, []);
 
-    // Handle editor mount - this should only happen once
-    const handleEditorMount = useCallback((editor: editor.IStandaloneCodeEditor) => {
-      // Store the editor instance in our ref
-      editorInstanceRef.current = editor;
-      
-      // Set the ref passed from the parent
-      if (ref && typeof ref === "object") {
-        ref.current = editor;
-      }
-      
-      // Enable quick suggestions immediately
-      editor.updateOptions({
-        quickSuggestions: { other: true, comments: true, strings: true },
-        suggestOnTriggerCharacters: true,
-        acceptSuggestionOnEnter: "on",
-        tabCompletion: "on",
-        wordBasedSuggestions: "currentDocument",
-        parameterHints: { enabled: true, cycle: true },
-      });
-    }, [ref]);
+      // Handle editor mount - this should only happen once
+      const handleEditorMount = useCallback(
+        (editor: editor.IStandaloneCodeEditor) => {
+          // Store the editor instance in our ref
+          editorInstanceRef.current = editor;
 
-    // Create a memoized callback for onChange to prevent unnecessary re-renders
-    const handleEditorChange = useCallback((value: string | undefined) => {
-      onChange(value);
-    }, [onChange]);
+          // Set the ref passed from the parent
+          if (ref && typeof ref === "object") {
+            ref.current = editor;
+          }
 
-    return (
-      <div
-        className="flex flex-1 w-full relative overflow-hidden border-none outline-none monaco-wrapper"
-        style={{ borderBottom: "none" }}
-      >
-        <Editor
-          height="calc(100vh - 10rem)"
-          defaultLanguage="javascript"
-          value={value}
-          onChange={handleEditorChange}
-          theme="vs-dark"
-          className="w-full overflow-hidden border-none outline-none"
-          beforeMount={beforeMount}
-          onMount={handleEditorMount}
-          options={{
-            minimap: { enabled: false },
-            fontSize: 13,
-            wordWrap: "on",
-            padding: { top: 16, bottom: 16 },
-            automaticLayout: true,
-            roundedSelection: true,
-            scrollBeyondLastLine: false,
-            folding: true,
-            renderValidationDecorations: "off",
-            suggest: {
-              snippetsPreventQuickSuggestions: false,
-              showIcons: true,
-              showStatusBar: true,
-              preview: true,
-              filterGraceful: true,
-              selectionMode: "always",
-              showMethods: true,
-              showFunctions: true,
-              showConstructors: true,
-              showDeprecated: false,
-              matchOnWordStartOnly: false,
-              localityBonus: true,
-            },
-            parameterHints: {
-              enabled: true,
-              cycle: true,
-            },
-            inlineSuggest: {
-              enabled: true,
-            },
-            quickSuggestions: {
-              other: true,
-              comments: true,
-              strings: true,
-            },
-            acceptSuggestionOnCommitCharacter: true,
+          // Enable quick suggestions immediately
+          editor.updateOptions({
+            quickSuggestions: { other: true, comments: true, strings: true },
+            suggestOnTriggerCharacters: true,
             acceptSuggestionOnEnter: "on",
             tabCompletion: "on",
             wordBasedSuggestions: "currentDocument",
-          }}
-        />
-      </div>
-    );
-  }
-));
+            parameterHints: { enabled: true, cycle: true },
+          });
+        },
+        [ref]
+      );
+
+      // Create a memoized callback for onChange to prevent unnecessary re-renders
+      const handleEditorChange = useCallback(
+        (value: string | undefined) => {
+          onChange(value);
+        },
+        [onChange]
+      );
+
+      return (
+        <div
+          className="flex flex-1 w-full relative overflow-hidden border-none outline-none monaco-wrapper"
+          style={{ borderBottom: "none" }}
+        >
+          <Editor
+            height="calc(100vh - 10rem)"
+            defaultLanguage="javascript"
+            value={value}
+            onChange={handleEditorChange}
+            theme="vs-dark"
+            className="w-full overflow-hidden border-none outline-none"
+            beforeMount={beforeMount}
+            onMount={handleEditorMount}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 13.5,
+              wordWrap: "on",
+              padding: { top: 16, bottom: 16 },
+              automaticLayout: true,
+              roundedSelection: true,
+              scrollBeyondLastLine: false,
+              folding: true,
+              renderValidationDecorations: "off",
+              suggest: {
+                snippetsPreventQuickSuggestions: false,
+                showIcons: true,
+                showStatusBar: true,
+                preview: true,
+                filterGraceful: true,
+                selectionMode: "always",
+                showMethods: true,
+                showFunctions: true,
+                showConstructors: true,
+                showDeprecated: false,
+                matchOnWordStartOnly: false,
+                localityBonus: true,
+              },
+              parameterHints: {
+                enabled: true,
+                cycle: true,
+              },
+              inlineSuggest: {
+                enabled: true,
+              },
+              quickSuggestions: {
+                other: true,
+                comments: true,
+                strings: true,
+              },
+              acceptSuggestionOnCommitCharacter: true,
+              acceptSuggestionOnEnter: "on",
+              tabCompletion: "on",
+              wordBasedSuggestions: "currentDocument",
+            }}
+          />
+        </div>
+      );
+    }
+  )
+);
 
 // Add displayName for better debugging and to fix the ESLint warning
 MonacoEditorClient.displayName = "MonacoEditorClient";

@@ -68,7 +68,6 @@ const testQueue = async.queue(
     task: {
       testId: string;
       testPath: string;
-      code: string;
       resolve: (value: TestResult) => void;
       reject: (reason: Error | TestResult) => void;
     },
@@ -83,8 +82,7 @@ const testQueue = async.queue(
 
       const result = await executeTestInChildProcess(
         task.testId,
-        task.testPath,
-        task.code
+        task.testPath
       );
 
       // Update the test status to completed
@@ -170,8 +168,7 @@ export function toUrlPath(filePath: string): string {
  */
 async function executeTestInChildProcess(
   testId: string,
-  testPath: string,
-  code: string = ""
+  testPath: string
 ): Promise<TestResult> {
   return new Promise(async (resolve, reject) => {
     try {
@@ -540,20 +537,16 @@ async function executeTestInChildProcess(
             status: "completed",
             success: false,
             error: timeoutError,
-            reportUrl: toUrlPath(
-              `/api/test-results/${testId}/report/index.html`
-            ),
+            reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
           });
 
           reject({
             success: false,
             error: timeoutError,
-            reportUrl: toUrlPath(
-              `/api/test-results/${testId}/report/index.html`
-            ),
             testId,
             stdout: stdoutChunks.join(""),
             stderr: stderrChunks.join(""),
+            reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
           });
         }
       }, TEST_EXECUTION_TIMEOUT_MS); // 2 minutes timeout
@@ -730,9 +723,7 @@ async function executeTestInChildProcess(
               status: "completed",
               success: false,
               error: errorMessage,
-              reportUrl: toUrlPath(
-                `/api/test-results/${testId}/report/index.html`
-              ),
+              reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
             });
 
             resolve({
@@ -741,9 +732,7 @@ async function executeTestInChildProcess(
               testId,
               stdout,
               stderr,
-              reportUrl: toUrlPath(
-                `/api/test-results/${testId}/report/index.html`
-              ),
+              reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
             });
           } catch (writeError) {
             console.error(`Error creating error report: ${writeError}`);
@@ -937,9 +926,7 @@ async function executeTestInChildProcess(
               testId,
               stdout: stdoutChunks.join(""),
               stderr: stderrChunks.join(""),
-              reportUrl: toUrlPath(
-                `/api/test-results/${testId}/report/index.html`
-              ),
+              reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
             });
           })
           .catch((err) => {
@@ -970,8 +957,10 @@ async function executeTestInChildProcess(
 
         const errorHtml = `
         <!DOCTYPE html>
-        <html>
+        <html lang="en">
           <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Test Error</title>
             <style>
               body {
@@ -1164,9 +1153,12 @@ export async function executeTest(code: string): Promise<TestResult> {
     await mkdir(reportDir, { recursive: true });
     await mkdir(testsDir, { recursive: true });
 
-    // Validate the code
+    // Validate the code - this must be done before any execution
+    console.log(`Validating code for test ${testId}...`);
     const validationResult = validateCode(code);
     if (!validationResult.valid) {
+      console.error(`Code validation failed for test ${testId}: ${validationResult.error}`);
+      
       // Update test status
       testStatusMap.set(testId, {
         testId,
@@ -1356,7 +1348,6 @@ test('test', async ({ page }) => {
       testQueue.push({
         testId,
         testPath,
-        code,
         resolve,
         reject,
       });

@@ -1,36 +1,40 @@
 "use client";
-import {
-  FileTextIcon,
-  FileText,
-  Code,
-  AlertCircle,
-  Loader2Icon,
-  CheckCircleIcon,
-  AlertTriangleIcon,
-  ZapIcon,
-} from "lucide-react";
-import { useState, useRef, useEffect, useMemo } from "react";
-import * as z from "zod";
+import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/components/ui/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CodeEditor } from "./code-editor";
-import { TestForm } from "./test-form";
-import type { editor } from "monaco-editor";
+import { toast } from "sonner";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { cn } from "@/lib/utils";
-import { useSearchParams } from "next/navigation";
-import { testsInsertSchema, TestPriority, TestType } from "@/db/schema";
-import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { CodeEditor } from "./code-editor";
+import { TestForm } from "./test-form";
+import { TestPriority, TestType } from "@/db/schema";
+import {
+  FileTextIcon,
+  CheckCircleIcon,
+  AlertTriangleIcon,
+  Loader2Icon,
+  ZapIcon,
+} from "lucide-react";
+import * as z from "zod";
+import type { editor } from "monaco-editor";
+
+// Define our own TestCaseFormData interface
+interface TestCaseFormData {
+  title: string;
+  description: string | null;
+  priority: TestPriority;
+  type: TestType;
+  script?: string;
+}
 
 // Using the testsInsertSchema from schema.ts with extensions for playground-specific fields
-const testCaseSchema = testsInsertSchema
-  .extend({
+const testCaseSchema = z
+  .object({
     title: z
       .string()
       .min(1, "Title is required")
@@ -39,73 +43,145 @@ const testCaseSchema = testsInsertSchema
       .string()
       .min(1, "Description is required")
       .max(1000, "Description must be less than 1000 characters"),
+    priority: z.enum(["low", "medium", "high"]),
+    type: z.enum(["browser", "api", "multistep", "database"]),
     script: z.string().min(1, "Test script is required"),
   })
-  .omit({ createdAt: true, updatedAt: true });
-
-type TestCaseFormData = z.infer<typeof testCaseSchema>;
+  .strict();
 
 interface PlaygroundProps {
-  scriptType?: string;
+  initialTestData?: {
+    id?: string;
+    title: string;
+    description: string | null;
+    script: string;
+    priority: TestPriority;
+    type: TestType;
+  };
+  initialTestId?: string;
 }
 
-const Playground: React.FC<PlaygroundProps> = () => {
-  const { toast } = useToast();
-
+const Playground: React.FC<PlaygroundProps> = ({
+  initialTestData,
+  initialTestId,
+}) => {
   const [activeTab, setActiveTab] = useState<string>("editor");
   const [isRunning, setIsRunning] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
-  const [testId, setTestId] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [editorContent, setEditorContent] = useState("");
-  const [initialEditorContent, setInitialEditorContent] = useState("");
+  // Only set testId from initialTestId if we're on a specific test page
+  // Always ensure testId is null when on the main playground page
+  const [testId, setTestId] = useState<string | null>(initialTestId || null);
+  const [editorContent, setEditorContent] = useState(
+    initialTestData?.script || ""
+  );
+  const [initialEditorContent, setInitialEditorContent] = useState(
+    initialTestData?.script || ""
+  );
   const [initialFormValues, setInitialFormValues] = useState<
     Partial<TestCaseFormData>
-  >({});
-  // const [scriptTypeState, setScriptType] = useState<string | null>(null);
+  >(
+    initialTestData
+      ? {
+          title: initialTestData.title,
+          description: initialTestData.description,
+          priority: initialTestData.priority,
+          type: initialTestData.type,
+        }
+      : {}
+  );
   const [testCase, setTestCase] = useState<TestCaseFormData>({
-    title: "",
-    description: "",
-    script: "", // Add script field to match the database schema
-    priority: "medium" as TestPriority, // Use lowercase values from the database schema
-    type: "browser" as TestType, // Use the values from the database schema
+    title: initialTestData?.title || "",
+    description: initialTestData?.description || "",
+    priority: initialTestData?.priority || ("medium" as TestPriority),
+    type: initialTestData?.type || ("browser" as TestType),
+    script: initialTestData?.script || "",
   });
 
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof TestCaseFormData, string>>
-  >({});
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  // Create empty errors object for TestForm
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Track test runs
   const [testIds, setTestIds] = useState<string[]>([]);
   const [completedTestIds, setCompletedTestIds] = useState<string[]>([]);
-  const [pendingTestIds, setPendingTestIds] = useState<string[]>([]);
-  const [currentReportUrl, setCurrentReportUrl] = useState<string | null>(null);
-  // const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
-  const pendingTests = new Map<
-    string,
-    { checkCount: number; errorCount: number }
-  >();
 
-  const [apiErrors, setApiErrors] = useState(0);
-  const [testStatus, setTestStatus] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
-  const forcedReloads = useRef(0);
-  const completionCheckCount = useRef(0);
-  const reportFrameRef = useRef<HTMLIFrameElement | null>(null);
-
-  // Add a completed flag to track if a test has been marked complete to stop polling
-  const testCompleted = useRef<Record<string, boolean>>({});
-
-  // Add the missing editorInitialized ref
-  const editorInitialized = useRef(false);
-
-  // Get search params and router for client-side navigation
+  // Editor reference
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const searchParams = useSearchParams();
-  // const router = useRouter();
+
+  // Reset testId when on the main playground page
+  useEffect(() => {
+    if (window.location.pathname === "/playground") {
+      setTestId(null);
+    }
+  }, []);
+
+  // Load test data if testId is provided
+  useEffect(() => {
+    if (initialTestId) {
+      loadTestById(initialTestId);
+    }
+  }, [initialTestId]);
+
+  // Function to load a test by ID
+  const loadTestById = async (id: string) => {
+    try {
+      setLoading(true);
+
+      // Import the getTest function
+      const { getTest } = await import("@/actions/get-test");
+
+      // Fetch the test data
+      const result = await getTest(id);
+
+      if (result.success && result.test) {
+        // Update the test case data
+        setTestCase({
+          title: result.test.title,
+          description: result.test.description,
+          priority: result.test.priority as TestPriority,
+          type: result.test.type as TestType,
+        });
+
+        // Update the editor content
+        setEditorContent(result.test.script);
+        setInitialEditorContent(result.test.script);
+
+        // Update the form values
+        setInitialFormValues({
+          title: result.test.title,
+          description: result.test.description,
+          priority: result.test.priority as TestPriority,
+          type: result.test.type as TestType,
+        });
+
+        // Set the test ID
+        setTestId(id);
+      } else {
+        console.error("Failed to load test:", result.error);
+        toast.error(`Failed to load test: ${result.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Error loading test:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "An error occurred while loading the test."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Monitor URL search params changes and load scripts when navigation occurs
   useEffect(() => {
     const scriptTypeParam = searchParams.get("scriptType");
+    const testIdParam = searchParams.get("testId");
+
+    // If we're on the main playground page (no initialTestId), ensure testId is null
+    if (!initialTestId) {
+      setTestId(null);
+    }
 
     // Always load the script on first render or when script type changes
     const loadScriptForType = async () => {
@@ -121,31 +197,50 @@ const Playground: React.FC<PlaygroundProps> = () => {
           // Update all related state to ensure consistency
           setEditorContent(script);
           setInitialEditorContent(script);
-          setInitialFormValues((prev) => ({ ...prev, code: script }));
-          setTestCase((prev) => ({ ...prev, code: script }));
-          // setScriptType(scriptTypeParam);
+          setInitialFormValues((prev) => ({ ...prev, script }));
+          setTestCase((prev) => ({ ...prev, script }));
         } catch (error) {
           console.error("Failed to load script for navigation:", error);
-          toast({
-            title: "Error",
-            description: "Failed to load the script",
-            variant: "destructive",
-          });
+          toast.error("Failed to load the script");
         }
       }
     };
 
-    loadScriptForType();
+    // Only load sample script if we don't have initial test data and no testId param
+    if (!initialTestData && !testIdParam) {
+      loadScriptForType();
+    }
+
+    // Load test data by ID if provided in URL
+    if (testIdParam && !initialTestData) {
+      loadTestById(testIdParam);
+    }
+
     // We want this to run on mount and when searchParams changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, initialTestData]);
+
+  // Handle initialTestData when provided from server-side
+  useEffect(() => {
+    if (initialTestData) {
+      // If we have initial test data from the server, use it
+      console.log("Using initial test data:", initialTestData);
+
+      // Update the initial form values to match the loaded test
+      setInitialFormValues({
+        title: initialTestData.title,
+        description: initialTestData.description || undefined,
+        priority: initialTestData.priority,
+        type: initialTestData.type,
+      });
+    }
+  }, [initialTestData]);
 
   // Force Monaco editor to initialize on client side even with script params
   useEffect(() => {
     // This triggers a re-render once on the client side to ensure Monaco loads
     const timer = setTimeout(() => {
-      if (typeof window !== "undefined" && !editorInitialized.current) {
-        editorInitialized.current = true;
+      if (typeof window !== "undefined" && !editorRef.current) {
         // Force a re-render by making a small state update
         setEditorContent((prev) => prev);
       }
@@ -163,21 +258,14 @@ const Playground: React.FC<PlaygroundProps> = () => {
           const value = editor.getValue() || "";
           setEditorContent(value);
           // Keep code and script fields in sync
-          setTestCase((prev) => ({
+          setTestCase((prev: TestCaseFormData) => ({
             ...prev,
-            code: value,
             script: value,
           }));
         });
         return () => disposable.dispose();
       }
     }
-  }, []);
-
-  useEffect(() => {
-    setApiErrors(0);
-    forcedReloads.current = 0;
-    completionCheckCount.current = 0;
   }, []);
 
   const validateForm = () => {
@@ -193,12 +281,11 @@ const Playground: React.FC<PlaygroundProps> = () => {
       return true;
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const formattedErrors: Partial<Record<keyof TestCaseFormData, string>> =
-          {};
+        console.error("Error validating form:", error);
+        const formattedErrors: Record<string, string> = {};
         error.errors.forEach((err) => {
           if (err.path[0]) {
-            formattedErrors[err.path[0] as keyof TestCaseFormData] =
-              err.message;
+            formattedErrors[err.path[0] as string] = err.message;
           }
         });
         setErrors(formattedErrors);
@@ -208,325 +295,73 @@ const Playground: React.FC<PlaygroundProps> = () => {
   };
 
   const runPlaywrightTest = async () => {
-    if (loading) return;
-
     setIsRunning(true);
-    setApiErrors(0);
-    setLoading(true);
-
-    // Reset completion tracking for the new test
-    testCompleted.current = {};
-
-    // Automatically switch to the Report tab
     setActiveTab("report");
 
     try {
-      const formData = new FormData();
-      const codeValue = editorRef.current?.getValue() || editorContent;
-      formData.append("code", codeValue);
+      // Prepare the request body with the current editor content
+      const testData = {
+        ...testCase,
+        script: editorContent, // Use the current editor content
+      };
 
-      // Sync code with script field in testCase
-      setTestCase((prev) => ({
-        ...prev,
-        code: codeValue,
-        script: codeValue,
-      }));
-
-      // If we have an existing test ID, send it with the request
-      if (testId) {
-        formData.append("testId", testId);
-      }
+      toast.loading("Running test...");
 
       const response = await fetch("/api/test", {
         method: "POST",
-        body: formData,
         headers: {
-          Accept: "*/*",
+          "Content-Type": "application/json",
         },
-        signal: AbortSignal.timeout(5 * 60000), // 5 *60 seconds timeout
+        body: JSON.stringify(testData),
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage;
-
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || "Failed to run tests";
-        } catch (e) {
-          // If parsing fails, use the raw text
-          errorMessage = errorText || "Failed to run tests";
-          console.error("Failed to parse error response:", e);
-        }
-
-        // Ensure we show an appropriate error message for timeouts
-        if (response.status === 504 || response.status === 502) {
-          errorMessage =
-            "The test request timed out. This might happen if the test takes too long to run. Try again or simplify your test.";
-        } else if (response.status === 400) {
-          // Standard validation errors
-          errorMessage = errorMessage || "Invalid test data provided";
-        } else if (response.status === 500) {
-          // Server-side errors
-          errorMessage =
-            errorMessage || "Server error occurred while running your test";
-        }
-
-        throw new Error(errorMessage);
+        throw new Error(`Failed to run test: ${response.statusText}`);
       }
 
       const result = await response.json();
 
-      // Store the test ID and add it to pending tests
-      if (result.testId) {
-        setTestId(result.testId);
+      toast.dismiss();
 
-        // Add to the list of test IDs
-        setTestIds((prev) => {
-          if (!prev.includes(result.testId)) {
-            return [result.testId, ...prev];
-          }
-          return prev;
-        });
-
-        setPendingTestIds((prev) => {
-          if (!prev.includes(result.testId)) {
-            return [...prev, result.testId];
-          }
-          return prev;
-        });
-
-        pendingTests.set(result.testId, { checkCount: 0, errorCount: 0 });
-
-        // Start polling for this test's status
-        await checkTestStatus(result.testId);
-        setTimeout(() => checkTestStatus(result.testId), 5000);
-      }
-
-      // Set the report URL immediately if available
-      if (result.reportUrl) {
+      if (result.reportUrl && result.testId) {
+        // Use the API URL directly
         setReportUrl(result.reportUrl);
-        setCurrentReportUrl(result.reportUrl);
+
+        // Use the testId returned from the API
+        const apiTestId = result.testId;
+
+        // Add to the list of running tests
+        setTestIds((prev: string[]) => [...prev, apiTestId]);
+
+        // Mark this test as completed
+        setCompletedTestIds((prev: string[]) => [...prev, apiTestId]);
+
+        toast.success("Test completed successfully");
       }
 
       if (result.error) {
-        toast({
-          title: "Test Run Failed",
-          description: result.error,
-          variant: "destructive",
-        });
+        toast.error(result.error);
       }
     } catch (error) {
+      toast.dismiss();
       console.error("Error running test:", error);
-      setCurrentReportUrl(null);
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "An error occurred while running the test.",
-        variant: "destructive",
-      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "An error occurred while running the test."
+      );
     } finally {
       setIsRunning(false);
     }
   };
 
-  // Poll for test status
-  async function checkTestStatus(testId: string) {
-    // If we've already marked this test as completed, stop polling immediately
-    if (testCompleted.current[testId]) {
-      console.log(
-        `Test ${testId} already marked as complete, skipping status check`
-      );
-      return;
-    }
-
-    try {
-      // Add cache-busting to prevent stale responses
-      const response = await fetch(
-        `/api/test-status/${testId}?t=${Date.now()}`
-      );
-
-      if (!response.ok) {
-        console.error(
-          `Test status API error: ${response.status} ${response.statusText}`
-        );
-        setApiErrors((prev) => prev + 1);
-
-        // If we've had too many consecutive errors, mark the test as failed
-        if (apiErrors > 5) {
-          setApiErrors(0);
-          setTestStatus({
-            ...testStatus,
-            status: "completed",
-            error: "Test status API failed repeatedly",
-          });
-          toast({
-            title: "Error",
-            description:
-              "Test report could not be loaded. API errors exceeded limit.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Exponential backoff for retries on API errors
-        setTimeout(
-          () => checkTestStatus(testId),
-          Math.min(2000 * Math.pow(2, apiErrors), 30000)
-        );
-        return;
-      }
-
-      // Reset API errors counter if we get a successful response
-      setApiErrors(0);
-
-      const data = await response.json();
-
-      if (data.status === "completed" && data.reportUrl) {
-        // Ensure we check at least 6 times to avoid premature completion
-        if (completionCheckCount.current < 6) {
-          completionCheckCount.current++;
-
-          // Force iframe to reload with final report
-          const reportFrame =
-            reportFrameRef.current ||
-            (document.getElementById("test-report-frame") as HTMLIFrameElement);
-          if (reportFrame) {
-            // Reset the source to force a clean reload
-            reportFrame.src = "";
-            setTimeout(() => {
-              if (reportFrame) {
-                // Add cache-busting to URL
-                reportFrame.src = `${data.reportUrl}?t=${Date.now()}`;
-              }
-            }, 100);
-          }
-
-          // Continue polling for a bit to ensure report is truly done
-          setTimeout(() => checkTestStatus(testId), 5000);
-          return;
-        }
-
-        // After sufficient checks, mark as complete
-        setTestStatus({
-          ...data,
-          reportUrl: data.reportUrl,
-        });
-        setLoading(false);
-        setIsRunning(false);
-        completionCheckCount.current = 0;
-
-        // Mark this test as completed to prevent further polling
-        testCompleted.current[testId] = true;
-
-        // Update the completedTestIds state to update the UI
-        setCompletedTestIds((prev) => {
-          if (!prev.includes(testId)) {
-            return [...prev, testId];
-          }
-          return prev;
-        });
-
-        // Remove from pending state
-        setPendingTestIds((prev) => prev.filter((id) => id !== testId));
-
-        console.log(
-          `Marked test ${testId} as complete, stopping all future polling`
-        );
-        return;
-      }
-
-      if (data.status === "running" && data.reportUrl) {
-        setTestStatus({
-          ...data,
-          reportUrl: data.reportUrl,
-        });
-
-        // Ensure test is in the pending state
-        setPendingTestIds((prev) => {
-          if (!prev.includes(testId)) {
-            return [...prev, testId];
-          }
-          return prev;
-        });
-
-        // Check for iframe content to see if we need to force reload
-        const reportFrame =
-          reportFrameRef.current ||
-          (document.getElementById("test-report-frame") as HTMLIFrameElement);
-
-        try {
-          if (reportFrame && reportFrame.contentDocument) {
-            const content = reportFrame.contentDocument.body?.innerHTML || "";
-
-            // If iframe is empty or minimal, force a reload
-            if (
-              !content ||
-              content.length < 50 ||
-              content.includes("404") ||
-              content.includes("Not Found") ||
-              forcedReloads.current < 3
-            ) {
-              // Add cache-busting to URL
-              reportFrame.src = `${data.reportUrl}?t=${Date.now()}`;
-              forcedReloads.current += 1;
-            }
-          }
-        } catch (e) {
-          console.warn("Could not access iframe content:", e);
-          // If we can't access the content due to CORS, try to force reload anyway
-          const frame = document.getElementById(
-            "test-report-frame"
-          ) as HTMLIFrameElement;
-          if (frame) {
-            frame.src = `${data.reportUrl}?t=${Date.now()}`;
-          }
-        }
-
-        // Continue polling
-        setTimeout(() => checkTestStatus(testId), 5000);
-        return;
-      }
-    } catch (error) {
-      console.error("Error checking test status:", error);
-      setApiErrors((prev) => prev + 1);
-
-      // If we've had too many consecutive errors, mark the test as failed
-      if (apiErrors > 5) {
-        setApiErrors(0);
-        setTestStatus({
-          ...testStatus,
-          status: "completed",
-          error: "Test status API failed repeatedly",
-        });
-        toast({
-          title: "Error",
-          description:
-            "Test report could not be loaded. API errors exceeded limit.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Exponential backoff for retries
-      setTimeout(
-        () => checkTestStatus(testId),
-        Math.min(2000 * Math.pow(2, apiErrors), 30000)
-      );
-    }
-  }
-
   // Add a function to select a specific test report to view
   const selectTestReport = (testId: string) => {
-    // Directly construct the report URL
+    // Directly construct the report URL with the API path
     const reportUrlWithCache = `/api/test-results/${testId}/report/index.html?t=${Date.now()}`;
 
     // Update state
     setReportUrl(reportUrlWithCache);
-    setCurrentReportUrl(reportUrlWithCache);
-    // setSelectedTestId(testId);
 
     // Switch to report tab
     setActiveTab("report");
@@ -537,7 +372,7 @@ const Playground: React.FC<PlaygroundProps> = () => {
   };
 
   // Add UI elements to show running and completed tests
-  const TestsList = useMemo(() => {
+  const TestsList = () => {
     if (testIds.length === 0) {
       return null;
     }
@@ -547,35 +382,28 @@ const Playground: React.FC<PlaygroundProps> = () => {
         <h3 className="text-sm font-medium mb-2">Test Runs</h3>
         <div className="flex flex-wrap gap-2">
           {testIds.map((id) => {
-            const isPending = pendingTestIds.includes(id);
             const isCompleted = completedTestIds.includes(id);
-            const isActive = currentReportUrl?.includes(id);
+            const isActive = reportUrl?.includes(id);
 
             return (
               <Button
                 key={id}
                 variant={isActive ? "default" : "outline"}
                 size="sm"
-                className={cn(
-                  "text-xs cursor-pointer",
-                  isPending && "animate-pulse",
-                  isCompleted && !isActive && "opacity-70"
-                )}
+                className={`text-xs cursor-pointer ${
+                  isCompleted && !isActive ? "opacity-70" : ""
+                }`}
                 onClick={() => selectTestReport(id)}
               >
-                {isPending ? (
+                {isCompleted ? (
                   <span className="flex items-center">
-                    <Loader2Icon className="mr-1 h-3 w-3 animate-spin" />
-                    {id.substring(0, 8)}...
+                    <CheckCircleIcon className="mr-1 h-3 w-3" />
+                    {id.replace("run-", "").substring(0, 8)}...
                   </span>
                 ) : (
                   <span className="flex items-center">
-                    {isCompleted ? (
-                      <CheckCircleIcon className="mr-1 h-3 w-3" />
-                    ) : (
-                      <AlertTriangleIcon className="mr-1 h-3 w-3" />
-                    )}
-                    {id.substring(0, 8)}...
+                    <AlertTriangleIcon className="mr-1 h-3 w-3" />
+                    {id.replace("run-", "").substring(0, 8)}...
                   </span>
                 )}
               </Button>
@@ -584,7 +412,7 @@ const Playground: React.FC<PlaygroundProps> = () => {
         </div>
       </div>
     );
-  }, [testIds, pendingTestIds, completedTestIds, currentReportUrl]);
+  };
 
   return (
     <>
@@ -602,7 +430,7 @@ const Playground: React.FC<PlaygroundProps> = () => {
                         value="editor"
                         className="flex items-center gap-2 cursor-pointer"
                       >
-                        <Code className="h-4 w-4" />
+                        <FileTextIcon className="h-4 w-4" />
                         <span>Editor</span>
                       </TabsTrigger>
                       <TabsTrigger
@@ -646,24 +474,12 @@ const Playground: React.FC<PlaygroundProps> = () => {
                     className="h-full border-0 p-0 mt-0 relative"
                   >
                     <div className="h-full flex flex-col">
-                      {errorMessage && (
-                        <Alert
-                          variant="destructive"
-                          onClose={() => setErrorMessage(null)}
-                          className="absolute top-0 left-0 right-0 z-10 backdrop-blur-xl"
-                        >
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertTitle>Error</AlertTitle>
-                          <AlertDescription>{errorMessage}</AlertDescription>
-                        </Alert>
-                      )}
                       <div className="h-full">
                         <CodeEditor
                           value={editorContent}
                           onChange={(value) => {
                             setEditorContent(value || "");
                             // Clear error when code changes
-                            if (errorMessage) setErrorMessage(null);
                           }}
                           ref={editorRef}
                         />
@@ -697,7 +513,7 @@ const Playground: React.FC<PlaygroundProps> = () => {
                     ) : (
                       <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
                         <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
-                          <FileText className="h-8 w-8" />
+                          <FileTextIcon className="h-8 w-8" />
                           <p>Run a test to see the HTML report</p>
                         </div>
                       </div>
@@ -724,18 +540,18 @@ const Playground: React.FC<PlaygroundProps> = () => {
               </div>
               <ScrollArea className="flex-1">
                 <div className="space-y-4 p-4">
-                  <div className="space-y-2">{TestsList}</div>
+                  <div className="space-y-2">{TestsList()}</div>
                   <TestForm
                     testCase={testCase}
                     setTestCase={setTestCase}
-                    errors={errors}
                     editorContent={editorContent}
                     isRunning={isRunning}
-                    validateForm={validateForm}
-                    setInitialFormValues={setInitialFormValues}
                     setInitialEditorContent={setInitialEditorContent}
                     initialFormValues={initialFormValues}
                     initialEditorContent={initialEditorContent}
+                    testId={testId}
+                    errors={errors}
+                    validateForm={validateForm}
                   />
                 </div>
               </ScrollArea>
@@ -743,6 +559,11 @@ const Playground: React.FC<PlaygroundProps> = () => {
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
+      {loading && (
+        <div className="fixed top-0 left-0 right-0 bottom-0 bg-[#1e1e1e] flex items-center justify-center">
+          <Loader2Icon className="h-8 w-8 animate-spin" />
+        </div>
+      )}
     </>
   );
 };
