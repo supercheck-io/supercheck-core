@@ -2,6 +2,45 @@
 
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import path from "path";
+
+/**
+ * Normalizes database URL to ensure cross-platform compatibility
+ * Handles file paths correctly on both Windows and Mac/Linux
+ */
+function getNormalizedDbUrl(): string {
+  // If an environment variable is provided, use it
+  if (process.env.DB_FILE_NAME) {
+    // For remote URLs, keep as is
+    if (!process.env.DB_FILE_NAME.startsWith("file:")) {
+      return process.env.DB_FILE_NAME;
+    }
+    
+    // For file URLs, handle the path portion correctly
+    try {
+      // Extract the path part from the file: URL
+      const pathPart = process.env.DB_FILE_NAME.replace(/^file:/, '');
+      
+      // For absolute paths, just ensure forward slashes
+      if (path.isAbsolute(pathPart)) {
+        return `file:${pathPart.replace(/\\/g, '/')}`;
+      }
+      
+      // For relative paths, resolve them relative to the project root
+      // and convert to forward slashes for SQLite
+      const resolvedPath = path.resolve(pathPart).replace(/\\/g, '/');
+      return `file:${resolvedPath}`;
+    } catch (error) {
+      console.error("Error normalizing DB path:", error);
+      // Fallback to the original value if something goes wrong
+      return process.env.DB_FILE_NAME;
+    }
+  }
+  
+  // Default database path if no environment variable is set
+  const defaultDbPath = path.resolve("./dev.sqlite").replace(/\\/g, '/');
+  return `file:${defaultDbPath}`;
+}
 
 /**
  * Creates a database client with cross-platform path handling
@@ -9,11 +48,7 @@ import { drizzle } from "drizzle-orm/libsql";
  */
 export async function createDbClient() {
   const client = createClient({
-    url: process.env.DB_FILE_NAME 
-      ? process.env.DB_FILE_NAME.startsWith("file:") 
-        ? process.env.DB_FILE_NAME.replace(/\\/g, '/') // Ensure forward slashes for file: protocol
-        : process.env.DB_FILE_NAME // Keep as is for remote URLs
-      : "file:./dev.sqlite",
+    url: getNormalizedDbUrl(),
   });
 
   return client;
