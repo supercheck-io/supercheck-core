@@ -161,7 +161,7 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
         return {
           valid: false,
           error:
-            "Syntax Error: The code contains invalid syntax that might be TypeScript. This playground only supports JavaScript. Please remove type annotations (e.g., change '(todo: { completed: boolean }) => todo.completed' to 'todo => todo.completed').",
+            "Syntax Error: The code contains invalid syntax. This playground only supports JavaScript.",
         };
       }
 

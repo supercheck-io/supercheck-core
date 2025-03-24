@@ -43,7 +43,12 @@ const testCaseSchema = testsInsertSchema
       .string()
       .nullable()
       .transform((val) => (val === null ? "" : val)) // Convert null to empty string
-      .pipe(z.string().min(1, "Description is required").max(1000, "Description must be less than 1000 characters")),
+      .pipe(
+        z
+          .string()
+          .min(1, "Description is required")
+          .max(1000, "Description must be less than 1000 characters")
+      ),
     script: z.string().min(1, "Test script is required"),
   })
   .omit({ createdAt: true, updatedAt: true });
@@ -58,13 +63,15 @@ interface TestFormProps {
     type: TestType;
     script?: string;
   };
-  setTestCase: React.Dispatch<React.SetStateAction<{
-    title: string;
-    description: string | null;
-    priority: TestPriority;
-    type: TestType;
-    script?: string;
-  }>>;
+  setTestCase: React.Dispatch<
+    React.SetStateAction<{
+      title: string;
+      description: string | null;
+      priority: TestPriority;
+      type: TestType;
+      script?: string;
+    }>
+  >;
   errors: Record<string, string>;
   validateForm: () => boolean;
   editorContent: string;
@@ -115,12 +122,18 @@ export function TestForm({
   // Update formChanged state whenever form values change
   useEffect(() => {
     setFormChanged(hasChangesLocal());
-    
+
     // If there are changes, reset the justUpdated flag
     if (hasChangesLocal()) {
       setJustUpdated(false);
     }
-  }, [testCase, editorContent, initialFormValues, initialEditorContentProp, hasChangesLocal]);
+  }, [
+    testCase,
+    editorContent,
+    initialFormValues,
+    initialEditorContentProp,
+    hasChangesLocal,
+  ]);
 
   // Reset the update state
   const resetUpdateState = () => {
@@ -140,9 +153,7 @@ export function TestForm({
     if (validateForm()) {
       // Convert the editor content to base64 before saving
       // Use the browser's btoa function for base64 encoding
-      const base64Script = btoa(
-        unescape(encodeURIComponent(editorContent))
-      );
+      const base64Script = btoa(unescape(encodeURIComponent(editorContent)));
 
       // Update the test case with base64-encoded script
       const updatedTestCase = {
@@ -172,12 +183,12 @@ export function TestForm({
         } else {
           // Save as a new test
           const result = await saveTest(updatedTestCase);
-          
+
           if (result.success) {
             toast.success("Test saved successfully.");
 
-            // Navigate to the playground page with the test ID
-            router.push(`/playground/${result.id}`);
+            // Navigate to the tests page with the test ID
+            router.push("/tests/");
           } else {
             toast.error(result.error || "Failed to save test.");
           }
@@ -193,10 +204,11 @@ export function TestForm({
     } else {
       // Show validation errors
       const errorMessages = Object.values(errors).filter(Boolean);
-      const errorDescription = errorMessages.length > 0 
-        ? errorMessages.join('\n') 
-        : "Please fix the form errors before saving.";
-      
+      const errorDescription =
+        errorMessages.length > 0
+          ? errorMessages.join("\n")
+          : "Please fix the form errors before saving.";
+
       toast.error(errorDescription);
     }
   };
@@ -208,7 +220,9 @@ export function TestForm({
       const decodeScript = async () => {
         try {
           // Try to decode the script
-          const decodedScript = await decodeTestScript(initialEditorContentProp);
+          const decodedScript = await decodeTestScript(
+            initialEditorContentProp
+          );
 
           // Only update if the decoded script is different
           if (decodedScript !== initialEditorContentProp) {
@@ -349,7 +363,7 @@ export function TestForm({
             type="submit"
             onClick={handleSubmit}
             className="flex items-center gap-2 w-[150px] mt-4 cursor-pointer"
-            disabled={isRunning || (!formChanged || justUpdated)}
+            disabled={isRunning || !formChanged || justUpdated}
           >
             <SaveIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Update</span>

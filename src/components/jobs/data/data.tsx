@@ -7,10 +7,6 @@ import {
   CircleOff,
   HelpCircle,
   Timer,
-  Globe,
-  Server,
-  Layers,
-  Database,
 } from "lucide-react"
 
 export const labels = [
@@ -71,28 +67,5 @@ export const priorities = [
     label: "High",
     value: "high",
     icon: ArrowUp,
-  },
-]
-
-export const types = [
-  {
-    label: "Browser",
-    value: "browser",
-    icon: Globe,
-  },
-  {
-    label: "API",
-    value: "api",
-    icon: Server,
-  },
-  {
-    label: "Multi-step",
-    value: "multistep",
-    icon: Layers,
-  },
-  {
-    label: "Database",
-    value: "database",
-    icon: Database,
   },
 ]

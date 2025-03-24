@@ -1,23 +1,18 @@
 import type { Row } from "@tanstack/react-table";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, PlayIcon, PencilIcon, CopyIcon, TrashIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 
-import { labels } from "./data/data";
-import { taskSchema } from "./data/schema";
+import { testSchema } from "./data/schema";
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
@@ -26,7 +21,26 @@ interface DataTableRowActionsProps<TData> {
 export function DataTableRowActions<TData>({
   row,
 }: DataTableRowActionsProps<TData>) {
-  const task = taskSchema.parse(row.original);
+  const router = useRouter();
+  const test = testSchema.parse(row.original);
+
+  const handleRunTest = () => {
+    router.push(`/playground/${test.id}`);
+  };
+
+  const handleEditTest = () => {
+    router.push(`/playground/${test.id}`);
+  };
+
+  const handleDuplicateTest = () => {
+    // TODO: Implement duplicate functionality
+    console.log("Duplicate test:", test.id);
+  };
+
+  const handleDeleteTest = () => {
+    // TODO: Implement delete functionality
+    console.log("Delete test:", test.id);
+  };
 
   return (
     <DropdownMenu>
@@ -40,24 +54,21 @@ export function DataTableRowActions<TData>({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[160px]">
-        <DropdownMenuItem>Edit</DropdownMenuItem>
-        <DropdownMenuItem>Make a copy</DropdownMenuItem>
-        <DropdownMenuItem>Favorite</DropdownMenuItem>
+        <DropdownMenuItem onClick={handleRunTest}>
+          <PlayIcon className="mr-2 h-4 w-4" />
+          Run Test
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleEditTest}>
+          <PencilIcon className="mr-2 h-4 w-4" />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleDuplicateTest}>
+          <CopyIcon className="mr-2 h-4 w-4" />
+          Duplicate
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>Labels</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup value={task.label}>
-              {labels.map((label) => (
-                <DropdownMenuRadioItem key={label.value} value={label.value}>
-                  {label.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={handleDeleteTest} className="text-destructive">
+          <TrashIcon className="mr-2 h-4 w-4" />
           Delete
           <DropdownMenuShortcut>⌘⌫</DropdownMenuShortcut>
         </DropdownMenuItem>

@@ -1,45 +1,75 @@
 import type { ColumnDef } from "@tanstack/react-table";
-
-// import { Badge } from "@/components/ui/badge";
-// import { Checkbox } from "@/components/ui/checkbox";
-
-import { priorities, statuses } from "./data/data";
-import type { Task } from "./data/schema";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
+import type { Test } from "./data/schema";
+import {
+  CalendarIcon,
+  Globe,
+  Server,
+  Layers,
+  Database,
+  ArrowUpCircleIcon,
+  ArrowDownCircleIcon,
+  CircleIcon,
+  AlertCircleIcon,
+} from "lucide-react";
 
-export const columns: ColumnDef<Task>[] = [
-  // {
-  //   id: "select",
-  //   header: ({ table }) => (
-  //     <Checkbox
-  //       checked={
-  //         table.getIsAllPageRowsSelected() ||
-  //         (table.getIsSomePageRowsSelected() && "indeterminate")
-  //       }
-  //       onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-  //       aria-label="Select all"
-  //       className="translate-y-[2px]"
-  //     />
-  //   ),
-  //   cell: ({ row }) => (
-  //     <Checkbox
-  //       checked={row.getIsSelected()}
-  //       onCheckedChange={(value) => row.toggleSelected(!!value)}
-  //       aria-label="Select row"
-  //       className="translate-y-[2px]"
-  //     />
-  //   ),
-  //   enableSorting: false,
-  //   enableHiding: false,
-  // },
+// Define priority icons and labels
+const priorities = [
+  {
+    value: "low",
+    label: "Low",
+    icon: ArrowDownCircleIcon,
+  },
+  {
+    value: "medium",
+    label: "Medium",
+    icon: CircleIcon,
+  },
+  {
+    value: "high",
+    label: "High",
+    icon: ArrowUpCircleIcon,
+  },
+  {
+    value: "critical",
+    label: "Critical",
+    icon: AlertCircleIcon,
+  },
+];
+
+// Define test types
+const testTypes = [
+  {
+    value: "browser",
+    label: "Browser",
+    icon: Globe,
+  },
+  {
+    value: "api",
+    label: "API",
+    icon: Server,
+  },
+  {
+    value: "multistep",
+    label: "Multi-step",
+    icon: Layers,
+  },
+  {
+    value: "database",
+    label: "Database",
+    icon: Database,
+  },
+];
+
+export const columns: ColumnDef<Test>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Task" />
+      <DataTableColumnHeader column={column} title="ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[80px] ml-2">{row.getValue("id")}</div>
+      <div className="w-[80px] ml-2 truncate">{row.getValue("id")}</div>
     ),
     enableSorting: false,
     enableHiding: false,
@@ -50,11 +80,8 @@ export const columns: ColumnDef<Task>[] = [
       <DataTableColumnHeader column={column} title="Title" />
     ),
     cell: ({ row }) => {
-      // const label = labels.find((label) => label.value === row.original.label);
-
       return (
         <div className="flex space-x-2">
-          {/* {label && <Badge variant="outline">{label.label}</Badge>} */}
           <span className="max-w-[500px] truncate font-medium">
             {row.getValue("title")}
           </span>
@@ -63,25 +90,39 @@ export const columns: ColumnDef<Task>[] = [
     },
   },
   {
-    accessorKey: "status",
+    accessorKey: "description",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
+      <DataTableColumnHeader column={column} title="Description" />
     ),
     cell: ({ row }) => {
-      const status = statuses.find(
-        (status) => status.value === row.getValue("status")
+      const description = row.getValue("description") as string | null;
+      return (
+        <div className="max-w-[500px] truncate">
+          {description || "No description"}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "type",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Type" />
+    ),
+    cell: ({ row }) => {
+      const type = testTypes.find(
+        (type) => type.value === row.getValue("type")
       );
 
-      if (!status) {
+      if (!type) {
         return null;
       }
 
       return (
-        <div className="flex w-[100px] items-center">
-          {status.icon && (
-            <status.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center">
+          {type.icon && (
+            <type.icon className="mr-2 h-4 w-4 text-muted-foreground" />
           )}
-          <span>{status.label}</span>
+          <span>{type.label}</span>
         </div>
       );
     },
@@ -114,6 +155,31 @@ export const columns: ColumnDef<Task>[] = [
     },
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));
+    },
+  },
+  {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Created" />
+    ),
+    cell: ({ row }) => {
+      const createdAt = row.getValue("createdAt") as string;
+      if (!createdAt) return null;
+
+      // Format date without using date-fns
+      const date = new Date(createdAt);
+      const formattedDate = date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+
+      return (
+        <div className="flex items-center">
+          <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+          <span>{formattedDate}</span>
+        </div>
+      );
     },
   },
   {

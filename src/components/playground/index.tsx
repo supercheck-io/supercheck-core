@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/resizable";
 import { CodeEditor } from "./code-editor";
 import { TestForm } from "./test-form";
+import { LoadingOverlay } from "./loading-overlay";
 import { TestPriority, TestType } from "@/db/schema";
 import {
   FileTextIcon,
@@ -68,6 +69,7 @@ const Playground: React.FC<PlaygroundProps> = ({
   const [activeTab, setActiveTab] = useState<string>("editor");
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   // Only set testId from initialTestId if we're on a specific test page
   // Always ensure testId is null when on the main playground page
@@ -114,6 +116,13 @@ const Playground: React.FC<PlaygroundProps> = ({
     if (window.location.pathname === "/playground") {
       setTestId(null);
     }
+
+    // Set pageLoading to false after a short delay to ensure UI is ready
+    const timer = setTimeout(() => {
+      setPageLoading(false);
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, []);
 
   // Load test data if testId is provided
@@ -416,154 +425,163 @@ const Playground: React.FC<PlaygroundProps> = ({
 
   return (
     <>
-      <div className="md:hidden">{/* Mobile view */}</div>
-      <div className="hidden h-full flex-col flex-1 md:flex p-4">
-        <ResizablePanelGroup direction="horizontal" className="h-screen">
-          <ResizablePanel defaultSize={70} minSize={30}>
-            <div className="flex h-full flex-col">
-              <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tl-lg">
-                <div className="flex items-center gap-8">
-                  {/* Playground */}
-                  <Tabs value={activeTab} onValueChange={setActiveTab}>
-                    <TabsList className="grid w-[400px] grid-cols-2">
-                      <TabsTrigger
-                        value="editor"
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
-                        <FileTextIcon className="h-4 w-4" />
-                        <span>Editor</span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="report"
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
-                        <FileTextIcon className="h-4 w-4" />
-                        <span>Report</span>
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-                <Button
-                  onClick={runPlaywrightTest}
-                  disabled={isRunning}
-                  className="flex items-center gap-2 bg-[hsl(221.2,83.2%,53.3%)] text-white hover:bg-[hsl(221.2,83.2%,48%)] cursor-pointer"
-                  size="sm"
-                >
-                  {isRunning ? (
-                    <>
-                      <Loader2Icon className="h-4 w-4 animate-spin" />
-                      <span className="mr-2">Running...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ZapIcon className="h-4 w-4" />
-                      <span className="mr-2">Run Script </span>
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              <div className="flex-1 overflow-hidden rounded-bl-lg">
-                <Tabs
-                  value={activeTab}
-                  onValueChange={setActiveTab}
-                  className="h-full"
-                >
-                  <TabsContent
-                    value="editor"
-                    className="h-full border-0 p-0 mt-0 relative"
-                  >
-                    <div className="h-full flex flex-col">
-                      <div className="h-full">
-                        <CodeEditor
-                          value={editorContent}
-                          onChange={(value) => {
-                            setEditorContent(value || "");
-                            // Clear error when code changes
-                          }}
-                          ref={editorRef}
-                        />
-                      </div>
-                    </div>
-                  </TabsContent>
-                  <TabsContent
-                    value="report"
-                    className="h-screen border-0 p-0 mt-0"
+      <LoadingOverlay isVisible={pageLoading} />
+      <div
+        className={
+          pageLoading
+            ? "opacity-0"
+            : "opacity-100 transition-opacity duration-300"
+        }
+      >
+        <div className="md:hidden">{/* Mobile view */}</div>
+        <div className="hidden h-full flex-col flex-1 md:flex p-4">
+          <ResizablePanelGroup direction="horizontal" className="h-screen">
+            <ResizablePanel defaultSize={70} minSize={30}>
+              <div className="flex h-full flex-col">
+                <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tl-lg">
+                  <div className="flex items-center gap-8">
+                    {/* Playground */}
+                    <Tabs value={activeTab} onValueChange={setActiveTab}>
+                      <TabsList className="grid w-[400px] grid-cols-2">
+                        <TabsTrigger
+                          value="editor"
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <FileTextIcon className="h-4 w-4" />
+                          <span>Editor</span>
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="report"
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <FileTextIcon className="h-4 w-4" />
+                          <span>Report</span>
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                  <Button
+                    onClick={runPlaywrightTest}
+                    disabled={isRunning}
+                    className="flex items-center gap-2 bg-[hsl(221.2,83.2%,53.3%)] text-white hover:bg-[hsl(221.2,83.2%,48%)] cursor-pointer"
+                    size="sm"
                   >
                     {isRunning ? (
-                      <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
-                        <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
-                          <Loader2Icon className="h-8 w-8 animate-spin" />
-                          <p>Please wait, running test...</p>
-                        </div>
-                      </div>
-                    ) : reportUrl ? (
-                      <div className="report-iframe-wrapper h-[calc(100vh-10rem)] w-full">
-                        <iframe
-                          key={reportUrl}
-                          src={reportUrl}
-                          className="h-[calc(100vh-10rem)] w-full"
-                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-                          allow="cross-origin-isolated"
-                          onError={(e) => {
-                            console.error("Error loading iframe:", e);
-                          }}
-                        />
-                      </div>
+                      <>
+                        <Loader2Icon className="h-4 w-4 animate-spin" />
+                        <span className="mr-2">Running...</span>
+                      </>
                     ) : (
-                      <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
-                        <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
-                          <FileTextIcon className="h-8 w-8" />
-                          <p>Run a test to see the HTML report</p>
+                      <>
+                        <ZapIcon className="h-4 w-4" />
+                        <span className="mr-2">Run Script </span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <div className="flex-1 overflow-hidden rounded-bl-lg">
+                  <Tabs
+                    value={activeTab}
+                    onValueChange={setActiveTab}
+                    className="h-full"
+                  >
+                    <TabsContent
+                      value="editor"
+                      className="h-full border-0 p-0 mt-0 relative"
+                    >
+                      <div className="h-full flex flex-col">
+                        <div className="h-full">
+                          <CodeEditor
+                            value={editorContent}
+                            onChange={(value) => {
+                              setEditorContent(value || "");
+                              // Clear error when code changes
+                            }}
+                            ref={editorRef}
+                          />
                         </div>
                       </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </div>
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          <ResizablePanel
-            defaultSize={30}
-            minSize={25}
-            className="rounded-br-lg rounded-tr-lg"
-          >
-            <div className="flex h-full flex-col border-l bg-muted/50 rounded-br-lg">
-              <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tr-lg">
-                <div className="flex items-center gap-2 py-2">
-                  <FileTextIcon className="h-4 w-4" />
-                  <h2 className="text-sm font-medium">Test Details</h2>
+                    </TabsContent>
+                    <TabsContent
+                      value="report"
+                      className="h-screen border-0 p-0 mt-0"
+                    >
+                      {isRunning ? (
+                        <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
+                          <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
+                            <Loader2Icon className="h-8 w-8 animate-spin" />
+                            <p>Please wait, running test...</p>
+                          </div>
+                        </div>
+                      ) : reportUrl ? (
+                        <div className="report-iframe-wrapper h-[calc(100vh-10rem)] w-full">
+                          <iframe
+                            key={reportUrl}
+                            src={reportUrl}
+                            className="h-[calc(100vh-10rem)] w-full"
+                            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
+                            allow="cross-origin-isolated"
+                            onError={(e) => {
+                              console.error("Error loading iframe:", e);
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
+                          <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
+                            <FileTextIcon className="h-8 w-8" />
+                            <p>Run a test to see the HTML report</p>
+                          </div>
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 </div>
               </div>
-              <ScrollArea className="flex-1">
-                <div className="space-y-4 p-4">
-                  <div className="space-y-2">{TestsList()}</div>
-                  <TestForm
-                    testCase={testCase}
-                    setTestCase={setTestCase}
-                    editorContent={editorContent}
-                    isRunning={isRunning}
-                    setInitialEditorContent={setInitialEditorContent}
-                    initialFormValues={initialFormValues}
-                    initialEditorContent={initialEditorContent}
-                    testId={testId}
-                    errors={errors}
-                    validateForm={validateForm}
-                  />
+            </ResizablePanel>
+
+            <ResizableHandle withHandle />
+
+            <ResizablePanel
+              defaultSize={30}
+              minSize={25}
+              className="rounded-br-lg rounded-tr-lg"
+            >
+              <div className="flex h-full flex-col border-l bg-muted/50 rounded-br-lg">
+                <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tr-lg">
+                  <div className="flex items-center gap-2 py-2">
+                    <FileTextIcon className="h-4 w-4" />
+                    <h2 className="text-sm font-medium">Test Details</h2>
+                  </div>
                 </div>
-              </ScrollArea>
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
-      {loading && (
-        <div className="fixed top-0 left-0 right-0 bottom-0 bg-[#1e1e1e] flex items-center justify-center">
-          <Loader2Icon className="h-8 w-8 animate-spin" />
+                <ScrollArea className="flex-1">
+                  <div className="space-y-4 p-4">
+                    <div className="space-y-2">{TestsList()}</div>
+                    <TestForm
+                      testCase={testCase}
+                      setTestCase={setTestCase}
+                      editorContent={editorContent}
+                      isRunning={isRunning}
+                      setInitialEditorContent={setInitialEditorContent}
+                      initialFormValues={initialFormValues}
+                      initialEditorContent={initialEditorContent}
+                      testId={testId}
+                      errors={errors}
+                      validateForm={validateForm}
+                    />
+                  </div>
+                </ScrollArea>
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
         </div>
-      )}
+        {loading && (
+          <div className="fixed top-0 left-0 right-0 bottom-0 bg-[#1e1e1e] flex items-center justify-center">
+            <Loader2Icon className="h-8 w-8 animate-spin" />
+          </div>
+        )}
+      </div>
     </>
   );
 };

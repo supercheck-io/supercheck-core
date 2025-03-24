@@ -24,9 +24,9 @@ export function DataTableViewOptions<TData>({
         <Button
           variant="outline"
           size="sm"
-          className="h-8 flex items-center"
+          className="ml-auto hidden h-8 lg:flex"
         >
-          <Settings2 className="mr-2 h-4 w-4" />
+          <Settings2 />
           View
         </Button>
       </DropdownMenuTrigger>
