@@ -1,7 +1,5 @@
 "use server";
 
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
 import { eq } from "drizzle-orm";
 import {
   tests,
@@ -9,16 +7,10 @@ import {
   type TestPriority,
   type TestType,
 } from "@/db/schema";
+import { getDb } from "@/db/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import crypto from "crypto";
-
-// Initialize the database client
-const client = createClient({
-  url: process.env.DB_FILE_NAME || "file:./dev.sqlite",
-});
-
-const db = drizzle(client);
 
 // Create a schema for the save test action
 const saveTestSchema = testsInsertSchema.omit({
@@ -43,6 +35,7 @@ export async function saveTest(
 ): Promise<{ id: string; success: boolean; error?: string }> {
   try {
     const validatedData = saveTestWithIdSchema.parse(data);
+    const db = await getDb();
 
     // Ensure script is properly base64 encoded
     let scriptToSave = validatedData.script || "";

@@ -44,7 +44,6 @@ CREATE TABLE `tests` (
 	`script` text DEFAULT '' NOT NULL,
 	`priority` text DEFAULT 'medium' NOT NULL,
 	`type` text DEFAULT 'browser' NOT NULL,
-	`tags` text DEFAULT '[]',
 	`created_at` text DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP
 );

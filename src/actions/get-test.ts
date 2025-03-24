@@ -1,16 +1,8 @@
 "use server";
 
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
 import { tests } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
-// Initialize the database client
-const client = createClient({
-  url: process.env.DB_FILE_NAME || "file:./dev.sqlite",
-});
-
-const db = drizzle(client);
+import { getDb } from "@/db/client";
 
 /**
  * Helper function to decode base64-encoded test scripts
@@ -45,6 +37,8 @@ export async function decodeTestScript(base64Script: string): Promise<string> {
  */
 export async function getTest(id: string) {
   try {
+    const db = await getDb();
+    
     // Query the database for the test with the given ID
     const result = await db
       .select()

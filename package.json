@@ -35,7 +35,8 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "dotenv": "^16.4.7",
-    "drizzle-orm": "^0.40.0",
+    "drizzle-orm": "^0.40.1",
+    "drizzle-zod": "^0.7.0",
     "libsql": "^0.5.0-pre.6",
     "lucide-react": "^0.476.0",
     "minio": "^8.0.4",
@@ -49,8 +50,7 @@
     "tailwind-merge": "^3.0.2",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
-    "zod": "^3.24.2",
-    "zustand": "^5.0.3"
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

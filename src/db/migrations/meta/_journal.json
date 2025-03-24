@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1742278587772,
-      "tag": "0000_charming_viper",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1742379835360,
-      "tag": "0001_flaky_cammi",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1742452896469,
-      "tag": "0002_common_pride",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1742453421831,
-      "tag": "0003_low_magik",
+      "when": 1742805390232,
+      "tag": "0000_careless_vision",
       "breakpoints": true
     }
   ]
