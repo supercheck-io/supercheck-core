@@ -100,10 +100,12 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   onClick={() => onRowClick && onRowClick(row)}
-                  className={onRowClick ? "cursor-pointer hover:bg-muted" : ""}
+                  className={
+                    onRowClick ? "cursor-pointer hover:bg-muted h-14" : "h-14"
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="py-4">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

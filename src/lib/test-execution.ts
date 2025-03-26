@@ -346,12 +346,7 @@ async function executeTestInChildProcess(
 
       const args = command
         ? []
-        : [
-            "playwright",
-            "test",
-            testPathArg,
-            "--config=playwright.config.mjs",
-          ];
+        : ["playwright", "test", testPathArg, "--config=playwright.config.mjs"];
 
       console.log(`Running command: ${commandToRun} ${args.join(" ")}`);
 
@@ -565,7 +560,9 @@ async function executeTestInChildProcess(
             status: "completed",
             success: false,
             error: timeoutError,
-            reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+            reportUrl: toUrlPath(
+              `/api/test-results/${testId}/report/index.html`
+            ),
           });
 
           reject({
@@ -574,7 +571,9 @@ async function executeTestInChildProcess(
             testId,
             stdout: stdoutChunks.join(""),
             stderr: stderrChunks.join(""),
-            reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+            reportUrl: toUrlPath(
+              `/api/test-results/${testId}/report/index.html`
+            ),
           });
         }
       }, TEST_EXECUTION_TIMEOUT_MS); // 2 minutes timeout
@@ -751,7 +750,9 @@ async function executeTestInChildProcess(
               status: "completed",
               success: false,
               error: errorMessage,
-              reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+              reportUrl: toUrlPath(
+                `/api/test-results/${testId}/report/index.html`
+              ),
             });
 
             resolve({
@@ -760,7 +761,9 @@ async function executeTestInChildProcess(
               testId,
               stdout,
               stderr,
-              reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+              reportUrl: toUrlPath(
+                `/api/test-results/${testId}/report/index.html`
+              ),
             });
           } catch (writeError) {
             console.error(`Error creating error report: ${writeError}`);
@@ -954,7 +957,9 @@ async function executeTestInChildProcess(
               testId,
               stdout: stdoutChunks.join(""),
               stderr: stderrChunks.join(""),
-              reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+              reportUrl: toUrlPath(
+                `/api/test-results/${testId}/report/index.html`
+              ),
             });
           })
           .catch((err) => {
@@ -1185,8 +1190,10 @@ export async function executeTest(code: string): Promise<TestResult> {
     console.log(`Validating code for test ${testId}...`);
     const validationResult = validateCode(code);
     if (!validationResult.valid) {
-      console.error(`Code validation failed for test ${testId}: ${validationResult.error}`);
-      
+      console.error(
+        `Code validation failed for test ${testId}: ${validationResult.error}`
+      );
+
       // Update test status
       testStatusMap.set(testId, {
         testId,
@@ -1483,58 +1490,63 @@ export async function executeMultipleTests(
   runId: string
 ): Promise<TestExecutionResult> {
   // Use the provided runId instead of generating a new one
-  
+
   // Mark this run as active
   activeTestIds.add(runId);
-  
+
   // Also add to recent tests with current timestamp
   recentTestIds.set(runId, Date.now());
-  
+
   try {
     console.log(`Executing multiple tests with run ID ${runId}`);
-    
+
     // Create a directory for the test files
     const publicDir = normalize(join(process.cwd(), "public"));
     const jobTestsDir = normalize(join(publicDir, "tests", runId));
-    
+
     // Create run-specific report directory using runId
     const testResultsDir = normalize(join(publicDir, "test-results", runId));
     const reportDir = normalize(join(testResultsDir, "report"));
-    
+
     // Initialize the test status
     testStatusMap.set(runId, {
       testId: runId,
       status: "pending",
     });
-    
+
     // Create the directories
     await mkdir(testResultsDir, { recursive: true });
     await mkdir(reportDir, { recursive: true });
     await mkdir(jobTestsDir, { recursive: true });
-    
+
     console.log(`Created test directory: ${jobTestsDir}`);
     console.log(`Created report directory: ${reportDir}`);
-    
+
     // Create individual test files for each test script
     const testFilePaths: string[] = [];
-    
+
     for (const { id, script, name } of testScripts) {
       const testName = name || `Test ${id}`;
       const testFilePath = normalize(join(jobTestsDir, `${id}.spec.js`));
-      
+
       // Validate the test script
       const validationResult = validateCode(script);
-      
+
       if (!validationResult.valid) {
-        console.error(`Code validation failed for test ${id}: ${validationResult.error}`);
-        
+        console.error(
+          `Code validation failed for test ${id}: ${validationResult.error}`
+        );
+
         // Create a failing test file
         const failingTestCode = `
 const { test, expect } = require('@playwright/test');
 
 test('${testName} (ID: ${id})', async ({ page }) => {
   test.fail();
-  console.log('Test validation failed: ${validationResult.error?.replace(/'/g, "\\'")}');
+  console.log('Test validation failed: ${validationResult.error?.replace(
+    /'/g,
+    "\\'"
+  )}');
   expect(false).toBeTruthy();
 });
 `;
@@ -1543,47 +1555,59 @@ test('${testName} (ID: ${id})', async ({ page }) => {
         // Write the original script to a file
         await writeFile(testFilePath, script);
       }
-      
+
       testFilePaths.push(testFilePath);
     }
-    
+
     // Execute the tests
-    const result = await executeMultipleTestFilesWithGlobalConfig(runId, testFilePaths, reportDir, jobTestsDir);
-    
+    const result = await executeMultipleTestFilesWithGlobalConfig(
+      runId,
+      testFilePaths,
+      reportDir,
+      jobTestsDir
+    );
+
     // Parse the results for each test
     const individualResults = testScripts.map(({ id, name }) => {
       const testName = name || id;
       const testFilename = `${id}.spec.js`;
-      
+
       // Improved patterns to detect success/failure in Playwright output
-      const specificTestPattern = new RegExp(`${testFilename}`, 'i');
-      const specificTestFailedPattern = new RegExp(`${testFilename}.*?failed`, 'i');
-      const specificTestPassedPattern = new RegExp(`${testFilename}.*?passed`, 'i');
-      
+      const specificTestPattern = new RegExp(`${testFilename}`, "i");
+      const specificTestFailedPattern = new RegExp(
+        `${testFilename}.*?failed`,
+        "i"
+      );
+      const specificTestPassedPattern = new RegExp(
+        `${testFilename}.*?passed`,
+        "i"
+      );
+
       // Check if the test was mentioned in the output
       const testWasRun = specificTestPattern.test(result.stdout);
       const testFailed = specificTestFailedPattern.test(result.stdout);
       const testPassed = specificTestPassedPattern.test(result.stdout);
-      
+
       // Check if the test was specifically mentioned in the failure output
-      const isInFailureList = result.stdout.includes(`${testFilename}`) && 
-                             result.stdout.includes('failed') && 
-                             !result.stdout.includes(`${testFilename}.*?passed`);
-      
+      const isInFailureList =
+        result.stdout.includes(`${testFilename}`) &&
+        result.stdout.includes("failed") &&
+        !result.stdout.includes(`${testFilename}.*?passed`);
+
       // A test is successful if:
       // 1. It explicitly shows as passed in the output, OR
       // 2. It was run and not explicitly mentioned in the failure list
       const success = testPassed || (testWasRun && !isInFailureList);
-      
+
       console.log(`Test ${id} result analysis:`, {
         testWasRun,
         testPassed,
         testFailed,
         isInFailureList,
         overallSuccess: result.success,
-        determinedSuccess: success
+        determinedSuccess: success,
       });
-      
+
       return {
         testId: id,
         success,
@@ -1591,10 +1615,10 @@ test('${testName} (ID: ${id})', async ({ page }) => {
         reportUrl: `/api/test-results/${runId}/report/index.html`,
       };
     });
-    
+
     // Overall success is true if all individual tests succeeded
-    const overallSuccess = individualResults.every(result => result.success);
-    
+    const overallSuccess = individualResults.every((result) => result.success);
+
     // Update the test status to completed
     testStatusMap.set(runId, {
       testId: runId,
@@ -1603,7 +1627,7 @@ test('${testName} (ID: ${id})', async ({ page }) => {
       error: result.error,
       reportUrl: `/api/test-results/${runId}/report/index.html`,
     });
-    
+
     return {
       jobId: runId,
       success: overallSuccess,
@@ -1615,7 +1639,7 @@ test('${testName} (ID: ${id})', async ({ page }) => {
     };
   } catch (error) {
     console.error(`Error executing tests for run ${runId}:`, error);
-    
+
     // Update test status to completed with error
     const errorMessage = error instanceof Error ? error.message : String(error);
     testStatusMap.set(runId, {
@@ -1624,7 +1648,7 @@ test('${testName} (ID: ${id})', async ({ page }) => {
       success: false,
       error: errorMessage,
     });
-    
+
     return {
       jobId: runId,
       success: false,
@@ -1637,7 +1661,8 @@ test('${testName} (ID: ${id})', async ({ page }) => {
       })),
       timestamp: new Date().toISOString(),
       stdout: "",
-      stderr: error instanceof Error ? error.stack || error.message : String(error),
+      stderr:
+        error instanceof Error ? error.stack || error.message : String(error),
     };
   } finally {
     // Remove the test from active tests
@@ -1656,15 +1681,17 @@ async function executeMultipleTestFilesWithGlobalConfig(
 ): Promise<TestResult> {
   return new Promise(async (resolve, reject) => {
     try {
-      console.log(`Executing multiple test files for run ${testId} using global config`);
-      
+      console.log(
+        `Executing multiple test files for run ${testId} using global config`
+      );
+
       // Create necessary directories for traces
       const publicDir = normalize(join(process.cwd(), "public"));
       const testResultsDir = normalize(join(publicDir, "test-results", testId));
       const tracesDir = normalize(join(testResultsDir, "traces"));
-      
+
       await mkdir(tracesDir, { recursive: true });
-      
+
       // Create empty trace files to avoid ENOENT errors
       const traceFiles = [
         `${testId}-recording1.network`,
@@ -1672,27 +1699,27 @@ async function executeMultipleTestFilesWithGlobalConfig(
         `${testId}-recording1.zip`,
         `${testId}.zip`,
       ];
-      
+
       for (const traceFile of traceFiles) {
         const tracePath = normalize(join(tracesDir, traceFile));
         await writeFile(tracePath, "");
         console.log(`Created empty trace file to avoid ENOENT: ${tracePath}`);
       }
-      
+
       // Determine the command to run based on the OS
       const isWindows = process.platform === "win32";
       const command = isWindows ? "npx.cmd" : "npx";
-      
+
       // Build the arguments for the command
       const args = [
         "playwright",
         "test",
-        ...testFilePaths.map(path => path),
+        ...testFilePaths.map((path) => path),
         "--config=playwright.config.mjs",
       ];
-      
+
       console.log(`Running command: ${command} ${args.join(" ")}`);
-      
+
       // Set environment variables for the test directory and report directory
       const env = {
         ...process.env,
@@ -1702,31 +1729,31 @@ async function executeMultipleTestFilesWithGlobalConfig(
         PLAYWRIGHT_TEST_DIR: jobTestsDir,
         PLAYWRIGHT_REPORT_DIR: reportDir,
       };
-      
+
       console.log(`Using test directory: ${jobTestsDir}`);
       console.log(`Using report directory: ${reportDir}`);
-      
+
       // Spawn the child process with the environment variables
       const childProcess = spawn(command, args, {
         env,
         stdio: ["pipe", "pipe", "pipe"],
       });
-      
+
       let stdout = "";
       let stderr = "";
-      
+
       childProcess.stdout.on("data", (data) => {
         const chunk = data.toString();
         stdout += chunk;
         console.log(`[Test ${testId}] ${chunk}`);
       });
-      
+
       childProcess.stderr.on("data", (data) => {
         const chunk = data.toString();
         stderr += chunk;
         console.error(`[Test ${testId}] ${chunk}`);
       });
-      
+
       childProcess.on("error", (error) => {
         console.error(`Child process error for test ${testId}:`, error);
         resolve({
@@ -1738,12 +1765,16 @@ async function executeMultipleTestFilesWithGlobalConfig(
           stderr,
         });
       });
-      
+
       childProcess.on("close", (code, signal) => {
-        console.log(`Child process for test ${testId} exited with code: ${code}, signal: ${signal}`);
-        
+        console.log(
+          `Child process for test ${testId} exited with code: ${code}, signal: ${signal}`
+        );
+
         if (code !== 0) {
-          console.log(`Test ${testId} failed: Test failed with exit code ${code}`);
+          console.log(
+            `Test ${testId} failed: Test failed with exit code ${code}`
+          );
           resolve({
             testId,
             success: false,
