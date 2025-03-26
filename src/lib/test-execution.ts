@@ -1,10 +1,10 @@
 // Import child_process as a whole module to avoid Next.js dynamic import issues
-import * as childProcess from "child_process";
-import { writeFile, mkdir, unlink, rm, readFile } from "fs/promises";
-import fs from "fs";
+import childProcess from "child_process";
+import * as fs from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import { validateCode } from "./code-validation";
-import async from "async";
+import * as async from "async";
 import crypto from "crypto";
 
 // Suppress the NODE_TLS_REJECT_UNAUTHORIZED warning
@@ -12,6 +12,14 @@ import crypto from "crypto";
 
 const { spawn } = childProcess;
 const { join, normalize, sep, posix, dirname } = path;
+
+// Helper function to check if running on Windows
+const isWindows = process.platform === 'win32';
+
+// Helper function to convert Windows paths to CLI-compatible paths
+const toCLIPath = (filePath: string): string => {
+  return isWindows ? filePath.split(sep).join('/') : filePath;
+};
 
 // Configure the maximum number of concurrent tests
 const MAX_CONCURRENT_TESTS = 2;
@@ -214,11 +222,11 @@ async function executeTestInChildProcess(
 
       try {
         // Use a single mkdir call with recursive option to create all directories at once
-        await mkdir(reportDir, { recursive: true });
-        await mkdir(tracesDir, { recursive: true });
-        await mkdir(screenshotsDir, { recursive: true });
-        await mkdir(videosDir, { recursive: true });
-        await mkdir(resultsDir, { recursive: true });
+        await fs.mkdir(reportDir, { recursive: true });
+        await fs.mkdir(tracesDir, { recursive: true });
+        await fs.mkdir(screenshotsDir, { recursive: true });
+        await fs.mkdir(videosDir, { recursive: true });
+        await fs.mkdir(resultsDir, { recursive: true });
       } catch (err) {
         console.warn(
           `Warning: Failed to create directories for test ${testId}:`,
@@ -252,8 +260,8 @@ async function executeTestInChildProcess(
   </body>
 </html>`;
 
-        await mkdir(dirname(htmlReportPath), { recursive: true });
-        await writeFile(htmlReportPath, loadingHtml);
+        await fs.mkdir(dirname(htmlReportPath), { recursive: true });
+        await fs.writeFile(htmlReportPath, loadingHtml);
 
         // Update test status with the initial report URL
         testStatusMap.set(testId, {
@@ -277,16 +285,16 @@ async function executeTestInChildProcess(
           ];
 
           // Create tracesDir with recursive option if it doesn't exist
-          if (!fs.existsSync(tracesDir)) {
-            await mkdir(tracesDir, { recursive: true });
+          if (!existsSync(tracesDir)) {
+            await fs.mkdir(tracesDir, { recursive: true });
           }
 
           // Create common trace files to avoid ENOENT errors - optimized to only check and create necessary files
           for (const filePattern of commonTraceFiles) {
             // Create specific files if they don't exist
-            if (!fs.existsSync(filePattern)) {
+            if (!existsSync(filePattern)) {
               try {
-                await writeFile(filePattern, "");
+                await fs.writeFile(filePattern, "");
                 console.log(
                   `Created empty trace file to avoid ENOENT: ${filePattern}`
                 );
@@ -303,13 +311,13 @@ async function executeTestInChildProcess(
           const rootTestResults = normalize(
             join(process.cwd(), "test-results")
           );
-          if (fs.existsSync(rootTestResults)) {
+          if (existsSync(rootTestResults)) {
             // Create placeholder files in this directory
             const rootTracesDir = join(rootTestResults, "traces");
-            if (!fs.existsSync(rootTracesDir)) {
-              await mkdir(rootTracesDir, { recursive: true });
-              await writeFile(join(rootTracesDir, "placeholder.network"), "");
-              await writeFile(join(rootTracesDir, "placeholder.zip"), "");
+            if (!existsSync(rootTracesDir)) {
+              await fs.mkdir(rootTracesDir, { recursive: true });
+              await fs.writeFile(join(rootTracesDir, "placeholder.network"), "");
+              await fs.writeFile(join(rootTracesDir, "placeholder.zip"), "");
             }
           }
         } catch (error) {
@@ -327,7 +335,6 @@ async function executeTestInChildProcess(
       ); // Reduced frequency from 5s to 30s
 
       // Determine the command to run based on the OS
-      const isWindows = process.platform === "win32";
       const commandToRun = command || (isWindows ? "npx.cmd" : "npx");
 
       // For Windows, ensure we use a path that works with Playwright CLI
@@ -370,6 +377,7 @@ async function executeTestInChildProcess(
           NO_PROXY: process.env.NO_PROXY || process.env.no_proxy || "",
         },
         shell: isWindows, // Only use shell on Windows
+        windowsVerbatimArguments: isWindows, // Preserve quotes and special characters on Windows
         cwd: process.cwd(),
         // Set stdio to pipe to capture output
         stdio: ["ignore", "pipe", "pipe"],
@@ -422,9 +430,9 @@ async function executeTestInChildProcess(
 
           // When test times out, we should still ensure we have a report
           try {
-            if (fs.existsSync(htmlReportPath)) {
+            if (existsSync(htmlReportPath)) {
               // Update the loading report with timeout information
-              readFile(htmlReportPath, "utf8")
+              fs.readFile(htmlReportPath, "utf8")
                 .then((content) => {
                   if (content.includes("Test Execution in Progress")) {
                     // It's still a loading report, update it with timeout info
@@ -483,7 +491,7 @@ async function executeTestInChildProcess(
                       </body>
                     </html>
                     `;
-                    writeFile(htmlReportPath, timeoutHtml).catch((e) =>
+                    fs.writeFile(htmlReportPath, timeoutHtml).catch((e) =>
                       console.error(`Error writing timeout report: ${e}`)
                     );
                   }
@@ -546,7 +554,7 @@ async function executeTestInChildProcess(
                 </body>
               </html>
               `;
-              writeFile(htmlReportPath, timeoutHtml).catch((e) =>
+              fs.writeFile(htmlReportPath, timeoutHtml).catch((e) =>
                 console.error(`Error writing timeout report: ${e}`)
               );
             }
@@ -601,7 +609,7 @@ async function executeTestInChildProcess(
 
             // Try to create the trace directory again as a recovery mechanism
             try {
-              await mkdir(tracesDir, { recursive: true });
+              await fs.mkdir(tracesDir, { recursive: true });
               console.log(
                 `Recreated traces directory for test ${testId} after ENOENT error`
               );
@@ -617,7 +625,7 @@ async function executeTestInChildProcess(
 
           try {
             // Check if the report exists, and if not, generate a minimal error report
-            if (!fs.existsSync(htmlReportPath)) {
+            if (!existsSync(htmlReportPath)) {
               console.log(
                 `Creating minimal HTML report for failed test ${testId}`
               );
@@ -678,10 +686,10 @@ async function executeTestInChildProcess(
               </html>
               `;
 
-              await writeFile(htmlReportPath, minimalHtml);
+              await fs.writeFile(htmlReportPath, minimalHtml);
             } else {
               // If the report exists, check if it's still the loading report
-              const reportContent = await readFile(htmlReportPath, "utf8");
+              const reportContent = await fs.readFile(htmlReportPath, "utf8");
               if (reportContent.includes("Test Execution in Progress")) {
                 // Update it with the error information
                 const errorHtml = `
@@ -740,7 +748,7 @@ async function executeTestInChildProcess(
                 </html>
                 `;
 
-                await writeFile(htmlReportPath, errorHtml);
+                await fs.writeFile(htmlReportPath, errorHtml);
               }
             }
 
@@ -780,7 +788,7 @@ async function executeTestInChildProcess(
         }
 
         // Check if the report exists
-        if (!fs.existsSync(htmlReportPath)) {
+        if (!existsSync(htmlReportPath)) {
           console.warn(
             `No HTML report found for test ${testId} even though it completed successfully`
           );
@@ -840,14 +848,14 @@ async function executeTestInChildProcess(
           `;
 
           try {
-            await writeFile(htmlReportPath, successHtml);
+            await fs.writeFile(htmlReportPath, successHtml);
           } catch (writeError) {
             console.error(`Error creating success report: ${writeError}`);
           }
         } else {
           // If the report exists, check if it's still the loading report
           try {
-            const reportContent = await readFile(htmlReportPath, "utf8");
+            const reportContent = await fs.readFile(htmlReportPath, "utf8");
             if (reportContent.includes("Test Execution in Progress")) {
               // Test is complete but the report only shows loading,
               // likely because Playwright didn't generate a proper report
@@ -904,7 +912,7 @@ async function executeTestInChildProcess(
               </html>
               `;
 
-              await writeFile(htmlReportPath, successHtml);
+              await fs.writeFile(htmlReportPath, successHtml);
             }
           } catch (readError) {
             console.error(`Error reading report file: ${readError}`);
@@ -986,7 +994,7 @@ async function executeTestInChildProcess(
         const reportDir = normalize(join(testResultsDir, "report"));
         const htmlReportPath = normalize(join(reportDir, "index.html"));
 
-        await mkdir(dirname(htmlReportPath), { recursive: true });
+        await fs.mkdir(dirname(htmlReportPath), { recursive: true });
 
         const errorHtml = `
         <!DOCTYPE html>
@@ -1046,7 +1054,7 @@ async function executeTestInChildProcess(
         </html>
         `;
 
-        await writeFile(htmlReportPath, errorHtml);
+        await fs.writeFile(htmlReportPath, errorHtml);
 
         // Update the test status
         testStatusMap.set(testId, {
@@ -1086,7 +1094,7 @@ async function createErrorReport(
   stderr: string
 ): Promise<void> {
   // Check if the report exists
-  const reportExists = fs.existsSync(htmlReportPath);
+  const reportExists = existsSync(htmlReportPath);
   const errorHtml = `
   <!DOCTYPE html>
   <html lang="en">
@@ -1143,13 +1151,13 @@ async function createErrorReport(
 
   if (!reportExists) {
     // Create the report
-    await mkdir(dirname(htmlReportPath), { recursive: true });
-    await writeFile(htmlReportPath, errorHtml);
+    await fs.mkdir(dirname(htmlReportPath), { recursive: true });
+    await fs.writeFile(htmlReportPath, errorHtml);
   } else {
     // Check if it's a loading report
-    const reportContent = await readFile(htmlReportPath, "utf8");
+    const reportContent = await fs.readFile(htmlReportPath, "utf8");
     if (reportContent.includes("Test Execution in Progress")) {
-      await writeFile(htmlReportPath, errorHtml);
+      await fs.writeFile(htmlReportPath, errorHtml);
     }
   }
 }
@@ -1182,9 +1190,9 @@ export async function executeTest(code: string): Promise<TestResult> {
     });
 
     // Create the directories
-    await mkdir(testResultsDir, { recursive: true });
-    await mkdir(reportDir, { recursive: true });
-    await mkdir(testsDir, { recursive: true });
+    await fs.mkdir(testResultsDir, { recursive: true });
+    await fs.mkdir(reportDir, { recursive: true });
+    await fs.mkdir(testsDir, { recursive: true });
 
     // Validate the code - this must be done before any execution
     console.log(`Validating code for test ${testId}...`);
@@ -1256,8 +1264,8 @@ export async function executeTest(code: string): Promise<TestResult> {
       const reportDir = normalize(join(testResultsDir, "report"));
 
       // Ensure the directory exists
-      await mkdir(dirname(join(reportDir, "index.html")), { recursive: true });
-      await writeFile(join(reportDir, "index.html"), errorHtml);
+      await fs.mkdir(dirname(join(reportDir, "index.html")), { recursive: true });
+      await fs.writeFile(join(reportDir, "index.html"), errorHtml);
 
       return {
         success: false,
@@ -1288,7 +1296,7 @@ test('test', async ({ page }) => {
   ${code}
 });
 `;
-    await writeFile(testPath, testContent);
+    await fs.writeFile(testPath, testContent);
 
     // Create an initial HTML report with loading indicator
     const loadingHtml = `
@@ -1368,7 +1376,7 @@ test('test', async ({ page }) => {
 
     // Save the loading report
     const htmlReportPath = normalize(join(reportDir, "index.html"));
-    await writeFile(htmlReportPath, loadingHtml);
+    await fs.writeFile(htmlReportPath, loadingHtml);
 
     // Update status with initial report URL
     testStatusMap.set(testId, {
@@ -1453,8 +1461,8 @@ test('test', async ({ page }) => {
       const reportDir = normalize(join(testResultsDir, "report"));
 
       // Ensure the directory exists
-      await mkdir(dirname(join(reportDir, "index.html")), { recursive: true });
-      await writeFile(join(reportDir, "index.html"), errorHtml);
+      await fs.mkdir(dirname(join(reportDir, "index.html")), { recursive: true });
+      await fs.writeFile(join(reportDir, "index.html"), errorHtml);
 
       // Update test status to completed with error
       testStatusMap.set(testId, {
@@ -1515,9 +1523,9 @@ export async function executeMultipleTests(
     });
 
     // Create the directories
-    await mkdir(testResultsDir, { recursive: true });
-    await mkdir(reportDir, { recursive: true });
-    await mkdir(jobTestsDir, { recursive: true });
+    await fs.mkdir(testResultsDir, { recursive: true });
+    await fs.mkdir(reportDir, { recursive: true });
+    await fs.mkdir(jobTestsDir, { recursive: true });
 
     console.log(`Created test directory: ${jobTestsDir}`);
     console.log(`Created report directory: ${reportDir}`);
@@ -1550,10 +1558,10 @@ test('${testName} (ID: ${id})', async ({ page }) => {
   expect(false).toBeTruthy();
 });
 `;
-        await writeFile(testFilePath, failingTestCode);
+        await fs.writeFile(testFilePath, failingTestCode);
       } else {
         // Write the original script to a file
-        await writeFile(testFilePath, script);
+        await fs.writeFile(testFilePath, script);
       }
 
       testFilePaths.push(testFilePath);
@@ -1690,7 +1698,7 @@ async function executeMultipleTestFilesWithGlobalConfig(
       const testResultsDir = normalize(join(publicDir, "test-results", testId));
       const tracesDir = normalize(join(testResultsDir, "traces"));
 
-      await mkdir(tracesDir, { recursive: true });
+      await fs.mkdir(tracesDir, { recursive: true });
 
       // Create empty trace files to avoid ENOENT errors
       const traceFiles = [
@@ -1702,7 +1710,7 @@ async function executeMultipleTestFilesWithGlobalConfig(
 
       for (const traceFile of traceFiles) {
         const tracePath = normalize(join(tracesDir, traceFile));
-        await writeFile(tracePath, "");
+        await fs.writeFile(tracePath, "");
         console.log(`Created empty trace file to avoid ENOENT: ${tracePath}`);
       }
 
@@ -1714,7 +1722,7 @@ async function executeMultipleTestFilesWithGlobalConfig(
       const args = [
         "playwright",
         "test",
-        ...testFilePaths.map((path) => path),
+        ...testFilePaths.map((path) => toCLIPath(path)),
         "--config=playwright.config.mjs",
       ];
 
@@ -1737,6 +1745,9 @@ async function executeMultipleTestFilesWithGlobalConfig(
       const childProcess = spawn(command, args, {
         env,
         stdio: ["pipe", "pipe", "pipe"],
+        shell: isWindows, // Use shell on Windows to avoid EINVAL errors
+        windowsVerbatimArguments: isWindows, // Preserve quotes and special characters on Windows
+        cwd: process.cwd(),
       });
 
       let stdout = "";
@@ -1837,9 +1848,9 @@ export async function cleanupTestResults(
     const publicDir = normalize(join(process.cwd(), "public"));
     const testResultsDir = normalize(join(publicDir, "test-results"));
 
-    if (fs.existsSync(testResultsDir)) {
+    if (existsSync(testResultsDir)) {
       try {
-        const dirs = await fs.promises.readdir(testResultsDir);
+        const dirs = await fs.readdir(testResultsDir);
 
         // Only process directories older than the threshold
         // This is a much more conservative approach
@@ -1855,12 +1866,12 @@ export async function cleanupTestResults(
           }
 
           try {
-            const stats = await fs.promises.stat(dirPath);
+            const stats = await fs.stat(dirPath);
 
             // Only delete very old directories - 7 days by default
             if (stats.isDirectory() && stats.mtimeMs < cutoffTime) {
               console.log(`Removing old test result directory: ${dirPath}`);
-              await rm(dirPath, { recursive: true, force: true });
+              await fs.rm(dirPath, { recursive: true, force: true });
             }
           } catch (err) {
             console.warn(`Error processing ${dirPath}:`, err);
@@ -1875,23 +1886,23 @@ export async function cleanupTestResults(
     try {
       const rootTestResultsPath = join(process.cwd(), "test-results");
 
-      if (fs.existsSync(rootTestResultsPath)) {
-        const rootDirs = await fs.promises.readdir(rootTestResultsPath);
+      if (existsSync(rootTestResultsPath)) {
+        const rootDirs = await fs.readdir(rootTestResultsPath);
         const cutoffTime = now - maxAgeMs;
 
         // Only delete files/directories older than the threshold (7 days)
         for (const item of rootDirs) {
           const itemPath = join(rootTestResultsPath, item);
           try {
-            const stats = await fs.promises.stat(itemPath);
+            const stats = await fs.stat(itemPath);
 
             if (stats.mtimeMs < cutoffTime) {
               if (stats.isDirectory()) {
                 console.log(`Removing old root test directory: ${itemPath}`);
-                await rm(itemPath, { recursive: true, force: true });
+                await fs.rm(itemPath, { recursive: true, force: true });
               } else {
                 console.log(`Removing old root test file: ${itemPath}`);
-                await unlink(itemPath);
+                await fs.unlink(itemPath);
               }
             }
           } catch (err) {
@@ -1907,18 +1918,18 @@ export async function cleanupTestResults(
     try {
       const publicTestsDir = normalize(join(publicDir, "tests"));
 
-      if (fs.existsSync(publicTestsDir)) {
-        const testFiles = await fs.promises.readdir(publicTestsDir);
+      if (existsSync(publicTestsDir)) {
+        const testFiles = await fs.readdir(publicTestsDir);
         const cutoffTime = now - maxAgeMs;
 
         for (const file of testFiles) {
           const filePath = join(publicTestsDir, file);
           try {
-            const stats = await fs.promises.stat(filePath);
+            const stats = await fs.stat(filePath);
 
             if (stats.mtimeMs < cutoffTime) {
               console.log(`Removing old test file: ${filePath}`);
-              await unlink(filePath);
+              await fs.unlink(filePath);
             }
           } catch (err) {
             console.warn(`Error processing test file ${filePath}:`, err);
