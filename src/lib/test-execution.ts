@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { validateCode } from "./code-validation";
 import async from "async";
+import crypto from "crypto";
 
 // Suppress the NODE_TLS_REJECT_UNAUTHORIZED warning
 // process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -42,6 +43,30 @@ export interface TestStatusUpdate {
   success?: boolean;
   error?: string | null;
   reportUrl?: string | null;
+}
+
+// Define the TestScript interface
+interface TestScript {
+  id: string;
+  script: string;
+  name?: string;
+}
+
+// Define the TestExecutionResult interface
+interface TestExecutionResult {
+  jobId: string;
+  success: boolean;
+  error?: string | null;
+  reportUrl: string | null;
+  results: Array<{
+    testId: string;
+    success: boolean;
+    error: string | null;
+    reportUrl?: string | null;
+  }>;
+  timestamp: string;
+  stdout?: string;
+  stderr?: string;
 }
 
 // A map to store the status of each test
@@ -168,7 +193,8 @@ export function toUrlPath(filePath: string): string {
  */
 async function executeTestInChildProcess(
   testId: string,
-  testPath: string
+  testPath: string,
+  command?: string
 ): Promise<TestResult> {
   return new Promise(async (resolve, reject) => {
     try {
@@ -302,7 +328,7 @@ async function executeTestInChildProcess(
 
       // Determine the command to run based on the OS
       const isWindows = process.platform === "win32";
-      const command = isWindows ? "npx.cmd" : "npx";
+      const commandToRun = command || (isWindows ? "npx.cmd" : "npx");
 
       // For Windows, ensure we use a path that works with Playwright CLI
       // Convert absolute path to a relative path from the current working directory
@@ -318,17 +344,19 @@ async function executeTestInChildProcess(
         }
       }
 
-      const args = [
-        "playwright",
-        "test",
-        testPathArg,
-        "--config=playwright.config.mjs",
-      ];
+      const args = command
+        ? []
+        : [
+            "playwright",
+            "test",
+            testPathArg,
+            "--config=playwright.config.mjs",
+          ];
 
-      console.log(`Running command: ${command} ${args.join(" ")}`);
+      console.log(`Running command: ${commandToRun} ${args.join(" ")}`);
 
       // Spawn the child process with improved options
-      const childProcess = spawn(command, args, {
+      const childProcess = spawn(commandToRun, args, {
         env: {
           ...process.env,
           // Prevent the NODE_TLS_REJECT_UNAUTHORIZED warning in the child process
@@ -1445,6 +1473,302 @@ test('test', async ({ page }) => {
     // Now that the test is complete, we can mark it as inactive
     activeTestIds.delete(testId);
   }
+}
+
+/**
+ * Execute multiple test scripts in a single run and generate a combined HTML report
+ */
+export async function executeMultipleTests(
+  testScripts: TestScript[],
+  runId: string
+): Promise<TestExecutionResult> {
+  // Use the provided runId instead of generating a new one
+  
+  // Mark this run as active
+  activeTestIds.add(runId);
+  
+  // Also add to recent tests with current timestamp
+  recentTestIds.set(runId, Date.now());
+  
+  try {
+    console.log(`Executing multiple tests with run ID ${runId}`);
+    
+    // Create a directory for the test files
+    const publicDir = normalize(join(process.cwd(), "public"));
+    const jobTestsDir = normalize(join(publicDir, "tests", runId));
+    
+    // Create run-specific report directory using runId
+    const testResultsDir = normalize(join(publicDir, "test-results", runId));
+    const reportDir = normalize(join(testResultsDir, "report"));
+    
+    // Initialize the test status
+    testStatusMap.set(runId, {
+      testId: runId,
+      status: "pending",
+    });
+    
+    // Create the directories
+    await mkdir(testResultsDir, { recursive: true });
+    await mkdir(reportDir, { recursive: true });
+    await mkdir(jobTestsDir, { recursive: true });
+    
+    console.log(`Created test directory: ${jobTestsDir}`);
+    console.log(`Created report directory: ${reportDir}`);
+    
+    // Create individual test files for each test script
+    const testFilePaths: string[] = [];
+    
+    for (const { id, script, name } of testScripts) {
+      const testName = name || `Test ${id}`;
+      const testFilePath = normalize(join(jobTestsDir, `${id}.spec.js`));
+      
+      // Validate the test script
+      const validationResult = validateCode(script);
+      
+      if (!validationResult.valid) {
+        console.error(`Code validation failed for test ${id}: ${validationResult.error}`);
+        
+        // Create a failing test file
+        const failingTestCode = `
+const { test, expect } = require('@playwright/test');
+
+test('${testName} (ID: ${id})', async ({ page }) => {
+  test.fail();
+  console.log('Test validation failed: ${validationResult.error?.replace(/'/g, "\\'")}');
+  expect(false).toBeTruthy();
+});
+`;
+        await writeFile(testFilePath, failingTestCode);
+      } else {
+        // Write the original script to a file
+        await writeFile(testFilePath, script);
+      }
+      
+      testFilePaths.push(testFilePath);
+    }
+    
+    // Execute the tests
+    const result = await executeMultipleTestFilesWithGlobalConfig(runId, testFilePaths, reportDir, jobTestsDir);
+    
+    // Parse the results for each test
+    const individualResults = testScripts.map(({ id, name }) => {
+      const testName = name || id;
+      const testFilename = `${id}.spec.js`;
+      
+      // Improved patterns to detect success/failure in Playwright output
+      const specificTestPattern = new RegExp(`${testFilename}`, 'i');
+      const specificTestFailedPattern = new RegExp(`${testFilename}.*?failed`, 'i');
+      const specificTestPassedPattern = new RegExp(`${testFilename}.*?passed`, 'i');
+      
+      // Check if the test was mentioned in the output
+      const testWasRun = specificTestPattern.test(result.stdout);
+      const testFailed = specificTestFailedPattern.test(result.stdout);
+      const testPassed = specificTestPassedPattern.test(result.stdout);
+      
+      // Check if the test was specifically mentioned in the failure output
+      const isInFailureList = result.stdout.includes(`${testFilename}`) && 
+                             result.stdout.includes('failed') && 
+                             !result.stdout.includes(`${testFilename}.*?passed`);
+      
+      // A test is successful if:
+      // 1. It explicitly shows as passed in the output, OR
+      // 2. It was run and not explicitly mentioned in the failure list
+      const success = testPassed || (testWasRun && !isInFailureList);
+      
+      console.log(`Test ${id} result analysis:`, {
+        testWasRun,
+        testPassed,
+        testFailed,
+        isInFailureList,
+        overallSuccess: result.success,
+        determinedSuccess: success
+      });
+      
+      return {
+        testId: id,
+        success,
+        error: !success ? `Test ${testName} failed during execution` : null,
+        reportUrl: `/api/test-results/${runId}/report/index.html`,
+      };
+    });
+    
+    // Overall success is true if all individual tests succeeded
+    const overallSuccess = individualResults.every(result => result.success);
+    
+    // Update the test status to completed
+    testStatusMap.set(runId, {
+      testId: runId,
+      status: "completed",
+      success: overallSuccess,
+      error: result.error,
+      reportUrl: `/api/test-results/${runId}/report/index.html`,
+    });
+    
+    return {
+      jobId: runId,
+      success: overallSuccess,
+      reportUrl: `/api/test-results/${runId}/report/index.html`,
+      results: individualResults,
+      timestamp: new Date().toISOString(),
+      stdout: result.stdout,
+      stderr: result.stderr,
+    };
+  } catch (error) {
+    console.error(`Error executing tests for run ${runId}:`, error);
+    
+    // Update test status to completed with error
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    testStatusMap.set(runId, {
+      testId: runId,
+      status: "completed",
+      success: false,
+      error: errorMessage,
+    });
+    
+    return {
+      jobId: runId,
+      success: false,
+      error: errorMessage,
+      reportUrl: null,
+      results: testScripts.map(({ id }) => ({
+        testId: id,
+        success: false,
+        error: errorMessage,
+      })),
+      timestamp: new Date().toISOString(),
+      stdout: "",
+      stderr: error instanceof Error ? error.stack || error.message : String(error),
+    };
+  } finally {
+    // Remove the test from active tests
+    activeTestIds.delete(runId);
+  }
+}
+
+/**
+ * Execute multiple test files with Playwright using the global config
+ */
+async function executeMultipleTestFilesWithGlobalConfig(
+  testId: string,
+  testFilePaths: string[],
+  reportDir: string,
+  jobTestsDir: string
+): Promise<TestResult> {
+  return new Promise(async (resolve, reject) => {
+    try {
+      console.log(`Executing multiple test files for run ${testId} using global config`);
+      
+      // Create necessary directories for traces
+      const publicDir = normalize(join(process.cwd(), "public"));
+      const testResultsDir = normalize(join(publicDir, "test-results", testId));
+      const tracesDir = normalize(join(testResultsDir, "traces"));
+      
+      await mkdir(tracesDir, { recursive: true });
+      
+      // Create empty trace files to avoid ENOENT errors
+      const traceFiles = [
+        `${testId}-recording1.network`,
+        `${testId}.network`,
+        `${testId}-recording1.zip`,
+        `${testId}.zip`,
+      ];
+      
+      for (const traceFile of traceFiles) {
+        const tracePath = normalize(join(tracesDir, traceFile));
+        await writeFile(tracePath, "");
+        console.log(`Created empty trace file to avoid ENOENT: ${tracePath}`);
+      }
+      
+      // Determine the command to run based on the OS
+      const isWindows = process.platform === "win32";
+      const command = isWindows ? "npx.cmd" : "npx";
+      
+      // Build the arguments for the command
+      const args = [
+        "playwright",
+        "test",
+        ...testFilePaths.map(path => path),
+        "--config=playwright.config.mjs",
+      ];
+      
+      console.log(`Running command: ${command} ${args.join(" ")}`);
+      
+      // Set environment variables for the test directory and report directory
+      const env = {
+        ...process.env,
+        NODE_TLS_REJECT_UNAUTHORIZED: "0",
+        PAGER: "cat",
+        // Set environment variables for Playwright config
+        PLAYWRIGHT_TEST_DIR: jobTestsDir,
+        PLAYWRIGHT_REPORT_DIR: reportDir,
+      };
+      
+      console.log(`Using test directory: ${jobTestsDir}`);
+      console.log(`Using report directory: ${reportDir}`);
+      
+      // Spawn the child process with the environment variables
+      const childProcess = spawn(command, args, {
+        env,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      
+      let stdout = "";
+      let stderr = "";
+      
+      childProcess.stdout.on("data", (data) => {
+        const chunk = data.toString();
+        stdout += chunk;
+        console.log(`[Test ${testId}] ${chunk}`);
+      });
+      
+      childProcess.stderr.on("data", (data) => {
+        const chunk = data.toString();
+        stderr += chunk;
+        console.error(`[Test ${testId}] ${chunk}`);
+      });
+      
+      childProcess.on("error", (error) => {
+        console.error(`Child process error for test ${testId}:`, error);
+        resolve({
+          testId,
+          success: false,
+          error: error.message,
+          reportUrl: `/api/test-results/${testId}/report/index.html`,
+          stdout,
+          stderr,
+        });
+      });
+      
+      childProcess.on("close", (code, signal) => {
+        console.log(`Child process for test ${testId} exited with code: ${code}, signal: ${signal}`);
+        
+        if (code !== 0) {
+          console.log(`Test ${testId} failed: Test failed with exit code ${code}`);
+          resolve({
+            testId,
+            success: false,
+            error: `Test failed with exit code ${code}`,
+            reportUrl: `/api/test-results/${testId}/report/index.html`,
+            stdout,
+            stderr,
+          });
+        } else {
+          console.log(`Test ${testId} completed successfully`);
+          resolve({
+            testId,
+            success: true,
+            error: null,
+            reportUrl: `/api/test-results/${testId}/report/index.html`,
+            stdout,
+            stderr,
+          });
+        }
+      });
+    } catch (error) {
+      console.error(`Error executing test ${testId}:`, error);
+      reject(error);
+    }
+  });
 }
 
 /**

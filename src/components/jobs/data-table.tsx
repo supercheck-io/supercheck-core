@@ -1,10 +1,11 @@
+"use client";
+
 import * as React from "react";
 import {
-  type ColumnDef,
-  type ColumnFiltersState,
-  type SortingState,
-  type VisibilityState,
-  type Row,
+  ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
   flexRender,
   getCoreRowModel,
   getFacetedRowModel,
@@ -13,6 +14,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  Row,
 } from "@tanstack/react-table";
 
 import {
@@ -54,11 +56,6 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       rowSelection,
       columnFilters,
-    },
-    initialState: {
-      pagination: {
-        pageSize: 15,
-      },
     },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
@@ -102,7 +99,7 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={() => onRowClick?.(row)}
+                  onClick={() => onRowClick && onRowClick(row)}
                   className={onRowClick ? "cursor-pointer hover:bg-muted" : ""}
                 >
                   {row.getVisibleCells().map((cell) => (

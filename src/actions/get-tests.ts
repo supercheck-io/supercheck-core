@@ -1,53 +1,46 @@
 "use server";
 
 import { tests } from "@/db/schema";
-import { getDb } from "@/db/client";
 import { desc } from "drizzle-orm";
+import { db } from "../db/client";
 import { decodeTestScript } from "./get-test";
 
 /**
  * Server action to get all tests from the database
- * @returns All tests with decoded scripts
+ * @returns All tests with minimal data needed for selection
  */
 export async function getTests() {
   try {
-    const db = await getDb();
+    const dbInstance = await db();
     
-    // Query the database for all tests, ordered by creation date (newest first)
-    const result = await db
-      .select()
-      .from(tests)
+    // Fetch all tests from the database
+    const result = await dbInstance.select().from(tests)
       .orderBy(desc(tests.createdAt));
-
-    // Decode all scripts before returning
-    const testsWithDecodedScripts = await Promise.all(
-      result.map(async (test) => {
-        const decodedScript = await decodeTestScript(test.script || "");
-        
-        return {
-          id: test.id,
-          title: test.title,
-          description: test.description,
-          script: decodedScript,
-          priority: test.priority,
-          type: test.type,
-          createdAt: test.createdAt,
-          updatedAt: test.updatedAt,
-        };
-      })
-    );
-
-    // Return the test data
-    return {
-      success: true,
-      tests: testsWithDecodedScripts,
-    };
+    
+    // Map the database results to the expected format
+    const formattedTests = await Promise.all(result.map(async (test) => {
+      // Decode the script if it exists
+      const decodedScript = test.script ? await decodeTestScript(test.script) : "";
+      
+      return {
+        id: test.id,
+        title: test.title,
+        description: test.description,
+        priority: test.priority,
+        type: test.type,
+        script: decodedScript, // Include the decoded script
+        createdAt: test.createdAt ? new Date(test.createdAt).toISOString() : null,
+        updatedAt: test.updatedAt ? new Date(test.updatedAt).toISOString() : null,
+      };
+    }));
+    
+    return { success: true, tests: formattedTests };
   } catch (error) {
     console.error("Error fetching tests:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-      tests: [],
+    return { 
+      success: false, 
+      tests: null, 
+      error: error instanceof Error ? error.message : "Unknown error occurred" 
     };
   }
 }

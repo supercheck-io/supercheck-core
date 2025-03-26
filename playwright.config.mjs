@@ -2,13 +2,14 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./public/tests",
+  // Use environment variable for test directory if provided, otherwise use default
+  testDir: process.env.PLAYWRIGHT_TEST_DIR || "./public/tests",
   // We'll override these with CLI arguments for each test run
   reporter: [
     [
       "html",
       {
-        outputFolder: "./public/test-results/report",
+        outputFolder: process.env.PLAYWRIGHT_REPORT_DIR || "./public/test-results/report", // Use environment variable for report directory
         open: "never", // Prevent auto-opening the report
       },
     ],

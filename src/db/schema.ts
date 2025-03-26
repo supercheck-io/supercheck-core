@@ -293,10 +293,6 @@ export const testRuns = sqliteTable("test_runs", {
   }).$type<ArtifactPaths>(),
   logs: text("logs"),
   errorDetails: text("error_details"),
-  videoUrl: text("video_url"),
-  screenshotUrls: text("screenshot_urls", { mode: "json" })
-    .$type<string[]>()
-    .default(sql`'[]'`),
 });
 export const testRunsJobIdIdx = index("test_runs_job_id_idx").on(
   testRuns.jobId

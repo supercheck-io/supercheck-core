@@ -5,7 +5,7 @@ export const testSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string().nullable(),
-  script: z.string(),
+  script: z.string().optional(),
   priority: z.enum(["low", "medium", "high", "critical"]),
   type: z.enum(["browser", "api", "multistep", "database"]),
   createdAt: z.string().optional(),
