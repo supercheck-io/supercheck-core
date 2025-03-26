@@ -9,7 +9,9 @@ interface RunPageProps {
 }
 
 export async function generateMetadata({ params }: RunPageProps) {
-  const run = await getRun(params.id);
+  // Await the params object before accessing its properties
+  const resolvedParams = await Promise.resolve(params);
+  const run = await getRun(resolvedParams.id);
   
   if (!run) {
     return {
@@ -19,13 +21,15 @@ export async function generateMetadata({ params }: RunPageProps) {
   }
   
   return {
-    title: `Run ${params.id.slice(0, 8)}`,
-    description: `Details for test run ${params.id}`,
+    title: `Test Run Details`,
+    description: `Details for test run ${run.id}`,
   };
 }
 
 export default async function RunPage({ params }: RunPageProps) {
-  const run = await getRun(params.id);
+  // Await the params object before accessing its properties
+  const resolvedParams = await Promise.resolve(params);
+  const run = await getRun(resolvedParams.id);
   
   if (!run) {
     notFound();

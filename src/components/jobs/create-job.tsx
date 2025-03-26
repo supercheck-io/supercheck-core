@@ -45,64 +45,7 @@ import {
 import { getTests } from "@/actions/get-tests";
 import { createJob } from "@/actions/create-job";
 import { toast } from "@/components/ui/use-toast";
-
-// Sample test data (will be replaced with real data)
-const sampleTests: Test[] = [
-  {
-    id: "TEST-001",
-    name: "Authentication Endpoint",
-    description: "Verifies the authentication endpoint is working correctly",
-    type: "api",
-    status: "pass",
-    lastRunAt: "2025-03-25T18:30:00Z",
-    duration: 1250,
-  },
-  {
-    id: "TEST-002",
-    name: "User Profile Endpoint",
-    description: "Checks if user profile data is returned correctly",
-    type: "api",
-    status: "pass",
-    lastRunAt: "2025-03-25T18:30:00Z",
-    duration: 980,
-  },
-  {
-    id: "TEST-101",
-    name: "Backup Integrity Check",
-    description: "Verifies backup files integrity",
-    type: "integration",
-    status: "pass",
-    lastRunAt: "2025-03-19T00:00:00Z",
-    duration: 5200,
-  },
-  {
-    id: "TEST-201",
-    name: "User Login",
-    description: "Tests user login functionality",
-    type: "ui",
-    status: "pending",
-    lastRunAt: "2025-03-25T12:00:00Z",
-    duration: null,
-  },
-  {
-    id: "TEST-301",
-    name: "API Response Time",
-    description: "Measures API response times under load",
-    type: "performance",
-    status: "fail",
-    lastRunAt: "2025-03-01T03:00:00Z",
-    duration: 3600000,
-  },
-  {
-    id: "TEST-401",
-    name: "Add to Cart",
-    description: "Tests adding products to cart",
-    type: "ui",
-    status: "skipped",
-    lastRunAt: "2025-02-15T14:30:00Z",
-    duration: null,
-  },
-];
+import { Search } from "lucide-react";
 
 export default function CreateJob() {
   const router = useRouter();
@@ -114,13 +57,21 @@ export default function CreateJob() {
   const [activeTab, setActiveTab] = useState("basic");
   const [availableTests, setAvailableTests] = useState<Test[]>([]);
   const [isLoadingTests, setIsLoadingTests] = useState(true);
+  const [testFilter, setTestFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   // Form state
   const [formState, setFormState] = useState({
     name: "",
     description: "",
     cronSchedule: "",
-    status: "pending" as "pending" | "running" | "completed" | "failed" | "cancelled",
+    status: "pending" as
+      | "pending"
+      | "running"
+      | "completed"
+      | "failed"
+      | "cancelled",
     environment: "production",
     timeoutSeconds: "30",
     retryCount: "0",
@@ -206,7 +157,12 @@ export default function CreateJob() {
             id: test.id,
             name: test.title,
             description: test.description || "",
-            type: test.type as "api" | "ui" | "integration" | "performance" | "security",
+            type: test.type as
+              | "api"
+              | "ui"
+              | "integration"
+              | "performance"
+              | "security",
             status: "pending" as const, // Default status since we don't have this in the test schema
             lastRunAt: test.updatedAt,
             duration: null as number | null,
@@ -265,13 +221,17 @@ export default function CreateJob() {
         name: formState.name.trim(),
         description: formState.description.trim() || "",
         cronSchedule: formState.cronSchedule.trim() || "",
-        timeoutSeconds: formState.timeoutSeconds ? parseInt(formState.timeoutSeconds) : 30,
+        timeoutSeconds: formState.timeoutSeconds
+          ? parseInt(formState.timeoutSeconds)
+          : 30,
         retryCount: formState.retryCount ? parseInt(formState.retryCount) : 0,
         config: {
           environment: formState.environment,
           variables: formState.variables ? JSON.parse(formState.variables) : {},
           retryStrategy: {
-            maxRetries: formState.maxRetries ? parseInt(formState.maxRetries) : 3,
+            maxRetries: formState.maxRetries
+              ? parseInt(formState.maxRetries)
+              : 3,
             backoffFactor: parseFloat(formState.backoffFactor) || 1.5,
           },
         },
@@ -301,7 +261,7 @@ export default function CreateJob() {
       }
     } catch (error) {
       console.error("Error creating job:", error);
-      
+
       if (error instanceof z.ZodError) {
         const errors: Record<string, string> = {};
         error.errors.forEach((err) => {
@@ -313,7 +273,10 @@ export default function CreateJob() {
       } else {
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "An unknown error occurred",
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unknown error occurred",
           variant: "destructive",
         });
       }
@@ -440,15 +403,13 @@ export default function CreateJob() {
               <CardHeader>
                 <CardTitle>Tests</CardTitle>
                 <CardDescription>
-                  Select tests to include in this job.
+                  Select tests to include in this job. You can add multiple
+                  tests.{" "}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex justify-between items-center mb-4">
-                  <p className="text-sm text-muted-foreground">
-                    Select tests to include in this job. You can add multiple tests.
-                  </p>
-                  <Button 
+                <div className="flex justify-center items-center mb-4">
+                  <Button
                     onClick={() => setIsSelectTestsDialogOpen(true)}
                     variant="outline"
                     size="sm"
@@ -461,69 +422,226 @@ export default function CreateJob() {
                 <Dialog
                   open={isSelectTestsDialogOpen}
                   onOpenChange={setIsSelectTestsDialogOpen}
+                  className="justify-center"
                 >
-                  <DialogContent className="sm:max-w-[800px]">
+                  <DialogContent className="sm:max-w-[850px] max-h-[80vh]">
                     <DialogHeader>
                       <DialogTitle>Select Tests</DialogTitle>
                       <DialogDescription>
                         Choose the tests to include in this job
                       </DialogDescription>
                     </DialogHeader>
-                    
+
                     {isLoadingTests ? (
                       <div className="flex items-center justify-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                        <span className="ml-2 text-muted-foreground">Loading tests...</span>
+                        <span className="ml-2 text-muted-foreground">
+                          Loading tests...
+                        </span>
                       </div>
                     ) : (
                       <>
-                        <div className="max-h-[400px] overflow-y-auto">
-                          <Table>
+                        <div className="mb-4 space-y-2">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Filter by test name, ID, or type..."
+                              className="pl-8"
+                              value={testFilter}
+                              onChange={(e) => setTestFilter(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="max-h-[350px] overflow-y-auto">
+                          <Table className="w-full">
                             <TableHeader>
                               <TableRow>
-                                <TableHead className="w-[50px]"></TableHead>
-                                <TableHead className="w-[120px]">ID</TableHead>
-                                <TableHead className="w-[250px]">Name</TableHead>
-                                <TableHead className="w-[100px]">Type</TableHead>
+                                <TableHead className="w-[40px]"></TableHead>
+                                <TableHead className="w-[120px] truncate">
+                                  ID
+                                </TableHead>
+                                <TableHead className="w-[250px] truncate">
+                                  Name
+                                </TableHead>
+                                <TableHead className="w-[100px] truncate">
+                                  Type
+                                </TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {availableTests.map((test) => (
-                                <TableRow key={test.id}>
-                                  <TableCell>
-                                    <Checkbox
-                                      checked={testSelections[test.id] || false}
-                                      onCheckedChange={(checked) => {
-                                        setTestSelections({
-                                          ...testSelections,
-                                          [test.id]: !!checked,
-                                        });
-                                      }}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="font-mono text-xs">{test.id}</TableCell>
-                                  <TableCell>{test.name}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline">{test.type}</Badge>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                              {availableTests
+                                .filter(
+                                  (test) =>
+                                    testFilter === "" ||
+                                    test.name
+                                      .toLowerCase()
+                                      .includes(testFilter.toLowerCase()) ||
+                                    test.id
+                                      .toLowerCase()
+                                      .includes(testFilter.toLowerCase()) ||
+                                    test.type
+                                      .toLowerCase()
+                                      .includes(testFilter.toLowerCase())
+                                )
+                                .slice(
+                                  (currentPage - 1) * itemsPerPage,
+                                  currentPage * itemsPerPage
+                                )
+                                .map((test) => (
+                                  <TableRow key={test.id}>
+                                    <TableCell className="py-2">
+                                      <Checkbox
+                                        checked={
+                                          testSelections[test.id] || false
+                                        }
+                                        onCheckedChange={(checked) => {
+                                          setTestSelections({
+                                            ...testSelections,
+                                            [test.id]: !!checked,
+                                          });
+                                        }}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs truncate py-2">
+                                      {test.id}
+                                    </TableCell>
+                                    <TableCell className="truncate py-2">
+                                      <div className="truncate max-w-[250px]">
+                                        {test.name}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-2">
+                                      <Badge variant="outline">
+                                        {test.type}
+                                      </Badge>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
                             </TableBody>
                           </Table>
                         </div>
+
+                        {/* Pagination controls */}
+                        <div className="flex justify-center items-center mt-4 space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setCurrentPage((prev) => Math.max(prev - 1, 1))
+                            }
+                            disabled={currentPage === 1}
+                          >
+                            Previous
+                          </Button>
+                          <span className="text-sm">
+                            Page {currentPage} of{" "}
+                            {Math.max(
+                              1,
+                              Math.ceil(
+                                availableTests.filter(
+                                  (test) =>
+                                    testFilter === "" ||
+                                    test.name
+                                      .toLowerCase()
+                                      .includes(testFilter.toLowerCase()) ||
+                                    test.id
+                                      .toLowerCase()
+                                      .includes(testFilter.toLowerCase()) ||
+                                    test.type
+                                      .toLowerCase()
+                                      .includes(testFilter.toLowerCase())
+                                ).length / itemsPerPage
+                              )
+                            )}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setCurrentPage((prev) =>
+                                Math.min(
+                                  prev + 1,
+                                  Math.max(
+                                    1,
+                                    Math.ceil(
+                                      availableTests.filter(
+                                        (test) =>
+                                          testFilter === "" ||
+                                          test.name
+                                            .toLowerCase()
+                                            .includes(
+                                              testFilter.toLowerCase()
+                                            ) ||
+                                          test.id
+                                            .toLowerCase()
+                                            .includes(
+                                              testFilter.toLowerCase()
+                                            ) ||
+                                          test.type
+                                            .toLowerCase()
+                                            .includes(testFilter.toLowerCase())
+                                      ).length / itemsPerPage
+                                    )
+                                  )
+                                )
+                              )
+                            }
+                            disabled={
+                              currentPage ===
+                              Math.max(
+                                1,
+                                Math.ceil(
+                                  availableTests.filter(
+                                    (test) =>
+                                      testFilter === "" ||
+                                      test.name
+                                        .toLowerCase()
+                                        .includes(testFilter.toLowerCase()) ||
+                                      test.id
+                                        .toLowerCase()
+                                        .includes(testFilter.toLowerCase()) ||
+                                      test.type
+                                        .toLowerCase()
+                                        .includes(testFilter.toLowerCase())
+                                  ).length / itemsPerPage
+                                )
+                              )
+                            }
+                          >
+                            Next
+                          </Button>
+                        </div>
+
+                        <div className="mt-4 flex justify-between items-center">
+                          <div className="text-sm text-muted-foreground">
+                            {
+                              Object.keys(testSelections).filter(
+                                (id) => testSelections[id]
+                              ).length
+                            }{" "}
+                            test
+                            {Object.keys(testSelections).filter(
+                              (id) => testSelections[id]
+                            ).length !== 1
+                              ? "s"
+                              : ""}{" "}
+                            selected
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              variant="outline"
+                              onClick={() => setIsSelectTestsDialogOpen(false)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button onClick={handleTestSelectionConfirm}>
+                              Add Selected Tests
+                            </Button>
+                          </DialogFooter>
+                        </div>
                       </>
                     )}
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsSelectTestsDialogOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button onClick={handleTestSelectionConfirm}>
-                        Add Selected Tests
-                      </Button>
-                    </DialogFooter>
                   </DialogContent>
                 </Dialog>
 
