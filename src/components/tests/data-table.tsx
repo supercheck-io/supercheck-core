@@ -102,7 +102,18 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={() => onRowClick?.(row)}
+                  onClick={(e) => {
+                    // Only trigger row click if the click was directly on the row
+                    // and not on a button or other interactive element
+                    if (
+                      e.target instanceof HTMLElement &&
+                      !e.target.closest('button') &&
+                      !e.target.closest('[role="menuitem"]') &&
+                      !e.target.closest('[role="menu"]')
+                    ) {
+                      onRowClick?.(row);
+                    }
+                  }}
                   className={onRowClick ? "cursor-pointer hover:bg-muted" : ""}
                 >
                   {row.getVisibleCells().map((cell) => (

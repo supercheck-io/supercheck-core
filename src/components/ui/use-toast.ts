@@ -3,8 +3,6 @@
 // Adapted from shadcn/ui toast component
 // https://ui.shadcn.com/docs/components/toast
 
-import { useState, useEffect } from "react";
-
 export type ToastProps = {
   title?: string;
   description?: string;
@@ -12,17 +10,20 @@ export type ToastProps = {
   duration?: number;
 };
 
-type ToastState = ToastProps & {
+export type ToastState = ToastProps & {
   id: string;
   visible: boolean;
 };
 
-const toastState: {
+// Export the toastState so it can be used by the Toast component
+export const toastState: {
   toasts: ToastState[];
   listeners: Set<(toasts: ToastState[]) => void>;
+  dismiss: (id: string) => void;
 } = {
   toasts: [],
   listeners: new Set(),
+  dismiss: (id: string) => dismissToast(id),
 };
 
 const addToast = (toast: ToastProps) => {
@@ -63,21 +64,9 @@ export function useToast() {
   };
 }
 
+// This is just a placeholder - the actual UI is implemented in toast.tsx
 export function Toaster() {
-  const [toasts, setToasts] = useState<ToastState[]>([]);
-
-  useEffect(() => {
-    const listener = (updatedToasts: ToastState[]) => {
-      setToasts(updatedToasts);
-    };
-
-    toastState.listeners.add(listener);
-    return () => {
-      toastState.listeners.delete(listener);
-    };
-  }, []);
-
-  return null; // We'll implement the actual UI in a separate component
+  return null;
 }
 
 // Simple implementation for our needs

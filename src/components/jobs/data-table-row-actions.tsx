@@ -1,5 +1,5 @@
 import type { Row } from "@tanstack/react-table";
-import { MoreHorizontal, Play, Trash2, Edit } from "lucide-react";
+import { MoreHorizontal, Trash2, Edit } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -7,18 +7,22 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useState } from "react";
 
-import { jobStatuses } from "./data/data";
 import { Job } from "./data/schema";
 
 interface DataTableRowActionsProps<TData> {
@@ -30,137 +34,113 @@ export function DataTableRowActions<TData>({
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const job = row.original as unknown as Job;
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const handleEditJob = () => {
+  const handleEditJob = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click event
     router.push(`/jobs/edit/${job.id}`);
   };
 
-  const handleRunJob = async () => {
+  const handleDeleteJob = async () => {
+    if (!job.id) return;
+
+    setIsDeleting(true);
+    
+    // Show a loading toast for delete operation
+    toast({
+      title: "Deleting job...",
+      description: "Please wait while we delete the job.",
+      duration: 3000,
+    });
+    
     try {
-      console.log("Job data:", job);
-      
-      // Make sure we have the job ID
-      if (!job.id) {
-        toast({
-          title: "Cannot run job",
-          description: "Invalid job ID.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Check if tests are available
-      if (!job.tests || !Array.isArray(job.tests) || job.tests.length === 0) {
-        toast({
-          title: "Cannot run job",
-          description: "This job has no tests associated with it.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Show a loading toast
-      toast({
-        title: "Running job",
-        description: "The job is being executed...",
+      // Call the DELETE endpoint to remove the job from the database
+      const response = await fetch(`/api/jobs?id=${job.id}`, {
+        method: "DELETE",
       });
 
-      console.log("Running job with ID:", job.id);
-      console.log("Tests to run:", job.tests);
-      
-      // Prepare the test data - ensure we're only sending the required fields
-      const testData = job.tests.map(test => ({
-        id: test.id,
-        name: test.name || "",
-        title: test.name || "" // Include title as a fallback
-      }));
-      
-      // Call the dedicated API endpoint for running jobs
-      const response = await fetch(`/api/jobs/run`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          jobId: job.id,
-          tests: testData,
-        }),
-        // Prevent caching issues
-        cache: 'no-store',
-      });
-
-      console.log("Response status:", response.status);
-      
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error response:", errorText);
-        throw new Error(`Failed to run job: ${response.status} ${errorText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete job");
       }
       
-      const data = await response.json();
-      console.log("Response data:", data);
-
       toast({
-        title: "Job executed",
-        description: data.success 
-          ? "All tests completed successfully." 
-          : "Some tests failed. Check the job details for more information.",
-        variant: data.success ? "default" : "destructive",
+        title: "Job deleted successfully",
+        description: `Job &quot;${job.name}&quot; has been permanently removed.`,
+        variant: "default",
       });
-      
-      // Refresh the page to show updated job status
+
+      // Refresh the page to update the job list
       router.refresh();
     } catch (error) {
-      console.error("Error running job:", error);
+      console.error("Error deleting job:", error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to run job",
+        title: "Error deleting job",
+        description:
+          error instanceof Error ? error.message : "Failed to delete job",
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
     }
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="flex h-8 w-8 p-0 data-[state=open]:bg-muted"
-        >
-          <MoreHorizontal />
-          <span className="sr-only">Open menu</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[160px]">
-        <DropdownMenuItem onClick={handleEditJob}>
-          <Edit className="mr-2 h-4 w-4" />
-          Edit
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleRunJob}>
-          <Play className="mr-2 h-4 w-4" />
-          Run Now
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup value={job.status}>
-              {jobStatuses.map((status) => (
-                <DropdownMenuRadioItem key={status.value} value={status.value}>
-                  {status.icon && <status.icon className={`mr-2 h-4 w-4 ${status.color}`} />}
-                  {status.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <Trash2 className="mr-2 h-4 w-4 text-destructive" />
-          Delete
-          <DropdownMenuShortcut>⌘⌫</DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            className="flex h-8 w-8 p-0 data-[state=open]:bg-muted"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">Open menu</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-[160px]">
+          <DropdownMenuItem onClick={handleEditJob}>
+            <Edit className="mr-2 h-4 w-4" />
+            <span>Edit</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteDialog(true);
+            }}
+            className="text-red-600"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            <span>Delete</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the job &quot;{job.name}&quot;. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteJob();
+              }}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

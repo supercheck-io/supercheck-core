@@ -242,6 +242,50 @@ export async function PUT(request: Request) {
   }
 }
 
+// DELETE to remove a job
+export async function DELETE(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const jobId = url.searchParams.get('id');
+
+    if (!jobId) {
+      return NextResponse.json(
+        { success: false, error: "Job ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const dbInstance = await db();
+
+    // First delete any test runs associated with this job
+    await dbInstance.delete(testRuns).where(eq(testRuns.jobId, jobId));
+
+    // Then delete the job-test associations
+    await dbInstance.delete(jobTests).where(eq(jobTests.jobId, jobId));
+
+    // Finally delete the job itself
+    const result = await dbInstance.delete(jobs).where(eq(jobs.id, jobId));
+
+    if (result.rowsAffected === 0) {
+      return NextResponse.json(
+        { success: false, error: "Job not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Job deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting job:", error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Failed to delete job" },
+      { status: 500 }
+    );
+  }
+}
+
 // Helper function to run a job
 async function runJob(request: Request) {
   try {
