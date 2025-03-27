@@ -25,11 +25,12 @@ export default function Tests() {
         const result = await getTests();
         if (result.success) {
           // Ensure the tests match the expected type
-          const formattedTests = result.tests.map((test) => ({
-            ...test,
-            createdAt: test.createdAt || undefined,
-            updatedAt: test.updatedAt || undefined,
-          }));
+          const formattedTests =
+            result.tests?.map((test) => ({
+              ...test,
+              createdAt: test.createdAt || undefined,
+              updatedAt: test.updatedAt || undefined,
+            })) || [];
           setTests(formattedTests);
         } else {
           console.error("Failed to fetch tests:", result.error);

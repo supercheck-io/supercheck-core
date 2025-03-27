@@ -1,7 +1,8 @@
 "use client";
 import { forwardRef, useEffect, useState, useRef } from "react";
 import { MonacoEditorClient } from "./monaco-editor";
-import type { editor } from "monaco-editor";
+import { editor } from "monaco-editor";
+
 // import { Loader2Icon } from "lucide-react";
 
 interface CodeEditorProps {
@@ -12,7 +13,9 @@ interface CodeEditorProps {
 // Make the component a client-side only component with dynamic loading
 const CodeEditor = forwardRef<editor.IStandaloneCodeEditor, CodeEditorProps>(
   ({ value, onChange }, ref) => {
-    const [ClientEditor, setClientEditor] = useState<typeof MonacoEditorClient | null>(null);
+    const [ClientEditor, setClientEditor] = useState<
+      typeof MonacoEditorClient | null
+    >(null);
     const isInitializedRef = useRef(false);
     const forceRenderKey = useRef(Date.now());
 

@@ -5,11 +5,17 @@
  * It provides a simple API for getting script content without using state management.
  */
 
-import { ScriptType } from "./sample-scripts/types";
+export enum ScriptType {
+  Browser = "browser",
+  API = "api",
+  Multistep = "multistep",
+  Database = "database",
+  WebSocket = "websocket",
+}
 
 // Sample scripts content
 const scripts: Record<ScriptType, string> = {
-  browser: `/**
+  [ScriptType.Browser]: `/**
  * Browser Check Script
  * 
  * This script demonstrates how to test browser functionality using Playwright.
@@ -62,7 +68,7 @@ test('Browser check - Form interaction', async ({ page }) => {
 });
 `,
 
-  api: `/**
+  [ScriptType.API]: `/**
  * API Check Script
  * 
  * This script demonstrates how to test API endpoints using Playwright.
@@ -129,23 +135,7 @@ test('API check - Error handling for non-existent resource', async ({ request })
 });
 `,
 
-  tcp: `import { test, expect } from '@playwright/test';
-
-test('TCP check - Test connection', async ({ page }) => {
-  // For TCP tests, we would typically use Node.js net module
-  // But since we're in a browser context, we'll simulate with fetch
-  
-  const startTime = Date.now();
-  await fetch('https://example.com');
-  const responseTime = Date.now() - startTime;
-  
-  console.log('✅ Connection test completed in ' + responseTime + 'ms');
-  
-  // Verify the response time is reasonable
-  expect(responseTime).toBeLessThan(5000);
-});`,
-
-  multistep: `/**
+  [ScriptType.Multistep]: `/**
  * Multistep Check Script
  *
  * This script demonstrates how to perform multistep API tests using Playwright.
@@ -304,139 +294,7 @@ test("Multistep check - Conditional flow based on response", async ({
 });
 `,
 
-  group: `import { test, expect } from '@playwright/test';
-
-// Frontend Group Tests
-test.describe('Group: Frontend Health Checks', () => {
-  test('Frontend - Homepage loads', async ({ page }) => {
-    await page.goto('https://playwright.dev/');
-    await expect(page).toHaveTitle(/Playwright/);
-    
-    console.log('✅ Homepage loaded successfully');
-  });
-
-  test('Frontend - Navigation works', async ({ page }) => {
-    await page.goto('https://playwright.dev/');
-    await page.getByRole('link', { name: 'Docs' }).click();
-    
-    // Verify we navigated to the docs page
-    await expect(page.url()).toContain('/docs/');
-    
-    console.log('✅ Navigation works correctly');
-  });
-});
-
-// API Group Tests
-test.describe('Group: API Health Checks', () => {
-  test('API - Posts endpoint', async ({ request }) => {
-    const response = await request.get('https://jsonplaceholder.typicode.com/posts');
-    expect(response.status()).toBe(200);
-    
-    const posts = await response.json();
-    expect(Array.isArray(posts)).toBe(true);
-    
-    console.log('✅ Posts API endpoint is healthy');
-  });
-});`,
-
-  cron: `/**
- * CRON/Heartbeat Check Script
- * 
- * This script demonstrates how to monitor scheduled tasks and services
- * using Playwright. It checks for service availability and response times.
- */
-
-import { test, expect } from '@playwright/test';
-
-test('CRON check - Service heartbeat monitoring', async ({ request }) => {
-  // Define the services to monitor
-  const services = [
-    { name: 'API Service', url: 'https://jsonplaceholder.typicode.com/posts' },
-    { name: 'User Service', url: 'https://jsonplaceholder.typicode.com/users' },
-    { name: 'Comment Service', url: 'https://jsonplaceholder.typicode.com/comments' }
-  ];
-  
-  // Check each service
-  for (const service of services) {
-    console.log("Checking heartbeat for" + service.name + "...");
-    
-    const startTime = Date.now();
-    const response = await request.get(service.url);
-    const responseTime = Date.now() - startTime;
-    
-    // Verify the service is responding
-    expect(response.status()).toBe(200);
-    
-    // Verify the response time is acceptable (under 2 seconds)
-    expect(responseTime).toBeLessThan(2000);
-    
-    console.log("✅ " + service.name + " is healthy (responded in " + responseTime + "ms)");
-  }
-});
-
-test('CRON check - Scheduled task verification', async () => {
-  console.log('Verifying scheduled task execution...');
-  const now = new Date();
-  const lastRunTime = new Date(now.getTime() - 30 * 60 * 1000);
-  const timeSinceLastRun = now.getTime() - lastRunTime.getTime();
-  const oneHourInMs = 60 * 60 * 1000;
-
-  expect(timeSinceLastRun).toBeLessThan(oneHourInMs);
-  console.log("✅ Scheduled task last ran at " + lastRunTime.toISOString() + " (" + Math.round(timeSinceLastRun / 60000) + " minutes ago)");
-});
-
-test('CRON check - System resource monitoring', async () => {
-  // Simulate checking system resources
-  // In a real scenario, you would use system APIs or external monitoring tools
-  
-  console.log('Monitoring system resources...');
-  
-  // Simulate CPU usage check (random value between 0-100%)
-  const cpuUsage = Math.random() * 100;
-  console.log("CPU Usage: " + cpuUsage.toFixed(2) + "%");
-  
-  // Simulate memory usage check (random value between 0-100%)
-  const memoryUsage = Math.random() * 100;
-  console.log("Memory Usage: " + memoryUsage.toFixed(2) + "%");
-  
-  // Simulate disk usage check (random value between 0-100%)
-  const diskUsage = Math.random() * 100;
-  console.log("Disk Usage: " + diskUsage.toFixed(2) + "%");
-  
-  // Verify resources are within acceptable thresholds
-  expect(cpuUsage).toBeLessThan(90);
-  expect(memoryUsage).toBeLessThan(90);
-  expect(diskUsage).toBeLessThan(90);
-  
-  console.log('✅ System resources are within acceptable thresholds');
-});
-
-test('CRON check - Database backup verification', async () => {
-  // Simulate checking if database backups are being created regularly
-  // In a real scenario, you would check actual backup files or logs
-  
-  console.log('Verifying database backups...');
-  
-  // Simulate checking when the last backup was created
-  const now = new Date();
-  const lastBackupTime = new Date(now.getTime() - 12 * 60 * 60 * 1000); // 12 hours ago
-  
-  // Check if the backup was created within the expected timeframe (within the last 24 hours)
-  const timeSinceLastBackup = now.getTime() - lastBackupTime.getTime();
-  const oneDayInMs = 24 * 60 * 60 * 1000;
-  
-  expect(timeSinceLastBackup).toBeLessThan(oneDayInMs);
-  
-  // Simulate checking the backup size
-  const backupSizeInMB = 250 + Math.random() * 50; // Random size between 250-300 MB
-  
-  // Verify the backup size is reasonable (not too small)
-  expect(backupSizeInMB).toBeGreaterThan(100);
-  
-  console.log("✅ Database backup verified: Last backup at " + lastBackupTime.toISOString() + " (" + Math.round(timeSinceLastBackup / 3600000) + " hours ago), size: " + backupSizeInMB.toFixed(2) + " MB");
-});
-`,
-  database: `/**
+  [ScriptType.Database]: `/**
  * Database Query Test Script
  * 
  * This script demonstrates how to connect to a Microsoft SQL Server (MSSQL) database
@@ -484,7 +342,7 @@ test("Database Query Test", async () => {
   }
 });
 `,
-  websocket: `/**
+  [ScriptType.WebSocket]: `/**
  * WebSocket Connectivity Test using Playwright
  * 
  * This script tests a WebSocket connection using Playwright.

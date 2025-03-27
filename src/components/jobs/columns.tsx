@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { CalendarIcon, ClockIcon, TimerIcon, Play } from "lucide-react";
+import { CalendarIcon, TimerIcon, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -36,7 +36,8 @@ function RunButton({ job }: { job: Job }) {
       // Show a loading toast that stays visible during the entire job execution
       toast({
         title: `Running job: ${job.name}`,
-        description: "The job is being executed. This may take a few moments...",
+        description:
+          "The job is being executed. This may take a few moments...",
         duration: 10000, // Longer duration for job execution
       });
 
@@ -69,10 +70,12 @@ function RunButton({ job }: { job: Job }) {
 
       // Show a result toast with more detailed information
       toast({
-        title: data.success ? "Job completed successfully" : "Job execution failed",
+        title: data.success
+          ? "Job completed successfully"
+          : "Job execution failed",
         description: `Ran ${data.results.length} tests. ${
-          data.success 
-            ? "All tests passed." 
+          data.success
+            ? "All tests passed."
             : "Some tests failed. Check the job details for more information."
         }`,
         variant: data.success ? "default" : "destructive",

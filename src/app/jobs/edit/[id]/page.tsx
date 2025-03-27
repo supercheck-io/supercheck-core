@@ -1,7 +1,6 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +45,8 @@ import { getJob } from "@/actions/get-jobs";
 import { updateJob } from "@/actions/update-job";
 import { toast } from "@/components/ui/use-toast";
 
+import { useParams } from "next/navigation";
+
 // Form schema for job validation
 const formSchema = z.object({
   name: z.string().min(1, "Job name is required"),
@@ -72,28 +73,18 @@ interface Test {
   duration?: number | null;
 }
 
-interface JobConfig {
-  environment?: string;
-  variables?: Record<string, string>;
-  retryStrategy?: {
-    maxRetries: number;
-    backoffFactor: number;
-  };
-}
-
 interface JobData {
+  id: string;
   name: string;
   description: string;
   cronSchedule: string;
-  timeoutSeconds: number;
-  retryCount: number;
-  config: JobConfig;
   tests: { id: string }[];
 }
 
-export default function EditJob({ params }: { params: { id: string } }) {
+export default function EditJob() {
   const router = useRouter();
-  const jobId = params.id;
+  const params = useParams();
+  const jobId = params.id as string;
   const [selectedTests, setSelectedTests] = useState<Test[]>([]);
   const [isSelectTestsDialogOpen, setIsSelectTestsDialogOpen] = useState(false);
   const [testSelections, setTestSelections] = useState<Record<string, boolean>>(
@@ -110,13 +101,12 @@ export default function EditJob({ params }: { params: { id: string } }) {
     name: "",
     description: "",
     cronSchedule: "",
-    status: "pending" as "pending" | "running" | "completed" | "failed" | "cancelled",
-    environment: "production",
-    timeoutSeconds: "30",
-    retryCount: "0",
-    maxRetries: "3",
-    backoffFactor: "1.5",
-    variables: "{}",
+    status: "pending" as
+      | "pending"
+      | "running"
+      | "completed"
+      | "failed"
+      | "cancelled",
   });
 
   // Form validation errors
@@ -189,15 +179,6 @@ export default function EditJob({ params }: { params: { id: string } }) {
             description: job.description || "",
             cronSchedule: job.cronSchedule || "",
             status: job.status,
-            environment: job.config && typeof job.config === 'object' ? job.config.environment || "production" : "production",
-            timeoutSeconds: job.timeoutSeconds?.toString() || "30",
-            retryCount: job.retryCount?.toString() || "0",
-            maxRetries: job.config && typeof job.config === 'object' && job.config.retryStrategy ? 
-              job.config.retryStrategy.maxRetries?.toString() || "3" : "3",
-            backoffFactor: job.config && typeof job.config === 'object' && job.config.retryStrategy ? 
-              job.config.retryStrategy.backoffFactor?.toString() || "1.5" : "1.5",
-            variables: job.config && typeof job.config === 'object' && job.config.variables ? 
-              JSON.stringify(job.config.variables) : "{}",
           });
 
           // Set selected tests
@@ -250,7 +231,12 @@ export default function EditJob({ params }: { params: { id: string } }) {
             id: test.id,
             name: test.title,
             description: test.description || "",
-            type: test.type as "api" | "ui" | "integration" | "performance" | "security",
+            type: test.type as
+              | "api"
+              | "ui"
+              | "integration"
+              | "performance"
+              | "security",
             status: "pending" as const, // Default status since we don't have this in the test schema
             lastRunAt: test.updatedAt,
             duration: null as number | null,
@@ -296,19 +282,11 @@ export default function EditJob({ params }: { params: { id: string } }) {
     try {
       // Create job data object
       const jobData: JobData = {
+        id: jobId,
         name: formState.name,
         description: formState.description,
         cronSchedule: formState.cronSchedule,
-        timeoutSeconds: parseInt(formState.timeoutSeconds) || 30,
-        retryCount: parseInt(formState.retryCount) || 0,
-        config: {
-          environment: formState.environment,
-          variables: formState.variables ? JSON.parse(formState.variables) as Record<string, string> : {},
-          retryStrategy: {
-            maxRetries: formState.maxRetries ? parseInt(formState.maxRetries) : 3,
-            backoffFactor: parseFloat(formState.backoffFactor) || 1.5,
-          },
-        },
+
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
 
@@ -346,7 +324,10 @@ export default function EditJob({ params }: { params: { id: string } }) {
         console.error("Error updating job:", error);
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "An unknown error occurred",
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unknown error occurred",
           variant: "destructive",
         });
       }
@@ -375,7 +356,9 @@ export default function EditJob({ params }: { params: { id: string } }) {
     <div className="container mx-auto py-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Edit Job</h1>
-        <Button onClick={() => router.push("/jobs")} type="button">Back to Jobs</Button>
+        <Button onClick={() => router.push("/jobs")} type="button">
+          Back to Jobs
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -492,9 +475,10 @@ export default function EditJob({ params }: { params: { id: string } }) {
               <CardContent>
                 <div className="flex justify-between items-center mb-4">
                   <p className="text-sm text-muted-foreground">
-                    Select tests to include in this job. You can add multiple tests.
+                    Select tests to include in this job. You can add multiple
+                    tests.
                   </p>
-                  <Button 
+                  <Button
                     onClick={() => setIsSelectTestsDialogOpen(true)}
                     variant="outline"
                     size="sm"
@@ -515,11 +499,13 @@ export default function EditJob({ params }: { params: { id: string } }) {
                         Choose the tests to include in this job
                       </DialogDescription>
                     </DialogHeader>
-                    
+
                     {isLoadingTests ? (
                       <div className="flex items-center justify-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                        <span className="ml-2 text-muted-foreground">Loading tests...</span>
+                        <span className="ml-2 text-muted-foreground">
+                          Loading tests...
+                        </span>
                       </div>
                     ) : (
                       <>
@@ -529,8 +515,12 @@ export default function EditJob({ params }: { params: { id: string } }) {
                               <TableRow>
                                 <TableHead className="w-[50px]"></TableHead>
                                 <TableHead className="w-[120px]">ID</TableHead>
-                                <TableHead className="w-[250px]">Name</TableHead>
-                                <TableHead className="w-[100px]">Type</TableHead>
+                                <TableHead className="w-[250px]">
+                                  Name
+                                </TableHead>
+                                <TableHead className="w-[100px]">
+                                  Type
+                                </TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -547,7 +537,9 @@ export default function EditJob({ params }: { params: { id: string } }) {
                                       }}
                                     />
                                   </TableCell>
-                                  <TableCell className="font-mono text-xs">{test.id}</TableCell>
+                                  <TableCell className="font-mono text-xs">
+                                    {test.id}
+                                  </TableCell>
                                   <TableCell>{test.name}</TableCell>
                                   <TableCell>
                                     <Badge variant="outline">{test.type}</Badge>
@@ -567,7 +559,10 @@ export default function EditJob({ params }: { params: { id: string } }) {
                       >
                         Cancel
                       </Button>
-                      <Button onClick={handleTestSelectionConfirm} type="button">
+                      <Button
+                        onClick={handleTestSelectionConfirm}
+                        type="button"
+                      >
                         Add Selected Tests
                       </Button>
                     </DialogFooter>
@@ -630,7 +625,9 @@ export default function EditJob({ params }: { params: { id: string } }) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>Update Job</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              Update Job
+            </Button>
           </div>
         </form>
       </Tabs>

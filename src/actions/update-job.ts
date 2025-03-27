@@ -1,16 +1,14 @@
 "use server";
 
 import { db } from "../db/client";
-import { jobs, jobTests, JobConfig } from "../db/schema";
+import { jobs, jobTests } from "../db/schema";
 import { eq } from "drizzle-orm";
 
 interface JobData {
+  id: string;
   name: string;
   description: string;
   cronSchedule: string;
-  timeoutSeconds: number;
-  retryCount: number;
-  config: JobConfig;
   tests: { id: string }[];
 }
 
@@ -39,9 +37,7 @@ export async function updateJob(
         name: data.name,
         description: data.description,
         cronSchedule: data.cronSchedule,
-        timeoutSeconds: data.timeoutSeconds,
-        retryCount: data.retryCount,
-        config: data.config,
+
         updatedAt: new Date().toISOString(),
       })
       .where(eq(jobs.id, jobId));

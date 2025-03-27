@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import * as z from "zod";
 import type { editor } from "monaco-editor";
+import type { ScriptType } from "@/lib/script-service";
 
 // Define our own TestCaseFormData interface
 interface TestCaseFormData {
@@ -199,9 +200,7 @@ const Playground: React.FC<PlaygroundProps> = ({
           // Import dynamically to avoid issues with circular dependencies
           const { getSampleScript } = await import("@/lib/script-service");
           // Fix the TypeScript error by using a type assertion
-          const script = getSampleScript(
-            scriptTypeParam as "api" | "browser" | "websocket"
-          );
+          const script = getSampleScript(scriptTypeParam as ScriptType);
 
           // Update all related state to ensure consistency
           setEditorContent(script);

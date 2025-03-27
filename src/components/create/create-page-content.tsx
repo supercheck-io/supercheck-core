@@ -3,12 +3,6 @@ import React from "react";
 import { CreateCard } from "./create-card";
 import { useRouter } from "next/navigation";
 import {
-  Globe,
-  FileEdit,
-  Server,
-  ListChecks,
-  Clock,
-  Zap,
   HelpCircle,
   Unplug,
   Chrome,
@@ -16,7 +10,8 @@ import {
   ListOrdered,
   DatabaseZap,
 } from "lucide-react";
-import { ScriptType } from "@/lib/sample-scripts/types";
+
+type ScriptType = "browser" | "api" | "multistep" | "database";
 
 export function CreatePageContent() {
   const router = useRouter();
@@ -62,13 +57,13 @@ export function CreatePageContent() {
       path: "/create/websocket",
       scriptType: "websocket" as ScriptType,
     },
-    {
-      icon: <Clock size={24} />,
-      title: "CRON/Heartbeat",
-      description: "Monitor tasks that run automatically.",
-      path: "/create/cron",
-      scriptType: "cron" as ScriptType,
-    },
+    // {
+    //   icon: <Clock size={24} />,
+    //   title: "CRON/Heartbeat",
+    //   description: "Monitor tasks that run automatically.",
+    //   path: "/create/cron",
+    //   scriptType: "cron" as ScriptType,
+    // },
     // {
     //   icon: <Zap size={24} />,
     //   title: "Group check",

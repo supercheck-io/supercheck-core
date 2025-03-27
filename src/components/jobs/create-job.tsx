@@ -136,15 +136,6 @@ export default function CreateJob() {
     });
   };
 
-  // Handle number input changes
-  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormState({
-      ...formState,
-      [name]: value,
-    });
-  };
-
   // Fetch tests from database on component mount
   useEffect(() => {
     async function fetchTests() {
@@ -171,12 +162,9 @@ export default function CreateJob() {
         } else {
           console.error("Failed to fetch tests:", response.error);
           // Fallback to sample tests if fetch fails
-          setAvailableTests(sampleTests);
         }
       } catch (error) {
         console.error("Error fetching tests:", error);
-        // Fallback to sample tests if fetch fails
-        setAvailableTests(sampleTests);
       } finally {
         setIsLoadingTests(false);
       }
@@ -422,9 +410,8 @@ export default function CreateJob() {
                 <Dialog
                   open={isSelectTestsDialogOpen}
                   onOpenChange={setIsSelectTestsDialogOpen}
-                  className="justify-center"
                 >
-                  <DialogContent className="sm:max-w-[850px] max-h-[80vh]">
+                  <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Select Tests</DialogTitle>
                       <DialogDescription>

@@ -1,13 +1,13 @@
 "use client";
 import Playground from "@/components/playground";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // In Next.js App Router, we're converting this to a client component
 export default function PlaygroundPage() {
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Breadcrumbs data
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -19,7 +19,7 @@ export default function PlaygroundPage() {
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 1500);
-    
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -42,12 +42,12 @@ export default function PlaygroundPage() {
                       <Skeleton className="h-full w-full" />
                     </div>
                   </div>
-                  
+
                   {/* Resize handle */}
                   <div className="w-[10px] h-full bg-border flex items-center justify-center">
                     <div className="w-1 h-8 rounded-full bg-muted-foreground/20"></div>
                   </div>
-                  
+
                   {/* Right panel - Test details */}
                   <div className="w-[calc(30%-10px)] h-full flex flex-col border rounded-tr-lg rounded-br-lg">
                     <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tr-lg">
@@ -68,8 +68,16 @@ export default function PlaygroundPage() {
             </div>
           </div>
         ) : null}
-        <div className={isLoading ? "opacity-0" : "opacity-100 transition-opacity duration-300"}>
-          <Playground />
+        <div
+          className={
+            isLoading
+              ? "opacity-0"
+              : "opacity-100 transition-opacity duration-300"
+          }
+        >
+          <Suspense fallback={<div>Loading...</div>}>
+            <Playground />
+          </Suspense>
         </div>
       </div>
     </div>
