@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { jobs, jobTests, tests, testRuns, JobStatus, TestRunStatus } from "@/db/schema";
+import {
+  jobs,
+  jobTests,
+  tests,
+  testRuns,
+  JobStatus,
+  TestRunStatus,
+} from "@/db/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { executeMultipleTests } from "@/lib/test-execution";
@@ -38,29 +45,31 @@ interface TestResult {
 export async function GET() {
   try {
     const dbInstance = await db();
-    
+
     // Get all jobs from the database
-    const allJobs = await dbInstance.select().from(jobs)
+    const allJobs = await dbInstance
+      .select()
+      .from(jobs)
       .leftJoin(jobTests, eq(jobs.id, jobTests.jobId))
       .orderBy(desc(jobs.createdAt));
-    
+
     // Group jobs by ID and collect test IDs
-    const jobMap = new Map<string, any>();
+    const jobMap = new Map<string, unknown>();
     for (const row of allJobs) {
       const job = row.jobs;
       const testId = row.job_tests?.testId;
-      
+
       if (!jobMap.has(job.id)) {
         jobMap.set(job.id, {
           ...job,
-          tests: testId ? [{ testId }] : []
+          tests: testId ? [{ testId }] : [],
         });
       } else if (testId) {
         const existingJob = jobMap.get(job.id);
-        existingJob.tests.push({ testId });
+        (existingJob as { tests: { testId: string }[] }).tests.push({ testId });
       }
     }
-    
+
     // Convert map to array
     const jobsArray = Array.from(jobMap.values());
 
@@ -68,26 +77,30 @@ export async function GET() {
     const jobsWithTests = await Promise.all(
       jobsArray.map(async (job) => {
         // Get the test IDs associated with this job
-        const testIds = job.tests.map((test: { testId: string }) => test.testId);
-        
+        const testIds = (job as { tests: { testId: string }[] }).tests.map(
+          (test: { testId: string }) => test.testId
+        );
+
         // If there are test IDs, fetch the full test information
         let testDetails: Test[] = [];
         if (testIds.length > 0) {
           // Fetch test details for each test ID
-          const testResults = await dbInstance.select().from(tests)
+          const testResults = await dbInstance
+            .select()
+            .from(tests)
             .where(inArray(tests.id, testIds));
-          
+
           // Convert test results to match our Test interface
-          testDetails = testResults.map(test => ({
+          testDetails = testResults.map((test) => ({
             id: test.id,
             name: test.title,
-            type: test.type
+            type: test.type,
           }));
         }
-        
+
         // Return the job with its associated tests
         return {
-          ...job,
+          ...(job as object),
           tests: testDetails,
         };
       })
@@ -108,12 +121,12 @@ export async function POST(request: Request) {
   try {
     // Check if this is a job execution request
     const url = new URL(request.url);
-    const action = url.searchParams.get('action');
-    
-    if (action === 'run') {
+    const action = url.searchParams.get("action");
+
+    if (action === "run") {
       return await runJob(request);
     }
-    
+
     // Regular job creation
     const jobData: JobData = await request.json();
     const dbInstance = await db();
@@ -121,9 +134,10 @@ export async function POST(request: Request) {
     // Validate required fields
     if (!jobData.name || !jobData.cronSchedule) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: "Missing required fields. Name and cron schedule are required." 
+        {
+          success: false,
+          error:
+            "Missing required fields. Name and cron schedule are required.",
         },
         { status: 400 }
       );
@@ -188,9 +202,10 @@ export async function PUT(request: Request) {
     // Validate required fields
     if (!jobData.name || !jobData.cronSchedule) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: "Missing required fields. Name and cron schedule are required." 
+        {
+          success: false,
+          error:
+            "Missing required fields. Name and cron schedule are required.",
         },
         { status: 400 }
       );
@@ -246,7 +261,7 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const url = new URL(request.url);
-    const jobId = url.searchParams.get('id');
+    const jobId = url.searchParams.get("id");
 
     if (!jobId) {
       return NextResponse.json(
@@ -280,7 +295,10 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error("Error deleting job:", error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Failed to delete job" },
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to delete job",
+      },
       { status: 500 }
     );
   }
@@ -304,7 +322,7 @@ async function runJob(request: Request) {
     const dbInstance = await db();
     const runId = crypto.randomUUID();
     const startTime = new Date().toISOString();
-    
+
     // Insert a new test run record
     await dbInstance.insert(testRuns).values({
       id: runId,
@@ -315,13 +333,13 @@ async function runJob(request: Request) {
 
     // Prepare test scripts for execution
     const testScripts = [];
-    
+
     // Fetch test scripts for each test in the job
     for (const test of tests) {
       // If script is missing, try to fetch it
       let testScript = test.script;
       let testName = test.name || test.title || `Test ${test.id}`;
-      
+
       if (!testScript) {
         // Fetch the test from the database to get the script
         const testResult = await getTest(test.id);
@@ -340,7 +358,7 @@ async function runJob(request: Request) {
                 console.log('Test script not found');
                 expect(false).toBeTruthy();
               });
-            `
+            `,
           });
           continue;
         }
@@ -350,19 +368,19 @@ async function runJob(request: Request) {
       testScripts.push({
         id: test.id,
         name: testName,
-        script: testScript
+        script: testScript,
       });
     }
 
     // Execute all tests in a single run
-    const result = await executeMultipleTests(testScripts);
-    
+    const result = await executeMultipleTests(testScripts, runId);
+
     // Map individual test results for the response
     const testResults = result.results.map((testResult: TestResult) => ({
       testId: testResult.testId,
       success: testResult.success,
       error: testResult.error,
-      reportUrl: result.reportUrl // All tests share the same report URL
+      reportUrl: result.reportUrl, // All tests share the same report URL
     }));
 
     // Calculate test duration
@@ -375,42 +393,44 @@ async function runJob(request: Request) {
     await dbInstance
       .update(jobs)
       .set({
-        status: result.success ? "completed" as JobStatus : "failed" as JobStatus,
+        status: result.success
+          ? ("completed" as JobStatus)
+          : ("failed" as JobStatus),
         lastRunAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
       .where(eq(jobs.id, jobId));
-    
+
     // Create a separate variable for logs data that includes stdout and stderr
     const logsData = result.results.map((r: TestResult) => {
       // Create a basic log entry with the test ID
       const logEntry: { testId: string; stdout: string; stderr: string } = {
         testId: r.testId,
         stdout: r.stdout?.toString() || "",
-        stderr: r.stderr?.toString() || ""
+        stderr: r.stderr?.toString() || "",
       };
-      
+
       // Return the log entry
       return logEntry;
     });
-    
+
     // Stringify the logs data for storage
     const logs = JSON.stringify(logsData);
 
     // Get error details if any tests failed
-    const errorDetails = result.success 
-      ? null 
+    const errorDetails = result.success
+      ? null
       : JSON.stringify(
-          result.results
-            .filter(r => !r.success)
-            .map(r => r.error)
+          result.results.filter((r) => !r.success).map((r) => r.error)
         );
-    
+
     // Update the test run record with results
     await dbInstance
       .update(testRuns)
       .set({
-        status: result.success ? "passed" as TestRunStatus : "failed" as TestRunStatus,
+        status: result.success
+          ? ("passed" as TestRunStatus)
+          : ("failed" as TestRunStatus),
         completedAt: new Date().toISOString(),
         duration: durationFormatted,
         logs,
@@ -429,11 +449,12 @@ async function runJob(request: Request) {
     });
   } catch (error) {
     console.error("Error running job:", error);
-    
+
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "An unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "An unknown error occurred",
       },
       { status: 500 }
     );

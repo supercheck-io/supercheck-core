@@ -3,23 +3,23 @@ import { getRun } from "@/actions/get-runs";
 import { notFound } from "next/navigation";
 
 interface RunPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export async function generateMetadata({ params }: RunPageProps) {
   // Await the params object before accessing its properties
-  const resolvedParams = await Promise.resolve(params);
+  const resolvedParams = await params;
   const run = await getRun(resolvedParams.id);
-  
+
   if (!run) {
     return {
       title: "Run Not Found",
       description: "The requested test run could not be found",
     };
   }
-  
+
   return {
     title: `Test Run Details`,
     description: `Details for test run ${run.id}`,
@@ -28,12 +28,12 @@ export async function generateMetadata({ params }: RunPageProps) {
 
 export default async function RunPage({ params }: RunPageProps) {
   // Await the params object before accessing its properties
-  const resolvedParams = await Promise.resolve(params);
+  const resolvedParams = await params;
   const run = await getRun(resolvedParams.id);
-  
+
   if (!run) {
     notFound();
   }
-  
+
   return <RunDetails run={run} />;
 }
