@@ -7,11 +7,11 @@ import {
   CircleOff,
   HelpCircle,
   Timer,
-  Globe,
+  Chrome,
   Server,
   Layers,
   Database,
-} from "lucide-react"
+} from "lucide-react";
 
 export const labels = [
   {
@@ -26,7 +26,7 @@ export const labels = [
     value: "documentation",
     label: "Documentation",
   },
-]
+];
 
 export const statuses = [
   {
@@ -54,45 +54,52 @@ export const statuses = [
     label: "Canceled",
     icon: CircleOff,
   },
-]
+];
 
 export const priorities = [
   {
     label: "Low",
     value: "low",
     icon: ArrowDown,
+    color: "text-green-500",
   },
   {
     label: "Medium",
     value: "medium",
     icon: ArrowRight,
+    color: "text-yellow-500",
   },
   {
     label: "High",
     value: "high",
     icon: ArrowUp,
+    color: "text-red-500",
   },
-]
+];
 
 export const types = [
   {
     label: "Browser",
     value: "browser",
-    icon: Globe,
+    icon: Chrome,
+    color: "text-blue-500",
   },
   {
     label: "API",
     value: "api",
     icon: Server,
+    color: "text-purple-500",
   },
   {
     label: "Multi-step",
     value: "multistep",
     icon: Layers,
+    color: "text-pink-500",
   },
   {
     label: "Database",
     value: "database",
     icon: Database,
+    color: "text-indigo-500",
   },
-]
+];

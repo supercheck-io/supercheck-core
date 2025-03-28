@@ -2,26 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { z } from "zod";
 import { Test } from "./data/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -33,7 +17,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock4 } from "lucide-react";
+import { CheckCircle, XCircle, Clock4, PlusCircle } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -42,10 +27,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { getTests } from "@/actions/get-tests";
 import { createJob } from "@/actions/create-job";
 import { toast } from "@/components/ui/use-toast";
-import { Search } from "lucide-react";
 
 export default function CreateJob() {
   const router = useRouter();
@@ -54,7 +45,6 @@ export default function CreateJob() {
   const [testSelections, setTestSelections] = useState<Record<string, boolean>>(
     {}
   );
-  const [activeTab, setActiveTab] = useState("basic");
   const [availableTests, setAvailableTests] = useState<Test[]>([]);
   const [isLoadingTests, setIsLoadingTests] = useState(true);
   const [testFilter, setTestFilter] = useState("");
@@ -66,12 +56,6 @@ export default function CreateJob() {
     name: "",
     description: "",
     cronSchedule: "",
-    status: "pending" as
-      | "pending"
-      | "running"
-      | "completed"
-      | "failed"
-      | "cancelled",
     environment: "production",
     timeoutSeconds: "30",
     retryCount: "0",
@@ -79,9 +63,6 @@ export default function CreateJob() {
     backoffFactor: "1.5",
     variables: "{}",
   });
-
-  // Form validation errors
-  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Get status icon for test
   const getTestStatusIcon = (status: string | undefined) => {
@@ -122,14 +103,6 @@ export default function CreateJob() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormState({
-      ...formState,
-      [name]: value,
-    });
-  };
-
-  // Handle select changes
-  const handleSelectChange = (name: string, value: string) => {
     setFormState({
       ...formState,
       [name]: value,
@@ -195,12 +168,15 @@ export default function CreateJob() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({});
 
     try {
       // Validate required fields
       if (!formState.name.trim()) {
-        setErrors({ name: "Job name is required" });
+        toast({
+          title: "Error",
+          description: "Job name is required",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -250,24 +226,12 @@ export default function CreateJob() {
     } catch (error) {
       console.error("Error creating job:", error);
 
-      if (error instanceof z.ZodError) {
-        const errors: Record<string, string> = {};
-        error.errors.forEach((err) => {
-          if (err.path) {
-            errors[err.path[0]] = err.message;
-          }
-        });
-        setErrors(errors);
-      } else {
-        toast({
-          title: "Error",
-          description:
-            error instanceof Error
-              ? error.message
-              : "An unknown error occurred",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive",
+      });
     }
   };
 
@@ -277,253 +241,217 @@ export default function CreateJob() {
   };
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Create New Job</h1>
-        <Button onClick={() => router.push("/jobs")}>Back to Jobs</Button>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="basic">Basic Information</TabsTrigger>
-          <TabsTrigger value="tests">
-            Tests ({selectedTests.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <TabsContent value="basic" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Job Details</CardTitle>
-                <CardDescription>
-                  Enter the basic information for your job.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="name">Job Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    placeholder="Enter job name"
-                    value={formState.name}
-                    onChange={handleInputChange}
-                  />
-                  {errors.name && (
-                    <p className="text-sm text-red-500">{errors.name}</p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    A descriptive name for your job.
-                  </p>
-                </div>
-
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    name="description"
-                    placeholder="Enter job description"
-                    className="resize-none"
-                    value={formState.description}
-                    onChange={handleInputChange}
-                  />
-                  {errors.description && (
-                    <p className="text-sm text-red-500">{errors.description}</p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    A brief description of what this job does.
-                  </p>
-                </div>
-
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="cronSchedule">Cron Schedule</Label>
-                  <Input
-                    id="cronSchedule"
-                    name="cronSchedule"
-                    placeholder="0 0 * * *"
-                    value={formState.cronSchedule}
-                    onChange={handleInputChange}
-                  />
-                  {errors.cronSchedule && (
-                    <p className="text-sm text-red-500">
-                      {errors.cronSchedule}
-                    </p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    The schedule for this job in cron format (e.g., &quot;0 0 *
-                    * *&quot; for daily at midnight).
-                  </p>
-                </div>
-
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="status">Initial Status</Label>
-                  <Select
-                    value={formState.status}
-                    onValueChange={(value) =>
-                      handleSelectChange("status", value)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="running">Running</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.status && (
-                    <p className="text-sm text-red-500">{errors.status}</p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    The initial status of the job.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="tests" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tests</CardTitle>
-                <CardDescription>
-                  Select tests to include in this job. You can add multiple
-                  tests.{" "}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-center items-center mb-4">
-                  <Button
-                    onClick={() => setIsSelectTestsDialogOpen(true)}
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                  >
-                    Select Tests
-                  </Button>
-                </div>
-
-                <Dialog
-                  open={isSelectTestsDialogOpen}
-                  onOpenChange={setIsSelectTestsDialogOpen}
+    <div className="space-y-4 p-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Create New Job</CardTitle>
+          <CardDescription>Configure a new automated job</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Job Name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={formState.name}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cronSchedule">Cron Schedule</Label>
+                <Input
+                  id="cronSchedule"
+                  name="cronSchedule"
+                  value={formState.cronSchedule}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={formState.description}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Select Tests</h3>
+              <div className="flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsSelectTestsDialogOpen(true)}
                 >
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Select Tests</DialogTitle>
-                      <DialogDescription>
-                        Choose the tests to include in this job
-                      </DialogDescription>
-                    </DialogHeader>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Select Tests
+                </Button>
+              </div>
+              <Dialog
+                open={isSelectTestsDialogOpen}
+                onOpenChange={setIsSelectTestsDialogOpen}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Select Tests</DialogTitle>
+                    <DialogDescription>
+                      Choose the tests to include in this job
+                    </DialogDescription>
+                  </DialogHeader>
 
-                    {isLoadingTests ? (
-                      <div className="flex items-center justify-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                        <span className="ml-2 text-muted-foreground">
-                          Loading tests...
-                        </span>
+                  {isLoadingTests ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                      <span className="ml-2 text-muted-foreground">
+                        Loading tests...
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-4 space-y-2">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Filter by test name, ID, or type..."
+                            className="pl-8"
+                            value={testFilter}
+                            onChange={(e) => setTestFilter(e.target.value)}
+                          />
+                        </div>
                       </div>
-                    ) : (
-                      <>
-                        <div className="mb-4 space-y-2">
-                          <div className="relative">
-                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              placeholder="Filter by test name, ID, or type..."
-                              className="pl-8"
-                              value={testFilter}
-                              onChange={(e) => setTestFilter(e.target.value)}
-                            />
-                          </div>
-                        </div>
 
-                        <div className="max-h-[350px] overflow-y-auto">
-                          <Table className="w-full">
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-[40px]"></TableHead>
-                                <TableHead className="w-[120px] truncate">
-                                  ID
-                                </TableHead>
-                                <TableHead className="w-[250px] truncate">
-                                  Name
-                                </TableHead>
-                                <TableHead className="w-[100px] truncate">
-                                  Type
-                                </TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {availableTests
-                                .filter(
-                                  (test) =>
-                                    testFilter === "" ||
-                                    test.name
-                                      .toLowerCase()
-                                      .includes(testFilter.toLowerCase()) ||
-                                    test.id
-                                      .toLowerCase()
-                                      .includes(testFilter.toLowerCase()) ||
-                                    test.type
-                                      .toLowerCase()
-                                      .includes(testFilter.toLowerCase())
-                                )
-                                .slice(
-                                  (currentPage - 1) * itemsPerPage,
-                                  currentPage * itemsPerPage
-                                )
-                                .map((test) => (
-                                  <TableRow key={test.id}>
-                                    <TableCell className="py-2">
-                                      <Checkbox
-                                        checked={
-                                          testSelections[test.id] || false
-                                        }
-                                        onCheckedChange={(checked) => {
-                                          setTestSelections({
-                                            ...testSelections,
-                                            [test.id]: !!checked,
-                                          });
-                                        }}
-                                      />
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs truncate py-2">
-                                      {test.id}
-                                    </TableCell>
-                                    <TableCell className="truncate py-2">
-                                      <div className="truncate max-w-[250px]">
-                                        {test.name}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="py-2">
-                                      <Badge variant="outline">
-                                        {test.type}
-                                      </Badge>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                            </TableBody>
-                          </Table>
-                        </div>
+                      <div className="max-h-[350px] overflow-y-auto">
+                        <Table className="w-full">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[40px]"></TableHead>
+                              <TableHead className="w-[120px] truncate">
+                                ID
+                              </TableHead>
+                              <TableHead className="w-[250px] truncate">
+                                Name
+                              </TableHead>
+                              <TableHead className="w-[100px] truncate">
+                                Type
+                              </TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {availableTests
+                              .filter(
+                                (test) =>
+                                  testFilter === "" ||
+                                  test.name
+                                    .toLowerCase()
+                                    .includes(testFilter.toLowerCase()) ||
+                                  test.id
+                                    .toLowerCase()
+                                    .includes(testFilter.toLowerCase()) ||
+                                  test.type
+                                    .toLowerCase()
+                                    .includes(testFilter.toLowerCase())
+                              )
+                              .slice(
+                                (currentPage - 1) * itemsPerPage,
+                                currentPage * itemsPerPage
+                              )
+                              .map((test) => (
+                                <TableRow key={test.id}>
+                                  <TableCell className="py-2">
+                                    <Checkbox
+                                      checked={testSelections[test.id] || false}
+                                      onCheckedChange={(checked) => {
+                                        setTestSelections({
+                                          ...testSelections,
+                                          [test.id]: !!checked,
+                                        });
+                                      }}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs truncate py-2">
+                                    {test.id}
+                                  </TableCell>
+                                  <TableCell className="truncate py-2">
+                                    <div className="truncate max-w-[250px]">
+                                      {test.name}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="py-2">
+                                    <Badge variant="outline">{test.type}</Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
+                      </div>
 
-                        {/* Pagination controls */}
-                        <div className="flex justify-center items-center mt-4 space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              setCurrentPage((prev) => Math.max(prev - 1, 1))
-                            }
-                            disabled={currentPage === 1}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-sm">
-                            Page {currentPage} of{" "}
-                            {Math.max(
+                      {/* Pagination controls */}
+                      <div className="flex justify-center items-center mt-4 space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.max(prev - 1, 1))
+                          }
+                          disabled={currentPage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm">
+                          Page {currentPage} of{" "}
+                          {Math.max(
+                            1,
+                            Math.ceil(
+                              availableTests.filter(
+                                (test) =>
+                                  testFilter === "" ||
+                                  test.name
+                                    .toLowerCase()
+                                    .includes(testFilter.toLowerCase()) ||
+                                  test.id
+                                    .toLowerCase()
+                                    .includes(testFilter.toLowerCase()) ||
+                                  test.type
+                                    .toLowerCase()
+                                    .includes(testFilter.toLowerCase())
+                              ).length / itemsPerPage
+                            )
+                          )}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setCurrentPage((prev) =>
+                              Math.min(
+                                prev + 1,
+                                Math.max(
+                                  1,
+                                  Math.ceil(
+                                    availableTests.filter(
+                                      (test) =>
+                                        testFilter === "" ||
+                                        test.name
+                                          .toLowerCase()
+                                          .includes(testFilter.toLowerCase()) ||
+                                        test.id
+                                          .toLowerCase()
+                                          .includes(testFilter.toLowerCase()) ||
+                                        test.type
+                                          .toLowerCase()
+                                          .includes(testFilter.toLowerCase())
+                                    ).length / itemsPerPage
+                                  )
+                                )
+                              )
+                            )
+                          }
+                          disabled={
+                            currentPage ===
+                            Math.max(
                               1,
                               Math.ceil(
                                 availableTests.filter(
@@ -540,157 +468,100 @@ export default function CreateJob() {
                                       .includes(testFilter.toLowerCase())
                                 ).length / itemsPerPage
                               )
-                            )}
-                          </span>
+                            )
+                          }
+                        >
+                          Next
+                        </Button>
+                      </div>
+
+                      <div className="mt-4 flex justify-between items-center">
+                        <div className="text-sm text-muted-foreground">
+                          {
+                            Object.keys(testSelections).filter(
+                              (id) => testSelections[id]
+                            ).length
+                          }{" "}
+                          test
+                          {Object.keys(testSelections).filter(
+                            (id) => testSelections[id]
+                          ).length !== 1
+                            ? "s"
+                            : ""}{" "}
+                          selected
+                        </div>
+                        <DialogFooter>
                           <Button
                             variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              setCurrentPage((prev) =>
-                                Math.min(
-                                  prev + 1,
-                                  Math.max(
-                                    1,
-                                    Math.ceil(
-                                      availableTests.filter(
-                                        (test) =>
-                                          testFilter === "" ||
-                                          test.name
-                                            .toLowerCase()
-                                            .includes(
-                                              testFilter.toLowerCase()
-                                            ) ||
-                                          test.id
-                                            .toLowerCase()
-                                            .includes(
-                                              testFilter.toLowerCase()
-                                            ) ||
-                                          test.type
-                                            .toLowerCase()
-                                            .includes(testFilter.toLowerCase())
-                                      ).length / itemsPerPage
-                                    )
-                                  )
-                                )
-                              )
-                            }
-                            disabled={
-                              currentPage ===
-                              Math.max(
-                                1,
-                                Math.ceil(
-                                  availableTests.filter(
-                                    (test) =>
-                                      testFilter === "" ||
-                                      test.name
-                                        .toLowerCase()
-                                        .includes(testFilter.toLowerCase()) ||
-                                      test.id
-                                        .toLowerCase()
-                                        .includes(testFilter.toLowerCase()) ||
-                                      test.type
-                                        .toLowerCase()
-                                        .includes(testFilter.toLowerCase())
-                                  ).length / itemsPerPage
-                                )
-                              )
-                            }
+                            onClick={() => setIsSelectTestsDialogOpen(false)}
                           >
-                            Next
+                            Cancel
                           </Button>
-                        </div>
+                          <Button onClick={handleTestSelectionConfirm}>
+                            Add Selected Tests
+                          </Button>
+                        </DialogFooter>
+                      </div>
+                    </>
+                  )}
+                </DialogContent>
+              </Dialog>
 
-                        <div className="mt-4 flex justify-between items-center">
-                          <div className="text-sm text-muted-foreground">
-                            {
-                              Object.keys(testSelections).filter(
-                                (id) => testSelections[id]
-                              ).length
-                            }{" "}
-                            test
-                            {Object.keys(testSelections).filter(
-                              (id) => testSelections[id]
-                            ).length !== 1
-                              ? "s"
-                              : ""}{" "}
-                            selected
-                          </div>
-                          <DialogFooter>
-                            <Button
-                              variant="outline"
-                              onClick={() => setIsSelectTestsDialogOpen(false)}
-                            >
-                              Cancel
-                            </Button>
-                            <Button onClick={handleTestSelectionConfirm}>
-                              Add Selected Tests
-                            </Button>
-                          </DialogFooter>
-                        </div>
-                      </>
-                    )}
-                  </DialogContent>
-                </Dialog>
-
-                {selectedTests.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[50px]">Status</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Last Run</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+              {selectedTests.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[50px]">Status</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Last Run</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedTests.map((test) => (
+                      <TableRow key={test.id}>
+                        <TableCell>{getTestStatusIcon(test.status)}</TableCell>
+                        <TableCell className="font-medium">
+                          {test.name}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{test.type}</Badge>
+                        </TableCell>
+                        <TableCell>{formatDate(test.lastRunAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeTest(test.id)}
+                          >
+                            Remove
+                          </Button>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedTests.map((test) => (
-                        <TableRow key={test.id}>
-                          <TableCell>
-                            {getTestStatusIcon(test.status)}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {test.name}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{test.type}</Badge>
-                          </TableCell>
-                          <TableCell>{formatDate(test.lastRunAt)}</TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeTest(test.id)}
-                            >
-                              Remove
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No tests selected. Click &quot;Select Tests&quot; to add
-                    tests to this job.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <div className="flex justify-end space-x-4 mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/jobs")}
-            >
-              Cancel
-            </Button>
-            <Button type="submit">Create Job</Button>
-          </div>
-        </form>
-      </Tabs>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No tests selected. Click &quot;Select Tests&quot; to add tests
+                  to this job.
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end space-x-4 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/jobs")}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Create Job</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

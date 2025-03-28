@@ -7,6 +7,7 @@ import { DataTableViewOptions } from "./data-table-view-options";
 import { useRouter } from "next/navigation";
 
 import { priorities, types } from "./data/data";
+
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 
 interface DataTableToolbarProps<TData> {
@@ -25,7 +26,12 @@ export function DataTableToolbar<TData>({
 
   return (
     <div className="flex items-center justify-between mb-4">
-      <h2 className="text-3xl font-bold tracking-tight">Tests</h2>
+      <div className="flex items-center justify-between space-y-2">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Tests</h2>
+          <p className="text-muted-foreground">View and manage all tests</p>
+        </div>
+      </div>
 
       <div className="flex items-center space-x-2">
         <Input

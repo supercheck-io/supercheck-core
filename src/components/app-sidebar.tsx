@@ -51,12 +51,12 @@ const data = {
       plan: "Enterprise",
     },
     {
-      name: "Acme Corp.",
+      name: "Test Corp 1",
       logo: AudioWaveform,
       plan: "Startup",
     },
     {
-      name: "Evil Corp.",
+      name: "Test Corp 2",
       logo: Command,
       plan: "Free",
     },
@@ -117,8 +117,8 @@ const data = {
       icon: Activity,
     },
     {
-      title: "Panels",
-      url: "/dashboards",
+      title: "Console",
+      url: "/console",
       icon: ChartBar,
     },
     {
@@ -140,10 +140,10 @@ const data = {
           title: "Team",
           url: "#",
         },
-        {
-          title: "Billing",
-          url: "#",
-        },
+        // {
+        //   title: "Billing",
+        //   url: "#",
+        // },
         {
           title: "Limits",
           url: "#",

@@ -5,11 +5,7 @@ import { RunResponse } from "@/actions/get-runs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { runStatuses } from "./data/data";
-import {
-  AlertTriangleIcon,
-  ArrowLeftIcon,
-  ExternalLinkIcon,
-} from "lucide-react";
+import { AlertTriangleIcon, ArrowLeftIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 
@@ -19,7 +15,7 @@ interface RunDetailsProps {
 
 export function RunDetails({ run }: RunDetailsProps) {
   const router = useRouter();
-  
+
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Runs", href: "/runs" },
@@ -62,23 +58,17 @@ export function RunDetails({ run }: RunDetailsProps) {
               <ArrowLeftIcon className="mr-2 h-4 w-4" />
               Back to Runs
             </Button>
-            <h1 className="text-xl font-bold">{run.id}</h1>
-            <div className="ml-4">{getStatusBadge(run.status)}</div>
+
+            <div className="ml-2">{getStatusBadge(run.status)}</div>
           </div>
-          
+
           <div className="flex items-center">
             <div className="mr-6">
-              <div className="text-sm font-medium">{run.jobName || "Unknown Job"}</div>
+              <div className="text-sm font-medium">
+                {run.jobName || "Unknown Job"}
+              </div>
               <div className="text-xs text-muted-foreground">{run.jobId}</div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/jobs/${run.jobId}`)}
-            >
-              <ExternalLinkIcon className="mr-2 h-4 w-4" />
-              View Job
-            </Button>
           </div>
         </div>
 

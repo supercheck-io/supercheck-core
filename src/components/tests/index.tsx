@@ -8,20 +8,17 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { getTests } from "@/actions/get-tests";
 import { Test } from "./data/schema";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Row } from "@tanstack/react-table";
 
 export default function Tests() {
   const [selectedTest] = useState<Test | null>(null);
   const [tests, setTests] = useState<Test[]>([]);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   // Fetch tests from the database
   useEffect(() => {
     async function fetchTests() {
       try {
-        setLoading(true);
         const result = await getTests();
         if (result.success) {
           // Ensure the tests match the expected type
@@ -37,8 +34,6 @@ export default function Tests() {
         }
       } catch (error) {
         console.error("Error fetching tests:", error);
-      } finally {
-        setLoading(false);
       }
     }
 
@@ -49,20 +44,6 @@ export default function Tests() {
     const test = row.original;
     router.push(`/playground/${test.id}`);
   };
-
-  if (loading) {
-    return (
-      <div className="flex h-full flex-col space-y-2 p-4">
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="flex items-center space-x-4">
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-full flex-col space-y-2 p-4">

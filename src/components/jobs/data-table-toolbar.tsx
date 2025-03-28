@@ -1,5 +1,5 @@
 import type { Table } from "@tanstack/react-table";
-import { X } from "lucide-react";
+import { PlusCircle, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { DataTableViewOptions } from "./data-table-view-options";
 
 import { jobStatuses } from "./data/data";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
+import { useRouter } from "next/navigation";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
@@ -16,17 +17,25 @@ export function DataTableToolbar<TData>({
   table,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
+  const router = useRouter();
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex flex-1 items-center space-x-2">
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between space-y-2">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Jobs</h2>
+          <p className="text-muted-foreground">View and manage all jobs</p>
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-2">
         <Input
           placeholder="Filter jobs..."
           value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
             table.getColumn("name")?.setFilterValue(event.target.value)
           }
-          className="h-8 w-[150px] lg:w-[250px]"
+          className="h-8 w-[150px] lg:w-[200px]"
         />
         {table.getColumn("status") && (
           <DataTableFacetedFilter
@@ -42,11 +51,18 @@ export function DataTableToolbar<TData>({
             className="h-8 px-2 lg:px-3"
           >
             Reset
-            <X />
+            <X className="ml-2 h-4 w-4" />
           </Button>
         )}
+        <DataTableViewOptions table={table} />
+        <Button
+          className="cursor-pointer"
+          onClick={() => router.push("/jobs/create")}
+        >
+          <PlusCircle className="h-4 w-4 mr-2" />
+          Create New Job
+        </Button>
       </div>
-      <DataTableViewOptions table={table} />
     </div>
   );
 }

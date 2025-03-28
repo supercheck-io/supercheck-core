@@ -106,19 +106,14 @@ function RunButton({ job }: { job: Job }) {
     <Button
       onClick={handleRunJob}
       size="sm"
-      className="h-8 w-full bg-blue-600 hover:bg-blue-700 text-white"
+      variant="outline"
+      className="h-8 w-8 p-0 hover:bg-blue-100 cursor-pointer ml-2"
       disabled={isRunning}
     >
       {isRunning ? (
-        <div className="flex items-center">
-          <div className="mr-1 h-3 w-3 animate-spin rounded-full border-2 border-t-transparent" />
-          <span>Running...</span>
-        </div>
+        <div className="h-3 w-3 animate-spin rounded-full border-2 border-t-transparent" />
       ) : (
-        <div className="flex items-center">
-          <Play className="mr-1 h-3 w-3" />
-          <span>Run</span>
-        </div>
+        <Play className="h-3 w-3 text-blue-500" />
       )}
     </Button>
   );
@@ -127,7 +122,7 @@ function RunButton({ job }: { job: Job }) {
 export const columns: ColumnDef<Job>[] = [
   {
     id: "run",
-    header: () => <div className="text-center">Run</div>,
+    header: () => <div>Run</div>,
     cell: ({ row }) => {
       const job = row.original;
       return <RunButton job={job} />;

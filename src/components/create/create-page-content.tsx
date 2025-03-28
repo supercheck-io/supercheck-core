@@ -9,6 +9,8 @@ import {
   Webhook,
   ListOrdered,
   DatabaseZap,
+  Clock,
+  Zap,
 } from "lucide-react";
 
 type ScriptType = "browser" | "api" | "multistep" | "database";
@@ -89,25 +91,49 @@ export function CreatePageContent() {
   ];
 
   return (
-    <div className="container max-w-7xl mx-auto px-4 sm:px-6 py-4">
-      <h1 className="text-2xl font-bold mb-6 sm:mb-8">Create from scratch</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {testTypes.map((type, index) => (
+    <div className="space-y-4 p-4">
+      <div>
+        <h2 className="text-2xl font-bold">Create New Test</h2>
+        <p className="text-muted-foreground">
+          Select the type of test you want to create
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+        {testTypes.map((testType) => (
           <CreateCard
-            key={index}
-            icon={type.icon}
-            title={type.title}
-            description={type.description}
-            onClick={() => {
-              if (type.scriptType) {
-                handleScriptSelection(type.scriptType);
-              } else {
-                router.push(type.path);
-              }
-            }}
-            className={index === 6 ? "border-dashed" : ""}
+            key={testType.scriptType}
+            icon={testType.icon}
+            title={testType.title}
+            description={testType.description}
+            onClick={() =>
+              handleScriptSelection(testType.scriptType as ScriptType)
+            }
+            className={
+              testType.title === "New check type" ? "border-dashed" : ""
+            }
           />
         ))}
+      </div>
+
+      <div>
+        <h2 className="text-2xl font-bold">Create New Job</h2>
+        <p className="text-muted-foreground">Configure a new automated job</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+        <CreateCard
+          icon={<Clock size={24} />}
+          title="Scheduled Job"
+          description="Create a job that runs on a schedule"
+          onClick={() => router.push("/jobs/create")}
+        />
+        <CreateCard
+          icon={<Zap size={24} />}
+          title="Immediate Job"
+          description="Run a job immediately"
+          onClick={() => router.push("/jobs/create")}
+        />
       </div>
     </div>
   );

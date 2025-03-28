@@ -16,7 +16,6 @@ import {
   CalendarIcon,
   ClockIcon,
   TimerIcon,
-  Settings2Icon,
   PlusCircle,
   Edit,
   Trash,
@@ -75,12 +74,10 @@ export default function Jobs() {
     type: "api",
     status: "pending",
   });
-  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch jobs from the database on component mount
   useEffect(() => {
     async function fetchJobs() {
-      setIsLoading(true);
       try {
         const response = await getJobs();
         if (response.success && response.jobs) {
@@ -126,8 +123,6 @@ export default function Jobs() {
               : "An unknown error occurred",
           variant: "destructive",
         });
-      } finally {
-        setIsLoading(false);
       }
     }
 
@@ -308,14 +303,14 @@ export default function Jobs() {
 
     try {
       console.log("Running job:", job.id);
-      
+
       // Prepare the test data
-      const testData = job.tests.map(test => ({
+      const testData = job.tests.map((test) => ({
         id: test.id,
         name: test.name || "",
-        title: test.name || "" // Include title as a fallback
+        title: test.name || "", // Include title as a fallback
       }));
-      
+
       // Use the dedicated API endpoint for running jobs
       const response = await fetch("/api/jobs/run", {
         method: "POST",
@@ -326,24 +321,24 @@ export default function Jobs() {
           jobId: job.id,
           tests: testData,
         }),
-        cache: 'no-store',
+        cache: "no-store",
       });
 
       console.log("Response status:", response.status);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Error response:", errorText);
         throw new Error(`Failed to run job: ${response.status} ${errorText}`);
       }
-      
+
       const data = await response.json();
       console.log("Response data:", data);
 
       // Update the job status based on the test results
       const finalJob = {
         ...job,
-        status: data.success ? "completed" as const : "failed" as const,
+        status: data.success ? ("completed" as const) : ("failed" as const),
         lastRunAt: new Date().toISOString(),
       };
 
@@ -359,7 +354,7 @@ export default function Jobs() {
         } failed.`,
         variant: data.success ? "default" : "destructive",
       });
-      
+
       // Navigate to the runs page if a runId is returned
       if (data.runId) {
         console.log("Navigating to run:", data.runId);
@@ -369,24 +364,25 @@ export default function Jobs() {
       }
     } catch (error) {
       console.error("Error running job:", error);
-      
+
       toast({
         title: "Failed to run job",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description:
+          error instanceof Error ? error.message : "An unknown error occurred",
         variant: "destructive",
       });
-      
+
       // Update the job status to failed
       const failedJob = {
         ...job,
         status: "failed" as const,
       };
-      
+
       // Update the local state
       setSelectedJob(failedJob);
     } finally {
       setIsRunningJob(false);
-      
+
       // Refresh the jobs list
       refreshJobs();
     }
@@ -394,44 +390,23 @@ export default function Jobs() {
 
   return (
     <div className="flex h-full flex-col space-y-4 p-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Jobs</h1>
-        <Button onClick={() => router.push("/jobs/create")}>
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Create New Job
-        </Button>
-      </div>
-
-      {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">
-          Loading jobs...
-        </div>
-      ) : (
-        <DataTable
-          data={jobs}
-          columns={columns}
-          onRowClick={(row) => {
-            setSelectedJob(row.original);
-            setIsSheetOpen(true);
-          }}
-        />
-      )}
+      <DataTable
+        data={jobs}
+        columns={columns}
+        onRowClick={(row) => {
+          setSelectedJob(row.original);
+          setIsSheetOpen(true);
+        }}
+      />
 
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="xl:max-w-[800px] lg:max-w-[700px] md:max-w-[600px] sm:max-w-[500px] overflow-y-auto">
+        <SheetContent className="xl:max-w-[800px] lg:max-w-[700px] md:max-w-[600px] sm:max-w-[500px] overflow-y-auto p-6">
           {selectedJob && (
             <>
               <SheetHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between -ml-4">
                   <SheetTitle>Job Details</SheetTitle>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsSheetOpen(false)}
-                    >
-                      Close
-                    </Button>
+                  <div className="flex space-x-4">
                     <Button
                       variant="default"
                       size="sm"
@@ -463,7 +438,7 @@ export default function Jobs() {
 
               <Tabs defaultValue="details" className="mt-6">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="details">Job Details</TabsTrigger>
+                  <TabsTrigger value="details">Details</TabsTrigger>
                   <TabsTrigger value="tests">
                     Tests ({selectedJob.tests?.length || 0})
                   </TabsTrigger>
@@ -523,85 +498,6 @@ export default function Jobs() {
                       <div className="flex items-center space-x-2">
                         <ClockIcon className="h-4 w-4 text-muted-foreground" />
                         <span>{formatDate(selectedJob.nextRunAt)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Configuration */}
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Configuration</h3>
-                    <div className="rounded-md bg-muted p-4">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <Settings2Icon className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Environment:</span>
-                        <Badge variant="outline">
-                          {selectedJob.config?.environment || "Default"}
-                        </Badge>
-                      </div>
-
-                      {selectedJob.config?.variables && (
-                        <div className="space-y-2 mt-4">
-                          <h4 className="text-xs font-medium">Variables</h4>
-                          <div className="grid grid-cols-1 gap-2">
-                            {Object.entries(selectedJob.config.variables).map(
-                              ([key, value]) => (
-                                <div key={key} className="flex justify-between">
-                                  <span className="text-xs text-muted-foreground">
-                                    {key}:
-                                  </span>
-                                  <span className="text-xs font-mono">
-                                    {value}
-                                  </span>
-                                </div>
-                              )
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedJob.config?.retryStrategy && (
-                        <div className="space-y-2 mt-4">
-                          <h4 className="text-xs font-medium">
-                            Retry Strategy
-                          </h4>
-                          <div className="grid grid-cols-1 gap-2">
-                            <div className="flex justify-between">
-                              <span className="text-xs text-muted-foreground">
-                                Max Retries:
-                              </span>
-                              <span className="text-xs">
-                                {selectedJob.config.retryStrategy.maxRetries}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-xs text-muted-foreground">
-                                Backoff Factor:
-                              </span>
-                              <span className="text-xs">
-                                {selectedJob.config.retryStrategy.backoffFactor}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-4 mt-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs text-muted-foreground">
-                            Timeout
-                          </span>
-                          <span className="text-sm">
-                            {selectedJob.timeoutSeconds} seconds
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-xs text-muted-foreground">
-                            Retry Count
-                          </span>
-                          <span className="text-sm">
-                            {selectedJob.retryCount}
-                          </span>
-                        </div>
                       </div>
                     </div>
                   </div>

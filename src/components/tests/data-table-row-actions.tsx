@@ -1,5 +1,5 @@
 import type { Row } from "@tanstack/react-table";
-import { MoreHorizontal, PlayIcon, PencilIcon, CopyIcon, TrashIcon } from "lucide-react";
+import { MoreHorizontal, PencilIcon, TrashIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -37,34 +37,23 @@ export function DataTableRowActions<TData>({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleRunTest = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click event
-    router.push(`/playground/${test.id}`);
-  };
-
   const handleEditTest = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent row click event
     router.push(`/playground/${test.id}`);
-  };
-
-  const handleDuplicateTest = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click event
-    // TODO: Implement duplicate functionality
-    console.log("Duplicate test:", test.id);
   };
 
   const handleDeleteTest = async () => {
     if (!test.id) return;
 
     setIsDeleting(true);
-    
+
     // Show a loading toast for delete operation
     toast({
       title: "Deleting test...",
       description: "Please wait while we delete the test.",
       duration: 3000,
     });
-    
+
     try {
       // Call the DELETE endpoint to remove the test
       const response = await fetch(`/api/tests?id=${test.id}`, {
@@ -111,20 +100,12 @@ export function DataTableRowActions<TData>({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[160px]">
-          <DropdownMenuItem onClick={handleRunTest}>
-            <PlayIcon className="mr-2 h-4 w-4" />
-            <span>Run</span>
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleEditTest}>
             <PencilIcon className="mr-2 h-4 w-4" />
             <span>Edit</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleDuplicateTest}>
-            <CopyIcon className="mr-2 h-4 w-4" />
-            <span>Duplicate</span>
-          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem 
+          <DropdownMenuItem
             onClick={(e) => {
               e.stopPropagation();
               setShowDeleteDialog(true);
@@ -136,13 +117,14 @@ export function DataTableRowActions<TData>({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      
+
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the test &quot;{test.title}&quot;. This action cannot be undone.
+              This will permanently delete the test &quot;{test.title}&quot;.
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

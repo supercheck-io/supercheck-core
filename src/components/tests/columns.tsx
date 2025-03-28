@@ -2,66 +2,9 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
 import type { Test } from "./data/schema";
-import {
-  CalendarIcon,
-  Globe,
-  Server,
-  Layers,
-  Database,
-  ArrowUpCircleIcon,
-  ArrowDownCircleIcon,
-  CircleIcon,
-  AlertCircleIcon,
-  ClockIcon,
-} from "lucide-react";
+import { CalendarIcon, ClockIcon } from "lucide-react";
 
-// Define priority icons and labels
-const priorities = [
-  {
-    value: "low",
-    label: "Low",
-    icon: ArrowDownCircleIcon,
-  },
-  {
-    value: "medium",
-    label: "Medium",
-    icon: CircleIcon,
-  },
-  {
-    value: "high",
-    label: "High",
-    icon: ArrowUpCircleIcon,
-  },
-  {
-    value: "critical",
-    label: "Critical",
-    icon: AlertCircleIcon,
-  },
-];
-
-// Define test types
-const testTypes = [
-  {
-    value: "browser",
-    label: "Browser",
-    icon: Globe,
-  },
-  {
-    value: "api",
-    label: "API",
-    icon: Server,
-  },
-  {
-    value: "multistep",
-    label: "Multi-step",
-    icon: Layers,
-  },
-  {
-    value: "database",
-    label: "Database",
-    icon: Database,
-  },
-];
+import { priorities, types } from "./data/data";
 
 export const columns: ColumnDef<Test>[] = [
   {
@@ -110,9 +53,7 @@ export const columns: ColumnDef<Test>[] = [
       <DataTableColumnHeader column={column} title="Type" />
     ),
     cell: ({ row }) => {
-      const type = testTypes.find(
-        (type) => type.value === row.getValue("type")
-      );
+      const type = types.find((type) => type.value === row.getValue("type"));
 
       if (!type) {
         return null;
@@ -121,7 +62,9 @@ export const columns: ColumnDef<Test>[] = [
       return (
         <div className="flex items-center w-[120px]">
           {type.icon && (
-            <type.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+            <type.icon
+              className={`mr-2 h-4 w-4 text-muted-foreground ${type.color}`}
+            />
           )}
           <span>{type.label}</span>
         </div>
@@ -148,7 +91,9 @@ export const columns: ColumnDef<Test>[] = [
       return (
         <div className="flex items-center w-[100px]">
           {priority.icon && (
-            <priority.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+            <priority.icon
+              className={`mr-2 h-4 w-4 text-muted-foreground ${priority.color}`}
+            />
           )}
           <span>{priority.label}</span>
         </div>
