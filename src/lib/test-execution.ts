@@ -14,25 +14,25 @@ const { spawn } = childProcess;
 const { join, normalize, sep, posix, dirname } = path;
 
 // Helper function to check if running on Windows
-const isWindows = process.platform === 'win32';
+const isWindows = process.platform === "win32";
 
 // Helper function to convert Windows paths to CLI-compatible paths
 const toCLIPath = (filePath: string): string => {
-  return isWindows ? filePath.split(sep).join('/') : filePath;
+  return isWindows ? filePath.split(sep).join("/") : filePath;
 };
 
 // Configure the maximum number of concurrent tests
 const MAX_CONCURRENT_TESTS = 2;
 
 // Maximum time to wait for a test to complete
-const TEST_EXECUTION_TIMEOUT_MS = 120000; // 2 minutes
+const TEST_EXECUTION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 // How often to recover trace files
-const TRACE_RECOVERY_INTERVAL_MS = 30000; // 30 seconds
+const TRACE_RECOVERY_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // Track the last cleanup time to avoid too frequent cleanups
 let lastCleanupTime: number | null = null;
-const CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 minutes - less frequent cleanups
+const CLEANUP_INTERVAL = 30 * 60 * 1000; // 30 minutes - less frequent cleanups
 
 // Define the TestResult interface
 interface TestResult {
@@ -316,7 +316,10 @@ async function executeTestInChildProcess(
             const rootTracesDir = join(rootTestResults, "traces");
             if (!existsSync(rootTracesDir)) {
               await fs.mkdir(rootTracesDir, { recursive: true });
-              await fs.writeFile(join(rootTracesDir, "placeholder.network"), "");
+              await fs.writeFile(
+                join(rootTracesDir, "placeholder.network"),
+                ""
+              );
               await fs.writeFile(join(rootTracesDir, "placeholder.zip"), "");
             }
           }
@@ -584,7 +587,7 @@ async function executeTestInChildProcess(
             ),
           });
         }
-      }, TEST_EXECUTION_TIMEOUT_MS); // 2 minutes timeout
+      }, TEST_EXECUTION_TIMEOUT_MS); // 15 minutes timeout
 
       childProcess.on("exit", async (code, signal) => {
         clearTimeout(timeout);
@@ -1264,7 +1267,9 @@ export async function executeTest(code: string): Promise<TestResult> {
       const reportDir = normalize(join(testResultsDir, "report"));
 
       // Ensure the directory exists
-      await fs.mkdir(dirname(join(reportDir, "index.html")), { recursive: true });
+      await fs.mkdir(dirname(join(reportDir, "index.html")), {
+        recursive: true,
+      });
       await fs.writeFile(join(reportDir, "index.html"), errorHtml);
 
       return {
@@ -1461,7 +1466,9 @@ test('test', async ({ page }) => {
       const reportDir = normalize(join(testResultsDir, "report"));
 
       // Ensure the directory exists
-      await fs.mkdir(dirname(join(reportDir, "index.html")), { recursive: true });
+      await fs.mkdir(dirname(join(reportDir, "index.html")), {
+        recursive: true,
+      });
       await fs.writeFile(join(reportDir, "index.html"), errorHtml);
 
       // Update test status to completed with error
