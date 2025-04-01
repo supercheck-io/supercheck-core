@@ -1,3 +1,5 @@
+# Supertest.io
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -38,12 +40,12 @@ This project includes integration with Playwright for end-to-end testing. The Pl
 ### Example Test
 
 ```javascript
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require("@playwright/test");
 
-test('basic test', async ({ page }) => {
+test("basic test", async ({ page }) => {
   // Navigate to a website
-  await page.goto('https://example.com');
-  
+  await page.goto("https://example.com");
+
   // Expect the page title to contain a specific string
   await expect(page).toHaveTitle(/Example Domain/);
 });
@@ -51,7 +53,43 @@ test('basic test', async ({ page }) => {
 
 ### Test Results
 
-Test results are stored in the `public/test-results` directory and can be accessed through the browser at `/test-results/report/index.html`.
+Test results are stored in the `public/test-results` directory and can be accessed through the browser at [/test-results/report/index.html](/test-results/report/index.html).
+
+## Docker Usage
+
+To build and run the application using Docker, follow these steps:
+
+### Step 1: Build the Docker Image
+
+```bash
+docker build -t supertest-io --build-arg DATABASE_URL="file:./supertest.db" .
+```
+
+### Step 2: Run the Docker Container
+
+```bash
+docker run -p 3000:3000 \
+  -v $(pwd)/supertest.db:/app/supertest.db \
+  -v $(pwd)/public:/app/public \
+  supertest-io
+```
+
+The application will be available at [http://localhost:3000](http://localhost:3000).
+
+### Docker Image Details
+
+The Docker image is built using the official Playwright image (v1.51.1) based on Ubuntu 22.04 LTS (Jammy Jellyfish). This ensures compatibility with the Playwright test framework and provides a stable environment for running the application.
+
+### Volume Mounts
+
+- `supertest.db`: SQLite database file for storing application data
+- `public`: Directory for serving static files and test results
+
+### Environment Variables
+
+The following environment variables can be passed during build time:
+
+- `DATABASE_URL`: URL for the SQLite database (default: file:./supertest.db)
 
 ## Learn More
 
