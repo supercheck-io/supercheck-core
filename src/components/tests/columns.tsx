@@ -63,7 +63,7 @@ export const columns: ColumnDef<Test>[] = [
         <div className="flex items-center w-[120px]">
           {type.icon && (
             <type.icon
-              className={`mr-2 h-4 w-4 text-muted-foreground ${type.color}`}
+              className={`mr-2 h-4 w-4 ${type.color}`}
             />
           )}
           <span>{type.label}</span>

@@ -7,10 +7,10 @@ import {
   CircleOff,
   HelpCircle,
   Timer,
-  Chrome,
-  Server,
   Layers,
   Database,
+  Chrome,
+  Webhook,
 } from "lucide-react";
 
 export const labels = [
@@ -82,24 +82,24 @@ export const types = [
     label: "Browser",
     value: "browser",
     icon: Chrome,
-    color: "text-blue-500",
+    color: "text-sky-500",
   },
   {
     label: "API",
     value: "api",
-    icon: Server,
-    color: "text-purple-500",
+    icon: Webhook,
+    color: "text-cyan-600",
   },
   {
     label: "Multi-step",
     value: "multistep",
     icon: Layers,
-    color: "text-pink-500",
+    color: "text-blue-700",
   },
   {
     label: "Database",
     value: "database",
     icon: Database,
-    color: "text-indigo-500",
+    color: "text-teal-600",
   },
 ];

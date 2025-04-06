@@ -47,28 +47,28 @@ export type TestPriority = "low" | "medium" | "high";
 export type TestType = "browser" | "api" | "multistep" | "database";
 
 // Map UI test type to database test type
-function mapTestType(uiType: string): TestType {
-  switch (uiType) {
-    case "ui":
-      return "browser";
-    case "integration":
-      return "multistep";
-    case "performance":
-      return "database";
-    case "api":
-      return "api";
-    default:
-      return "api";
-  }
-}
+// function mapTestType(uiType: string): TestType {
+//   switch (uiType) {
+//     case "ui":
+//       return "browser";
+//     case "integration":
+//       return "multistep";
+//     case "performance":
+//       return "database";
+//     case "api":
+//       return "api";
+//     default:
+//       return "api";
+//   }
+// }
 
-interface JobData {
-  id: string;
-  name: string;
-  description: string;
-  cronSchedule: string;
-  tests: { id: string }[];
-}
+// interface JobData {
+//   id: string;
+//   name: string;
+//   description: string;
+//   cronSchedule: string;
+//   tests: { id: string }[];
+// }
 
 export default function EditJob() {
   const router = useRouter();
@@ -83,7 +83,7 @@ export default function EditJob() {
   const [isLoadingTests, setIsLoadingTests] = useState(true);
   const [testFilter, setTestFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const itemsPerPage = 10;
 
   const breadcrumbs = [
     { label: "Home", href: "/" },

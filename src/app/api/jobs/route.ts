@@ -148,14 +148,10 @@ export async function POST(request: Request) {
 
     // Insert the job into the database with default values for nullable fields
     await dbInstance.insert(jobs).values({
-      id: jobId,
       name: jobData.name,
       description: jobData.description || "",
       cronSchedule: jobData.cronSchedule,
       status: (jobData.status || "pending") as JobStatus,
-      timeoutSeconds: jobData.timeoutSeconds || 30,
-      retryCount: jobData.retryCount || 0,
-      config: jobData.config || {},
     });
 
     // If tests are provided, create job-test associations
@@ -219,9 +215,6 @@ export async function PUT(request: Request) {
         description: jobData.description || "",
         cronSchedule: jobData.cronSchedule,
         status: jobData.status as JobStatus,
-        timeoutSeconds: jobData.timeoutSeconds || 30,
-        retryCount: jobData.retryCount || 0,
-        config: jobData.config || {},
         updatedAt: new Date().toISOString(),
       })
       .where(eq(jobs.id, jobData.id));

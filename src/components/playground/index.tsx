@@ -220,7 +220,7 @@ const Playground: React.FC<PlaygroundProps> = ({
             setInitialEditorContent(scriptContent || "");
             setTestCase(prev => ({ ...prev, script: scriptContent || "" }));
             // console.log("[Playground Effect] State updated with script content.");
-          } catch (error) {
+          } catch {
             // console.error("[Playground Effect] Error loading default script:", error);
             toast.error("Failed to load default script content.");
           }

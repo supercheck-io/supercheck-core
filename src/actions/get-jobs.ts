@@ -249,7 +249,7 @@ export async function getJob(id: string): Promise<JobResponse> {
       tests: uiTests,
     };
 
-    return { success: true, job: jobData as any, error: undefined };
+    return { success: true, job: jobData as JobFromAction, error: undefined };
   } catch (error) {
     console.error("Error fetching job:", error);
     return { success: false, job: null, error: "Failed to fetch job details" };

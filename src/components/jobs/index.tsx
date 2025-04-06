@@ -16,13 +16,7 @@ import {
   CalendarIcon,
   ClockIcon,
   TimerIcon,
-  PlusCircle,
   Edit,
-  Trash,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  Clock4,
   PlayIcon,
   Loader2,
 } from "lucide-react";
@@ -43,7 +37,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,24 +54,36 @@ import { getJobs } from "@/actions/get-jobs";
 import { cn } from "@/lib/utils";
 import { useJobContext } from "./job-context";
 
+// Helper function to map incoming types to the valid Test["type"]
+function mapToTestType(type: string | undefined): Test["type"] {
+  switch (type) {
+    case "browser":
+    case "api":
+    case "multistep":
+    case "database":
+      return type; // Already valid
+    case "ui":
+      return "browser"; // Map ui to browser
+    case "integration":
+      return "multistep"; // Map integration to multistep
+    // Map other legacy/incoming types or default
+    case "performance":
+    case "security":
+    default:
+      return "api"; // Default to api
+  }
+}
+
 export default function Jobs() {
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [isAddTestDialogOpen, setIsAddTestDialogOpen] = useState(false);
   const [isEditTestDialogOpen, setIsEditTestDialogOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [isRunningJob, setIsRunningJob] = useState(false);
   const { isAnyJobRunning, setJobRunning } = useJobContext();
   const [isLoading, setIsLoading] = useState(true);
-  const [newTest, setNewTest] = useState<Partial<Test>>({
-    id: `TEST-${Math.floor(Math.random() * 1000)}`,
-    name: "",
-    description: "",
-    type: "api",
-    status: "pending",
-  });
 
   // Fetch jobs from the database on component mount
   useEffect(() => {
@@ -156,99 +161,19 @@ export default function Jobs() {
     }
   };
 
-  // Format date for display
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "N/A";
-
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  // Format duration in a human-readable way
-  const formatDuration = (duration: number | null | undefined) => {
-    if (duration === null || duration === undefined) return "N/A";
-
-    if (duration < 1000) {
-      return `${duration}ms`;
-    } else if (duration < 60000) {
-      return `${(duration / 1000).toFixed(1)}s`;
-    } else {
-      const minutes = Math.floor(duration / 60000);
-      const seconds = Math.floor((duration % 60000) / 1000);
-      return `${minutes}m ${seconds}s`;
-    }
-  };
-
-  // Get status icon for test
-  const getTestStatusIcon = (status: string | undefined) => {
-    switch (status) {
-      case "pass":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "fail":
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case "pending":
-        return <Clock4 className="h-4 w-4 text-yellow-500" />;
-      case "skipped":
-        return <AlertCircle className="h-4 w-4 text-gray-500" />;
-      default:
-        return <Clock4 className="h-4 w-4 text-yellow-500" />;
-    }
-  };
-
-  // Add a new test to the selected job
-  const handleAddTest = () => {
-    if (selectedJob && newTest.name) {
-      const updatedJob = {
-        ...selectedJob,
-        tests: [
-          ...(selectedJob.tests || []),
-          {
-            id: newTest.id || `TEST-${Math.floor(Math.random() * 1000)}`,
-            name: newTest.name,
-            description: newTest.description || null,
-            type: newTest.type as
-              | "api"
-              | "ui"
-              | "integration"
-              | "performance"
-              | "security",
-            status: newTest.status,
-            lastRunAt: new Date().toISOString(),
-            duration: null,
-          },
-        ],
-      };
-
-      // Update the selected job
-      setSelectedJob(updatedJob);
-
-      // Reset the new test form
-      setNewTest({
-        id: `TEST-${Math.floor(Math.random() * 1000)}`,
-        name: "",
-        description: "",
-        type: "api",
-        status: "pending",
-      });
-
-      // Close the dialog
-      setIsAddTestDialogOpen(false);
-    }
-  };
-
   // Edit an existing test
   const handleEditTest = () => {
+    // Ensure selectedTest exists
     if (selectedJob && selectedTest) {
       const updatedTests =
-        selectedJob.tests?.map((test) =>
-          test.id === selectedTest.id ? { ...selectedTest } : test
-        ) || [];
+        selectedJob.tests?.map((test) => {
+          if (test.id === selectedTest.id) {
+            // Use the helper function to ensure the type conforms
+            const mappedType = mapToTestType(selectedTest.type);
+            return { ...selectedTest, type: mappedType }; // Use the mapped type
+          }
+          return test;
+        }) || [];
 
       const updatedJob = {
         ...selectedJob,
@@ -263,22 +188,6 @@ export default function Jobs() {
 
       // Close the dialog
       setIsEditTestDialogOpen(false);
-    }
-  };
-
-  // Delete a test
-  const handleDeleteTest = (testId: string) => {
-    if (selectedJob) {
-      const updatedTests =
-        selectedJob.tests?.filter((test) => test.id !== testId) || [];
-
-      const updatedJob = {
-        ...selectedJob,
-        tests: updatedTests,
-      };
-
-      // Update the selected job
-      setSelectedJob(updatedJob);
     }
   };
 
@@ -389,6 +298,20 @@ export default function Jobs() {
       setJobRunning(false);
       refreshJobs();
     }
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "N/A";
+
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   return (
@@ -667,31 +590,25 @@ export default function Jobs() {
                             Type
                           </Label>
                           <Select
-                            value={selectedTest.type}
-                            onValueChange={(
-                              value:
-                                | "api"
-                                | "ui"
-                                | "integration"
-                                | "performance"
-                                | "security"
-                            ) =>
-                              setSelectedTest({ ...selectedTest, type: value })
-                            }
+                            // Display the current type, even if legacy
+                            value={selectedTest?.type || ""}
+                            // onValueChange receives a valid Test["type"]
+                            onValueChange={(value: Test["type"]) => {
+                              setSelectedTest((prev) =>
+                                // Update directly with the valid type from SelectItem
+                                prev ? { ...prev, type: value } : null
+                              );
+                            }}
                           >
-                            <SelectTrigger className="col-span-3">
-                              <SelectValue placeholder="Select test type" />
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select type" />
                             </SelectTrigger>
                             <SelectContent>
+                              {/* Only show valid Test['type'] options */}
+                              <SelectItem value="browser">Browser</SelectItem>
                               <SelectItem value="api">API</SelectItem>
-                              <SelectItem value="ui">UI</SelectItem>
-                              <SelectItem value="integration">
-                                Integration
-                              </SelectItem>
-                              <SelectItem value="performance">
-                                Performance
-                              </SelectItem>
-                              <SelectItem value="security">Security</SelectItem>
+                              <SelectItem value="multistep">Multistep</SelectItem>
+                              <SelectItem value="database">Database</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

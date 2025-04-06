@@ -181,7 +181,8 @@ export function TestForm({
 
             toast.success("Test updated successfully.");
 
-            // Stay on the same page after updating
+            // Navigate to the tests page after updating
+            router.push("/tests/");
           } else {
             toast.error(result.error || "Failed to update test.");
           }

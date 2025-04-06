@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import { getTests } from "@/actions/get-tests";
 import { Test } from "./data/schema";
 import { Row } from "@tanstack/react-table";
-import { Loader2 } from "lucide-react";
 
 export default function Tests() {
   const [selectedTest] = useState<Test | null>(null);

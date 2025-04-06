@@ -7,6 +7,7 @@ import { getRuns } from "@/actions/get-runs";
 import { TestRun } from "./data/schema";
 import { toast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
+import { Row } from "@tanstack/react-table";
 
 export function RunsClient() {
   const [runs, setRuns] = useState<TestRun[]>([]);
@@ -50,7 +51,7 @@ export function RunsClient() {
     fetchRuns();
   }, []);
 
-  const handleRowClick = (row: any) => {
+  const handleRowClick = (row: Row<TestRun>) => {
     const runId = row.original.id;
     router.push(`/runs/${runId}`);
   };

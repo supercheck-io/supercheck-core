@@ -30,14 +30,10 @@ export async function createJob(data: {
 
     // Insert the job into the database
     await dbInstance.insert(jobs).values({
-      id: jobId,
       name: data.name,
       description: data.description || "",
       cronSchedule: data.cronSchedule || "",
       status: "pending",
-      timeoutSeconds: data.timeoutSeconds || 30,
-      retryCount: data.retryCount || 0,
-      config: data.config || {},
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       lastRunAt: null,

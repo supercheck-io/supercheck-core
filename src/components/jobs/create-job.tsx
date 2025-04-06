@@ -16,8 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock4, PlusCircle } from "lucide-react";
+import { XCircle, PlusCircle } from "lucide-react";
 import { Search } from "lucide-react";
 import {
   Dialog,
@@ -48,7 +47,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/form";
-import { UseFormReturn, ControllerRenderProps } from "react-hook-form";
+import { ControllerRenderProps } from "react-hook-form";
 import { cn } from "@/lib/utils";
 
 const jobFormSchema = z.object({
@@ -64,10 +63,6 @@ const jobFormSchema = z.object({
 });
 
 type FormData = z.infer<typeof jobFormSchema>;
-
-type FieldProps = {
-  field: any;
-};
 
 export default function CreateJob() {
   const router = useRouter();
@@ -155,39 +150,16 @@ export default function CreateJob() {
     }
   });
 
-  // Get status icon for test
-  const getTestStatusIcon = (status: string | undefined) => {
-    switch (status) {
-      case "pass":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "fail":
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case "pending":
-        return <Clock4 className="h-4 w-4 text-yellow-500" />;
-      case "skipped":
-        return <Clock4 className="h-4 w-4 text-gray-500" />;
-      default:
-        return <Clock4 className="h-4 w-4 text-yellow-500" />;
-    }
-  };
-
-  // Format date for display
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "N/A";
-
-    try {
-      const date = new Date(dateString);
-      return new Intl.DateTimeFormat("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "numeric",
-      }).format(date);
-    } catch {
-      return "Invalid Date";
-    }
-  };
+  // Define the structure expected from the getTests action
+  interface ActionTest {
+    id: string;
+    title: string;
+    description: string | null;
+    // Assuming these are the possible types from the action
+    type: "browser" | "api" | "multistep" | "database";
+    updatedAt: string | null;
+    // Add other relevant fields from the action response if needed
+  }
 
   // Fetch tests from database on component mount
   useEffect(() => {
@@ -196,21 +168,32 @@ export default function CreateJob() {
       try {
         const response = await getTests();
         if (response.success && response.tests) {
-          // Convert the database test format to the format used in this component
-          const formattedTests = response.tests.map((test) => ({
-            id: test.id,
-            name: test.title,
-            description: test.description || "",
-            type: test.type as
-              | "api"
-              | "ui"
-              | "integration"
-              | "performance"
-              | "security",
-            status: "pending" as const, // Default status since we don't have this in the test schema
-            lastRunAt: test.updatedAt,
-            duration: null as number | null,
-          }));
+          // Explicitly type the tests from the response and the mapped test
+          const formattedTests: Test[] = (response.tests as ActionTest[]).map((test: ActionTest) => {
+            let mappedType: Test["type"];
+            // Switch on the action test type
+            switch (test.type) {
+              case "browser":
+              case "api":
+              case "multistep":
+              case "database":
+                mappedType = test.type; // Direct mapping
+                break;
+            
+              default: // Handle other potential types from action
+                mappedType = "browser"; // Default mapping
+                break;
+            }
+            return {
+              id: test.id,
+              name: test.title,
+              description: test.description || null,
+              type: mappedType, // Use the mapped type conforming to Test["type"]
+              status: "pending" as const,
+              lastRunAt: test.updatedAt,
+              duration: null as number | null,
+            };
+          });
           setAvailableTests(formattedTests);
         } else {
           console.error("Failed to fetch tests:", response.error);
@@ -272,7 +255,7 @@ export default function CreateJob() {
                 <FormField
                   control={form.control}
                   name="name"
-                  render={({ field }: FieldProps) => (
+                  render={({ field }: { field: ControllerRenderProps<FormData, "name"> }) => (
                     <FormItem>
                       <FormLabel>Job Name</FormLabel>
                       <FormControl>
@@ -285,7 +268,7 @@ export default function CreateJob() {
                 <FormField
                   control={form.control}
                   name="cronSchedule"
-                  render={({ field }: FieldProps) => (
+                  render={({ field }: { field: ControllerRenderProps<FormData, "cronSchedule"> }) => (
                     <FormItem>
                       <FormLabel>Cron Schedule</FormLabel>
                       <FormControl>
@@ -299,7 +282,7 @@ export default function CreateJob() {
               <FormField
                 control={form.control}
                 name="description"
-                render={({ field }: FieldProps) => (
+                render={({ field }: { field: ControllerRenderProps<FormData, "description"> }) => (
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl>
