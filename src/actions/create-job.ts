@@ -14,6 +14,8 @@ export async function createJob(data: {
   tests?: { id: string }[];
 }) {
   try {
+    console.log("Creating job with data:", JSON.stringify(data));
+
     // Validate required fields
     if (!data.name) {
       return {
@@ -22,26 +24,35 @@ export async function createJob(data: {
       };
     }
 
+    // Validate tests - at least one test is required
+    if (!data.tests || data.tests.length === 0) {
+      return {
+        success: false,
+        error: "At least one test must be selected",
+      };
+    }
+
     // Generate a unique ID for the job
     const jobId = crypto.randomUUID();
 
-    // Get the database instance
-    const dbInstance = await db();
+    try {
+      // Get the database instance
+      const dbInstance = await db();
 
-    // Insert the job into the database
-    await dbInstance.insert(jobs).values({
-      name: data.name,
-      description: data.description || "",
-      cronSchedule: data.cronSchedule || "",
-      status: "pending",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      lastRunAt: null,
-      nextRunAt: null,
-    });
+      // Insert the job into the database
+      await dbInstance.insert(jobs).values({
+        id: jobId,
+        name: data.name,
+        description: data.description || "",
+        cronSchedule: data.cronSchedule || "",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastRunAt: null,
+        nextRunAt: null,
+      });
 
-    // If tests are provided, associate them with the job
-    if (data.tests && data.tests.length > 0) {
+      // Associate tests with the job
       const jobTestValues = data.tests.map((test, index) => ({
         jobId,
         testId: test.id,
@@ -49,29 +60,41 @@ export async function createJob(data: {
       }));
 
       await dbInstance.insert(jobTests).values(jobTestValues);
-    }
 
-    // Return a plain serializable object
-    return {
-      success: true,
-      job: {
-        id: jobId,
-        name: data.name,
-        description: data.description || "",
-        cronSchedule: data.cronSchedule || "",
-        status: "pending",
-        timeoutSeconds: data.timeoutSeconds || 30,
-        retryCount: data.retryCount || 0,
-        config: JSON.parse(JSON.stringify(data.config || {})),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastRunAt: null,
-        nextRunAt: null,
-        tests: data.tests ? data.tests.map((test) => ({ id: test.id })) : [],
-      },
-    };
+      // Return a plain serializable object
+      return {
+        success: true,
+        job: {
+          id: jobId,
+          name: data.name,
+          description: data.description || "",
+          cronSchedule: data.cronSchedule || "",
+          status: "pending",
+          timeoutSeconds: data.timeoutSeconds || 30,
+          retryCount: data.retryCount || 0,
+          config: JSON.parse(JSON.stringify(data.config || {})),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastRunAt: null,
+          nextRunAt: null,
+          tests: data.tests.map((test) => ({ id: test.id })),
+        },
+      };
+    } catch (dbError) {
+      console.error("Database error creating job:", dbError);
+      return {
+        success: false,
+        error:
+          dbError instanceof Error
+            ? `Database error: ${dbError.message}`
+            : "Database error while creating job",
+      };
+    }
   } catch (error) {
     console.error("Error creating job:", error);
-    return { success: false, error: "Failed to create job" };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create job",
+    };
   }
 }

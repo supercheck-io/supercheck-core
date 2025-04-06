@@ -184,7 +184,10 @@ export function TestForm({
             // Navigate to the tests page after updating
             router.push("/tests/");
           } else {
-            toast.error(result.error || "Failed to update test.");
+            console.error("Failed to update test:", result.error);
+            toast.error("Error", {
+              description: "Failed to update test. Please try again later.",
+            });
           }
         } else {
           // Save as a new test
@@ -196,16 +199,17 @@ export function TestForm({
             // Navigate to the tests page with the test ID
             router.push("/tests/");
           } else {
-            toast.error(result.error || "Failed to save test.");
+            console.error("Failed to save test:", result.error);
+            toast.error("Error", {
+              description: "Failed to save test. Please try again later.",
+            });
           }
         }
       } catch (error) {
         console.error("Error saving test:", error);
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "An error occurred while saving the test."
-        );
+        toast.error("Error", {
+          description: "Failed to save test. Please try again later.",
+        });
       }
     } else {
       // Show validation errors

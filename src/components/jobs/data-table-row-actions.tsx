@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,15 +22,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
+import { deleteJob } from "@/actions/delete-job";
 
 import { Job } from "./data/schema";
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
+  onDelete?: () => void;
 }
 
 export function DataTableRowActions<TData>({
   row,
+  onDelete,
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const job = row.original as unknown as Job;
@@ -48,38 +51,37 @@ export function DataTableRowActions<TData>({
     setIsDeleting(true);
     
     // Show a loading toast for delete operation
-    toast({
-      title: "Deleting job...",
+    const deleteToastId = toast.loading("Deleting job...", {
       description: "Please wait while we delete the job.",
-      duration: 3000,
+      duration: Infinity, // Keep loading until dismissed
     });
     
     try {
-      // Call the DELETE endpoint to remove the job from the database
-      const response = await fetch(`/api/jobs?id=${job.id}`, {
-        method: "DELETE",
-      });
+      // Use the server action to delete the job
+      const result = await deleteJob(job.id);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to delete job");
+      if (!result.success) {
+        throw new Error(result.error || "Failed to delete job");
       }
       
-      toast({
-        title: "Job deleted successfully",
-        description: `Job &quot;${job.name}&quot; has been permanently removed.`,
-        variant: "default",
+      toast.success("Job deleted successfully", {
+        description: `Job \"${job.name}\" has been permanently removed.`,
+        id: deleteToastId,
       });
+
+      // Call onDelete callback if provided
+      if (onDelete) {
+        onDelete();
+      }
 
       // Refresh the page to update the job list
       router.refresh();
     } catch (error) {
       console.error("Error deleting job:", error);
-      toast({
-        title: "Error deleting job",
+      toast.error("Error deleting job", {
         description:
           error instanceof Error ? error.message : "Failed to delete job",
-        variant: "destructive",
+        id: deleteToastId,
       });
     } finally {
       setIsDeleting(false);

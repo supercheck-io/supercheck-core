@@ -5,7 +5,7 @@ import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import { getRuns } from "@/actions/get-runs";
 import { TestRun } from "./data/schema";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";
 
@@ -35,13 +35,11 @@ export function RunsClient() {
       } catch (error) {
         console.error("Error fetching runs:", error);
         setRuns([]);
-        toast({
-          title: "Error fetching runs",
+        toast.error("Error fetching runs", {
           description:
             error instanceof Error
               ? error.message
               : "An unexpected error occurred",
-          variant: "destructive",
         });
       } finally {
         setIsLoading(false);

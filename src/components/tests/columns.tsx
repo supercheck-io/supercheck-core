@@ -4,6 +4,13 @@ import { DataTableRowActions } from "./data-table-row-actions";
 import type { Test } from "./data/schema";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 
+// Type definition for the extended meta object used in this table
+interface TestsTableMeta {
+  onDeleteTest?: (id: string) => void;
+  globalFilterColumns?: string[];
+  // Include other potential properties from the base TableMeta if needed
+}
+
 import { priorities, types } from "./data/data";
 
 export const columns: ColumnDef<Test>[] = [
@@ -155,6 +162,17 @@ export const columns: ColumnDef<Test>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} />,
+    cell: ({ row, table }) => {
+      // Explicitly cast table.options.meta to the extended type
+      const meta = table.options.meta as TestsTableMeta | undefined;
+      const onDeleteCallback = meta?.onDeleteTest;
+      
+      return (
+        <DataTableRowActions 
+          row={row} 
+          onDelete={onDeleteCallback ? () => onDeleteCallback(row.original.id) : undefined}
+        />
+      );
+    },
   },
 ];

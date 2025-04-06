@@ -10,8 +10,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Toaster as SonnerToaster } from "sonner";
-import { Toaster as CustomToaster } from "@/components/ui/toast";
+import { Toaster } from "@/components/ui/sonner";
 import { BreadcrumbProvider } from "@/components/breadcrumb-context";
 import { BreadcrumbDisplay } from "@/components/breadcrumb-display";
 
@@ -67,10 +66,10 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="system" storageKey="app-theme">
           <BreadcrumbProvider>
             <SidebarProvider>
-              {/* Sonner Toaster for system notifications */}
-              <SonnerToaster position="bottom-right" richColors />
+              {/* Toaster for system notifications */}
+              <Toaster position="bottom-right" richColors />
               {/* Custom Toaster for our application notifications */}
-              <CustomToaster />
+              {/* <CustomToaster /> */}
               <AppSidebar />
               <SidebarInset>
                 <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">

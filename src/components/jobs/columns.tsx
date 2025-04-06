@@ -8,9 +8,16 @@ import type { Job } from "./data/schema";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useJobContext } from "./job-context";
+
+// Type definition for the extended meta object used in this table
+interface JobsTableMeta {
+  onDeleteJob?: (id: string) => void;
+  globalFilterColumns?: string[];
+  // Include other potential properties from the base TableMeta if needed
+}
 
 // Create a proper React component for the run button
 function RunButton({ job }: { job: Job }) {
@@ -24,33 +31,33 @@ function RunButton({ job }: { job: Job }) {
 
     if (isRunning || isAnyJobRunning) {
       if (isAnyJobRunning) {
-        toast({
-          title: "Cannot run job",
+        toast.error("Cannot run job", {
           description: "Another job is currently running. Please wait for it to complete.",
-          variant: "destructive",
         });
       }
       return;
     }
+
+    let runToastId: string | number | undefined = undefined; // Initialize with undefined
 
     try {
       setIsRunning(true);
       setJobRunning(true);
 
       if (!job.tests || job.tests.length === 0) {
-        toast({
-          title: "Cannot run job",
+        toast.error("Cannot run job", {
           description: "This job has no tests associated with it.",
-          variant: "destructive",
         });
+        // Reset state if returning early
+        setIsRunning(false);
+        setJobRunning(false);
         return;
       }
 
       // Show a loading toast that stays visible during the entire job execution
-      toast({
-        title: `Running job: ${job.name}`,
+      runToastId = toast.loading(`Running job: ${job.name}`, {
         description: "The job is being executed. This may take a few moments...",
-        duration: 10000, // Longer duration for job execution
+        duration: Infinity, // Keep loading until dismissed/updated
       });
 
       // Prepare the test data
@@ -81,31 +88,47 @@ function RunButton({ job }: { job: Job }) {
       const data = await response.json();
 
       // Show a result toast with more detailed information
-      toast({
-        title: data.success ? "Job completed successfully" : "Job execution failed",
-        description: `Ran ${data.results.length} tests. ${
-          data.success
-            ? "All tests passed."
-            : "Some tests failed. Check the job details for more information."
-        }`,
-        variant: data.success ? "default" : "destructive",
-        duration: 5000,
-      });
-
-      // Navigate to the runs page if a runId is returned
-      if (data.runId) {
-        router.push(`/runs/${data.runId}`);
+      if (data.success) {
+        toast.success("Job completed successfully", {
+          description: (
+            <>
+              Ran {data.results.length} tests. All tests passed.{" "}
+              <a href={`/runs/${data.runId}`} className="underline font-medium">
+                View Run Report
+              </a>
+            </>
+          ),
+          duration: 10000,
+          id: runToastId,
+        });
+      } else {
+        toast.error("Job execution failed", {
+          description: (
+            <>
+              One or more tests did not complete successfully.{" "}
+              <a href={`/runs/${data.runId}`} className="underline font-medium">
+                View Run Report
+              </a>
+            </>
+          ),
+          duration: 10000,
+          id: runToastId,
+        });
       }
+
+      // Remove automatic navigation
+      // if (data.runId) {
+      //   router.push(`/runs/${data.runId}`);
+      // }
 
       // Refresh the page to show updated job status
       router.refresh();
     } catch (error) {
       console.error("Error running job:", error);
-      toast({
-        title: "Error running job",
-        description:
-          error instanceof Error ? error.message : "Failed to run job",
-        variant: "destructive",
+      // Update the loading toast to show error, if it exists
+      toast.error("Error running job", {
+        description: "Failed to execute the job. Please try again later.",
+        id: runToastId,
       });
     } finally {
       setIsRunning(false);
@@ -232,15 +255,9 @@ export const columns: ColumnDef<Job>[] = [
     cell: ({ row }) => {
       const cronSchedule = row.getValue("cronSchedule") as string | null;
       return (
-        <div className="flex items-center w-[120px]">
-          {cronSchedule ? (
-            <>
-              <TimerIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>{cronSchedule}</span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">Not scheduled</span>
-          )}
+        <div className="flex items-center">
+          <TimerIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+          <span>{cronSchedule || "Not scheduled"}</span>
         </div>
       );
     },
@@ -252,28 +269,38 @@ export const columns: ColumnDef<Job>[] = [
     ),
     cell: ({ row }) => {
       const lastRunAt = row.getValue("lastRunAt") as string | null;
-      if (!lastRunAt)
-        return <span className="text-muted-foreground">Never</span>;
-
-      // Format date
-      const date = new Date(lastRunAt);
-      const formattedDate = date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-
+      if (!lastRunAt) {
+        return <div className="text-muted-foreground">Never</div>;
+      }
       return (
-        <div className="flex items-center w-[120px]">
+        <div className="flex items-center">
           <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-          <span>{formattedDate}</span>
+          <span>
+            {new Date(lastRunAt).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
         </div>
       );
     },
   },
-
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} />,
+    cell: ({ row, table }) => {
+      // Explicitly cast table.options.meta to the extended type
+      const meta = table.options.meta as JobsTableMeta | undefined;
+      const onDeleteCallback = meta?.onDeleteJob;
+
+      return (
+        <DataTableRowActions
+          row={row}
+          onDelete={onDeleteCallback ? () => onDeleteCallback(row.original.id) : undefined}
+        />
+      );
+    },
   },
 ];

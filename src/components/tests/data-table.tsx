@@ -13,6 +13,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  TableMeta,
 } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
 
@@ -34,6 +35,16 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   isLoading?: boolean;
   onRowClick?: (row: Row<TData>) => void;
+  meta?: {
+    onDeleteTest?: (id: string) => void;
+    [key: string]: unknown;
+  };
+}
+
+// Define the extended meta type locally
+interface ExtendedTableMeta<TData> extends TableMeta<TData> {
+  globalFilterColumns?: string[];
+  onDeleteTest?: (id: string) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -41,6 +52,7 @@ export function DataTable<TData, TValue>({
   data,
   isLoading,
   onRowClick,
+  meta,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -81,7 +93,8 @@ export function DataTable<TData, TValue>({
     globalFilterFn: "auto",
     meta: {
       globalFilterColumns: ["id", "title"],
-    },
+      ...meta,
+    } as ExtendedTableMeta<TData>,
   });
 
   return (

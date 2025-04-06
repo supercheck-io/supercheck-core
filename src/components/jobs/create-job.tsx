@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/card";
 import { getTests } from "@/actions/get-tests";
 import { createJob } from "@/actions/create-job";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -52,14 +52,8 @@ import { cn } from "@/lib/utils";
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
-  description: z.string(),
-  cronSchedule: z.string(),
-  environment: z.string(),
-  timeoutSeconds: z.string(),
-  retryCount: z.string(),
-  maxRetries: z.string(),
-  backoffFactor: z.string(),
-  variables: z.string(),
+  description: z.string().optional(),
+  cronSchedule: z.string().optional(),
 });
 
 type FormData = z.infer<typeof jobFormSchema>;
@@ -81,12 +75,6 @@ export default function CreateJob() {
       name: "",
       description: "",
       cronSchedule: "",
-      environment: "production",
-      timeoutSeconds: "30",
-      retryCount: "0",
-      maxRetries: "3",
-      backoffFactor: "1.5",
-      variables: "{}",
     },
   });
 
@@ -95,10 +83,8 @@ export default function CreateJob() {
     try {
       // Validate that at least one test is selected
       if (selectedTests.length === 0) {
-        toast({
-          title: "Validation Error",
+        toast.error("Validation Error", {
           description: "Please select at least one test for the job",
-          variant: "destructive",
         });
         return;
       }
@@ -108,44 +94,32 @@ export default function CreateJob() {
         name: values.name.trim(),
         description: values.description?.trim() || "",
         cronSchedule: values.cronSchedule?.trim() || "",
-        timeoutSeconds: parseInt(values.timeoutSeconds),
-        retryCount: parseInt(values.retryCount),
-        config: {
-          environment: values.environment,
-          variables: JSON.parse(values.variables),
-          retryStrategy: {
-            maxRetries: parseInt(values.maxRetries),
-            backoffFactor: parseFloat(values.backoffFactor),
-          },
-        },
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
+
+      console.log("Submitting job data:", jobData);
 
       // Save the job to the database
       const response = await createJob(jobData);
 
       if (response.success) {
-        toast({
-          title: "Success",
-          description: `Job "${jobData.name}" has been created.`,
+        toast.success("Success", {
+          description: `Job \"${jobData.name}\" has been created.`,
         });
 
         // Navigate to the jobs page
         router.push("/jobs");
       } else {
-        toast({
-          title: "Failed to create job",
+        console.error("Failed to create job:", response.error);
+        toast.error("Failed to create job", {
           description: response.error || "An unknown error occurred",
-          variant: "destructive",
         });
       }
     } catch (error) {
       console.error("Error creating job:", error);
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description:
           error instanceof Error ? error.message : "An unknown error occurred",
-        variant: "destructive",
       });
     }
   });
@@ -251,15 +225,17 @@ export default function CreateJob() {
         <CardContent className="space-y-6">
           <Form {...form}>
             <form onSubmit={onSubmit} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="name"
                   render={({ field }: { field: ControllerRenderProps<FormData, "name"> }) => (
                     <FormItem>
-                      <FormLabel>Job Name</FormLabel>
+                      <FormLabel>
+                        Job Name <span className="text-red-500">*</span>
+                      </FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} placeholder="Enter job name" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -270,9 +246,11 @@ export default function CreateJob() {
                   name="cronSchedule"
                   render={({ field }: { field: ControllerRenderProps<FormData, "cronSchedule"> }) => (
                     <FormItem>
-                      <FormLabel>Cron Schedule</FormLabel>
+                      <FormLabel>
+                        Cron Schedule <span className="text-gray-500">(optional)</span>
+                      </FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} placeholder="e.g. 0 0 * * *" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -284,9 +262,11 @@ export default function CreateJob() {
                 name="description"
                 render={({ field }: { field: ControllerRenderProps<FormData, "description"> }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>
+                      Description <span className="text-gray-500">(optional)</span>
+                    </FormLabel>
                     <FormControl>
-                      <Textarea {...field} />
+                      <Textarea {...field} placeholder="Enter job description" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -294,7 +274,9 @@ export default function CreateJob() {
               />
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Select Tests</h3>
+                  <h3 className="text-lg font-medium">
+                    Select Tests <span className="text-red-500">*</span>
+                  </h3>
                   {selectedTests.length === 0 && (
                     <p className="text-sm text-destructive">At least one test is required</p>
                   )}

@@ -17,8 +17,6 @@ import {
   ClockIcon,
   TimerIcon,
   Edit,
-  PlayIcon,
-  Loader2,
 } from "lucide-react";
 import {
   Table,
@@ -49,9 +47,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { getJobs } from "@/actions/get-jobs";
-import { cn } from "@/lib/utils";
 import { useJobContext } from "./job-context";
 
 // Helper function to map incoming types to the valid Test["type"]
@@ -81,8 +78,7 @@ export default function Jobs() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isEditTestDialogOpen, setIsEditTestDialogOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
-  const [isRunningJob, setIsRunningJob] = useState(false);
-  const { isAnyJobRunning, setJobRunning } = useJobContext();
+  const { } = useJobContext();
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch jobs from the database on component mount
@@ -109,21 +105,17 @@ export default function Jobs() {
           setJobs(typedJobs);
         } else {
           console.error("Failed to fetch jobs:", response.error);
-          toast({
-            title: "Failed to fetch jobs",
+          toast.error("Failed to fetch jobs", {
             description: response.error || "An unknown error occurred",
-            variant: "destructive",
           });
         }
       } catch (error) {
         console.error("Error fetching jobs:", error);
-        toast({
-          title: "Error fetching jobs",
+        toast.error("Error fetching jobs", {
           description:
             error instanceof Error
               ? error.message
               : "An unknown error occurred",
-          variant: "destructive",
         });
       } finally {
         setIsLoading(false);
@@ -132,34 +124,6 @@ export default function Jobs() {
 
     fetchJobs();
   }, []);
-
-  const refreshJobs = async () => {
-    setIsLoading(true);
-    try {
-      const response = await getJobs();
-      if (response.success && response.jobs) {
-        const typedJobs = response.jobs.map((job) => ({
-          ...job,
-          status: job.status as Job['status'],
-          description: job.description || null,
-          cronSchedule: job.cronSchedule || null,
-          tests: job.tests.map((test) => ({
-            ...test,
-            type: test.type as Test['type'],
-            description: test.description || null,
-            status: (test.status || "pending") as Test['status'],
-            lastRunAt: test.lastRunAt || null,
-            duration: test.duration || null,
-          })),
-        }));
-        setJobs(typedJobs);
-      }
-    } catch (error) {
-      console.error("Error refreshing jobs:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // Edit an existing test
   const handleEditTest = () => {
@@ -191,115 +155,6 @@ export default function Jobs() {
     }
   };
 
-  // Function to run a job
-  const runJob = async (job: Job) => {
-    if (isAnyJobRunning) {
-      toast({
-        title: "Cannot run job",
-        description: "Another job is currently running. Please wait for it to complete.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!job.tests || job.tests.length === 0) {
-      toast({
-        title: "No tests to run",
-        description: "This job doesn't have any tests to run.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsRunningJob(true);
-    setJobRunning(true);
-
-    try {
-      console.log("Running job:", job.id);
-
-      // Prepare the test data
-      const testData = job.tests.map((test) => ({
-        id: test.id,
-        name: test.name || "",
-        title: test.name || "", // Include title as a fallback
-      }));
-
-      // Use the dedicated API endpoint for running jobs
-      const response = await fetch("/api/jobs/run", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          jobId: job.id,
-          tests: testData,
-        }),
-        cache: "no-store",
-      });
-
-      console.log("Response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error response:", errorText);
-        throw new Error(`Failed to run job: ${response.status} ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log("Response data:", data);
-
-      // Update the job status based on the test results
-      const finalJob = {
-        ...job,
-        status: data.success ? ("completed" as const) : ("failed" as const),
-        lastRunAt: new Date().toISOString(),
-      };
-
-      // Update the local state
-      setSelectedJob(finalJob);
-
-      toast({
-        title: data.success ? "Job completed successfully" : "Job failed",
-        description: `Ran ${data.results.length} tests. ${
-          data.results.filter((r: { success: boolean }) => r.success).length
-        } passed, ${
-          data.results.filter((r: { success: boolean }) => !r.success).length
-        } failed.`,
-        variant: data.success ? "default" : "destructive",
-      });
-
-      // Navigate to the runs page if a runId is returned
-      if (data.runId) {
-        console.log("Navigating to run:", data.runId);
-        router.push(`/runs/${data.runId}`);
-      } else {
-        console.warn("No runId returned from API");
-      }
-    } catch (error) {
-      console.error("Error running job:", error);
-
-      toast({
-        title: "Failed to run job",
-        description:
-          error instanceof Error ? error.message : "An unknown error occurred",
-        variant: "destructive",
-      });
-
-      // Update the job status to failed
-      const failedJob = {
-        ...job,
-        status: "failed" as const,
-      };
-
-      // Update the local state
-      setSelectedJob(failedJob);
-    } finally {
-      setIsRunningJob(false);
-      setJobRunning(false);
-      refreshJobs();
-    }
-  };
-
   // Format date for display
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "N/A";
@@ -324,6 +179,18 @@ export default function Jobs() {
           setSelectedJob(row.original);
           setIsSheetOpen(true);
         }}
+        meta={{
+          onDeleteJob: (jobId: string) => {
+            // Update local state by filtering out the deleted job
+            setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId));
+            
+            // If the deleted job is currently selected, close the sheet
+            if (selectedJob && selectedJob.id === jobId) {
+              setIsSheetOpen(false);
+              setSelectedJob(null);
+            }
+          }
+        }}
       />
 
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
@@ -342,46 +209,6 @@ export default function Jobs() {
                     >
                       <Edit className="h-4 w-4 mr-2" />
                       Edit Job
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => selectedJob && runJob(selectedJob)}
-                      disabled={
-                        isRunningJob ||
-                        isAnyJobRunning ||
-                        !selectedJob ||
-                        !selectedJob.tests ||
-                        selectedJob.tests.length === 0
-                      }
-                      className={cn(
-                        "bg-blue-500 hover:bg-blue-600",
-                        "text-white",
-                        "shadow-sm",
-                        "transition-all duration-200",
-                        "flex items-center gap-2",
-                        "cursor-pointer",
-                        (isRunningJob || isAnyJobRunning) && "opacity-80 cursor-not-allowed"
-                      )}
-                      title={
-                        isAnyJobRunning
-                          ? "Another job is currently running"
-                          : !selectedJob?.tests || selectedJob.tests.length === 0
-                          ? "No tests available to run"
-                          : "Run job"
-                      }
-                    >
-                      {isRunningJob ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Running...
-                        </>
-                      ) : (
-                        <>
-                          <PlayIcon className="h-4 w-4" />
-                          Run Job
-                        </>
-                      )}
                     </Button>
                   </div>
                 </div>

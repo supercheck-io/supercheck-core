@@ -169,15 +169,15 @@ const Playground: React.FC<PlaygroundProps> = ({
         setTestId(id);
       } else {
         console.error("Failed to load test:", result.error);
-        toast.error(`Failed to load test: ${result.error || "Unknown error"}`);
+        toast.error("Error loading test", {
+          description: "Failed to load test details. Please try again later.",
+        });
       }
     } catch (error) {
       console.error("Error loading test:", error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "An error occurred while loading the test."
-      );
+      toast.error("Error", {
+        description: "Failed to load test details. Please try again later.",
+      });
     } finally {
       setLoading(false);
     }
@@ -308,6 +308,13 @@ const Playground: React.FC<PlaygroundProps> = ({
   const runPlaywrightTest = async () => {
     setIsRunning(true);
     setActiveTab("report");
+    
+    // Use a unique ID for the loading toast so we can specifically dismiss it
+    const loadingToastId = toast.loading(
+      "Test Running", {
+        description: "This may take a few moments...",
+      }
+    );
 
     try {
       // Prepare the request body with the current editor content
@@ -315,8 +322,6 @@ const Playground: React.FC<PlaygroundProps> = ({
         ...testCase,
         script: editorContent, // Use the current editor content
       };
-
-      toast.loading("Running test...");
 
       const response = await fetch("/api/test", {
         method: "POST",
@@ -332,8 +337,10 @@ const Playground: React.FC<PlaygroundProps> = ({
 
       const result = await response.json();
 
-      toast.dismiss();
+      // Dismiss the specific loading toast
+      toast.dismiss(loadingToastId);
 
+      // Set report URL and test IDs regardless of success or failure
       if (result.reportUrl && result.testId) {
         // Use the API URL directly
         setReportUrl(result.reportUrl);
@@ -346,21 +353,54 @@ const Playground: React.FC<PlaygroundProps> = ({
 
         // Mark this test as completed
         setCompletedTestIds((prev: string[]) => [...prev, apiTestId]);
-
-        toast.success("Test completed successfully");
       }
 
+      // Check for errors first
       if (result.error) {
-        toast.error(result.error);
+        console.error("Test execution error:", result.error);
+        
+        // Show user-friendly error message based on error type
+        if (result.error.includes("ConnectionError") || result.error.includes("getaddrinfo ENOTFOUND")) {
+          toast.error("Database Connection Error", {
+            description: "Failed to connect to the database. Please check your database configuration and try again.",
+            duration: 5000,
+          });
+        } else if (result.error.includes("exit code 1")) {
+          toast.error("Test Execution Failed", {
+            description: "The test encountered an error during execution. Please check your test script and try again.",
+            duration: 5000,
+          });
+        } else {
+          toast.error("Test Error", {
+            description: "An unexpected error occurred while running the test. Please try again.",
+            duration: 5000,
+          });
+        }
+      } 
+      // Check if test was not successful
+      else if (!result.success) {
+        console.error("Test execution failed:", result.error);
+        toast.error("Test Execution Failed", {
+          description: "The test could not be completed successfully. Please check your test configuration and try again.",
+          duration: 5000,
+        });
+      } 
+      // Only show success message if all tests passed with no errors
+      else {
+        toast.success("Test Completed", {
+        description: "Test execution was successful.",
+      duration: 5000,}
+    )
+          
+        
       }
     } catch (error) {
-      toast.dismiss();
+      // Dismiss the loading toast
+      toast.dismiss(loadingToastId);
       console.error("Error running test:", error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "An error occurred while running the test."
-      );
+      toast.error("Test Execution Error", {
+        description: "Unable to run the test at this time. Please try again later.",
+      });
     } finally {
       setIsRunning(false);
     }

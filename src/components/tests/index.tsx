@@ -51,7 +51,18 @@ export default function Tests() {
 
   return (
     <div className="flex h-full flex-col space-y-4 p-4">
-      <DataTable columns={columns} data={tests} isLoading={isLoading} onRowClick={handleRowClick} />
+      <DataTable 
+        columns={columns} 
+        data={tests} 
+        isLoading={isLoading} 
+        onRowClick={handleRowClick}
+        meta={{
+          onDeleteTest: (testId: string) => {
+            // Update local state by filtering out the deleted test
+            setTests((prevTests) => prevTests.filter((test) => test.id !== testId));
+          }
+        }} 
+      />
 
       {selectedTest && (
         <div className="space-y-2 py-2">

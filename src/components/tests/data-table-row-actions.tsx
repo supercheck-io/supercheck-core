@@ -21,16 +21,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
+import { deleteTest } from "@/actions/delete-test";
 
 import { testSchema } from "./data/schema";
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
+  onDelete?: () => void;
 }
 
 export function DataTableRowActions<TData>({
   row,
+  onDelete,
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const test = testSchema.parse(row.original);
@@ -48,51 +51,47 @@ export function DataTableRowActions<TData>({
     setIsDeleting(true);
 
     // Show a loading toast for delete operation
-    toast({
-      title: "Deleting test...",
+    const deleteToastId = toast.loading("Deleting test...", {
       description: "Please wait while we delete the test.",
-      duration: 3000,
+      duration: Infinity, // Keep loading until dismissed
     });
 
     try {
-      // Call the DELETE endpoint to remove the test
-      const response = await fetch(`/api/tests?id=${test.id}`, {
-        method: "DELETE",
-      });
+      // Use the server action to delete the test
+      const result = await deleteTest(test.id);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        // Check for the specific 409 Conflict status code
-        if (response.status === 409) {
-          toast({
-            title: "Cannot Delete Test",
-            description: errorData.error || "This test is currently used in a job.",
-            variant: "destructive",
+      if (!result.success) {
+        // Check for specific error codes
+        if (result.errorCode === 409) {
+          toast.error("Cannot Delete Test", {
+            description: result.error || "This test is currently used in a job.",
             duration: 5000, // Show for longer
+            id: deleteToastId, // Update the loading toast
           });
+          return;
         } else {
-          // Throw error for other non-ok responses
-          throw new Error(errorData.error || "Failed to delete test");
+          throw new Error(result.error || "Failed to delete test");
         }
-        // Return early after handling the error toast
-        return;
       }
 
-      toast({
-        title: "Test deleted successfully",
-        description: `Test &quot;${test.title}&quot; has been permanently removed.`,
-        variant: "default",
+      toast.success("Test deleted successfully", {
+        description: `Test \"${test.title}\" has been permanently removed.`,
+        id: deleteToastId, // Update the loading toast
       });
+
+      // Call onDelete callback if provided
+      if (onDelete) {
+        onDelete();
+      }
 
       // Refresh the page to update the test list
       router.refresh();
     } catch (error) {
       console.error("Error deleting test:", error);
-      toast({
-        title: "Error deleting test",
+      toast.error("Error deleting test", {
         description:
           error instanceof Error ? error.message : "Failed to delete test",
-        variant: "destructive",
+        id: deleteToastId, // Update the loading toast
       });
     } finally {
       setIsDeleting(false);

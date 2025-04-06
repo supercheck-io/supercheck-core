@@ -19,7 +19,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { XCircle } from "lucide-react";
 import {
   Dialog,
@@ -32,43 +31,40 @@ import {
 import { getTests } from "@/actions/get-tests";
 import { getJob } from "@/actions/get-jobs";
 import { updateJob } from "@/actions/update-job";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { PlusCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Search } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { tests, jobs } from "@/db/schema";
+import { tests } from "@/db/schema";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/form";
+import { ControllerRenderProps } from "react-hook-form";
+import { cn } from "@/lib/utils";
 
 type DbTest = typeof tests.$inferSelect;
-type DbJob = typeof jobs.$inferSelect;
 
 export type TestPriority = "low" | "medium" | "high";
 export type TestType = "browser" | "api" | "multistep" | "database";
 
-// Map UI test type to database test type
-// function mapTestType(uiType: string): TestType {
-//   switch (uiType) {
-//     case "ui":
-//       return "browser";
-//     case "integration":
-//       return "multistep";
-//     case "performance":
-//       return "database";
-//     case "api":
-//       return "api";
-//     default:
-//       return "api";
-//   }
-// }
+// Job form validation schema
+const jobFormSchema = z.object({
+  name: z.string().min(1, "Job name is required"),
+  description: z.string().optional(),
+  cronSchedule: z.string().optional(),
+});
 
-// interface JobData {
-//   id: string;
-//   name: string;
-//   description: string;
-//   cronSchedule: string;
-//   tests: { id: string }[];
-// }
+type FormData = z.infer<typeof jobFormSchema>;
 
 export default function EditJob() {
   const router = useRouter();
@@ -92,19 +88,15 @@ export default function EditJob() {
     { label: jobId, href: `/jobs/${jobId}`, isCurrentPage: true },
   ];
 
-  // Form state
-  const [formState, setFormState] = useState<Partial<DbJob>>({
-    name: "",
-    description: "",
-    cronSchedule: "",
+  // Form with react-hook-form and zod validation
+  const form = useForm<FormData>({
+    resolver: zodResolver(jobFormSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      cronSchedule: "",
+    },
   });
-
-  const updateFormState = (field: keyof DbJob, value: string) => {
-    setFormState((prev) => ({
-      ...prev,
-      [field]: value || "",
-    }));
-  };
 
   const loadJob = useCallback(async () => {
     try {
@@ -116,10 +108,12 @@ export default function EditJob() {
       }
 
       const job = response.job;
-      setFormState({
+      
+      // Update form with job data
+      form.reset({
         name: job.name,
-        description: job.description,
-        cronSchedule: job.cronSchedule,
+        description: job.description || "",
+        cronSchedule: job.cronSchedule || "",
       });
 
       // Map the tests from the action response to the DbTest structure required by the state
@@ -139,17 +133,14 @@ export default function EditJob() {
       setAvailableTests(tests);
     } catch (error) {
       console.error("Error loading job:", error);
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to load job details",
-        variant: "destructive",
+      toast.error("Error", {
+        description: "Failed to load job details. Please try again later.",
       });
       router.push("/jobs");
     } finally {
       setIsLoadingJob(false);
     }
-  }, [jobId, router]);
+  }, [jobId, router, form]);
 
   const loadAvailableTests = useCallback(async () => {
     try {
@@ -173,10 +164,8 @@ export default function EditJob() {
       setAvailableTests(tests);
     } catch (error) {
       console.error("Error loading tests:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load available tests",
-        variant: "destructive",
+      toast.error("Error", {
+        description: "Failed to load available tests. Please try again later.",
       });
     } finally {
       setIsLoadingTests(false);
@@ -205,26 +194,37 @@ export default function EditJob() {
     setSelectedTests((prev) => prev.filter((test) => test.id !== testId));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Initialize test selections when dialog opens
+  useEffect(() => {
+    if (isSelectTestsDialogOpen) {
+      const initialSelections: Record<string, boolean> = {};
+      availableTests.forEach((test) => {
+        initialSelections[test.id] = selectedTests.some(
+          (selected) => selected.id === test.id
+        );
+      });
+      setTestSelections(initialSelections);
+    }
+  }, [isSelectTestsDialogOpen, availableTests, selectedTests]);
+
+  const onSubmit = form.handleSubmit(async (values: FormData) => {
     setIsSubmitting(true);
 
     try {
-      // Validate required fields
-      if (!formState.name?.trim()) {
-        toast({
-          title: "Error",
-          description: "Job name is required",
-          variant: "destructive",
+      // Validate that at least one test is selected
+      if (selectedTests.length === 0) {
+        toast.error("Validation Error", {
+          description: "Please select at least one test for the job",
         });
+        setIsSubmitting(false);
         return;
       }
 
       const jobData = {
         id: jobId,
-        name: formState.name.trim(),
-        description: formState.description?.trim() || "",
-        cronSchedule: formState.cronSchedule?.trim() || "",
+        name: values.name.trim(),
+        description: values.description?.trim() || "",
+        cronSchedule: values.cronSchedule?.trim() || "",
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
 
@@ -234,22 +234,22 @@ export default function EditJob() {
         throw new Error(response.error || "Failed to update job");
       }
 
-      toast({
-        title: "Success",
-        description: "Job updated successfully",
+      toast.success("Success", {
+        description: "Job updated successfully.",
+        duration: 5000,
       });
+      
+      // Navigate to jobs page after successful update
       router.push("/jobs");
     } catch (error) {
       console.error("Error updating job:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update job",
-        variant: "destructive",
+      toast.error("Error", {
+        description: "Failed to update job. Please try again later.",
       });
     } finally {
       setIsSubmitting(false);
     }
-  };
+  });
 
   if (isLoadingJob) {
     return (
@@ -268,102 +268,136 @@ export default function EditJob() {
           <CardDescription>Update job configuration</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Job Name</Label>
-                <Input
-                  id="name"
+          <Form {...form}>
+            <form onSubmit={onSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
                   name="name"
-                  value={formState.name}
-                  onChange={(e) => updateFormState("name", e.target.value)}
+                  render={({ field }: { field: ControllerRenderProps<FormData, "name"> }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Job Name <span className="text-red-500">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Enter job name" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cronSchedule">Cron Schedule</Label>
-                <Input
-                  id="cronSchedule"
+                <FormField
+                  control={form.control}
                   name="cronSchedule"
-                  value={formState.cronSchedule || ""}
-                  onChange={(e) => updateFormState("cronSchedule", e.target.value)}
+                  render={({ field }: { field: ControllerRenderProps<FormData, "cronSchedule"> }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Cron Schedule <span className="text-gray-500">(optional)</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g. 0 0 * * *" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
+              <FormField
+                control={form.control}
                 name="description"
-                value={formState.description || ""}
-                onChange={(e) => updateFormState("description", e.target.value)}
+                render={({ field }: { field: ControllerRenderProps<FormData, "description"> }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Description <span className="text-gray-500">(optional)</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="Enter job description" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Selected Tests</h3>
-              <div className="flex justify-center">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">
+                    Selected Tests <span className="text-red-500">*</span>
+                  </h3>
+                  {selectedTests.length === 0 && (
+                    <p className="text-sm text-destructive">At least one test is required</p>
+                  )}
+                </div>
+                <div className="flex justify-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsSelectTestsDialogOpen(true)}
+                    className={cn(
+                      selectedTests.length === 0 && "border-destructive",
+                      "transition-colors"
+                    )}
+                  >
+                    <PlusCircle className={cn(
+                      "mr-2 h-4 w-4",
+                      selectedTests.length === 0 && "text-destructive"
+                    )} />
+                    Select Tests
+                  </Button>
+                </div>
+                {selectedTests.length > 0 && (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[120px]">ID</TableHead>
+                        <TableHead className="w-[200px]">Name</TableHead>
+                        <TableHead className="w-[100px]">Type</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedTests.map((test) => (
+                        <TableRow key={test.id}>
+                          <TableCell className="font-mono text-sm truncate" title={test.id}>
+                            {test.id.substring(0, 8)}...
+                          </TableCell>
+                          <TableCell className="truncate" title={test.title}>
+                            {test.title}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{test.type}</Badge>
+                          </TableCell>
+                          <TableCell className="truncate" title={test.description || ""}>
+                            {test.description}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeTest(test.id)}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+              <div className="flex justify-end space-x-4 mt-6">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsSelectTestsDialogOpen(true)}
+                  onClick={() => router.push("/jobs")}
                 >
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Select Tests
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Updating..." : "Update Job"}
                 </Button>
               </div>
-              {selectedTests.length > 0 && (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[120px]">ID</TableHead>
-                      <TableHead className="w-[200px]">Name</TableHead>
-                      <TableHead className="w-[100px]">Type</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="w-[100px]">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedTests.map((test) => (
-                      <TableRow key={test.id}>
-                        <TableCell className="font-mono text-sm truncate" title={test.id}>
-                          {test.id.substring(0, 8)}...
-                        </TableCell>
-                        <TableCell className="truncate" title={test.title}>
-                          {test.title}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{test.type}</Badge>
-                        </TableCell>
-                        <TableCell className="truncate" title={test.description || ""}>
-                          {test.description}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeTest(test.id)}
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-            <div className="flex justify-end space-x-4 mt-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push("/jobs")}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Updating..." : "Update Job"}
-              </Button>
-            </div>
-          </form>
+            </form>
+          </Form>
         </CardContent>
       </Card>
       <Dialog
@@ -542,18 +576,33 @@ export default function EditJob() {
                   Next
                 </Button>
               </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsSelectTestsDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleSelectTests}>
-                  Confirm Selection
-                </Button>
-              </DialogFooter>
+              <div className="mt-4 flex justify-between items-center">
+                <div className="text-sm text-muted-foreground">
+                  {
+                    Object.keys(testSelections).filter(
+                      (id) => testSelections[id]
+                    ).length
+                  }{" "}
+                  test
+                  {Object.keys(testSelections).filter(
+                    (id) => testSelections[id]
+                  ).length !== 1
+                    ? "s"
+                    : ""}{" "}
+                  selected
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsSelectTestsDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSelectTests}>
+                    Confirm Selection
+                  </Button>
+                </DialogFooter>
+              </div>
             </>
           )}
         </DialogContent>
