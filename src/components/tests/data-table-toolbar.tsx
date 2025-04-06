@@ -1,12 +1,12 @@
 import type { Table } from "@tanstack/react-table";
-import { X, PlusIcon } from "lucide-react";
+import { PlusCircle, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTableViewOptions } from "./data-table-view-options";
 import { useRouter } from "next/navigation";
 
-import { priorities, types } from "./data/data";
+import { types, priorities } from "./data/data";
 
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 
@@ -17,12 +17,8 @@ interface DataTableToolbarProps<TData> {
 export function DataTableToolbar<TData>({
   table,
 }: DataTableToolbarProps<TData>) {
-  const isFiltered = table.getState().columnFilters.length > 0;
+  const isFiltered = table.getState().columnFilters.length > 0 || !!table.getState().globalFilter;
   const router = useRouter();
-
-  const handleCreateTest = () => {
-    router.push("/playground?scriptType=browser");
-  };
 
   return (
     <div className="flex items-center justify-between mb-4">
@@ -35,22 +31,11 @@ export function DataTableToolbar<TData>({
 
       <div className="flex items-center space-x-2">
         <Input
-          placeholder="Filter tests..."
-          value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("title")?.setFilterValue(event.target.value)
-          }
-          className="h-8 w-[150px] lg:w-[200px]"
+          placeholder="Filter by ID or name..."
+          value={(table.getState().globalFilter as string) ?? ""}
+          onChange={(event) => table.setGlobalFilter(event.target.value)}
+          className="h-8 w-[200px] lg:w-[250px]"
         />
-
-        {table.getColumn("priority") && (
-          <DataTableFacetedFilter
-            column={table.getColumn("priority")}
-            title="Priority"
-            options={priorities}
-          />
-        )}
-
         {table.getColumn("type") && (
           <DataTableFacetedFilter
             column={table.getColumn("type")}
@@ -58,26 +43,33 @@ export function DataTableToolbar<TData>({
             options={types}
           />
         )}
-
+        {table.getColumn("priority") && (
+          <DataTableFacetedFilter
+            column={table.getColumn("priority")}
+            title="Priority"
+            options={priorities}
+          />
+        )}
         {isFiltered && (
           <Button
             variant="ghost"
-            onClick={() => table.resetColumnFilters()}
-            className="h-8 px-2"
+            onClick={() => {
+              table.resetColumnFilters();
+              table.setGlobalFilter("");
+            }}
+            className="h-8 px-2 lg:px-3"
           >
             Reset
             <X className="ml-2 h-4 w-4" />
           </Button>
         )}
-
         <DataTableViewOptions table={table} />
-
         <Button
-          onClick={handleCreateTest}
-          size="sm"
-          className="h-8 cursor-pointer"
+          className="cursor-pointer"
+          onClick={() => router.push("/tests/create")}
         >
-          <PlusIcon className="mr-2 h-4 w-4" /> New Test
+          <PlusCircle className="h-4 w-4 mr-2" />
+          Create New Test
         </Button>
       </div>
     </div>

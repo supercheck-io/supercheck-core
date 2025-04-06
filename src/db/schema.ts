@@ -148,7 +148,7 @@ import {
    priority level, test type, tags (stored as JSON), and audit fields for
    who created and last updated the test case.
 =================================== */
-export type TestPriority = "low" | "medium" | "high" | "critical";
+export type TestPriority = "low" | "medium" | "high";
 export type TestType = "browser" | "api" | "multistep" | "database";
 export const tests = sqliteTable("tests", {
   id: text("id")
@@ -213,15 +213,16 @@ export const jobs = sqliteTable("jobs", {
   description: text("description"),
   cronSchedule: text("cron_schedule"),
   status: text("status").$type<JobStatus>().notNull().default("pending"),
-  config: text("config", { mode: "json" }).$type<JobConfig>(),
-  retryCount: int("retry_count").default(0),
-  timeoutSeconds: int("timeout_seconds").default(1800),
+  // config: text("config", { mode: "json" }).$type<JobConfig>(),
+  // retryCount: int("retry_count").default(0),
+  // timeoutSeconds: int("timeout_seconds").default(600),
   lastRunAt: text("last_run_at"),
   nextRunAt: text("next_run_at"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 // export const jobsProjectIdIdx = index("jobs_project_id_idx").on(jobs.projectId);
+export const jobsNameIdx = index("jobs_name_idx").on(jobs.name);
 export const jobsStatusIdx = index("jobs_status_idx").on(jobs.status);
 export const jobsNextRunAtIdx = index("jobs_next_run_at_idx").on(
   jobs.nextRunAt

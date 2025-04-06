@@ -28,17 +28,17 @@ export function CreateCard({
   return (
     <Card
       className={cn(
-        "cursor-pointer hover:border-primary transition-colors w-full h-full ",
+        "cursor-pointer hover:border-primary transition-colors w-full",
         className
       )}
       onClick={onClick}
     >
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+      <CardHeader className="p-4">
+        <CardTitle className="text-base font-semibold">{title}</CardTitle>
+        <CardDescription className="text-sm">{description}</CardDescription>
       </CardHeader>
-      <CardContent className="p-4 sm:p-6 flex flex-col gap-2 h-full border-dashed">
-        <div className="text-xl sm:text-2xl text-primary">{icon}</div>
+      <CardContent className="p-4 pt-0 flex flex-col gap-2">
+        <div className="text-xl text-primary">{icon}</div>
       </CardContent>
     </Card>
   );

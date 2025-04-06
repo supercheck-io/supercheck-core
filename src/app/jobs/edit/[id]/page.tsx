@@ -1,17 +1,8 @@
 "use client";
-import { useRouter } from "next/navigation";
-import React, { useState, useEffect } from "react";
-import { z } from "zod";
+import { useRouter, useParams } from "next/navigation";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -19,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -29,9 +19,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock4 } from "lucide-react";
+import { XCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -44,33 +33,33 @@ import { getTests } from "@/actions/get-tests";
 import { getJob } from "@/actions/get-jobs";
 import { updateJob } from "@/actions/update-job";
 import { toast } from "@/components/ui/use-toast";
+import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
+import { PlusCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Search } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { tests, jobs } from "@/db/schema";
 
-import { useParams } from "next/navigation";
+type DbTest = typeof tests.$inferSelect;
+type DbJob = typeof jobs.$inferSelect;
 
-// Form schema for job validation
-const formSchema = z.object({
-  name: z.string().min(1, "Job name is required"),
-  description: z.string().optional(),
-  cronSchedule: z.string().optional(),
-  status: z
-    .enum(["pending", "running", "completed", "failed", "cancelled"])
-    .default("pending"),
-  environment: z.string().optional(),
-  timeoutSeconds: z.coerce.number().min(1).default(1800),
-  retryCount: z.coerce.number().min(0).default(0),
-  maxRetries: z.coerce.number().min(0).optional(),
-  backoffFactor: z.coerce.number().min(1).optional(),
-  variables: z.string(),
-});
+export type TestPriority = "low" | "medium" | "high";
+export type TestType = "browser" | "api" | "multistep" | "database";
 
-interface Test {
-  id: string;
-  name: string;
-  description: string | null;
-  type: "api" | "ui" | "integration" | "performance" | "security";
-  status?: "pending" | "pass" | "fail" | "skipped";
-  lastRunAt?: string | null;
-  duration?: number | null;
+// Map UI test type to database test type
+function mapTestType(uiType: string): TestType {
+  switch (uiType) {
+    case "ui":
+      return "browser";
+    case "integration":
+      return "multistep";
+    case "performance":
+      return "database";
+    case "api":
+      return "api";
+    default:
+      return "api";
+  }
 }
 
 interface JobData {
@@ -85,552 +74,490 @@ export default function EditJob() {
   const router = useRouter();
   const params = useParams();
   const jobId = params.id as string;
-  const [selectedTests, setSelectedTests] = useState<Test[]>([]);
+  const [selectedTests, setSelectedTests] = useState<DbTest[]>([]);
   const [isSelectTestsDialogOpen, setIsSelectTestsDialogOpen] = useState(false);
-  const [testSelections, setTestSelections] = useState<Record<string, boolean>>(
-    {}
-  );
-  const [activeTab, setActiveTab] = useState("basic");
-  const [availableTests, setAvailableTests] = useState<Test[]>([]);
-  const [isLoadingTests, setIsLoadingTests] = useState(true);
+  const [testSelections, setTestSelections] = useState<Record<string, boolean>>({});
+  const [availableTests, setAvailableTests] = useState<DbTest[]>([]);
   const [isLoadingJob, setIsLoadingJob] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingTests, setIsLoadingTests] = useState(true);
+  const [testFilter, setTestFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const breadcrumbs = [
+    { label: "Home", href: "/" },
+    { label: "Jobs", href: "/jobs" },
+    { label: "Edit", isCurrentPage: true },
+    { label: jobId, href: `/jobs/${jobId}`, isCurrentPage: true },
+  ];
 
   // Form state
-  const [formState, setFormState] = useState({
+  const [formState, setFormState] = useState<Partial<DbJob>>({
     name: "",
     description: "",
     cronSchedule: "",
-    status: "pending" as
-      | "pending"
-      | "running"
-      | "completed"
-      | "failed"
-      | "cancelled",
   });
 
-  // Form validation errors
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Get status icon for test
-  const getTestStatusIcon = (status: string | undefined) => {
-    switch (status) {
-      case "pass":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "fail":
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case "pending":
-        return <Clock4 className="h-4 w-4 text-yellow-500" />;
-      case "skipped":
-        return <Clock4 className="h-4 w-4 text-gray-500" />;
-      default:
-        return <Clock4 className="h-4 w-4 text-yellow-500" />;
-    }
+  const updateFormState = (field: keyof DbJob, value: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      [field]: value || "",
+    }));
   };
 
-  // Format date for display
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "N/A";
-
+  const loadJob = useCallback(async () => {
     try {
-      const date = new Date(dateString);
-      return new Intl.DateTimeFormat("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "numeric",
-      }).format(date);
-    } catch {
-      return "Invalid Date";
-    }
-  };
-
-  // Handle form input changes
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormState({
-      ...formState,
-      [name]: value,
-    });
-  };
-
-  // Handle select changes
-  const handleSelectChange = (name: string, value: string) => {
-    setFormState({
-      ...formState,
-      [name]: value,
-    });
-  };
-
-  // Fetch job data on component mount
-  useEffect(() => {
-    async function fetchJob() {
       setIsLoadingJob(true);
-      try {
-        const response = await getJob(jobId);
-        if (response.success && response.job) {
-          const job = response.job;
-          // Set form state from job data
-          setFormState({
-            name: job.name,
-            description: job.description || "",
-            cronSchedule: job.cronSchedule || "",
-            status: job.status,
-          });
+      const response = await getJob(jobId);
 
-          // Set selected tests
-          if (job.tests && job.tests.length > 0) {
-            const formattedTests = job.tests.map((test) => ({
-              id: test.id,
-              name: test.name,
-              description: test.description,
-              type: test.type,
-              status: test.status || "pending",
-              lastRunAt: test.lastRunAt,
-              duration: test.duration,
-            }));
-            setSelectedTests(formattedTests);
-          }
-        } else {
-          console.error("Failed to fetch job:", response.error);
-          toast({
-            title: "Error",
-            description: "Failed to load job data. " + (response.error || ""),
-            variant: "destructive",
-          });
-          router.push("/jobs");
-        }
-      } catch (error) {
-        console.error("Error fetching job:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load job data",
-          variant: "destructive",
-        });
-        router.push("/jobs");
-      } finally {
-        setIsLoadingJob(false);
+      if (!response.success || !response.job) {
+        throw new Error(response.error || "Job not found");
       }
-    }
 
-    fetchJob();
+      const job = response.job;
+      setFormState({
+        name: job.name,
+        description: job.description,
+        cronSchedule: job.cronSchedule,
+      });
+
+      // Map the tests from the action response to the DbTest structure required by the state
+      const tests = job.tests.map((test): DbTest => ({
+        id: test.id,
+        title: test.name, // Map 'name' from action to 'title' for UI state
+        description: test.description || null, // Ensure description can be null
+        type: test.type, // Use the type directly from the action response
+        // Ensure other required DbTest fields have default/appropriate values
+        script: "", // Provide a default empty script
+        priority: "medium" as TestPriority, // Cast default priority
+        createdAt: null, // Set to null
+        updatedAt: null, // Set to null
+      }));
+
+      setSelectedTests(tests);
+      setAvailableTests(tests);
+    } catch (error) {
+      console.error("Error loading job:", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to load job details",
+        variant: "destructive",
+      });
+      router.push("/jobs");
+    } finally {
+      setIsLoadingJob(false);
+    }
   }, [jobId, router]);
 
-  // Fetch tests from database on component mount
-  useEffect(() => {
-    async function fetchTests() {
+  const loadAvailableTests = useCallback(async () => {
+    try {
       setIsLoadingTests(true);
-      try {
-        const response = await getTests();
-        if (response.success && response.tests) {
-          // Convert the database test format to the format used in this component
-          const formattedTests = response.tests.map((test) => ({
-            id: test.id,
-            name: test.title,
-            description: test.description || "",
-            type: test.type as
-              | "api"
-              | "ui"
-              | "integration"
-              | "performance"
-              | "security",
-            status: "pending" as const, // Default status since we don't have this in the test schema
-            lastRunAt: test.updatedAt,
-            duration: null as number | null,
-          }));
-          setAvailableTests(formattedTests);
-        } else {
-          console.error("Failed to fetch tests:", response.error);
-        }
-      } catch (error) {
-        console.error("Error fetching tests:", error);
-      } finally {
-        setIsLoadingTests(false);
+      const response = await getTests();
+      if (!response.success || !response.tests) {
+        throw new Error("Failed to load tests");
       }
-    }
 
-    fetchTests();
+      const tests = response.tests.map((test) => ({
+        id: test.id,
+        title: test.title,
+        description: test.description || "",
+        type: test.type as TestType,
+        script: test.script || "",
+        priority: test.priority || "medium",
+        createdAt: test.createdAt,
+        updatedAt: test.updatedAt,
+      }));
+
+      setAvailableTests(tests);
+    } catch (error) {
+      console.error("Error loading tests:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load available tests",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingTests(false);
+    }
   }, []);
 
-  // Handle test selection
-  const handleTestSelectionConfirm = () => {
+  useEffect(() => {
+    loadJob();
+    loadAvailableTests();
+  }, [loadJob, loadAvailableTests]);
+
+  const handleTestSelection = (testId: string, checked: boolean) => {
+    setTestSelections((prev) => ({
+      ...prev,
+      [testId]: checked,
+    }));
+  };
+
+  const handleSelectTests = () => {
     const selected = availableTests.filter((test) => testSelections[test.id]);
     setSelectedTests(selected);
     setIsSelectTestsDialogOpen(false);
   };
 
-  useEffect(() => {
-    if (isSelectTestsDialogOpen) {
-      const initialSelections: Record<string, boolean> = {};
-      availableTests.forEach((test) => {
-        initialSelections[test.id] = selectedTests.some(
-          (selected) => selected.id === test.id
-        );
-      });
-      setTestSelections(initialSelections);
-    }
-  }, [isSelectTestsDialogOpen, availableTests, selectedTests]);
+  const removeTest = (testId: string) => {
+    setSelectedTests((prev) => prev.filter((test) => test.id !== testId));
+  };
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      // Create job data object
-      const jobData: JobData = {
-        id: jobId,
-        name: formState.name,
-        description: formState.description,
-        cronSchedule: formState.cronSchedule,
+      // Validate required fields
+      if (!formState.name?.trim()) {
+        toast({
+          title: "Error",
+          description: "Job name is required",
+          variant: "destructive",
+        });
+        return;
+      }
 
+      const jobData = {
+        id: jobId,
+        name: formState.name.trim(),
+        description: formState.description?.trim() || "",
+        cronSchedule: formState.cronSchedule?.trim() || "",
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
 
-      // Validate the form data
-      formSchema.parse(jobData);
-
-      // Update the job in the database
       const response = await updateJob(jobId, jobData);
 
-      if (response.success) {
-        toast({
-          title: "Success",
-          description: `Job "${jobData.name}" has been updated.`,
-        });
+      if (!response.success) {
+        throw new Error(response.error || "Failed to update job");
+      }
 
-        // Navigate to the jobs page
-        router.push("/jobs");
-      } else {
-        toast({
-          title: "Failed to update job",
-          description: response.error || "An unknown error occurred",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Success",
+        description: "Job updated successfully",
+      });
+      router.push("/jobs");
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errors: Record<string, string> = {};
-        error.errors.forEach((err) => {
-          if (err.path) {
-            errors[err.path[0]] = err.message;
-          }
-        });
-        setErrors(errors);
-      } else {
-        console.error("Error updating job:", error);
-        toast({
-          title: "Error",
-          description:
-            error instanceof Error
-              ? error.message
-              : "An unknown error occurred",
-          variant: "destructive",
-        });
-      }
+      console.error("Error updating job:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update job",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Remove a test from selection
-  const removeTest = (testId: string) => {
-    setSelectedTests(selectedTests.filter((test) => test.id !== testId));
-  };
-
   if (isLoadingJob) {
     return (
-      <div className="container mx-auto py-6 flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-lg">Loading job data...</p>
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Edit Job</h1>
-        <Button onClick={() => router.push("/jobs")} type="button">
-          Back to Jobs
-        </Button>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="basic">Basic Information</TabsTrigger>
-          <TabsTrigger value="tests">
-            Tests ({selectedTests.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <TabsContent value="basic" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Job Details</CardTitle>
-                <CardDescription>
-                  Edit the basic information for your job.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="name">Job Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    placeholder="Enter job name"
-                    value={formState.name}
-                    onChange={handleInputChange}
-                  />
-                  {errors.name && (
-                    <p className="text-sm text-red-500">{errors.name}</p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    A descriptive name for your job.
-                  </p>
-                </div>
-
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    name="description"
-                    placeholder="Enter job description"
-                    className="resize-none"
-                    value={formState.description}
-                    onChange={handleInputChange}
-                  />
-                  {errors.description && (
-                    <p className="text-sm text-red-500">{errors.description}</p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    A brief description of what this job does.
-                  </p>
-                </div>
-
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="cronSchedule">Cron Schedule</Label>
-                  <Input
-                    id="cronSchedule"
-                    name="cronSchedule"
-                    placeholder="0 0 * * *"
-                    value={formState.cronSchedule}
-                    onChange={handleInputChange}
-                  />
-                  {errors.cronSchedule && (
-                    <p className="text-sm text-red-500">
-                      {errors.cronSchedule}
-                    </p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    The schedule for this job in cron format (e.g., &quot;0 0 *
-                    * *&quot; for daily at midnight).
-                  </p>
-                </div>
-
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={formState.status}
-                    onValueChange={(value) =>
-                      handleSelectChange("status", value)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="running">Running</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.status && (
-                    <p className="text-sm text-red-500">{errors.status}</p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    The current status of the job.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="tests" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tests</CardTitle>
-                <CardDescription>
-                  Select tests to include in this job.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center mb-4">
-                  <p className="text-sm text-muted-foreground">
-                    Select tests to include in this job. You can add multiple
-                    tests.
-                  </p>
-                  <Button
-                    onClick={() => setIsSelectTestsDialogOpen(true)}
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                  >
-                    Select Tests
-                  </Button>
-                </div>
-
-                <Dialog
-                  open={isSelectTestsDialogOpen}
-                  onOpenChange={setIsSelectTestsDialogOpen}
+    <div className="space-y-4 p-4">
+      <PageBreadcrumbs items={breadcrumbs} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Edit Job</CardTitle>
+          <CardDescription>Update job configuration</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Job Name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={formState.name}
+                  onChange={(e) => updateFormState("name", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cronSchedule">Cron Schedule</Label>
+                <Input
+                  id="cronSchedule"
+                  name="cronSchedule"
+                  value={formState.cronSchedule || ""}
+                  onChange={(e) => updateFormState("cronSchedule", e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={formState.description || ""}
+                onChange={(e) => updateFormState("description", e.target.value)}
+              />
+            </div>
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Selected Tests</h3>
+              <div className="flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsSelectTestsDialogOpen(true)}
                 >
-                  <DialogContent className="sm:max-w-[800px]">
-                    <DialogHeader>
-                      <DialogTitle>Select Tests</DialogTitle>
-                      <DialogDescription>
-                        Choose the tests to include in this job
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    {isLoadingTests ? (
-                      <div className="flex items-center justify-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                        <span className="ml-2 text-muted-foreground">
-                          Loading tests...
-                        </span>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="max-h-[400px] overflow-y-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-[50px]"></TableHead>
-                                <TableHead className="w-[120px]">ID</TableHead>
-                                <TableHead className="w-[250px]">
-                                  Name
-                                </TableHead>
-                                <TableHead className="w-[100px]">
-                                  Type
-                                </TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {availableTests.map((test) => (
-                                <TableRow key={test.id}>
-                                  <TableCell>
-                                    <Checkbox
-                                      checked={testSelections[test.id] || false}
-                                      onCheckedChange={(checked) => {
-                                        setTestSelections({
-                                          ...testSelections,
-                                          [test.id]: !!checked,
-                                        });
-                                      }}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="font-mono text-xs">
-                                    {test.id}
-                                  </TableCell>
-                                  <TableCell>{test.name}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline">{test.type}</Badge>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </>
-                    )}
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsSelectTestsDialogOpen(false)}
-                        type="button"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleTestSelectionConfirm}
-                        type="button"
-                      >
-                        Add Selected Tests
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
-                {selectedTests.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[50px]">Status</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Last Run</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Select Tests
+                </Button>
+              </div>
+              {selectedTests.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[120px]">ID</TableHead>
+                      <TableHead className="w-[200px]">Name</TableHead>
+                      <TableHead className="w-[100px]">Type</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedTests.map((test) => (
+                      <TableRow key={test.id}>
+                        <TableCell className="font-mono text-sm truncate" title={test.id}>
+                          {test.id.substring(0, 8)}...
+                        </TableCell>
+                        <TableCell className="truncate" title={test.title}>
+                          {test.title}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{test.type}</Badge>
+                        </TableCell>
+                        <TableCell className="truncate" title={test.description || ""}>
+                          {test.description}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeTest(test.id)}
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedTests.map((test) => (
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <div className="flex justify-end space-x-4 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/jobs")}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Updating..." : "Update Job"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+      <Dialog
+        open={isSelectTestsDialogOpen}
+        onOpenChange={setIsSelectTestsDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Tests</DialogTitle>
+            <DialogDescription>
+              Choose the tests to include in this job
+            </DialogDescription>
+          </DialogHeader>
+          {isLoadingTests ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              <span className="ml-2 text-muted-foreground">
+                Loading tests...
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="mb-4 space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter by test name, ID, or type..."
+                    className="pl-8"
+                    value={testFilter}
+                    onChange={(e) => setTestFilter(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="max-h-[350px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40px]"></TableHead>
+                      <TableHead className="w-[120px]">ID</TableHead>
+                      <TableHead className="w-[200px]">Name</TableHead>
+                      <TableHead className="w-[100px]">Type</TableHead>
+                      <TableHead>Description</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {availableTests
+                      .filter(
+                        (test) =>
+                          testFilter === "" ||
+                          test.title
+                            .toLowerCase()
+                            .includes(testFilter.toLowerCase()) ||
+                          test.id
+                            .toLowerCase()
+                            .includes(testFilter.toLowerCase()) ||
+                          test.type
+                            .toLowerCase()
+                            .includes(testFilter.toLowerCase())
+                      )
+                      .slice(
+                        (currentPage - 1) * itemsPerPage,
+                        currentPage * itemsPerPage
+                      )
+                      .map((test) => (
                         <TableRow key={test.id}>
                           <TableCell>
-                            {getTestStatusIcon(test.status)}
+                            <Checkbox
+                              checked={testSelections[test.id] || false}
+                              onCheckedChange={(checked) =>
+                                handleTestSelection(
+                                  test.id,
+                                  checked as boolean
+                                )
+                              }
+                            />
                           </TableCell>
-                          <TableCell className="font-medium">
-                            {test.name}
+                          <TableCell className="font-mono text-sm truncate" title={test.id}>
+                            {test.id.substring(0, 8)}...
+                          </TableCell>
+                          <TableCell className="truncate" title={test.title}>
+                            {test.title}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{test.type}</Badge>
                           </TableCell>
-                          <TableCell>{formatDate(test.lastRunAt)}</TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeTest(test.id)}
-                              type="button"
-                            >
-                              Remove
-                            </Button>
+                          <TableCell className="truncate" title={test.description || ""}>
+                            {test.description}
                           </TableCell>
                         </TableRow>
                       ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No tests selected. Click &quot;Select Tests&quot; to add
-                    tests to this job.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <div className="flex justify-end space-x-4 mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/jobs")}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              Update Job
-            </Button>
-          </div>
-        </form>
-      </Tabs>
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex justify-center items-center mt-4 space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(prev - 1, 1))
+                  }
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of{" "}
+                  {Math.max(
+                    1,
+                    Math.ceil(
+                      availableTests.filter(
+                        (test) =>
+                          testFilter === "" ||
+                          test.title
+                            .toLowerCase()
+                            .includes(testFilter.toLowerCase()) ||
+                          test.id
+                            .toLowerCase()
+                            .includes(testFilter.toLowerCase()) ||
+                          test.type
+                            .toLowerCase()
+                            .includes(testFilter.toLowerCase())
+                      ).length / itemsPerPage
+                    )
+                  )}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCurrentPage((prev) =>
+                      Math.min(
+                        prev + 1,
+                        Math.max(
+                          1,
+                          Math.ceil(
+                            availableTests.filter(
+                              (test) =>
+                                testFilter === "" ||
+                                test.title
+                                  .toLowerCase()
+                                  .includes(testFilter.toLowerCase()) ||
+                                test.id
+                                  .toLowerCase()
+                                  .includes(testFilter.toLowerCase()) ||
+                                test.type
+                                  .toLowerCase()
+                                  .includes(testFilter.toLowerCase())
+                            ).length / itemsPerPage
+                          )
+                        )
+                      )
+                    )
+                  }
+                  disabled={
+                    currentPage ===
+                    Math.max(
+                      1,
+                      Math.ceil(
+                        availableTests.filter(
+                          (test) =>
+                            testFilter === "" ||
+                            test.title
+                              .toLowerCase()
+                              .includes(testFilter.toLowerCase()) ||
+                            test.id
+                              .toLowerCase()
+                              .includes(testFilter.toLowerCase()) ||
+                            test.type
+                              .toLowerCase()
+                              .includes(testFilter.toLowerCase())
+                        ).length / itemsPerPage
+                      )
+                    )
+                  }
+                >
+                  Next
+                </Button>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsSelectTestsDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="button" onClick={handleSelectTests}>
+                  Confirm Selection
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

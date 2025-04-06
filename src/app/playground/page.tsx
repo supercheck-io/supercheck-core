@@ -1,20 +1,45 @@
 "use client";
 import Playground from "@/components/playground";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
-import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-// In Next.js App Router, we're converting this to a client component
+// Function to generate breadcrumbs based on scriptType
+const getBreadcrumbs = (scriptType: string | null) => {
+  let testTypeLabel = "Test"; // Default label
+
+  switch (scriptType) {
+    case "browser":
+      testTypeLabel = "Browser Test";
+      break;
+    case "api":
+      testTypeLabel = "API Test";
+      break;
+    case "multistep":
+      testTypeLabel = "Multi-step Test";
+      break;
+    case "database":
+      testTypeLabel = "Database Test";
+      break;
+    // Add more cases if needed
+  }
+
+  return [
+    { label: "Home", href: "/" },
+    { label: "Tests", href: "/tests" },
+    { label: `Create ${testTypeLabel}`, isCurrentPage: true },
+  ];
+};
+
 export default function PlaygroundPage() {
+  const searchParams = useSearchParams();
+  const scriptType = searchParams.get('scriptType');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Breadcrumbs data
-  const breadcrumbs = [
-    { label: "Home", href: "/" },
-    { label: "Playground", isCurrentPage: true },
-  ];
+  const breadcrumbs = getBreadcrumbs(scriptType);
 
-  // Set loading to false after a delay to ensure the UI is ready
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
@@ -28,40 +53,35 @@ export default function PlaygroundPage() {
       <PageBreadcrumbs items={breadcrumbs} />
       <div className="relative h-[calc(100vh-8rem)]">
         {isLoading ? (
-          <div className="absolute inset-0 bg-background z-10">
-            <div className="h-full">
-              <div className="hidden h-full flex-col flex-1 md:flex p-4">
-                <div className="flex h-full">
-                  {/* Left panel - Editor */}
-                  <div className="w-[70%] h-full flex flex-col border rounded-tl-lg rounded-bl-lg">
-                    <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tl-lg">
-                      <Skeleton className="h-10 w-64" />
-                      <Skeleton className="h-9 w-28" />
-                    </div>
-                    <div className="flex-1 overflow-hidden rounded-bl-lg">
-                      <Skeleton className="h-full w-full" />
-                    </div>
+          <div className="absolute inset-0 bg-background z-10 p-4">
+            <div className="hidden h-full flex-col md:flex">
+              <div className="flex h-full">
+                <div className="w-[70%] h-full flex flex-col border rounded-tl-lg rounded-bl-lg">
+                  <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tl-lg">
+                    <Skeleton className="h-10 w-64" />
+                    <Skeleton className="h-9 w-28" />
                   </div>
-
-                  {/* Resize handle */}
-                  <div className="w-[10px] h-full bg-border flex items-center justify-center">
-                    <div className="w-1 h-8 rounded-full bg-muted-foreground/20"></div>
+                  <div className="flex-1 overflow-hidden rounded-bl-lg">
+                    <Skeleton className="h-full w-full" />
                   </div>
-
-                  {/* Right panel - Test details */}
-                  <div className="w-[calc(30%-10px)] h-full flex flex-col border rounded-tr-lg rounded-br-lg">
-                    <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tr-lg">
-                      <Skeleton className="h-6 w-24" />
-                    </div>
-                    <div className="flex-1 overflow-auto p-4 space-y-4">
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-10 w-full" />
-                      <Skeleton className="h-10 w-full" />
-                      <Skeleton className="h-10 w-full" />
-                      <Skeleton className="h-10 w-full" />
-                      <Skeleton className="h-32 w-full" />
-                      <Skeleton className="h-10 w-full" />
-                    </div>
+                </div>
+ 
+                <div className="w-[10px] h-full bg-border flex items-center justify-center">
+                  <div className="w-1 h-8 rounded-full bg-muted-foreground/20"></div>
+                </div>
+ 
+                <div className="w-[calc(30%-10px)] h-full flex flex-col border rounded-tr-lg rounded-br-lg">
+                  <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tr-lg">
+                    <Skeleton className="h-6 w-24" />
+                  </div>
+                  <div className="flex-1 overflow-auto p-4 space-y-4">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-10 w-full" />
                   </div>
                 </div>
               </div>
@@ -69,13 +89,12 @@ export default function PlaygroundPage() {
           </div>
         ) : null}
         <div
-          className={
-            isLoading
-              ? "opacity-0"
-              : "opacity-100 transition-opacity duration-300"
-          }
+          className={cn(
+            "transition-opacity duration-300 h-full",
+            isLoading ? "opacity-0 pointer-events-none" : "opacity-100"
+          )}
         >
-          <Suspense fallback={<div>Loading...</div>}>
+          <Suspense fallback={<div>Loading Playground...</div>}>
             <Playground />
           </Suspense>
         </div>

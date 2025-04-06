@@ -62,7 +62,20 @@ export function DataTableRowActions<TData>({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to delete test");
+        // Check for the specific 409 Conflict status code
+        if (response.status === 409) {
+          toast({
+            title: "Cannot Delete Test",
+            description: errorData.error || "This test is currently used in a job.",
+            variant: "destructive",
+            duration: 5000, // Show for longer
+          });
+        } else {
+          // Throw error for other non-ok responses
+          throw new Error(errorData.error || "Failed to delete test");
+        }
+        // Return early after handling the error toast
+        return;
       }
 
       toast({

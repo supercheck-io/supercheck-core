@@ -16,7 +16,7 @@ interface DataTableToolbarProps<TData> {
 export function DataTableToolbar<TData>({
   table,
 }: DataTableToolbarProps<TData>) {
-  const isFiltered = table.getState().columnFilters.length > 0;
+  const isFiltered = table.getState().columnFilters.length > 0 || !!table.getState().globalFilter;
   const router = useRouter();
 
   return (
@@ -30,12 +30,10 @@ export function DataTableToolbar<TData>({
 
       <div className="flex items-center space-x-2">
         <Input
-          placeholder="Filter jobs..."
-          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("name")?.setFilterValue(event.target.value)
-          }
-          className="h-8 w-[150px] lg:w-[200px]"
+          placeholder="Filter by ID or name..."
+          value={(table.getState().globalFilter as string) ?? ""}
+          onChange={(event) => table.setGlobalFilter(event.target.value)}
+          className="h-8 w-[200px] lg:w-[350px]"
         />
         {table.getColumn("status") && (
           <DataTableFacetedFilter
@@ -47,7 +45,10 @@ export function DataTableToolbar<TData>({
         {isFiltered && (
           <Button
             variant="ghost"
-            onClick={() => table.resetColumnFilters()}
+            onClick={() => {
+              table.resetColumnFilters();
+              table.setGlobalFilter("");
+            }}
             className="h-8 px-2 lg:px-3"
           >
             Reset

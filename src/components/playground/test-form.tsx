@@ -17,13 +17,18 @@ import { saveTest } from "@/actions/save-test";
 import { decodeTestScript } from "@/actions/save-test";
 import { useRouter } from "next/navigation";
 
+// Define the type for the display map keys explicitly based on allowed UI values
+type AllowedPriorityKey = 'low' | 'medium' | 'high';
+
 // Map the database schema values to display values for the UI
-const priorityDisplayMap = {
+const priorityDisplayMap: Record<AllowedPriorityKey, string> = {
   low: "Low",
   medium: "Medium",
   high: "High",
-  critical: "Critical",
 };
+
+// Explicitly define allowed priorities based on the map keys
+const allowedPriorities: AllowedPriorityKey[] = ["low", "medium", "high"];
 
 const typeDisplayMap = {
   browser: "Browser",
@@ -290,29 +295,27 @@ export function TestForm({
           </label>
           <Select
             value={testCase.priority}
-            onValueChange={(value) =>
-              setTestCase((prev) => ({
-                ...prev,
-                priority: value as TestPriority,
-              }))
-            }
+            onValueChange={(value) => {
+              // Ensure the value is a valid TestPriority before setting state
+              if (allowedPriorities.includes(value as AllowedPriorityKey)) {
+                setTestCase((prev) => ({
+                  ...prev,
+                  priority: value as TestPriority,
+                }));
+              }
+            }}
+            disabled={isRunning}
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Select priority">
-                {testCase.priority
-                  ? priorityDisplayMap[testCase.priority as TestPriority]
-                  : "Select priority"}
-              </SelectValue>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select priority" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="low">{priorityDisplayMap.low}</SelectItem>
-              <SelectItem value="medium">
-                {priorityDisplayMap.medium}
-              </SelectItem>
-              <SelectItem value="high">{priorityDisplayMap.high}</SelectItem>
-              <SelectItem value="critical">
-                {priorityDisplayMap.critical}
-              </SelectItem>
+              {/* Map over the explicitly allowed priorities */}
+              {allowedPriorities.map((key) => (
+                <SelectItem key={key} value={key}>
+                  {priorityDisplayMap[key]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           {errors.priority && (

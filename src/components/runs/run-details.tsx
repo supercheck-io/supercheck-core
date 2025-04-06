@@ -1,11 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { RunResponse } from "@/actions/get-runs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { runStatuses } from "./data/data";
-import { AlertTriangleIcon, ArrowLeftIcon } from "lucide-react";
+import { AlertTriangleIcon, ArrowLeftIcon, Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 
@@ -15,6 +15,7 @@ interface RunDetailsProps {
 
 export function RunDetails({ run }: RunDetailsProps) {
   const router = useRouter();
+  const [isReportLoading, setIsReportLoading] = useState(!!run.reportUrl);
 
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -74,11 +75,22 @@ export function RunDetails({ run }: RunDetailsProps) {
 
         {/* Main content - Playwright Report */}
         {run.reportUrl ? (
-          <div className="w-full h-[calc(100vh-180px)] overflow-hidden border rounded-md mb-6">
+          <div className="w-full h-[calc(100vh-180px)] overflow-hidden border rounded-md mb-6 relative">
+            {isReportLoading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
+                <Loader2Icon className="h-12 w-12 animate-spin text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Loading report...</p>
+              </div>
+            )}
             <iframe
               src={run.reportUrl}
-              className="w-full h-full border-0"
+              className={`w-full h-full border-0 ${isReportLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
               title="Playwright Test Report"
+              onLoad={() => setIsReportLoading(false)}
+              onError={(e) => {
+                console.error("Error loading iframe:", e);
+                setIsReportLoading(false);
+              }}
             />
           </div>
         ) : (

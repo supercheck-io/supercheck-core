@@ -183,50 +183,53 @@ const Playground: React.FC<PlaygroundProps> = ({
     }
   };
 
-  // Monitor URL search params changes and load scripts when navigation occurs
+  // Monitor URL search params changes and potentially load scripts/set type
   useEffect(() => {
-    const scriptTypeParam = searchParams.get("scriptType");
-    const testIdParam = searchParams.get("testId");
+    // console.log("[Playground Effect] Running effect. initialTestId:", initialTestId);
+    const scriptTypeParam = searchParams.get("scriptType") as TestType | null;
+    // console.log("[Playground Effect] scriptTypeParam from URL:", scriptTypeParam);
 
-    // If we're on the main playground page (no initialTestId), ensure testId is null
     if (!initialTestId) {
+      // console.log("[Playground Effect] No initialTestId, proceeding to set default type/script.");
       setTestId(null);
-    }
 
-    // Always load the script on first render or when script type changes
-    const loadScriptForType = async () => {
-      if (scriptTypeParam) {
-        try {
-          // Import dynamically to avoid issues with circular dependencies
-          const { getSampleScript } = await import("@/lib/script-service");
-          // Fix the TypeScript error by using a type assertion
-          const script = getSampleScript(scriptTypeParam as ScriptType);
+      const defaultType = "browser" as TestType;
+      const typeToSet = scriptTypeParam && [
+        "browser",
+        "api",
+        "multistep",
+        "database",
+      ].includes(scriptTypeParam)
+        ? scriptTypeParam
+        : defaultType;
 
-          // Update all related state to ensure consistency
-          setEditorContent(script);
-          setInitialEditorContent(script);
-          setInitialFormValues((prev) => ({ ...prev, script }));
-          setTestCase((prev) => ({ ...prev, script }));
-        } catch (error) {
-          console.error("Failed to load script for navigation:", error);
-          toast.error("Failed to load the script");
+      // console.log("[Playground Effect] Determined typeToSet:", typeToSet);
+      setTestCase(prev => ({ ...prev, type: typeToSet }));
+
+      const loadScriptForType = async () => {
+        // console.log("[Playground Effect] loadScriptForType called with type:", typeToSet);
+        if (typeToSet) {
+          try {
+            const { getSampleScript } = await import("@/lib/script-service");
+            const scriptContent = getSampleScript(typeToSet as ScriptType);
+            // console.log("[Playground Effect] Content from getSampleScript:", scriptContent);
+            if (scriptContent === null || scriptContent === undefined) {
+              //  console.error("[Playground Effect] getSampleScript returned null or undefined for type:", typeToSet);
+            }
+            setEditorContent(scriptContent || ""); // Ensure we set empty string if null/undefined
+            setInitialEditorContent(scriptContent || "");
+            setTestCase(prev => ({ ...prev, script: scriptContent || "" }));
+            // console.log("[Playground Effect] State updated with script content.");
+          } catch (error) {
+            // console.error("[Playground Effect] Error loading default script:", error);
+            toast.error("Failed to load default script content.");
+          }
         }
-      }
-    };
-
-    // Only load sample script if we don't have initial test data and no testId param
-    if (!initialTestData && !testIdParam) {
+      };
       loadScriptForType();
     }
 
-    // Load test data by ID if provided in URL
-    if (testIdParam && !initialTestData) {
-      loadTestById(testIdParam);
-    }
-
-    // We want this to run on mount and when searchParams changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, initialTestData]);
+  }, [searchParams, initialTestId]);
 
   // Handle initialTestData when provided from server-side
   useEffect(() => {

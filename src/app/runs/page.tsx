@@ -1,5 +1,5 @@
-import { Runs } from "@/components/runs";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
+import { RunsClient } from "@/components/runs/runs-client";
 
 export const metadata = {
   title: "Test Runs",
@@ -15,7 +15,7 @@ export default function RunsPage() {
   return (
     <div>
       <PageBreadcrumbs items={breadcrumbs} />
-      <Runs />
+      <RunsClient />
     </div>
   );
 }

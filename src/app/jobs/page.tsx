@@ -1,7 +1,8 @@
 import Jobs from "@/components/jobs";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
+import { JobProvider } from "@/components/jobs/job-context";
 
-export default function PlaygroundPage() {
+export default function JobsPage() {
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Jobs", isCurrentPage: true },
@@ -10,7 +11,9 @@ export default function PlaygroundPage() {
   return (
     <div>
       <PageBreadcrumbs items={breadcrumbs} />
-      <Jobs />
+      <JobProvider>
+        <Jobs />
+      </JobProvider>
     </div>
   );
 }

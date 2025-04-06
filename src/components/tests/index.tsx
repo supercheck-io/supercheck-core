@@ -9,31 +9,36 @@ import { useRouter } from "next/navigation";
 import { getTests } from "@/actions/get-tests";
 import { Test } from "./data/schema";
 import { Row } from "@tanstack/react-table";
+import { Loader2 } from "lucide-react";
 
 export default function Tests() {
   const [selectedTest] = useState<Test | null>(null);
   const [tests, setTests] = useState<Test[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   // Fetch tests from the database
   useEffect(() => {
     async function fetchTests() {
+      setIsLoading(true);
       try {
-        const result = await getTests();
-        if (result.success) {
-          // Ensure the tests match the expected type
-          const formattedTests =
-            result.tests?.map((test) => ({
-              ...test,
-              createdAt: test.createdAt || undefined,
-              updatedAt: test.updatedAt || undefined,
-            })) || [];
-          setTests(formattedTests);
+        const response = await getTests();
+        if (response.success && response.tests) {
+          const testsWithDefaults = response.tests.map((test) => ({
+            ...test,
+            priority: test.priority || "medium",
+            description: test.description || null,
+            createdAt: test.createdAt ?? undefined,
+            updatedAt: test.updatedAt ?? undefined,
+          }));
+          setTests(testsWithDefaults);
         } else {
-          console.error("Failed to fetch tests:", result.error);
+          console.error("Failed to fetch tests:", response.error);
         }
       } catch (error) {
         console.error("Error fetching tests:", error);
+      } finally {
+        setIsLoading(false);
       }
     }
 
@@ -46,8 +51,8 @@ export default function Tests() {
   };
 
   return (
-    <div className="flex h-full flex-col space-y-2 p-4">
-      <DataTable columns={columns} data={tests} onRowClick={handleRowClick} />
+    <div className="flex h-full flex-col space-y-4 p-4">
+      <DataTable columns={columns} data={tests} isLoading={isLoading} onRowClick={handleRowClick} />
 
       {selectedTest && (
         <div className="space-y-2 py-2">

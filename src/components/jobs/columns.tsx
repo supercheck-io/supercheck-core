@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { CalendarIcon, TimerIcon, Play } from "lucide-react";
+import { CalendarIcon, TimerIcon, Play, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -9,20 +9,33 @@ import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
+import { useJobContext } from "./job-context";
 
 // Create a proper React component for the run button
 function RunButton({ job }: { job: Job }) {
   const [isRunning, setIsRunning] = useState(false);
   const router = useRouter();
+  const { isAnyJobRunning, setJobRunning } = useJobContext();
 
   const handleRunJob = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent row click event
     e.preventDefault(); // Prevent opening the sheet
 
-    if (isRunning) return; // Prevent multiple clicks
+    if (isRunning || isAnyJobRunning) {
+      if (isAnyJobRunning) {
+        toast({
+          title: "Cannot run job",
+          description: "Another job is currently running. Please wait for it to complete.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
 
     try {
       setIsRunning(true);
+      setJobRunning(true);
 
       if (!job.tests || job.tests.length === 0) {
         toast({
@@ -36,8 +49,7 @@ function RunButton({ job }: { job: Job }) {
       // Show a loading toast that stays visible during the entire job execution
       toast({
         title: `Running job: ${job.name}`,
-        description:
-          "The job is being executed. This may take a few moments...",
+        description: "The job is being executed. This may take a few moments...",
         duration: 10000, // Longer duration for job execution
       });
 
@@ -70,9 +82,7 @@ function RunButton({ job }: { job: Job }) {
 
       // Show a result toast with more detailed information
       toast({
-        title: data.success
-          ? "Job completed successfully"
-          : "Job execution failed",
+        title: data.success ? "Job completed successfully" : "Job execution failed",
         description: `Ran ${data.results.length} tests. ${
           data.success
             ? "All tests passed."
@@ -99,6 +109,7 @@ function RunButton({ job }: { job: Job }) {
       });
     } finally {
       setIsRunning(false);
+      setJobRunning(false);
     }
   };
 
@@ -106,14 +117,30 @@ function RunButton({ job }: { job: Job }) {
     <Button
       onClick={handleRunJob}
       size="sm"
-      variant="outline"
-      className="h-8 w-8 p-0 hover:bg-blue-100 cursor-pointer ml-2"
-      disabled={isRunning}
+      variant="default"
+      className={cn(
+        "bg-blue-500 hover:bg-blue-600",
+        "text-white",
+        "shadow-sm",
+        "transition-all duration-200",
+        "flex items-center justify-center",
+        "h-8 w-8 rounded-full p-0",
+        "cursor-pointer",
+        (isRunning || isAnyJobRunning) && "opacity-80 cursor-not-allowed"
+      )}
+      disabled={isRunning || isAnyJobRunning || !job.tests || job.tests.length === 0}
+      title={
+        isAnyJobRunning
+          ? "Another job is currently running"
+          : !job.tests || job.tests.length === 0
+          ? "No tests available to run"
+          : "Run job"
+      }
     >
       {isRunning ? (
-        <div className="h-3 w-3 animate-spin rounded-full border-2 border-t-transparent" />
+        <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <Play className="h-3 w-3 text-blue-500" />
+        <Play className="h-4 w-4" />
       )}
     </Button>
   );

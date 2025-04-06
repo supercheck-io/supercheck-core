@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "zod";
 
 // Job status types
 export const jobStatusEnum = z.enum([
@@ -6,7 +6,7 @@ export const jobStatusEnum = z.enum([
   "running",
   "completed",
   "failed",
-  "cancelled"
+  "cancelled",
 ]);
 
 export type JobStatus = z.infer<typeof jobStatusEnum>;
@@ -15,10 +15,12 @@ export type JobStatus = z.infer<typeof jobStatusEnum>;
 export const jobConfigSchema = z.object({
   environment: z.string().optional(),
   variables: z.record(z.string()).optional(),
-  retryStrategy: z.object({
-    maxRetries: z.number(),
-    backoffFactor: z.number()
-  }).optional()
+  retryStrategy: z
+    .object({
+      maxRetries: z.number(),
+      backoffFactor: z.number(),
+    })
+    .optional(),
 });
 
 export type JobConfig = z.infer<typeof jobConfigSchema>;
@@ -28,7 +30,7 @@ export const testSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  type: z.enum(["api", "ui", "integration", "performance", "security"]),
+  type: z.enum(["browser", "api", "multistep", "database"]),
   status: z.enum(["pass", "fail", "pending", "skipped"]).optional(),
   lastRunAt: z.string().nullable().optional(),
   duration: z.number().nullable().optional(), // in milliseconds
@@ -53,7 +55,7 @@ export const jobSchema = z.object({
   tests: z.array(testSchema).optional(),
 });
 
-export type Job = z.infer<typeof jobSchema>
+export type Job = z.infer<typeof jobSchema>;
 
 // Legacy task schema (keeping for compatibility)
 export const taskSchema = z.object({
@@ -62,6 +64,6 @@ export const taskSchema = z.object({
   status: z.string(),
   label: z.string(),
   priority: z.string(),
-})
+});
 
-export type Task = z.infer<typeof taskSchema>
+export type Task = z.infer<typeof taskSchema>;

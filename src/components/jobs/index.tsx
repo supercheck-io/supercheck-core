@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Clock4,
   PlayIcon,
+  Loader2,
 } from "lucide-react";
 import {
   Table,
@@ -57,6 +58,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import { getJobs } from "@/actions/get-jobs";
+import { cn } from "@/lib/utils";
+import { useJobContext } from "./job-context";
 
 export default function Jobs() {
   const router = useRouter();
@@ -67,6 +70,8 @@ export default function Jobs() {
   const [isEditTestDialogOpen, setIsEditTestDialogOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [isRunningJob, setIsRunningJob] = useState(false);
+  const { isAnyJobRunning, setJobRunning } = useJobContext();
+  const [isLoading, setIsLoading] = useState(true);
   const [newTest, setNewTest] = useState<Partial<Test>>({
     id: `TEST-${Math.floor(Math.random() * 1000)}`,
     name: "",
@@ -78,28 +83,20 @@ export default function Jobs() {
   // Fetch jobs from the database on component mount
   useEffect(() => {
     async function fetchJobs() {
+      setIsLoading(true);
       try {
         const response = await getJobs();
         if (response.success && response.jobs) {
-          // Convert the job status to the expected type
           const typedJobs = response.jobs.map((job) => ({
             ...job,
-            status: job.status as
-              | "pending"
-              | "running"
-              | "completed"
-              | "failed"
-              | "cancelled",
+            status: job.status as Job['status'],
             description: job.description || null,
             cronSchedule: job.cronSchedule || null,
             tests: job.tests.map((test) => ({
               ...test,
+              type: test.type as Test['type'],
               description: test.description || null,
-              status: (test.status || "pending") as
-                | "pending"
-                | "pass"
-                | "fail"
-                | "skipped",
+              status: (test.status || "pending") as Test['status'],
               lastRunAt: test.lastRunAt || null,
               duration: test.duration || null,
             })),
@@ -123,6 +120,8 @@ export default function Jobs() {
               : "An unknown error occurred",
           variant: "destructive",
         });
+      } finally {
+        setIsLoading(false);
       }
     }
 
@@ -130,27 +129,20 @@ export default function Jobs() {
   }, []);
 
   const refreshJobs = async () => {
+    setIsLoading(true);
     try {
       const response = await getJobs();
       if (response.success && response.jobs) {
         const typedJobs = response.jobs.map((job) => ({
           ...job,
-          status: job.status as
-            | "pending"
-            | "running"
-            | "completed"
-            | "failed"
-            | "cancelled",
+          status: job.status as Job['status'],
           description: job.description || null,
           cronSchedule: job.cronSchedule || null,
           tests: job.tests.map((test) => ({
             ...test,
+            type: test.type as Test['type'],
             description: test.description || null,
-            status: (test.status || "pending") as
-              | "pending"
-              | "pass"
-              | "fail"
-              | "skipped",
+            status: (test.status || "pending") as Test['status'],
             lastRunAt: test.lastRunAt || null,
             duration: test.duration || null,
           })),
@@ -159,6 +151,8 @@ export default function Jobs() {
       }
     } catch (error) {
       console.error("Error refreshing jobs:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -290,6 +284,15 @@ export default function Jobs() {
 
   // Function to run a job
   const runJob = async (job: Job) => {
+    if (isAnyJobRunning) {
+      toast({
+        title: "Cannot run job",
+        description: "Another job is currently running. Please wait for it to complete.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!job.tests || job.tests.length === 0) {
       toast({
         title: "No tests to run",
@@ -300,6 +303,7 @@ export default function Jobs() {
     }
 
     setIsRunningJob(true);
+    setJobRunning(true);
 
     try {
       console.log("Running job:", job.id);
@@ -382,8 +386,7 @@ export default function Jobs() {
       setSelectedJob(failedJob);
     } finally {
       setIsRunningJob(false);
-
-      // Refresh the jobs list
+      setJobRunning(false);
       refreshJobs();
     }
   };
@@ -393,6 +396,7 @@ export default function Jobs() {
       <DataTable
         data={jobs}
         columns={columns}
+        isLoading={isLoading}
         onRowClick={(row) => {
           setSelectedJob(row.original);
           setIsSheetOpen(true);
@@ -408,26 +412,50 @@ export default function Jobs() {
                   <SheetTitle>Job Details</SheetTitle>
                   <div className="flex space-x-4">
                     <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/jobs/edit/${selectedJob.id}`)}
+                      className="cursor-pointer"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Job
+                    </Button>
+                    <Button
                       variant="default"
                       size="sm"
                       onClick={() => selectedJob && runJob(selectedJob)}
                       disabled={
                         isRunningJob ||
+                        isAnyJobRunning ||
                         !selectedJob ||
                         !selectedJob.tests ||
                         selectedJob.tests.length === 0
                       }
+                      className={cn(
+                        "bg-blue-500 hover:bg-blue-600",
+                        "text-white",
+                        "shadow-sm",
+                        "transition-all duration-200",
+                        "flex items-center gap-2",
+                        "cursor-pointer",
+                        (isRunningJob || isAnyJobRunning) && "opacity-80 cursor-not-allowed"
+                      )}
+                      title={
+                        isAnyJobRunning
+                          ? "Another job is currently running"
+                          : !selectedJob?.tests || selectedJob.tests.length === 0
+                          ? "No tests available to run"
+                          : "Run job"
+                      }
                     >
                       {isRunningJob ? (
                         <>
-                          <span className="animate-spin mr-2">
-                            <ClockIcon className="h-4 w-4" />
-                          </span>
+                          <Loader2 className="h-4 w-4 animate-spin" />
                           Running...
                         </>
                       ) : (
                         <>
-                          <PlayIcon className="h-4 w-4 mr-2" />
+                          <PlayIcon className="h-4 w-4" />
                           Run Job
                         </>
                       )}
@@ -436,395 +464,277 @@ export default function Jobs() {
                 </div>
               </SheetHeader>
 
-              <Tabs defaultValue="details" className="mt-6">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="details">Details</TabsTrigger>
-                  <TabsTrigger value="tests">
-                    Tests ({selectedJob.tests?.length || 0})
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="details" className="py-4 space-y-6">
-                  {/* Status */}
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Status</h3>
-                    <div className="flex items-center space-x-2">
-                      {(() => {
-                        const status = jobStatuses.find(
-                          (s) => s.value === selectedJob.status
-                        );
-                        return status ? (
-                          <>
-                            {status.icon && (
-                              <status.icon
-                                className={`h-5 w-5 ${status.color}`}
-                              />
-                            )}
-                            <span className="font-medium">{status.label}</span>
-                          </>
-                        ) : null;
-                      })()}
-                    </div>
+              <div className="mt-6 space-y-6">
+                {/* Job ID and Name */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <h3 className="text-xs text-muted-foreground">Job ID</h3>
+                    <p className="text-sm font-mono">{selectedJob.id}</p>
                   </div>
-
-                  {/* Description */}
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Description</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedJob.description || "No description provided"}
-                    </p>
+                  <div className="space-y-1">
+                    <h3 className="text-xs text-muted-foreground">Name</h3>
+                    <p className="text-sm font-medium">{selectedJob.name}</p>
                   </div>
+                </div>
 
-                  {/* Schedule */}
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Schedule</h3>
-                    <div className="flex items-center space-x-2">
-                      <TimerIcon className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedJob.cronSchedule || "Not scheduled"}</span>
-                    </div>
-                  </div>
+                <Tabs defaultValue="details" className="mt-6">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="details">Details</TabsTrigger>
+                    <TabsTrigger value="tests">
+                      Tests ({selectedJob.tests?.length || 0})
+                    </TabsTrigger>
+                  </TabsList>
 
-                  {/* Timing Information */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <TabsContent value="details" className="py-4 space-y-6">
+                    {/* Status */}
                     <div className="space-y-2">
-                      <h3 className="text-sm font-medium">Last Run</h3>
+                      <h3 className="text-sm font-medium">Status</h3>
                       <div className="flex items-center space-x-2">
-                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                        <span>{formatDate(selectedJob.lastRunAt)}</span>
+                        {(() => {
+                          const status = jobStatuses.find(
+                            (s) => s.value === selectedJob.status
+                          );
+                          return status ? (
+                            <>
+                              {status.icon && (
+                                <status.icon
+                                  className={`h-5 w-5 ${status.color}`}
+                                />
+                              )}
+                              <span className="font-medium">{status.label}</span>
+                            </>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
+
+                    {/* Description */}
                     <div className="space-y-2">
-                      <h3 className="text-sm font-medium">Next Run</h3>
+                      <h3 className="text-sm font-medium">Description</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedJob.description || "No description provided"}
+                      </p>
+                    </div>
+
+                    {/* Schedule */}
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium">Schedule</h3>
                       <div className="flex items-center space-x-2">
-                        <ClockIcon className="h-4 w-4 text-muted-foreground" />
-                        <span>{formatDate(selectedJob.nextRunAt)}</span>
+                        <TimerIcon className="h-4 w-4 text-muted-foreground" />
+                        <span>{selectedJob.cronSchedule || "Not scheduled"}</span>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Timestamps */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    <div className="space-y-1">
-                      <h3 className="text-xs text-muted-foreground">Created</h3>
-                      <p className="text-sm">
-                        {formatDate(selectedJob.createdAt)}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <h3 className="text-xs text-muted-foreground">Updated</h3>
-                      <p className="text-sm">
-                        {formatDate(selectedJob.updatedAt)}
-                      </p>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="tests" className="py-4 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-medium">Tests</h3>
-                    <Dialog
-                      open={isAddTestDialogOpen}
-                      onOpenChange={setIsAddTestDialogOpen}
-                    >
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <PlusCircle className="h-4 w-4 mr-2" />
-                          Add Test
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Add New Test</DialogTitle>
-                          <DialogDescription>
-                            Add a new test to this job. Fill in the details
-                            below.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="test-id" className="text-right">
-                              ID
-                            </Label>
-                            <Input
-                              id="test-id"
-                              value={newTest.id || ""}
-                              className="col-span-3"
-                              disabled
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="test-name" className="text-right">
-                              Name
-                            </Label>
-                            <Input
-                              id="test-name"
-                              value={newTest.name || ""}
-                              onChange={(e) =>
-                                setNewTest({ ...newTest, name: e.target.value })
-                              }
-                              className="col-span-3"
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label
-                              htmlFor="test-description"
-                              className="text-right"
-                            >
-                              Description
-                            </Label>
-                            <Textarea
-                              id="test-description"
-                              value={newTest.description || ""}
-                              onChange={(e) =>
-                                setNewTest({
-                                  ...newTest,
-                                  description: e.target.value,
-                                })
-                              }
-                              className="col-span-3"
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="test-type" className="text-right">
-                              Type
-                            </Label>
-                            <Select
-                              value={newTest.type}
-                              onValueChange={(
-                                value:
-                                  | "api"
-                                  | "ui"
-                                  | "integration"
-                                  | "performance"
-                                  | "security"
-                              ) => setNewTest({ ...newTest, type: value })}
-                            >
-                              <SelectTrigger className="col-span-3">
-                                <SelectValue placeholder="Select test type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="api">API</SelectItem>
-                                <SelectItem value="ui">UI</SelectItem>
-                                <SelectItem value="integration">
-                                  Integration
-                                </SelectItem>
-                                <SelectItem value="performance">
-                                  Performance
-                                </SelectItem>
-                                <SelectItem value="security">
-                                  Security
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
+                    {/* Timing Information */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-medium">Last Run</h3>
+                        <div className="flex items-center space-x-2">
+                          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                          <span>{formatDate(selectedJob.lastRunAt)}</span>
                         </div>
-                        <DialogFooter>
-                          <Button
-                            variant="outline"
-                            onClick={() => setIsAddTestDialogOpen(false)}
-                          >
-                            Cancel
-                          </Button>
-                          <Button onClick={handleAddTest}>Add Test</Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-medium">Next Run</h3>
+                        <div className="flex items-center space-x-2">
+                          <ClockIcon className="h-4 w-4 text-muted-foreground" />
+                          <span>{formatDate(selectedJob.nextRunAt)}</span>
+                        </div>
+                      </div>
+                    </div>
 
-                  {selectedJob.tests && selectedJob.tests.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[50px]">Status</TableHead>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Last Run</TableHead>
-                          <TableHead>Duration</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedJob.tests.map((test) => (
-                          <TableRow key={test.id}>
-                            <TableCell>
-                              {getTestStatusIcon(test.status)}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {test.name}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{test.type}</Badge>
-                            </TableCell>
-                            <TableCell>{formatDate(test.lastRunAt)}</TableCell>
-                            <TableCell>
-                              {formatDuration(test.duration)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end space-x-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    setSelectedTest(test);
-                                    setIsEditTestDialogOpen(true);
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteTest(test.id)}
-                                >
-                                  <Trash className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
+                    {/* Timestamps */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      <div className="space-y-1">
+                        <h3 className="text-xs text-muted-foreground">Created</h3>
+                        <p className="text-sm">
+                          {formatDate(selectedJob.createdAt)}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-xs text-muted-foreground">Updated</h3>
+                        <p className="text-sm">
+                          {formatDate(selectedJob.updatedAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="tests" className="py-4 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-medium">Tests</h3>
+                    </div>
+
+                    {selectedJob.tests && selectedJob.tests.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[120px]">ID</TableHead>
+                            <TableHead className="w-[200px]">Name</TableHead>
+                            <TableHead className="w-[100px]">Type</TableHead>
+                            <TableHead>Description</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No tests found for this job. Click &quot;Add Test&quot; to
-                      create one.
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedJob.tests.map((test) => (
+                            <TableRow key={test.id}>
+                              <TableCell className="font-mono text-sm truncate" title={test.id}>
+                                {test.id.substring(0, 8)}...
+                              </TableCell>
+                              <TableCell className="truncate" title={test.name}>
+                                {test.name}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{test.type}</Badge>
+                              </TableCell>
+                              <TableCell className="truncate" title={test.description || ""}>
+                                {test.description}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No tests configured for this job.
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
 
-              {/* Edit Test Dialog */}
-              <Dialog
-                open={isEditTestDialogOpen}
-                onOpenChange={setIsEditTestDialogOpen}
-              >
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Edit Test</DialogTitle>
-                    <DialogDescription>
-                      Update the test details.
-                    </DialogDescription>
-                  </DialogHeader>
-                  {selectedTest && (
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="edit-test-id" className="text-right">
-                          ID
-                        </Label>
-                        <Input
-                          id="edit-test-id"
-                          value={selectedTest.id}
-                          className="col-span-3"
-                          disabled
-                        />
+                {/* Edit Test Dialog */}
+                <Dialog
+                  open={isEditTestDialogOpen}
+                  onOpenChange={setIsEditTestDialogOpen}
+                >
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Edit Test</DialogTitle>
+                      <DialogDescription>
+                        Update the test details.
+                      </DialogDescription>
+                    </DialogHeader>
+                    {selectedTest && (
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="edit-test-id" className="text-right">
+                            ID
+                          </Label>
+                          <Input
+                            id="edit-test-id"
+                            value={selectedTest.id}
+                            className="col-span-3"
+                            disabled
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="edit-test-name" className="text-right">
+                            Name
+                          </Label>
+                          <Input
+                            id="edit-test-name"
+                            value={selectedTest.name}
+                            onChange={(e) =>
+                              setSelectedTest({
+                                ...selectedTest,
+                                name: e.target.value,
+                              })
+                            }
+                            className="col-span-3"
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label
+                            htmlFor="edit-test-description"
+                            className="text-right"
+                          >
+                            Description
+                          </Label>
+                          <Textarea
+                            id="edit-test-description"
+                            value={selectedTest.description || ""}
+                            onChange={(e) =>
+                              setSelectedTest({
+                                ...selectedTest,
+                                description: e.target.value,
+                              })
+                            }
+                            className="col-span-3"
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="edit-test-type" className="text-right">
+                            Type
+                          </Label>
+                          <Select
+                            value={selectedTest.type}
+                            onValueChange={(
+                              value:
+                                | "api"
+                                | "ui"
+                                | "integration"
+                                | "performance"
+                                | "security"
+                            ) =>
+                              setSelectedTest({ ...selectedTest, type: value })
+                            }
+                          >
+                            <SelectTrigger className="col-span-3">
+                              <SelectValue placeholder="Select test type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="api">API</SelectItem>
+                              <SelectItem value="ui">UI</SelectItem>
+                              <SelectItem value="integration">
+                                Integration
+                              </SelectItem>
+                              <SelectItem value="performance">
+                                Performance
+                              </SelectItem>
+                              <SelectItem value="security">Security</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label
+                            htmlFor="edit-test-status"
+                            className="text-right"
+                          >
+                            Status
+                          </Label>
+                          <Select
+                            value={selectedTest.status || "pending"}
+                            onValueChange={(
+                              value: "pass" | "fail" | "pending" | "skipped"
+                            ) =>
+                              setSelectedTest({ ...selectedTest, status: value })
+                            }
+                          >
+                            <SelectTrigger className="col-span-3">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pass">Pass</SelectItem>
+                              <SelectItem value="fail">Fail</SelectItem>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="skipped">Skipped</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="edit-test-name" className="text-right">
-                          Name
-                        </Label>
-                        <Input
-                          id="edit-test-name"
-                          value={selectedTest.name}
-                          onChange={(e) =>
-                            setSelectedTest({
-                              ...selectedTest,
-                              name: e.target.value,
-                            })
-                          }
-                          className="col-span-3"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label
-                          htmlFor="edit-test-description"
-                          className="text-right"
-                        >
-                          Description
-                        </Label>
-                        <Textarea
-                          id="edit-test-description"
-                          value={selectedTest.description || ""}
-                          onChange={(e) =>
-                            setSelectedTest({
-                              ...selectedTest,
-                              description: e.target.value,
-                            })
-                          }
-                          className="col-span-3"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="edit-test-type" className="text-right">
-                          Type
-                        </Label>
-                        <Select
-                          value={selectedTest.type}
-                          onValueChange={(
-                            value:
-                              | "api"
-                              | "ui"
-                              | "integration"
-                              | "performance"
-                              | "security"
-                          ) =>
-                            setSelectedTest({ ...selectedTest, type: value })
-                          }
-                        >
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="Select test type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="api">API</SelectItem>
-                            <SelectItem value="ui">UI</SelectItem>
-                            <SelectItem value="integration">
-                              Integration
-                            </SelectItem>
-                            <SelectItem value="performance">
-                              Performance
-                            </SelectItem>
-                            <SelectItem value="security">Security</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label
-                          htmlFor="edit-test-status"
-                          className="text-right"
-                        >
-                          Status
-                        </Label>
-                        <Select
-                          value={selectedTest.status || "pending"}
-                          onValueChange={(
-                            value: "pass" | "fail" | "pending" | "skipped"
-                          ) =>
-                            setSelectedTest({ ...selectedTest, status: value })
-                          }
-                        >
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pass">Pass</SelectItem>
-                            <SelectItem value="fail">Fail</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="skipped">Skipped</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  )}
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsEditTestDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button onClick={handleEditTest}>Save Changes</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                    )}
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsEditTestDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={handleEditTest}>Save Changes</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </>
           )}
         </SheetContent>

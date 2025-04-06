@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "zod";
 
 // Schema for tests matching the database schema
 export const testSchema = z.object({
@@ -6,10 +6,10 @@ export const testSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
   script: z.string().optional(),
-  priority: z.enum(["low", "medium", "high", "critical"]),
+  priority: z.enum(["low", "medium", "high"]),
   type: z.enum(["browser", "api", "multistep", "database"]),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-})
+});
 
-export type Test = z.infer<typeof testSchema>
+export type Test = z.infer<typeof testSchema>;

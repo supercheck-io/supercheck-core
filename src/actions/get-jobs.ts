@@ -6,154 +6,152 @@ import { desc, eq, inArray } from "drizzle-orm";
 
 type TestType = "browser" | "api" | "multistep" | "database";
 
-// UI Test interface that matches what the components expect
-interface Test {
+// Remove or update this interface if it conflicts with schema types
+// For now, we'll just ensure the type uses the DB types
+interface TestFromAction {
   id: string;
   name: string;
-  description: string | null;
-  type: "api" | "ui" | "integration" | "performance" | "security";
+  description: string;
+  type: TestType; // Use the DB TestType
   status?: "pending" | "pass" | "fail" | "skipped";
-  lastRunAt?: string | null;
-  duration?: number | null;
+  lastRunAt?: string;
+  duration?: number;
 }
 
-interface Job {
+interface JobFromAction {
   id: string;
   name: string;
-  description: string | null;
-  cronSchedule: string | null;
+  description: string;
+  cronSchedule: string;
   status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  timeoutSeconds: number;
-  retryCount: number;
-  config: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
-  lastRunAt: string | null;
-  nextRunAt: string | null;
-  tests: Test[];
+  lastRunAt: string;
+  nextRunAt: string;
+  tests: TestFromAction[];
 }
 
 interface JobsResponse {
   success: boolean;
-  jobs: Job[] | null;
+  jobs: JobFromAction[] | null;
   error?: string;
 }
 
 interface JobResponse {
   success: boolean;
-  job: Job | null;
+  job: JobFromAction | null;
   error?: string;
 }
 
 interface JobWithTests {
   id: string;
   name: string;
-  description: string | null;
-  cronSchedule: string | null;
+  description: string;
+  cronSchedule: string;
   status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  timeoutSeconds: number;
-  retryCount: number;
-  config: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
-  lastRunAt: string | null;
-  nextRunAt: string | null;
+  lastRunAt: string;
+  nextRunAt: string;
   tests: { testId: string }[];
-}
-
-// Map database test type to UI test type
-function mapTestType(dbType: TestType): "api" | "ui" | "integration" | "performance" | "security" {
-  switch (dbType) {
-    case "api":
-      return "api";
-    case "browser":
-      return "ui";
-    case "multistep":
-      return "integration";
-    case "database":
-      return "performance";
-    default:
-      return "api";
-  }
 }
 
 export async function getJobs(): Promise<JobsResponse> {
   try {
     // Get the database instance
     const dbInstance = await db();
-    
+
     // Fetch all jobs with their associated tests
-    const allJobs = await dbInstance.select().from(jobs)
+    const allJobs = await dbInstance
+      .select({
+        jobs: {
+          id: jobs.id,
+          name: jobs.name,
+          description: jobs.description,
+          cronSchedule: jobs.cronSchedule,
+          status: jobs.status,
+          createdAt: jobs.createdAt,
+          updatedAt: jobs.updatedAt,
+          lastRunAt: jobs.lastRunAt,
+          nextRunAt: jobs.nextRunAt,
+        },
+        jobTests: {
+          testId: jobTests.testId,
+        },
+      })
+      .from(jobs)
       .leftJoin(jobTests, eq(jobs.id, jobTests.jobId))
       .orderBy(desc(jobs.createdAt));
-    
+
     // Group jobs by ID and collect test IDs
     const jobMap = new Map<string, JobWithTests>();
     for (const row of allJobs) {
       const job = row.jobs;
-      const testId = row.job_tests?.testId;
-      
+      const testId = row.jobTests?.testId;
+
       if (!jobMap.has(job.id)) {
         jobMap.set(job.id, {
           id: job.id,
           name: job.name,
-          description: job.description,
-          cronSchedule: job.cronSchedule,
-          status: job.status as "pending" | "running" | "completed" | "failed" | "cancelled",
-          timeoutSeconds: job.timeoutSeconds || 0,
-          retryCount: job.retryCount || 0,
-          config: job.config ? JSON.parse(JSON.stringify(job.config)) : null,
-          createdAt: job.createdAt ? new Date(job.createdAt).toISOString() : new Date().toISOString(),
-          updatedAt: job.updatedAt ? new Date(job.updatedAt).toISOString() : new Date().toISOString(),
-          lastRunAt: job.lastRunAt ? new Date(job.lastRunAt).toISOString() : null,
-          nextRunAt: job.nextRunAt ? new Date(job.nextRunAt).toISOString() : null,
-          tests: testId ? [{ testId }] : []
+          description: job.description || "",
+          cronSchedule: job.cronSchedule || "",
+          status: job.status as JobFromAction["status"],
+          createdAt: job.createdAt
+            ? new Date(job.createdAt).toISOString()
+            : new Date().toISOString(),
+          updatedAt: job.updatedAt
+            ? new Date(job.updatedAt).toISOString()
+            : new Date().toISOString(),
+          lastRunAt: job.lastRunAt ? new Date(job.lastRunAt).toISOString() : "",
+          nextRunAt: job.nextRunAt ? new Date(job.nextRunAt).toISOString() : "",
+          tests: testId ? [{ testId }] : [],
         });
       } else if (testId) {
         const existingJob = jobMap.get(job.id)!;
         existingJob.tests.push({ testId });
       }
     }
-    
+
     // Convert map to array
     const jobsArray = Array.from(jobMap.values());
 
     // For each job, collect test IDs
     const allTestIds = new Set<string>();
-    jobsArray.forEach(job => {
-      job.tests.forEach(test => {
+    jobsArray.forEach((job) => {
+      job.tests.forEach((test) => {
         allTestIds.add(test.testId);
       });
     });
 
     // Fetch all tests at once instead of in a loop
-    let testDetailsMap: Record<string, Test> = {};
+    let testDetailsMap: Record<string, TestFromAction> = {};
     if (allTestIds.size > 0) {
-      const testResults = await dbInstance.select().from(tests)
+      const testResults = await dbInstance
+        .select()
+        .from(tests)
         .where(inArray(tests.id, Array.from(allTestIds)));
-      
+
       // Create a map of test ID to test details
       testDetailsMap = testResults.reduce((map, dbTest) => {
         map[dbTest.id] = {
           id: dbTest.id,
           name: dbTest.title,
-          description: dbTest.description,
-          type: mapTestType(dbTest.type as TestType),
-          status: "pending",
-          lastRunAt: dbTest.updatedAt ? new Date(dbTest.updatedAt).toISOString() : null,
-          duration: null
+          description: dbTest.description || "",
+          type: dbTest.type as TestType,
+          status: undefined,
+          lastRunAt: undefined,
+          duration: undefined,
         };
         return map;
-      }, {} as Record<string, Test>);
+      }, {} as Record<string, TestFromAction>);
     }
 
     // Map the jobs to include test information using the map
-    const jobsWithTests = jobsArray.map(job => {
-      // Get the test details for each test ID
+    const jobsWithTests = jobsArray.map((job) => {
       const testDetails = job.tests
-        .map(test => testDetailsMap[test.testId])
+        .map((test) => testDetailsMap[test.testId])
         .filter(Boolean);
-      
+
       // Return a serializable job object
       return {
         id: job.id,
@@ -161,9 +159,6 @@ export async function getJobs(): Promise<JobsResponse> {
         description: job.description,
         cronSchedule: job.cronSchedule,
         status: job.status,
-        timeoutSeconds: job.timeoutSeconds,
-        retryCount: job.retryCount,
-        config: job.config || {},
         createdAt: job.createdAt,
         updatedAt: job.updatedAt,
         lastRunAt: job.lastRunAt,
@@ -181,64 +176,82 @@ export async function getJobs(): Promise<JobsResponse> {
 
 export async function getJob(id: string): Promise<JobResponse> {
   try {
-    // Get the database instance
     const dbInstance = await db();
-    
-    // Fetch the job by ID
-    const jobResult = await dbInstance.select().from(jobs)
-      .where(eq(jobs.id, id))
-      .limit(1);
-    
-    if (jobResult.length === 0) {
+
+    // First get the job details
+    const [jobRow] = await dbInstance
+      .select({
+        id: jobs.id,
+        name: jobs.name,
+        description: jobs.description,
+        cronSchedule: jobs.cronSchedule,
+        status: jobs.status,
+        createdAt: jobs.createdAt,
+        updatedAt: jobs.updatedAt,
+        lastRunAt: jobs.lastRunAt,
+        nextRunAt: jobs.nextRunAt,
+      })
+      .from(jobs)
+      .where(eq(jobs.id, id));
+
+    if (!jobRow) {
       return { success: false, job: null, error: "Job not found" };
     }
-    
-    const job = jobResult[0];
-    
-    // Fetch the tests associated with this job
-    const jobTestResults = await dbInstance.select().from(jobTests)
+
+    // Get all test IDs associated with this job
+    const jobTestsRow = await dbInstance
+      .select()
+      .from(jobTests)
       .where(eq(jobTests.jobId, id));
-    
-    const testIds = jobTestResults.map(jt => jt.testId);
-    
-    // Fetch the test details
-    let testDetails: Test[] = [];
-    if (testIds.length > 0) {
-      const testResults = await dbInstance.select().from(tests)
-        .where(inArray(tests.id, testIds));
-      
-      testDetails = testResults.map(dbTest => ({
-        id: dbTest.id,
-        name: dbTest.title,
-        description: dbTest.description,
-        type: mapTestType(dbTest.type as TestType),
-        status: "pending",
-        lastRunAt: dbTest.updatedAt ? new Date(dbTest.updatedAt).toISOString() : null,
-        duration: null
-      }));
-    }
-    
-    // Return the job with its associated tests
-    return {
-      success: true,
-      job: {
-        id: job.id,
-        name: job.name,
-        description: job.description,
-        cronSchedule: job.cronSchedule,
-        status: job.status as "pending" | "running" | "completed" | "failed" | "cancelled",
-        timeoutSeconds: job.timeoutSeconds || 0,
-        retryCount: job.retryCount || 0,
-        config: job.config ? JSON.parse(JSON.stringify(job.config)) : {},
-        createdAt: job.createdAt ? new Date(job.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: job.updatedAt ? new Date(job.updatedAt).toISOString() : new Date().toISOString(),
-        lastRunAt: job.lastRunAt ? new Date(job.lastRunAt).toISOString() : null,
-        nextRunAt: job.nextRunAt ? new Date(job.nextRunAt).toISOString() : null,
-        tests: testDetails
-      }
+
+    // Get all tests at once
+    const testIds = jobTestsRow.map((row) => row.testId);
+    const testsRow = await dbInstance
+      .select()
+      .from(tests)
+      .where(inArray(tests.id, testIds));
+
+    // Map tests to UI format
+    const uiTests = testsRow.map((test) => ({
+      id: test.id,
+      name: test.title,
+      description: test.description || "",
+      type: test.type as TestType,
+      status: undefined,
+      lastRunAt: undefined,
+      duration: undefined,
+    }));
+
+    // Create the job object
+    const jobData: JobFromAction = {
+      id: jobRow.id,
+      name: jobRow.name,
+      description: jobRow.description || "",
+      cronSchedule: jobRow.cronSchedule || "",
+      status: jobRow.status as
+        | "pending"
+        | "running"
+        | "completed"
+        | "failed"
+        | "cancelled",
+      createdAt: jobRow.createdAt
+        ? new Date(jobRow.createdAt).toISOString()
+        : new Date().toISOString(),
+      updatedAt: jobRow.updatedAt
+        ? new Date(jobRow.updatedAt).toISOString()
+        : new Date().toISOString(),
+      lastRunAt: jobRow.lastRunAt
+        ? new Date(jobRow.lastRunAt).toISOString()
+        : "",
+      nextRunAt: jobRow.nextRunAt
+        ? new Date(jobRow.nextRunAt).toISOString()
+        : "",
+      tests: uiTests,
     };
+
+    return { success: true, job: jobData as any, error: undefined };
   } catch (error) {
     console.error("Error fetching job:", error);
-    return { success: false, job: null, error: "Failed to fetch job" };
+    return { success: false, job: null, error: "Failed to fetch job details" };
   }
 }
