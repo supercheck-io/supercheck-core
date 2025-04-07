@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,8 +15,11 @@ import { useBreadcrumbs } from "@/components/breadcrumb-context";
 export function BreadcrumbDisplay() {
   const { breadcrumbs } = useBreadcrumbs();
 
+  console.log('Breadcrumbs data:', breadcrumbs);
+
   if (!breadcrumbs || breadcrumbs.length === 0) {
-    return null;
+    console.warn('No breadcrumbs available to display');
+    return <div className="text-sm text-muted-foreground">[Home]</div>;
   }
 
   return (
@@ -23,17 +27,17 @@ export function BreadcrumbDisplay() {
       <BreadcrumbList>
         {breadcrumbs.map((item, index) => (
           <React.Fragment key={`${item.label}-${index}`}>
-            <BreadcrumbItem className="hidden md:block">
+            <BreadcrumbItem className="block">
               {item.isCurrentPage ? (
                 <BreadcrumbPage>{item.label}</BreadcrumbPage>
               ) : (
-                <BreadcrumbLink href={item.href || '#'}>
-                  {item.label}
-                </BreadcrumbLink>
+                <Link href={item.href || '#'}>
+                  <BreadcrumbLink>{item.label}</BreadcrumbLink>
+                </Link>
               )}
             </BreadcrumbItem>
             {index < breadcrumbs.length - 1 && (
-              <BreadcrumbSeparator className="hidden md:block" />
+              <BreadcrumbSeparator className="block" />
             )}
           </React.Fragment>
         ))}

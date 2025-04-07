@@ -1,7 +1,7 @@
 "use client";
 import Playground from "@/components/playground";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from "next/navigation";
 import React, { useState, useEffect, Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,7 @@ function PlaygroundSkeleton() {
   return (
     <div className="h-full">
       <PageBreadcrumbs items={skeletonBreadcrumbs} />
-      <div className="relative h-[calc(100vh-8rem)]">
+      <div className="relative h-[calc(100vh-5rem)]">
         <div className="absolute inset-0 bg-background z-10 p-4">
           <div className="hidden h-full flex-col md:flex">
             <div className="flex h-full">
@@ -54,8 +54,20 @@ function PlaygroundSkeleton() {
                   <Skeleton className="h-10 w-64" />
                   <Skeleton className="h-9 w-28" />
                 </div>
-                <div className="flex-1 overflow-hidden rounded-bl-lg">
-                  <Skeleton className="h-full w-full" />
+                <div className="flex-1 overflow-hidden">
+                  <div className="h-full w-full p-4 bg-muted/20 flex flex-col gap-4">
+                    <Skeleton className="h-5 w-3/4 mt-10" />
+                    <Skeleton className="h-5 w-1/2" />
+                    <Skeleton className="h-5 w-5/6" />
+                    <Skeleton className="h-5 w-2/3" />
+                    <Skeleton className="h-5 w-1/3" />
+                    <Skeleton className="h-5 w-3/5" />
+                    <Skeleton className="h-5 w-2/5" />
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-5 w-1/2" />
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-5 w-2/3" />
+                  </div>
                 </div>
               </div>
               <div className="w-[10px] h-full bg-border flex items-center justify-center">
@@ -68,10 +80,8 @@ function PlaygroundSkeleton() {
                 <div className="flex-1 overflow-auto p-4 space-y-4">
                   <Skeleton className="h-8 w-full" />
                   <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
                   <Skeleton className="h-32 w-full" />
+                  <Skeleton className="h-10 w-full" />
                   <Skeleton className="h-10 w-full" />
                 </div>
               </div>
@@ -86,7 +96,7 @@ function PlaygroundSkeleton() {
 // Client Boundary Component
 function PlaygroundClientBoundary() {
   const searchParams = useSearchParams();
-  const scriptType = searchParams.get('scriptType');
+  const scriptType = searchParams.get("scriptType");
   const [isLoading, setIsLoading] = useState(true);
 
   const breadcrumbs = getBreadcrumbs(scriptType);
@@ -104,7 +114,7 @@ function PlaygroundClientBoundary() {
       <PageBreadcrumbs items={breadcrumbs} />
       <div className="relative h-[calc(100vh-8rem)]">
         {/* Show skeleton only if isLoading is true */}
-        {isLoading && <PlaygroundSkeleton />} 
+        {isLoading && <PlaygroundSkeleton />}
         {/* Actual Playground content with transition */}
         <div
           className={cn(
@@ -113,7 +123,7 @@ function PlaygroundClientBoundary() {
           )}
         >
           {/* Suspense around Playground might still be needed if Playground uses client hooks */}
-          <Suspense fallback={<div>Loading Playground Component...</div>}> 
+          <Suspense fallback={<div>Loading Playground Component...</div>}>
             <Playground />
           </Suspense>
         </div>

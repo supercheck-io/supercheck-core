@@ -42,7 +42,7 @@ export function RunDetails({ run }: RunDetailsProps) {
   };
 
   return (
-    <div className="container mx-auto py-4 px-2">
+    <div className="w-full py-4 px-4">
       <div className="flex flex-col space-y-4">
         {/* Breadcrumbs */}
         <PageBreadcrumbs items={breadcrumbs} />

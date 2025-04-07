@@ -118,7 +118,9 @@ export function DataTable<TData, TValue>({
                 >
                   <div className="flex justify-center items-center space-x-2">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    <span className="text-muted-foreground">Loading data...</span>
+                    <span className="text-muted-foreground">
+                      Loading data...
+                    </span>
                   </div>
                 </TableCell>
               </TableRow>

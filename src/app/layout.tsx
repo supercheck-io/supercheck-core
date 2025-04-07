@@ -25,8 +25,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Supertest",
-  description: "Supertest",
+  title: "Supertest | Dashboard",
+  description: "Monitor and manage your tests, jobs, and runs",
 };
 
 export default function RootLayout({

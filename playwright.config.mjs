@@ -9,7 +9,8 @@ export default defineConfig({
     [
       "html",
       {
-        outputFolder: process.env.PLAYWRIGHT_REPORT_DIR || "./public/test-results/report", // Use environment variable for report directory
+        outputFolder:
+          process.env.PLAYWRIGHT_REPORT_DIR || "./public/test-results/report", // Use environment variable for report directory
         open: "never", // Prevent auto-opening the report
       },
     ],

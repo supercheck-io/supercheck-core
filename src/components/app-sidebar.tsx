@@ -3,21 +3,23 @@
 import * as React from "react";
 import {
   AudioWaveform,
-  BellRing,
+  // BellRing,
   Code,
   Command,
   CalendarClock,
   Frame,
   ChartColumn,
-  Activity,
+  // Activity,
   Map,
   PieChart,
-  ChartBar,
+  // ChartBar,
   NotepadText,
   Settings2,
   SquareTerminal,
-  PlusIcon,
+  // PlusIcon,
   Shield,
+  PlusCircleIcon,
+  // MailIcon,
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -111,21 +113,21 @@ const data = {
       url: "/runs",
       icon: NotepadText,
     },
-    {
-      title: "Heartbeats",
-      url: "/heartbests",
-      icon: Activity,
-    },
-    {
-      title: "Console",
-      url: "/console",
-      icon: ChartBar,
-    },
-    {
-      title: "Alerts",
-      url: "/alerts",
-      icon: BellRing,
-    },
+    // {
+    //   title: "Heartbeats",
+    //   url: "/heartbests",
+    //   icon: Activity,
+    // },
+    // {
+    //   title: "Panels",
+    //   url: "/panels",
+    //   icon: ChartBar,
+    // },
+    // {
+    //   title: "Alerts",
+    //   url: "/alerts",
+    //   icon: BellRing,
+    // },
 
     {
       title: "Settings",
@@ -180,13 +182,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup className="-mb-2 ">
           <SidebarMenu>
             <SidebarMenuItem>
-              <Link href="/create">
+              <Link href="/create" className="flex w-full">
                 <SidebarMenuButton
-                  tooltip="Create"
-                  className="flex items-center justify-center bg-primary text-primary-foreground data-[active]:bg-primary data-[active]:text-primary-foreground active:bg-primary active:text-primary-foreground focus:bg-primary focus:text-primary-foreground max-w-[94%] ml-[3%] mr-[3%] cursor-pointer "
+                  tooltip="Quick Create"
+                  className="flex items-center justify-center min-w-7 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground cursor-pointer w-[90%] ml-[5%] mr-[5%]"
                 >
-                  <PlusIcon className="h-4 w-4 ml-2" />
-                  <span>Create</span>
+                  <PlusCircleIcon className="h-4 w-4 ml-2" />
+                  <span> Quick Create</span>
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
