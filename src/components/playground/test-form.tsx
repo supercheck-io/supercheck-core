@@ -18,7 +18,7 @@ import { decodeTestScript } from "@/actions/save-test";
 import { useRouter } from "next/navigation";
 
 // Define the type for the display map keys explicitly based on allowed UI values
-type AllowedPriorityKey = 'low' | 'medium' | 'high';
+type AllowedPriorityKey = "low" | "medium" | "high";
 
 // Map the database schema values to display values for the UI
 const priorityDisplayMap: Record<AllowedPriorityKey, string> = {

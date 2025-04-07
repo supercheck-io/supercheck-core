@@ -76,15 +76,17 @@ export function DataTable<TData, TValue>({
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
     globalFilterFn: "auto",
-    initialState: {
-      pagination: {
-        pageSize: 10,
-      },
-    },
     meta: {
       globalFilterColumns: ["id", "jobName", "jobId"],
     },
   });
+
+  // Initialize pagination after component has mounted
+  React.useEffect(() => {
+    if (data.length > 0) {
+      table.resetPageIndex(true);
+    }
+  }, [data, table]);
 
   return (
     <div className="space-y-4">

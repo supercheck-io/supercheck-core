@@ -73,11 +73,6 @@ export function DataTable<TData, TValue>({
       columnFilters,
       globalFilter,
     },
-    initialState: {
-      pagination: {
-        pageSize: 10,
-      },
-    },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -96,6 +91,14 @@ export function DataTable<TData, TValue>({
       ...meta,
     } as ExtendedTableMeta<TData>,
   });
+
+  // Use useEffect to reset pagination after the component has mounted
+  React.useEffect(() => {
+    // Only reset if there's data and the component is mounted
+    if (data.length > 0) {
+      table.resetPageIndex(true);
+    }
+  }, [data, table]);
 
   return (
     <div className="space-y-4">

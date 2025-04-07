@@ -44,7 +44,7 @@ const data = {
   user: {
     name: "test user",
     email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    avatar: "https://ui-avatars.com/api/?name=Test+User&background=random",
   },
   teams: [
     {

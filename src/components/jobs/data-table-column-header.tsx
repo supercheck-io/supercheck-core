@@ -1,5 +1,7 @@
+import * as React from "react";
 import type { Column } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, EyeOff } from "lucide-react";
+import type { SortDirection } from "@tanstack/react-table";
 
 import { cn } from "@/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -22,6 +24,14 @@ export function DataTableColumnHeader<TData, TValue>({
   title,
   className,
 }: DataTableColumnHeaderProps<TData, TValue>) {
+  const [sortDirection, setSortDirection] =
+    React.useState<SortDirection | null>(null);
+
+  React.useEffect(() => {
+    const direction = column.getIsSorted();
+    setSortDirection(direction === false ? null : direction);
+  }, [column]);
+
   if (!column.getCanSort()) {
     return <div className={cn(className)}>{title}</div>;
   }
@@ -36,9 +46,9 @@ export function DataTableColumnHeader<TData, TValue>({
             className="-ml-3 h-8 data-[state=open]:bg-accent"
           >
             <span>{title}</span>
-            {column.getIsSorted() === "desc" ? (
+            {sortDirection === "desc" ? (
               <ArrowDown />
-            ) : column.getIsSorted() === "asc" ? (
+            ) : sortDirection === "asc" ? (
               <ArrowUp />
             ) : (
               <ChevronsUpDown />

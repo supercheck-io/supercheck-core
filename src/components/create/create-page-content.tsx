@@ -13,7 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 
-type ScriptType = "browser" | "api" | "multistep" | "database";
+type ScriptType = "browser" | "api" | "multistep" | "database" | "help";
 
 export function CreatePageContent() {
   const router = useRouter();
@@ -87,6 +87,7 @@ export function CreatePageContent() {
       title: "New check type",
       description: "There is a type missing?",
       path: "#",
+      scriptType: "help" as ScriptType,
     },
   ];
 
@@ -102,12 +103,14 @@ export function CreatePageContent() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-2">
         {testTypes.map((testType) => (
           <CreateCard
-            key={testType.scriptType}
+            key={testType.scriptType || testType.title}
             icon={testType.icon}
             title={testType.title}
             description={testType.description}
             onClick={() =>
-              handleScriptSelection(testType.scriptType as ScriptType)
+              testType.scriptType
+                ? handleScriptSelection(testType.scriptType as ScriptType)
+                : undefined
             }
             className={
               testType.title === "New check type" ? "border-dashed" : ""
@@ -123,12 +126,14 @@ export function CreatePageContent() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-2">
         <CreateCard
+          key="scheduled-job"
           icon={<Clock size={24} />}
           title="Scheduled Job"
           description="Create a job that runs on a schedule"
           onClick={() => router.push("/jobs/create")}
         />
         <CreateCard
+          key="immediate-job"
           icon={<Zap size={24} />}
           title="Immediate Job"
           description="Run a job immediately"

@@ -49,19 +49,20 @@ export default function Tests() {
     router.push(`/playground/${test.id}`);
   };
 
+  const handleDeleteTest = (testId: string) => {
+    setTests((prevTests) => prevTests.filter((test) => test.id !== testId));
+  };
+
   return (
     <div className="flex h-full flex-col space-y-4 p-4">
-      <DataTable 
-        columns={columns} 
-        data={tests} 
-        isLoading={isLoading} 
+      <DataTable
+        columns={columns}
+        data={tests}
+        isLoading={isLoading}
         onRowClick={handleRowClick}
         meta={{
-          onDeleteTest: (testId: string) => {
-            // Update local state by filtering out the deleted test
-            setTests((prevTests) => prevTests.filter((test) => test.id !== testId));
-          }
-        }} 
+          onDeleteTest: handleDeleteTest,
+        }}
       />
 
       {selectedTest && (

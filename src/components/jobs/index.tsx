@@ -12,12 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { jobStatuses } from "./data/data";
 import { Job, Test } from "./data/schema";
-import {
-  CalendarIcon,
-  ClockIcon,
-  TimerIcon,
-  Edit,
-} from "lucide-react";
+import { CalendarIcon, ClockIcon, TimerIcon, Edit } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -78,7 +73,7 @@ export default function Jobs() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isEditTestDialogOpen, setIsEditTestDialogOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
-  const { } = useJobContext();
+  const {} = useJobContext();
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch jobs from the database on component mount
@@ -90,14 +85,14 @@ export default function Jobs() {
         if (response.success && response.jobs) {
           const typedJobs = response.jobs.map((job) => ({
             ...job,
-            status: job.status as Job['status'],
+            status: job.status as Job["status"],
             description: job.description || null,
             cronSchedule: job.cronSchedule || null,
             tests: job.tests.map((test) => ({
               ...test,
-              type: test.type as Test['type'],
+              type: test.type as Test["type"],
               description: test.description || null,
-              status: (test.status || "pending") as Test['status'],
+              status: (test.status || "pending") as Test["status"],
               lastRunAt: test.lastRunAt || null,
               duration: test.duration || null,
             })),
@@ -169,6 +164,17 @@ export default function Jobs() {
     });
   };
 
+  const handleDeleteJob = (jobId: string) => {
+    // Update local state by filtering out the deleted job
+    setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId));
+
+    // If the deleted job is currently selected, close the sheet
+    if (selectedJob && selectedJob.id === jobId) {
+      setIsSheetOpen(false);
+      setSelectedJob(null);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col space-y-4 p-4 w-full max-w-full overflow-x-hidden">
       <DataTable
@@ -180,16 +186,7 @@ export default function Jobs() {
           setIsSheetOpen(true);
         }}
         meta={{
-          onDeleteJob: (jobId: string) => {
-            // Update local state by filtering out the deleted job
-            setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId));
-            
-            // If the deleted job is currently selected, close the sheet
-            if (selectedJob && selectedJob.id === jobId) {
-              setIsSheetOpen(false);
-              setSelectedJob(null);
-            }
-          }
+          onDeleteJob: handleDeleteJob,
         }}
       />
 
@@ -204,7 +201,9 @@ export default function Jobs() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push(`/jobs/edit/${selectedJob.id}`)}
+                      onClick={() =>
+                        router.push(`/jobs/edit/${selectedJob.id}`)
+                      }
                       className="cursor-pointer"
                     >
                       <Edit className="h-4 w-4 mr-2" />
@@ -251,7 +250,9 @@ export default function Jobs() {
                                   className={`h-5 w-5 ${status.color}`}
                                 />
                               )}
-                              <span className="font-medium">{status.label}</span>
+                              <span className="font-medium">
+                                {status.label}
+                              </span>
                             </>
                           ) : null;
                         })()}
@@ -271,7 +272,9 @@ export default function Jobs() {
                       <h3 className="text-sm font-medium">Schedule</h3>
                       <div className="flex items-center space-x-2">
                         <TimerIcon className="h-4 w-4 text-muted-foreground" />
-                        <span>{selectedJob.cronSchedule || "Not scheduled"}</span>
+                        <span>
+                          {selectedJob.cronSchedule || "Not scheduled"}
+                        </span>
                       </div>
                     </div>
 
@@ -296,13 +299,17 @@ export default function Jobs() {
                     {/* Timestamps */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                       <div className="space-y-1">
-                        <h3 className="text-xs text-muted-foreground">Created</h3>
+                        <h3 className="text-xs text-muted-foreground">
+                          Created
+                        </h3>
                         <p className="text-sm">
                           {formatDate(selectedJob.createdAt)}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <h3 className="text-xs text-muted-foreground">Updated</h3>
+                        <h3 className="text-xs text-muted-foreground">
+                          Updated
+                        </h3>
                         <p className="text-sm">
                           {formatDate(selectedJob.updatedAt)}
                         </p>
@@ -328,7 +335,10 @@ export default function Jobs() {
                         <TableBody>
                           {selectedJob.tests.map((test) => (
                             <TableRow key={test.id}>
-                              <TableCell className="font-mono text-sm truncate" title={test.id}>
+                              <TableCell
+                                className="font-mono text-sm truncate"
+                                title={test.id}
+                              >
                                 {test.id.substring(0, 8)}...
                               </TableCell>
                               <TableCell className="truncate" title={test.name}>
@@ -337,7 +347,10 @@ export default function Jobs() {
                               <TableCell>
                                 <Badge variant="outline">{test.type}</Badge>
                               </TableCell>
-                              <TableCell className="truncate" title={test.description || ""}>
+                              <TableCell
+                                className="truncate"
+                                title={test.description || ""}
+                              >
                                 {test.description}
                               </TableCell>
                             </TableRow>
@@ -378,7 +391,10 @@ export default function Jobs() {
                           />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="edit-test-name" className="text-right">
+                          <Label
+                            htmlFor="edit-test-name"
+                            className="text-right"
+                          >
                             Name
                           </Label>
                           <Input
@@ -413,7 +429,10 @@ export default function Jobs() {
                           />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="edit-test-type" className="text-right">
+                          <Label
+                            htmlFor="edit-test-type"
+                            className="text-right"
+                          >
                             Type
                           </Label>
                           <Select
@@ -434,7 +453,9 @@ export default function Jobs() {
                               {/* Only show valid Test['type'] options */}
                               <SelectItem value="browser">Browser</SelectItem>
                               <SelectItem value="api">API</SelectItem>
-                              <SelectItem value="multistep">Multistep</SelectItem>
+                              <SelectItem value="multistep">
+                                Multistep
+                              </SelectItem>
                               <SelectItem value="database">Database</SelectItem>
                             </SelectContent>
                           </Select>
@@ -451,7 +472,10 @@ export default function Jobs() {
                             onValueChange={(
                               value: "pass" | "fail" | "pending" | "skipped"
                             ) =>
-                              setSelectedTest({ ...selectedTest, status: value })
+                              setSelectedTest({
+                                ...selectedTest,
+                                status: value,
+                              })
                             }
                           >
                             <SelectTrigger className="col-span-3">
