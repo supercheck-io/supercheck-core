@@ -194,17 +194,14 @@ const Playground: React.FC<PlaygroundProps> = ({
       setTestId(null);
 
       const defaultType = "browser" as TestType;
-      const typeToSet = scriptTypeParam && [
-        "browser",
-        "api",
-        "multistep",
-        "database",
-      ].includes(scriptTypeParam)
-        ? scriptTypeParam
-        : defaultType;
+      const typeToSet =
+        scriptTypeParam &&
+        ["browser", "api", "multistep", "database"].includes(scriptTypeParam)
+          ? scriptTypeParam
+          : defaultType;
 
       // console.log("[Playground Effect] Determined typeToSet:", typeToSet);
-      setTestCase(prev => ({ ...prev, type: typeToSet }));
+      setTestCase((prev) => ({ ...prev, type: typeToSet }));
 
       const loadScriptForType = async () => {
         // console.log("[Playground Effect] loadScriptForType called with type:", typeToSet);
@@ -218,7 +215,7 @@ const Playground: React.FC<PlaygroundProps> = ({
             }
             setEditorContent(scriptContent || ""); // Ensure we set empty string if null/undefined
             setInitialEditorContent(scriptContent || "");
-            setTestCase(prev => ({ ...prev, script: scriptContent || "" }));
+            setTestCase((prev) => ({ ...prev, script: scriptContent || "" }));
             // console.log("[Playground Effect] State updated with script content.");
           } catch {
             // console.error("[Playground Effect] Error loading default script:", error);
@@ -228,7 +225,6 @@ const Playground: React.FC<PlaygroundProps> = ({
       };
       loadScriptForType();
     }
-
   }, [searchParams, initialTestId]);
 
   // Handle initialTestData when provided from server-side
@@ -308,13 +304,11 @@ const Playground: React.FC<PlaygroundProps> = ({
   const runPlaywrightTest = async () => {
     setIsRunning(true);
     setActiveTab("report");
-    
+
     // Use a unique ID for the loading toast so we can specifically dismiss it
-    const loadingToastId = toast.loading(
-      "Test Running", {
-        description: "This may take a few moments...",
-      }
-    );
+    const loadingToastId = toast.loading("Test Running", {
+      description: "This may take a few moments...",
+    });
 
     try {
       // Prepare the request body with the current editor content
@@ -358,48 +352,54 @@ const Playground: React.FC<PlaygroundProps> = ({
       // Check for errors first
       if (result.error) {
         console.error("Test execution error:", result.error);
-        
+
         // Show user-friendly error message based on error type
-        if (result.error.includes("ConnectionError") || result.error.includes("getaddrinfo ENOTFOUND")) {
+        if (
+          result.error.includes("ConnectionError") ||
+          result.error.includes("getaddrinfo ENOTFOUND")
+        ) {
           toast.error("Database Connection Error", {
-            description: "Failed to connect to the database. Please check your database configuration and try again.",
+            description:
+              "Failed to connect to the database. Please check your database configuration and try again.",
             duration: 5000,
           });
         } else if (result.error.includes("exit code 1")) {
           toast.error("Test Execution Failed", {
-            description: "The test encountered an error during execution. Please check your test script and try again.",
+            description:
+              "The test encountered an error during execution. Please check your test script and try again.",
             duration: 5000,
           });
         } else {
           toast.error("Test Error", {
-            description: "An unexpected error occurred while running the test. Please try again.",
+            description:
+              "An unexpected error occurred while running the test. Please try again.",
             duration: 5000,
           });
         }
-      } 
+      }
       // Check if test was not successful
       else if (!result.success) {
         console.error("Test execution failed:", result.error);
         toast.error("Test Execution Failed", {
-          description: "The test could not be completed successfully. Please check your test configuration and try again.",
+          description:
+            "The test could not be completed successfully. Please check your test configuration and try again.",
           duration: 5000,
         });
-      } 
+      }
       // Only show success message if all tests passed with no errors
       else {
         toast.success("Test Completed", {
-        description: "Test execution was successful.",
-      duration: 5000,}
-    )
-          
-        
+          description: "Test execution was successful.",
+          duration: 5000,
+        });
       }
     } catch (error) {
       // Dismiss the loading toast
       toast.dismiss(loadingToastId);
       console.error("Error running test:", error);
       toast.error("Test Execution Error", {
-        description: "Unable to run the test at this time. Please try again later.",
+        description:
+          "Unable to run the test at this time. Please try again later.",
       });
     } finally {
       setIsRunning(false);

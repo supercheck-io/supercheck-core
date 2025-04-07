@@ -7,9 +7,6 @@ import { validateCode } from "./code-validation";
 import * as async from "async";
 import crypto from "crypto";
 
-// Suppress the NODE_TLS_REJECT_UNAUTHORIZED warning
-// process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 const { spawn } = childProcess;
 const { join, normalize, sep, posix, dirname } = path;
 
@@ -31,8 +28,6 @@ const TEST_EXECUTION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const TRACE_RECOVERY_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // Track the last cleanup time to avoid too frequent cleanups
-let lastCleanupTime: number | null = null;
-const CLEANUP_INTERVAL = 30 * 60 * 1000; // 30 minutes - less frequent cleanups
 
 // Define the TestResult interface
 interface TestResult {
@@ -86,9 +81,6 @@ const activeTestIds = new Set<string>();
 // Keep a record of recent test IDs to avoid cleaning them up too soon
 // Store with timestamp to know when they were created
 const recentTestIds = new Map<string, number>();
-
-// How long to consider a test "recent" (30 minutes)
-const RECENT_TEST_WINDOW_MS = 30 * 60 * 1000;
 
 // Function to get the status of a test
 export function getTestStatus(testId: string): TestStatusUpdate | null {
@@ -248,8 +240,30 @@ async function executeTestInChildProcess(
       .loading { display: flex; align-items: center; margin: 20px 0; }
       .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #2563eb; animation: spin 1s linear infinite; margin-right: 15px; }
       @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      .hidden { display: none; }
     </style>
-    <script>setTimeout(function() { location.reload(); }, 5000);</script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const testId = "${testId}";
+        const eventSource = new EventSource('/api/test-status/sse/' + testId);
+        
+        eventSource.onmessage = function(event) {
+          const data = JSON.parse(event.data);
+          
+          if (data.status === 'completed') {
+            // Test is completed, reload to show the final report
+            eventSource.close();
+            window.location.reload();
+          }
+        };
+        
+        eventSource.onerror = function() {
+          // If there's an error with the connection, fall back to reload after 10 seconds
+          eventSource.close();
+          setTimeout(function() { window.location.reload(); }, 10000);
+        };
+      });
+    </script>
   </head>
   <body>
     <div class="container">
@@ -364,8 +378,6 @@ async function executeTestInChildProcess(
       const childProcess = spawn(commandToRun, args, {
         env: {
           ...process.env,
-          // Prevent the NODE_TLS_REJECT_UNAUTHORIZED warning in the child process
-          // NODE_TLS_REJECT_UNAUTHORIZED: "0",
           // Pass the test ID to make it available in the test
           TEST_ID: testId,
           // Add artifacts directories to avoid conflicts between parallel tests
@@ -1304,80 +1316,50 @@ test('test', async ({ page }) => {
     await fs.writeFile(testPath, testContent);
 
     // Create an initial HTML report with loading indicator
-    const loadingHtml = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Test Execution in Progress</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f9f9f9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+    const loadingHtml = `<!DOCTYPE html>
+<html>
+  <head>
+    <title>Test Running - ${testId}</title>
+    <style>
+      body { font-family: system-ui; background-color: #f8f8f8; color: #333; margin: 0; padding: 20px; }
+      .container { max-width: 800px; margin: 0 auto; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; }
+      h1 { color: #2563eb; margin-top: 0; }
+      .loading { display: flex; align-items: center; margin: 20px 0; }
+      .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #2563eb; animation: spin 1s linear infinite; margin-right: 15px; }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      .hidden { display: none; }
+    </style>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const testId = "${testId}";
+        const eventSource = new EventSource('/api/test-status/sse/' + testId);
+        
+        eventSource.onmessage = function(event) {
+          const data = JSON.parse(event.data);
+          
+          if (data.status === 'completed') {
+            // Test is completed, reload to show the final report
+            eventSource.close();
+            window.location.reload();
           }
-          .container {
-            text-align: center;
-            background-color: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
-          }
-          h1 {
-            color: #333;
-            margin-bottom: 20px;
-          }
-          .spinner {
-            border: 5px solid #f3f3f3;
-            border-radius: 50%;
-            border-top: 5px solid #3498db;
-            width: 50px;
-            height: 50px;
-            margin: 20px auto;
-            animation: spin 1s linear infinite;
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-          .info {
-            margin-top: 20px;
-            color: #666;
-          }
-          .reload-btn {
-            margin-top: 30px;
-            padding: 10px 20px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-          }
-        </style>
-        <script>
-          // Auto-refresh the page every 3 seconds
-          setTimeout(function() {
-            location.reload();
-          }, 3000);
-        </script>
-      </head>
-      <body>
-        <div class="container">
-          <h1>Test Execution in Progress</h1>
-          <div class="spinner"></div>
-          <div class="info">
-            <p>Test ID: ${testId}</p>
-            <p>Started at: ${new Date().toLocaleString()}</p>
-          </div>
-        </div>
-      </body>
-    </html>
-    `;
+        };
+        
+        eventSource.onerror = function() {
+          // If there's an error with the connection, fall back to reload after 10 seconds
+          eventSource.close();
+          setTimeout(function() { window.location.reload(); }, 10000);
+        };
+      });
+    </script>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Test Execution in Progress</h1>
+      <div class="loading"><div class="spinner"></div><div>Running your tests...</div></div>
+      <p>Test ID: <code>${testId}</code></p>
+    </div>
+  </body>
+</html>`;
 
     // Save the loading report
     const htmlReportPath = normalize(join(reportDir, "index.html"));
@@ -1738,7 +1720,6 @@ async function executeMultipleTestFilesWithGlobalConfig(
       // Set environment variables for the test directory and report directory
       const env = {
         ...process.env,
-        NODE_TLS_REJECT_UNAUTHORIZED: "0",
         PAGER: "cat",
         // Set environment variables for Playwright config
         PLAYWRIGHT_TEST_DIR: jobTestsDir,
@@ -1819,143 +1800,3 @@ async function executeMultipleTestFilesWithGlobalConfig(
     }
   });
 }
-
-/**
- * Clean up orphaned test result directories that are older than the specified time
- * and remove unnecessary files in current test directories
- */
-export async function cleanupTestResults(
-  maxAgeMs = 24 * 60 * 60 * 1000 // 1 day - much longer retention
-): Promise<void> {
-  try {
-    const now = Date.now();
-
-    // Clean up the recentTestIds map to remove very old entries
-    for (const [testId, timestamp] of recentTestIds.entries()) {
-      if (now - timestamp > RECENT_TEST_WINDOW_MS) {
-        recentTestIds.delete(testId);
-      }
-    }
-
-    // Skip cleanup if it was done recently
-    if (lastCleanupTime && now - lastCleanupTime < CLEANUP_INTERVAL) {
-      console.log("Skipping cleanup - last cleanup was recent");
-      return;
-    }
-
-    // Check if there are active tests - if so, delay aggressive cleanup
-    if (activeTestIds.size > 0) {
-      console.log(
-        `Skipping cleanup because there are ${activeTestIds.size} active tests`
-      );
-      return; // Don't do ANY cleanup if tests are running
-    }
-
-    // Clean up public directory test results first (safer than root)
-    const publicDir = normalize(join(process.cwd(), "public"));
-    const testResultsDir = normalize(join(publicDir, "test-results"));
-
-    if (existsSync(testResultsDir)) {
-      try {
-        const dirs = await fs.readdir(testResultsDir);
-
-        // Only process directories older than the threshold
-        // This is a much more conservative approach
-        const cutoffTime = now - maxAgeMs;
-
-        for (const dir of dirs) {
-          const dirPath = normalize(join(testResultsDir, dir));
-
-          // Skip active or recent tests
-          if (activeTestIds.has(dir) || recentTestIds.has(dir)) {
-            console.log(`Skipping cleanup for active/recent test: ${dir}`);
-            continue;
-          }
-
-          try {
-            const stats = await fs.stat(dirPath);
-
-            // Only delete very old directories - 7 days by default
-            if (stats.isDirectory() && stats.mtimeMs < cutoffTime) {
-              console.log(`Removing old test result directory: ${dirPath}`);
-              await fs.rm(dirPath, { recursive: true, force: true });
-            }
-          } catch (err) {
-            console.warn(`Error processing ${dirPath}:`, err);
-          }
-        }
-      } catch (error) {
-        console.error("Error cleaning up public test results:", error);
-      }
-    }
-
-    // Less aggressive root test-results directory cleanup
-    try {
-      const rootTestResultsPath = join(process.cwd(), "test-results");
-
-      if (existsSync(rootTestResultsPath)) {
-        const rootDirs = await fs.readdir(rootTestResultsPath);
-        const cutoffTime = now - maxAgeMs;
-
-        // Only delete files/directories older than the threshold (7 days)
-        for (const item of rootDirs) {
-          const itemPath = join(rootTestResultsPath, item);
-          try {
-            const stats = await fs.stat(itemPath);
-
-            if (stats.mtimeMs < cutoffTime) {
-              if (stats.isDirectory()) {
-                console.log(`Removing old root test directory: ${itemPath}`);
-                await fs.rm(itemPath, { recursive: true, force: true });
-              } else {
-                console.log(`Removing old root test file: ${itemPath}`);
-                await fs.unlink(itemPath);
-              }
-            }
-          } catch (err) {
-            console.warn(`Error processing root item ${itemPath}:`, err);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error cleaning up root test-results directory:", error);
-    }
-
-    // Only cleanup public/tests directory for very old files
-    try {
-      const publicTestsDir = normalize(join(publicDir, "tests"));
-
-      if (existsSync(publicTestsDir)) {
-        const testFiles = await fs.readdir(publicTestsDir);
-        const cutoffTime = now - maxAgeMs;
-
-        for (const file of testFiles) {
-          const filePath = join(publicTestsDir, file);
-          try {
-            const stats = await fs.stat(filePath);
-
-            if (stats.mtimeMs < cutoffTime) {
-              console.log(`Removing old test file: ${filePath}`);
-              await fs.unlink(filePath);
-            }
-          } catch (err) {
-            console.warn(`Error processing test file ${filePath}:`, err);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error cleaning up public/tests directory:", error);
-    }
-
-    lastCleanupTime = now;
-  } catch (error) {
-    console.error("Error during cleanupTestResults:", error);
-  }
-}
-
-// Less aggressive initial cleanup - don't aggressively clean on startup
-setTimeout(() => {
-  cleanupTestResults().catch((err) =>
-    console.error("Initial cleanup failed:", err)
-  );
-}, 5 * 60 * 1000); // Wait 5 minutes after server start

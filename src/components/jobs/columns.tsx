@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { CalendarIcon, TimerIcon, Play, Loader2 } from "lucide-react";
+import { CalendarIcon, TimerIcon, Loader2, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -32,7 +32,8 @@ function RunButton({ job }: { job: Job }) {
     if (isRunning || isAnyJobRunning) {
       if (isAnyJobRunning) {
         toast.error("Cannot run job", {
-          description: "Another job is currently running. Please wait for it to complete.",
+          description:
+            "Another job is currently running. Please wait for it to complete.",
         });
       }
       return;
@@ -56,7 +57,8 @@ function RunButton({ job }: { job: Job }) {
 
       // Show a loading toast that stays visible during the entire job execution
       runToastId = toast.loading(`Running job: ${job.name}`, {
-        description: "The job is being executed. This may take a few moments...",
+        description:
+          "The job is being executed. This may take a few moments...",
         duration: Infinity, // Keep loading until dismissed/updated
       });
 
@@ -142,16 +144,16 @@ function RunButton({ job }: { job: Job }) {
       size="sm"
       variant="default"
       className={cn(
-        "bg-blue-500 hover:bg-blue-600",
+        "bg-[hsl(221.2,83.2%,53.3%)] hover:bg-[hsl(221.2,83.2%,48%)]",
         "text-white",
-        "shadow-sm",
-        "transition-all duration-200",
         "flex items-center justify-center",
-        "h-8 w-8 rounded-full p-0",
+        "h-7 px-1 rounded-md",
         "cursor-pointer",
-        (isRunning || isAnyJobRunning) && "opacity-80 cursor-not-allowed"
+        "gap-2"
       )}
-      disabled={isRunning || isAnyJobRunning || !job.tests || job.tests.length === 0}
+      disabled={
+        isRunning || isAnyJobRunning || !job.tests || job.tests.length === 0
+      }
       title={
         isAnyJobRunning
           ? "Another job is currently running"
@@ -161,9 +163,13 @@ function RunButton({ job }: { job: Job }) {
       }
     >
       {isRunning ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" />
+        </>
       ) : (
-        <Play className="h-4 w-4" />
+        <>
+          <Zap className="h-4 w-4" />
+        </>
       )}
     </Button>
   );
@@ -298,7 +304,11 @@ export const columns: ColumnDef<Job>[] = [
       return (
         <DataTableRowActions
           row={row}
-          onDelete={onDeleteCallback ? () => onDeleteCallback(row.original.id) : undefined}
+          onDelete={
+            onDeleteCallback
+              ? () => onDeleteCallback(row.original.id)
+              : undefined
+          }
         />
       );
     },

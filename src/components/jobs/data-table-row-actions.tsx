@@ -49,13 +49,13 @@ export function DataTableRowActions<TData>({
     if (!job.id) return;
 
     setIsDeleting(true);
-    
+
     // Show a loading toast for delete operation
     const deleteToastId = toast.loading("Deleting job...", {
       description: "Please wait while we delete the job.",
       duration: Infinity, // Keep loading until dismissed
     });
-    
+
     try {
       // Use the server action to delete the job
       const result = await deleteJob(job.id);
@@ -63,10 +63,11 @@ export function DataTableRowActions<TData>({
       if (!result.success) {
         throw new Error(result.error || "Failed to delete job");
       }
-      
+
       toast.success("Job deleted successfully", {
         description: `Job \"${job.name}\" has been permanently removed.`,
         id: deleteToastId,
+        duration: 5000, // Add auto-dismiss after 5 seconds
       });
 
       // Call onDelete callback if provided
@@ -82,6 +83,7 @@ export function DataTableRowActions<TData>({
         description:
           error instanceof Error ? error.message : "Failed to delete job",
         id: deleteToastId,
+        duration: 5000, // Add auto-dismiss after 5 seconds
       });
     } finally {
       setIsDeleting(false);
@@ -125,7 +127,8 @@ export function DataTableRowActions<TData>({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the job &quot;{job.name}&quot;. This action cannot be undone.
+              This will permanently delete the job &quot;{job.name}&quot;. This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

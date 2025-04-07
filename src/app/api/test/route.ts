@@ -1,4 +1,4 @@
-import { executeTest, cleanupTestResults } from "@/lib/test-execution";
+import { executeTest } from "@/lib/test-execution";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -8,12 +8,13 @@ export async function POST(request: NextRequest) {
     const script = data.script as string;
 
     if (!script) {
-      return NextResponse.json({ error: "No script provided" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No script provided" },
+        { status: 400 }
+      );
     }
 
     const result = await executeTest(script);
-
-    await cleanupTestResults();
 
     return NextResponse.json({
       success: result.success,

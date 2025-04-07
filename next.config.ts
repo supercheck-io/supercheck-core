@@ -18,8 +18,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Set environment variable for Node.js to ignore SSL certificate errors
-// This is needed for corporate environments with SSL inspection
-// process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
 export default nextConfig;

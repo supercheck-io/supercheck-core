@@ -64,7 +64,8 @@ export function DataTableRowActions<TData>({
         // Check for specific error codes
         if (result.errorCode === 409) {
           toast.error("Cannot Delete Test", {
-            description: result.error || "This test is currently used in a job.",
+            description:
+              result.error || "This test is currently used in a job.",
             duration: 5000, // Show for longer
             id: deleteToastId, // Update the loading toast
           });
@@ -77,6 +78,7 @@ export function DataTableRowActions<TData>({
       toast.success("Test deleted successfully", {
         description: `Test \"${test.title}\" has been permanently removed.`,
         id: deleteToastId, // Update the loading toast
+        duration: 5000, // Add auto-dismiss after 5 seconds
       });
 
       // Call onDelete callback if provided
@@ -92,6 +94,7 @@ export function DataTableRowActions<TData>({
         description:
           error instanceof Error ? error.message : "Failed to delete test",
         id: deleteToastId, // Update the loading toast
+        duration: 5000, // Add auto-dismiss after 5 seconds
       });
     } finally {
       setIsDeleting(false);

@@ -62,11 +62,14 @@ export default function CreateJob() {
   const router = useRouter();
   const [selectedTests, setSelectedTests] = useState<Test[]>([]);
   const [isSelectTestsDialogOpen, setIsSelectTestsDialogOpen] = useState(false);
-  const [testSelections, setTestSelections] = useState<Record<string, boolean>>({});
+  const [testSelections, setTestSelections] = useState<Record<string, boolean>>(
+    {}
+  );
   const [availableTests, setAvailableTests] = useState<Test[]>([]);
   const [isLoadingTests, setIsLoadingTests] = useState(true);
   const [testFilter, setTestFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [submissionAttempted, setSubmissionAttempted] = useState(false);
   const itemsPerPage = 5;
 
   const form = useForm<FormData>({
@@ -80,6 +83,8 @@ export default function CreateJob() {
 
   // Handle form submission
   const onSubmit = form.handleSubmit(async (values: FormData) => {
+    setSubmissionAttempted(true);
+
     try {
       // Validate that at least one test is selected
       if (selectedTests.length === 0) {
@@ -143,31 +148,33 @@ export default function CreateJob() {
         const response = await getTests();
         if (response.success && response.tests) {
           // Explicitly type the tests from the response and the mapped test
-          const formattedTests: Test[] = (response.tests as ActionTest[]).map((test: ActionTest) => {
-            let mappedType: Test["type"];
-            // Switch on the action test type
-            switch (test.type) {
-              case "browser":
-              case "api":
-              case "multistep":
-              case "database":
-                mappedType = test.type; // Direct mapping
-                break;
-            
-              default: // Handle other potential types from action
-                mappedType = "browser"; // Default mapping
-                break;
+          const formattedTests: Test[] = (response.tests as ActionTest[]).map(
+            (test: ActionTest) => {
+              let mappedType: Test["type"];
+              // Switch on the action test type
+              switch (test.type) {
+                case "browser":
+                case "api":
+                case "multistep":
+                case "database":
+                  mappedType = test.type; // Direct mapping
+                  break;
+
+                default: // Handle other potential types from action
+                  mappedType = "browser"; // Default mapping
+                  break;
+              }
+              return {
+                id: test.id,
+                name: test.title,
+                description: test.description || null,
+                type: mappedType, // Use the mapped type conforming to Test["type"]
+                status: "pending" as const,
+                lastRunAt: test.updatedAt,
+                duration: null as number | null,
+              };
             }
-            return {
-              id: test.id,
-              name: test.title,
-              description: test.description || null,
-              type: mappedType, // Use the mapped type conforming to Test["type"]
-              status: "pending" as const,
-              lastRunAt: test.updatedAt,
-              duration: null as number | null,
-            };
-          });
+          );
           setAvailableTests(formattedTests);
         } else {
           console.error("Failed to fetch tests:", response.error);
@@ -229,7 +236,11 @@ export default function CreateJob() {
                 <FormField
                   control={form.control}
                   name="name"
-                  render={({ field }: { field: ControllerRenderProps<FormData, "name"> }) => (
+                  render={({
+                    field,
+                  }: {
+                    field: ControllerRenderProps<FormData, "name">;
+                  }) => (
                     <FormItem>
                       <FormLabel>
                         Job Name <span className="text-red-500">*</span>
@@ -244,10 +255,15 @@ export default function CreateJob() {
                 <FormField
                   control={form.control}
                   name="cronSchedule"
-                  render={({ field }: { field: ControllerRenderProps<FormData, "cronSchedule"> }) => (
+                  render={({
+                    field,
+                  }: {
+                    field: ControllerRenderProps<FormData, "cronSchedule">;
+                  }) => (
                     <FormItem>
                       <FormLabel>
-                        Cron Schedule <span className="text-gray-500">(optional)</span>
+                        Cron Schedule{" "}
+                        <span className="text-gray-500">(optional)</span>
                       </FormLabel>
                       <FormControl>
                         <Input {...field} placeholder="e.g. 0 0 * * *" />
@@ -260,13 +276,21 @@ export default function CreateJob() {
               <FormField
                 control={form.control}
                 name="description"
-                render={({ field }: { field: ControllerRenderProps<FormData, "description"> }) => (
+                render={({
+                  field,
+                }: {
+                  field: ControllerRenderProps<FormData, "description">;
+                }) => (
                   <FormItem>
                     <FormLabel>
-                      Description <span className="text-gray-500">(optional)</span>
+                      Description{" "}
+                      <span className="text-gray-500">(optional)</span>
                     </FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Enter job description" />
+                      <Textarea
+                        {...field}
+                        placeholder="Enter job description"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -277,8 +301,10 @@ export default function CreateJob() {
                   <h3 className="text-lg font-medium">
                     Select Tests <span className="text-red-500">*</span>
                   </h3>
-                  {selectedTests.length === 0 && (
-                    <p className="text-sm text-destructive">At least one test is required</p>
+                  {submissionAttempted && selectedTests.length === 0 && (
+                    <p className="text-sm text-destructive">
+                      At least one test is required
+                    </p>
                   )}
                 </div>
                 <div className="flex justify-center">
@@ -287,14 +313,20 @@ export default function CreateJob() {
                     variant="outline"
                     onClick={() => setIsSelectTestsDialogOpen(true)}
                     className={cn(
-                      selectedTests.length === 0 && "border-destructive",
+                      submissionAttempted &&
+                        selectedTests.length === 0 &&
+                        "border-destructive",
                       "transition-colors"
                     )}
                   >
-                    <PlusCircle className={cn(
-                      "mr-2 h-4 w-4",
-                      selectedTests.length === 0 && "text-destructive"
-                    )} />
+                    <PlusCircle
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        submissionAttempted &&
+                          selectedTests.length === 0 &&
+                          "text-destructive"
+                      )}
+                    />
                     Select Tests
                   </Button>
                 </div>
@@ -366,20 +398,32 @@ export default function CreateJob() {
                                     <Checkbox
                                       checked={testSelections[test.id] || false}
                                       onCheckedChange={(checked) =>
-                                        handleTestSelection(test.id, checked as boolean)
+                                        handleTestSelection(
+                                          test.id,
+                                          checked as boolean
+                                        )
                                       }
                                     />
                                   </TableCell>
-                                  <TableCell className="font-mono text-sm truncate" title={test.id}>
+                                  <TableCell
+                                    className="font-mono text-sm truncate"
+                                    title={test.id}
+                                  >
                                     {test.id.substring(0, 8)}...
                                   </TableCell>
-                                  <TableCell className="truncate" title={test.name}>
+                                  <TableCell
+                                    className="truncate"
+                                    title={test.name}
+                                  >
                                     {test.name}
                                   </TableCell>
                                   <TableCell>
                                     <Badge variant="outline">{test.type}</Badge>
                                   </TableCell>
-                                  <TableCell className="truncate" title={test.description ?? ""}>
+                                  <TableCell
+                                    className="truncate"
+                                    title={test.description ?? ""}
+                                  >
                                     {test.description || ""}
                                   </TableCell>
                                 </TableRow>
@@ -435,10 +479,14 @@ export default function CreateJob() {
                                           testFilter === "" ||
                                           test.name
                                             .toLowerCase()
-                                            .includes(testFilter.toLowerCase()) ||
+                                            .includes(
+                                              testFilter.toLowerCase()
+                                            ) ||
                                           test.id
                                             .toLowerCase()
-                                            .includes(testFilter.toLowerCase()) ||
+                                            .includes(
+                                              testFilter.toLowerCase()
+                                            ) ||
                                           test.type
                                             .toLowerCase()
                                             .includes(testFilter.toLowerCase())
@@ -522,7 +570,10 @@ export default function CreateJob() {
                       <TableBody>
                         {selectedTests.map((test) => (
                           <TableRow key={test.id}>
-                            <TableCell className="font-mono text-sm truncate" title={test.id}>
+                            <TableCell
+                              className="font-mono text-sm truncate"
+                              title={test.id}
+                            >
                               {test.id.substring(0, 8)}...
                             </TableCell>
                             <TableCell className="truncate" title={test.name}>
@@ -531,7 +582,10 @@ export default function CreateJob() {
                             <TableCell>
                               <Badge variant="outline">{test.type}</Badge>
                             </TableCell>
-                            <TableCell className="truncate" title={test.description ?? ""}>
+                            <TableCell
+                              className="truncate"
+                              title={test.description ?? ""}
+                            >
                               {test.description || ""}
                             </TableCell>
                             <TableCell>
