@@ -1,5 +1,9 @@
 "use server";
 
+declare const Buffer: {
+  from(data: string, encoding: string): { toString(encoding: string): string };
+};
+
 import { eq } from "drizzle-orm";
 import {
   tests,
@@ -49,21 +53,23 @@ export async function saveTest(
         if (!base64Regex.test(str)) return false;
 
         // Try to decode it
-        const decoded = Buffer.from(str, 'base64').toString();
-        // Re-encode it and check if it matches the original
-        const reEncoded = Buffer.from(decoded).toString('base64');
-
-        // If re-encoding gives the same result, it's likely base64
-        // Note: This is not 100% accurate due to padding differences
-        return str.length === reEncoded.length;
+        if (typeof window === "undefined") {
+          const decoded = Buffer.from(str, "base64").toString("utf-8");
+          // Re-encode it and check if it matches the original
+          const reEncoded = Buffer.from(decoded, "utf-8").toString("base64");
+          // If re-encoding gives the same result, it's likely base64
+          // Note: This is not 100% accurate due to padding differences
+          return str.length === reEncoded.length;
+        }
+        return false;
       } catch {
         return false;
       }
     };
 
     // Only encode if it's not already base64
-    if (!isBase64(scriptToSave)) {
-      scriptToSave = Buffer.from(scriptToSave).toString('base64');
+    if (!isBase64(scriptToSave) && typeof window === "undefined") {
+      scriptToSave = Buffer.from(scriptToSave, "utf-8").toString("base64");
     }
 
     // Check if this is an update (has an ID) or a new test
@@ -95,7 +101,7 @@ export async function saveTest(
     } else {
       // This is a new test
       const newTestId = crypto.randomUUID();
-      
+
       // Insert the test into the database
       await db.insert(tests).values({
         id: newTestId,
@@ -132,7 +138,7 @@ export async function saveTest(
  */
 export async function decodeTestScript(base64Script: string): Promise<string> {
   // If the input is empty or not a string, return as is
-  if (!base64Script || typeof base64Script !== 'string') {
+  if (!base64Script || typeof base64Script !== "string") {
     return base64Script;
   }
 
@@ -147,12 +153,12 @@ export async function decodeTestScript(base64Script: string): Promise<string> {
   if (isBase64(base64Script)) {
     try {
       // For client-side usage
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         return decodeURIComponent(escape(atob(base64Script)));
       }
       // For server-side usage
       else {
-        return Buffer.from(base64Script, 'base64').toString();
+        return Buffer.from(base64Script, "base64").toString("utf-8");
       }
     } catch (error) {
       console.error("Error decoding script:", error);

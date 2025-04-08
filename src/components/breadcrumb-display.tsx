@@ -15,10 +15,7 @@ import { useBreadcrumbs } from "@/components/breadcrumb-context";
 export function BreadcrumbDisplay() {
   const { breadcrumbs } = useBreadcrumbs();
 
-  console.log("Breadcrumbs data:", breadcrumbs);
-
   if (!breadcrumbs || breadcrumbs.length === 0) {
-    console.warn("No breadcrumbs available to display");
     return <div className="text-sm text-muted-foreground">[Home]</div>;
   }
 

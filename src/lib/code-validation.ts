@@ -1,7 +1,7 @@
 import * as acorn from "acorn";
-import type { Node } from "acorn";
+import * as walk from "acorn-walk";
 
-const BLOCKED_MODULES: string[] = [
+const BLOCKED_MODULES = new Set([
   "fs",
   "child_process",
   "cluster",
@@ -12,56 +12,13 @@ const BLOCKED_MODULES: string[] = [
   "dgram",
   "os",
   "inspector",
-];
-const BLOCKED_IDENTIFIERS: string[] = ["process", "Buffer", "global"];
+]);
 
-/**
- * Type guard to check if a value is an Acorn AST node.
- */
-function isNode(x: unknown): x is Node {
-  return typeof x === "object" && x !== null && "type" in x;
-}
+// Add back blocked identifiers
+const BLOCKED_IDENTIFIERS = new Set(["process", "Buffer", "global"]);
 
-/**
- * Recursively walk an AST node structure.
- * @param node - An AST node, an array of nodes, or null.
- * @param visitors - An object mapping node type names to visitor functions.
- */
-function walkAst(
-  node: Node | Node[] | null,
-  visitors: Record<string, (node: Node) => void>
-): void {
-  if (Array.isArray(node)) {
-    node.forEach((child) => walkAst(child, visitors));
-    return;
-  }
-  if (!node || !isNode(node)) return;
-
-  if (visitors[node.type]) {
-    visitors[node.type](node);
-  }
-
-  // Iterate over the node's own properties.
-  for (const key of Object.keys(node)) {
-    // We use a type assertion here because acorn nodes are untyped.
-    const child = (node as unknown as Record<string, unknown>)[key];
-    if (Array.isArray(child)) {
-      walkAst(child, visitors);
-    } else if (child && typeof child === "object" && isNode(child)) {
-      walkAst(child, visitors);
-    }
-  }
-}
-
-/**
- * Validate user script by scanning its AST:
- * - Block references to BLOCKED_MODULES in imports.
- * - Block usage of BLOCKED_IDENTIFIERS.
- * - Check for infinite loops or suspicious patterns.
- */
 export function validateCode(code: string): { valid: boolean; error?: string } {
-  // Check for potentially dangerous patterns in all scripts
-  // Simple infinite loop detection
+  // 1. Check for dangerous patterns using regex (before AST parsing)
   const infiniteLoopPatterns = [
     /while\s*\(\s*true\s*\)/,
     /for\s*\(\s*;\s*;\s*\)/,
@@ -75,13 +32,12 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
     };
   }
 
-  // Block dangerous patterns (eval, new Function, etc.)
   const dangerousPatterns = [
     /eval\s*\(/,
     /new\s+Function\s*\(/,
-    /\bFunction\s*\(/,
+    /\bFunction\s*\(/, // Might catch legitimate uses, but safer to block
     /document\.write/,
-    /\bwebpack\b/,
+    /\bwebpack\b/, // Example of blocking specific keywords if needed
     /\brequire\.resolve\b/,
     /\b__dirname\b/,
     /\b__filename\b/,
@@ -90,118 +46,94 @@ export function validateCode(code: string): { valid: boolean; error?: string } {
     if (pattern.test(code)) {
       return {
         valid: false,
-        error: `Security Error: Potentially dangerous code pattern detected: ${pattern}`,
+        error: `Security Error: Potentially dangerous code pattern detected: ${pattern.source}`,
       };
     }
   }
 
-  // Skip TypeScript validation for Playwright test scripts
-  // Check for both exact matches and more general Playwright patterns
-  if (
-    code.includes("import { test, expect } from '@playwright/test'") ||
-    code.includes('import { test, expect } from "@playwright/test"') ||
-    code.includes("request.get(") ||
-    code.includes("request.post(") ||
-    code.includes("request.put(") ||
-    code.includes("request.delete(") ||
-    /test\(\s*["'].*["'],\s*async/.test(code)
-  ) {
-    return { valid: true };
-  }
-
-  let ast: Node;
+  // 3. Parse into AST
+  let ast: acorn.Node;
   try {
-    // First, check for TypeScript-specific syntax
-    const typescriptPatterns = [
-      // Type annotations with colon
-      /\w+\s*:\s*{[^}]*}\s*=>/, // (param: { type }) =>
-      /\w+\s*:\s*\w+(\[\])?\s*[,\)]/, // functionName(param: Type)
-      /\w+\s*:\s*\w+(\[\])?\s*=>/, // (param: Type) =>
-      /:\s*\w+(\[\])?\s*[,\)=]/, // : Type, or : Type) or : Type=
-
-      // Interface definitions
-      /interface\s+\w+/,
-
-      // Type aliases
-      /type\s+\w+\s*=/,
-
-      // Generics
-      /<\w+>(?=\()/, // functionName<T>()
-      /<\w+,\s*\w+>(?=\()/, // functionName<T, U>()
-
-      // TypeScript-specific keywords
-      /\b(readonly|namespace|declare|abstract|implements|private|protected|public|override|keyof|typeof|infer)\b/,
-    ];
-
-    for (const pattern of typescriptPatterns) {
-      if (pattern.test(code)) {
-        return {
-          valid: false,
-          error:
-            "TypeScript syntax detected. This playground only supports JavaScript. Please remove type annotations and TypeScript-specific syntax.",
-        };
-      }
-    }
-
     ast = acorn.parse(code, {
       ecmaVersion: 2020,
       sourceType: "module",
-    }) as Node;
+    }) as acorn.Node;
   } catch (err: unknown) {
     if (err instanceof Error) {
-      // Check if the error message suggests TypeScript syntax
-      const errorMsg = err.message;
-
-      if (
-        errorMsg.includes(":") &&
-        (errorMsg.includes("Unexpected token") ||
-          errorMsg.includes("Unexpected character"))
-      ) {
-        // This might be TypeScript syntax error
-        return {
-          valid: false,
-          error:
-            "Syntax Error: The code contains invalid syntax. This playground only supports JavaScript.",
-        };
-      }
-
       return { valid: false, error: `Syntax Error: ${err.message}` };
     }
-    return { valid: false, error: "Syntax Error" };
+    return { valid: false, error: "Syntax Error: Could not parse code." };
   }
 
+  // 4. Walk the AST for specific security checks
   try {
-    walkAst(ast, {
-      ImportDeclaration(node) {
-        // Using a cast here since acorn's AST types might not include `source`
-        const moduleName = (node as unknown as { source: { value: string } })
-          .source?.value as string | undefined;
-        if (moduleName && BLOCKED_MODULES.includes(moduleName)) {
-          throw new Error(
-            `Security Error: Importing module '${moduleName}' is not allowed.`
-          );
-        }
-      },
-      ImportExpression(node) {
-        if (
-          (node as unknown as { source: { type: string } }).source?.type ===
-          "Literal"
-        ) {
-          const moduleName = (node as unknown as { source: { value: string } })
-            .source.value as string | undefined;
-          if (moduleName && BLOCKED_MODULES.includes(moduleName)) {
+    walk.simple(ast, {
+      // Block require('module')
+      CallExpression(node: acorn.CallExpression) {
+        const isRequireCall =
+          node.callee.type === "Identifier" &&
+          (node.callee as acorn.Identifier).name === "require";
+        if (isRequireCall && node.arguments.length === 1) {
+          const arg = node.arguments[0];
+          if (
+            arg.type === "Literal" &&
+            typeof (arg as acorn.Literal).value === "string"
+          ) {
+            const moduleName = (arg as acorn.Literal).value as string;
+            if (BLOCKED_MODULES.has(moduleName)) {
+              throw new Error(
+                `Security Error: Requiring module '${moduleName}' is not allowed.`
+              );
+            }
+          } else {
+            // Block non-literal requires like require(variable)
             throw new Error(
-              `Security Error: Dynamic import of module '${moduleName}' is not allowed.`
+              `Security Error: Dynamic require() calls are not allowed.`
             );
           }
         }
       },
-      Identifier(node) {
-        const name = (node as unknown as { name: string }).name as
-          | string
-          | undefined;
-        if (name && BLOCKED_IDENTIFIERS.includes(name)) {
-          throw new Error(`Security Error: Usage of '${name}' is not allowed.`);
+      // Block import ... from 'module'
+      ImportDeclaration(node: acorn.ImportDeclaration) {
+        if (
+          node.source &&
+          node.source.type === "Literal" &&
+          typeof (node.source as acorn.Literal).value === "string"
+        ) {
+          const moduleName = (node.source as acorn.Literal).value as string;
+          if (BLOCKED_MODULES.has(moduleName)) {
+            throw new Error(
+              `Security Error: Importing module '${moduleName}' is not allowed.`
+            );
+          }
+        }
+      },
+      // Block dynamic import('module')
+      ImportExpression(node: acorn.ImportExpression) {
+        if (
+          node.source &&
+          node.source.type === "Literal" &&
+          typeof (node.source as acorn.Literal).value === "string"
+        ) {
+          const moduleName = (node.source as acorn.Literal).value as string;
+          if (BLOCKED_MODULES.has(moduleName)) {
+            throw new Error(
+              `Security Error: Dynamic import of module '${moduleName}' is not allowed.`
+            );
+          }
+        } else {
+          // Block non-literal dynamic imports like import(variable)
+          throw new Error(
+            `Security Error: Dynamic imports with variable sources are not allowed.`
+          );
+        }
+      },
+      // Block specific identifiers
+      Identifier(node: acorn.Identifier) {
+        if (BLOCKED_IDENTIFIERS.has(node.name)) {
+          throw new Error(
+            `Security Error: Usage of '${node.name}' is not allowed.`
+          );
         }
       },
     });

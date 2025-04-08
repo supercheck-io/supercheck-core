@@ -1,5 +1,9 @@
 "use server";
 
+declare const Buffer: {
+  from(data: string, encoding: string): { toString(encoding: string): string };
+};
+
 import { tests } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
@@ -21,8 +25,12 @@ export async function decodeTestScript(base64Script: string): Promise<string> {
 
   try {
     // In Node.js environment (server-side)
-    const decoded = Buffer.from(base64Script, 'base64').toString('utf-8');
-    return decoded;
+    if (typeof window === "undefined") {
+      const decoded = Buffer.from(base64Script, "base64").toString("utf-8");
+      return decoded;
+    }
+    // Fallback for browser environment
+    return base64Script;
   } catch (error) {
     console.error("Error decoding base64:", error);
     // Return original if decoding fails
@@ -38,7 +46,7 @@ export async function decodeTestScript(base64Script: string): Promise<string> {
 export async function getTest(id: string) {
   try {
     const db = await getDb();
-    
+
     // Query the database for the test with the given ID
     const result = await db
       .select()
