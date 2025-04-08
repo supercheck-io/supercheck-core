@@ -74,9 +74,7 @@ export const MonacoEditorClient = memo(
               const model = monaco.editor.createModel(
                 playwrightTypes,
                 "typescript",
-                monaco.Uri.parse(
-                  "file:///node_modules/@types/playwright/test.d.ts"
-                )
+                monaco.Uri.parse("file:///types/playwright.d.ts")
               );
 
               // Add the model to the JavaScript defaults
@@ -91,18 +89,6 @@ export const MonacoEditorClient = memo(
           .catch((error) => {
             console.error("Error fetching or loading Playwright types:", error);
           });
-
-        // Add default imports
-        monaco.languages.typescript.javascriptDefaults.addExtraLib(
-          'import { test, expect } from "@playwright/test";',
-          "imports.d.ts"
-        );
-
-        // Add basic types for immediate completion
-        monaco.languages.typescript.javascriptDefaults.addExtraLib(
-          'declare const page: import("@playwright/test").Page;',
-          "globals.d.ts"
-        );
       }, [monaco]);
 
       // Add custom styles to remove all borders, but only once
