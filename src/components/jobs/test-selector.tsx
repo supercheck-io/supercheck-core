@@ -225,7 +225,7 @@ export default function TestSelector({
             </TableHeader>
             <TableBody>
               {selectedTests.map((test) => (
-                <TableRow key={test.id}>
+                <TableRow key={test.id} className="hover:bg-transparent">
                   <TableCell
                     className="font-mono text-sm truncate"
                     title={test.id}
@@ -312,13 +312,18 @@ export default function TestSelector({
                   </TableHeader>
                   <TableBody>
                     {currentTests.map((test) => (
-                      <TableRow key={test.id}>
+                      <TableRow
+                        key={test.id} 
+                        className="hover:opacity-80 cursor-pointer transition-opacity"
+                        onClick={() => handleTestSelection(test.id, !testSelections[test.id])}
+                      >
                         <TableCell>
                           <Checkbox
                             checked={testSelections[test.id] || false}
                             onCheckedChange={(checked) =>
                               handleTestSelection(test.id, checked as boolean)
                             }
+                            onClick={(e) => e.stopPropagation()}
                           />
                         </TableCell>
                         <TableCell

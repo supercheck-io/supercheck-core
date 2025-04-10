@@ -437,7 +437,7 @@ export default function Jobs() {
                           </TableHeader>
                           <TableBody>
                             {selectedJob.tests.map((test) => (
-                              <TableRow key={test.id}>
+                              <TableRow key={test.id} className="hover:bg-transparent">
                                 <TableCell
                                   className="font-mono text-sm truncate"
                                   title={test.id}
