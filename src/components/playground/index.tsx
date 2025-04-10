@@ -32,24 +32,9 @@ interface TestCaseFormData {
   priority: TestPriority;
   type: TestType;
   script?: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
 }
-
-// Using the testsInsertSchema from schema.ts with extensions for playground-specific fields
-const testCaseSchema = z
-  .object({
-    title: z
-      .string()
-      .min(1, "Title is required")
-      .max(100, "Title must be less than 100 characters"),
-    description: z
-      .string()
-      .min(1, "Description is required")
-      .max(1000, "Description must be less than 1000 characters"),
-    priority: z.enum(["low", "medium", "high"]),
-    type: z.enum(["browser", "api", "multistep", "database"]),
-    script: z.string().min(1, "Test script is required"),
-  })
-  .strict();
 
 interface PlaygroundProps {
   initialTestData?: {
@@ -59,6 +44,8 @@ interface PlaygroundProps {
     script: string;
     priority: TestPriority;
     type: TestType;
+    updatedAt?: string;
+    createdAt?: string;
   };
   initialTestId?: string;
 }
@@ -90,6 +77,8 @@ const Playground: React.FC<PlaygroundProps> = ({
           description: initialTestData.description,
           priority: initialTestData.priority,
           type: initialTestData.type,
+          updatedAt: initialTestData.updatedAt || undefined,
+          createdAt: initialTestData.createdAt || undefined,
         }
       : {}
   );
@@ -99,6 +88,8 @@ const Playground: React.FC<PlaygroundProps> = ({
     priority: initialTestData?.priority || ("medium" as TestPriority),
     type: initialTestData?.type || ("browser" as TestType),
     script: initialTestData?.script || "",
+    updatedAt: initialTestData?.updatedAt || undefined,
+    createdAt: initialTestData?.createdAt || undefined,
   });
 
   // Create empty errors object for TestForm
@@ -151,6 +142,8 @@ const Playground: React.FC<PlaygroundProps> = ({
           description: result.test.description,
           priority: result.test.priority as TestPriority,
           type: result.test.type as TestType,
+          updatedAt: result.test.updatedAt || undefined,
+          createdAt: result.test.createdAt || undefined,
         });
 
         // Update the editor content
@@ -163,6 +156,8 @@ const Playground: React.FC<PlaygroundProps> = ({
           description: result.test.description,
           priority: result.test.priority as TestPriority,
           type: result.test.type as TestType,
+          updatedAt: result.test.updatedAt || undefined,
+          createdAt: result.test.createdAt || undefined,
         });
 
         // Set the test ID
@@ -239,6 +234,8 @@ const Playground: React.FC<PlaygroundProps> = ({
         description: initialTestData.description || undefined,
         priority: initialTestData.priority,
         type: initialTestData.type,
+        updatedAt: initialTestData.updatedAt || undefined,
+        createdAt: initialTestData.createdAt || undefined,
       });
     }
   }, [initialTestData]);
@@ -277,18 +274,49 @@ const Playground: React.FC<PlaygroundProps> = ({
 
   const validateForm = () => {
     try {
+      console.log("Validating form with testCase:", testCase);
+      console.log("Current editor content length:", editorContent.length);
+
       // Before validation, ensure script field is synced with code field
+      // and handle null description
       const validationData = {
         ...testCase,
         script: editorContent,
+        description: testCase.description || "", // Convert null to empty string for validation
       };
 
-      testCaseSchema.parse(validationData);
-      setErrors({});
-      return true;
+      console.log("Validation data:", validationData);
+
+      const newErrors: Record<string, string> = {};
+
+      // Validate title
+      if (!validationData.title || validationData.title.trim() === "") {
+        newErrors.title = "Title is required";
+      }
+
+      // Validate script
+      if (!validationData.script || validationData.script.trim() === "") {
+        newErrors.script = "Test script is required";
+      }
+
+      // Validate type - explicit check for missing type without comparing to empty string
+      if (!validationData.type) {
+        newErrors.type = "Test type is required";
+      }
+
+      // Validate priority - explicit check for missing priority without comparing to empty string
+      if (!validationData.priority) {
+        newErrors.priority = "Priority is required";
+      }
+
+      // Set errors state
+      setErrors(newErrors);
+      
+      // Return true if no errors
+      return Object.keys(newErrors).length === 0;
     } catch (error) {
+      console.error("Error validating form:", error);
       if (error instanceof z.ZodError) {
-        console.error("Error validating form:", error);
         const formattedErrors: Record<string, string> = {};
         error.errors.forEach((err) => {
           if (err.path[0]) {
@@ -441,7 +469,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                 key={id}
                 variant={isActive ? "default" : "outline"}
                 size="sm"
-                className={`text-xs cursor-pointer ${
+                className={`text-xs ${
                   isCompleted && !isActive ? "opacity-70" : ""
                 }`}
                 onClick={() => selectTestReport(id)}
@@ -487,14 +515,14 @@ const Playground: React.FC<PlaygroundProps> = ({
                       <TabsList className="grid w-[400px] grid-cols-2">
                         <TabsTrigger
                           value="editor"
-                          className="flex items-center gap-2 cursor-pointer"
+                          className="flex items-center gap-2"
                         >
                           <FileTextIcon className="h-4 w-4" />
                           <span>Editor</span>
                         </TabsTrigger>
                         <TabsTrigger
                           value="report"
-                          className="flex items-center gap-2 cursor-pointer"
+                          className="flex items-center gap-2"
                         >
                           <FileTextIcon className="h-4 w-4" />
                           <span>Report</span>
@@ -505,7 +533,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                   <Button
                     onClick={runPlaywrightTest}
                     disabled={isRunning}
-                    className="flex items-center gap-2 bg-[hsl(221.2,83.2%,53.3%)] text-white hover:bg-[hsl(221.2,83.2%,48%)] cursor-pointer"
+                    className="flex items-center gap-2 bg-[hsl(221.2,83.2%,53.3%)] text-white hover:bg-[hsl(221.2,83.2%,48%)] "
                     size="sm"
                   >
                     {isRunning ? (
@@ -598,7 +626,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                   </div>
                 </div>
                 <ScrollArea className="flex-1">
-                  <div className="space-y-4 p-4">
+                  <div className="space-y-2 p-4">
                     <div className="space-y-2">{TestsList()}</div>
                     <TestForm
                       testCase={testCase}

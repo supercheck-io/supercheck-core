@@ -1,6 +1,5 @@
 import Jobs from "@/components/jobs";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
-import { JobProvider } from "@/components/jobs/job-context";
 
 export async function generateMetadata() {
   return {
@@ -18,9 +17,7 @@ export default function JobsPage() {
   return (
     <div>
       <PageBreadcrumbs items={breadcrumbs} />
-      <JobProvider>
-        <Jobs />
-      </JobProvider>
+      <Jobs />
     </div>
   );
 }

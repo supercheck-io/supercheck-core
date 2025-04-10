@@ -45,6 +45,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getJobs } from "@/actions/get-jobs";
 import { useJobContext } from "./job-context";
+import { formatDistanceToNow } from "date-fns";
+import { UUIDField } from "@/components/ui/uuid-field";
+import { cn } from "@/lib/utils";
 
 // Helper function to map incoming types to the valid Test["type"]
 function mapToTestType(type: string | undefined): Test["type"] {
@@ -164,6 +167,45 @@ export default function Jobs() {
     });
   };
 
+  // Format relative date (e.g., "2 hours ago")
+  const formatRelativeDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "N/A";
+
+    try {
+      const date = new Date(dateString);
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Invalid date";
+      }
+
+      // Use date-fns with explicit Date type
+      return formatDistanceToNow(date, { addSuffix: true });
+    } catch (error) {
+      console.error("Error formatting relative date:", error);
+      return "Invalid date";
+    }
+  };
+
+  // Check if dates match (for run date detection)
+  const datesMatch = (
+    date1: string | null | undefined,
+    date2: string | null | undefined,
+  ) => {
+    if (!date1 || !date2) return false;
+
+    try {
+      const d1 = new Date(date1).getTime();
+      const d2 = new Date(date2).getTime();
+
+      // Consider dates close enough (within 5 seconds) as matching
+      // This handles small timing differences in database updates
+      return Math.abs(d1 - d2) < 5000;
+    } catch {
+      return false;
+    }
+  };
+
   const handleDeleteJob = (jobId: string) => {
     // Update local state by filtering out the deleted job
     setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId));
@@ -173,6 +215,18 @@ export default function Jobs() {
       setIsSheetOpen(false);
       setSelectedJob(null);
     }
+  };
+
+  // Get the true update time (ignoring run updates)
+  const getTrueUpdateTime = (job: Job): string | null | undefined => {
+    // If lastRunAt exists and dates match within 5 seconds, it means updatedAt was from a run, not an edit
+    if (job.lastRunAt && datesMatch(job.updatedAt, job.lastRunAt)) {
+      // Return the previous true update or fallback to creation date
+      return job.createdAt;
+    }
+
+    // Return the actual updatedAt time
+    return job.updatedAt;
   };
 
   return (
@@ -196,7 +250,9 @@ export default function Jobs() {
             <>
               <SheetHeader>
                 <div className="flex items-center justify-between -ml-4">
-                  <SheetTitle>Job Details</SheetTitle>
+                  <SheetTitle className="text-xl font-semibold">
+                    Job Details
+                  </SheetTitle>
                   <div className="flex space-x-4">
                     <Button
                       variant="outline"
@@ -204,7 +260,7 @@ export default function Jobs() {
                       onClick={() =>
                         router.push(`/jobs/edit/${selectedJob.id}`)
                       }
-                      className="cursor-pointer"
+                      
                     >
                       <Edit className="h-4 w-4 mr-2" />
                       Edit Job
@@ -215,13 +271,25 @@ export default function Jobs() {
 
               <div className="mt-6 space-y-6">
                 {/* Job ID and Name */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/30 p-4 rounded-lg">
                   <div className="space-y-1">
-                    <h3 className="text-xs text-muted-foreground">Job ID</h3>
-                    <p className="text-sm font-mono">{selectedJob.id}</p>
+                    <h3 className="text-xs font-medium text-muted-foreground">
+                      Job ID
+                    </h3>
+                    <div className="group relative">
+                      <UUIDField
+                        value={selectedJob.id}
+                        className="text-sm font-mono"
+                        onCopy={() =>
+                          toast.success("Job ID copied to clipboard")
+                        }
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
-                    <h3 className="text-xs text-muted-foreground">Name</h3>
+                    <h3 className="text-xs font-medium text-muted-foreground">
+                      Name
+                    </h3>
                     <p className="text-sm font-medium">{selectedJob.name}</p>
                   </div>
                 </div>
@@ -235,128 +303,167 @@ export default function Jobs() {
                   </TabsList>
 
                   <TabsContent value="details" className="py-4 space-y-6">
-                    {/* Status */}
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium">Status</h3>
-                      <div className="flex items-center space-x-2">
-                        {(() => {
-                          const status = jobStatuses.find(
-                            (s) => s.value === selectedJob.status
-                          );
-                          return status ? (
-                            <>
-                              {status.icon && (
-                                <status.icon
-                                  className={`h-5 w-5 ${status.color}`}
-                                />
-                              )}
-                              <span className="font-medium">
-                                {status.label}
-                              </span>
-                            </>
-                          ) : null;
-                        })()}
+                    {/* Status and Schedule in a grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Status */}
+                      <div className="space-y-2 bg-muted/20 p-4 rounded-lg">
+                        <h3 className="text-xs font-medium text-muted-foreground">Status</h3>
+                        <div className="flex items-center space-x-2">
+                          {(() => {
+                            const status = jobStatuses.find(
+                              (s) => s.value === selectedJob.status,
+                            );
+                            return status ? (
+                              <>
+                                {status.icon && (
+                                  <status.icon
+                                    className={`h-5 w-5 ${status.color}`}
+                                  />
+                                )}
+                                <span className="text-sm">
+                                  {status.label}
+                                </span>
+                              </>
+                            ) : null;
+                          })()}
+                        </div>
+                      </div>
+                      
+                      {/* Schedule */}
+                      <div className="space-y-2 bg-muted/20 p-4 rounded-lg">
+                        <h3 className="text-xs font-medium text-muted-foreground">Schedule</h3>
+                        <div className="flex items-center space-x-2">
+                          <TimerIcon className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">
+                            {selectedJob.cronSchedule || "Not scheduled"}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
                     {/* Description */}
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium">Description</h3>
+                    <div className="space-y-2 bg-muted/20 p-4 rounded-lg">
+                      <h3 className="text-xs font-medium text-muted-foreground">Description</h3>
                       <p className="text-sm text-muted-foreground">
                         {selectedJob.description || "No description provided"}
                       </p>
                     </div>
 
-                    {/* Schedule */}
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium">Schedule</h3>
-                      <div className="flex items-center space-x-2">
-                        <TimerIcon className="h-4 w-4 text-muted-foreground" />
-                        <span>
-                          {selectedJob.cronSchedule || "Not scheduled"}
-                        </span>
-                      </div>
-                    </div>
-
                     {/* Timing Information */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <h3 className="text-sm font-medium">Last Run</h3>
-                        <div className="flex items-center space-x-2">
-                          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                          <span>{formatDate(selectedJob.lastRunAt)}</span>
+                      <div className="space-y-0.5 bg-muted/20 p-4 rounded-lg">
+                        <h3 className="text-xs font-medium text-muted-foreground">Last Run</h3>
+                        <div>
+                          <p className="text-sm">
+                            {formatDate(selectedJob.lastRunAt)}
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center">
+                            <CalendarIcon className="h-3 w-3 mr-1" />
+                            {formatRelativeDate(selectedJob.lastRunAt)}
+                          </p>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <h3 className="text-sm font-medium">Next Run</h3>
-                        <div className="flex items-center space-x-2">
-                          <ClockIcon className="h-4 w-4 text-muted-foreground" />
-                          <span>{formatDate(selectedJob.nextRunAt)}</span>
+                      <div className="space-y-0.5 bg-muted/20 p-4 rounded-lg">
+                        <h3 className="text-xs font-medium text-muted-foreground">Next Run</h3>
+                        <div>
+                          <p className="text-sm">
+                            {formatDate(selectedJob.nextRunAt)}
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center">
+                            <ClockIcon className="h-3 w-3 mr-1" />
+                            {formatRelativeDate(selectedJob.nextRunAt)}
+                          </p>
                         </div>
                       </div>
                     </div>
 
                     {/* Timestamps */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                      <div className="space-y-1">
-                        <h3 className="text-xs text-muted-foreground">
-                          Created
-                        </h3>
-                        <p className="text-sm">
-                          {formatDate(selectedJob.createdAt)}
-                        </p>
+                      <div className="space-y-0.5 bg-muted/20 p-4 rounded-lg">
+                        <h3 className="text-xs font-medium text-muted-foreground">Created</h3>
+                        <div>
+                          <p className="text-sm">
+                            {formatDate(selectedJob.createdAt)}
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center">
+                            <CalendarIcon className="h-3 w-3 mr-1" />
+                            {formatRelativeDate(selectedJob.createdAt)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <h3 className="text-xs text-muted-foreground">
-                          Updated
-                        </h3>
-                        <p className="text-sm">
-                          {formatDate(selectedJob.updatedAt)}
-                        </p>
+                      <div className="space-y-0.5 bg-muted/20 p-4 rounded-lg">
+                        <h3 className="text-xs font-medium text-muted-foreground">Updated</h3>
+                        <div>
+                          <p className="text-sm">
+                            {formatDate(getTrueUpdateTime(selectedJob))}
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center">
+                            <Edit className="h-3 w-3 mr-1" />
+                            {formatRelativeDate(getTrueUpdateTime(selectedJob))}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </TabsContent>
 
                   <TabsContent value="tests" className="py-4 space-y-4">
                     <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-medium">Tests</h3>
+                      <h3 className="text-xs font-medium text-muted-foreground">Tests</h3>
                     </div>
 
                     {selectedJob.tests && selectedJob.tests.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[120px]">ID</TableHead>
-                            <TableHead className="w-[200px]">Name</TableHead>
-                            <TableHead className="w-[100px]">Type</TableHead>
-                            <TableHead>Description</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedJob.tests.map((test) => (
-                            <TableRow key={test.id}>
-                              <TableCell
-                                className="font-mono text-sm truncate"
-                                title={test.id}
-                              >
-                                {test.id.substring(0, 8)}...
-                              </TableCell>
-                              <TableCell className="truncate" title={test.name}>
-                                {test.name}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{test.type}</Badge>
-                              </TableCell>
-                              <TableCell
-                                className="truncate"
-                                title={test.description || ""}
-                              >
-                                {test.description}
-                              </TableCell>
+                      <div
+                        className={cn(
+                          "overflow-y-auto border rounded-md",
+                          selectedJob.tests.length > 5 && "max-h-[350px]",
+                        )}
+                      >
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[120px] sticky top-0 bg-background">
+                                ID
+                              </TableHead>
+                              <TableHead className="w-[200px] sticky top-0 bg-background">
+                                Name
+                              </TableHead>
+                              <TableHead className="w-[100px] sticky top-0 bg-background">
+                                Type
+                              </TableHead>
+                              <TableHead className="sticky top-0 bg-background">
+                                Description
+                              </TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedJob.tests.map((test) => (
+                              <TableRow key={test.id}>
+                                <TableCell
+                                  className="font-mono text-sm truncate"
+                                  title={test.id}
+                                >
+                                  {test.id.substring(0, 8)}...
+                                </TableCell>
+                                <TableCell
+                                  className="truncate"
+                                  title={test.name}
+                                >
+                                  {test.name}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{test.type}</Badge>
+                                </TableCell>
+                                <TableCell
+                                  className="truncate"
+                                  title={test.description || ""}
+                                >
+                                  {test.description}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
                         No tests configured for this job.
@@ -442,7 +549,7 @@ export default function Jobs() {
                             onValueChange={(value: Test["type"]) => {
                               setSelectedTest((prev) =>
                                 // Update directly with the valid type from SelectItem
-                                prev ? { ...prev, type: value } : null
+                                prev ? { ...prev, type: value } : null,
                               );
                             }}
                           >
@@ -470,7 +577,7 @@ export default function Jobs() {
                           <Select
                             value={selectedTest.status || "pending"}
                             onValueChange={(
-                              value: "pass" | "fail" | "pending" | "skipped"
+                              value: "pass" | "fail" | "pending" | "skipped",
                             ) =>
                               setSelectedTest({
                                 ...selectedTest,

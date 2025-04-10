@@ -74,6 +74,8 @@ export async function getTest(id: string) {
         script: decodedScript, // Return the decoded script
         priority: test.priority,
         type: test.type,
+        updatedAt: test.updatedAt,
+        createdAt: test.createdAt,
       },
     };
   } catch (error) {

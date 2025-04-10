@@ -68,6 +68,8 @@ export default function PlaygroundPage() {
     script: string;
     priority: TestPriority;
     type: TestType;
+    updatedAt?: string | null;
+    createdAt?: string | null;
   } | null>(null);
 
   const breadcrumbs = [
@@ -121,6 +123,8 @@ export default function PlaygroundPage() {
                     script: testData.script,
                     priority: testData.priority,
                     type: testData.type,
+                    updatedAt: testData.updatedAt || undefined,
+                    createdAt: testData.createdAt || undefined,
                   }
                 : undefined
             }

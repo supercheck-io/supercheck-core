@@ -344,7 +344,6 @@ async function runJob(request: Request) {
           ? ("completed" as JobStatus)
           : ("failed" as JobStatus),
         lastRunAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       })
       .where(eq(jobs.id, jobId));
 

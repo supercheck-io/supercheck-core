@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Test } from "./data/schema";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { SaveIcon } from "lucide-react";
-import { createJob } from "@/actions/create-job";
+import { SaveIcon, Trash2 } from "lucide-react";
+import { updateJob } from "@/actions/update-job";
+import { getJob } from "@/actions/get-jobs";
+import { deleteJob } from "@/actions/delete-job";
 import { toast } from "sonner";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +30,16 @@ import {
   FormMessage,
 } from "@/components/form";
 import { ControllerRenderProps } from "react-hook-form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import TestSelector from "./test-selector";
 
 const jobFormSchema = z.object({
@@ -38,10 +50,17 @@ const jobFormSchema = z.object({
 
 type FormData = z.infer<typeof jobFormSchema>;
 
-export default function CreateJob() {
+interface EditJobProps {
+  jobId: string;
+}
+
+export default function EditJob({ jobId }: EditJobProps) {
   const router = useRouter();
   const [selectedTests, setSelectedTests] = useState<Test[]>([]);
-  const [submissionAttempted, setSubmissionAttempted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
@@ -52,10 +71,54 @@ export default function CreateJob() {
     },
   });
 
+  // Load job data
+  const loadJob = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await getJob(jobId);
+
+      if (!response.success || !response.job) {
+        throw new Error(response.error || "Job not found");
+      }
+
+      const jobData = response.job;
+      
+      // Set form values
+      form.reset({
+        name: jobData.name,
+        description: jobData.description || "",
+        cronSchedule: jobData.cronSchedule || "",
+      });
+
+      // Map the tests to the format expected by TestSelector
+      const tests = jobData.tests.map((test) => ({
+        id: test.id,
+        name: test.name,
+        description: test.description || null,
+        type: test.type as "browser" | "api" | "multistep" | "database",
+        status: "pending" as const,
+        lastRunAt: null,
+        duration: null,
+      }));
+
+      setSelectedTests(tests);
+    } catch (error) {
+      console.error("Error loading job:", error);
+      toast.error("Error", {
+        description: "Failed to load job details. Please try again later.",
+      });
+      router.push("/jobs");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [jobId, router, form]);
+
+  useEffect(() => {
+    loadJob();
+  }, [loadJob]);
+
   // Handle form submission
   const onSubmit = form.handleSubmit(async (values: FormData) => {
-    setSubmissionAttempted(true);
-
     try {
       // Validate that at least one test is selected
       if (selectedTests.length === 0) {
@@ -65,38 +128,39 @@ export default function CreateJob() {
         return;
       }
 
-      // Create job data object
+      setIsSubmitting(true);
+
+      // Prepare job data for submission
       const jobData = {
+        id: jobId,
         name: values.name.trim(),
         description: values.description?.trim() || "",
         cronSchedule: values.cronSchedule?.trim() || "",
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
 
-      console.log("Submitting job data:", jobData);
+      // Submit the job data
+      const response = await updateJob(jobId, jobData);
 
-      // Save the job to the database
-      const response = await createJob(jobData);
-
-      if (response.success) {
-        toast.success("Success", {
-          description: `Job \"${jobData.name}\" has been created.`,
-        });
-
-        // Navigate to the jobs page
-        router.push("/jobs");
-      } else {
-        console.error("Failed to create job:", response.error);
-        toast.error("Failed to create job", {
-          description: response.error || "An unknown error occurred",
-        });
+      if (!response.success) {
+        throw new Error(response.error || "Failed to update job");
       }
-    } catch (error) {
-      console.error("Error creating job:", error);
-      toast.error("Error", {
-        description:
-          error instanceof Error ? error.message : "An unknown error occurred",
+
+      toast.success("Success", {
+        description: "Job updated successfully.",
+        duration: 5000,
       });
+
+      // Navigate to jobs page after successful update
+      router.push("/jobs");
+    } catch (error) {
+      console.error("Error updating job:", error);
+      toast.error("Error", {
+        description: 
+          error instanceof Error ? error.message : "Failed to update job. Please try again later.",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   });
 
@@ -105,13 +169,54 @@ export default function CreateJob() {
     setSelectedTests(tests);
   };
 
+  // Handle job deletion
+  const handleDeleteJob = async () => {
+    setIsDeleting(true);
+    try {
+      const result = await deleteJob(jobId);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to delete job");
+      }
+      toast.success("Job deleted successfully");
+      router.push("/jobs");
+    } catch (error) {
+      console.error("Error deleting job:", error);
+      toast.error("Failed to delete job");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-60">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4 p-8">
+    <div className="space-y-4 p-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
           <div>
-            <CardTitle>Create New Job</CardTitle>
-            <CardDescription className="mt-2">Configure a new automated job</CardDescription>
+            <CardTitle>Edit Job</CardTitle>
+            <CardDescription className="mt-2">
+              Update job details and manage associated tests
+            </CardDescription>
+          </div>
+          <div className="flex space-x-2">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setShowDeleteDialog(true)}
+              disabled={isSubmitting || isDeleting}
+              size="sm"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -194,11 +299,7 @@ export default function CreateJob() {
               <TestSelector
                 selectedTests={selectedTests}
                 onTestsSelected={handleTestsSelected}
-                emptyStateMessage={
-                  submissionAttempted && selectedTests.length === 0
-                    ? "At least one test is required"
-                    : "No tests selected"
-                }
+                emptyStateMessage="At least one test is required"
                 required={true}
               />
 
@@ -207,18 +308,47 @@ export default function CreateJob() {
                   type="button"
                   variant="outline"
                   onClick={() => router.push("/jobs")}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex items-center">
+                <Button 
+                  type="submit" 
+                  className="flex items-center"
+                  disabled={isSubmitting}
+                >
                   <SaveIcon className="h-4 w-4 mr-2" />
-                  Create
+                  {isSubmitting ? "Updating..." : "Update"}
                 </Button>
               </div>
             </form>
           </Form>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the job. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteJob();
+              }}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
-}
+} 

@@ -88,10 +88,7 @@ const data = {
           title: "Multistep test",
           url: "/playground?scriptType=multistep",
         },
-        {
-          title: "WebSocket test",
-          url: "/playground?scriptType=websocket",
-        },
+ 
         {
           title: "Database test",
           url: "/playground?scriptType=database",

@@ -65,7 +65,7 @@ export function DataTableToolbar<TData>({
         )}
         <DataTableViewOptions table={table} />
         <Button
-          className="cursor-pointer"
+      
           onClick={() => router.push("/playground?scriptType=browser")}
         >
           <PlusCircle className="h-4 w-4 mr-2" />

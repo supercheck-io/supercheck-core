@@ -28,7 +28,7 @@ export function CreateCard({
   return (
     <Card
       className={cn(
-        "cursor-pointer hover:border-primary transition-colors w-full",
+        "hover:border-primary transition-colors w-full",
         className
       )}
       onClick={onClick}

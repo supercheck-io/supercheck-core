@@ -36,7 +36,21 @@ export function DataTableRowActions<TData>({
   onDelete,
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
-  const test = testSchema.parse(row.original);
+  
+  // Use safeParse instead of parse to handle validation errors
+  const parsedTest = testSchema.safeParse(row.original);
+  
+  // If parsing fails, provide default values to prevent errors
+  const test = parsedTest.success 
+    ? parsedTest.data 
+    : {
+        id: (row.original as unknown as { id?: string })?.id || "",
+        title: (row.original as unknown as { title?: string })?.title || "Untitled Test",
+        description: (row.original as unknown as { description?: string | null })?.description || null,
+        priority: "medium",
+        type: "browser",
+      };
+      
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 

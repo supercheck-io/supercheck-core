@@ -118,7 +118,6 @@ export async function POST(request: Request) {
       .set({
         status: result.success ? "completed" as JobStatus : "failed" as JobStatus,
         lastRunAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       })
       .where(eq(jobs.id, jobId));
 

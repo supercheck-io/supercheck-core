@@ -10,7 +10,7 @@ export enum ScriptType {
   API = "api",
   Multistep = "multistep",
   Database = "database",
-  WebSocket = "websocket",
+
 }
 
 // Sample scripts content
@@ -58,13 +58,49 @@ test('Browser check - Form interaction', async ({ page }) => {
   // Verify the todo item was added
   await expect(page.getByTestId('todo-title')).toHaveText(['Test automation with Playwright']);
   
-  // Mark the todo as completed
-  await page.getByRole('checkbox').check();
-  
-  // Verify the todo item is marked as completed
-  await expect(page.getByTestId('todo-item')).toHaveClass(/completed/);
-  
   console.log('✅ Form interaction verified');
+})
+
+/* WebSocket Connectivity Test using Playwright
+ * 
+ * This script tests a WebSocket connection using Playwright.
+ * It establishes a connection, sends a message, receives a response, 
+ * and verifies that the echoed message matches the sent message.
+ */
+
+test('WebSocket connection test', async ({ page }) => {
+const wsUrl = 'wss://echo.websocket.events'; // Public WebSocket echo server
+  // Open a WebSocket connection inside the browser context
+  const wsHandle = await page.evaluateHandle((url) => {
+    return new Promise((resolve, reject) => {
+      const socket = new WebSocket(url);
+      socket.onopen = () => resolve(socket);
+      socket.onerror = (err) => reject(err);
+    });
+  }, wsUrl);
+
+  expect(wsHandle).toBeDefined();
+
+  // Define the message to send
+  const message = 'Hello, WebSocket!';
+
+  // Send a message using the WebSocket connection
+  await page.evaluate(({ socket, message }) => {
+    socket.send(message);
+  }, { socket: wsHandle, message });
+
+  // Wait for and capture the response message
+  const response = await page.evaluate(({ socket }) => {
+    return new Promise((resolve) => {
+      socket.onmessage = (event) => resolve(event.data);
+    });
+  }, { socket: wsHandle });
+
+  // Validate that the echoed message matches the sent message
+  expect(response).toBe(message);
+
+  console.log('✅ WebSocket connection test passed');
+
 });
 `,
 
@@ -341,52 +377,6 @@ test("Database Query Test", async () => {
     if (pool) await pool.close();
   }
 });
-`,
-  [ScriptType.WebSocket]: `/**
- * WebSocket Connectivity Test using Playwright
- * 
- * This script tests a WebSocket connection using Playwright.
- * It establishes a connection, sends a message, receives a response, 
- * and verifies that the echoed message matches the sent message.
- */
-
-import { test, expect } from '@playwright/test';
-
-const wsUrl = 'wss://echo.websocket.events'; // Public WebSocket echo server
-
-test('WebSocket connection test', async ({ page }) => {
-  // Open a WebSocket connection inside the browser context
-  const wsHandle = await page.evaluateHandle((url) => {
-    return new Promise((resolve, reject) => {
-      const socket = new WebSocket(url);
-      socket.onopen = () => resolve(socket);
-      socket.onerror = (err) => reject(err);
-    });
-  }, wsUrl);
-
-  expect(wsHandle).toBeDefined();
-
-  // Define the message to send
-  const message = 'Hello, WebSocket!';
-
-  // Send a message using the WebSocket connection
-  await page.evaluate(({ socket, message }) => {
-    socket.send(message);
-  }, { socket: wsHandle, message });
-
-  // Wait for and capture the response message
-  const response = await page.evaluate(({ socket }) => {
-    return new Promise((resolve) => {
-      socket.onmessage = (event) => resolve(event.data);
-    });
-  }, { socket: wsHandle });
-
-  // Validate that the echoed message matches the sent message
-  expect(response).toBe(message);
-
-  console.log('✅ WebSocket connection test passed');
-});
-
 `,
 };
 

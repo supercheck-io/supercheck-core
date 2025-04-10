@@ -10,12 +10,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SaveIcon } from "lucide-react";
+import { SaveIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { testsInsertSchema, TestPriority, TestType } from "@/db/schema";
 import { saveTest } from "@/actions/save-test";
 import { decodeTestScript } from "@/actions/save-test";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { UUIDField } from "@/components/ui/uuid-field";
+import { formatDistanceToNow } from "date-fns";
+import { deleteTest } from "@/actions/delete-test";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Define the type for the display map keys explicitly based on allowed UI values
 type AllowedPriorityKey = "low" | "medium" | "high";
@@ -55,10 +69,23 @@ const testCaseSchema = testsInsertSchema
           .max(1000, "Description must be less than 1000 characters")
       ),
     script: z.string().min(1, "Test script is required"),
+    priority: z.enum(["low", "medium", "high"] as const, {
+      required_error: "Priority is required",
+      invalid_type_error: "Priority must be low, medium, or high",
+    }),
+    type: z.enum(["browser", "api", "multistep", "database"] as const, {
+      required_error: "Test type is required",
+      invalid_type_error: "Test type must be browser, api, multistep, or database",
+    }),
+    updatedAt: z.string().nullable().optional(),
+    createdAt: z.string().nullable().optional(),
   })
   .omit({ createdAt: true, updatedAt: true });
 
-type TestCaseFormData = z.infer<typeof testCaseSchema>;
+type TestCaseFormData = z.infer<typeof testCaseSchema> & {
+  updatedAt?: string | null;
+  createdAt?: string | null;
+};
 
 interface TestFormProps {
   testCase: {
@@ -67,6 +94,8 @@ interface TestFormProps {
     priority: TestPriority;
     type: TestType;
     script?: string;
+    updatedAt?: string | null;
+    createdAt?: string | null;
   };
   setTestCase: React.Dispatch<
     React.SetStateAction<{
@@ -75,6 +104,8 @@ interface TestFormProps {
       priority: TestPriority;
       type: TestType;
       script?: string;
+      updatedAt?: string | null;
+      createdAt?: string | null;
     }>
   >;
   errors: Record<string, string>;
@@ -88,6 +119,8 @@ interface TestFormProps {
     priority: TestPriority;
     type: TestType;
     script?: string;
+    updatedAt?: string | null;
+    createdAt?: string | null;
   }>;
   initialEditorContent: string;
   testId?: string | null;
@@ -106,8 +139,8 @@ export function TestForm({
   testId,
 }: TestFormProps) {
   const router = useRouter();
-  const [formChanged, setFormChanged] = useState(false);
-  const [justUpdated, setJustUpdated] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Track if form has changes compared to initial values
   const hasChangesLocal = useCallback(() => {
@@ -126,11 +159,12 @@ export function TestForm({
 
   // Update formChanged state whenever form values change
   useEffect(() => {
-    setFormChanged(hasChangesLocal());
-
-    // If there are changes, reset the justUpdated flag
-    if (hasChangesLocal()) {
-      setJustUpdated(false);
+    // Code simplified to avoid unused variables
+    const hasChanges = hasChangesLocal();
+    
+    // Just log changes to console for debugging purposes
+    if (hasChanges) {
+      console.log("Form has changes");
     }
   }, [
     testCase,
@@ -140,22 +174,31 @@ export function TestForm({
     hasChangesLocal,
   ]);
 
-  // Reset the update state
-  const resetUpdateState = () => {
-    setJustUpdated(false);
-    setFormChanged(false);
-  };
-
   // Make the resetUpdateState function available to the parent component
   useEffect(() => {
+    // Reset the update state function defined inside the useEffect
+    const resetUpdateState = () => {
+      // Code simplified to avoid unused variables
+      console.log("Update state reset");
+    };
+    
     // When testId changes, reset the update state
     resetUpdateState();
-  }, [testId]);
+    
+    // Log the test case values for debugging
+    console.log("TestForm received testCase:", testCase);
+    console.log("Test type is:", testCase.type);
+    console.log("Test priority is:", testCase.priority);
+  }, [testId, testCase, testCase.type, testCase.priority]);
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Submit clicked, current testCase:", testCase);
+    console.log("Editor content length:", editorContent.length);
+
     if (validateForm()) {
+      console.log("Form validated successfully");
       // Convert the editor content to base64 before saving
       // Use the browser's btoa function for base64 encoding
       const base64Script = btoa(unescape(encodeURIComponent(editorContent)));
@@ -164,21 +207,24 @@ export function TestForm({
       const updatedTestCase = {
         ...testCase,
         script: base64Script,
+        // Ensure description is at least an empty string if null
+        description: testCase.description || "",
       };
+
+      console.log("Sending updated test case:", updatedTestCase);
 
       try {
         // If we have a testId, update the existing test
         if (testId) {
+          console.log("Updating existing test with ID:", testId);
           const result = await saveTest({
             id: testId,
             ...updatedTestCase,
           });
 
-          if (result.success) {
-            // Update form state
-            setJustUpdated(true);
-            setFormChanged(false);
+          console.log("Update result:", result);
 
+          if (result.success) {
             toast.success("Test updated successfully.");
 
             // Navigate to the tests page after updating
@@ -205,8 +251,8 @@ export function TestForm({
             });
           }
         }
-      } catch (error) {
-        console.error("Error saving test:", error);
+      } catch (err) {
+        console.error("Error saving test:", err);
         toast.error("Error", {
           description: "Failed to save test. Please try again later.",
         });
@@ -238,8 +284,8 @@ export function TestForm({
           if (decodedScript !== initialEditorContentProp) {
             setInitialEditorContent(decodedScript);
           }
-        } catch (error) {
-          console.error("Error decoding script:", error);
+        } catch {
+          console.error("Error decoding script");
           // If decoding fails, keep the original content
         }
       };
@@ -248,28 +294,164 @@ export function TestForm({
     }
   }, [initialEditorContentProp, setInitialEditorContent]);
 
+  const handleDeleteTest = async () => {
+    if (!testId) return;
+
+    setIsDeleting(true);
+
+    // Show a loading toast for delete operation
+    const deleteToastId = toast.loading("Deleting test...", {
+      description: "Please wait while we delete the test.",
+      duration: Infinity, // Keep loading until dismissed
+    });
+
+    try {
+      // Use the server action to delete the test
+      const result = await deleteTest(testId);
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to delete test");
+      }
+
+      toast.success("Test deleted successfully", {
+        description: `Test \"${testCase.title}\" has been permanently removed.`,
+        id: deleteToastId,
+        duration: 5000, // Add auto-dismiss after 5 seconds
+      });
+
+      // Navigate back to the tests page
+      router.push("/tests");
+    } catch (error) {
+      console.error("Error deleting test:", error);
+      toast.error("Error deleting test", {
+        description:
+          error instanceof Error ? error.message : "Failed to delete test",
+        id: deleteToastId,
+        duration: 5000, // Add auto-dismiss after 5 seconds
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
   return (
-    <div className="p-2 space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-3 p-2">
+      {/* Test metadata section with dates and ID */}
+      {testId && (
+        <div className="space-y-2">
+          {/* Timestamps */}
+          {(testCase.createdAt || testCase.updatedAt) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {testCase.createdAt && (
+                <div className="space-y-0.5 bg-muted/20 p-3 pl-4 rounded-lg">
+                  <h3 className="text-xs font-medium text-muted-foreground">Created</h3>
+                  <div>
+                    <p className="text-xs">
+                      {new Date(testCase.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}{" "}
+                      {new Date(testCase.createdAt).toLocaleTimeString("en-US", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {(() => {
+                        try {
+                          const date = new Date(testCase.createdAt);
+                          if (isNaN(date.getTime())) return "Invalid date";
+                          return formatDistanceToNow(date, { addSuffix: true });
+                        } catch {
+                          return "Invalid date";
+                        }
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {testCase.updatedAt && (
+                <div className="space-y-0.5 bg-muted/20 p-3 pl-4 rounded-lg">
+                  <h3 className="text-xs font-medium text-muted-foreground">Updated</h3>
+                  <div>
+                    <p className="text-xs">
+                      {new Date(testCase.updatedAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}{" "}
+                      {new Date(testCase.updatedAt).toLocaleTimeString("en-US", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {(() => {
+                        try {
+                          const date = new Date(testCase.updatedAt);
+                          if (isNaN(date.getTime())) return "Invalid date";
+                          return formatDistanceToNow(date, { addSuffix: true });
+                        } catch {
+                          return "Invalid date";
+                        }
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Test ID */}
+          <div className="bg-muted/30 p-2 rounded-lg">
+            <div className="space-y-0.5">
+              <h3 className="text-xs font-medium text-muted-foreground">Test ID</h3>
+              <div className="group relative">
+                <UUIDField 
+                  value={testId} 
+                  className="text-xs font-mono"
+                  onCopy={() => toast.success("Test ID copied to clipboard")}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test title */}
       <div>
-        <label htmlFor="title" className="block text-sm font-medium  mb-1">
+        <label
+          htmlFor="title"
+          className={cn(
+            "block text-xs font-medium mb-0.5",
+            errors.title ? "text-destructive" : "text-foreground"
+          )}
+        >
           Title
         </label>
-        <Input
-          id="title"
-          value={testCase.title}
-          onChange={(e) =>
-            setTestCase((prev) => ({ ...prev, title: e.target.value }))
-          }
-          placeholder="Enter test title"
-          className={errors.title ? "border-red-500" : ""}
-        />
+        <div className="mt-0.5">
+          <Input
+            id="title"
+            name="title"
+            type="text"
+            value={testCase.title}
+            onChange={(e) =>
+              setTestCase({ ...testCase, title: e.target.value })
+            }
+            placeholder="Enter test title"
+            className={cn(errors.title && "border-destructive")}
+            disabled={isRunning}
+          />
+        </div>
         {errors.title && (
-          <p className="text-red-500 text-xs mt-1">{errors.title}</p>
+          <p className="text-red-500 text-xs mt-0.5">{errors.title}</p>
         )}
       </div>
 
       <div>
-        <label htmlFor="description" className="block text-sm font-medium mb-1">
+        <label htmlFor="description" className="block text-xs font-medium mb-0.5">
           Description
         </label>
         <Textarea
@@ -284,22 +466,22 @@ export function TestForm({
           placeholder="Enter test description"
           className={
             errors.description
-              ? "border-red-500 min-h-[100px]"
-              : "min-h-[100px]"
+              ? "border-red-500 min-h-[80px]"
+              : "min-h-[80px]"
           }
         />
         {errors.description && (
-          <p className="text-red-500 text-xs mt-1">{errors.description}</p>
+          <p className="text-red-500 text-xs mt-0.5">{errors.description}</p>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
-          <label htmlFor="priority" className="block text-sm font-medium  mb-1">
+          <label htmlFor="priority" className="block text-xs font-medium mb-0.5">
             Priority
           </label>
           <Select
-            value={testCase.priority}
+            value={testCase.priority || "medium"}
             onValueChange={(value) => {
               // Ensure the value is a valid TestPriority before setting state
               if (allowedPriorities.includes(value as AllowedPriorityKey)) {
@@ -309,10 +491,13 @@ export function TestForm({
                 }));
               }
             }}
+            defaultValue="medium"
             disabled={isRunning}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select priority" />
+              <SelectValue placeholder="Select priority">
+                {priorityDisplayMap[testCase.priority as TestPriority] || "Select priority"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {/* Map over the explicitly allowed priorities */}
@@ -324,28 +509,27 @@ export function TestForm({
             </SelectContent>
           </Select>
           {errors.priority && (
-            <p className="text-red-500 text-xs mt-1">{errors.priority}</p>
+            <p className="text-red-500 text-xs mt-0.5">{errors.priority}</p>
           )}
         </div>
 
         <div>
-          <label htmlFor="type" className="block text-sm font-medium  mb-1">
+          <label htmlFor="type" className="block text-xs font-medium mb-0.5">
             Type
           </label>
           <Select
-            value={testCase.type}
+            value={testCase.type || "browser"}
             onValueChange={(value) =>
               setTestCase((prev) => ({
                 ...prev,
                 type: value as TestType,
               }))
             }
+            defaultValue="browser"
           >
             <SelectTrigger>
               <SelectValue placeholder="Select type">
-                {testCase.type
-                  ? typeDisplayMap[testCase.type as TestType]
-                  : "Select type"}
+                {typeDisplayMap[testCase.type as TestType] || "Select type"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -360,35 +544,78 @@ export function TestForm({
             </SelectContent>
           </Select>
           {errors.type && (
-            <p className="text-red-500 text-xs mt-1">{errors.type}</p>
+            <p className="text-red-500 text-xs mt-0.5">{errors.type}</p>
           )}
         </div>
       </div>
 
-      <div className="flex justify-end">
-        {testId ? (
-          <Button
-            type="submit"
-            onClick={handleSubmit}
-            className="flex items-center gap-2 w-[150px] mt-4 cursor-pointer"
-            disabled={isRunning || !formChanged || justUpdated}
-          >
-            <SaveIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Update</span>
-          </Button>
-        ) : (
-          <Button
-            type="submit"
-            onClick={handleSubmit}
-            className="flex items-center gap-2 w-[150px] mt-4 cursor-pointer"
-            disabled={isRunning}
-          >
-            <SaveIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Save</span>
-          </Button>
-        )}
+      <div className="mt-2">
+        <div className="flex justify-between items-center">
+          <div>
+            {testId && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={isRunning}
+              
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            )}
+          </div>
+          <div>
+            {testId ? (
+              <Button
+                type="submit"
+                onClick={handleSubmit}
+                className="flex items-center gap-2"
+                disabled={isRunning}
+              >
+                <SaveIcon className="h-4 w-4 mr-2" />
+                Update
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                onClick={handleSubmit}
+                className="flex items-center gap-2"
+                disabled={isRunning}
+              >
+                <SaveIcon className="h-4 w-4 mr-2" />
+                Save
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the test &quot;{testCase.title}&quot;. This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteTest();
+              }}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </form>
   );
 }
 

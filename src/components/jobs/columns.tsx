@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useJobContext } from "./job-context";
+import { UUIDField } from "@/components/ui/uuid-field";
 
 // Type definition for the extended meta object used in this table
 interface JobsTableMeta {
@@ -56,7 +57,7 @@ function RunButton({ job }: { job: Job }) {
       }
 
       // Show a loading toast that stays visible during the entire job execution
-      runToastId = toast.loading(`Running job: ${job.name}`, {
+      runToastId = toast.loading(`Running job: ${job.name.length > 25 ? job.name.substring(0, 25) + '...' : job.name}`, {
         description:
           "The job is being executed. This may take a few moments...",
         duration: Infinity, // Keep loading until dismissed/updated
@@ -148,8 +149,8 @@ function RunButton({ job }: { job: Job }) {
         "text-white",
         "flex items-center justify-center",
         "h-7 px-1 rounded-md",
-        "cursor-pointer",
-        "gap-2"
+        "gap-2",
+        "cursor-pointer"
       )}
       disabled={
         isRunning || isAnyJobRunning || !job.tests || job.tests.length === 0
@@ -192,7 +193,13 @@ export const columns: ColumnDef<Job>[] = [
       <DataTableColumnHeader column={column} title="ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[100px] ml-2 truncate">{row.getValue("id")}</div>
+      <div className="w-[100px] ml-2">
+        <UUIDField 
+          value={row.getValue("id")} 
+          maxLength={12} 
+          onCopy={() => toast.success("ID copied to clipboard")}
+        />
+      </div>
     ),
     enableSorting: false,
     enableHiding: false,

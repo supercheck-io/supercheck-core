@@ -6,8 +6,8 @@ export const testSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
   script: z.string().optional(),
-  priority: z.enum(["low", "medium", "high"]),
-  type: z.enum(["browser", "api", "multistep", "database"]),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  type: z.enum(["browser", "api", "multistep", "database"]).default("browser"),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });

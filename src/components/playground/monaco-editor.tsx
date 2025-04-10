@@ -70,20 +70,34 @@ export const MonacoEditorClient = memo(
           })
           .then((playwrightTypes) => {
             if (playwrightTypes) {
-              // Create a model for the type definitions
-              const model = monaco.editor.createModel(
-                playwrightTypes,
-                "typescript",
-                monaco.Uri.parse("file:///types/playwright.d.ts")
-              );
+              // Check if model already exists to prevent the "model already exists" error
+              const uri = monaco.Uri.parse("file:///types/playwright.d.ts");
+              const existingModel = monaco.editor.getModel(uri);
+              
+              // Only create a new model if one doesn't already exist
+              if (!existingModel) {
+                // Create a model for the type definitions
+                const model = monaco.editor.createModel(
+                  playwrightTypes,
+                  "typescript",
+                  uri
+                );
 
-              // Add the model to the JavaScript defaults
-              monaco.languages.typescript.javascriptDefaults.addExtraLib(
-                model.getValue(),
-                model.uri.toString()
-              );
+                // Add the model to the JavaScript defaults
+                monaco.languages.typescript.javascriptDefaults.addExtraLib(
+                  model.getValue(),
+                  model.uri.toString()
+                );
 
-              console.log("Playwright types loaded successfully into Monaco.");
+                console.log("Playwright types loaded successfully into Monaco.");
+              } else {
+                // If model already exists, just update the extra lib
+                monaco.languages.typescript.javascriptDefaults.addExtraLib(
+                  playwrightTypes,
+                  uri.toString()
+                );
+                console.log("Updated existing Playwright types in Monaco.");
+              }
             }
           })
           .catch((error) => {

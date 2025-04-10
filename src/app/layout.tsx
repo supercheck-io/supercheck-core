@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Toaster } from "@/components/ui/sonner";
 import { BreadcrumbProvider } from "@/components/breadcrumb-context";
 import { BreadcrumbDisplay } from "@/components/breadcrumb-display";
+import { JobProvider } from "@/components/jobs/job-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,29 +68,31 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="system" storageKey="app-theme">
           <BreadcrumbProvider>
             <SidebarProvider>
-              {/* Toaster for system notifications */}
-              <Toaster position="bottom-right" richColors />
-              {/* Custom Toaster for our application notifications */}
-              {/* <CustomToaster /> */}
-              <AppSidebar />
-              <SidebarInset>
-                <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-                  <div className="flex items-center gap-2 px-4">
-                    <SidebarTrigger className="-ml-1" />
-                    <Separator
-                      orientation="vertical"
-                      className="mr-2 data-[orientation=vertical]:h-4"
-                    />
-                    <BreadcrumbDisplay />
+              <JobProvider>
+                {/* Toaster for system notifications */}
+                <Toaster position="bottom-right" richColors />
+                {/* Custom Toaster for our application notifications */}
+                {/* <CustomToaster /> */}
+                <AppSidebar />
+                <SidebarInset>
+                  <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+                    <div className="flex items-center gap-2 px-4">
+                      <SidebarTrigger className="-ml-1" />
+                      <Separator
+                        orientation="vertical"
+                        className="mr-2 data-[orientation=vertical]:h-4"
+                      />
+                      <BreadcrumbDisplay />
+                    </div>
+                    <div className="ml-auto mr-4">
+                      <ThemeToggle />
+                    </div>
+                  </header>
+                  <div className="flex flex-1 flex-col gap-4 p-4 pt-0 -mt-2">
+                    {children}
                   </div>
-                  <div className="ml-auto mr-4">
-                    <ThemeToggle />
-                  </div>
-                </header>
-                <div className="flex flex-1 flex-col gap-4 p-4 pt-0 -mt-2">
-                  {children}
-                </div>
-              </SidebarInset>
+                </SidebarInset>
+              </JobProvider>
             </SidebarProvider>
           </BreadcrumbProvider>
         </ThemeProvider>

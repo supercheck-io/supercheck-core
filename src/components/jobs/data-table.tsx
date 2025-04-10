@@ -157,7 +157,7 @@ export function DataTable<TData, TValue>({
                     }
                   }}
                   className={cn(
-                    onRowClick ? "cursor-pointer hover:bg-muted" : "",
+                    onRowClick ? "hover:bg-muted" : "",
                     "h-16"
                   )}
                 >

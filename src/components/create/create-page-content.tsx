@@ -4,7 +4,6 @@ import { CreateCard } from "./create-card";
 import { useRouter } from "next/navigation";
 import {
   HelpCircle,
-  Unplug,
   Chrome,
   Webhook,
   ListOrdered,
@@ -52,13 +51,7 @@ export function CreatePageContent() {
       path: "/create/multistep",
       scriptType: "multistep" as ScriptType,
     },
-    {
-      icon: <Unplug size={24} />,
-      title: "WebSocket check",
-      description: "Organize multiple tests into logical groups.",
-      path: "/create/websocket",
-      scriptType: "websocket" as ScriptType,
-    },
+    
     // {
     //   icon: <Clock size={24} />,
     //   title: "CRON/Heartbeat",

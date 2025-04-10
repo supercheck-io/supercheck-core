@@ -5,6 +5,8 @@ import { runStatuses } from "./data/data";
 import type { TestRun } from "./data/schema";
 import { DataTableColumnHeader } from "../jobs/data-table-column-header";
 import { formatDistanceToNow } from "date-fns";
+import { UUIDField } from "@/components/ui/uuid-field";
+import { toast } from "sonner";
 
 export const columns: ColumnDef<TestRun>[] = [
   {
@@ -13,7 +15,13 @@ export const columns: ColumnDef<TestRun>[] = [
       <DataTableColumnHeader column={column} title="Run ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[100px] ml-2 truncate">{row.getValue("id")}</div>
+      <div className="w-[100px] ml-2">
+        <UUIDField 
+          value={row.getValue("id")} 
+          maxLength={12} 
+          onCopy={() => toast.success("Run ID copied to clipboard")}
+        />
+      </div>
     ),
     enableSorting: false,
     enableHiding: false,
@@ -26,9 +34,12 @@ export const columns: ColumnDef<TestRun>[] = [
     cell: ({ row }) => {
       return (
         <div className="flex space-x-2">
-          <span className="max-w-[150px] truncate font-medium">
-            {row.getValue("jobId")}
-          </span>
+          <UUIDField
+            value={row.getValue("jobId")}
+            maxLength={18}
+            className="max-w-[150px] font-medium"
+            onCopy={() => toast.success("Job ID copied to clipboard")}
+          />
         </div>
       );
     },
@@ -41,9 +52,7 @@ export const columns: ColumnDef<TestRun>[] = [
     cell: ({ row }) => {
       const jobName = row.getValue("jobName") as string | undefined;
       return (
-        <div className="max-w-[200px] truncate">
-          {jobName || "Unknown Job"}
-        </div>
+        <div className="max-w-[200px] truncate">{jobName || "Unknown Job"}</div>
       );
     },
   },

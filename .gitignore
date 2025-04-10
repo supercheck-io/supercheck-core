@@ -39,7 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-# public/*
+public/tests/*
+public/test-results/*
 test-results/*
 
 # db

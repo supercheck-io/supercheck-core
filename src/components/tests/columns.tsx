@@ -3,6 +3,8 @@ import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
 import type { Test } from "./data/schema";
 import { CalendarIcon, ClockIcon } from "lucide-react";
+import { UUIDField } from "@/components/ui/uuid-field";
+import { toast } from "sonner";
 
 // Type definition for the extended meta object used in this table
 interface TestsTableMeta {
@@ -20,7 +22,13 @@ export const columns: ColumnDef<Test>[] = [
       <DataTableColumnHeader column={column} title="ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[100px] ml-2 truncate">{row.getValue("id")}</div>
+      <div className="w-[100px] ml-2">
+        <UUIDField 
+          value={row.getValue("id")} 
+          maxLength={12} 
+          onCopy={() => toast.success("Test ID copied to clipboard")}
+        />
+      </div>
     ),
     enableSorting: false,
     enableHiding: false,
@@ -68,11 +76,7 @@ export const columns: ColumnDef<Test>[] = [
 
       return (
         <div className="flex items-center w-[120px]">
-          {type.icon && (
-            <type.icon
-              className={`mr-2 h-4 w-4 ${type.color}`}
-            />
-          )}
+          {type.icon && <type.icon className={`mr-2 h-4 w-4 ${type.color}`} />}
           <span>{type.label}</span>
         </div>
       );
@@ -166,11 +170,15 @@ export const columns: ColumnDef<Test>[] = [
       // Explicitly cast table.options.meta to the extended type
       const meta = table.options.meta as TestsTableMeta | undefined;
       const onDeleteCallback = meta?.onDeleteTest;
-      
+
       return (
-        <DataTableRowActions 
-          row={row} 
-          onDelete={onDeleteCallback ? () => onDeleteCallback(row.original.id) : undefined}
+        <DataTableRowActions
+          row={row}
+          onDelete={
+            onDeleteCallback
+              ? () => onDeleteCallback(row.original.id)
+              : undefined
+          }
         />
       );
     },
