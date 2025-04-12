@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTableViewOptions } from "@/components/jobs/data-table-view-options";
 import { DataTableFacetedFilter } from "@/components/jobs/data-table-faceted-filter";
-import { runStatuses } from "./data/data";
+import { runStatuses } from "./data";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;

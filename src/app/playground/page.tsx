@@ -50,12 +50,12 @@ function PlaygroundSkeleton() {
           <div className="hidden h-full flex-col md:flex">
             <div className="flex h-full">
               <div className="w-[70%] h-full flex flex-col border rounded-tl-lg rounded-bl-lg">
-                <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tl-lg">
+                <div className="flex items-center justify-between border-b bg-card px-4 py-2 rounded-tl-lg">
                   <Skeleton className="h-10 w-64" />
                   <Skeleton className="h-9 w-28" />
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <div className="h-full w-full p-4 bg-muted/20 flex flex-col gap-4">
+                  <div className="h-full w-full p-4 bg-card/30 flex flex-col gap-4">
                     <Skeleton className="h-5 w-3/4 mt-10" />
                     <Skeleton className="h-5 w-1/2" />
                     <Skeleton className="h-5 w-5/6" />
@@ -74,7 +74,7 @@ function PlaygroundSkeleton() {
                 <div className="w-1 h-8 rounded-full bg-muted-foreground/20"></div>
               </div>
               <div className="w-[calc(30%-10px)] h-full flex flex-col border rounded-tr-lg rounded-br-lg">
-                <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tr-lg">
+                <div className="flex items-center justify-between border-b bg-card px-4 py-2 rounded-tr-lg">
                   <Skeleton className="h-6 w-24" />
                 </div>
                 <div className="flex-1 overflow-auto p-4 space-y-4">

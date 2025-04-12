@@ -3,8 +3,8 @@ import { CalendarIcon, TimerIcon, Loader2, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { jobStatuses } from "./data/data";
-import type { Job } from "./data/schema";
+import { jobStatuses } from "./data";
+import type { Job } from "./schema";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,7 @@ function RunButton({ job }: { job: Job }) {
       // Show a loading toast that stays visible during the entire job execution
       runToastId = toast.loading(`Running job: ${job.name.length > 25 ? job.name.substring(0, 25) + '...' : job.name}`, {
         description:
-          "The job is being executed. This may take a few moments...",
+          "Job execution may take a few moments...",
         duration: Infinity, // Keep loading until dismissed/updated
       });
 
@@ -193,10 +193,10 @@ export const columns: ColumnDef<Job>[] = [
       <DataTableColumnHeader column={column} title="ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[100px] ml-2">
+      <div className="w-[120px] ml-2">
         <UUIDField 
           value={row.getValue("id")} 
-          maxLength={12} 
+          maxLength={24} 
           onCopy={() => toast.success("ID copied to clipboard")}
         />
       </div>
@@ -212,7 +212,7 @@ export const columns: ColumnDef<Job>[] = [
     cell: ({ row }) => {
       return (
         <div className="flex space-x-2">
-          <span className="max-w-[200px] truncate font-medium">
+          <span className="max-w-[200px] truncate">
             {row.getValue("name")}
           </span>
         </div>
@@ -228,7 +228,7 @@ export const columns: ColumnDef<Job>[] = [
       const description = row.getValue("description") as string | null;
       return (
         <div className="max-w-[200px] truncate">
-          {description || "No description"}
+          {description || "No description provided"}
         </div>
       );
     },

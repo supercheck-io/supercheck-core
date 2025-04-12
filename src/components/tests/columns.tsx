@@ -1,7 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
-import type { Test } from "./data/schema";
+import type { Test } from "./schema";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ interface TestsTableMeta {
   // Include other potential properties from the base TableMeta if needed
 }
 
-import { priorities, types } from "./data/data";
+import { priorities, types } from "./data";
 
 export const columns: ColumnDef<Test>[] = [
   {
@@ -22,10 +22,10 @@ export const columns: ColumnDef<Test>[] = [
       <DataTableColumnHeader column={column} title="ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[100px] ml-2">
+      <div className="w-[120px] ml-2">
         <UUIDField 
           value={row.getValue("id")} 
-          maxLength={12} 
+          maxLength={24} 
           onCopy={() => toast.success("Test ID copied to clipboard")}
         />
       </div>
@@ -41,7 +41,7 @@ export const columns: ColumnDef<Test>[] = [
     cell: ({ row }) => {
       return (
         <div className="flex space-x-2">
-          <span className="max-w-[200px] truncate font-medium">
+          <span className="max-w-[200px] truncate">
             {row.getValue("title")}
           </span>
         </div>
@@ -57,7 +57,7 @@ export const columns: ColumnDef<Test>[] = [
       const description = row.getValue("description") as string | null;
       return (
         <div className="max-w-[200px] truncate">
-          {description || "No description"}
+          {description || "No description provided"}
         </div>
       );
     },

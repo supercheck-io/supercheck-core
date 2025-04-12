@@ -30,6 +30,21 @@ export async function updateJob(
   try {
     const dbInstance = await db();
 
+    // Validate required fields
+    if (!data.name) {
+      return {
+        success: false,
+        error: "Job name is required",
+      };
+    }
+
+    if (!data.description) {
+      return {
+        success: false,
+        error: "Job description is required",
+      };
+    }
+
     // Update job data
     await dbInstance
       .update(jobs)

@@ -24,7 +24,7 @@ import {
 import { useState } from "react";
 import { deleteJob } from "@/actions/delete-job";
 
-import { Job } from "./data/schema";
+import { Job } from "./schema";
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
@@ -50,12 +50,6 @@ export function DataTableRowActions<TData>({
 
     setIsDeleting(true);
 
-    // Show a loading toast for delete operation
-    const deleteToastId = toast.loading("Deleting job...", {
-      description: "Please wait while we delete the job.",
-      duration: Infinity, // Keep loading until dismissed
-    });
-
     try {
       // Use the server action to delete the job
       const result = await deleteJob(job.id);
@@ -64,11 +58,8 @@ export function DataTableRowActions<TData>({
         throw new Error(result.error || "Failed to delete job");
       }
 
-      toast.success("Job deleted successfully", {
-        description: `Job \"${job.name}\" has been permanently removed.`,
-        id: deleteToastId,
-        duration: 5000, // Add auto-dismiss after 5 seconds
-      });
+      toast.success("Job deleted successfully");
+  
 
       // Call onDelete callback if provided
       if (onDelete) {
@@ -82,7 +73,6 @@ export function DataTableRowActions<TData>({
       toast.error("Error deleting job", {
         description:
           error instanceof Error ? error.message : "Failed to delete job",
-        id: deleteToastId,
         duration: 5000, // Add auto-dismiss after 5 seconds
       });
     } finally {

@@ -24,7 +24,7 @@ import {
 import { toast } from "sonner";
 import { deleteTest } from "@/actions/delete-test";
 
-import { testSchema } from "./data/schema";
+import { testSchema } from "./schema";
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import { getRuns } from "@/actions/get-runs";
-import { TestRun } from "./data/schema";
+import { TestRun } from "./schema";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";

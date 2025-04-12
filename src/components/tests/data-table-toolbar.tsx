@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { DataTableViewOptions } from "./data-table-view-options";
 import { useRouter } from "next/navigation";
 
-import { types, priorities } from "./data/data";
+import { types, priorities } from "./data";
 
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 

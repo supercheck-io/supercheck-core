@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Test } from "./data/schema";
+import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -209,7 +209,7 @@ export default function TestSelector({
                 <TableHead className="w-[120px] sticky top-0 bg-background">
                   ID
                 </TableHead>
-                <TableHead className="w-[200px] sticky top-0 bg-background">
+                <TableHead className="w-[120px] sticky top-0 bg-background">
                   Name
                 </TableHead>
                 <TableHead className="w-[100px] sticky top-0 bg-background">
@@ -230,10 +230,12 @@ export default function TestSelector({
                     className="font-mono text-sm truncate"
                     title={test.id}
                   >
-                    {test.id.substring(0, 8)}...
+                    {test.id.substring(0, 12)}...
                   </TableCell>
                   <TableCell className="truncate" title={test.name}>
-                    {test.name}
+                    {test.name.length > 50
+                      ? test.name.substring(0, 50) + "..."
+                      : test.name}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{test.type}</Badge>
@@ -242,7 +244,9 @@ export default function TestSelector({
                     className="truncate"
                     title={test.description || ""}
                   >
-                    {test.description}
+                    {test.description && test.description.length > 50
+                      ? test.description.substring(0, 50) + "..."
+                      : test.description || "No description provided"} 
                   </TableCell>
                   <TableCell>
                     <Button
@@ -333,7 +337,9 @@ export default function TestSelector({
                           {test.id.substring(0, 8)}...
                         </TableCell>
                         <TableCell className="truncate" title={test.name}>
-                          {test.name}
+                          {test.name.length > 30
+                            ? test.name.substring(0, 30) + "..."
+                            : test.name}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{test.type}</Badge>
@@ -342,7 +348,9 @@ export default function TestSelector({
                           className="truncate"
                           title={test.description || ""}
                         >
-                          {test.description}
+                          {test.description && test.description.length > 30
+                            ? test.description.substring(0, 30) + "..."
+                            : test.description || "No description provided"}
                         </TableCell>
                       </TableRow>
                     ))}

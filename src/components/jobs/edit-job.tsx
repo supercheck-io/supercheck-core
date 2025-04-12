@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Test } from "./data/schema";
+import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,7 +44,7 @@ import TestSelector from "./test-selector";
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
-  description: z.string().optional(),
+  description: z.string().min(1, "Job description is required"),
   cronSchedule: z.string().optional(),
 });
 
@@ -57,10 +57,18 @@ interface EditJobProps {
 export default function EditJob({ jobId }: EditJobProps) {
   const router = useRouter();
   const [selectedTests, setSelectedTests] = useState<Test[]>([]);
+  const [originalSelectedTests, setOriginalSelectedTests] = useState<Test[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [submissionAttempted, setSubmissionAttempted] = useState(false);
+  const [formChanged, setFormChanged] = useState(false);
+  const [initialValues, setInitialValues] = useState({
+    name: "",
+    description: "",
+    cronSchedule: ""
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
@@ -70,6 +78,9 @@ export default function EditJob({ jobId }: EditJobProps) {
       cronSchedule: "",
     },
   });
+  
+  // Watch form values for changes
+  const watchedValues = form.watch();
 
   // Load job data
   const loadJob = useCallback(async () => {
@@ -78,7 +89,13 @@ export default function EditJob({ jobId }: EditJobProps) {
       const response = await getJob(jobId);
 
       if (!response.success || !response.job) {
-        throw new Error(response.error || "Job not found");
+        // This check is now handled by the server component
+        // But we'll still handle it here for robustness
+        toast.error("Error", {
+          description: "Job not found. Redirecting to jobs list.",
+        });
+        router.push("/jobs");
+        return;
       }
 
       const jobData = response.job;
@@ -88,6 +105,13 @@ export default function EditJob({ jobId }: EditJobProps) {
         name: jobData.name,
         description: jobData.description || "",
         cronSchedule: jobData.cronSchedule || "",
+      });
+      
+      // Store initial values for comparison
+      setInitialValues({
+        name: jobData.name,
+        description: jobData.description || "",
+        cronSchedule: jobData.cronSchedule || ""
       });
 
       // Map the tests to the format expected by TestSelector
@@ -102,6 +126,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       }));
 
       setSelectedTests(tests);
+      setOriginalSelectedTests(tests);
     } catch (error) {
       console.error("Error loading job:", error);
       toast.error("Error", {
@@ -119,6 +144,8 @@ export default function EditJob({ jobId }: EditJobProps) {
 
   // Handle form submission
   const onSubmit = form.handleSubmit(async (values: FormData) => {
+    setSubmissionAttempted(true);
+    
     try {
       // Validate that at least one test is selected
       if (selectedTests.length === 0) {
@@ -134,7 +161,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       const jobData = {
         id: jobId,
         name: values.name.trim(),
-        description: values.description?.trim() || "",
+        description: values.description.trim(),
         cronSchedule: values.cronSchedule?.trim() || "",
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
@@ -168,6 +195,33 @@ export default function EditJob({ jobId }: EditJobProps) {
   const handleTestsSelected = (tests: Test[]) => {
     setSelectedTests(tests);
   };
+
+  // Check if the form has changed
+  useEffect(() => {
+    // Compare current form values with initial values
+    const currentName = watchedValues.name;
+    const currentDescription = watchedValues.description;
+    const currentCronSchedule = watchedValues.cronSchedule || "";
+    
+    // Check if any form field has changed
+    const formFieldsChanged = 
+      currentName !== initialValues.name ||
+      currentDescription !== initialValues.description ||
+      currentCronSchedule !== initialValues.cronSchedule;
+    
+    // Compare selected tests with original tests
+    const testsChanged = !(
+      selectedTests.length === originalSelectedTests.length &&
+      selectedTests.every(test => 
+        originalSelectedTests.some(origTest => origTest.id === test.id)
+      ) &&
+      originalSelectedTests.every(origTest => 
+        selectedTests.some(test => test.id === origTest.id)
+      )
+    );
+    
+    setFormChanged(formFieldsChanged || testsChanged);
+  }, [watchedValues, initialValues, selectedTests, originalSelectedTests]);
 
   // Handle job deletion
   const handleDeleteJob = async () => {
@@ -232,9 +286,7 @@ export default function EditJob({ jobId }: EditJobProps) {
                     field: ControllerRenderProps<FormData, "name">;
                   }) => (
                     <FormItem>
-                      <FormLabel>
-                        Job Name <span className="text-red-500">*</span>
-                      </FormLabel>
+                      <FormLabel>Job Name</FormLabel>
                       <FormControl>
                         <Input {...field} placeholder="Enter job name" />
                       </FormControl>
@@ -279,10 +331,7 @@ export default function EditJob({ jobId }: EditJobProps) {
                   field: ControllerRenderProps<FormData, "description">;
                 }) => (
                   <FormItem>
-                    <FormLabel>
-                      Description{" "}
-                      <span className="text-gray-500">(optional)</span>
-                    </FormLabel>
+                    <FormLabel>Description</FormLabel>
                     <FormControl>
                       <Textarea
                         {...field}
@@ -299,8 +348,8 @@ export default function EditJob({ jobId }: EditJobProps) {
               <TestSelector
                 selectedTests={selectedTests}
                 onTestsSelected={handleTestsSelected}
-                emptyStateMessage="At least one test is required"
-                required={true}
+                emptyStateMessage="No tests selected"
+                required={submissionAttempted && selectedTests.length === 0}
               />
 
               <div className="flex justify-end space-x-4 mt-6">
@@ -315,7 +364,7 @@ export default function EditJob({ jobId }: EditJobProps) {
                 <Button 
                   type="submit" 
                   className="flex items-center"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !formChanged}
                 >
                   <SaveIcon className="h-4 w-4 mr-2" />
                   {isSubmitting ? "Updating..." : "Update"}

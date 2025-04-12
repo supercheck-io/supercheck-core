@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { RunResponse } from "@/actions/get-runs";
 import { Badge } from "@/components/ui/badge";
-import { runStatuses } from "./data/data";
+import { runStatuses } from "./data";
 import { AlertTriangleIcon, Loader2Icon } from "lucide-react";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { UUIDField } from "@/components/ui/uuid-field";
@@ -47,7 +47,7 @@ export function RunDetails({ run }: RunDetailsProps) {
         <PageBreadcrumbs items={breadcrumbs} />
 
         {/* Ultra Compact Header Card */}
-        <div className="bg-muted/30 p-3 rounded-lg border border-muted-foreground/10 mb-4">
+        <div className="bg-card p-3 rounded-lg border border-border/40 mb-4">
           {/* Two-column layout with title on left and details on right */}
           <div className="flex flex-wrap justify-between items-start">
             {/* Title and subtitle */}

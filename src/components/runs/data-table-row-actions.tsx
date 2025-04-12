@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { TestRun } from "./data/schema";
+import { TestRun } from "./schema";
 import { useRouter } from "next/navigation";
 
 interface DataTableRowActionsProps<TData> {

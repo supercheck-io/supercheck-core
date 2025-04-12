@@ -1,11 +1,33 @@
 "use client";
-import { useParams } from "next/navigation";
+
+import { notFound, useParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import EditJob from "@/components/jobs/edit-job";
+import { getJob } from "@/actions/get-jobs";
+import { useEffect, useState } from "react";
 
 export default function EditJobPage() {
   const params = useParams();
   const jobId = params.id as string;
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    async function checkJobExists() {
+      try {
+        const response = await getJob(jobId);
+        if (!response.success || !response.job) {
+          notFound();
+        }
+      } catch (error) {
+        console.error("Error checking job:", error);
+        notFound();
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    checkJobExists();
+  }, [jobId]);
   
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -13,6 +35,10 @@ export default function EditJobPage() {
     { label: "Edit", isCurrentPage: true },
     { label: jobId, href: `/jobs/${jobId}`, isCurrentPage: true },
   ];
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="container mx-auto p-4 space-y-4">

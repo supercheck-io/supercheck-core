@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
-import { TestRun } from "./data/schema";
+import { TestRun } from "./schema";
 import { getRuns } from "@/actions/get-runs";
 import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";

@@ -10,8 +10,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { jobStatuses } from "./data/data";
-import { Job, Test } from "./data/schema";
+import { jobStatuses } from "./data";
+import { Job, Test } from "./schema";
 import { CalendarIcon, ClockIcon, TimerIcon, Edit } from "lucide-react";
 import {
   Table,
@@ -68,6 +68,25 @@ function mapToTestType(type: string | undefined): Test["type"] {
       return "api"; // Default to api
   }
 }
+
+// Custom TableRow without hover effect for job sheet
+const JobSheetTableRow = React.forwardRef<
+  HTMLTableRowElement,
+  React.HTMLAttributes<HTMLTableRowElement>
+>(({ className, ...props }, ref) => {
+  return (
+    <tr
+      ref={ref}
+      data-slot="table-row"
+      className={cn(
+        "data-[state=selected]:bg-muted border-b transition-colors",
+        className
+      )}
+      {...props}
+    />
+  );
+});
+JobSheetTableRow.displayName = "JobSheetTableRow";
 
 export default function Jobs() {
   const router = useRouter();
@@ -271,7 +290,7 @@ export default function Jobs() {
 
               <div className="mt-6 space-y-6">
                 {/* Job ID and Name */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/30 p-4 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-card p-4 rounded-lg border border-border/40">
                   <div className="space-y-1">
                     <h3 className="text-xs font-medium text-muted-foreground">
                       Job ID
@@ -306,7 +325,7 @@ export default function Jobs() {
                     {/* Status and Schedule in a grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Status */}
-                      <div className="space-y-2 bg-muted/20 p-4 rounded-lg">
+                      <div className="space-y-2 bg-card p-4 rounded-lg border border-border/40">
                         <h3 className="text-xs font-medium text-muted-foreground">Status</h3>
                         <div className="flex items-center space-x-2">
                           {(() => {
@@ -330,7 +349,7 @@ export default function Jobs() {
                       </div>
                       
                       {/* Schedule */}
-                      <div className="space-y-2 bg-muted/20 p-4 rounded-lg">
+                      <div className="space-y-2 bg-card p-4 rounded-lg border border-border/40">
                         <h3 className="text-xs font-medium text-muted-foreground">Schedule</h3>
                         <div className="flex items-center space-x-2">
                           <TimerIcon className="h-4 w-4 text-muted-foreground" />
@@ -342,7 +361,7 @@ export default function Jobs() {
                     </div>
 
                     {/* Description */}
-                    <div className="space-y-2 bg-muted/20 p-4 rounded-lg">
+                    <div className="space-y-2 bg-card p-4 rounded-lg border border-border/40">
                       <h3 className="text-xs font-medium text-muted-foreground">Description</h3>
                       <p className="text-sm text-muted-foreground">
                         {selectedJob.description || "No description provided"}
@@ -351,7 +370,7 @@ export default function Jobs() {
 
                     {/* Timing Information */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-0.5 bg-muted/20 p-4 rounded-lg">
+                      <div className="space-y-0.5 bg-card p-4 rounded-lg border border-border/40">
                         <h3 className="text-xs font-medium text-muted-foreground">Last Run</h3>
                         <div>
                           <p className="text-sm">
@@ -363,7 +382,7 @@ export default function Jobs() {
                           </p>
                         </div>
                       </div>
-                      <div className="space-y-0.5 bg-muted/20 p-4 rounded-lg">
+                      <div className="space-y-0.5 bg-card p-4 rounded-lg border border-border/40">
                         <h3 className="text-xs font-medium text-muted-foreground">Next Run</h3>
                         <div>
                           <p className="text-sm">
@@ -379,7 +398,7 @@ export default function Jobs() {
 
                     {/* Timestamps */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                      <div className="space-y-0.5 bg-muted/20 p-4 rounded-lg">
+                      <div className="space-y-0.5 bg-card p-4 rounded-lg border border-border/40">
                         <h3 className="text-xs font-medium text-muted-foreground">Created</h3>
                         <div>
                           <p className="text-sm">
@@ -391,7 +410,7 @@ export default function Jobs() {
                           </p>
                         </div>
                       </div>
-                      <div className="space-y-0.5 bg-muted/20 p-4 rounded-lg">
+                      <div className="space-y-0.5 bg-card p-4 rounded-lg border border-border/40">
                         <h3 className="text-xs font-medium text-muted-foreground">Updated</h3>
                         <div>
                           <p className="text-sm">
@@ -436,8 +455,8 @@ export default function Jobs() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {selectedJob.tests.map((test) => (
-                              <TableRow key={test.id} className="hover:bg-transparent">
+                            {selectedJob.tests?.map((test) => (
+                              <JobSheetTableRow key={test.id}>
                                 <TableCell
                                   className="font-mono text-sm truncate"
                                   title={test.id}
@@ -448,7 +467,9 @@ export default function Jobs() {
                                   className="truncate"
                                   title={test.name}
                                 >
-                                  {test.name}
+                                  {test.name.length > 40
+                                    ? test.name.substring(0, 40) + "..."
+                                    : test.name}
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant="outline">{test.type}</Badge>
@@ -457,9 +478,13 @@ export default function Jobs() {
                                   className="truncate"
                                   title={test.description || ""}
                                 >
-                                  {test.description}
+                                  {test.description &&
+                                  test.description.length > 40
+                                    ? test.description.substring(0, 40) +
+                                      "..."
+                                    : test.description || "No description provided"}
                                 </TableCell>
-                              </TableRow>
+                              </JobSheetTableRow>
                             ))}
                           </TableBody>
                         </Table>

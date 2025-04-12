@@ -149,11 +149,15 @@ export async function POST(request: Request) {
             .map(r => r.error)
         );
     
+    // Check if any individual tests failed - this is an additional check to ensure
+    // we correctly flag runs with failed tests
+    const hasFailedTests = result.results.some(r => !r.success);
+    
     // Update the test run record with results
     await dbInstance
       .update(testRuns)
       .set({
-        status: result.success ? "passed" as TestRunStatus : "failed" as TestRunStatus,
+        status: (result.success && !hasFailedTests) ? "passed" as TestRunStatus : "failed" as TestRunStatus,
         completedAt: new Date().toISOString(),
         duration: durationFormatted,
         logs,
@@ -161,7 +165,7 @@ export async function POST(request: Request) {
       })
       .where(eq(testRuns.id, runId));
 
-    console.log(`Updated test run record with results`);
+    console.log(`Updated test run record with results, status: ${(result.success && !hasFailedTests) ? "passed" : "failed"}`);
 
     // Return the combined result with the run ID
     return NextResponse.json({

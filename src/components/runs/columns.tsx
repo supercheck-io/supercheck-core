@@ -1,8 +1,8 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 
-import { runStatuses } from "./data/data";
-import type { TestRun } from "./data/schema";
+import { runStatuses } from "./data";
+import type { TestRun } from "./schema";
 import { DataTableColumnHeader } from "../jobs/data-table-column-header";
 import { formatDistanceToNow } from "date-fns";
 import { UUIDField } from "@/components/ui/uuid-field";
@@ -15,10 +15,10 @@ export const columns: ColumnDef<TestRun>[] = [
       <DataTableColumnHeader column={column} title="Run ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[100px] ml-2">
+      <div className="w-[120px] ml-2">
         <UUIDField 
           value={row.getValue("id")} 
-          maxLength={12} 
+          maxLength={24} 
           onCopy={() => toast.success("Run ID copied to clipboard")}
         />
       </div>
@@ -36,8 +36,8 @@ export const columns: ColumnDef<TestRun>[] = [
         <div className="flex space-x-2">
           <UUIDField
             value={row.getValue("jobId")}
-            maxLength={18}
-            className="max-w-[150px] font-medium"
+            maxLength={24}
+            className="w-[120px]"
             onCopy={() => toast.success("Job ID copied to clipboard")}
           />
         </div>

@@ -141,6 +141,7 @@ export function TestForm({
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [formChanged, setFormChanged] = useState(false);
 
   // Track if form has changes compared to initial values
   const hasChangesLocal = useCallback(() => {
@@ -159,13 +160,8 @@ export function TestForm({
 
   // Update formChanged state whenever form values change
   useEffect(() => {
-    // Code simplified to avoid unused variables
     const hasChanges = hasChangesLocal();
-    
-    // Just log changes to console for debugging purposes
-    if (hasChanges) {
-      console.log("Form has changes");
-    }
+    setFormChanged(hasChanges);
   }, [
     testCase,
     editorContent,
@@ -336,16 +332,16 @@ export function TestForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 p-2">
+    <form onSubmit={handleSubmit} className="space-y-4 p-3 -mt-2">
       {/* Test metadata section with dates and ID */}
       {testId && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {/* Timestamps */}
           {(testCase.createdAt || testCase.updatedAt) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {testCase.createdAt && (
-                <div className="space-y-0.5 bg-muted/20 p-3 pl-4 rounded-lg">
-                  <h3 className="text-xs font-medium text-muted-foreground">Created</h3>
+                <div className="space-y-1 bg-card p-3 rounded-lg border border-border/40">
+                  <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
                   <div>
                     <p className="text-xs">
                       {new Date(testCase.createdAt).toLocaleDateString("en-US", {
@@ -373,8 +369,8 @@ export function TestForm({
                 </div>
               )}
               {testCase.updatedAt && (
-                <div className="space-y-0.5 bg-muted/20 p-3 pl-4 rounded-lg">
-                  <h3 className="text-xs font-medium text-muted-foreground">Updated</h3>
+                <div className="space-y-1 bg-card p-3 rounded-lg border border-border/40">
+                  <h3 className="text-sm font-medium text-muted-foreground">Updated</h3>
                   <div>
                     <p className="text-xs">
                       {new Date(testCase.updatedAt).toLocaleDateString("en-US", {
@@ -405,9 +401,9 @@ export function TestForm({
           )}
           
           {/* Test ID */}
-          <div className="bg-muted/30 p-2 rounded-lg">
-            <div className="space-y-0.5">
-              <h3 className="text-xs font-medium text-muted-foreground">Test ID</h3>
+          <div className="bg-card p-3 rounded-lg border border-border/40">
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-muted-foreground">Test ID</h3>
               <div className="group relative">
                 <UUIDField 
                   value={testId} 
@@ -421,17 +417,17 @@ export function TestForm({
       )}
 
       {/* Test title */}
-      <div>
+      <div className="space-y-2">
         <label
           htmlFor="title"
           className={cn(
-            "block text-xs font-medium mb-0.5",
+            "block text-sm font-medium",
             errors.title ? "text-destructive" : "text-foreground"
           )}
         >
           Title
         </label>
-        <div className="mt-0.5">
+        <div>
           <Input
             id="title"
             name="title"
@@ -441,17 +437,17 @@ export function TestForm({
               setTestCase({ ...testCase, title: e.target.value })
             }
             placeholder="Enter test title"
-            className={cn(errors.title && "border-destructive")}
+            className={cn(errors.title && "border-destructive", "h-10")}
             disabled={isRunning}
           />
         </div>
         {errors.title && (
-          <p className="text-red-500 text-xs mt-0.5">{errors.title}</p>
+          <p className="text-red-500 text-xs mt-1.5">{errors.title}</p>
         )}
       </div>
 
-      <div>
-        <label htmlFor="description" className="block text-xs font-medium mb-0.5">
+      <div className="space-y-2">
+        <label htmlFor="description" className="block text-sm font-medium">
           Description
         </label>
         <Textarea
@@ -464,20 +460,21 @@ export function TestForm({
             }))
           }
           placeholder="Enter test description"
-          className={
-            errors.description
-              ? "border-red-500 min-h-[80px]"
-              : "min-h-[80px]"
-          }
+          className={cn(
+            errors.description ? "border-red-500" : "",
+            "min-h-[100px]",
+            isRunning ? "opacity-70 cursor-not-allowed" : ""
+          )}
+          disabled={isRunning}
         />
         {errors.description && (
-          <p className="text-red-500 text-xs mt-0.5">{errors.description}</p>
+          <p className="text-red-500 text-xs mt-1.5">{errors.description}</p>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <div>
-          <label htmlFor="priority" className="block text-xs font-medium mb-0.5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label htmlFor="priority" className="block text-sm font-medium">
             Priority
           </label>
           <Select
@@ -494,7 +491,10 @@ export function TestForm({
             defaultValue="medium"
             disabled={isRunning}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className={cn(
+              "w-full h-10",
+              isRunning ? "opacity-70 cursor-not-allowed" : ""
+            )}>
               <SelectValue placeholder="Select priority">
                 {priorityDisplayMap[testCase.priority as TestPriority] || "Select priority"}
               </SelectValue>
@@ -509,12 +509,12 @@ export function TestForm({
             </SelectContent>
           </Select>
           {errors.priority && (
-            <p className="text-red-500 text-xs mt-0.5">{errors.priority}</p>
+            <p className="text-red-500 text-xs mt-1.5">{errors.priority}</p>
           )}
         </div>
 
-        <div>
-          <label htmlFor="type" className="block text-xs font-medium mb-0.5">
+        <div className="space-y-2">
+          <label htmlFor="type" className="block text-sm font-medium">
             Type
           </label>
           <Select
@@ -526,8 +526,12 @@ export function TestForm({
               }))
             }
             defaultValue="browser"
+            disabled={isRunning}
           >
-            <SelectTrigger>
+            <SelectTrigger className={cn(
+              "h-10",
+              isRunning ? "opacity-70 cursor-not-allowed" : ""
+            )}>
               <SelectValue placeholder="Select type">
                 {typeDisplayMap[testCase.type as TestType] || "Select type"}
               </SelectValue>
@@ -544,12 +548,12 @@ export function TestForm({
             </SelectContent>
           </Select>
           {errors.type && (
-            <p className="text-red-500 text-xs mt-0.5">{errors.type}</p>
+            <p className="text-red-500 text-xs mt-1.5">{errors.type}</p>
           )}
         </div>
       </div>
 
-      <div className="mt-2">
+      <div className="mt-4">
         <div className="flex justify-between items-center">
           <div>
             {testId && (
@@ -558,7 +562,7 @@ export function TestForm({
                 variant="destructive"
                 onClick={() => setShowDeleteDialog(true)}
                 disabled={isRunning}
-              
+                className="h-9 px-3"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
@@ -570,8 +574,8 @@ export function TestForm({
               <Button
                 type="submit"
                 onClick={handleSubmit}
-                className="flex items-center gap-2"
-                disabled={isRunning}
+                className="flex items-center gap-2 h-9 px-4"
+                disabled={isRunning || !formChanged}
               >
                 <SaveIcon className="h-4 w-4 mr-2" />
                 Update
@@ -580,8 +584,8 @@ export function TestForm({
               <Button
                 type="submit"
                 onClick={handleSubmit}
-                className="flex items-center gap-2"
-                disabled={isRunning}
+                className="flex items-center gap-2 h-9 px-4"
+                disabled={isRunning || !formChanged}
               >
                 <SaveIcon className="h-4 w-4 mr-2" />
                 Save

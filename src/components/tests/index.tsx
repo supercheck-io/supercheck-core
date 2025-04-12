@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { getTests } from "@/actions/get-tests";
-import { Test } from "./data/schema";
+import { Test } from "./schema";
 import { Row } from "@tanstack/react-table";
 
 export default function Tests() {
@@ -73,7 +73,7 @@ export default function Tests() {
           </div>
           <div>
             <h3 className="font-medium">Description</h3>
-            <p>{selectedTest.description || "No description"}</p>
+            <p>{selectedTest.description || "No description provided"}</p>
           </div>
           <div>
             <h3 className="font-medium">Priority</h3>

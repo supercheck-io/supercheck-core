@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Test } from "./data/schema";
+import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +32,7 @@ import TestSelector from "./test-selector";
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
-  description: z.string().optional(),
+  description: z.string().min(1, "Job description is required"),
   cronSchedule: z.string().optional(),
 });
 
@@ -42,6 +42,7 @@ export default function CreateJob() {
   const router = useRouter();
   const [selectedTests, setSelectedTests] = useState<Test[]>([]);
   const [submissionAttempted, setSubmissionAttempted] = useState(false);
+  const [formChanged, setFormChanged] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
@@ -51,6 +52,9 @@ export default function CreateJob() {
       cronSchedule: "",
     },
   });
+  
+  // Watch form values for changes
+  const watchedValues = form.watch();
 
   // Handle form submission
   const onSubmit = form.handleSubmit(async (values: FormData) => {
@@ -68,7 +72,7 @@ export default function CreateJob() {
       // Create job data object
       const jobData = {
         name: values.name.trim(),
-        description: values.description?.trim() || "",
+        description: values.description.trim(),
         cronSchedule: values.cronSchedule?.trim() || "",
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
@@ -105,6 +109,18 @@ export default function CreateJob() {
     setSelectedTests(tests);
   };
 
+  // Track form changes
+  useEffect(() => {
+    // Check if form fields have values
+    const formHasValues = 
+      (watchedValues.name && watchedValues.name.trim() !== "") || 
+      (watchedValues.description && watchedValues.description.trim() !== "") || 
+      (watchedValues.cronSchedule && watchedValues.cronSchedule.trim() !== "");
+    
+    // Form is considered changed if either fields have values or tests are selected
+    setFormChanged(formHasValues || selectedTests.length > 0);
+  }, [watchedValues, selectedTests]);
+
   return (
     <div className="space-y-4 p-8">
       <Card>
@@ -127,9 +143,7 @@ export default function CreateJob() {
                     field: ControllerRenderProps<FormData, "name">;
                   }) => (
                     <FormItem>
-                      <FormLabel>
-                        Job Name <span className="text-red-500">*</span>
-                      </FormLabel>
+                      <FormLabel>Job Name</FormLabel>
                       <FormControl>
                         <Input {...field} placeholder="Enter job name" />
                       </FormControl>
@@ -174,10 +188,7 @@ export default function CreateJob() {
                   field: ControllerRenderProps<FormData, "description">;
                 }) => (
                   <FormItem>
-                    <FormLabel>
-                      Description{" "}
-                      <span className="text-gray-500">(optional)</span>
-                    </FormLabel>
+                    <FormLabel>Description</FormLabel>
                     <FormControl>
                       <Textarea
                         {...field}
@@ -194,12 +205,8 @@ export default function CreateJob() {
               <TestSelector
                 selectedTests={selectedTests}
                 onTestsSelected={handleTestsSelected}
-                emptyStateMessage={
-                  submissionAttempted && selectedTests.length === 0
-                    ? "At least one test is required"
-                    : "No tests selected"
-                }
-                required={true}
+                emptyStateMessage="No tests selected"
+                required={submissionAttempted && selectedTests.length === 0}
               />
 
               <div className="flex justify-end space-x-4 mt-6">
@@ -210,7 +217,11 @@ export default function CreateJob() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex items-center">
+                <Button 
+                  type="submit" 
+                  className="flex items-center"
+                  disabled={!formChanged}
+                >
                   <SaveIcon className="h-4 w-4 mr-2" />
                   Create
                 </Button>

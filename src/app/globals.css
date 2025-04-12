@@ -10,19 +10,19 @@
 }
 
 :root {
-  --background: oklch(0.99 0 0);
+  --background: oklch(0.999 0 0);
   --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(0.99 0 0);
+  --card: oklch(0.97 0.001 286.375);
   --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(0.99 0 0);
+  --popover: oklch(0.97 0.001 286.375);
   --popover-foreground: oklch(0.141 0.005 285.823);
   --primary: oklch(0.21 0.006 285.885);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
+  --secondary: oklch(0.94 0.002 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
+  --muted: oklch(0.92 0.003 286.375);
   --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
+  --accent: oklch(0.94 0.002 286.375);
   --accent-foreground: oklch(0.21 0.006 285.885);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
@@ -46,19 +46,19 @@
 }
 
 .dark {
-  --background: oklch(0.17 0.005 285.823);
+  --background: oklch(0.19 0.005 285.823);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.17 0.005 285.823);
+  --card: oklch(0.23 0.006 285.823);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.17 0.005 285.823);
+  --popover: oklch(0.23 0.006 285.823);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.985 0 0);
   --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
+  --secondary: oklch(0.25 0.007 286.033);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
+  --muted: oklch(0.26 0.008 286.033);
   --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
+  --accent: oklch(0.25 0.007 286.033);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.396 0.141 25.723);
   --destructive-foreground: oklch(0.637 0.237 25.331);
@@ -165,5 +165,28 @@ iframe {
 /* Add a small negative margin to hide any potential edge lines */
 .overflow-guard {
   margin-bottom: -1px !important;
+}
 
+/* Custom scrollbar styles for WebKit browsers */
+.overflow-guard {
+  margin-bottom: -1px !important;
+}
+
+/* Custom scrollbar for WebKit browsers */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.7);
 }

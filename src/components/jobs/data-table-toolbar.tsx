@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTableViewOptions } from "./data-table-view-options";
 
-import { jobStatuses } from "./data/data";
+import { jobStatuses } from "./data";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 import { useRouter } from "next/navigation";
 

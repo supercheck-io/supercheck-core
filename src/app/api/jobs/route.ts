@@ -197,12 +197,12 @@ export async function PUT(request: Request) {
     }
 
     // Validate required fields
-    if (!jobData.name || !jobData.cronSchedule) {
+    if (!jobData.name || !jobData.cronSchedule || !jobData.description) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "Missing required fields. Name and cron schedule are required.",
+            "Missing required fields. Name, description, and cron schedule are required.",
         },
         { status: 400 }
       );
@@ -370,11 +370,15 @@ async function runJob(request: Request) {
           result.results.filter((r) => !r.success).map((r) => r.error)
         );
 
+    // Check if any individual tests failed - this is an additional check to ensure
+    // we correctly flag runs with failed tests
+    const hasFailedTests = result.results.some(r => !r.success);
+
     // Update the test run record with results
     await dbInstance
       .update(testRuns)
       .set({
-        status: result.success
+        status: (result.success && !hasFailedTests)
           ? ("passed" as TestRunStatus)
           : ("failed" as TestRunStatus),
         completedAt: new Date().toISOString(),

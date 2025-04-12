@@ -24,6 +24,13 @@ export async function createJob(data: {
       };
     }
 
+    if (!data.description) {
+      return {
+        success: false,
+        error: "Job description is required",
+      };
+    }
+
     // Validate tests - at least one test is required
     if (!data.tests || data.tests.length === 0) {
       return {

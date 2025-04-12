@@ -294,6 +294,11 @@ const Playground: React.FC<PlaygroundProps> = ({
         newErrors.title = "Title is required";
       }
 
+      // Validate description - make it mandatory
+      if (!validationData.description || validationData.description.trim() === "") {
+        newErrors.description = "Description is required";
+      }
+
       // Validate script
       if (!validationData.script || validationData.script.trim() === "") {
         newErrors.script = "Test script is required";
@@ -458,7 +463,7 @@ const Playground: React.FC<PlaygroundProps> = ({
 
     return (
       <div className="mb-4">
-        <h3 className="text-sm font-medium mb-2">Test Runs</h3>
+        <h4 className="text-sm font-medium mb-2">Test Runs</h4>
         <div className="flex flex-wrap gap-2">
           {testIds.map((id) => {
             const isCompleted = completedTestIds.includes(id);
@@ -508,7 +513,7 @@ const Playground: React.FC<PlaygroundProps> = ({
           <ResizablePanelGroup direction="horizontal" className="h-screen">
             <ResizablePanel defaultSize={70} minSize={30}>
               <div className="flex h-full flex-col">
-                <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tl-lg">
+                <div className="flex items-center justify-between border-b bg-card p-4 py-2 rounded-tl-lg">
                   <div className="flex items-center gap-8">
                     {/* Playground */}
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -615,19 +620,18 @@ const Playground: React.FC<PlaygroundProps> = ({
 
             <ResizablePanel
               defaultSize={30}
-              minSize={25}
+              minSize={20}
               className="rounded-br-lg rounded-tr-lg"
             >
-              <div className="flex h-full flex-col border-l bg-muted/50 rounded-br-lg">
-                <div className="flex items-center justify-between border-b bg-muted px-4 py-2 rounded-tr-lg">
-                  <div className="flex items-center gap-2 py-2">
-                    <FileTextIcon className="h-4 w-4" />
-                    <h2 className="text-sm font-medium">Test Details</h2>
+              <div className="flex h-full flex-col border rounded-tr-lg rounded-br-lg">
+                <div className="flex items-center justify-between border-b bg-card px-4 py-2 rounded-tr-lg">
+                  <div className="flex items-center">
+                    <h3 className="text-sm font-medium">Test Details</h3>
                   </div>
                 </div>
                 <ScrollArea className="flex-1">
-                  <div className="space-y-2 p-4">
-                    <div className="space-y-2">{TestsList()}</div>
+                  <div className="space-y-3 p-4">
+                    <div className="space-y-3">{TestsList()}</div>
                     <TestForm
                       testCase={testCase}
                       setTestCase={setTestCase}
