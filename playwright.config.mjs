@@ -14,15 +14,9 @@ export default defineConfig({
         open: "never", // Prevent auto-opening the report
       },
     ],
-    // [
-    //   "junit",
-    //   {
-    //     outputFile: "test-results/junit-report.xml",
-    //   },
-    // ],
   ],
-  // Remove the separate output directory - everything will be in the test ID folder
-  // outputDir: "./public/test-results/output",
+  // Set the output directory for test artifacts
+  outputDir: "./public/artifacts",
   use: {
     headless: true,
     // Configure trace to be stored in the HTML report directly

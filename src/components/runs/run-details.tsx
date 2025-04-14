@@ -137,13 +137,7 @@ export function RunDetails({ run }: RunDetailsProps) {
                     if (iframe.contentWindow?.document.body.textContent) {
                       const bodyText = iframe.contentWindow.document.body.textContent;
                       
-                      // Check for "File not found" error in plaintext response
-                      if (bodyText.includes("File not found:") || bodyText.includes("report/index.html")) {
-                        setReportError("Execution report is not available yet. The job might still be running...");
-                        setIframeError(true);
-                        return;
-                      }
-                      
+                      // Check for JSON error response
                       if (bodyText.includes('"error"') && bodyText.includes('"message"')) {
                         try {
                           const errorData = JSON.parse(bodyText);
