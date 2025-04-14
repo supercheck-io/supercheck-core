@@ -77,13 +77,14 @@ flowchart TB
 5. **Result Handling**:
    - Generates combined HTML report
    - Updates job status in database
-   - Uploads results to S3 job bucket
+   - Uploads results to S3 job bucket (S3 client initialized only when needed)
+   - Results first served from local filesystem if available, with S3 as fallback
 
 ## Directory Structure
 
 The application maintains a minimal directory structure for test results:
 
-```
+```bash
 /public/test-results/
   /{test-id}/
     /report/             # HTML report directory
@@ -108,9 +109,19 @@ The application maintains a minimal directory structure for test results:
 - **Concurrency Management**: Limited to 2 concurrent tests (configurable via environment variable)
 - **Non-Blocking Architecture**: Tests run in child processes
 - **Real-time Updates**: SSE for live progress updates
-- **S3 Storage**: Job reports stored in S3 job bucket
+- **S3 Storage**:
+  - Job reports stored in S3 job bucket
+  - Lazy initialization of S3 client (only when needed)
+  - Local results prioritized over S3 storage
 - **Minimal Directory Creation**: Only creates essential directories for test reports
 - **Environment Variables**: Passed to child processes for configuration
+
+## Performance Optimizations
+
+- **Lazy S3 Initialization**: S3 client only initialized when actually needed for storage or retrieval
+- **Local-First Approach**: Test results are always checked locally before attempting S3 access
+- **Efficient Resource Usage**: No unnecessary connections to S3 when results are served from local filesystem
+- **Reduced Logging**: S3 connection logs only appear when actually connecting to S3
 
 ## Environment Configuration
 

@@ -10,7 +10,7 @@ export default defineConfig({
       "html",
       {
         outputFolder:
-          process.env.PLAYWRIGHT_REPORT_DIR || "./public/test-results/report", // Use environment variable for report directory
+          process.env.PLAYWRIGHT_REPORT_DIR || "./public/test-results/tests/report", // Updated default path for test reports
         open: "never", // Prevent auto-opening the report
       },
     ],

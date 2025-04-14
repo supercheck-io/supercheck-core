@@ -452,8 +452,8 @@ const Playground: React.FC<PlaygroundProps> = ({
     setIframeError(false);
     setReportError(null);
     
-    // Directly construct the report URL with the API path
-    const reportUrlWithCache = `/api/test-results/${testId}/report/index.html?t=${Date.now()}`;
+    // Construct the report URL with the API path, using the 'tests' prefix
+    const reportUrlWithCache = `/api/test-results/tests/${testId}/report/index.html?t=${Date.now()}`;
 
     // Update state
     setReportUrl(reportUrlWithCache);

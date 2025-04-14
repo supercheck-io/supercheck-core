@@ -15,35 +15,42 @@ const S3_OPERATION_TIMEOUT = parseInt(process.env.S3_OPERATION_TIMEOUT || '5000'
 // Maximum number of retries for S3 operations
 const MAX_S3_RETRIES = parseInt(process.env.S3_MAX_RETRIES || '3');
 
-// S3 client configuration with retries and better error handling
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
-  endpoint: process.env.S3_ENDPOINT || 'http://localhost:9000',
-  forcePathStyle: true, // Required for MinIO and local S3 servers
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'minioadmin',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'minioadmin'
-  },
-  // Add connection configuration to improve reliability
-  requestHandler: {
-    connectionTimeout: S3_OPERATION_TIMEOUT,
-    socketTimeout: S3_OPERATION_TIMEOUT,
-  },
-  // Add retry configuration
-  maxAttempts: MAX_S3_RETRIES
-});
-
-console.log(`Initializing S3 client with endpoint: ${process.env.S3_ENDPOINT || 'http://localhost:9000'}`);
-console.log(`S3 client configuration: timeout=${S3_OPERATION_TIMEOUT}ms, maxRetries=${MAX_S3_RETRIES}`);
-
 // Default bucket names
 export const JOB_BUCKET_NAME = process.env.S3_JOB_BUCKET_NAME || 'playwright-job-artifacts';
 
-console.log(`Using job bucket: ${JOB_BUCKET_NAME}`);
+// Lazy initialization of S3 client
+let s3ClientInstance: S3Client | null = null;
 
-/**
- * Retry a function with exponential backoff
- */
+// Function to get S3 client only when needed
+function getS3Client(): S3Client {
+  if (!s3ClientInstance) {
+    console.log(`Initializing S3 client with endpoint: ${process.env.S3_ENDPOINT || 'http://localhost:9000'}`);
+    console.log(`S3 client configuration: timeout=${S3_OPERATION_TIMEOUT}ms, maxRetries=${MAX_S3_RETRIES}`);
+    
+    s3ClientInstance = new S3Client({
+      region: process.env.AWS_REGION || 'us-east-1',
+      endpoint: process.env.S3_ENDPOINT || 'http://localhost:9000',
+      forcePathStyle: true, // Required for MinIO and local S3 servers
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'minioadmin',
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'minioadmin'
+      },
+      // Add connection configuration to improve reliability
+      requestHandler: {
+        connectionTimeout: S3_OPERATION_TIMEOUT,
+        socketTimeout: S3_OPERATION_TIMEOUT,
+      },
+      // Add retry configuration
+      maxAttempts: MAX_S3_RETRIES
+    });
+    
+    console.log(`Using job bucket: ${JOB_BUCKET_NAME}`);
+  }
+  
+  return s3ClientInstance;
+}
+
+// Helper function to retry an operation
 async function withRetry<T>(
   operation: () => Promise<T>,
   maxRetries: number = MAX_S3_RETRIES,
@@ -78,6 +85,7 @@ export function getBucketName(isJob: boolean): string {
 // Ensure the bucket exists
 export async function ensureBucketExists(bucketName: string): Promise<void> {
   try {
+    const s3Client = getS3Client();
     console.log(`Checking if bucket exists: ${bucketName} at endpoint ${process.env.S3_ENDPOINT || 'http://localhost:9000'}`);
     
     // Try to list objects to see if bucket exists and we have access
@@ -97,6 +105,7 @@ export async function ensureBucketExists(bucketName: string): Promise<void> {
     // If bucket doesn't exist, create it
     if (error.name === 'NoSuchBucket' || error.Code === 'NoSuchBucket') {
       try {
+        const s3Client = getS3Client();
         console.log(`Creating bucket '${bucketName}'`);
         await withRetry(
           () => s3Client.send(new CreateBucketCommand({
@@ -131,6 +140,7 @@ export async function uploadFile(
 ): Promise<string> {
   try {
     const bucketName = getBucketName(isJob);
+    const s3Client = getS3Client();
     // Read file as buffer instead of streaming to avoid readableFlowing issues
     const fileBuffer = await fs.readFile(localFilePath);
     
@@ -188,19 +198,20 @@ export async function downloadFile(
 ): Promise<string> {
   try {
     const bucketName = getBucketName(isJob);
+    const s3Client = getS3Client();
     // Create directory if it doesn't exist
     await mkdir(dirname(localFilePath), { recursive: true });
     
-    const { Body } = await s3Client.send(new GetObjectCommand({
+    const response = await s3Client.send(new GetObjectCommand({
       Bucket: bucketName,
       Key: s3Key
     }));
     
-    if (Body instanceof Readable) {
+    if (response.Body instanceof Readable) {
       const writeStream = createWriteStream(localFilePath);
-      await finished(Body.pipe(writeStream));
-    } else if (Body) {
-      const buffer = await Body.transformToByteArray();
+      await finished(response.Body.pipe(writeStream));
+    } else if (response.Body) {
+      const buffer = await response.Body.transformToByteArray();
       await finished(Readable.from(buffer).pipe(createWriteStream(localFilePath)));
     } else {
       throw new Error('No body returned from S3');
@@ -220,6 +231,7 @@ export async function fileExists(
 ): Promise<boolean> {
   try {
     const bucketName = getBucketName(isJob);
+    const s3Client = getS3Client();
     await withRetry(
       () => s3Client.send(new HeadObjectCommand({
         Bucket: bucketName,
@@ -244,6 +256,7 @@ export async function listFiles(
   isJob: boolean = false
 ): Promise<string[]> {
   const bucketName = getBucketName(isJob);
+  const s3Client = getS3Client();
   const files: string[] = [];
   let continuationToken: string | undefined = undefined;
   
@@ -280,7 +293,8 @@ export async function getReadStream(
 ): Promise<Readable> {
   try {
     const bucketName = getBucketName(isJob);
-    const { Body } = await withRetry(
+    const s3Client = getS3Client();
+    const response = await withRetry(
       () => s3Client.send(new GetObjectCommand({
         Bucket: bucketName,
         Key: s3Key
@@ -289,10 +303,10 @@ export async function getReadStream(
       `Get stream for ${s3Key} from ${bucketName}`
     );
     
-    if (Body instanceof Readable) {
-      return Body;
-    } else if (Body) {
-      const buffer = await Body.transformToByteArray();
+    if (response.Body instanceof Readable) {
+      return response.Body;
+    } else if (response.Body) {
+      const buffer = await response.Body.transformToByteArray();
       return Readable.from(buffer);
     } else {
       throw new Error('No body returned from S3');
@@ -369,6 +383,7 @@ export async function getPresignedUrl(
 ): Promise<string> {
   try {
     const bucketName = getBucketName(isJob);
+    const s3Client = getS3Client();
     const command = new GetObjectCommand({
       Bucket: bucketName,
       Key: s3Key
@@ -388,6 +403,7 @@ export async function deleteFile(
 ): Promise<void> {
   try {
     const bucketName = getBucketName(isJob);
+    const s3Client = getS3Client();
     await s3Client.send(new DeleteObjectCommand({
       Bucket: bucketName,
       Key: s3Key
@@ -405,6 +421,7 @@ export async function deleteFiles(
 ): Promise<void> {
   try {
     const bucketName = getBucketName(isJob);
+    const s3Client = getS3Client();
     if (s3Keys.length === 0) return;
     
     // S3 only allows deleting a maximum of 1000 objects in one call
