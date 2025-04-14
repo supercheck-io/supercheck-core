@@ -25,22 +25,18 @@ export default defineConfig({
   // outputDir: "./public/test-results/output",
   use: {
     headless: true,
-    // Optimize trace collection to only collect on first retry to improve performance
+    // Configure trace to be stored in the HTML report directly
     trace: {
-      mode: "on", // Changed from "on" to only trace on retry
+      mode: "on", // Keep trace mode on for HTML report
       snapshots: true,
       screenshots: true,
       sources: true,
+      attachments: true, // Include attachments in the report
     },
-    // Screenshot configuration - only on failure to improve performance
-    screenshot: "on", // Changed from "on" to only capture on failure
-    // Video configuration - only retain on failure to improve performance
-    video: "on", // Changed from "on" to only keep on failure
-    // Ignore HTTPS errors to allow tests to run in corporate environments with SSL inspection
+    screenshot: "on", 
+    video: "on", 
     ignoreHTTPSErrors: true,
-    // Add additional context options for corporate environments
     contextOptions: {
-      // Needed for bypassing SSL errors in corporate environments
       ignoreHTTPSErrors: true,
     },
     // Add request options to handle API requests
@@ -54,10 +50,6 @@ export default defineConfig({
   // Configure timeouts at the test level
   timeout: 120 * 1000, // 120 seconds per test
   expect: {
-    /**
-     * Maximum time expect() should wait for the condition to be met.
-     * For example in `await expect(locator).toHaveText();`
-     */
     timeout: 5000,
   },
   // Configure global timeout
