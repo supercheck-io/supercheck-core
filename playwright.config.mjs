@@ -10,37 +10,27 @@ export default defineConfig({
       "html",
       {
         outputFolder:
-          process.env.PLAYWRIGHT_REPORT_DIR || "./public/test-results/report", // Use environment variable for report directory
+          process.env.PLAYWRIGHT_REPORT_DIR || "./public/test-results/tests/report", // Updated default path for test reports
         open: "never", // Prevent auto-opening the report
       },
     ],
-    // [
-    //   "junit",
-    //   {
-    //     outputFile: "test-results/junit-report.xml",
-    //   },
-    // ],
   ],
-  // Remove the separate output directory - everything will be in the test ID folder
-  // outputDir: "./public/test-results/output",
+  // Set the output directory for test artifacts
+  outputDir: "./public/artifacts",
   use: {
     headless: true,
-    // Optimize trace collection to only collect on first retry to improve performance
+    // Configure trace to be stored in the HTML report directly
     trace: {
-      mode: "on", // Changed from "on" to only trace on retry
+      mode: "on", // Keep trace mode on for HTML report
       snapshots: true,
       screenshots: true,
       sources: true,
+      attachments: true, // Include attachments in the report
     },
-    // Screenshot configuration - only on failure to improve performance
-    screenshot: "on", // Changed from "on" to only capture on failure
-    // Video configuration - only retain on failure to improve performance
-    video: "on", // Changed from "on" to only keep on failure
-    // Ignore HTTPS errors to allow tests to run in corporate environments with SSL inspection
+    screenshot: "on", 
+    video: "on", 
     ignoreHTTPSErrors: true,
-    // Add additional context options for corporate environments
     contextOptions: {
-      // Needed for bypassing SSL errors in corporate environments
       ignoreHTTPSErrors: true,
     },
     // Add request options to handle API requests
@@ -54,10 +44,6 @@ export default defineConfig({
   // Configure timeouts at the test level
   timeout: 120 * 1000, // 120 seconds per test
   expect: {
-    /**
-     * Maximum time expect() should wait for the condition to be met.
-     * For example in `await expect(locator).toHaveText();`
-     */
     timeout: 5000,
   },
   // Configure global timeout

@@ -24,48 +24,61 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Playwright Test Integration
 
-This project includes integration with Playwright for end-to-end testing. The Playground component allows you to:
+This project includes integration with Playwright for end-to-end testing. The Playground component allows you to write, execute, and manage Playwright tests directly in the browser.
 
-1. Write and execute Playwright tests directly in the browser
-2. View test results in an HTML report
-3. Save and manage test cases
+### Storage Architecture
 
-### Using the Playground
+This application uses a hybrid storage approach:
 
-1. Navigate to `/playground` in your browser
-2. Write your Playwright test in the code editor
-3. Click the "Run Test" button to execute the test
-4. View the test results in the "Report" tab
+- **Job Execution Results**: Stored in S3-compatible storage (MinIO, AWS S3, etc.)
+- **Individual Test Results**: Stored locally in the filesystem under `public/test-results`
 
-### Example Test
+### S3 Configuration
 
-```javascript
-const { test, expect } = require("@playwright/test");
+Configure S3 storage by setting the following environment variables:
 
-test("basic test", async ({ page }) => {
-  // Navigate to a website
-  await page.goto("https://example.com");
-
-  // Expect the page title to contain a specific string
-  await expect(page).toHaveTitle(/Example Domain/);
-});
+```bash
+# AWS S3 / MinIO Configuration
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=minioadmin
+AWS_SECRET_ACCESS_KEY=minioadmin
+S3_ENDPOINT=http://localhost:9000
+S3_JOB_BUCKET_NAME=playwright-job-artifacts
+S3_FORCE_PATH_STYLE=true
 ```
 
-### Test Results
+### MinIO Setup
 
-Test results are stored in the `public/test-results` directory and can be accessed through the browser at [/test-results/report/index.html](/test-results/report/index.html).
+1. Start a MinIO server locally:
+
+```bash
+docker run -p 9000:9000 -p 9001:9001 \
+  -e "MINIO_ROOT_USER=minioadmin" \
+  -e "MINIO_ROOT_PASSWORD=minioadmin" \
+  minio/minio server /data --console-address ":9001"
+```
+
+2. Access the MinIO console at <http://localhost:9001>
+3. Create bucket: `playwright-job-artifacts`
+
+### Troubleshooting S3 Storage
+
+If experiencing issues with storage:
+
+1. Run the diagnostic script: `node scripts/test-s3-connection.js`
+2. Check MinIO is running: `docker ps | grep minio`
+3. Verify environment variables in your `.env.local` file
+4. Test direct MinIO connection with: `mc ls myminio` (after setting up MinIO Client)
 
 ## Docker Usage
 
-To build and run the application using Docker, follow these steps:
-
-### Step 1: Build the Docker Image
+### Build the Docker Image
 
 ```bash
 docker build -t supertest-io --build-arg DATABASE_URL="file:./supertest.db" .
 ```
 
-### Step 2: Run the Docker Container
+### Run the Docker Container
 
 ```bash
 docker run -p 3000:3000 \
@@ -76,32 +89,14 @@ docker run -p 3000:3000 \
 
 The application will be available at [http://localhost:3000](http://localhost:3000).
 
-### Docker Image Details
-
-The Docker image is built using the official Playwright image (v1.51.1) based on Ubuntu 22.04 LTS (Jammy Jellyfish). This ensures compatibility with the Playwright test framework and provides a stable environment for running the application.
-
-### Volume Mounts
-
-- `supertest.db`: SQLite database file for storing application data
-- `public`: Directory for serving static files and test results
-
-### Environment Variables
-
-The following environment variables can be passed during build time:
-
-- `DATABASE_URL`: URL for the SQLite database (default: file:./supertest.db)
-
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Learn Next.js](https://nextjs.org/learn)
+- [Next.js GitHub repository](https://github.com/vercel/next.js)
 
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Check out the [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

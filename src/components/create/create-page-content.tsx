@@ -85,15 +85,15 @@ export function CreatePageContent() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 p-6">
-      <div>
-        <h2 className="text-2xl font-bold">Create New Test</h2>
-        <p className="text-muted-foreground">
+    <div className="max-w-7xl mx-auto space-y-6 p-4">
+      <div className="mb-3 pl-1">
+        <h2 className="text-xl font-bold">Create New Test</h2>
+        <p className="text-muted-foreground text-sm mt-1">
           Select the type of test you want to create
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
         {testTypes.map((testType) => (
           <CreateCard
             key={testType.scriptType || testType.title}
@@ -112,12 +112,12 @@ export function CreatePageContent() {
         ))}
       </div>
 
-      <div>
-        <h2 className="text-2xl font-bold">Create New Job</h2>
-        <p className="text-muted-foreground">Configure a new automated job</p>
+      <div className="mt-8 mb-3 pl-1">
+        <h2 className="text-xl font-bold">Create New Job</h2>
+        <p className="text-muted-foreground text-sm mt-1">Configure a new automated job</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
         <CreateCard
           key="scheduled-job"
           icon={<Clock size={24} />}

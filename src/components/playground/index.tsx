@@ -20,6 +20,7 @@ import {
   AlertTriangleIcon,
   Loader2Icon,
   ZapIcon,
+  AlertCircle
 } from "lucide-react";
 import * as z from "zod";
 import type { editor } from "monaco-editor";
@@ -59,6 +60,9 @@ const Playground: React.FC<PlaygroundProps> = ({
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [iframeError, setIframeError] = useState(false);
+  const [isTraceLoading, setIsTraceLoading] = useState(false);
   // Only set testId from initialTestId if we're on a specific test page
   // Always ensure testId is null when on the main playground page
   const [testId, setTestId] = useState<string | null>(initialTestId || null);
@@ -337,6 +341,9 @@ const Playground: React.FC<PlaygroundProps> = ({
   const runPlaywrightTest = async () => {
     setIsRunning(true);
     setActiveTab("report");
+    // Reset any existing error states
+    setIframeError(false);
+    setReportError(null);
 
     // Use a unique ID for the loading toast so we can specifically dismiss it
     const loadingToastId = toast.loading("Test Running", {
@@ -441,8 +448,12 @@ const Playground: React.FC<PlaygroundProps> = ({
 
   // Add a function to select a specific test report to view
   const selectTestReport = (testId: string) => {
-    // Directly construct the report URL with the API path
-    const reportUrlWithCache = `/api/test-results/${testId}/report/index.html?t=${Date.now()}`;
+    // Reset any existing error states
+    setIframeError(false);
+    setReportError(null);
+    
+    // Construct the report URL with the API path, using the 'tests' prefix
+    const reportUrlWithCache = `/api/test-results/tests/${testId}/report/index.html?t=${Date.now()}`;
 
     // Update state
     setReportUrl(reportUrlWithCache);
@@ -590,18 +601,215 @@ const Playground: React.FC<PlaygroundProps> = ({
                           </div>
                         </div>
                       ) : reportUrl ? (
-                        <div className="report-iframe-wrapper h-[calc(100vh-10rem)] w-full">
-                          <iframe
-                            key={reportUrl}
-                            src={reportUrl}
-                            className="h-[calc(100vh-10rem)] w-full"
-                            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-                            allow="cross-origin-isolated"
-                            onError={(e) => {
-                              console.error("Error loading iframe:", e);
-                            }}
-                          />
-                        </div>
+                        iframeError ? (
+                          <div className="flex h-[calc(100vh-10rem)] flex-col items-center justify-center bg-[#1e1e1e]">
+                            <div className="flex flex-col items-center text-center max-w-md">
+                              <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
+                              <h1 className="text-3xl font-bold mb-2 text-[#d4d4d4]">Report Not Found</h1>
+                              <p className="text-[#a0a0a0] mb-6">
+                                {reportError || "Test results not found for this run ID."}
+                              </p>
+                              
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="report-iframe-wrapper h-[calc(100vh-10rem)] w-full relative">
+                            {/* Add a loading overlay while iframe loads to prevent JSON flash */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1e1e1e] z-10">
+                              <Loader2Icon className="h-8 w-8 animate-spin text-[#d4d4d4] mb-3" />
+                              <p className="text-[#a0a0a0]">Loading report...</p>
+                            </div>
+                            {/* Add trace loading overlay */}
+                            {isTraceLoading && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#252526] z-10">
+                                <Loader2Icon className="h-8 w-8 animate-spin text-white mb-3" />
+                                <p className="text-white">Loading trace viewer...</p>
+                              </div>
+                            )}
+                            <iframe
+                              key={reportUrl}
+                              src={reportUrl}
+                              className="h-[calc(100vh-10rem)] w-full opacity-0"
+                              sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
+                              allow="cross-origin-isolated"
+                              onLoad={(e) => {
+                                const iframe = e.target as HTMLIFrameElement;
+                                try {
+                                  if (iframe.contentWindow?.document.body.textContent) {
+                                    const bodyText = iframe.contentWindow.document.body.textContent;
+                                    if (bodyText.includes('"error"') && bodyText.includes('"message"')) {
+                                      try {
+                                        const errorData = JSON.parse(bodyText);
+                                        if (errorData.message) {
+                                          setReportError(errorData.message);
+                                          setIframeError(true);
+                                          return;
+                                        }
+                                      } catch (e) {
+                                        // Not valid JSON, continue with normal display
+                                      }
+                                    }
+                                  }
+                                  // Only show iframe if no error detected
+                                  iframe.classList.remove('opacity-0');
+                                  const loadingOverlay = iframe.parentElement?.querySelector('div.absolute');
+                                  if (loadingOverlay) {
+                                    loadingOverlay.classList.add('hidden');
+                                  }
+
+                                  // Add trace detection
+                                  if (iframe.contentWindow) {
+                                    const setupTraceDetection = () => {
+                                      try {
+                                        // Listen for clicks on trace links
+                                        iframe.contentWindow?.document.body.addEventListener('click', (event) => {
+                                          const target = event.target as HTMLElement;
+                                          const traceLink = target.closest('a[href*="trace"]') || 
+                                                          target.closest('button[data-testid*="trace"]') ||
+                                                          (target.textContent?.toLowerCase().includes('trace') ? target : null);
+                                          
+                                          if (traceLink) {
+                                            setIsTraceLoading(true);
+                                            
+                                            // Function to check if trace is loaded and hide spinner
+                                            const checkTraceLoaded = () => {
+                                              try {
+                                                // Check for trace elements in the iframe
+                                                const traceElements = [
+                                                  '.pw-no-select', 
+                                                  '[data-testid="trace-page"]',
+                                                  '[data-testid="action-list"]',
+                                                  '[data-testid="trace-viewer"]',
+                                                  'iframe[src*="trace"]',
+                                                  '.react-calendar-timeline',
+                                                  '.timeline-overlay' // Playwright specific trace element
+                                                ];
+                                                
+                                                // Check document title for trace
+                                                const title = iframe.contentWindow?.document.title || '';
+                                                if (title.toLowerCase().includes('trace')) {
+                                                  setIsTraceLoading(false);
+                                                  return true;
+                                                }
+                                                
+                                                // Check URL for trace
+                                                const url = iframe.contentWindow?.location.href || '';
+                                                if (url.includes('trace')) {
+                                                  setIsTraceLoading(false);
+                                                  return true;
+                                                }
+                                                
+                                                // Check for any of the trace elements
+                                                for (const selector of traceElements) {
+                                                  const element = iframe.contentWindow?.document.querySelector(selector);
+                                                  if (element) {
+                                                    setIsTraceLoading(false);
+                                                    return true;
+                                                  }
+                                                }
+                                              } catch (err) {
+                                                console.error("Error checking for trace:", err);
+                                                setIsTraceLoading(false);
+                                                return true; // Hide spinner on error
+                                              }
+                                              
+                                              return false;
+                                            };
+                                            
+                                            // Check immediately
+                                            if (checkTraceLoaded()) {
+                                              return; // Already loaded
+                                            }
+                                            
+                                            // Set up regular checks
+                                            let checkCount = 0;
+                                            const intervalCheck = setInterval(() => {
+                                              checkCount++;
+                                              if (checkTraceLoaded() || checkCount > 20) { // Check up to 20 times (4 seconds)
+                                                clearInterval(intervalCheck);
+                                              }
+                                            }, 200); // Check every 200ms
+                                          }
+                                        }, true);
+                                        
+                                        // Also detect navigation using hashchange
+                                        iframe.contentWindow?.addEventListener('hashchange', () => {
+                                          if (iframe.contentWindow?.location.hash.includes('trace')) {
+                                            setIsTraceLoading(true);
+                                            
+                                            // Use same check function as click events
+                                            const checkTraceLoaded = () => {
+                                              try {
+                                                // Check if any trace element exists
+                                                const traceElement = iframe.contentWindow?.document.querySelector('.pw-no-select') ||
+                                                                    iframe.contentWindow?.document.querySelector('[data-testid="trace-page"]') ||
+                                                                    iframe.contentWindow?.document.querySelector('.react-calendar-timeline');
+                                                if (traceElement) {
+                                                  setIsTraceLoading(false);
+                                                  return true;
+                                                }
+                                              } catch (err) {
+                                                setIsTraceLoading(false);
+                                              }
+                                              return false;
+                                            };
+                                            
+                                            // Check immediately and then periodically
+                                            if (!checkTraceLoaded()) {
+                                              const hashCheckInterval = setInterval(() => {
+                                                if (checkTraceLoaded()) {
+                                                  clearInterval(hashCheckInterval);
+                                                }
+                                              }, 200);
+                                              
+                                              // Safety timeout
+                                              setTimeout(() => {
+                                                clearInterval(hashCheckInterval);
+                                                setIsTraceLoading(false);
+                                              }, 3000);
+                                            }
+                                          }
+                                        });
+                                      } catch (err) {
+                                        console.error("Error setting up trace detection:", err);
+                                      }
+                                    };
+                                    
+                                    // Setup detection after a small delay to ensure the report is fully loaded
+                                    setTimeout(setupTraceDetection, 1000);
+                                  }
+                                } catch (err) {
+                                  console.error("Error processing iframe content:", err);
+                                  setIframeError(true);
+                                  setReportError("Unable to load test report content.");
+                                }
+                              }}
+                              onError={(e) => {
+                                console.error("Error loading iframe:", e);
+                                setIframeError(true);
+                                setReportError("Test results not found for this run ID.");
+                                
+                                if (reportUrl) {
+                                  fetch(reportUrl)
+                                    .then(response => {
+                                      if (!response.ok) {
+                                        return response.json().catch(() => null);
+                                      }
+                                      return null;
+                                    })
+                                    .then(data => {
+                                      if (data && data.message) {
+                                        setReportError(data.message);
+                                      }
+                                    })
+                                    .catch(err => {
+                                      console.error("Error fetching report details:", err);
+                                    });
+                                }
+                              }}
+                            />
+                          </div>
+                        )
                       ) : (
                         <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
                           <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">

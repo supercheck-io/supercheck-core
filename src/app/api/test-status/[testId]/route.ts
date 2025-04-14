@@ -41,6 +41,30 @@ function isReportComplete(content: string): boolean {
 }
 
 /**
+ * Helper function to determine the correct path type (test or job)
+ * For simplicity, we'll check both paths and use the one that exists
+ */
+function determineReportPath(testId: string): { path: string, type: "tests" | "jobs" } {
+  const testsPath = normalize(
+    join(process.cwd(), "public", "test-results", "tests", testId, "report", "index.html")
+  );
+  
+  const jobsPath = normalize(
+    join(process.cwd(), "public", "test-results", "jobs", testId, "report", "index.html")
+  );
+  
+  // Check which path exists
+  if (existsSync(testsPath)) {
+    return { path: testsPath, type: "tests" };
+  } else if (existsSync(jobsPath)) {
+    return { path: jobsPath, type: "jobs" };
+  } else {
+    // Default to tests if neither exists yet
+    return { path: testsPath, type: "tests" };
+  }
+}
+
+/**
  * API route handler to get the status of a test
  */
 export async function GET(request: NextRequest) {
@@ -65,10 +89,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if we have a report file
-    const reportPath = normalize(
-      join(process.cwd(), "public", "test-results", testId, "report", "index.html")
-    );
+    // Determine the correct report path and type
+    const { path: reportPath, type } = determineReportPath(testId);
 
     // Determine if the test is complete by checking the report content
     let isComplete = status.status === "completed";
@@ -83,11 +105,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Return the status with the report URL
+    // Return the status with the report URL using the determined type
     return NextResponse.json({
       ...status,
       status: isComplete ? "completed" : "running",
-      reportUrl: `/api/test-results/${testId}/report/index.html`,
+      reportUrl: `/api/test-results/${type}/${testId}/report/index.html`,
     });
   } catch (error) {
     console.error("Error in test status API route:", error);

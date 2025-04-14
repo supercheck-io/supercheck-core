@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: supertest
+data:
+  AWS_REGION: "us-east-1"
+  S3_ENDPOINT: "http://minio:9000"
+  S3_JOB_BUCKET_NAME: "playwright-job-artifacts"
+  S3_FORCE_PATH_STYLE: "true"
+  S3_OPERATION_TIMEOUT: "10000"
+  S3_MAX_RETRIES: "3"
+  MAX_CONCURRENT_TESTS: "2"
+  TEST_EXECUTION_TIMEOUT_MS: "900000"
+  TRACE_RECOVERY_INTERVAL_MS: "300000"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: supertest
+type: Opaque
+data:
+  AWS_ACCESS_KEY_ID: bWluaW9hZG1pbg== # base64 encoded 'minioadmin'
+  AWS_SECRET_ACCESS_KEY: bWluaW9hZG1pbg== # base64 encoded 'minioadmin'
+  DATABASE_URL: cG9zdGdyZXNxbDovL3Bvc3RncmVzOnBvc3RncmVzcGFzc3dvcmRAcG9zdGdyZXM6NTQzMi9zdXBlcnRlc3Q= # base64 encoded 'postgresql://postgres:postgrespassword@postgres:5432/supertest'
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tests-pvc
+  namespace: supertest
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-results-pvc
+  namespace: supertest
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: artifacts-pvc
+  namespace: supertest
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: supertest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supertest
+  template:
+    metadata:
+      labels:
+        app: supertest
+    spec:
+      containers:
+        - name: app
+          image: supertest:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets
+          volumeMounts:
+            - name: tests-volume
+              mountPath: /app/public/tests
+            - name: test-results-volume
+              mountPath: /app/public/test-results
+            - name: artifacts-volume
+              mountPath: /app/public/artifacts
+          resources:
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: tests-volume
+          persistentVolumeClaim:
+            claimName: tests-pvc
+        - name: test-results-volume
+          persistentVolumeClaim:
+            claimName: test-results-pvc
+        - name: artifacts-volume
+          persistentVolumeClaim:
+            claimName: artifacts-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: supertest
+spec:
+  selector:
+    app: supertest
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  namespace: supertest
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  rules:
+    - host: supertest.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 3000 

@@ -1,6 +1,4 @@
-# Test Execution Flow Documentation
-
-This document explains the complete flow of test execution in the SuperTest application, covering both single test execution in the playground and multiple test execution in jobs.
+# Test Execution Flow
 
 ## Flow Diagram
 
@@ -34,127 +32,124 @@ flowchart TB
         H2 --> I2[Execute tests with global config]
         I2 --> J2[Process individual results]
         J2 --> K2[Generate combined report]
+        K2 --> L2[Upload report to S3]
         
-        L2[Frontend shows job status] --> M2[Set iframe to job report URL]
-        M2 --> N2[EventSource connects to SSE]
-        N2 --> O2[Receive real-time updates]
-        O2 --> P2[Auto-reload on completion]
+        M2[Frontend shows job status] --> N2[Set iframe to job report URL]
+        N2 --> O2[EventSource connects to SSE]
+        O2 --> P2[Receive real-time updates]
+        P2 --> Q2[Auto-reload on completion]
     end
     
     C1 -.-> |API Response| K1
-    E2 -.-> |Status Updates| L2
+    E2 -.-> |Status Updates| M2
 ```
 
-## Single Test Execution Flow (Playground)
+## Single Test Execution (Playground)
 
-### Phase 1: UI Interaction & API Call
+1. **Test Initiation**: User clicks "Run Test" in playground UI
+2. **API Call**: Frontend sends test data to `/api/test` endpoint
+3. **Backend Processing**:
+   - Generates unique test ID
+   - Validates test code
+   - Creates only the essential report directory
+   - Generates initial loading report with SSE connection
+4. **Test Execution**:
+   - Test added to execution queue (max 2 concurrent tests)
+   - Executes in child process using Playwright
+   - Real-time status updates via Server-Sent Events
+5. **Report Generation**:
+   - Initial loading report with auto-reload functionality
+   - Final HTML report when test completes
+   - Stored locally (not uploaded to S3)
 
-1. **User Clicks "Run Test" Button**: The process begins when the user clicks the "Run Test" button in the playground UI, triggering the `runTest()` function.
+## Multiple Test Execution (Jobs)
 
-2. **Switch to Report Tab**: The UI automatically switches to the report tab to show immediate feedback.
+1. **Job Submission**: POST to `/api/jobs/run` with job ID and test list
+2. **Database Recording**: Creates test run record with pending status
+3. **Test Preparation**:
+   - Fetches scripts from database if not provided
+   - Validates each test script
+   - Creates individual test files
+4. **Bulk Execution**:
+   - Executes all tests with shared configuration
+   - Tracks individual test results
+   - Provides real-time status with SSE
+5. **Result Handling**:
+   - Generates combined HTML report
+   - Updates job status in database
+   - Uploads results to S3 job bucket (S3 client initialized only when needed)
+   - Results first served from local filesystem if available, with S3 as fallback
 
-3. **Validate Inputs**: The code validates required inputs like the test title.
+## Directory Structure
 
-4. **Prepare Test Data**: The code, title, description, and type are packaged into an object to send to the API.
+The application maintains a minimal directory structure for test results:
 
-5. **API Endpoint Call**: The frontend sends a POST request to `/api/test` with the test data.
+```bash
+/public/test-results/
+  /{test-id}/
+    /report/             # HTML report directory
+      index.html         # Main report file
+      trace/             # Trace data embedded in the report
+      assets/            # Report assets
+```
 
-### Phase 2: Backend Execution Setup
+## Storage Configuration
 
-1. **Execute Test Function**: The API endpoint calls the `executeTest()` function, which:
-   - Generates a unique test ID using `crypto.randomUUID()`
-   - Marks the test as active in the tracking system
-   - Creates directories for test artifacts
-   - Validates the test code
-   - Creates an initial "loading" HTML report with SSE connection setup
-   - Updates the test status to "running"
-   - Queues the test for execution in a child process
+- **Traces**: Enabled but stored directly within the HTML report, not in separate directories
 
-2. **Frontend Updates Test List**: After receiving the API response, the frontend adds the new test to the list with "pending" status.
+## Error Handling
 
-3. **Set Initial Report URL**: The frontend sets the iframe source to the initial report URL, which shows a loading indicator.
-
-### Phase 3: Background Test Execution & Real-time Status Updates
-
-1. **Test Status Changes**: As the test executes, its status is updated in a global map (`testStatusMap`).
-
-2. **Server-Sent Events (SSE)**: The initial HTML report contains JavaScript that:
-    - Establishes an EventSource connection to `/api/test-status/sse/{testId}`
-    - Listens for real-time updates about the test status
-    - Automatically reloads the page when the test completes
-
-3. **Background Test Execution**: Meanwhile, the test runs in a child process:
-    - The Playwright test executes in a separate process with environment variables for artifact paths
-    - Output (stdout/stderr) is collected and stored
-    - When the test completes, a final HTML report is generated
-    - The test status is updated to "completed"
-
-### Phase 4: Report Display & Completion
-
-1. **EventSource Listens for Changes**: The EventSource in the loading report listens for status changes.
-
-2. **Auto-reload on Completion**: When the test completes (status is "completed"), the EventSource triggers an automatic reload of the report page, showing the final test results.
-
-## Multiple Test Execution Flow (Jobs)
-
-### Phase 1: Job Submission & Setup
-
-1. **User Initiates Job Run**: The user clicks "Run Job" to execute multiple tests, triggering a POST request to `/api/jobs/run`.
-
-2. **Create Test Run Record**: A new test run record is created in the database with a unique run ID.
-
-3. **Prepare Test Scripts**: Each test in the job is processed:
-   - Scripts are loaded directly if provided
-   - Scripts are fetched from the database if not provided
-   - Placeholder scripts are created for tests without valid scripts
-
-### Phase 2: Multiple Test Execution
-
-1. **executeMultipleTests Function**: Called with the collection of test scripts and run ID:
-   - Creates necessary directories for the job
-   - Marks the run as active in the tracking system
-   - Initializes the test status as "pending"
-
-2. **Individual Test File Creation**: For each test in the job:
-   - The script is validated
-   - A test file is created in the job directory
-   - Failed validation results in a special failing test file
-
-3. **Execute Tests with Global Config**: All tests are executed in a single run using `executeMultipleTestFilesWithGlobalConfig`:
-   - Uses the same Playwright configuration
-   - Collects results from all tests
-   - Generates a combined HTML report
-
-4. **Process Individual Results**: Each test's outcome is recorded separately.
-
-5. **Update Test Status**: The overall job status is updated to "completed" with success or failure.
-
-### Phase 3: Real-time Updates & Reporting
-
-1. **Frontend Shows Job Status**: The UI displays the job status and test results.
-
-2. **EventSource Connection**: Similar to single tests, an EventSource connection receives status updates.
-
-3. **Combined Report Display**: When complete, a single HTML report shows all test results together.
-
-4. **Test Run Record Update**: The database record is updated with the final status and completion time.
+- **Validation Failures**: Generates special error reports
+- **Execution Failures**: Captures error details and logs
+- **Report Access Issues**: Handles "File not found" with user-friendly messages
+- **Test Timeout**: Set to 15 minutes maximum execution time
 
 ## Key Implementation Details
 
-1. **Initial Loading Report**: A temporary HTML report is generated immediately, showing a spinner and establishing an EventSource connection.
+- **Concurrency Management**: Limited to 2 concurrent tests (configurable via environment variable)
+- **Non-Blocking Architecture**: Tests run in child processes
+- **Real-time Updates**: SSE for live progress updates
+- **S3 Storage**:
+  - Job reports stored in S3 job bucket
+  - Lazy initialization of S3 client (only when needed)
+  - Local results prioritized over S3 storage
+- **Minimal Directory Creation**: Only creates essential directories for test reports
+- **Environment Variables**: Passed to child processes for configuration
 
-2. **Non-Blocking Execution**: Tests run in a child process, allowing the UI to remain responsive.
+## Performance Optimizations
 
-3. **Concurrency Management**: A queue limits concurrent test executions to prevent overloading the system.
+- **Lazy S3 Initialization**: S3 client only initialized when actually needed for storage or retrieval
+- **Local-First Approach**: Test results are always checked locally before attempting S3 access
+- **Efficient Resource Usage**: No unnecessary connections to S3 when results are served from local filesystem
+- **Reduced Logging**: S3 connection logs only appear when actually connecting to S3
 
-4. **Server-Sent Events**: Real-time updates are delivered through SSE, eliminating the need for polling.
+## Environment Configuration
 
-5. **Shared Report Structure**: Both single and multiple test executions use the same reporting structure.
+The application uses two environment files:
 
-6. **Test Tracking**: Active tests are tracked to prevent premature cleanup of test directories.
+1. **.env**: Base configuration with default values
+   - Contains S3/MinIO configuration and database settings
+   - Used in both development and production
+   - Should NOT contain sensitive secrets for production
 
-7. **Resource Management**: Test artifacts are organized in distinct directories to prevent conflicts.
+2. **.env.local**: Development overrides (not committed to version control)
+   - Used for local development settings
+   - Contains developer-specific configuration
+   - Can override values from .env
 
-8. **Error Handling**: Validation failures and runtime errors are captured and presented in the reports.
+**Current Configuration**:
 
-This architecture ensures users get immediate feedback while tests run in the background, and can view both in-progress and completed test reports with real-time updates seamlessly.
+- S3 endpoint and credentials for artifact storage
+- Database file location
+- BrowserStack credentials
+- Test execution settings:
+  - `MAX_CONCURRENT_TESTS`: Number of tests running in parallel (default: 2)
+  - `TEST_EXECUTION_TIMEOUT_MS`: Maximum test execution time (default: 900000ms)
+  - `TRACE_RECOVERY_INTERVAL_MS`: How often to check for trace issues (default: 300000ms)
+
+**Best Practices Recommendations**:
+
+- Keep the dual-file approach (.env + .env.local) which follows Next.js conventions
+- Move sensitive credentials to .env.local only
+- Add documentation for required environment variables
+- Consider using environment-specific files (.env.production) for deployment

@@ -8,7 +8,7 @@ export default function CreatePage() {
   ];
 
   return (
-    <div>
+    <div className="w-full px-6 py-4">
       <PageBreadcrumbs items={breadcrumbs} />
       <CreatePageContent />
     </div>

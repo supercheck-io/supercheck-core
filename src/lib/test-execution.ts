@@ -6,6 +6,8 @@ import path from "path";
 import { validateCode } from "./code-validation";
 import * as async from "async";
 import crypto from "crypto";
+// Import S3 storage utilities
+import { uploadDirectory, getBucketName } from "./s3-storage";
 
 const { spawn } = childProcess;
 const { join, normalize, sep, posix, dirname } = path;
@@ -19,15 +21,13 @@ const toCLIPath = (filePath: string): string => {
 };
 
 // Configure the maximum number of concurrent tests
-const MAX_CONCURRENT_TESTS = 2;
+const MAX_CONCURRENT_TESTS = parseInt(process.env.MAX_CONCURRENT_TESTS || '2');
 
 // Maximum time to wait for a test to complete
-const TEST_EXECUTION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+const TEST_EXECUTION_TIMEOUT_MS = parseInt(process.env.TEST_EXECUTION_TIMEOUT_MS || '900000'); // 15 minutes (15 * 60 * 1000)
 
 // How often to recover trace files
-const TRACE_RECOVERY_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-
-// Track the last cleanup time to avoid too frequent cleanups
+const TRACE_RECOVERY_INTERVAL_MS = parseInt(process.env.TRACE_RECOVERY_INTERVAL_MS || '300000'); // 5 minutes (5 * 60 * 1000)
 
 // Define the TestResult interface
 interface TestResult {
@@ -85,6 +85,13 @@ const recentTestIds = new Map<string, number>();
 // Function to get the status of a test
 export function getTestStatus(testId: string): TestStatusUpdate | null {
   return testStatusMap.get(testId) || null;
+}
+
+// Function to get the right path based on whether it's a job or individual test
+function getResultsPath(testId: string, isJob: boolean = false): string {
+  const basePath = join(process.cwd(), "public", "test-results");
+  const typePath = isJob ? "jobs" : "tests";
+  return join(basePath, typePath, testId);
 }
 
 // Create a queue for test execution with limited concurrency
@@ -202,23 +209,15 @@ async function executeTestInChildProcess(
 
       // Set up paths
       const publicDir = normalize(join(process.cwd(), "public"));
-      const testResultsDir = normalize(join(publicDir, "test-results", testId));
+      const testResultsDir = normalize(getResultsPath(testId));
       const reportDir = normalize(join(testResultsDir, "report"));
       const htmlReportPath = normalize(join(reportDir, "index.html"));
-
-      // Create artifact directories directly in the test results directory
-      const tracesDir = normalize(join(testResultsDir, "traces"));
-      const screenshotsDir = normalize(join(testResultsDir, "screenshots"));
-      const videosDir = normalize(join(testResultsDir, "videos"));
-      const resultsDir = normalize(join(testResultsDir, "results"));
-
+      
       try {
-        // Use a single mkdir call with recursive option to create all directories at once
+        // Use a single mkdir call with recursive option to create only the report directory
         await fs.mkdir(reportDir, { recursive: true });
-        await fs.mkdir(tracesDir, { recursive: true });
-        await fs.mkdir(screenshotsDir, { recursive: true });
-        await fs.mkdir(videosDir, { recursive: true });
-        await fs.mkdir(resultsDir, { recursive: true });
+        // Remove traces directory creation
+        // await fs.mkdir(tracesDir, { recursive: true });
       } catch (err) {
         console.warn(
           `Warning: Failed to create directories for test ${testId}:`,
@@ -281,75 +280,11 @@ async function executeTestInChildProcess(
         testStatusMap.set(testId, {
           testId,
           status: "running",
-          reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+          reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
         });
       } catch (err) {
         console.error(`Error creating loading report for test ${testId}:`, err);
       }
-
-      // Recovery function for trace ENOENT errors
-      const attemptTraceFileRecovery = async () => {
-        try {
-          // Create an empty trace file to prevent ENOENT errors
-          const commonTraceFiles = [
-            join(tracesDir, `${testId}-recording1.network`),
-            join(tracesDir, `${testId}.network`),
-            join(tracesDir, `${testId}-recording1.zip`),
-            join(tracesDir, `${testId}.zip`),
-          ];
-
-          // Create tracesDir with recursive option if it doesn't exist
-          if (!existsSync(tracesDir)) {
-            await fs.mkdir(tracesDir, { recursive: true });
-          }
-
-          // Create common trace files to avoid ENOENT errors - optimized to only check and create necessary files
-          for (const filePattern of commonTraceFiles) {
-            // Create specific files if they don't exist
-            if (!existsSync(filePattern)) {
-              try {
-                await fs.writeFile(filePattern, "");
-                console.log(
-                  `Created empty trace file to avoid ENOENT: ${filePattern}`
-                );
-              } catch (err) {
-                console.warn(
-                  `Failed to create trace file: ${filePattern}`,
-                  err
-                );
-              }
-            }
-          }
-
-          // Check for root test-results directory - but only once
-          const rootTestResults = normalize(
-            join(process.cwd(), "test-results")
-          );
-          if (existsSync(rootTestResults)) {
-            // Create placeholder files in this directory
-            const rootTracesDir = join(rootTestResults, "traces");
-            if (!existsSync(rootTracesDir)) {
-              await fs.mkdir(rootTracesDir, { recursive: true });
-              await fs.writeFile(
-                join(rootTracesDir, "placeholder.network"),
-                ""
-              );
-              await fs.writeFile(join(rootTracesDir, "placeholder.zip"), "");
-            }
-          }
-        } catch (error) {
-          console.error("Failed to create trace recovery files:", error);
-        }
-      };
-
-      // Call trace recovery immediately and less frequently during the test to reduce overhead
-      await attemptTraceFileRecovery().catch((err) =>
-        console.warn("Initial trace recovery failed:", err)
-      );
-      const recoveryInterval = setInterval(
-        attemptTraceFileRecovery,
-        TRACE_RECOVERY_INTERVAL_MS
-      ); // Reduced frequency from 5s to 30s
 
       // Determine the command to run based on the OS
       const commandToRun = command || (isWindows ? "npx.cmd" : "npx");
@@ -368,6 +303,7 @@ async function executeTestInChildProcess(
         }
       }
 
+      // Remove the --output flag to prevent playwright-output folder creation
       const args = command
         ? []
         : ["playwright", "test", testPathArg, "--config=playwright.config.mjs"];
@@ -380,8 +316,7 @@ async function executeTestInChildProcess(
           ...process.env,
           // Pass the test ID to make it available in the test
           TEST_ID: testId,
-          // Add artifacts directories to avoid conflicts between parallel tests
-          PLAYWRIGHT_ARTIFACTS_DIR: testResultsDir,
+          // Set HTML report directory but remove traces directory
           PLAYWRIGHT_HTML_REPORT: reportDir,
           PLAYWRIGHT_JUNIT_REPORT: normalize(
             join(testResultsDir, "junit-report.xml")
@@ -584,7 +519,7 @@ async function executeTestInChildProcess(
             success: false,
             error: timeoutError,
             reportUrl: toUrlPath(
-              `/api/test-results/${testId}/report/index.html`
+              `/api/test-results/tests/${testId}/report/index.html`
             ),
           });
 
@@ -595,7 +530,7 @@ async function executeTestInChildProcess(
             stdout: stdoutChunks.join(""),
             stderr: stderrChunks.join(""),
             reportUrl: toUrlPath(
-              `/api/test-results/${testId}/report/index.html`
+              `/api/test-results/tests/${testId}/report/index.html`
             ),
           });
         }
@@ -603,7 +538,8 @@ async function executeTestInChildProcess(
 
       childProcess.on("exit", async (code, signal) => {
         clearTimeout(timeout);
-        clearInterval(recoveryInterval); // Clear the recovery interval
+        // Remove the recovery interval since we've removed the recovery function
+        // clearInterval(recoveryInterval);
 
         console.log(
           `Child process for test ${testId} exited with code: ${code}, signal: ${signal}`
@@ -624,7 +560,7 @@ async function executeTestInChildProcess(
 
             // Try to create the trace directory again as a recovery mechanism
             try {
-              await fs.mkdir(tracesDir, { recursive: true });
+              await fs.mkdir(testResultsDir, { recursive: true });
               console.log(
                 `Recreated traces directory for test ${testId} after ENOENT error`
               );
@@ -774,7 +710,7 @@ async function executeTestInChildProcess(
               success: false,
               error: errorMessage,
               reportUrl: toUrlPath(
-                `/api/test-results/${testId}/report/index.html`
+                `/api/test-results/tests/${testId}/report/index.html`
               ),
             });
 
@@ -785,7 +721,7 @@ async function executeTestInChildProcess(
               stdout,
               stderr,
               reportUrl: toUrlPath(
-                `/api/test-results/${testId}/report/index.html`
+                `/api/test-results/tests/${testId}/report/index.html`
               ),
             });
           } catch (writeError) {
@@ -939,7 +875,7 @@ async function executeTestInChildProcess(
           testId,
           status: "completed",
           success: true,
-          reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+          reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
         });
 
         resolve({
@@ -948,14 +884,15 @@ async function executeTestInChildProcess(
           testId,
           stdout,
           stderr,
-          reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+          reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
         });
       });
 
       childProcess.on("error", (error) => {
         console.error(`Child process error for test ${testId}:`, error);
         clearTimeout(timeout);
-        clearInterval(recoveryInterval); // Clear the recovery interval
+        // Remove the recovery interval since we've removed the recovery function
+        // clearInterval(recoveryInterval);
 
         // Mark test as failed
         testStatusMap.set(testId, {
@@ -963,7 +900,7 @@ async function executeTestInChildProcess(
           status: "completed",
           success: false,
           error: error.message,
-          reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+          reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
         });
 
         // Create an error report
@@ -981,7 +918,7 @@ async function executeTestInChildProcess(
               stdout: stdoutChunks.join(""),
               stderr: stderrChunks.join(""),
               reportUrl: toUrlPath(
-                `/api/test-results/${testId}/report/index.html`
+                `/api/test-results/tests/${testId}/report/index.html`
               ),
             });
           })
@@ -998,7 +935,7 @@ async function executeTestInChildProcess(
         `Error in executeTestInChildProcess for test ${testId}:`,
         error
       );
-
+ 
       // Create an error report for the unexpected error
       try {
         // Define the htmlReportPath here since it might not be in scope
@@ -1077,7 +1014,7 @@ async function executeTestInChildProcess(
           status: "completed",
           success: false,
           error: error instanceof Error ? error.message : String(error),
-          reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+          reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
         });
       } catch (reportError) {
         console.error(
@@ -1093,7 +1030,7 @@ async function executeTestInChildProcess(
         testId,
         stdout: "",
         stderr: "",
-        reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+        reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
       });
     }
   });
@@ -1193,7 +1130,7 @@ export async function executeTest(code: string): Promise<TestResult> {
   try {
     // Create necessary directories
     const publicDir = normalize(join(process.cwd(), "public"));
-    const testResultsDir = normalize(join(publicDir, "test-results", testId));
+    const testResultsDir = normalize(getResultsPath(testId));
     const reportDir = normalize(join(testResultsDir, "report"));
     const testsDir = normalize(join(publicDir, "tests"));
     let testPath = "";
@@ -1223,7 +1160,7 @@ export async function executeTest(code: string): Promise<TestResult> {
         status: "completed",
         success: false,
         error: validationResult.error || null,
-        reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+        reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
       });
 
       // Generate error report
@@ -1275,7 +1212,7 @@ export async function executeTest(code: string): Promise<TestResult> {
 
       // Define the report directory
       const publicDir = normalize(join(process.cwd(), "public"));
-      const testResultsDir = normalize(join(publicDir, "test-results", testId));
+      const testResultsDir = normalize(getResultsPath(testId));
       const reportDir = normalize(join(testResultsDir, "report"));
 
       // Ensure the directory exists
@@ -1287,7 +1224,7 @@ export async function executeTest(code: string): Promise<TestResult> {
       return {
         success: false,
         error: validationResult.error || null,
-        reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+        reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
         testId,
         stdout: "",
         stderr: validationResult.error || "",
@@ -1369,7 +1306,7 @@ test('test', async ({ page }) => {
     testStatusMap.set(testId, {
       testId,
       status: "running",
-      reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+      reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
     });
 
     // Add the test to the queue and wait for it to complete
@@ -1444,7 +1381,7 @@ test('test', async ({ page }) => {
 
       // Define the report directory
       const publicDir = normalize(join(process.cwd(), "public"));
-      const testResultsDir = normalize(join(publicDir, "test-results", testId));
+      const testResultsDir = normalize(getResultsPath(testId));
       const reportDir = normalize(join(testResultsDir, "report"));
 
       // Ensure the directory exists
@@ -1459,7 +1396,7 @@ test('test', async ({ page }) => {
         status: "completed",
         success: false,
         error: errorMessage,
-        reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+        reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
       });
     } catch (reportError) {
       console.error("Error creating error report:", reportError);
@@ -1468,7 +1405,7 @@ test('test', async ({ page }) => {
     return {
       success: false,
       error: errorMessage,
-      reportUrl: toUrlPath(`/api/test-results/${testId}/report/index.html`),
+      reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
       testId,
       stdout: "",
       stderr: errorMessage,
@@ -1501,8 +1438,8 @@ export async function executeMultipleTests(
     const publicDir = normalize(join(process.cwd(), "public"));
     const jobTestsDir = normalize(join(publicDir, "tests", runId));
 
-    // Create run-specific report directory using runId
-    const testResultsDir = normalize(join(publicDir, "test-results", runId));
+    // Create run-specific report directory using runId and the jobs subfolder
+    const testResultsDir = normalize(getResultsPath(runId, true)); // Using helper with isJob=true
     const reportDir = normalize(join(testResultsDir, "report"));
 
     // Initialize the test status
@@ -1609,7 +1546,7 @@ test('${testName} (ID: ${id})', async ({ page }) => {
         testId: id,
         success,
         error: !success ? `Test ${testName} failed during execution` : null,
-        reportUrl: `/api/test-results/${runId}/report/index.html`,
+        reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
       };
     });
 
@@ -1622,13 +1559,27 @@ test('${testName} (ID: ${id})', async ({ page }) => {
       status: "completed",
       success: overallSuccess,
       error: result.error,
-      reportUrl: `/api/test-results/${runId}/report/index.html`,
+      reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
     });
 
+    // Upload the report directory to S3 - only for job executions
+    try {
+      console.log(`Uploading test results for job ${runId} to S3`);
+      await uploadDirectory(
+        reportDir,
+        `test-results/jobs/${runId}/report`, // Updated S3 path
+        true // isJob=true to use the job bucket
+      );
+      console.log(`Successfully uploaded test results for job ${runId} to S3`);
+    } catch (uploadError) {
+      console.error(`Error uploading test results to S3: ${uploadError}`);
+      // Don't fail the job if S3 upload fails, just log the error
+    }
+    
     return {
       jobId: runId,
       success: overallSuccess,
-      reportUrl: `/api/test-results/${runId}/report/index.html`,
+      reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
       results: individualResults,
       timestamp: new Date().toISOString(),
       stdout: result.stdout,
@@ -1645,7 +1596,7 @@ test('${testName} (ID: ${id})', async ({ page }) => {
       success: false,
       error: errorMessage,
     });
-
+    
     return {
       jobId: runId,
       success: false,
@@ -1682,37 +1633,20 @@ async function executeMultipleTestFilesWithGlobalConfig(
         `Executing multiple test files for run ${testId} using global config`
       );
 
-      // Create necessary directories for traces
+      // Create necessary directories for reports but not traces
       const publicDir = normalize(join(process.cwd(), "public"));
-      const testResultsDir = normalize(join(publicDir, "test-results", testId));
-      const tracesDir = normalize(join(testResultsDir, "traces"));
-
-      await fs.mkdir(tracesDir, { recursive: true });
-
-      // Create empty trace files to avoid ENOENT errors
-      const traceFiles = [
-        `${testId}-recording1.network`,
-        `${testId}.network`,
-        `${testId}-recording1.zip`,
-        `${testId}.zip`,
-      ];
-
-      for (const traceFile of traceFiles) {
-        const tracePath = normalize(join(tracesDir, traceFile));
-        await fs.writeFile(tracePath, "");
-        console.log(`Created empty trace file to avoid ENOENT: ${tracePath}`);
-      }
-
+      const testResultsDir = normalize(getResultsPath(testId, true)); // Using helper with isJob=true
+      
       // Determine the command to run based on the OS
       const isWindows = process.platform === "win32";
       const command = isWindows ? "npx.cmd" : "npx";
 
-      // Build the arguments for the command
+      // Build the arguments for the command - remove --output flag
       const args = [
         "playwright",
         "test",
         ...testFilePaths.map((path) => toCLIPath(path)),
-        "--config=playwright.config.mjs",
+        "--config=playwright.config.mjs"
       ];
 
       console.log(`Running command: ${command} ${args.join(" ")}`);
@@ -1759,7 +1693,7 @@ async function executeMultipleTestFilesWithGlobalConfig(
           testId,
           success: false,
           error: error.message,
-          reportUrl: `/api/test-results/${testId}/report/index.html`,
+          reportUrl: toUrlPath(`/api/test-results/jobs/${testId}/report/index.html`),
           stdout,
           stderr,
         });
@@ -1778,7 +1712,7 @@ async function executeMultipleTestFilesWithGlobalConfig(
             testId,
             success: false,
             error: `Test failed with exit code ${code}`,
-            reportUrl: `/api/test-results/${testId}/report/index.html`,
+            reportUrl: toUrlPath(`/api/test-results/jobs/${testId}/report/index.html`),
             stdout,
             stderr,
           });
@@ -1788,7 +1722,7 @@ async function executeMultipleTestFilesWithGlobalConfig(
             testId,
             success: true,
             error: null,
-            reportUrl: `/api/test-results/${testId}/report/index.html`,
+            reportUrl: toUrlPath(`/api/test-results/jobs/${testId}/report/index.html`),
             stdout,
             stderr,
           });

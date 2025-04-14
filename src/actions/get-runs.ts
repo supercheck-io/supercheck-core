@@ -43,7 +43,7 @@ export async function getRuns(): Promise<RunResponse[]> {
     return results.map((run) => {
       return {
         ...run,
-        reportUrl: `/api/test-results/${run.id}/report/index.html`,
+        reportUrl: `/api/test-results/jobs/${run.id}/report/index.html`,
         timestamp: run.startedAt || new Date().toISOString(),
       };
     });
@@ -82,7 +82,7 @@ export async function getRun(id: string): Promise<RunResponse | null> {
     
     return {
       ...run,
-      reportUrl: `/api/test-results/${run.id}/report/index.html`,
+      reportUrl: `/api/test-results/jobs/${run.id}/report/index.html`,
       timestamp: run.startedAt || new Date().toISOString(),
     };
   } catch (error) {
