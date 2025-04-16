@@ -647,6 +647,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                                         }
                                       } catch (e) {
                                         // Not valid JSON, continue with normal display
+                                        console.error("Error parsing error data:", e);
                                       }
                                     }
                                   }
@@ -707,8 +708,8 @@ const Playground: React.FC<PlaygroundProps> = ({
                                                     return true;
                                                   }
                                                 }
-                                              } catch (err) {
-                                                console.error("Error checking for trace:", err);
+                                              } catch (_err) {
+                                                console.error("Error checking for trace:", _err);
                                                 setIsTraceLoading(false);
                                                 return true; // Hide spinner on error
                                               }
@@ -750,6 +751,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                                                 }
                                               } catch (err) {
                                                 setIsTraceLoading(false);
+                                                console.error("Error checking for trace:", err);
                                               }
                                               return false;
                                             };
@@ -770,16 +772,16 @@ const Playground: React.FC<PlaygroundProps> = ({
                                             }
                                           }
                                         });
-                                      } catch (err) {
-                                        console.error("Error setting up trace detection:", err);
+                                      } catch (_err) {
+                                        console.error("Error setting up trace detection:", _err);
                                       }
                                     };
                                     
                                     // Setup detection after a small delay to ensure the report is fully loaded
                                     setTimeout(setupTraceDetection, 1000);
                                   }
-                                } catch (err) {
-                                  console.error("Error processing iframe content:", err);
+                                } catch (_err) {
+                                  console.error("Error processing iframe content:", _err);
                                   setIframeError(true);
                                   setReportError("Unable to load test report content.");
                                 }
@@ -802,8 +804,8 @@ const Playground: React.FC<PlaygroundProps> = ({
                                         setReportError(data.message);
                                       }
                                     })
-                                    .catch(err => {
-                                      console.error("Error fetching report details:", err);
+                                    .catch(_err => {
+                                      console.error("Error fetching report details:", _err);
                                     });
                                 }
                               }}

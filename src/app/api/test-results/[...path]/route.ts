@@ -3,7 +3,6 @@ import { NextRequest } from "next/server";
 import path from "path";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
-import { Readable } from "stream";
 
 const { join, normalize } = path;
 
@@ -14,14 +13,15 @@ const MAX_S3_RETRIES = 3;
  * Retry an S3 operation with exponential backoff
  */
 async function retryS3Operation<T>(operation: () => Promise<T>, maxRetries = MAX_S3_RETRIES): Promise<T> {
-  let lastError = null;
+  let lastError: unknown = null;
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await operation();
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
-      console.warn(`S3 operation failed (attempt ${attempt + 1}/${maxRetries}): ${error.message || 'Unknown error'}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.warn(`S3 operation failed (attempt ${attempt + 1}/${maxRetries}): ${message}`);
       
       if (attempt < maxRetries - 1) {
         // Wait with exponential backoff before retrying (100ms, 200ms, 400ms...)
@@ -112,11 +112,11 @@ export async function GET(
         const s3Key = `test-results/${type}/${id}/${remainingPath.join('/')}`;
         
         // Check if this file exists in S3
-        const exists = await retryS3Operation(() => s3Storage.fileExists(s3Key, true));
+        const exists = await retryS3Operation(() => s3Storage.fileExists(s3Key));
         
         if (exists) {
           console.log(`Found results in S3 for ${type}/${id}`);
-          const fileStream = await retryS3Operation(() => s3Storage.getReadStream(s3Key, true));
+          const fileStream = await retryS3Operation(() => s3Storage.getReadStream(s3Key));
           
           // Process the stream
           const chunks = [];
@@ -144,8 +144,9 @@ export async function GET(
             },
           });
         }
-      } catch (s3Error: any) {
-        console.warn(`Error with S3 for ${type}/${id}: ${s3Error.message}`);
+      } catch (s3Error: unknown) {
+        const message = s3Error instanceof Error ? s3Error.message : 'Unknown S3 error';
+        console.warn(`Error with S3 for ${type}/${id}: ${message}`);
       }
     }
     
@@ -163,9 +164,10 @@ export async function GET(
         }
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error(`Error serving test result file ${filePath}:`, error);
-    return new Response(`Error serving file: ${error.message || 'Unknown error'}`, {
+    return new Response(`Error serving file: ${message}`, {
       status: 500,
     });
   }

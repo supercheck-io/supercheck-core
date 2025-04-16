@@ -150,7 +150,8 @@ function RunButton({ job }: { job: Job }) {
         "flex items-center justify-center",
         "h-7 px-1 rounded-md",
         "gap-2",
-        "cursor-pointer"
+        "cursor-pointer",
+        "ml-1"
       )}
       disabled={
         isRunning || isAnyJobRunning || !job.tests || job.tests.length === 0
@@ -166,10 +167,12 @@ function RunButton({ job }: { job: Job }) {
       {isRunning ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-xs">Running...</span>
         </>
       ) : (
         <>
           <Zap className="h-4 w-4" />
+          <span className="text-xs">Run</span>
         </>
       )}
     </Button>

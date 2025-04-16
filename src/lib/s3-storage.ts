@@ -1,6 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand, HeadObjectCommand, CreateBucketCommand, ListObjectsV2CommandOutput } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { createReadStream, createWriteStream } from 'fs';
+import { createWriteStream } from 'fs';
 import { mkdir, readdir, stat, rm } from 'fs/promises';
 import { join, dirname, basename } from 'path';
 import { Readable } from 'stream';
@@ -8,6 +8,13 @@ import { finished } from 'stream/promises';
 import { tmpdir } from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
+
+// Define a custom S3Error interface
+interface S3Error {
+  name: string;
+  message: string;
+  Code?: string;
+}
 
 // Default timeout for S3 operations in milliseconds (5 seconds)
 const S3_OPERATION_TIMEOUT = parseInt(process.env.S3_OPERATION_TIMEOUT || '5000');
@@ -56,14 +63,15 @@ async function withRetry<T>(
   maxRetries: number = MAX_S3_RETRIES,
   operationName: string = 'S3 operation'
 ): Promise<T> {
-  let lastError = null;
+  let lastError: S3Error | null = null;
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await operation();
-    } catch (error: any) {
-      lastError = error;
-      console.warn(`${operationName} failed (attempt ${attempt + 1}/${maxRetries}): ${error.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      lastError = error as S3Error;
+      const errorMessage = lastError.message || 'Unknown error';
+      console.warn(`${operationName} failed (attempt ${attempt + 1}/${maxRetries}): ${errorMessage}`);
       
       if (attempt < maxRetries - 1) {
         // Wait with exponential backoff before retrying (100ms, 200ms, 400ms...)
@@ -78,7 +86,7 @@ async function withRetry<T>(
 }
 
 // Helper to determine which bucket to use based on the context
-export function getBucketName(isJob: boolean): string {
+export function getBucketName(): string {
   return JOB_BUCKET_NAME;
 }
 
@@ -99,11 +107,12 @@ export async function ensureBucketExists(bucketName: string): Promise<void> {
     );
     
     console.log(`Bucket '${bucketName}' already exists`);
-  } catch (error: any) {
-    console.log(`Error checking bucket existence: ${error.name} - ${error.message}`);
+  } catch (error: unknown) {
+    const s3Error = error as S3Error;
+    console.log(`Error checking bucket existence: ${s3Error.name} - ${s3Error.message}`);
     
     // If bucket doesn't exist, create it
-    if (error.name === 'NoSuchBucket' || error.Code === 'NoSuchBucket') {
+    if (s3Error.name === 'NoSuchBucket' || s3Error.Code === 'NoSuchBucket') {
       try {
         const s3Client = getS3Client();
         console.log(`Creating bucket '${bucketName}'`);
@@ -115,12 +124,13 @@ export async function ensureBucketExists(bucketName: string): Promise<void> {
           `Create bucket ${bucketName}`
         );
         console.log(`Bucket '${bucketName}' created successfully`);
-      } catch (createError: any) {
-        console.error(`Error creating bucket '${bucketName}':`, createError.message);
+      } catch (createError: unknown) {
+        const s3CreateError = createError as S3Error;
+        console.error(`Error creating bucket '${bucketName}':`, s3CreateError.message);
         // Don't throw, just log the error and continue
       }
     } else {
-      console.error(`Error checking bucket '${bucketName}' existence:`, error.message);
+      console.error(`Error checking bucket '${bucketName}' existence:`, s3Error.message);
       // Don't throw, just log the error and continue
     }
   }
@@ -136,15 +146,14 @@ export async function uploadFile(
   localFilePath: string, 
   s3Key: string,
   contentType: string = 'application/octet-stream',
-  isJob: boolean = false
 ): Promise<string> {
   try {
-    const bucketName = getBucketName(isJob);
+    const bucketName = getBucketName();
     const s3Client = getS3Client();
     // Read file as buffer instead of streaming to avoid readableFlowing issues
     const fileBuffer = await fs.readFile(localFilePath);
     
-    console.log(`Uploading file ${localFilePath} to S3 bucket ${bucketName}, key: ${s3Key}`);
+    console.log(`Uploading file ${localFilePath} to S3 bucket '${bucketName}', key: ${s3Key}`);
     
     await s3Client.send(new PutObjectCommand({
       Bucket: bucketName,
@@ -153,7 +162,7 @@ export async function uploadFile(
       ContentType: contentType
     }));
     
-    console.log(`Successfully uploaded file to S3: ${s3Key}`);
+    console.log(`Successfully uploaded file to S3 bucket '${bucketName}', key: ${s3Key}`);
     return s3Key;
   } catch (error) {
     console.error(`Error uploading file ${localFilePath} to S3:`, error);
@@ -165,10 +174,8 @@ export async function uploadFile(
 export async function uploadDirectory(
   localDirPath: string,
   s3KeyPrefix: string,
-  isJob: boolean = false
 ): Promise<string[]> {
   try {
-    const bucketName = getBucketName(isJob);
     const keys: string[] = [];
     const files = await readdir(localDirPath, { recursive: true });
     
@@ -178,7 +185,7 @@ export async function uploadDirectory(
       
       if (stats.isFile()) {
         const s3Key = `${s3KeyPrefix}/${file}`;
-        await uploadFile(localFilePath, s3Key, undefined, isJob);
+        await uploadFile(localFilePath, s3Key, undefined);
         keys.push(s3Key);
       }
     }
@@ -194,10 +201,9 @@ export async function uploadDirectory(
 export async function downloadFile(
   s3Key: string,
   localFilePath: string,
-  isJob: boolean = false
 ): Promise<string> {
   try {
-    const bucketName = getBucketName(isJob);
+    const bucketName = getBucketName();
     const s3Client = getS3Client();
     // Create directory if it doesn't exist
     await mkdir(dirname(localFilePath), { recursive: true });
@@ -227,10 +233,9 @@ export async function downloadFile(
 // Check if a file exists in S3
 export async function fileExists(
   s3Key: string,
-  isJob: boolean = false
 ): Promise<boolean> {
   try {
-    const bucketName = getBucketName(isJob);
+    const bucketName = getBucketName();
     const s3Client = getS3Client();
     await withRetry(
       () => s3Client.send(new HeadObjectCommand({
@@ -241,11 +246,12 @@ export async function fileExists(
       `Check if file ${s3Key} exists in ${bucketName}`
     );
     return true;
-  } catch (error: any) {
-    if (error.name === 'NotFound') {
+  } catch (error: unknown) {
+    const s3Error = error as S3Error;
+    if (s3Error.name === 'NotFound') {
       return false;
     }
-    console.error(`Error checking if file ${s3Key} exists in S3:`, error);
+    console.error(`Error checking if file ${s3Key} exists in S3:`, s3Error);
     throw error;
   }
 }
@@ -253,25 +259,29 @@ export async function fileExists(
 // List files in S3 with a prefix
 export async function listFiles(
   prefix: string,
-  isJob: boolean = false
 ): Promise<string[]> {
-  const bucketName = getBucketName(isJob);
-  const s3Client = getS3Client();
-  const files: string[] = [];
-  let continuationToken: string | undefined = undefined;
-  
   try {
+    const bucketName = getBucketName();
+    const s3Client = getS3Client();
+    
+    let continuationToken: string | undefined = undefined;
+    const keys: string[] = [];
+    
     do {
-      const response: ListObjectsV2CommandOutput = await s3Client.send(new ListObjectsV2Command({
-        Bucket: bucketName,
-        Prefix: prefix,
-        ContinuationToken: continuationToken
-      }));
+      const response = await withRetry<ListObjectsV2CommandOutput>(
+        () => s3Client.send(new ListObjectsV2Command({
+          Bucket: bucketName,
+          Prefix: prefix,
+          ContinuationToken: continuationToken
+        })),
+        MAX_S3_RETRIES,
+        `List files with prefix ${prefix} in ${bucketName}`
+      );
       
       if (response.Contents) {
-        for (const object of response.Contents) {
-          if (object.Key) {
-            files.push(object.Key);
+        for (const obj of response.Contents) {
+          if (obj.Key) {
+            keys.push(obj.Key);
           }
         }
       }
@@ -279,9 +289,10 @@ export async function listFiles(
       continuationToken = response.NextContinuationToken;
     } while (continuationToken);
     
-    return files;
-  } catch (error) {
-    console.error(`Error listing files with prefix ${prefix} from S3:`, error);
+    return keys;
+  } catch (error: unknown) {
+    const s3Error = error as S3Error;
+    console.error(`Error listing files with prefix ${prefix} in S3:`, s3Error.message);
     throw error;
   }
 }
@@ -289,10 +300,9 @@ export async function listFiles(
 // Get a readable stream for a file from S3
 export async function getReadStream(
   s3Key: string,
-  isJob: boolean = false
 ): Promise<Readable> {
   try {
-    const bucketName = getBucketName(isJob);
+    const bucketName = getBucketName();
     const s3Client = getS3Client();
     const response = await withRetry(
       () => s3Client.send(new GetObjectCommand({
@@ -321,25 +331,28 @@ export async function getReadStream(
 export async function downloadDirectory(
   s3KeyPrefix: string,
   localDirPath: string,
-  isJob: boolean = false
 ): Promise<string[]> {
   try {
-    const bucketName = getBucketName(isJob);
+    const bucketName = getBucketName();
     await mkdir(localDirPath, { recursive: true });
     
-    const files = await listFiles(s3KeyPrefix, isJob);
+    // List all files with the given prefix
+    const keys = await listFiles(s3KeyPrefix);
+    console.log(`Found ${keys.length} files with prefix ${s3KeyPrefix} in bucket '${bucketName}'`);
+    
     const downloadedFiles: string[] = [];
     
-    for (const file of files) {
-      // Determine the relative path within the prefix
-      const relativePath = file.substring(s3KeyPrefix.length);
+    // Download each file
+    for (const key of keys) {
+      const relativePath = key.substring(s3KeyPrefix.length);
       const localFilePath = join(localDirPath, relativePath);
       
-      // Create subdirectories if needed
+      // Create subdirectory if needed
       await mkdir(dirname(localFilePath), { recursive: true });
       
       // Download the file
-      await downloadFile(file, localFilePath, isJob);
+      console.log(`Downloading ${key} from bucket '${bucketName}' to ${localFilePath}`);
+      await downloadFile(key, localFilePath);
       downloadedFiles.push(localFilePath);
     }
     
@@ -353,7 +366,6 @@ export async function downloadDirectory(
 // Get a temporary local file path for a given S3 key
 export async function getTemporaryLocalFile(
   s3Key: string,
-  isJob: boolean = false
 ): Promise<{ path: string, cleanup: () => Promise<void> }> {
   const tempDir = join(tmpdir(), 'supertest-temp', uuidv4());
   await mkdir(tempDir, { recursive: true });
@@ -361,7 +373,7 @@ export async function getTemporaryLocalFile(
   const filename = basename(s3Key);
   const localPath = join(tempDir, filename);
   
-  await downloadFile(s3Key, localPath, isJob);
+  await downloadFile(s3Key, localPath);
   
   return {
     path: localPath,
@@ -379,10 +391,9 @@ export async function getTemporaryLocalFile(
 export async function getPresignedUrl(
   s3Key: string,
   expiresIn: number = 3600,
-  isJob: boolean = false
 ): Promise<string> {
   try {
-    const bucketName = getBucketName(isJob);
+    const bucketName = getBucketName();
     const s3Client = getS3Client();
     const command = new GetObjectCommand({
       Bucket: bucketName,
@@ -399,10 +410,9 @@ export async function getPresignedUrl(
 // Delete a file from S3
 export async function deleteFile(
   s3Key: string,
-  isJob: boolean = false
 ): Promise<void> {
   try {
-    const bucketName = getBucketName(isJob);
+    const bucketName = getBucketName();
     const s3Client = getS3Client();
     await s3Client.send(new DeleteObjectCommand({
       Bucket: bucketName,
@@ -417,10 +427,9 @@ export async function deleteFile(
 // Delete multiple files from S3
 export async function deleteFiles(
   s3Keys: string[],
-  isJob: boolean = false
 ): Promise<void> {
   try {
-    const bucketName = getBucketName(isJob);
+    const bucketName = getBucketName();
     const s3Client = getS3Client();
     if (s3Keys.length === 0) return;
     
@@ -446,12 +455,11 @@ export async function deleteFiles(
 // Delete files with a prefix (like a directory)
 export async function deletePrefix(
   prefix: string,
-  isJob: boolean = false
 ): Promise<void> {
   try {
-    const files = await listFiles(prefix, isJob);
+    const files = await listFiles(prefix);
     if (files.length > 0) {
-      await deleteFiles(files, isJob);
+      await deleteFiles(files);
     }
   } catch (error) {
     console.error(`Error deleting prefix ${prefix} from S3:`, error);

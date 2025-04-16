@@ -4,11 +4,12 @@ import React, { useState } from "react";
 import { RunResponse } from "@/actions/get-runs";
 import { Badge } from "@/components/ui/badge";
 import { runStatuses } from "./data";
-import { AlertTriangleIcon, AlertCircle, Loader2Icon } from "lucide-react";
+import { AlertCircle, Loader2Icon } from "lucide-react";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
 import Link from "next/link";
+
 
 interface RunDetailsProps {
   run: RunResponse;
@@ -148,6 +149,7 @@ export function RunDetails({ run }: RunDetailsProps) {
                           }
                         } catch (e) {
                           // Not valid JSON, continue with normal display
+                          console.error("Error parsing JSON:", e);
                         }
                       }
                     }

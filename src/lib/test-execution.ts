@@ -7,7 +7,7 @@ import { validateCode } from "./code-validation";
 import * as async from "async";
 import crypto from "crypto";
 // Import S3 storage utilities
-import { uploadDirectory, getBucketName } from "./s3-storage";
+import { uploadDirectory } from "./s3-storage";
 
 const { spawn } = childProcess;
 const { join, normalize, sep, posix, dirname } = path;
@@ -26,8 +26,7 @@ const MAX_CONCURRENT_TESTS = parseInt(process.env.MAX_CONCURRENT_TESTS || '2');
 // Maximum time to wait for a test to complete
 const TEST_EXECUTION_TIMEOUT_MS = parseInt(process.env.TEST_EXECUTION_TIMEOUT_MS || '900000'); // 15 minutes (15 * 60 * 1000)
 
-// How often to recover trace files
-const TRACE_RECOVERY_INTERVAL_MS = parseInt(process.env.TRACE_RECOVERY_INTERVAL_MS || '300000'); // 5 minutes (5 * 60 * 1000)
+
 
 // Define the TestResult interface
 interface TestResult {
@@ -208,7 +207,7 @@ async function executeTestInChildProcess(
       console.log(`Preparing to execute test ID: ${testId}`);
 
       // Set up paths
-      const publicDir = normalize(join(process.cwd(), "public"));
+
       const testResultsDir = normalize(getResultsPath(testId));
       const reportDir = normalize(join(testResultsDir, "report"));
       const htmlReportPath = normalize(join(reportDir, "index.html"));
@@ -1211,7 +1210,6 @@ export async function executeTest(code: string): Promise<TestResult> {
       `;
 
       // Define the report directory
-      const publicDir = normalize(join(process.cwd(), "public"));
       const testResultsDir = normalize(getResultsPath(testId));
       const reportDir = normalize(join(testResultsDir, "report"));
 
@@ -1380,7 +1378,6 @@ test('test', async ({ page }) => {
       `;
 
       // Define the report directory
-      const publicDir = normalize(join(process.cwd(), "public"));
       const testResultsDir = normalize(getResultsPath(testId));
       const reportDir = normalize(join(testResultsDir, "report"));
 
@@ -1567,8 +1564,7 @@ test('${testName} (ID: ${id})', async ({ page }) => {
       console.log(`Uploading test results for job ${runId} to S3`);
       await uploadDirectory(
         reportDir,
-        `test-results/jobs/${runId}/report`, // Updated S3 path
-        true // isJob=true to use the job bucket
+        `test-results/jobs/${runId}/report`
       );
       console.log(`Successfully uploaded test results for job ${runId} to S3`);
     } catch (uploadError) {
@@ -1633,9 +1629,6 @@ async function executeMultipleTestFilesWithGlobalConfig(
         `Executing multiple test files for run ${testId} using global config`
       );
 
-      // Create necessary directories for reports but not traces
-      const publicDir = normalize(join(process.cwd(), "public"));
-      const testResultsDir = normalize(getResultsPath(testId, true)); // Using helper with isJob=true
       
       // Determine the command to run based on the OS
       const isWindows = process.platform === "win32";
