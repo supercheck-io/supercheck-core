@@ -22,6 +22,116 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Development Setup without Docker Compose
+
+If you prefer to run the services individually without Docker Compose, follow these steps:
+
+### 1. Start PostgreSQL
+
+Install PostgreSQL locally or run it in a standalone Docker container:
+
+```bash
+# Run PostgreSQL with Docker
+docker run -d --name postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgrespassword \
+  -e POSTGRES_DB=supertest \
+  -p 5432:5432 \
+  postgres:16
+```
+
+### 2. Run Database Migrations
+
+```bash
+# Generate migrations
+npx drizzle-kit generate --config=drizzle.config.ts
+
+# Apply migrations
+npx drizzle-kit migrate
+```
+
+### 3. Start MinIO
+
+```bash
+# Run MinIO with Docker
+docker run -d --name minio \
+  -e "MINIO_ROOT_USER=minioadmin" \
+  -e "MINIO_ROOT_PASSWORD=minioadmin" \
+  -p 9000:9000 -p 9001:9001 \
+  minio/minio server /data --console-address ":9001"
+```
+
+### 4. Create MinIO Bucket
+
+```bash
+# Install MinIO Client if needed
+brew install minio/stable/mc  # on macOS
+# or
+wget https://dl.min.io/client/mc/release/linux-amd64/mc  # on Linux
+chmod +x mc
+sudo mv mc /usr/local/bin/mc
+
+# Configure and create bucket
+mc config host add myminio http://localhost:9000 minioadmin minioadmin
+mc mb myminio/playwright-job-artifacts
+mc policy set public myminio/playwright-job-artifacts
+```
+
+### 5. Set Up Environment Variables
+
+Create a `.env.local` file:
+
+```bash
+# Database
+DATABASE_URL=postgresql://postgres:postgrespassword@localhost:5432/supertest
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgrespassword
+DB_NAME=supertest
+
+# AWS S3 / MinIO Configuration
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=minioadmin
+AWS_SECRET_ACCESS_KEY=minioadmin
+S3_ENDPOINT=http://localhost:9000
+S3_JOB_BUCKET_NAME=playwright-job-artifacts
+S3_FORCE_PATH_STYLE=true
+S3_OPERATION_TIMEOUT=10000
+S3_MAX_RETRIES=3
+
+# App Config
+MAX_CONCURRENT_TESTS=2
+TEST_EXECUTION_TIMEOUT_MS=900000
+TRACE_RECOVERY_INTERVAL_MS=300000
+```
+
+### 6. Start the Application
+
+```bash
+npm run dev
+```
+
+## Docker Compose Setup
+
+If you prefer to use Docker Compose, you can start all services with a single command:
+
+```bash
+docker-compose up
+```
+
+This will start:
+- PostgreSQL (with automatic migrations)
+- MinIO for S3-compatible storage
+- The Next.js application
+
+If you need to rebuild the containers:
+
+```bash
+docker-compose build
+docker-compose up
+```
+
 ## Playwright Test Integration
 
 This project includes integration with Playwright for end-to-end testing. The Playground component allows you to write, execute, and manage Playwright tests directly in the browser.

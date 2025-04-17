@@ -43,8 +43,10 @@ export async function getRuns(): Promise<RunResponse[]> {
     return results.map((run) => {
       return {
         ...run,
+        startedAt: run.startedAt ? run.startedAt.toISOString() : null,
+        completedAt: run.completedAt ? run.completedAt.toISOString() : null,
         reportUrl: `/api/test-results/jobs/${run.id}/report/index.html`,
-        timestamp: run.startedAt || new Date().toISOString(),
+        timestamp: run.startedAt ? run.startedAt.toISOString() : new Date().toISOString(),
       };
     });
   } catch (error) {
@@ -82,8 +84,10 @@ export async function getRun(id: string): Promise<RunResponse | null> {
     
     return {
       ...run,
+      startedAt: run.startedAt ? run.startedAt.toISOString() : null,
+      completedAt: run.completedAt ? run.completedAt.toISOString() : null,
       reportUrl: `/api/test-results/jobs/${run.id}/report/index.html`,
-      timestamp: run.startedAt || new Date().toISOString(),
+      timestamp: run.startedAt ? run.startedAt.toISOString() : new Date().toISOString(),
     };
   } catch (error) {
     console.error(`Failed to fetch run ${id}:`, error);

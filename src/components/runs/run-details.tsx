@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { RunResponse } from "@/actions/get-runs";
 import { Badge } from "@/components/ui/badge";
 import { runStatuses } from "./data";
@@ -20,7 +20,13 @@ export function RunDetails({ run }: RunDetailsProps) {
   const [isTraceLoading, setIsTraceLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [iframeError, setIframeError] = useState(false);
-  const [timestamp] = useState(() => Date.now());
+  const [reportUrl, setReportUrl] = useState(run.reportUrl || '');
+  
+  useEffect(() => {
+    if (run.reportUrl) {
+      setReportUrl(`${run.reportUrl}?t=${Date.now()}`);
+    }
+  }, [run.reportUrl]);
 
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -129,7 +135,7 @@ export function RunDetails({ run }: RunDetailsProps) {
                 </div>
               )}
               <iframe
-                src={`${run.reportUrl}?t=${timestamp}`}
+                src={reportUrl}
                 className={`w-full h-full border-0 ${isReportLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
                 title="Playwright Test Report"
                 onLoad={(e) => {
@@ -269,7 +275,7 @@ export function RunDetails({ run }: RunDetailsProps) {
                   setReportError("Test results not found for this run ID.");
                   setIframeError(true);
                   
-                  fetch(`${run.reportUrl}?t=${timestamp}`)
+                  fetch(`${run.reportUrl}?t=${Date.now()}`)
                     .then(response => {
                       if (!response.ok) {
                         return response.json().catch(() => null);

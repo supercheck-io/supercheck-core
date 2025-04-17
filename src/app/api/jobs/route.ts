@@ -216,7 +216,7 @@ export async function PUT(request: Request) {
         description: jobData.description || "",
         cronSchedule: jobData.cronSchedule,
         status: jobData.status as JobStatus,
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
       })
       .where(eq(jobs.id, jobData.id));
 
@@ -268,7 +268,7 @@ async function runJob(request: Request) {
     // Create a new test run record in the database
     const dbInstance = await db();
     const runId = crypto.randomUUID();
-    const startTime = new Date().toISOString();
+    const startTime = new Date();
 
     // Insert a new test run record
     await dbInstance.insert(testRuns).values({
@@ -331,9 +331,9 @@ async function runJob(request: Request) {
     }));
 
     // Calculate test duration
-    const startTimeDate = new Date(startTime).getTime();
+    const startTimeMs = startTime.getTime();
     const endTime = new Date().getTime();
-    const durationMs = endTime - startTimeDate;
+    const durationMs = endTime - startTimeMs;
     const durationFormatted = `${Math.floor(durationMs / 1000)}s`;
 
     // Update the job status in the database
@@ -343,7 +343,7 @@ async function runJob(request: Request) {
         status: result.success
           ? ("completed" as JobStatus)
           : ("failed" as JobStatus),
-        lastRunAt: new Date().toISOString(),
+        lastRunAt: new Date(),
       })
       .where(eq(jobs.id, jobId));
 
@@ -381,7 +381,7 @@ async function runJob(request: Request) {
         status: (result.success && !hasFailedTests)
           ? ("passed" as TestRunStatus)
           : ("failed" as TestRunStatus),
-        completedAt: new Date().toISOString(),
+        completedAt: new Date(),
         duration: durationFormatted,
         logs,
         errorDetails,

@@ -53,8 +53,8 @@ export async function createJob(data: {
         description: data.description || "",
         cronSchedule: data.cronSchedule || "",
         status: "pending",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
         lastRunAt: null,
         nextRunAt: null,
       });

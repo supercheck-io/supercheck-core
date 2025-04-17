@@ -18,18 +18,54 @@ services:
       - TEST_EXECUTION_TIMEOUT_MS=900000
       - TRACE_RECOVERY_INTERVAL_MS=300000
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/supertest
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgrespassword
+      - DB_NAME=supertest
+    command: >
+      sh -c "
+        apt-get update && apt-get install -y postgresql-client &&
+        echo 'Waiting for PostgreSQL...' &&
+        until pg_isready -h postgres -U postgres; do
+          echo 'PostgreSQL is unavailable - sleeping'
+          sleep 2
+        done &&
+        echo 'PostgreSQL is up - running migrations' &&
+        npx drizzle-kit generate &&
+        npx drizzle-kit migrate &&
+        echo 'Starting application' &&
+        npm run start
+      "
     volumes:
       - ./public/tests:/app/public/tests
       - ./public/test-results:/app/public/test-results
       - ./public/artifacts:/app/public/artifacts
+      - ./drizzle.config.ts:/app/drizzle.config.ts
+      - ./src:/app/src
+      - ./drizzle:/app/drizzle
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     depends_on:
-      - minio
-      - postgres
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - supertest-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
 
   postgres:
-    image: postgres:15
+    image: postgres:16
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgrespassword
@@ -38,6 +74,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
     networks:
       - supertest-network
     healthcheck:
@@ -45,6 +82,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
 
   minio:
     image: minio/minio:latest
@@ -57,29 +99,19 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio-data:/data
+    restart: unless-stopped
     networks:
       - supertest-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-
-  createbuckets:
-    image: minio/mc
-    depends_on:
-      - minio
-    restart: on-failure
-    entrypoint: >
-      /bin/sh -c "
-      sleep 5;
-      /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin;
-      /usr/bin/mc mb myminio/playwright-job-artifacts;
-      /usr/bin/mc policy set public myminio/playwright-job-artifacts;
-      exit 0;
-      "
-    networks:
-      - supertest-network
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
 
 volumes:
   minio-data:

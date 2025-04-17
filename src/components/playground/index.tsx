@@ -146,8 +146,8 @@ const Playground: React.FC<PlaygroundProps> = ({
           description: result.test.description,
           priority: result.test.priority as TestPriority,
           type: result.test.type as TestType,
-          updatedAt: result.test.updatedAt || undefined,
-          createdAt: result.test.createdAt || undefined,
+          updatedAt: result.test.updatedAt ? result.test.updatedAt.toISOString() : null,
+          createdAt: result.test.createdAt ? result.test.createdAt.toISOString() : null,
         });
 
         // Update the editor content
@@ -160,8 +160,8 @@ const Playground: React.FC<PlaygroundProps> = ({
           description: result.test.description,
           priority: result.test.priority as TestPriority,
           type: result.test.type as TestType,
-          updatedAt: result.test.updatedAt || undefined,
-          createdAt: result.test.createdAt || undefined,
+          updatedAt: result.test.updatedAt ? result.test.updatedAt.toISOString() : null,
+          createdAt: result.test.createdAt ? result.test.createdAt.toISOString() : null,
         });
 
         // Set the test ID

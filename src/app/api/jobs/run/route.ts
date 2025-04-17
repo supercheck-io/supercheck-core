@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     // Create a new test run record in the database
     const dbInstance = await db();
     const runId = crypto.randomUUID();
-    const startTime = new Date().toISOString();
+    const startTime = new Date(); // Store as Date object for database
     
     // Insert a new test run record
     await dbInstance.insert(testRuns).values({
@@ -107,9 +107,9 @@ export async function POST(request: Request) {
     }));
 
     // Calculate test duration
-    const startTimeDate = new Date(startTime).getTime();
+    const startTimeMs = startTime.getTime();
     const endTime = new Date().getTime();
-    const durationMs = endTime - startTimeDate;
+    const durationMs = endTime - startTimeMs;
     const durationFormatted = `${Math.floor(durationMs / 1000)}s`;
 
     // Update the job status in the database
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
       .update(jobs)
       .set({
         status: result.success ? "completed" as JobStatus : "failed" as JobStatus,
-        lastRunAt: new Date().toISOString(),
+        lastRunAt: new Date(), // Use Date object for database
       })
       .where(eq(jobs.id, jobId));
 
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
       .update(testRuns)
       .set({
         status: (result.success && !hasFailedTests) ? "passed" as TestRunStatus : "failed" as TestRunStatus,
-        completedAt: new Date().toISOString(),
+        completedAt: new Date(), // Use Date object for database
         duration: durationFormatted,
         logs,
         errorDetails,
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
       success: result.success,
       reportUrl: result.reportUrl,
       results: testResults,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString(), // This is fine for API response
     });
   } catch (error) {
     console.error("Error running job:", error);

@@ -1,14 +1,17 @@
 "use server";
 
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 
 /**
- * Creates a database client using the DB_FILE_NAME from environment
+ * Creates a database client using PostgreSQL
  */
 export async function createDbClient() {
-  const url = process.env.DB_FILE_NAME || "file:./src/db/supertest.db";
-  return createClient({ url });
+  const connectionString = process.env.DATABASE_URL || 
+    `postgres://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "postgres"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "supertest"}`;
+  
+  // For query building
+  return postgres(connectionString, { ssl: false });
 }
 
 /**

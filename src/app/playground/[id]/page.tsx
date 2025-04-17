@@ -85,7 +85,11 @@ export default function PlaygroundPage() {
       try {
         const result = await getTest(id);
         if (result.success && result.test) {
-          setTestData(result.test);
+          setTestData({
+            ...result.test,
+            updatedAt: result.test.updatedAt ? result.test.updatedAt.toISOString() : null,
+            createdAt: result.test.createdAt ? result.test.createdAt.toISOString() : null,
+          });
         } else {
           // Test not found or error, trigger the not-found page
           notFound();

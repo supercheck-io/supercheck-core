@@ -52,8 +52,7 @@ export async function updateJob(
         name: data.name,
         description: data.description,
         cronSchedule: data.cronSchedule,
-
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
       })
       .where(eq(jobs.id, jobId));
 

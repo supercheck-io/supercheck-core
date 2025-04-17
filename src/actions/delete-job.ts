@@ -27,7 +27,7 @@ export async function deleteJob(jobId: string) {
     // Finally delete the job itself
     const result = await dbInstance.delete(jobs).where(eq(jobs.id, jobId));
 
-    if (result.rowsAffected === 0) {
+    if (result.length === 0) {
       return {
         success: false,
         error: "Job not found",

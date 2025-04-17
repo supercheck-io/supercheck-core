@@ -1,14 +1,15 @@
 import {
-  int,
-  sqliteTable,
+  integer,
+  pgTable,
   text,
-  // blob,
+  varchar,
   primaryKey,
-  // uniqueIndex,
-  index,
-} from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
-import crypto from "crypto";
+  timestamp,
+  jsonb,
+  uuid,
+  customType,
+} from "drizzle-orm/pg-core";
+
 import {
   createInsertSchema,
   createSelectSchema,
@@ -22,18 +23,15 @@ import {
    an email (with a unique index), name fields, and timestamps
    for creation, update, and last login.
 =================================== */
-// export const users = sqliteTable("users", {
-//   id: text("id")
-//     .primaryKey()
-//     .$defaultFn(() => crypto.randomUUID()),
-//   email: text("email").notNull(),
-//   firstName: text("first_name"),
-//   lastName: text("last_name"),
-//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-//   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-//   lastLogin: text("last_login"),
-// });
-// export const usersEmailIdx = uniqueIndex("users_email_idx").on(users.email);
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: varchar("email", { length: 255 }).notNull(),
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  lastLogin: timestamp("last_login"),
+});
 
 /* ================================
    ORGANIZATIONS TABLE
@@ -42,37 +40,26 @@ import {
    to a user (ownerId) and includes metadata for custom fields and settings,
    billing information, status, quotas, and timestamps.
 =================================== */
-// export type OrganizationMetadata = {
-//   customFields?: Record<string, string>;
-//   settings?: Record<string, unknown>;
-// };
-// export const organizations = sqliteTable("organizations", {
-//   id: text("id")
-//     .primaryKey()
-//     .$defaultFn(() => crypto.randomUUID()),
-//   name: text("name").notNull(),
-//   ownerId: text("owner_id")
-//     .notNull()
-//     .references(() => users.id),
-//   metadata: text("metadata", { mode: "json" }).$type<OrganizationMetadata>(),
-//   billingPlan: text("billing_plan").notNull().default("free"),
-//   status: text("status").notNull().default("active"),
-//   subscriptionExpiresAt: text("subscription_expires_at"),
-//   testQuota: int("test_quota").default(100),
-//   maxParallelJobs: int("max_parallel_jobs").default(5),
-//   retentionDays: int("retention_days").default(30),
-//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-//   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-// });
-// export const organizationsOwnerIdx = uniqueIndex("organizations_owner_idx").on(
-//   organizations.ownerId
-// );
-// export const organizationsNameIdx = index("organizations_name_idx").on(
-//   organizations.name
-// );
-// export const organizationsStatusIdx = index("organizations_status_idx").on(
-//   organizations.status
-// );
+export type OrganizationMetadata = {
+  customFields?: Record<string, string>;
+  settings?: Record<string, unknown>;
+};
+export const organizations = pgTable("organizations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  ownerId: uuid("owner_id")
+    .notNull()
+    .references(() => users.id),
+  metadata: jsonb("metadata").$type<OrganizationMetadata>(),
+  billingPlan: varchar("billing_plan", { length: 50 }).notNull().default("free"),
+  status: varchar("status", { length: 50 }).notNull().default("active"),
+  subscriptionExpiresAt: timestamp("subscription_expires_at"),
+  testQuota: integer("test_quota").default(100),
+  maxParallelJobs: integer("max_parallel_jobs").default(5),
+  retentionDays: integer("retention_days").default(30),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 /* ================================
    ORGANIZATION MEMBERS TABLE
@@ -82,32 +69,26 @@ import {
    and when the membership was established.
    Uses a composite primary key on (userId, organizationId).
 =================================== */
-// export type MemberRole = "admin" | "member" | "read-only";
-// export const organizationMembers = sqliteTable(
-//   "organization_members",
-//   {
-//     userId: text("user_id")
-//       .notNull()
-//       .references(() => users.id),
-//     organizationId: text("organization_id")
-//       .notNull()
-//       .references(() => organizations.id),
-//     role: text("role").$type<MemberRole>().notNull().default("read-only"),
-//     invitedBy: text("invited_by").references(() => users.id),
-//     joinedAt: text("joined_at").default(sql`CURRENT_TIMESTAMP`),
-//   },
-//   (table) => {
-//     return {
-//       pk: primaryKey(table.userId, table.organizationId),
-//     };
-//   }
-// );
-// export const organizationMembersUserIdIdx = index("org_members_user_id_idx").on(
-//   organizationMembers.userId
-// );
-// export const organizationMembersOrgIdIdx = index("org_members_org_id_idx").on(
-//   organizationMembers.organizationId
-// );
+export type MemberRole = "admin" | "member" | "read-only";
+export const organizationMembers = pgTable(
+  "organization_members",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    role: varchar("role", { length: 50 }).$type<MemberRole>().notNull().default("read-only"),
+    invitedBy: uuid("invited_by").references(() => users.id),
+    joinedAt: timestamp("joined_at").defaultNow(),
+  },
+  (table) => {
+    return {
+      pk: primaryKey({ columns: [table.userId, table.organizationId] }),
+    };
+  }
+);
 
 /* ================================
    PROJECTS TABLE
@@ -116,29 +97,20 @@ import {
    Each project includes details such as its name, description,
    status (active, archived, or deleted), and timestamps.
 =================================== */
-// export const projects = sqliteTable("projects", {
-//   id: text("id")
-//     .primaryKey()
-//     .$defaultFn(() => crypto.randomUUID()),
-//   organizationId: text("organization_id")
-//     .notNull()
-//     .references(() => organizations.id),
-//   name: text("name").notNull(),
-//   description: text("description"),
-//   status: text("status")
-//     .$type<"active" | "archived" | "deleted">()
-//     .notNull()
-//     .default("active"),
-//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-//   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-// });
-// export const projectsOrgIdIdx = index("projects_org_id_idx").on(
-//   projects.organizationId
-// );
-// export const projectsNameIdx = index("projects_name_idx").on(projects.name);
-// export const projectsStatusIdx = index("projects_status_idx").on(
-//   projects.status
-// );
+export const projects = pgTable("projects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  status: varchar("status", { length: 50 })
+    .$type<"active" | "archived" | "deleted">()
+    .notNull()
+    .default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 /* ================================
    TEST CASES TABLE
@@ -150,36 +122,28 @@ import {
 =================================== */
 export type TestPriority = "low" | "medium" | "high";
 export type TestType = "browser" | "api" | "multistep" | "database";
-export const tests = sqliteTable("tests", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  // projectId: text("project_id")
+export const tests = pgTable("tests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // projectId: uuid("project_id")
   //   .notNull()
   //   .references(() => projects.id),
-  title: text("title").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   script: text("script").notNull().default(""), // Store Base64-encoded script content
-  priority: text("priority").$type<TestPriority>().notNull().default("medium"),
-  type: text("type").$type<TestType>().notNull().default("browser"),
-  // tags: text("tags", { mode: "json" })
+  priority: varchar("priority", { length: 50 }).$type<TestPriority>().notNull().default("medium"),
+  type: varchar("type", { length: 50 }).$type<TestType>().notNull().default("browser"),
+  // tags: jsonb("tags")
   //   .$type<string[]>()
-  //   .default(sql`'[]'`),
-  // createdBy: text("created_by")
+  //   .default([]),
+  // createdBy: uuid("created_by")
   //   .notNull()
   //   .references(() => users.id),
-  // updatedBy: text("updated_by")
+  // updatedBy: uuid("updated_by")
   //   .notNull()
   //   .references(() => users.id),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
-// export const testsProjectIdIdx = index("tests_project_id_idx").on(
-//   tests.projectId
-// );
-export const testsTitleIdx = index("tests_title_idx").on(tests.title);
-export const testsTypeIdx = index("tests_type_idx").on(tests.type);
-export const testsPriorityIdx = index("tests_priority_idx").on(tests.priority);
 
 /* ================================
    JOBS TABLE
@@ -202,31 +166,23 @@ export type JobConfig = {
     backoffFactor: number;
   };
 };
-export const jobs = sqliteTable("jobs", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  // projectId: text("project_id")
+export const jobs = pgTable("jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // projectId: uuid("project_id")
   //   .notNull()
   //   .references(() => projects.id),
-  name: text("name").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  cronSchedule: text("cron_schedule"),
-  status: text("status").$type<JobStatus>().notNull().default("pending"),
-  // config: text("config", { mode: "json" }).$type<JobConfig>(),
-  // retryCount: int("retry_count").default(0),
-  // timeoutSeconds: int("timeout_seconds").default(600),
-  lastRunAt: text("last_run_at"),
-  nextRunAt: text("next_run_at"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  cronSchedule: varchar("cron_schedule", { length: 100 }),
+  status: varchar("status", { length: 50 }).$type<JobStatus>().notNull().default("pending"),
+  // config: jsonb("config").$type<JobConfig>(),
+  // retryCount: integer("retry_count").default(0),
+  // timeoutSeconds: integer("timeout_seconds").default(600),
+  lastRunAt: timestamp("last_run_at"),
+  nextRunAt: timestamp("next_run_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
-// export const jobsProjectIdIdx = index("jobs_project_id_idx").on(jobs.projectId);
-export const jobsNameIdx = index("jobs_name_idx").on(jobs.name);
-export const jobsStatusIdx = index("jobs_status_idx").on(jobs.status);
-export const jobsNextRunAtIdx = index("jobs_next_run_at_idx").on(
-  jobs.nextRunAt
-);
 
 /* ================================
    JOB TEST CASES TABLE
@@ -234,29 +190,23 @@ export const jobsNextRunAtIdx = index("jobs_next_run_at_idx").on(
    Maps test cases to jobs (many‑to‑many relationship) with an optional order
    field to define the sequence in which test cases should be executed.
 =================================== */
-export const jobTests = sqliteTable(
+export const jobTests = pgTable(
   "job_tests",
   {
-    jobId: text("job_id")
+    jobId: uuid("job_id")
       .notNull()
       .references(() => jobs.id),
-    testId: text("test_case_id")
+    testId: uuid("test_case_id")
       .notNull()
       .references(() => tests.id),
-    orderPosition: int("order_position"),
+    orderPosition: integer("order_position"),
   },
-  (table) => [
-    primaryKey({
+  (table) => ({
+    pk: primaryKey({
       name: "job_test_cases_pk",
       columns: [table.jobId, table.testId],
     }),
-  ]
-);
-export const jobTestsJobIdIdx = index("job_tests_job_id_idx").on(
-  jobTests.jobId
-);
-export const jobTestsTestIdIdx = index("job_tests_test_id_idx").on(
-  jobTests.testId
+  })
 );
 
 /* ================================
@@ -278,38 +228,19 @@ export type ArtifactPaths = {
   video?: string;
   screenshots?: string[];
 };
-export const testRuns = sqliteTable("test_runs", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  jobId: text("job_id")
+export const testRuns = pgTable("test_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  jobId: uuid("job_id")
     .notNull()
     .references(() => jobs.id),
-  status: text("status").$type<TestRunStatus>().notNull().default("pending"),
-  duration: text("duration"),
-  startedAt: text("started_at"),
-  completedAt: text("completed_at"),
-  artifactPaths: text("artifact_paths", {
-    mode: "json",
-  }).$type<ArtifactPaths>(),
+  status: varchar("status", { length: 50 }).$type<TestRunStatus>().notNull().default("pending"),
+  duration: varchar("duration", { length: 100 }),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  artifactPaths: jsonb("artifact_paths").$type<ArtifactPaths>(),
   logs: text("logs"),
   errorDetails: text("error_details"),
 });
-export const testRunsJobIdIdx = index("test_runs_job_id_idx").on(
-  testRuns.jobId
-);
-// export const testRunsTestIdIdx = index("test_runs_test_id_idx").on(
-//   testRuns.testId
-// );
-export const testRunsStatusIdx = index("test_runs_status_idx").on(
-  testRuns.status
-);
-export const testRunsStartedAtIdx = index("test_runs_started_at_idx").on(
-  testRuns.startedAt
-);
-export const testRunsCompletedAtIdx = index("test_runs_completed_at_idx").on(
-  testRuns.completedAt
-);
 
 /* ================================
    REPORTS TABLE
@@ -318,33 +249,25 @@ export const testRunsCompletedAtIdx = index("test_runs_completed_at_idx").on(
    passed, failed, skipped, and flaky tests, duration, and browser performance
    metrics (stored as JSON). Tracks the report creation timestamp.
 =================================== */
-// export type BrowserMetrics = {
-//   performance?: Record<string, number>;
-//   memory?: Record<string, number>;
-//   timing?: Record<string, number>;
-// };
-// export const reports = sqliteTable("reports", {
-//   id: text("id")
-//     .primaryKey()
-//     .$defaultFn(() => crypto.randomUUID()),
-//   jobId: text("job_id")
-//     .notNull()
-//     .references(() => jobs.id),
-//   totalTests: int("total_tests").notNull(),
-//   passedTests: int("passed_tests").notNull(),
-//   failedTests: int("failed_tests").notNull(),
-//   skippedTests: int("skipped_tests").default(0),
-//   flakyTests: int("flaky_tests").default(0),
-//   duration: text("duration").notNull(),
-//   browserMetrics: text("browser_metrics", {
-//     mode: "json",
-//   }).$type<BrowserMetrics>(),
-//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-// });
-// export const reportsJobIdIdx = index("reports_job_id_idx").on(reports.jobId);
-// export const reportsCreatedAtIdx = index("reports_created_at_idx").on(
-//   reports.createdAt
-// );
+export type BrowserMetrics = {
+  performance?: Record<string, number>;
+  memory?: Record<string, number>;
+  timing?: Record<string, number>;
+};
+export const reports = pgTable("reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  jobId: uuid("job_id")
+    .notNull()
+    .references(() => jobs.id),
+  totalTests: integer("total_tests").notNull(),
+  passedTests: integer("passed_tests").notNull(),
+  failedTests: integer("failed_tests").notNull(),
+  skippedTests: integer("skipped_tests").default(0),
+  flakyTests: integer("flaky_tests").default(0),
+  duration: varchar("duration", { length: 100 }).notNull(),
+  browserMetrics: jsonb("browser_metrics").$type<BrowserMetrics>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 /* ================================
    AUDIT LOGS TABLE
@@ -353,34 +276,20 @@ export const testRunsCompletedAtIdx = index("test_runs_completed_at_idx").on(
    Includes details on the action, affected resource, changes made, and a
    timestamp of when the action occurred.
 =================================== */
-// export type AuditDetails = {
-//   resource?: string;
-//   resourceId?: string;
-//   changes?: Record<string, { before: unknown; after: unknown }>;
-//   metadata?: Record<string, unknown>;
-// };
-// export const auditLogs = sqliteTable("audit_logs", {
-//   id: text("id")
-//     .primaryKey()
-//     .$defaultFn(() => crypto.randomUUID()),
-//   userId: text("user_id").references(() => users.id),
-//   organizationId: text("organization_id").references(() => organizations.id),
-//   action: text("action").notNull(),
-//   details: text("details", { mode: "json" }).$type<AuditDetails>(),
-//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-// });
-// export const auditLogsUserIdIdx = index("audit_logs_user_id_idx").on(
-//   auditLogs.userId
-// );
-// export const auditLogsOrgIdIdx = index("audit_logs_org_id_idx").on(
-//   auditLogs.organizationId
-// );
-// export const auditLogsActionIdx = index("audit_logs_action_idx").on(
-//   auditLogs.action
-// );
-// export const auditLogsCreatedAtIdx = index("audit_logs_created_at_idx").on(
-//   auditLogs.createdAt
-// );
+export type AuditDetails = {
+  resource?: string;
+  resourceId?: string;
+  changes?: Record<string, { before: unknown; after: unknown }>;
+  metadata?: Record<string, unknown>;
+};
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id),
+  organizationId: uuid("organization_id").references(() => organizations.id),
+  action: varchar("action", { length: 255 }).notNull(),
+  details: jsonb("details").$type<AuditDetails>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 /* ================================
    NOTIFICATIONS TABLE
@@ -389,43 +298,27 @@ export const testRunsCompletedAtIdx = index("test_runs_completed_at_idx").on(
    Supports various types (email, slack, webhook, in‑app) and tracks
    notification content, status, and the time the notification was sent.
 =================================== */
-// export type NotificationType = "email" | "slack" | "webhook" | "in-app";
-// export type NotificationStatus = "pending" | "sent" | "failed" | "cancelled";
-// export type NotificationContent = {
-//   subject?: string;
-//   body: string;
-//   data?: Record<string, unknown>;
-// };
-// export const notifications = sqliteTable("notifications", {
-//   id: text("id")
-//     .primaryKey()
-//     .$defaultFn(() => crypto.randomUUID()),
-//   userId: text("user_id")
-//     .notNull()
-//     .references(() => users.id),
-//   type: text("type").$type<NotificationType>().notNull().default("email"),
-//   content: text("content", { mode: "json" })
-//     .$type<NotificationContent>()
-//     .notNull(),
-//   status: text("status")
-//     .$type<NotificationStatus>()
-//     .notNull()
-//     .default("pending"),
-//   sentAt: text("sent_at"),
-//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-// });
-// export const notificationsUserIdIdx = index("notifications_user_id_idx").on(
-//   notifications.userId
-// );
-// export const notificationsStatusIdx = index("notifications_status_idx").on(
-//   notifications.status
-// );
-// export const notificationsTypeIdx = index("notifications_type_idx").on(
-//   notifications.type
-// );
-// export const notificationsCreatedAtIdx = index(
-//   "notifications_created_at_idx"
-// ).on(notifications.createdAt);
+export type NotificationType = "email" | "slack" | "webhook" | "in-app";
+export type NotificationStatus = "pending" | "sent" | "failed" | "cancelled";
+export type NotificationContent = {
+  subject?: string;
+  body: string;
+  data?: Record<string, unknown>;
+};
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id),
+  type: varchar("type", { length: 50 }).$type<NotificationType>().notNull().default("email"),
+  content: jsonb("content").$type<NotificationContent>().notNull(),
+  status: varchar("status", { length: 50 })
+    .$type<NotificationStatus>()
+    .notNull()
+    .default("pending"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 /* ================================
    INTEGRATIONS TABLE
@@ -435,31 +328,31 @@ export const testRunsCompletedAtIdx = index("test_runs_completed_at_idx").on(
    and timestamps indicating when the integration was last used, created,
    or updated.
 =================================== */
-// export type IntegrationConfig = {
-//   webhookUrl?: string;
-//   apiEndpoint?: string;
-//   settings?: Record<string, unknown>;
-// };
-// export const integrations = sqliteTable("integrations", {
-//   id: text("id")
-//     .primaryKey()
-//     .$defaultFn(() => crypto.randomUUID()),
-//   projectId: text("project_id")
-//     .notNull()
-//     .references(() => projects.id),
-//   serviceName: text("service_name").notNull(),
-//   config: text("config", { mode: "json" }).$type<IntegrationConfig>().notNull(),
-//   encryptedApiToken: blob("encrypted_api_token"),
-//   lastUsedAt: text("last_used_at"),
-//   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-//   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-// });
-// export const integrationsProjectIdIdx = index("integrations_project_id_idx").on(
-//   integrations.projectId
-// );
-// export const integrationsServiceNameIdx = index(
-//   "integrations_service_name_idx"
-// ).on(integrations.serviceName);
+export type IntegrationConfig = {
+  webhookUrl?: string;
+  apiEndpoint?: string;
+  settings?: Record<string, unknown>;
+};
+
+// Define custom type for bytea
+const bytea = customType<{ data: Buffer; notNull: false; default: false }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+export const integrations = pgTable("integrations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id),
+  serviceName: varchar("service_name", { length: 255 }).notNull(),
+  config: jsonb("config").$type<IntegrationConfig>().notNull(),
+  encryptedApiToken: bytea("encrypted_api_token"),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 export const testsInsertSchema = createInsertSchema(tests);
 export const testsUpdateSchema = createUpdateSchema(tests);
@@ -468,3 +361,4 @@ export const testsSelectSchema = createSelectSchema(tests);
 export const jobsInsertSchema = createInsertSchema(jobs);
 export const jobsUpdateSchema = createUpdateSchema(jobs);
 export const jobsSelectSchema = createSelectSchema(jobs);
+

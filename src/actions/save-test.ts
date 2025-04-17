@@ -87,7 +87,7 @@ export async function saveTest(
         .set({
           ...updateData,
           script: scriptToSave,
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date(),
           priority: updateData.priority as TestPriority,
           type: updateData.type as TestType,
         })
@@ -110,8 +110,8 @@ export async function saveTest(
         script: scriptToSave,
         priority: validatedData.priority as TestPriority,
         type: validatedData.type as TestType,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       // Revalidate the tests page to show the updated data
