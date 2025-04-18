@@ -1,9 +1,15 @@
 // @ts-check
 import { defineConfig } from "@playwright/test";
+import { randomUUID } from 'crypto';
+
+// Generate a unique ID for this test run
+const runId = randomUUID();
 
 export default defineConfig({
   // Use environment variable for test directory if provided, otherwise use default
   testDir: process.env.PLAYWRIGHT_TEST_DIR || "./public/tests",
+  // Match both spec.js and *.spec.js files
+  testMatch: ['**/*spec.js'],
   // We'll override these with CLI arguments for each test run
   reporter: [
     [
@@ -15,8 +21,10 @@ export default defineConfig({
       },
     ],
   ],
-  // Set the output directory for test artifacts
-  outputDir: "./public/artifacts",
+  // Set the output directory for test artifacts with worker isolation using UUID
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || `./public/artifacts/${runId}`,
+  fullyParallel: true,
+  
   use: {
     headless: true,
     // Configure trace to be stored in the HTML report directly
@@ -49,8 +57,8 @@ export default defineConfig({
   // Configure global timeout
   globalTimeout: 600000, // 10 minutes for the entire test run
   // Configure retry strategy
-  retries: 1, // Retry failed tests once
-  workers: 6,
+  retries: parseInt(process.env.PLAYWRIGHT_RETRIES || "1"), // Retry failed tests once
+  workers: parseInt(process.env.PLAYWRIGHT_WORKERS || "3"),
   projects: [
     {
       name: "chromium",

@@ -121,6 +121,7 @@ docker-compose up
 ```
 
 This will start:
+
 - PostgreSQL (with automatic migrations)
 - MinIO for S3-compatible storage
 - The Next.js application
@@ -135,6 +136,39 @@ docker-compose up
 ## Playwright Test Integration
 
 This project includes integration with Playwright for end-to-end testing. The Playground component allows you to write, execute, and manage Playwright tests directly in the browser.
+
+## Queue Implementation
+
+The application uses a robust queueing system based on [pg-boss](https://github.com/timgit/pg-boss) for reliable test execution. This provides persistent job queuing with automatic retries and job completion tracking. All test execution (both single tests from the playground and multiple tests in jobs) use the same queue infrastructure for consistency and reliability.
+
+### Queue Architecture
+
+The system implements two primary queues:
+
+1. **Test Execution Queue** (`test-execution`)
+   - Processes individual test tasks from both playground and job contexts
+   - Manages concurrent test execution
+   - Each task contains a test ID and path to the test script
+
+2. **Job Execution Queue** (`job-execution`)
+   - Handles batch execution of multiple tests
+   - Processes more complex testing workflows
+   - Each job contains multiple test scripts to execute
+   - Coordinates higher-level test orchestration
+
+### Worker Configuration
+
+- Workers are initialized with configurable concurrency limits
+- Test execution workers support parameterized concurrency via `MAX_CONCURRENT_TESTS` environment variable
+- Automatic retry logic with configurable retry limits (2 for tests, 1 for complex jobs)
+- Error tracking and reporting for failed jobs
+
+### Queue Management
+
+- The queue system provides job status monitoring
+- Completion events are tracked for both successful and failed jobs
+- Automatic cleanup of completed jobs after configurable retention period (7 days)
+- Queue statistics available through the API for monitoring system health
 
 ### Storage Architecture
 
@@ -160,6 +194,8 @@ S3_FORCE_PATH_STYLE=true
 ### MinIO Setup
 
 1. Start a MinIO server locally:
+2. Access the MinIO console at <http://localhost:9001>
+3. Create bucket: `playwright-job-artifacts`
 
 ```bash
 docker run -p 9000:9000 -p 9001:9001 \
@@ -167,9 +203,6 @@ docker run -p 9000:9000 -p 9001:9001 \
   -e "MINIO_ROOT_PASSWORD=minioadmin" \
   minio/minio server /data --console-address ":9001"
 ```
-
-2. Access the MinIO console at <http://localhost:9001>
-3. Create bucket: `playwright-job-artifacts`
 
 ### Troubleshooting S3 Storage
 

@@ -11,7 +11,7 @@ flowchart TB
         D1 --> E1[Generate test ID & directories]
         E1 --> F1[Validate code]
         F1 --> G1[Create initial loading report]
-        G1 --> H1[Queue test for execution]
+        G1 --> H1[Queue test for execution with pgboss]
         H1 --> I1[Execute test in child process]
         I1 --> J1[Generate final report]
         
@@ -54,7 +54,7 @@ flowchart TB
    - Creates only the essential report directory
    - Generates initial loading report with SSE connection
 4. **Test Execution**:
-   - Test added to execution queue (max 2 concurrent tests)
+   - Test added to pg-boss queue (with configurable concurrency limits)
    - Executes in child process using Playwright
    - Real-time status updates via Server-Sent Events
 5. **Report Generation**:
@@ -106,6 +106,7 @@ The application maintains a minimal directory structure for test results:
 
 ## Key Implementation Details
 
+- **Queue System**: All tests (single and multiple) use pg-boss for robust, database-backed queuing
 - **Concurrency Management**: Limited to 2 concurrent tests (configurable via environment variable)
 - **Non-Blocking Architecture**: Tests run in child processes
 - **Real-time Updates**: SSE for live progress updates
@@ -118,6 +119,7 @@ The application maintains a minimal directory structure for test results:
 
 ## Performance Optimizations
 
+- **Unified Queue System**: All test execution uses the same pg-boss queue system for consistency and reliability
 - **Lazy S3 Initialization**: S3 client only initialized when actually needed for storage or retrieval
 - **Local-First Approach**: Test results are always checked locally before attempting S3 access
 - **Efficient Resource Usage**: No unnecessary connections to S3 when results are served from local filesystem
