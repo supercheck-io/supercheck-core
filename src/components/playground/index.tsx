@@ -20,7 +20,8 @@ import {
   AlertTriangleIcon,
   Loader2Icon,
   ZapIcon,
-  AlertCircle
+  AlertCircle,
+  Code2Icon
 } from "lucide-react";
 import * as z from "zod";
 import type { editor } from "monaco-editor";
@@ -64,6 +65,7 @@ const Playground: React.FC<PlaygroundProps> = ({
   const [reportError, setReportError] = useState<string | null>(null);
   const [iframeError, setIframeError] = useState(false);
   const [isTraceLoading, setIsTraceLoading] = useState(false);
+  const [isTransitionLoading, setIsTransitionLoading] = useState(false);
   // Only set testId from initialTestId if we're on a specific test page
   // Always ensure testId is null when on the main playground page
   const [testId, setTestId] = useState<string | null>(initialTestId || null);
@@ -107,6 +109,7 @@ const Playground: React.FC<PlaygroundProps> = ({
   // Editor reference
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const searchParams = useSearchParams();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Reset testId when on the main playground page
   useEffect(() => {
@@ -543,18 +546,25 @@ const Playground: React.FC<PlaygroundProps> = ({
     setIframeError(false);
     setReportError(null);
     
-    // Construct the report URL with the API path, using the 'tests' prefix
-    const reportUrlWithCache = `/api/test-results/tests/${testId}/report/index.html?t=${Date.now()}`;
+    // Show transition loading state
+    setIsTransitionLoading(true);
+    
+    // Add a delay for smooth transition
+    setTimeout(() => {
+      // Construct the report URL with the API path, using the 'tests' prefix
+      const reportUrlWithCache = `/api/test-results/tests/${testId}/report/index.html?t=${Date.now()}`;
 
-    // Update state
-    setReportUrl(reportUrlWithCache);
+      // Update state
+      setReportUrl(reportUrlWithCache);
+      setIsTransitionLoading(false);
 
-    // Switch to report tab
-    setActiveTab("report");
+      // Switch to report tab
+      setActiveTab("report");
 
-    console.log(
-      `Selected test report: ${testId}, setting URL to ${reportUrlWithCache}`
-    );
+      console.log(
+        `Selected test report: ${testId}, setting URL to ${reportUrlWithCache}`
+      );
+    }, 200);
   };
 
   // Add UI elements to show running and completed tests
@@ -581,17 +591,10 @@ const Playground: React.FC<PlaygroundProps> = ({
                 }`}
                 onClick={() => selectTestReport(id)}
               >
-                {isCompleted ? (
-                  <span className="flex items-center">
-                    <CheckCircleIcon className="mr-1 h-3 w-3" />
-                    {id.replace("run-", "").substring(0, 8)}...
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    <AlertTriangleIcon className="mr-1 h-3 w-3" />
-                    {id.replace("run-", "").substring(0, 8)}...
-                  </span>
-                )}
+                <span className="flex items-center">
+                  <CheckCircleIcon className="mr-1 h-3 w-3" />
+                  {id.replace("run-", "").substring(0, 8)}...
+                </span>
               </Button>
             );
           })}
@@ -624,7 +627,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                           value="editor"
                           className="flex items-center gap-2"
                         >
-                          <FileTextIcon className="h-4 w-4" />
+                          <Code2Icon className="h-4 w-4" />
                           <span>Editor</span>
                         </TabsTrigger>
                         <TabsTrigger
@@ -691,6 +694,11 @@ const Playground: React.FC<PlaygroundProps> = ({
                             <p>Please wait, running test...</p>
                           </div>
                         </div>
+                      ) : isTransitionLoading ? (
+                        <div className="flex flex-col h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
+                          <Loader2Icon className="h-12 w-12 animate-spin text-white mb-3" />
+                          <p className="text-white">Loading report...</p>
+                        </div>
                       ) : reportUrl ? (
                         iframeError ? (
                           <div className="flex h-[calc(100vh-10rem)] flex-col items-center justify-center bg-[#1e1e1e]">
@@ -718,22 +726,19 @@ const Playground: React.FC<PlaygroundProps> = ({
                           </div>
                         ) : (
                           <div className="report-iframe-wrapper h-[calc(100vh-10rem)] w-full relative">
-                            {/* Add a loading overlay while iframe loads to prevent JSON flash */}
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1e1e1e] z-10">
-                              <Loader2Icon className="h-8 w-8 animate-spin text-[#d4d4d4] mb-3" />
-                              <p className="text-[#a0a0a0]">Loading report...</p>
-                            </div>
-                            {/* Add trace loading overlay */}
+                            {/* Remove the loading overlay with text, keep only trace loading overlay */}
                             {isTraceLoading && (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#252526] z-10">
-                                <Loader2Icon className="h-8 w-8 animate-spin text-white mb-3" />
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1e1e1e] bg-opacity-90 z-20">
+                                <Loader2Icon className="h-12 w-12 animate-spin text-white mb-3" />
                                 <p className="text-white">Loading trace viewer...</p>
                               </div>
                             )}
                             <iframe
+                              ref={iframeRef}
                               key={reportUrl}
                               src={reportUrl}
                               className="h-[calc(100vh-10rem)] w-full opacity-0"
+                              style={{ backgroundColor: "#1e1e1e" }}
                               sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
                               allow="cross-origin-isolated"
                               onLoad={(e) => {
@@ -771,9 +776,121 @@ const Playground: React.FC<PlaygroundProps> = ({
                                   
                                   // Content looks valid, show it
                                   iframe.classList.remove('opacity-0');
-                                  const loadingOverlay = iframe.parentElement?.querySelector('div.absolute');
-                                  if (loadingOverlay) {
-                                    loadingOverlay.classList.add('hidden');
+                                  
+                                  // Setup detection for trace viewer loading events
+                                  const setupTraceDetection = () => {
+                                    try {
+                                      // Listen for clicks on trace links
+                                      iframe.contentWindow?.document.body.addEventListener('click', (event) => {
+                                        const target = event.target as HTMLElement;
+                                        const traceLink = target.closest('a[href*="trace"]') || 
+                                                        target.closest('button[data-testid*="trace"]') ||
+                                                        (target.textContent?.toLowerCase().includes('trace') ? target : null);
+                                        
+                                        if (traceLink) {
+                                          setIsTraceLoading(true);
+                                          
+                                          // Function to check if trace is loaded and hide spinner
+                                          const checkTraceLoaded = () => {
+                                            try {
+                                              // Check for trace elements in the iframe
+                                              const traceElements = [
+                                                '.pw-no-select', 
+                                                '[data-testid="trace-page"]',
+                                                '[data-testid="action-list"]',
+                                                '[data-testid="trace-viewer"]',
+                                                'iframe[src*="trace"]',
+                                                '.react-calendar-timeline',
+                                                '.timeline-overlay' // Playwright specific trace element
+                                              ];
+                                              
+                                              // Check document title for trace
+                                              const title = iframe.contentWindow?.document.title || '';
+                                              if (title.toLowerCase().includes('trace')) {
+                                                setIsTraceLoading(false);
+                                                return true;
+                                              }
+                                              
+                                              // Check URL for trace
+                                              const url = iframe.contentWindow?.location.href || '';
+                                              if (url.includes('trace')) {
+                                                setIsTraceLoading(false);
+                                                return true;
+                                              }
+                                              
+                                              // Check for any of the trace elements
+                                              for (const selector of traceElements) {
+                                                const element = iframe.contentWindow?.document.querySelector(selector);
+                                                if (element) {
+                                                  setIsTraceLoading(false);
+                                                  return true;
+                                                }
+                                              }
+                                            } catch (err) {
+                                              console.error("Error checking for trace:", err);
+                                              setIsTraceLoading(false);
+                                              return true; // Hide spinner on error
+                                            }
+                                            
+                                            return false;
+                                          };
+                                          
+                                          // Check immediately
+                                          if (checkTraceLoaded()) {
+                                            return; // Already loaded
+                                          }
+                                          
+                                          // Set a safety timeout to prevent indefinite spinning
+                                          const safetyTimeout = setTimeout(() => {
+                                            console.log("Safety timeout triggered - hiding trace spinner");
+                                            setIsTraceLoading(false);
+                                          }, 3000); // 3 second safety timeout
+                                          
+                                          // Set up regular checks
+                                          let checkCount = 0;
+                                          const intervalCheck = setInterval(() => {
+                                            checkCount++;
+                                            if (checkTraceLoaded() || checkCount > 20) { // Check up to 20 times (4 seconds)
+                                              clearInterval(intervalCheck);
+                                              clearTimeout(safetyTimeout);
+                                            }
+                                          }, 200); // Check every 200ms
+                                        }
+                                      }, true);
+                                      
+                                      // Also detect navigation using hashchange
+                                      iframe.contentWindow?.addEventListener('hashchange', () => {
+                                        if (iframe.contentWindow?.location.hash.includes('trace')) {
+                                          setIsTraceLoading(true);
+                                          
+                                          // Safety timeout for hashchange
+                                          setTimeout(() => {
+                                            setIsTraceLoading(false);
+                                          }, 2000);
+                                        }
+                                      });
+                                    } catch (err) {
+                                      console.error("Error setting up trace detection:", err);
+                                    }
+                                  };
+                                  
+                                  // Setup detection after a small delay to ensure the report is fully loaded
+                                  setTimeout(setupTraceDetection, 1000);
+                                  
+                                  // Also listen for message events from iframe for backward compatibility
+                                  try {
+                                    iframe.contentWindow?.addEventListener('message', (event) => {
+                                      if (event.data && typeof event.data === 'object') {
+                                        // Check for trace viewer loading/loaded events
+                                        if (event.data.type === 'traceViewerLoading') {
+                                          setIsTraceLoading(true);
+                                        } else if (event.data.type === 'traceViewerLoaded') {
+                                          setIsTraceLoading(false);
+                                        }
+                                      }
+                                    });
+                                  } catch (err) {
+                                    console.error("Could not add iframe message listener:", err);
                                   }
                                   
                                   // Clear both loading states when iframe loads

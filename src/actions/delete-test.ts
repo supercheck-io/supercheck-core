@@ -36,7 +36,7 @@ export async function deleteTest(testId: string) {
     }
 
     // Delete the test if not associated with any jobs
-    const result = await dbInstance.delete(tests).where(eq(tests.id, testId));
+    const result = await dbInstance.delete(tests).where(eq(tests.id, testId)).returning();
 
     if (result.length === 0) {
       return {
