@@ -7,37 +7,16 @@ const { join, normalize } = path;
 
 /**
  * Determines if the report is complete based on its contents
- * This checks for the absence of "Test Execution in Progress" text and loading indicators
+ * This is simpler now because we don't create loading reports anymore
  */
 function isReportComplete(content: string): boolean {
-  // Check if the content is empty
+  // Check if the content is empty or too small
   if (!content || content.trim().length < 100) {
     return false;
   }
 
-  // If the content contains these loading indicators, it's not complete
-  if (
-    content.includes("Test Execution in Progress") ||
-    content.includes("animation: spin") ||
-    content.includes("Loading...") ||
-    content.includes('class="spinner"')
-  ) {
-    return false;
-  }
-
-  // Check for presence of expected test report content
-  if (
-    content.includes("Test Results") ||
-    content.includes("Tests passed") ||
-    content.includes("Tests failed") ||
-    content.includes("Test Failed") ||
-    content.includes("test report")
-  ) {
-    return true;
-  }
-
-  // If the report has substantial content but no clear indicators, consider it complete
-  return content.length > 1000;
+  // If the file exists and has content, consider it complete
+  return true;
 }
 
 /**

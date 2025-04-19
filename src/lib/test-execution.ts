@@ -4,10 +4,22 @@ import * as fs from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { validateCode } from "./code-validation";
-import * as async from "async";
 import crypto from "crypto";
+// Remove async import
 // Import S3 storage utilities
 import { uploadDirectory } from "./s3-storage";
+// Import pg-boss queue functions
+import { 
+  addTestToQueue, 
+  addJobToQueue, 
+  waitForJobCompletion, 
+  TestExecutionTask, 
+  JobExecutionTask,
+  setupTestExecutionWorker,
+  setupJobExecutionWorker,
+  setTestStatusMap,
+  TestStatusUpdateMap 
+} from "./queue";
 
 const { spawn } = childProcess;
 const { join, normalize, sep, posix, dirname } = path;
@@ -25,8 +37,6 @@ const MAX_CONCURRENT_TESTS = parseInt(process.env.MAX_CONCURRENT_TESTS || '2');
 
 // Maximum time to wait for a test to complete
 const TEST_EXECUTION_TIMEOUT_MS = parseInt(process.env.TEST_EXECUTION_TIMEOUT_MS || '900000'); // 15 minutes (15 * 60 * 1000)
-
-
 
 // Define the TestResult interface
 interface TestResult {
@@ -74,6 +84,9 @@ interface TestExecutionResult {
 // A map to store the status of each test
 const testStatusMap = new Map<string, TestStatusUpdate>();
 
+// Share the testStatusMap with the queue module
+setTestStatusMap(testStatusMap as unknown as TestStatusUpdateMap);
+
 // track active test IDs to prevent premature cleanup
 const activeTestIds = new Set<string>();
 
@@ -93,79 +106,160 @@ function getResultsPath(testId: string, isJob: boolean = false): string {
   return join(basePath, typePath, testId);
 }
 
-// Create a queue for test execution with limited concurrency
-const testQueue = async.queue(
-  async (
-    task: {
-      testId: string;
-      testPath: string;
-      resolve: (value: TestResult) => void;
-      reject: (reason: Error | TestResult) => void;
-    },
-    callback
-  ) => {
-    try {
-      // Update the test status to running
-      testStatusMap.set(task.testId, {
-        testId: task.testId,
-        status: "running",
-      });
+// Remove async.queue implementation
+// Setup the pg-boss worker for test execution instead
+export async function initializeTestWorkers(): Promise<void> {
+  console.log('Initializing test and job workers...');
+  
+  try {
+    // Initialize test execution worker with proper error handling
+    await setupTestExecutionWorker(MAX_CONCURRENT_TESTS, async (task: TestExecutionTask) => {
+      try {
+        console.log(`Worker processing test execution for ${task.testId}`);
+        
+        // Update the test status to running
+        testStatusMap.set(task.testId, {
+          testId: task.testId,
+          status: "running",
+        });
 
-      const result = await executeTestInChildProcess(
-        task.testId,
-        task.testPath
-      );
+        // Execute the test
+        const result = await executeTestInChildProcess(
+          task.testId,
+          task.testPath
+        );
 
-      // Update the test status to completed
-      testStatusMap.set(task.testId, {
-        testId: task.testId,
-        status: "completed",
-        success: result.success,
-        error: result.error,
-        reportUrl: result.reportUrl,
-      });
-
-      task.resolve(result);
-    } catch (error) {
-      // Update the test status to completed with error
-      if (error instanceof Error) {
+        // Update the test status to completed
         testStatusMap.set(task.testId, {
           testId: task.testId,
           status: "completed",
-          success: false,
-          error: error.message,
+          success: result.success,
+          error: result.error,
+          reportUrl: result.reportUrl,
         });
-        task.reject(error);
-      } else if (typeof error === "object" && error !== null) {
-        testStatusMap.set(task.testId, {
+
+        console.log(`Test ${task.testId} completed with success: ${result.success}`);
+        
+        // IMPORTANT: Ensure we return a complete TestResult object
+        // This fixes the issue where the result is incomplete
+        const completeResult: TestResult = {
+          success: result.success,
+          error: result.error,
+          reportUrl: result.reportUrl,
           testId: task.testId,
-          status: "completed",
-          success: false,
-          error: (error as TestResult).error,
-          reportUrl: (error as TestResult).reportUrl,
-        });
-        task.reject(error as Error | TestResult);
-      } else {
-        // Handle primitive error types
-        const errorMessage = String(error);
+          stdout: result.stdout || "",
+          stderr: result.stderr || ""
+        };
+        
+        return completeResult;
+      } catch (error) {
+        // Log detailed error for debugging
+        console.error(`Error in test worker for ${task.testId}:`, error);
+        
+        // Create a meaningful error message
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // Update the test status to completed with error
         testStatusMap.set(task.testId, {
           testId: task.testId,
           status: "completed",
           success: false,
           error: errorMessage,
+          reportUrl: task.testId ? toUrlPath(`/api/test-results/tests/${task.testId}/report/index.html`) : null,
         });
-        task.reject(new Error(errorMessage));
+        
+        // Construct error result object
+        const errorResult: TestResult = {
+          success: false,
+          error: errorMessage,
+          testId: task.testId,
+          stdout: "",
+          stderr: errorMessage,
+          reportUrl: task.testId ? toUrlPath(`/api/test-results/tests/${task.testId}/report/index.html`) : null
+        };
+        
+        // Return the error result object instead of throwing
+        // This allows pg-boss to mark the job as completed instead of failed
+        return errorResult;
       }
-    } finally {
-      callback();
-    }
-  },
-  MAX_CONCURRENT_TESTS
-);
+    });
+    
+    // Initialize job execution worker with better concurrency
+    await setupJobExecutionWorker(
+      Math.max(1, Math.floor(MAX_CONCURRENT_TESTS / 2)), // Use fewer workers for job execution
+      async (task: JobExecutionTask) => {
+        try {
+          console.log(`Worker processing job execution for ${task.jobId}`);
+          
+          // Execute the tests
+          const result = await executeMultipleTests(task.testScripts, task.jobId);
+          
+          // Upload results to S3 after job completes
+          try {
+            console.log(`Uploading test results for job ${task.jobId} to S3`);
+            const testResultsDir = normalize(getResultsPath(task.jobId, true));
+            const reportDir = normalize(join(testResultsDir, "report"));
+            
+            await uploadDirectory(reportDir, `test-results/jobs/${task.jobId}/report`);
+            console.log(`Successfully uploaded results for ${task.jobId} to S3`);
+          } catch (uploadError) {
+            console.error(`Error uploading results to S3:`, uploadError);
+          }
+          
+          return result;
+        } catch (error) {
+          // Log detailed error for debugging
+          console.error(`Error in job worker for ${task.jobId}:`, error);
+          
+          // Create a meaningful error message
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          
+          // Construct error result
+          return {
+            jobId: task.jobId,
+            success: false,
+            error: errorMessage,
+            reportUrl: task.jobId ? toUrlPath(`/api/test-results/jobs/${task.jobId}/report/index.html`) : null,
+            results: task.testScripts.map(script => ({
+              testId: script.id,
+              success: false,
+              error: errorMessage,
+            })),
+            timestamp: new Date().toISOString(),
+            stdout: "",
+            stderr: error instanceof Error ? error.stack || errorMessage : errorMessage,
+          };
+        }
+      }
+    );
+    
+    console.log('Test and job workers initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize workers:', error);
+    throw error;
+  }
+}
 
-// Add event handler for when the queue is drained
-testQueue.drain(() => {
-  console.log("All tests have been processed.");
+// Call this on application startup - use more robust approach to only init once
+let workersInitialized = false;
+const initializeWorkers = async () => {
+  if (!workersInitialized) {
+    try {
+      workersInitialized = true; // Set flag first to prevent multiple initializations
+      await initializeTestWorkers();
+      console.log('Workers initialization complete');
+    } catch (err) {
+      workersInitialized = false; // Reset flag on error so we can retry
+      console.error('Worker initialization failed:', err);
+      // Try again after a delay
+      setTimeout(initializeWorkers, 5000);
+    }
+  }
+};
+
+// Start initialization immediately
+initializeWorkers().catch(err => {
+  console.error('Initial worker setup failed:', err);
 });
 
 /**
@@ -223,66 +317,6 @@ async function executeTestInChildProcess(
           err
         );
         // Continue execution, as Playwright will try to create them again
-      }
-
-      // Create a lightweight loading report while the test is running
-      try {
-        const loadingHtml = `<!DOCTYPE html>
-<html>
-  <head>
-    <title>Test Running - ${testId}</title>
-    <style>
-      body { font-family: system-ui; background-color: #f8f8f8; color: #333; margin: 0; padding: 20px; }
-      .container { max-width: 800px; margin: 0 auto; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; }
-      h1 { color: #2563eb; margin-top: 0; }
-      .loading { display: flex; align-items: center; margin: 20px 0; }
-      .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #2563eb; animation: spin 1s linear infinite; margin-right: 15px; }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      .hidden { display: none; }
-    </style>
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const testId = "${testId}";
-        const eventSource = new EventSource('/api/test-status/sse/' + testId);
-        
-        eventSource.onmessage = function(event) {
-          const data = JSON.parse(event.data);
-          
-          if (data.status === 'completed') {
-            // Test is completed, reload to show the final report
-            eventSource.close();
-            window.location.reload();
-          }
-        };
-        
-        eventSource.onerror = function() {
-          // If there's an error with the connection, fall back to reload after 10 seconds
-          eventSource.close();
-          setTimeout(function() { window.location.reload(); }, 10000);
-        };
-      });
-    </script>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Test Execution in Progress</h1>
-      <div class="loading"><div class="spinner"></div><div>Running your tests...</div></div>
-      <p>Test ID: <code>${testId}</code></p>
-    </div>
-  </body>
-</html>`;
-
-        await fs.mkdir(dirname(htmlReportPath), { recursive: true });
-        await fs.writeFile(htmlReportPath, loadingHtml);
-
-        // Update test status with the initial report URL
-        testStatusMap.set(testId, {
-          testId,
-          status: "running",
-          reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
-        });
-      } catch (err) {
-        console.error(`Error creating loading report for test ${testId}:`, err);
       }
 
       // Determine the command to run based on the OS
@@ -374,142 +408,8 @@ async function executeTestInChildProcess(
       const timeout = setTimeout(() => {
         if (childProcess && !childProcess.killed) {
           childProcess.kill();
-          const timeoutError = "Test execution timed out after 2 minutes";
+          const timeoutError = "Test execution timed out";
           console.error(timeoutError);
-
-          // When test times out, we should still ensure we have a report
-          try {
-            if (existsSync(htmlReportPath)) {
-              // Update the loading report with timeout information
-              fs.readFile(htmlReportPath, "utf8")
-                .then((content) => {
-                  if (content.includes("Test Execution in Progress")) {
-                    // It's still a loading report, update it with timeout info
-                    const timeoutHtml = `
-                    <!DOCTYPE html>
-                    <html>
-                      <head>
-                        <title>Test Timed Out</title>
-                        <style>
-                          body {
-                            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                            background-color: #f8f8f8;
-                            color: #333;
-                            margin: 0;
-                            padding: 20px;
-                            line-height: 1.6;
-                          }
-                          .container {
-                            max-width: 800px;
-                            margin: 0 auto;
-                            background-color: white;
-                            border-radius: 8px;
-                            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                            padding: 20px;
-                          }
-                          h1 {
-                            color: #dc2626;
-                            margin-top: 0;
-                          }
-                          .error-box {
-                            background-color: #fef2f2;
-                            border-left: 4px solid #dc2626;
-                            padding: 15px;
-                            margin: 20px 0;
-                          }
-                          pre {
-                            background-color: #f1f5f9;
-                            padding: 15px;
-                            border-radius: 4px;
-                            overflow-x: auto;
-                          }
-                        </style>
-                      </head>
-                      <body>
-                        <div class="container">
-                          <h1>Test Timed Out</h1>
-                          <div class="error-box">
-                            <h2>Error Details</h2>
-                            <p>${timeoutError}</p>
-                          </div>
-                          <h2>Test Output</h2>
-                          <pre>${stdoutChunks.join("")}</pre>
-                          <h2>Test Errors</h2>
-                          <pre>${stderrChunks.join("")}</pre>
-                        </div>
-                      </body>
-                    </html>
-                    `;
-                    fs.writeFile(htmlReportPath, timeoutHtml).catch((e) =>
-                      console.error(`Error writing timeout report: ${e}`)
-                    );
-                  }
-                })
-                .catch((e) => console.error(`Error reading report file: ${e}`));
-            } else {
-              // Report doesn't exist, create one
-              const timeoutHtml = `
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <title>Test Timed Out</title>
-                  <style>
-                    body {
-                      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                      background-color: #f8f8f8;
-                      color: #333;
-                      margin: 0;
-                      padding: 20px;
-                      line-height: 1.6;
-                    }
-                    .container {
-                      max-width: 800px;
-                      margin: 0 auto;
-                      background-color: white;
-                      border-radius: 8px;
-                      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                      padding: 20px;
-                    }
-                    h1 {
-                      color: #dc2626;
-                      margin-top: 0;
-                    }
-                    .error-box {
-                      background-color: #fef2f2;
-                      border-left: 4px solid #dc2626;
-                      padding: 15px;
-                      margin: 20px 0;
-                    }
-                    pre {
-                      background-color: #f1f5f9;
-                      padding: 15px;
-                      border-radius: 4px;
-                      overflow-x: auto;
-                    }
-                  </style>
-                </head>
-                <body>
-                  <div class="container">
-                    <h1>Test Timed Out</h1>
-                    <div class="error-box">
-                      <h2>Error Details</h2>
-                      <p>${timeoutError}</p>
-                    </div>
-                    <h2>Test Output</h2>
-                    <pre>${stdoutChunks.join("")}</pre>
-                    <h2>Test Errors</h2>
-                    <pre>${stderrChunks.join("")}</pre>
-                  </div>
-                </body>
-              </html>
-              `;
-              fs.writeFile(htmlReportPath, timeoutHtml).catch((e) =>
-                console.error(`Error writing timeout report: ${e}`)
-              );
-            }
-          } catch (e) {
-            console.error(`Error handling timeout report: ${e}`);
-          }
 
           // Update the test status
           testStatusMap.set(testId, {
@@ -637,69 +537,6 @@ async function executeTestInChildProcess(
               `;
 
               await fs.writeFile(htmlReportPath, minimalHtml);
-            } else {
-              // If the report exists, check if it's still the loading report
-              const reportContent = await fs.readFile(htmlReportPath, "utf8");
-              if (reportContent.includes("Test Execution in Progress")) {
-                // Update it with the error information
-                const errorHtml = `
-                <!DOCTYPE html>
-                <html>
-                  <head>
-                    <title>Test Failed</title>
-                    <style>
-                      body {
-                        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                        background-color: #f8f8f8;
-                        color: #333;
-                        margin: 0;
-                        padding: 20px;
-                        line-height: 1.6;
-                      }
-                      .container {
-                        max-width: 800px;
-                        margin: 0 auto;
-                        background-color: white;
-                        border-radius: 8px;
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                        padding: 20px;
-                      }
-                      h1 {
-                        color: #dc2626;
-                        margin-top: 0;
-                      }
-                      .error-box {
-                        background-color: #fef2f2;
-                        border-left: 4px solid #dc2626;
-                        padding: 15px;
-                        margin: 20px 0;
-                      }
-                      pre {
-                        background-color: #f1f5f9;
-                        padding: 15px;
-                        border-radius: 4px;
-                        overflow-x: auto;
-                      }
-                    </style>
-                  </head>
-                  <body>
-                    <div class="container">
-                      <h1>Test Failed</h1>
-                      <div class="error-box">
-                        <h2>Error Details</h2>
-                        <p>${errorMessage}</p>
-                      </div>
-                      <h2>Test Output</h2>
-                      <pre>${stdout}</pre>
-                      <h2>Test Errors</h2>
-                      <pre>${stderr}</pre>
-                    </div>
-                  </body>
-                </html>
-                `;
-
-                await fs.writeFile(htmlReportPath, errorHtml);
-              }
             }
 
             // Update the test status
@@ -739,7 +576,7 @@ async function executeTestInChildProcess(
 
         // Check if the report exists
         if (!existsSync(htmlReportPath)) {
-          console.warn(
+          console.log(
             `No HTML report found for test ${testId} even though it completed successfully`
           );
 
@@ -801,71 +638,6 @@ async function executeTestInChildProcess(
             await fs.writeFile(htmlReportPath, successHtml);
           } catch (writeError) {
             console.error(`Error creating success report: ${writeError}`);
-          }
-        } else {
-          // If the report exists, check if it's still the loading report
-          try {
-            const reportContent = await fs.readFile(htmlReportPath, "utf8");
-            if (reportContent.includes("Test Execution in Progress")) {
-              // Test is complete but the report only shows loading,
-              // likely because Playwright didn't generate a proper report
-              const successHtml = `
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <title>Test Completed</title>
-                  <style>
-                    body {
-                      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                      background-color: #f8f8f8;
-                      color: #333;
-                      margin: 0;
-                      padding: 20px;
-                      line-height: 1.6;
-                    }
-                    .container {
-                      max-width: 800px;
-                      margin: 0 auto;
-                      background-color: white;
-                      border-radius: 8px;
-                      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                      padding: 20px;
-                    }
-                    h1 {
-                      color: #16a34a;
-                      margin-top: 0;
-                    }
-                    .success-box {
-                      background-color: #f0fdf4;
-                      border-left: 4px solid #16a34a;
-                      padding: 15px;
-                      margin: 20px 0;
-                    }
-                    pre {
-                      background-color: #f1f5f9;
-                      padding: 15px;
-                      border-radius: 4px;
-                      overflow-x: auto;
-                    }
-                  </style>
-                </head>
-                <body>
-                  <div class="container">
-                    <h1>Test Completed Successfully</h1>
-                    <div class="success-box">
-                      <p>Your test ran successfully with no errors!</p>
-                    </div>
-                    <h2>Test Output</h2>
-                    <pre>${stdout}</pre>
-                  </div>
-                </body>
-              </html>
-              `;
-
-              await fs.writeFile(htmlReportPath, successHtml);
-            }
-          } catch (readError) {
-            console.error(`Error reading report file: ${readError}`);
           }
         }
 
@@ -1107,9 +879,9 @@ async function createErrorReport(
   } else {
     // Check if it's a loading report
     const reportContent = await fs.readFile(htmlReportPath, "utf8");
-    if (reportContent.includes("Test Execution in Progress")) {
-      await fs.writeFile(htmlReportPath, errorHtml);
-    }
+    // if (reportContent.includes("Test Execution in Progress")) {
+    //   await fs.writeFile(htmlReportPath, errorHtml);
+    // }
   }
 }
 
@@ -1250,73 +1022,189 @@ test('test', async ({ page }) => {
 `;
     await fs.writeFile(testPath, testContent);
 
-    // Create an initial HTML report with loading indicator
-    const loadingHtml = `<!DOCTYPE html>
-<html>
-  <head>
-    <title>Test Running - ${testId}</title>
-    <style>
-      body { font-family: system-ui; background-color: #f8f8f8; color: #333; margin: 0; padding: 20px; }
-      .container { max-width: 800px; margin: 0 auto; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; }
-      h1 { color: #2563eb; margin-top: 0; }
-      .loading { display: flex; align-items: center; margin: 20px 0; }
-      .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #2563eb; animation: spin 1s linear infinite; margin-right: 15px; }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      .hidden { display: none; }
-    </style>
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const testId = "${testId}";
-        const eventSource = new EventSource('/api/test-status/sse/' + testId);
-        
-        eventSource.onmessage = function(event) {
-          const data = JSON.parse(event.data);
-          
-          if (data.status === 'completed') {
-            // Test is completed, reload to show the final report
-            eventSource.close();
-            window.location.reload();
-          }
-        };
-        
-        eventSource.onerror = function() {
-          // If there's an error with the connection, fall back to reload after 10 seconds
-          eventSource.close();
-          setTimeout(function() { window.location.reload(); }, 10000);
-        };
-      });
-    </script>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Test Execution in Progress</h1>
-      <div class="loading"><div class="spinner"></div><div>Running your tests...</div></div>
-      <p>Test ID: <code>${testId}</code></p>
-    </div>
-  </body>
-</html>`;
-
-    // Save the loading report
+    // No longer creating a loading HTML report here, as we're using SSE
+    // Ensure the report directory exists
     const htmlReportPath = normalize(join(reportDir, "index.html"));
-    await fs.writeFile(htmlReportPath, loadingHtml);
+    await fs.mkdir(dirname(htmlReportPath), { recursive: true });
 
-    // Update status with initial report URL
+    // Update status with report URL that will be created when test completes
     testStatusMap.set(testId, {
       testId,
       status: "running",
       reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
     });
 
-    // Add the test to the queue and wait for it to complete
-    return new Promise((resolve, reject) => {
-      console.log(`Adding test to queue with ID: ${testId}`);
-      testQueue.push({
+    // Use pg-boss queue instead of async queue
+    const task: TestExecutionTask = {
+      testId,
+      testPath
+    };
+    
+    try {
+      // Add the test to the queue
+      const queuedJobId = await addTestToQueue(task);
+      console.log(`Test ${testId} queued successfully with job ID: ${queuedJobId}`);
+      
+      // Wait for the job to complete
+      try {
+        const result = await waitForJobCompletion<TestResult>(testId, TEST_EXECUTION_TIMEOUT_MS);
+        
+        // Ensure result is properly formatted
+        if (!result || typeof result !== 'object') {
+          throw new Error('Invalid result format received from test execution');
+        }
+        
+        // Check if the result has all required fields
+        if (!('success' in result) || !('testId' in result)) {
+          // Try to reconstruct a valid result
+          console.warn(`Incomplete result received for test ${testId}, attempting to reconstruct`);
+          
+          // Log what we received for debugging
+          console.log('Received incomplete result:', result);
+          
+          // Get status from status map as a fallback
+          const status = testStatusMap.get(testId);
+          
+          if (status && status.status === 'completed') {
+            // Create a complete result object
+            const reconstructedResult: TestResult = {
+              success: !!status.success,
+              error: status.error || null,
+              reportUrl: status.reportUrl || null,
+              testId,
+              stdout: typeof result === 'object' && result && 'stdout' in result ? (result as any).stdout : '',
+              stderr: status.error || ''
+            };
+            
+            console.log(`Using reconstructed result for test ${testId}`);
+            return reconstructedResult;
+          } else {
+            // If we don't have a status but have some result, try to use it
+            if (typeof result === 'object' && result) {
+              const resultObj = result as Record<string, any>;
+              const patchedResult: TestResult = {
+                success: 'success' in resultObj ? !!resultObj.success : true,
+                error: 'error' in resultObj ? resultObj.error : null,
+                reportUrl: 'reportUrl' in resultObj ? resultObj.reportUrl : 
+                          toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
+                testId,
+                stdout: 'stdout' in resultObj ? resultObj.stdout : '',
+                stderr: 'stderr' in resultObj ? resultObj.stderr : ''
+              };
+              
+              console.log(`Created patched result for test ${testId}`);
+              return patchedResult;
+            }
+          }
+        }
+        
+        // If we got here, the result has the required fields
+        return result as TestResult;
+      } catch (waitError) {
+        console.error(`Error waiting for test ${testId} completion:`, waitError);
+        
+        // Check if the test might have completed despite the error
+        const status = testStatusMap.get(testId);
+        
+        if (status && status.status === 'completed') {
+          console.log(`Test ${testId} appears to be completed despite queue error, using status data`);
+          
+          // Construct result from status
+          const fallbackResult: TestResult = {
+            success: !!status.success,
+            error: status.error || (waitError instanceof Error ? waitError.message : String(waitError)),
+            reportUrl: status.reportUrl || null,
+            testId,
+            stdout: '',
+            stderr: (waitError instanceof Error ? waitError.message : String(waitError))
+          };
+          
+          return fallbackResult;
+        }
+        
+        // If we get here, we need to create an error report
+        const errorHtml = `
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Test Failed - Queue Error</title>
+            <style>
+              body {
+                font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+                margin: 0;
+                padding: 20px;
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+              }
+              .container {
+                max-width: 800px;
+                margin: 0 auto;
+                background-color: #1e1e1e;
+                padding: 20px;
+                border-radius: 5px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+              }
+              h1 {
+                color: #e06c75;
+                margin-top: 0;
+              }
+              h2 {
+                color: #e5c07b;
+              }
+              pre {
+                background-color: #252526;
+                padding: 15px;
+                border-radius: 5px;
+                overflow-x: auto;
+                color: #d4d4d4;
+                border: 1px solid #333;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>Test Failed</h1>
+              <h2>Queue Error</h2>
+              <pre>${waitError instanceof Error ? waitError.message : String(waitError)}</pre>
+            </div>
+          </body>
+        </html>`;
+        
+        // Update the report with error
+        const htmlReportPath = normalize(join(reportDir, "index.html"));
+        await fs.writeFile(htmlReportPath, errorHtml).catch(err => 
+          console.error(`Failed to write error report for ${testId}:`, err)
+        );
+        
+        // Update test status
+        testStatusMap.set(testId, {
+          testId,
+          status: "completed",
+          success: false,
+          error: `Queue error: ${waitError instanceof Error ? waitError.message : String(waitError)}`,
+          reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
+        });
+        
+        // Throw to trigger the catch block
+        throw waitError;
+      }
+    } catch (queueError) {
+      console.error(`Error with test queue for ${testId}:`, queueError);
+      
+      // Create an error report for queue failure 
+      const errorMessage = queueError instanceof Error ? queueError.message : String(queueError);
+      
+      return {
+        success: false,
+        error: errorMessage,
+        reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
         testId,
-        testPath,
-        resolve,
-        reject,
-      });
-    });
+        stdout: "",
+        stderr: `Queue error: ${errorMessage}`,
+      };
+    }
   } catch (error) {
     console.error("Error setting up test:", error);
 
@@ -1490,97 +1378,144 @@ test('${testName} (ID: ${id})', async ({ page }) => {
       testFilePaths.push(testFilePath);
     }
 
-    // Execute the tests
-    const result = await executeMultipleTestFilesWithGlobalConfig(
-      runId,
-      testFilePaths,
-      reportDir,
-      jobTestsDir
-    );
-
-    // Parse the results for each test
-    const individualResults = testScripts.map(({ id, name }) => {
-      const testName = name || id;
-      const testFilename = `${id}.spec.js`;
-
-      // Improved patterns to detect success/failure in Playwright output
-      const specificTestPattern = new RegExp(`${testFilename}`, "i");
-      const specificTestFailedPattern = new RegExp(
-        `${testFilename}.*?failed`,
-        "i"
-      );
-      const specificTestPassedPattern = new RegExp(
-        `${testFilename}.*?passed`,
-        "i"
-      );
-
-      // Check if the test was mentioned in the output
-      const testWasRun = specificTestPattern.test(result.stdout);
-      const testFailed = specificTestFailedPattern.test(result.stdout);
-      const testPassed = specificTestPassedPattern.test(result.stdout);
-
-      // Check if the test was specifically mentioned in the failure output
-      const isInFailureList =
-        result.stdout.includes(`${testFilename}`) &&
-        result.stdout.includes("failed") &&
-        !result.stdout.includes(`${testFilename}.*?passed`);
-
-      // A test is successful if:
-      // 1. It explicitly shows as passed in the output, OR
-      // 2. It was run and not explicitly mentioned in the failure list
-      const success = testPassed || (testWasRun && !isInFailureList);
-
-      console.log(`Test ${id} result analysis:`, {
-        testWasRun,
-        testPassed,
-        testFailed,
-        isInFailureList,
-        overallSuccess: result.success,
-        determinedSuccess: success,
+    // Create a loading indicator report
+    const loadingHtml = `<!DOCTYPE html>
+<html>
+  <head>
+    <title>Job Running - ${runId}</title>
+    <style>
+      body { font-family: system-ui; background-color: #f8f8f8; color: #333; margin: 0; padding: 20px; }
+      .container { max-width: 800px; margin: 0 auto; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; }
+      h1 { color: #2563eb; margin-top: 0; }
+      .loading { display: flex; align-items: center; margin: 20px 0; }
+      .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #2563eb; animation: spin 1s linear infinite; margin-right: 15px; }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Check status every 3 seconds and reload when complete
+        const checkStatus = async () => {
+          try {
+            const response = await fetch('/api/test-status/${runId}');
+            const data = await response.json();
+            
+            if (data.status === 'completed') {
+              window.location.reload();
+            } else {
+              setTimeout(checkStatus, 3000);
+            }
+          } catch (e) {
+            // If there's an error, try again after 5 seconds
+            setTimeout(checkStatus, 5000);
+          }
+        };
+        
+        checkStatus();
       });
+    </script>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Job Execution in Progress</h1>
+      <div class="loading"><div class="spinner"></div><div>Running your test job...</div></div>
+      <p>Job ID: <code>${runId}</code></p>
+      <p>Running ${testScripts.length} test${testScripts.length !== 1 ? 's' : ''}...</p>
+    </div>
+  </body>
+</html>`;
 
-      return {
-        testId: id,
-        success,
-        error: !success ? `Test ${testName} failed during execution` : null,
-        reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
-      };
-    });
+    // Write the loading indicator
+    const htmlReportPath = normalize(join(reportDir, "index.html"));
+    await fs.writeFile(htmlReportPath, loadingHtml);
 
-    // Overall success is true if all individual tests succeeded
-    const overallSuccess = individualResults.every((result) => result.success);
-
-    // Update the test status to completed
+    // Update the test status to running
     testStatusMap.set(runId, {
       testId: runId,
-      status: "completed",
-      success: overallSuccess,
-      error: result.error,
+      status: "running",
       reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
     });
 
-    // Upload the report directory to S3 - only for job executions
-    try {
-      console.log(`Uploading test results for job ${runId} to S3`);
-      await uploadDirectory(
+    // Execute the tests directly first if queue fails
+    const executeTestsDirectly = async (): Promise<TestExecutionResult> => {
+      console.log(`Executing job ${runId} directly due to queue error`);
+      
+      // Execute tests directly
+      const result = await executeMultipleTestFilesWithGlobalConfig(
+        runId,
+        testFilePaths,
         reportDir,
-        `test-results/jobs/${runId}/report`
+        jobTestsDir
       );
-      console.log(`Successfully uploaded test results for job ${runId} to S3`);
-    } catch (uploadError) {
-      console.error(`Error uploading test results to S3: ${uploadError}`);
-      // Don't fail the job if S3 upload fails, just log the error
-    }
-    
-    return {
-      jobId: runId,
-      success: overallSuccess,
-      reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
-      results: individualResults,
-      timestamp: new Date().toISOString(),
-      stdout: result.stdout,
-      stderr: result.stderr,
+      
+      // Parse the results for each test
+      const individualResults = testScripts.map(({ id, name }) => {
+        const testName = name || id;
+        const testFilename = `${id}.spec.js`;
+        
+        // Check if the test was mentioned in the output
+        const testWasRun = result.stdout.includes(testFilename);
+        const testFailed = result.stdout.includes(`${testFilename}`) && 
+                            result.stdout.includes("failed");
+        const testPassed = !testFailed && testWasRun;
+        
+        return {
+          testId: id,
+          success: testPassed,
+          error: testFailed ? `Test ${testName} failed during execution` : null,
+          reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
+        };
+      });
+      
+      // Overall success is true if all individual tests succeeded
+      const overallSuccess = individualResults.every((res) => res.success);
+      
+      // Upload results to S3
+      try {
+        console.log(`Uploading test results for job ${runId} to S3`);
+        await uploadDirectory(reportDir, `test-results/jobs/${runId}/report`);
+      } catch (uploadError) {
+        console.error(`Error uploading test results to S3:`, uploadError);
+      }
+      
+      return {
+        jobId: runId,
+        success: overallSuccess,
+        error: result.error,
+        reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
+        results: individualResults,
+        timestamp: new Date().toISOString(),
+        stdout: result.stdout,
+        stderr: result.stderr,
+      };
     };
+
+    try {
+      // Create a job task for pg-boss queue
+      const jobTask: JobExecutionTask = {
+        jobId: runId,
+        testScripts
+      };
+      
+      // Add the job to the queue
+      const queuedJobId = await addJobToQueue(jobTask);
+      console.log(`Job ${runId} queued successfully with ID: ${queuedJobId}`);
+      
+      try {
+        // Wait for the job to complete with a timeout
+        return await waitForJobCompletion<TestExecutionResult>(runId, TEST_EXECUTION_TIMEOUT_MS * 2);
+      } catch (waitError) {
+        console.error(`Error waiting for job ${runId} to complete:`, waitError);
+        console.log(`Falling back to direct execution for job ${runId}`);
+        
+        // If waiting for the queued job fails, try executing directly
+        return await executeTestsDirectly();
+      }
+    } catch (queueError) {
+      console.error(`Error queuing job ${runId}:`, queueError);
+      
+      // Fall back to direct execution if queuing fails
+      return await executeTestsDirectly();
+    }
   } catch (error) {
     console.error(`Error executing tests for run ${runId}:`, error);
 

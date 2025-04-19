@@ -17,8 +17,44 @@ export interface JobExecutionTask {
   }>;
 }
 
+// Type for scheduled job
+export interface ScheduledJobOptions {
+  name: string;        // Human-readable name for the job
+  cron: string;        // Cron expression (e.g., "0 0 * * *" for daily at midnight)
+  timezone?: string;   // Optional timezone (e.g., "America/New_York")
+  data: JobExecutionTask | TestExecutionTask;  // Job data
+  queue: string;       // Which queue to use
+  retryLimit?: number; // Number of retries
+  expireInMinutes?: number; // Job expiration time
+}
+
+// Type for status updates - this will be imported by other modules
+export interface TestStatusUpdateMap {
+  get(key: string): any;
+  set(key: string, value: any): any;
+  has(key: string): boolean;
+}
+
 // Store job results for tracking completion
-const jobResults = new Map<string, any>();
+// Include a special property to differentiate between in-progress, completed, and error states
+interface StoredJobResult<T = any> {
+  pending?: boolean;   // Job is in progress 
+  timestamp?: number;  // When the entry was created
+  result?: T;          // Successful result
+  completedAt?: number; // When job completed
+  error?: string;      // Error if job failed
+  success?: boolean;   // Explicit success state
+}
+
+const jobResults = new Map<string, StoredJobResult>();
+
+// We'll need to declare this but defer actual initialization to avoid circular dependencies
+let testStatusMapRef: TestStatusUpdateMap | null = null;
+
+// Function to set the status map reference from test-execution.ts
+export function setTestStatusMap(statusMap: TestStatusUpdateMap): void {
+  testStatusMapRef = statusMap;
+}
 
 // The pg-boss queue instance
 let bossInstance: PgBoss | null = null;
@@ -34,6 +70,8 @@ export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
 // Define completed job queue name pattern
 export const COMPLETED_JOB_PREFIX = '__state__completed__';
+// Scheduled jobs prefix
+export const SCHEDULED_JOB_PREFIX = 'scheduled-';
 
 // Default timeout for jobs (15 minutes)
 export const DEFAULT_JOB_TIMEOUT_MS = 15 * 60 * 1000;
@@ -97,22 +135,33 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
   
   console.log(`Adding test to queue ${TEST_EXECUTION_QUEUE}:`, task);
   
-  // Use the testId as the job ID for correlation
-  const jobOptions = {
-    retryLimit: 2,
-    expireInMinutes: expiryMinutes,
-    id: task.testId
-  };
-  
-  // Send a job to the queue
-  const jobId = await boss.send(TEST_EXECUTION_QUEUE, task, jobOptions);
-  
-  if (!jobId) {
-    throw new Error('Failed to create test execution job');
+  try {
+    // Use the testId as the job ID for correlation
+    const jobOptions = {
+      retryLimit: 2,
+      expireInMinutes: expiryMinutes,
+      id: task.testId
+    };
+    
+    // Send a job to the queue
+    const jobId = await boss.send(TEST_EXECUTION_QUEUE, task, jobOptions);
+    
+    if (!jobId) {
+      console.error(`Failed to get job ID after sending test ${task.testId}`);
+      throw new Error('Failed to create test execution job');
+    }
+    
+    // Store an initial entry in the results map
+    jobResults.set(task.testId, { pending: true, timestamp: Date.now() });
+    
+    console.log(`Successfully added test ${task.testId} to queue, received ID: ${jobId}`);
+    
+    // Return the job ID (same as test ID)
+    return task.testId;
+  } catch (error) {
+    console.error(`Error adding test ${task.testId} to queue:`, error);
+    throw new Error(`Failed to create test execution job: ${error instanceof Error ? error.message : String(error)}`);
   }
-  
-  // Return the job ID (same as test ID)
-  return jobId;
 }
 
 /**
@@ -126,22 +175,119 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
     testCount: task.testScripts.length
   });
   
-  // Use the jobId as the job ID for correlation
-  const jobOptions = {
-    retryLimit: 1, // Jobs are more complex, limited retries
-    expireInMinutes: expiryMinutes,
-    id: task.jobId
-  };
-  
-  // Send a job to the queue
-  const jobId = await boss.send(JOB_EXECUTION_QUEUE, task, jobOptions);
-  
-  if (!jobId) {
-    throw new Error('Failed to create job execution job');
+  try {
+    // Use the jobId as the job ID for correlation
+    const jobOptions = {
+      retryLimit: 1, // Jobs are more complex, limited retries
+      expireInMinutes: expiryMinutes,
+      id: task.jobId
+    };
+    
+    // Send a job to the queue
+    const jobId = await boss.send(JOB_EXECUTION_QUEUE, task, jobOptions);
+    
+    if (!jobId) {
+      console.error(`Failed to get job ID after sending job ${task.jobId}`);
+      throw new Error('Failed to create job execution job');
+    }
+    
+    // Store an initial entry in the results map
+    jobResults.set(task.jobId, { pending: true, timestamp: Date.now() });
+    
+    console.log(`Successfully added job ${task.jobId} to queue, received ID: ${jobId}`);
+    
+    // Return the job ID (same as provided job ID)
+    return task.jobId;
+  } catch (error) {
+    console.error(`Error adding job ${task.jobId} to queue:`, error);
+    throw new Error(`Failed to create job execution job: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+/**
+ * Schedule a recurring job using cron expression
+ * @param options The job scheduling options
+ * @returns The name of the scheduled job
+ */
+export async function scheduleJob(options: ScheduledJobOptions): Promise<string> {
+  const boss = await getQueueInstance();
   
-  // Return the job ID (same as provided job ID)
-  return jobId;
+  const { name, cron, timezone, data, queue, retryLimit = 1, expireInMinutes = 30 } = options;
+  
+  // Generate a unique name for the schedule if none provided
+  const scheduleName = `${SCHEDULED_JOB_PREFIX}${name}-${Date.now()}`;
+  
+  console.log(`Scheduling job ${scheduleName} with cron: ${cron}${timezone ? `, timezone: ${timezone}` : ''}`);
+  
+  try {
+    // Create the schedule that will send jobs to our target queue
+    await boss.schedule(
+      queue,     // The queue to send jobs to
+      cron,      // Cron expression
+      {          // Data for the job
+        ...data,
+        _scheduled: true,
+        _scheduleName: scheduleName
+      },
+      {          // Job options
+        retryLimit,
+        expireInMinutes,
+        ...(timezone && { timezone })
+      }
+    );
+    
+    console.log(`Successfully scheduled job: ${scheduleName}`);
+    return scheduleName;
+  } catch (error) {
+    console.error(`Failed to schedule job ${scheduleName}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get a list of all scheduled jobs
+ */
+export async function getScheduledJobs(): Promise<any[]> {
+  const boss = await getQueueInstance();
+  
+  try {
+    // First try the getSchedules API
+    try {
+      const schedules = await boss.getSchedules();
+      return schedules.filter(schedule => 
+        schedule && typeof schedule.name === 'string' && 
+        schedule.name.startsWith(SCHEDULED_JOB_PREFIX)
+      );
+    } catch (e) {
+      // If getSchedules isn't available or fails, fallback to a more generic approach
+      console.warn('getSchedules API failed, using fallback method:', e);
+      
+      // This is a simplified fallback that may not work in all pg-boss versions
+      return [];
+    }
+  } catch (error) {
+    console.error('Error getting scheduled jobs:', error);
+    return [];
+  }
+}
+
+/**
+ * Delete a scheduled job
+ * @param scheduleName The name of the schedule to delete
+ */
+export async function deleteScheduledJob(scheduleName: string): Promise<boolean> {
+  const boss = await getQueueInstance();
+  
+  try {
+    console.log(`Deleting scheduled job: ${scheduleName}`);
+    
+    // Try to unschedule the job
+    await boss.unschedule(scheduleName);
+    return true;
+  } catch (error) {
+    console.error(`Error deleting scheduled job ${scheduleName}:`, error);
+    return false;
+  }
 }
 
 /**
@@ -161,18 +307,45 @@ async function setupCompletionWorkers(): Promise<void> {
     await boss.work(queueName, { batchSize: 20 }, async (jobs) => {
       if (!Array.isArray(jobs) || jobs.length === 0) return;
       
+      console.log(`Processing ${jobs.length} completed jobs from ${queueName}`);
+      
       for (const job of jobs) {
-        // Store the result with the original job ID
-        // In completed jobs, the data structure includes the original request
-        // in a request property with id that matches the original job ID
-        if (job.data && typeof job.data === 'object') {
-          // Access request property safely with type assertion
-          const originalJobId = (job.data as any).request?.id;
-          
-          if (originalJobId) {
-            console.log(`Job ${originalJobId} completed, storing result`);
-            jobResults.set(originalJobId, job.data);
+        try {
+          // Store the result with the original job ID
+          // In completed jobs, the data structure includes the original request
+          // in a request property with id that matches the original job ID
+          if (job.data && typeof job.data === 'object') {
+            // Access request property safely with type assertion
+            const jobData = job.data as Record<string, any>;
+            const originalJobId = jobData.request?.id;
+            
+            if (originalJobId) {
+              // Log detailed information
+              const success = !jobData.failed && !jobData.error;
+              console.log(`Job ${originalJobId} completed with ${success ? 'success' : 'failure'}, storing result`);
+              
+              // Store with meaningful fields
+              const result = {
+                result: jobData.data,
+                output: jobData.output || null,
+                completedAt: Date.now(),
+                success: success,
+                error: jobData.error || null
+              };
+              
+              jobResults.set(originalJobId, result);
+              
+              // Log success message with job type
+              const isTest = queueName.includes(TEST_EXECUTION_QUEUE);
+              console.log(`${isTest ? 'Test' : 'Job'} ${originalJobId} result stored successfully`);
+            } else {
+              console.warn(`Completed job without original ID in queue ${queueName}:`, job.id);
+            }
+          } else {
+            console.warn(`Invalid job data format in completed queue ${queueName}:`, job.id);
           }
+        } catch (err) {
+          console.error(`Error processing completed job ${job.id} from ${queueName}:`, err);
         }
       }
       
@@ -217,6 +390,8 @@ export async function setupTestExecutionWorker(
       async (jobs) => {
         if (!Array.isArray(jobs) || jobs.length === 0) return;
         
+        const results = [];
+        
         for (const job of jobs) {
           console.log(`Processing test job: ${job.id}`);
           
@@ -230,21 +405,75 @@ export async function setupTestExecutionWorker(
             const result = await handler(job.data);
             console.log(`Test job ${job.id} completed successfully`);
             
-            // Store the result in case waitForJobCompletion is called before completion job is processed
-            jobResults.set(job.id, { result });
+            // IMPORTANT: Store the result in the global map for retrieval
+            // Ensure the stored result has all required fields
+            const completeResult = result && typeof result === 'object' ? 
+              {
+                ...result,
+                // If test ID is missing, use job ID
+                testId: result.testId || job.id,
+                // Ensure stdout/stderr exist
+                stdout: result.stdout || '',
+                stderr: result.stderr || ''
+              } : result;
             
-            return result;
+            jobResults.set(job.id, { 
+              result: completeResult,
+              completedAt: Date.now(),
+              success: true
+            });
+            
+            // Add to results array
+            results.push(completeResult);
           } catch (error) {
             console.error(`Error processing test job ${job.id}:`, error);
             
-            // Store the error in case waitForJobCompletion is called before completion job is processed
-            jobResults.set(job.id, { error: error instanceof Error ? error.message : String(error) });
+            // Store the error in the global map
+            jobResults.set(job.id, { 
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: Date.now()
+            });
             
-            throw error; // Rethrow to let pg-boss handle retries
+            // Throw so pg-boss can handle retries if needed
+            throw error;
           }
         }
+        
+        // Return all results
+        return results.length === 1 ? results[0] : results;
       }
     );
+    
+    // Setup an additional worker to listen for job completions
+    await boss.work(`${COMPLETED_JOB_PREFIX}${TEST_EXECUTION_QUEUE}`, async (jobs) => {
+      if (!Array.isArray(jobs) || jobs.length === 0) return;
+      
+      for (const job of jobs) {
+        try {
+          if (job.data && typeof job.data === 'object') {
+            // Extract the original job ID from the completion data
+            const originalJobId = (job.data as any).request?.id;
+            
+            if (originalJobId) {
+              console.log(`Completion worker: Job ${originalJobId} completed`);
+              
+              // Only update if we don't already have a result
+              if (!jobResults.has(originalJobId)) {
+                console.log(`Storing completion result for ${originalJobId}`);
+                jobResults.set(originalJobId, {
+                  result: (job.data as any).data || job.data, 
+                  completedAt: Date.now()
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error in completed job worker:', error);
+        }
+      }
+      
+      return true;
+    });
     
     workerInitialized.test = true;
     console.log(`Test worker initialized for queue: ${TEST_EXECUTION_QUEUE}`);
@@ -356,24 +585,132 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
           clearTimeout(timeoutId);
           
           // If the result contains an error, reject
-          if (result.error) {
+          if (result && result.error) {
             reject(new Error(`Job ${jobId} failed: ${result.error}`));
             return;
           }
           
           console.log(`Job ${jobId} completed (result from in-memory store)`);
-          resolve(result.result || result as unknown as T);
+          if (result) {
+            resolve(result.result || result as unknown as T);
+          } else {
+            reject(new Error(`Job ${jobId} result is undefined`));
+          }
           return;
         }
         
-        // Next, check the job state
+        // Next, check the job state using different methods
         try {
-          // Use getJobById to get job details - need queue name and job ID
-          // First determine which queue this job belongs to based on the job ID format
-          // TEST_EXECUTION_QUEUE uses testId as job ID
-          // JOB_EXECUTION_QUEUE uses jobId as job ID
+          // Determine which queue this job belongs to based on the job ID format
           const queueName = jobId.startsWith('test-') ? TEST_EXECUTION_QUEUE : JOB_EXECUTION_QUEUE;
-          const job = await boss.getJobById(queueName, jobId);
+          
+          // Try first with getJobById - this returns a JobWithMetadata
+          let job = await boss.getJobById(queueName, jobId);
+          
+          // If not found directly, try to find using other methods
+          if (!job) {
+            try {
+              // For pg-boss v7+, use fetch with metadata to get job state
+              const fetchOptions = { includeMetadata: true };
+              const fetchedJobs = await boss.fetch(queueName, fetchOptions);
+              
+              if (Array.isArray(fetchedJobs) && fetchedJobs.length > 0) {
+                // This will be a JobWithMetadata because we used includeMetadata: true
+                const matchingJob = fetchedJobs.find(j => j.id === jobId);
+                
+                if (matchingJob) {
+                  job = matchingJob as JobWithMetadata<unknown>;
+                  console.log(`Found job ${jobId} in active queue`);
+                }
+              }
+            } catch (fetchErr) {
+              console.warn(`Error fetching active jobs for ${queueName}:`, fetchErr);
+            }
+            
+            // If still not found, check in completed queue
+            if (!job) {
+              try {
+                const completedQueueName = `${COMPLETED_JOB_PREFIX}${queueName}`;
+                
+                // Use fetch with includeMetadata to get complete job details
+                const fetchOptions = { includeMetadata: true };
+                const completedJobs = await boss.fetch(completedQueueName, fetchOptions);
+                
+                if (Array.isArray(completedJobs) && completedJobs.length > 0) {
+                  // Find the job in completed jobs that matches our job ID
+                  const completedJob = completedJobs.find(j => {
+                    // Safely check data property
+                    if (j.data && typeof j.data === 'object') {
+                      const data = j.data as Record<string, any>;
+                      // Check if request.id matches our job ID
+                      return data.request && data.request.id === jobId;
+                    }
+                    return false;
+                  });
+                  
+                  // If found in completed jobs, extract the result and resolve
+                  if (completedJob && completedJob.data) {
+                    clearInterval(checkInterval);
+                    clearTimeout(timeoutId);
+                    
+                    // For completed jobs, the output is in the data field - safely access properties
+                    const outputData = completedJob.data as Record<string, any>;
+                    
+                    // Safely check for error indicators
+                    const hasError = 
+                      'error' in outputData || 
+                      (outputData.state === 'failed') || 
+                      (outputData.request && outputData.request.status === 'failed');
+                    
+                    if (hasError) {
+                      const errorMsg = 'error' in outputData ? outputData.error : 'Job failed with unknown error';
+                      reject(new Error(`Job ${jobId} failed: ${errorMsg}`));
+                    } else {
+                      console.log(`Job ${jobId} completed (found in completed queue)`);
+                      // Extract the data or use the whole object
+                      const result = 'data' in outputData ? outputData.data : outputData;
+                      resolve(result as unknown as T);
+                    }
+                    return;
+                  }
+                }
+              } catch (completeErr) {
+                console.warn(`Error checking completed queue for ${jobId}:`, completeErr);
+              }
+              
+              // Try getting archived job directly with includeArchive option
+              try {
+                const archivedJob = await boss.getJobById(queueName, jobId, { includeArchive: true });
+                if (archivedJob) {
+                  job = archivedJob;
+                  console.log(`Found job ${jobId} in archived jobs`);
+                }
+              } catch (archiveErr) {
+                console.warn(`Error checking archive for ${jobId}:`, archiveErr);
+                
+                // As a last resort, check for test results directly from the status map
+                if (queueName === TEST_EXECUTION_QUEUE && testStatusMapRef) {
+                  // For test jobs, we can check if the test completed in the status map
+                  const status = testStatusMapRef.get(jobId);
+                  if (status && status.status === 'completed') {
+                    console.log(`Job ${jobId} found in test status map as completed`);
+                    const testResult = {
+                      success: !!status.success,
+                      error: status.error || null,
+                      reportUrl: status.reportUrl || null,
+                      testId: jobId,
+                      stdout: "",
+                      stderr: status.error || ""
+                    };
+                    resolve(testResult as unknown as T);
+                    clearInterval(checkInterval);
+                    clearTimeout(timeoutId);
+                    return;
+                  }
+                }
+              }
+            }
+          }
           
           if (job) {
             // Check the state of the job
@@ -381,7 +718,7 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
               clearInterval(checkInterval);
               clearTimeout(timeoutId);
               
-              console.log(`Job ${jobId} completed`);
+              console.log(`Job ${jobId} completed (found via job state)`);
               // The result is in the data or output property
               resolve((job.output || job.data) as unknown as T);
               return;
@@ -389,14 +726,14 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
               clearInterval(checkInterval);
               clearTimeout(timeoutId);
               
-              console.error(`Job ${jobId} failed`);
+              console.error(`Job ${jobId} failed (found via job state)`);
               reject(new Error(`Job ${jobId} failed: ${JSON.stringify(job.output || 'Unknown error')}`));
               return;
             }
             // If job is still in 'created' or 'active' state, continue polling
             console.log(`Job ${jobId} is in state: ${job.state}, continuing to wait...`);
           } else {
-            console.log(`Job ${jobId} not found, might be completed or archived. Still waiting...`);
+            console.log(`Job ${jobId} not found in any queue, continuing to wait...`);
           }
         } catch (error) {
           console.warn(`Error checking job state for ${jobId}:`, error);
@@ -445,7 +782,9 @@ export async function getQueueStats(): Promise<any> {
       status: 'running',
       testQueueStats: await bossInstance.getQueueSize(TEST_EXECUTION_QUEUE),
       jobQueueStats: await bossInstance.getQueueSize(JOB_EXECUTION_QUEUE),
-      workerStatus: workerInitialized
+      workerStatus: workerInitialized,
+      // Add scheduled jobs count
+      scheduledJobs: (await getScheduledJobs()).length
     };
     
     return stats;
@@ -456,4 +795,4 @@ export async function getQueueStats(): Promise<any> {
       error: error instanceof Error ? error.message : String(error)
     };
   }
-} 
+}

@@ -58,6 +58,7 @@ const Playground: React.FC<PlaygroundProps> = ({
   const [activeTab, setActiveTab] = useState<string>("editor");
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isReportLoading, setIsReportLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -340,14 +341,15 @@ const Playground: React.FC<PlaygroundProps> = ({
 
   const runPlaywrightTest = async () => {
     setIsRunning(true);
+    setIsReportLoading(true);
     setActiveTab("report");
-    // Reset any existing error states
+    setReportUrl(null);
     setIframeError(false);
     setReportError(null);
 
     // Use a unique ID for the loading toast so we can specifically dismiss it
-    const loadingToastId = toast.loading("Test Running", {
-      description: "This may take a few moments...",
+    const loadingToastId = toast.loading("Running test...", {
+      description: "Executing test script...",
     });
 
     try {
@@ -371,78 +373,167 @@ const Playground: React.FC<PlaygroundProps> = ({
 
       const result = await response.json();
 
-      // Dismiss the specific loading toast
-      toast.dismiss(loadingToastId);
-
       // Set report URL and test IDs regardless of success or failure
       if (result.reportUrl && result.testId) {
-        // Use the API URL directly
-        setReportUrl(result.reportUrl);
-
         // Use the testId returned from the API
         const apiTestId = result.testId;
 
         // Add to the list of running tests
         setTestIds((prev: string[]) => [...prev, apiTestId]);
 
-        // Mark this test as completed
-        setCompletedTestIds((prev: string[]) => [...prev, apiTestId]);
-      }
+        // Setup SSE for real-time status updates
+        let eventSourceClosed = false;
+        const eventSource = new EventSource(`/api/test-status/sse/${apiTestId}`);
+        
+        eventSource.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          
+          if (data.status === "completed") {
+            // Test is completed
+            if (!eventSourceClosed) {
+              eventSource.close();
+              eventSourceClosed = true;
+            }
+            
+            // Dismiss the loading toast
+            toast.dismiss(loadingToastId);
+            
+            // Mark this test as completed
+            setCompletedTestIds((prev: string[]) => [...prev, apiTestId]);
+            
+            // Show appropriate toast based on success/failure
+            if (data.success) {
+              toast.success("Test completed successfully", {
+                duration: 5000,
+              });
+            } else {
+              toast.error("Test failed", {
+                description: "The test execution encountered an error",
+                duration: 5000,
+              });
+            }
+            
+            // Set the report URL immediately without any delay
+            const refreshedUrl = `${result.reportUrl}?t=${Date.now()}`;
+            setReportUrl(refreshedUrl);
+            
+            // Start a check to verify the report exists
+            checkIfReportExists(refreshedUrl, apiTestId);
+          }
+        };
+        
+        eventSource.onerror = () => {
+          // If there's an error with the SSE connection
+          if (!eventSourceClosed) {
+            eventSource.close();
+            eventSourceClosed = true;
+            
+            console.error("Error with SSE connection - checking status directly");
+            
+            // Check the status directly via API
+            fetch(`/api/test-status/${apiTestId}`)
+              .then(response => response.json())
+              .then(data => {
+                if (data.status === "completed") {
+                  // Test completed but we missed the SSE event
+                  toast.dismiss(loadingToastId);
+                  
+                  // Set report URL immediately
+                  const refreshedUrl = `${data.reportUrl || result.reportUrl}?t=${Date.now()}`;
+                  setReportUrl(refreshedUrl);
+                  
+                  // Check if report exists
+                  checkIfReportExists(refreshedUrl, apiTestId);
+                } else {
+                  // Test is still running, wait a bit then set the URL
+                  setTimeout(() => {
+                    const refreshedUrl = `${result.reportUrl}?t=${Date.now()}`;
+                    setReportUrl(refreshedUrl);
+                    toast.dismiss(loadingToastId);
+                  }, 500);
+                }
+              })
+              .catch(() => {
+                // If status check fails, just set the report URL
+                const refreshedUrl = `${result.reportUrl}?t=${Date.now()}`;
+                setReportUrl(refreshedUrl);
+                toast.dismiss(loadingToastId);
+              });
+          }
+        };
+        
+        // Helper function to check if report exists
+        const checkIfReportExists = (url: string, tId: string) => {
+          // Try a HEAD request to see if the report exists
+          fetch(url, { method: 'HEAD' })
+            .then(response => {
+              if (!response.ok) {
+                console.log("Report not found yet, checking status...");
+                // Check status one more time
+                return fetch(`/api/test-status/${tId}`)
+                  .then(statusResponse => statusResponse.json());
+              }
+              return null;
+            })
+            .then(statusData => {
+              if (statusData && statusData.error) {
+                // Show the error in the report area
+                setIframeError(true);
+                setReportError(statusData.error);
+                setIsReportLoading(false);
+                setIsRunning(false);
+              }
+            })
+            .catch(() => {
+              // Ignore fetch errors - the iframe will handle them
+            });
+        };
+        
+        // Add a safety timeout to clear loading states after 10 seconds
+        setTimeout(() => {
+          setIsReportLoading(false);
+          setIsRunning(false);
+        }, 10000);
+        
+        // Cleanup function to close SSE connection
+        return () => {
+          if (!eventSourceClosed) {
+            eventSource.close();
+            eventSourceClosed = true;
+          }
+        };
+      } else {
+        // If we didn't get a report URL or test ID, something went wrong
+        toast.dismiss(loadingToastId);
+        setIsReportLoading(false);
+        setIsRunning(false);
+        
+        // Check for errors first
+        if (result.error) {
+          console.error("Test execution error:", result.error);
 
-      // Check for errors first
-      if (result.error) {
-        console.error("Test execution error:", result.error);
-
-        // Show user-friendly error message based on error type
-        if (
-          result.error.includes("ConnectionError") ||
-          result.error.includes("getaddrinfo ENOTFOUND")
-        ) {
-          toast.error("Database Connection Error", {
-            description:
-              "Failed to connect to the database. Please check your database configuration and try again.",
-            duration: 5000,
-          });
-        } else if (result.error.includes("exit code 1")) {
+          // Always show a user-friendly message regardless of the actual error
           toast.error("Test Execution Failed", {
-            description:
-              "The test encountered an error during execution. Please check your test script and try again.",
+            description: "The test encountered an error during execution. Please check your test script and try again.",
             duration: 5000,
           });
         } else {
-          toast.error("Test Error", {
-            description:
-              "An unexpected error occurred while running the test. Please try again.",
+          toast.error("Test Execution Issue", {
+            description: "Could not retrieve test report URL.",
             duration: 5000,
           });
         }
       }
-      // Check if test was not successful
-      else if (!result.success) {
-        console.error("Test execution failed:", result.error);
-        toast.error("Test Execution Failed", {
-          description:
-            "The test could not be completed successfully. Please check your test configuration and try again.",
-          duration: 5000,
-        });
-      }
-      // Only show success message if all tests passed with no errors
-      else {
-        toast.success("Test Completed", {
-          description: "Test execution was successful.",
-          duration: 5000,
-        });
-      }
     } catch (error) {
       // Dismiss the loading toast
       toast.dismiss(loadingToastId);
+      setIsReportLoading(false);
+      setIsRunning(false);
       console.error("Error running test:", error);
       toast.error("Test Execution Error", {
         description:
           "Unable to run the test at this time. Please try again later.",
       });
-    } finally {
-      setIsRunning(false);
     }
   };
 
@@ -593,7 +684,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                       value="report"
                       className="h-screen border-0 p-0 mt-0"
                     >
-                      {isRunning ? (
+                      {isRunning || isReportLoading ? (
                         <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
                           <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
                             <Loader2Icon className="h-8 w-8 animate-spin" />
@@ -609,7 +700,20 @@ const Playground: React.FC<PlaygroundProps> = ({
                               <p className="text-[#a0a0a0] mb-6">
                                 {reportError || "Test results not found for this run ID."}
                               </p>
-                              
+                              <Button
+                                onClick={() => {
+                                  // Reset error state and try again
+                                  setIframeError(false);
+                                  setReportError(null);
+                                  
+                                  // Add a timestamp to force reload
+                                  const refreshedUrl = `${reportUrl}${reportUrl.includes('?') ? '&' : '?'}retry=true&t=${Date.now()}`;
+                                  setReportUrl(refreshedUrl);
+                                }}
+                                
+                              >
+                                Retry Loading Report
+                              </Button>
                             </div>
                           </div>
                         ) : (
@@ -634,179 +738,112 @@ const Playground: React.FC<PlaygroundProps> = ({
                               allow="cross-origin-isolated"
                               onLoad={(e) => {
                                 const iframe = e.target as HTMLIFrameElement;
+                                
                                 try {
-                                  if (iframe.contentWindow?.document.body.textContent) {
-                                    const bodyText = iframe.contentWindow.document.body.textContent;
-                                    if (bodyText.includes('"error"') && bodyText.includes('"message"')) {
-                                      try {
-                                        const errorData = JSON.parse(bodyText);
-                                        if (errorData.message) {
-                                          setReportError(errorData.message);
-                                          setIframeError(true);
-                                          return;
-                                        }
-                                      } catch (e) {
-                                        // Not valid JSON, continue with normal display
-                                        console.error("Error parsing error data:", e);
+                                  // Check if we can access the iframe content
+                                  const doc = iframe.contentWindow?.document;
+                                  if (!doc || !doc.body) {
+                                    throw new Error("Cannot access iframe content");
+                                  }
+                                  
+                                  const bodyText = doc.body.textContent || '';
+                                  
+                                  // Check if the content is empty or an error message
+                                  if (bodyText.length < 50 || bodyText.trim() === '') {
+                                    throw new Error("Empty or invalid report content");
+                                  }
+                                  
+                                  // Check if content is JSON error
+                                  if (bodyText.includes('"error"') && bodyText.includes('"message"')) {
+                                    try {
+                                      const errorData = JSON.parse(bodyText);
+                                      if (errorData.error || errorData.message) {
+                                        setIframeError(true);
+                                        setReportError(errorData.message || errorData.error || "Error loading report");
+                                        setIsReportLoading(false);
+                                        setIsRunning(false);
+                                        return;
                                       }
+                                    } catch {
+                                      // Not JSON, continue with display
                                     }
                                   }
-                                  // Only show iframe if no error detected
+                                  
+                                  // Content looks valid, show it
                                   iframe.classList.remove('opacity-0');
                                   const loadingOverlay = iframe.parentElement?.querySelector('div.absolute');
                                   if (loadingOverlay) {
                                     loadingOverlay.classList.add('hidden');
                                   }
-
-                                  // Add trace detection
-                                  if (iframe.contentWindow) {
-                                    const setupTraceDetection = () => {
-                                      try {
-                                        // Listen for clicks on trace links
-                                        iframe.contentWindow?.document.body.addEventListener('click', (event) => {
-                                          const target = event.target as HTMLElement;
-                                          const traceLink = target.closest('a[href*="trace"]') || 
-                                                          target.closest('button[data-testid*="trace"]') ||
-                                                          (target.textContent?.toLowerCase().includes('trace') ? target : null);
-                                          
-                                          if (traceLink) {
-                                            setIsTraceLoading(true);
-                                            
-                                            // Function to check if trace is loaded and hide spinner
-                                            const checkTraceLoaded = () => {
-                                              try {
-                                                // Check for trace elements in the iframe
-                                                const traceElements = [
-                                                  '.pw-no-select', 
-                                                  '[data-testid="trace-page"]',
-                                                  '[data-testid="action-list"]',
-                                                  '[data-testid="trace-viewer"]',
-                                                  'iframe[src*="trace"]',
-                                                  '.react-calendar-timeline',
-                                                  '.timeline-overlay' // Playwright specific trace element
-                                                ];
-                                                
-                                                // Check document title for trace
-                                                const title = iframe.contentWindow?.document.title || '';
-                                                if (title.toLowerCase().includes('trace')) {
-                                                  setIsTraceLoading(false);
-                                                  return true;
-                                                }
-                                                
-                                                // Check URL for trace
-                                                const url = iframe.contentWindow?.location.href || '';
-                                                if (url.includes('trace')) {
-                                                  setIsTraceLoading(false);
-                                                  return true;
-                                                }
-                                                
-                                                // Check for any of the trace elements
-                                                for (const selector of traceElements) {
-                                                  const element = iframe.contentWindow?.document.querySelector(selector);
-                                                  if (element) {
-                                                    setIsTraceLoading(false);
-                                                    return true;
-                                                  }
-                                                }
-                                              } catch (_err) {
-                                                console.error("Error checking for trace:", _err);
-                                                setIsTraceLoading(false);
-                                                return true; // Hide spinner on error
-                                              }
-                                              
-                                              return false;
-                                            };
-                                            
-                                            // Check immediately
-                                            if (checkTraceLoaded()) {
-                                              return; // Already loaded
-                                            }
-                                            
-                                            // Set up regular checks
-                                            let checkCount = 0;
-                                            const intervalCheck = setInterval(() => {
-                                              checkCount++;
-                                              if (checkTraceLoaded() || checkCount > 20) { // Check up to 20 times (4 seconds)
-                                                clearInterval(intervalCheck);
-                                              }
-                                            }, 200); // Check every 200ms
-                                          }
-                                        }, true);
-                                        
-                                        // Also detect navigation using hashchange
-                                        iframe.contentWindow?.addEventListener('hashchange', () => {
-                                          if (iframe.contentWindow?.location.hash.includes('trace')) {
-                                            setIsTraceLoading(true);
-                                            
-                                            // Use same check function as click events
-                                            const checkTraceLoaded = () => {
-                                              try {
-                                                // Check if any trace element exists
-                                                const traceElement = iframe.contentWindow?.document.querySelector('.pw-no-select') ||
-                                                                    iframe.contentWindow?.document.querySelector('[data-testid="trace-page"]') ||
-                                                                    iframe.contentWindow?.document.querySelector('.react-calendar-timeline');
-                                                if (traceElement) {
-                                                  setIsTraceLoading(false);
-                                                  return true;
-                                                }
-                                              } catch (err) {
-                                                setIsTraceLoading(false);
-                                                console.error("Error checking for trace:", err);
-                                              }
-                                              return false;
-                                            };
-                                            
-                                            // Check immediately and then periodically
-                                            if (!checkTraceLoaded()) {
-                                              const hashCheckInterval = setInterval(() => {
-                                                if (checkTraceLoaded()) {
-                                                  clearInterval(hashCheckInterval);
-                                                }
-                                              }, 200);
-                                              
-                                              // Safety timeout
-                                              setTimeout(() => {
-                                                clearInterval(hashCheckInterval);
-                                                setIsTraceLoading(false);
-                                              }, 3000);
-                                            }
-                                          }
-                                        });
-                                      } catch (_err) {
-                                        console.error("Error setting up trace detection:", _err);
-                                      }
-                                    };
-                                    
-                                    // Setup detection after a small delay to ensure the report is fully loaded
-                                    setTimeout(setupTraceDetection, 1000);
+                                  
+                                  // Clear both loading states when iframe loads
+                                  setIsReportLoading(false);
+                                  setIsRunning(false);
+                                  
+                                } catch (err) {
+                                  console.error("Error processing iframe:", err);
+                                  
+                                  // Try to load one more time with a different URL
+                                  const testId = reportUrl.split('/').find(part => part.includes('-'));
+                                  if (testId) {
+                                    // Make one more attempt with a different timestamp
+                                    const retryUrl = `${reportUrl.split('?')[0]}?nocache=${Date.now()}`;
+                                    iframe.src = retryUrl;
+                                  } else {
+                                    // Give up and show error
+                                    setIframeError(true);
+                                    setReportError("Error loading report content");
+                                    setIsReportLoading(false);
+                                    setIsRunning(false);
                                   }
-                                } catch (_err) {
-                                  console.error("Error processing iframe content:", _err);
-                                  setIframeError(true);
-                                  setReportError("Unable to load test report content.");
                                 }
                               }}
                               onError={(e) => {
                                 console.error("Error loading iframe:", e);
-                                setIframeError(true);
-                                setReportError("Test results not found for this run ID.");
                                 
-                                if (reportUrl) {
-                                  fetch(reportUrl)
-                                    .then(response => {
-                                      if (!response.ok) {
-                                        return response.json().catch(() => null);
-                                      }
-                                      return null;
-                                    })
+                                // Check if report exists via API
+                                const testId = reportUrl.split('/').find(part => part.includes('-'));
+                                if (testId) {
+                                  fetch(`/api/test-status/${testId}`)
+                                    .then(response => response.json())
                                     .then(data => {
-                                      if (data && data.message) {
-                                        setReportError(data.message);
+                                      if (data.status === "completed") {
+                                        // Report should exist, try one more time with a direct URL
+                                        const retryUrl = `${reportUrl.split('?')[0]}?directload=1&t=${Date.now()}`;
+                                        const iframe = document.querySelector('.report-iframe-wrapper iframe') as HTMLIFrameElement;
+                                        if (iframe) {
+                                          console.log("Final retry with direct URL:", retryUrl);
+                                          iframe.src = retryUrl;
+                                          
+                                          // Set a timeout to show error if this doesn't work
+                                          setTimeout(() => {
+                                            setIframeError(true);
+                                            setReportError("Could not load report after multiple attempts");
+                                            setIsReportLoading(false);
+                                            setIsRunning(false);
+                                          }, 3000);
+                                        }
+                                      } else {
+                                        // Test is not complete or report doesn't exist
+                                        setIframeError(true);
+                                        setReportError(data.error || "Report not available yet");
+                                        setIsReportLoading(false);
+                                        setIsRunning(false);
                                       }
                                     })
-                                    .catch(_err => {
-                                      console.error("Error fetching report details:", _err);
+                                    .catch(() => {
+                                      // Status check failed
+                                      setIframeError(true);
+                                      setReportError("Could not verify report status");
+                                      setIsReportLoading(false);
+                                      setIsRunning(false);
                                     });
+                                } else {
+                                  // Invalid URL
+                                  setIframeError(true);
+                                  setReportError("Invalid report URL");
+                                  setIsReportLoading(false);
+                                  setIsRunning(false);
                                 }
                               }}
                             />
