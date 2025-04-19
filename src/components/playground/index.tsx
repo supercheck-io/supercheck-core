@@ -416,12 +416,14 @@ const Playground: React.FC<PlaygroundProps> = ({
               });
             }
             
-            // Set the report URL immediately without any delay
+            // Set the report URL immediately without any delay and clear loading states
             const refreshedUrl = `${result.reportUrl}?t=${Date.now()}`;
             setReportUrl(refreshedUrl);
+            setIsReportLoading(false);
+            setIsRunning(false);
             
-            // Start a check to verify the report exists
-            checkIfReportExists(refreshedUrl, apiTestId);
+            // Don't check if report exists, assume it's ready
+            // This matches the behavior of job execution
           }
         };
         
@@ -467,29 +469,9 @@ const Playground: React.FC<PlaygroundProps> = ({
         
         // Helper function to check if report exists
         const checkIfReportExists = (url: string, tId: string) => {
-          // Try a HEAD request to see if the report exists
-          fetch(url, { method: 'HEAD' })
-            .then(response => {
-              if (!response.ok) {
-                console.log("Report not found yet, checking status...");
-                // Check status one more time
-                return fetch(`/api/test-status/${tId}`)
-                  .then(statusResponse => statusResponse.json());
-              }
-              return null;
-            })
-            .then(statusData => {
-              if (statusData && statusData.error) {
-                // Show the error in the report area
-                setIframeError(true);
-                setReportError(statusData.error);
-                setIsReportLoading(false);
-                setIsRunning(false);
-              }
-            })
-            .catch(() => {
-              // Ignore fetch errors - the iframe will handle them
-            });
+          // Don't verify report existence, assume it's available
+          setIsReportLoading(false);
+          setIsRunning(false);
         };
         
         // Add a safety timeout to clear loading states after 10 seconds
@@ -753,28 +735,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                                   
                                   const bodyText = doc.body.textContent || '';
                                   
-                                  // Check if the content is empty or an error message
-                                  if (bodyText.length < 50 || bodyText.trim() === '') {
-                                    throw new Error("Empty or invalid report content");
-                                  }
-                                  
-                                  // Check if content is JSON error
-                                  if (bodyText.includes('"error"') && bodyText.includes('"message"')) {
-                                    try {
-                                      const errorData = JSON.parse(bodyText);
-                                      if (errorData.error || errorData.message) {
-                                        setIframeError(true);
-                                        setReportError(errorData.message || errorData.error || "Error loading report");
-                                        setIsReportLoading(false);
-                                        setIsRunning(false);
-                                        return;
-                                      }
-                                    } catch {
-                                      // Not JSON, continue with display
-                                    }
-                                  }
-                                  
-                                  // Content looks valid, show it
+                                  // Show the iframe immediately
                                   iframe.classList.remove('opacity-0');
                                   
                                   // Setup detection for trace viewer loading events
@@ -790,178 +751,43 @@ const Playground: React.FC<PlaygroundProps> = ({
                                         if (traceLink) {
                                           setIsTraceLoading(true);
                                           
-                                          // Function to check if trace is loaded and hide spinner
-                                          const checkTraceLoaded = () => {
-                                            try {
-                                              // Check for trace elements in the iframe
-                                              const traceElements = [
-                                                '.pw-no-select', 
-                                                '[data-testid="trace-page"]',
-                                                '[data-testid="action-list"]',
-                                                '[data-testid="trace-viewer"]',
-                                                'iframe[src*="trace"]',
-                                                '.react-calendar-timeline',
-                                                '.timeline-overlay' // Playwright specific trace element
-                                              ];
-                                              
-                                              // Check document title for trace
-                                              const title = iframe.contentWindow?.document.title || '';
-                                              if (title.toLowerCase().includes('trace')) {
-                                                setIsTraceLoading(false);
-                                                return true;
-                                              }
-                                              
-                                              // Check URL for trace
-                                              const url = iframe.contentWindow?.location.href || '';
-                                              if (url.includes('trace')) {
-                                                setIsTraceLoading(false);
-                                                return true;
-                                              }
-                                              
-                                              // Check for any of the trace elements
-                                              for (const selector of traceElements) {
-                                                const element = iframe.contentWindow?.document.querySelector(selector);
-                                                if (element) {
-                                                  setIsTraceLoading(false);
-                                                  return true;
-                                                }
-                                              }
-                                            } catch (err) {
-                                              console.error("Error checking for trace:", err);
-                                              setIsTraceLoading(false);
-                                              return true; // Hide spinner on error
-                                            }
-                                            
-                                            return false;
-                                          };
-                                          
-                                          // Check immediately
-                                          if (checkTraceLoaded()) {
-                                            return; // Already loaded
-                                          }
-                                          
-                                          // Set a safety timeout to prevent indefinite spinning
-                                          const safetyTimeout = setTimeout(() => {
-                                            console.log("Safety timeout triggered - hiding trace spinner");
-                                            setIsTraceLoading(false);
-                                          }, 3000); // 3 second safety timeout
-                                          
-                                          // Set up regular checks
-                                          let checkCount = 0;
-                                          const intervalCheck = setInterval(() => {
-                                            checkCount++;
-                                            if (checkTraceLoaded() || checkCount > 20) { // Check up to 20 times (4 seconds)
-                                              clearInterval(intervalCheck);
-                                              clearTimeout(safetyTimeout);
-                                            }
-                                          }, 200); // Check every 200ms
-                                        }
-                                      }, true);
-                                      
-                                      // Also detect navigation using hashchange
-                                      iframe.contentWindow?.addEventListener('hashchange', () => {
-                                        if (iframe.contentWindow?.location.hash.includes('trace')) {
-                                          setIsTraceLoading(true);
-                                          
-                                          // Safety timeout for hashchange
+                                          // Safety timeout for trace loading
                                           setTimeout(() => {
                                             setIsTraceLoading(false);
                                           }, 2000);
                                         }
-                                      });
+                                      }, true);
                                     } catch (err) {
                                       console.error("Error setting up trace detection:", err);
                                     }
                                   };
                                   
-                                  // Setup detection after a small delay to ensure the report is fully loaded
-                                  setTimeout(setupTraceDetection, 1000);
+                                  // Setup trace detection after report is loaded
+                                  setTimeout(setupTraceDetection, 500);
                                   
-                                  // Also listen for message events from iframe for backward compatibility
-                                  try {
-                                    iframe.contentWindow?.addEventListener('message', (event) => {
-                                      if (event.data && typeof event.data === 'object') {
-                                        // Check for trace viewer loading/loaded events
-                                        if (event.data.type === 'traceViewerLoading') {
-                                          setIsTraceLoading(true);
-                                        } else if (event.data.type === 'traceViewerLoaded') {
-                                          setIsTraceLoading(false);
-                                        }
-                                      }
-                                    });
-                                  } catch (err) {
-                                    console.error("Could not add iframe message listener:", err);
-                                  }
-                                  
-                                  // Clear both loading states when iframe loads
+                                  // Clear loading states when iframe loads
                                   setIsReportLoading(false);
                                   setIsRunning(false);
                                   
                                 } catch (err) {
                                   console.error("Error processing iframe:", err);
                                   
-                                  // Try to load one more time with a different URL
-                                  const testId = reportUrl.split('/').find(part => part.includes('-'));
-                                  if (testId) {
-                                    // Make one more attempt with a different timestamp
-                                    const retryUrl = `${reportUrl.split('?')[0]}?nocache=${Date.now()}`;
-                                    iframe.src = retryUrl;
-                                  } else {
-                                    // Give up and show error
-                                    setIframeError(true);
-                                    setReportError("Error loading report content");
-                                    setIsReportLoading(false);
-                                    setIsRunning(false);
-                                  }
+                                  // Show iframe anyway to match job execution behavior
+                                  iframe.classList.remove('opacity-0');
+                                  setIsReportLoading(false);
+                                  setIsRunning(false);
                                 }
                               }}
                               onError={(e) => {
                                 console.error("Error loading iframe:", e);
                                 
-                                // Check if report exists via API
-                                const testId = reportUrl.split('/').find(part => part.includes('-'));
-                                if (testId) {
-                                  fetch(`/api/test-status/${testId}`)
-                                    .then(response => response.json())
-                                    .then(data => {
-                                      if (data.status === "completed") {
-                                        // Report should exist, try one more time with a direct URL
-                                        const retryUrl = `${reportUrl.split('?')[0]}?directload=1&t=${Date.now()}`;
-                                        const iframe = document.querySelector('.report-iframe-wrapper iframe') as HTMLIFrameElement;
-                                        if (iframe) {
-                                          console.log("Final retry with direct URL:", retryUrl);
-                                          iframe.src = retryUrl;
-                                          
-                                          // Set a timeout to show error if this doesn't work
-                                          setTimeout(() => {
-                                            setIframeError(true);
-                                            setReportError("Could not load report after multiple attempts");
-                                            setIsReportLoading(false);
-                                            setIsRunning(false);
-                                          }, 3000);
-                                        }
-                                      } else {
-                                        // Test is not complete or report doesn't exist
-                                        setIframeError(true);
-                                        setReportError(data.error || "Report not available yet");
-                                        setIsReportLoading(false);
-                                        setIsRunning(false);
-                                      }
-                                    })
-                                    .catch(() => {
-                                      // Status check failed
-                                      setIframeError(true);
-                                      setReportError("Could not verify report status");
-                                      setIsReportLoading(false);
-                                      setIsRunning(false);
-                                    });
-                                } else {
-                                  // Invalid URL
-                                  setIframeError(true);
-                                  setReportError("Invalid report URL");
-                                  setIsReportLoading(false);
-                                  setIsRunning(false);
-                                }
+                                // Simply remove loading states and show any content - to match job execution behavior
+                                setIsReportLoading(false);
+                                setIsRunning(false);
+                                
+                                // Try to show iframe content anyway
+                                const iframe = e.target as HTMLIFrameElement;
+                                iframe.classList.remove('opacity-0');
                               }}
                             />
                           </div>
