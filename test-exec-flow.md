@@ -1,5 +1,7 @@
 # Test Execution Flow
 
+**Note:** This document describes the test execution flows initiated via the web user interface (Playground and Jobs), which involve API calls, job queuing (pg-boss), and potentially S3 storage. There is also a separate [Command Line Interface (CLI)](../README.md#command-line-interface-cli) for direct test execution which bypasses the web server and queue system.
+
 ## Flow Diagram
 
 ```mermaid

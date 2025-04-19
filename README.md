@@ -213,6 +213,40 @@ If experiencing issues with storage:
 3. Verify environment variables in your `.env.local` file
 4. Test direct MinIO connection with: `mc ls myminio` (after setting up MinIO Client)
 
+## Command Line Interface (CLI)
+
+In addition to the web interface, you can run tests directly from the command line using the provided CLI script.
+
+### Usage
+
+Build the project first if you haven't already:
+
+```bash
+npm run build
+```
+
+Then run the CLI using Node:
+
+```bash
+node dist/cli.js [options] <test-files...>
+```
+
+Alternatively, you can use `npm start` or `npm run dev` (which uses `ts-node` for direct TypeScript execution):
+
+```bash
+npm start -- [options] <test-files...>
+# or during development:
+npm run dev -- [options] <test-files...>
+```
+
+Refer to the CLI's help output for available options:
+
+```bash
+node dist/cli.js --help
+```
+
+The CLI utilizes the same underlying test execution logic (`TestExecutor`) but bypasses the web server and job queuing system described for the UI flows.
+
 ## Docker Usage
 
 ### Build the Docker Image

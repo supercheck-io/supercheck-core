@@ -352,7 +352,7 @@ const Playground: React.FC<PlaygroundProps> = ({
 
     // Use a unique ID for the loading toast so we can specifically dismiss it
     const loadingToastId = toast.loading("Running test...", {
-      description: "Executing test script...",
+      description: "This may take a few moments to complete.",
     });
 
     try {
@@ -419,11 +419,34 @@ const Playground: React.FC<PlaygroundProps> = ({
             // Set the report URL immediately without any delay and clear loading states
             const refreshedUrl = `${result.reportUrl}?t=${Date.now()}`;
             setReportUrl(refreshedUrl);
-            setIsReportLoading(false);
-            setIsRunning(false);
             
-            // Don't check if report exists, assume it's ready
-            // This matches the behavior of job execution
+            // Verify the report exists before clearing loading states
+            fetch(refreshedUrl)
+              .then(response => {
+                if (!response.ok) {
+                  return response.json().then(errorData => {
+                    // Handle the error response
+                    setReportError(errorData.message || "Test results not found");
+                    setIframeError(true);
+                  }).catch(() => {
+                    // If we can't parse JSON, still show an error
+                    setReportError("Test results not found");
+                    setIframeError(true);
+                  });
+                }
+                // If response is OK, don't show error
+                return null;
+              })
+              .catch(() => {
+                // Network error or other issue
+                setReportError("Failed to load test results");
+                setIframeError(true);
+              })
+              .finally(() => {
+                // Clear loading states
+                setIsReportLoading(false);
+                setIsRunning(false);
+              });
           }
         };
         
@@ -658,7 +681,6 @@ const Playground: React.FC<PlaygroundProps> = ({
                             value={editorContent}
                             onChange={(value) => {
                               setEditorContent(value || "");
-                              // Clear error when code changes
                             }}
                             ref={editorRef}
                           />
@@ -684,26 +706,28 @@ const Playground: React.FC<PlaygroundProps> = ({
                       ) : reportUrl ? (
                         iframeError ? (
                           <div className="flex h-[calc(100vh-10rem)] flex-col items-center justify-center bg-[#1e1e1e]">
-                            <div className="flex flex-col items-center text-center max-w-md">
+                            <div className="flex flex-col items-center text-center max-w-md -mt-20">
                               <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
-                              <h1 className="text-3xl font-bold mb-2 text-[#d4d4d4]">Report Not Found</h1>
-                              <p className="text-[#a0a0a0] mb-6">
-                                {reportError || "Test results not found for this run ID."}
+                              <h1 className="text-3xl font-bold mb-2 text-[#d4d4d4]">Test Results Not Found</h1>
+                              <p className="text-muted-foreground mb-6">
+                                {reportError || "The test results you're looking for don't exist or have been removed."}
                               </p>
-                              <Button
-                                onClick={() => {
-                                  // Reset error state and try again
-                                  setIframeError(false);
-                                  setReportError(null);
-                                  
-                                  // Add a timestamp to force reload
-                                  const refreshedUrl = `${reportUrl}${reportUrl.includes('?') ? '&' : '?'}retry=true&t=${Date.now()}`;
-                                  setReportUrl(refreshedUrl);
-                                }}
-                                
-                              >
-                                Retry Loading Report
-                              </Button>
+                              <div className="flex gap-4">
+                                <Button
+                                  onClick={() => {
+                                    // Reset error state and try again
+                                    setIframeError(false);
+                                    setReportError(null);
+                                    
+                                    // Add a timestamp to force reload
+                                    const refreshedUrl = `${reportUrl}${reportUrl.includes('?') ? '&' : '?'}retry=true&t=${Date.now()}`;
+                                    setReportUrl(refreshedUrl);
+                                  }}
+                                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                                >
+                                  Reload Report
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         ) : (
@@ -723,25 +747,41 @@ const Playground: React.FC<PlaygroundProps> = ({
                               style={{ backgroundColor: "#1e1e1e" }}
                               sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
                               allow="cross-origin-isolated"
-                              onLoad={(e) => {
+                              onLoad={async (e) => {
                                 const iframe = e.target as HTMLIFrameElement;
-                                
                                 try {
-                                  // Check if we can access the iframe content
+                                  // **New:** Fetch the source first to check content type
+                                  const response = await fetch(iframe.src);
+
+                                  if (!response.ok || response.headers.get("Content-Type")?.includes("application/json")) {
+                                    // Treat non-OK or JSON response as an error
+                                    console.log("iframe loaded non-HTML content, treating as error.", response.status, response.headers.get("Content-Type"));
+                                    setIframeError(true);
+                                    try {
+                                      const errorData = await response.json();
+                                      setReportError(errorData.message || `Failed to load report (${response.status})`);
+                                    } catch {
+                                      setReportError(`Failed to load report (${response.status})`);
+                                    }
+                                    setIsReportLoading(false);
+                                    setIsRunning(false);
+                                    return; // Stop further processing
+                                  }
+
+                                  // If we got here, it's likely HTML - proceed with original logic
                                   const doc = iframe.contentWindow?.document;
                                   if (!doc || !doc.body) {
-                                    throw new Error("Cannot access iframe content");
+                                    // This case might still happen for unexpected errors
+                                    throw new Error("Cannot access iframe content document.");
                                   }
-                                  
-                                  const bodyText = doc.body.textContent || '';
                                   
                                   // Show the iframe immediately
                                   iframe.classList.remove('opacity-0');
                                   
-                                  // Setup detection for trace viewer loading events
+                                  // Setup detection for trace viewer loading events with simplified approach
                                   const setupTraceDetection = () => {
                                     try {
-                                      // Listen for clicks on trace links
+                                      // Listen for clicks on trace links with improved detection
                                       iframe.contentWindow?.document.body.addEventListener('click', (event) => {
                                         const target = event.target as HTMLElement;
                                         const traceLink = target.closest('a[href*="trace"]') || 
@@ -751,10 +791,10 @@ const Playground: React.FC<PlaygroundProps> = ({
                                         if (traceLink) {
                                           setIsTraceLoading(true);
                                           
-                                          // Safety timeout for trace loading
+                                          // Use a shorter timeout for trace loading to match run details page
                                           setTimeout(() => {
                                             setIsTraceLoading(false);
-                                          }, 2000);
+                                          }, 200);  // Reduced from 2000ms to 1000ms
                                         }
                                       }, true);
                                     } catch (err) {
@@ -762,18 +802,18 @@ const Playground: React.FC<PlaygroundProps> = ({
                                     }
                                   };
                                   
-                                  // Setup trace detection after report is loaded
-                                  setTimeout(setupTraceDetection, 500);
+                                  // Setup trace detection immediately
+                                  setupTraceDetection();
                                   
-                                  // Clear loading states when iframe loads
+                                  // Clear loading states when iframe loads successfully
                                   setIsReportLoading(false);
                                   setIsRunning(false);
-                                  
+
                                 } catch (err) {
-                                  console.error("Error processing iframe:", err);
-                                  
-                                  // Show iframe anyway to match job execution behavior
-                                  iframe.classList.remove('opacity-0');
+                                  console.error("Error processing iframe onLoad:", err);
+                                  // Fallback: Trigger error display if any part of onLoad fails after fetch
+                                  setIframeError(true);
+                                  setReportError("An error occurred while displaying the report."); 
                                   setIsReportLoading(false);
                                   setIsRunning(false);
                                 }
@@ -781,13 +821,39 @@ const Playground: React.FC<PlaygroundProps> = ({
                               onError={(e) => {
                                 console.error("Error loading iframe:", e);
                                 
-                                // Simply remove loading states and show any content - to match job execution behavior
+                                // Immediately set the error state to show the formatted error UI
+                                setIframeError(true);
+
+                                // Try to fetch the URL to get a more specific error message, but don't block UI on this
+                                const iframe = e.target as HTMLIFrameElement;
+                                if (iframe.src) {
+                                  fetch(iframe.src)
+                                    .then(response => {
+                                      if (!response.ok) {
+                                        // Attempt to parse JSON error response
+                                        return response.json().catch(() => ({
+                                          message: `Failed to load report (${response.status} ${response.statusText})`
+                                        }));
+                                      }
+                                      // If response is somehow OK but still errored, return a generic message
+                                      return { message: "An unexpected error occurred while loading the report." }; 
+                                    })
+                                    .then(errorData => {
+                                      // Set the specific error message if available
+                                      setReportError(errorData.message || "Failed to load test report.");
+                                    })
+                                    .catch(() => {
+                                      // Fallback error message if fetch fails
+                                      setReportError("Failed to load test report due to a network error.");
+                                    });
+                                } else {
+                                  // Fallback if src is somehow unavailable
+                                  setReportError("Test report URL is missing.");
+                                }
+                                
+                                // Ensure loading states are cleared
                                 setIsReportLoading(false);
                                 setIsRunning(false);
-                                
-                                // Try to show iframe content anyway
-                                const iframe = e.target as HTMLIFrameElement;
-                                iframe.classList.remove('opacity-0');
                               }}
                             />
                           </div>
