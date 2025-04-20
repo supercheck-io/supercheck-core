@@ -76,51 +76,20 @@ export const SCHEDULED_JOB_PREFIX = 'scheduled-';
 // Default timeout for jobs (15 minutes)
 export const DEFAULT_JOB_TIMEOUT_MS = 15 * 60 * 1000;
 
+// Add a flag to track if queue is needed for the current execution
+let queueInitialized = false;
+let queueInitializing = false;
+let queueInitPromise: Promise<PgBoss | null> | null = null;
+
 /**
  * Get the pg-boss queue instance (singleton pattern)
  */
 export async function getQueueInstance(): Promise<PgBoss> {
   if (!bossInstance) {
-    try {
-      const connectionString = process.env.DATABASE_URL || 
-        `postgres://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "postgres"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "supertest"}`;
-      
-      console.log('Initializing pg-boss queue...');
-      
-      // Create a new boss instance with options
-      bossInstance = new PgBoss({
-        connectionString,
-        // Additional configuration options
-        retentionDays: 7,
-        monitorStateIntervalSeconds: 30,
-        // Set an application name for easier database query identification
-        application_name: 'supertest-queue'
-      });
-
-      // Actively listen for errors
-      bossInstance.on('error', error => {
-        console.error('PgBoss error:', error);
-        // Attempt to reconnect if connection issues
-        if (error.message?.includes('connection') && bossInstance) {
-          console.log('Attempting to restart PgBoss after connection error...');
-          bossInstance.stop().catch(e => console.error('Error stopping PgBoss:', e));
-          bossInstance = null;
-          // Try to reconnect after a delay
-          setTimeout(() => {
-            getQueueInstance().catch(e => console.error('Failed to reconnect to PgBoss:', e));
-          }, 5000);
-        }
-      });
-
-      // Start the queue
-      await bossInstance.start();
-      console.log('PgBoss queue started successfully');
-
-      // Setup the completion worker for all jobs
-      setupCompletionWorkers().catch(err => console.error('Failed to setup completion workers:', err));
-    } catch (error) {
-      console.error('Failed to initialize pg-boss:', error);
-      throw error;
+    bossInstance = await setupQueue();
+    
+    if (!bossInstance) {
+      throw new Error('Failed to initialize queue - possibly in report server mode');
     }
   }
   
@@ -794,5 +763,52 @@ export async function getQueueStats(): Promise<any> {
       status: 'error',
       error: error instanceof Error ? error.message : String(error)
     };
+  }
+}
+
+// Implement the full setupQueue function without the environment check
+async function setupQueue(): Promise<PgBoss | null> {
+  try {
+    const connectionString = process.env.DATABASE_URL || 
+      `postgres://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "postgres"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "supertest"}`;
+    
+    console.log('Initializing pg-boss queue...');
+    
+    // Create a new boss instance with options
+    const boss = new PgBoss({
+      connectionString,
+      // Additional configuration options
+      retentionDays: 7,
+      monitorStateIntervalSeconds: 30,
+      // Set an application name for easier database query identification
+      application_name: 'supertest-queue'
+    });
+
+    // Actively listen for errors
+    boss.on('error', error => {
+      console.error('PgBoss error:', error);
+      // Attempt to reconnect if connection issues
+      if (error.message?.includes('connection') && bossInstance) {
+        console.log('Attempting to restart PgBoss after connection error...');
+        bossInstance.stop().catch(e => console.error('Error stopping PgBoss:', e));
+        bossInstance = null;
+        // Try to reconnect after a delay
+        setTimeout(() => {
+          getQueueInstance().catch(e => console.error('Failed to reconnect to PgBoss:', e));
+        }, 5000);
+      }
+    });
+
+    // Start the queue
+    await boss.start();
+    console.log('PgBoss queue started successfully');
+
+    // Setup the completion worker for all jobs
+    setupCompletionWorkers().catch(err => console.error('Failed to setup completion workers:', err));
+    
+    return boss;
+  } catch (error) {
+    console.error('Failed to initialize pg-boss:', error);
+    throw error;
   }
 }

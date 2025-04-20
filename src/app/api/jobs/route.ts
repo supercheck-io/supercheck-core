@@ -3,8 +3,8 @@ import { db } from "@/db/client";
 import {
   jobs,
   jobTests,
-  tests,
-  testRuns,
+  tests as testsTable,
+  runs,
   JobStatus,
   TestRunStatus,
 } from "@/db/schema";
@@ -88,8 +88,8 @@ export async function GET() {
           // Fetch test details for each test ID
           const testResults = await dbInstance
             .select()
-            .from(tests)
-            .where(inArray(tests.id, testIds));
+            .from(testsTable)
+            .where(inArray(testsTable.id, testIds));
 
           // Convert test results to match our Test interface
           testDetails = testResults.map((test) => ({
@@ -271,10 +271,10 @@ async function runJob(request: Request) {
     const startTime = new Date();
 
     // Insert a new test run record
-    await dbInstance.insert(testRuns).values({
+    await dbInstance.insert(runs).values({
       id: runId,
-      jobId: jobId,
-      status: "pending",
+      jobId,
+      status: "running",
       startedAt: startTime,
     });
 
@@ -376,17 +376,17 @@ async function runJob(request: Request) {
 
     // Update the test run record with results
     await dbInstance
-      .update(testRuns)
+      .update(runs)
       .set({
-        status: (result.success && !hasFailedTests)
-          ? ("passed" as TestRunStatus)
-          : ("failed" as TestRunStatus),
-        completedAt: new Date(),
+        status: hasFailedTests
+          ? ("failed" as TestRunStatus)
+          : ("passed" as TestRunStatus),
         duration: durationFormatted,
-        logs,
-        errorDetails,
+        completedAt: new Date(),
+        logs: logs || "",
+        errorDetails: errorDetails || "",
       })
-      .where(eq(testRuns.id, runId));
+      .where(eq(runs.id, runId));
 
     // Return the combined result with the run ID
     return NextResponse.json({

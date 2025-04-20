@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { executeMultipleTests } from "@/lib/test-execution";
 import { getTest } from "@/actions/get-test";
 import { db } from "@/db/client";
-import { jobs, testRuns, JobStatus, TestRunStatus } from "@/db/schema";
+import { jobs, runs, JobStatus, TestRunStatus } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -37,10 +37,10 @@ export async function POST(request: Request) {
     const startTime = new Date(); // Store as Date object for database
     
     // Insert a new test run record
-    await dbInstance.insert(testRuns).values({
+    await dbInstance.insert(runs).values({
       id: runId,
-      jobId: jobId,
-      status: "pending",
+      jobId,
+      status: "running",
       startedAt: startTime,
     });
 
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
     const startTimeMs = startTime.getTime();
     const endTime = new Date().getTime();
     const durationMs = endTime - startTimeMs;
-    const durationFormatted = `${Math.floor(durationMs / 1000)}s`;
+    const duration = `${Math.floor(durationMs / 1000)}s`;
 
     // Update the job status in the database
     await dbInstance
@@ -155,15 +155,15 @@ export async function POST(request: Request) {
     
     // Update the test run record with results
     await dbInstance
-      .update(testRuns)
+      .update(runs)
       .set({
         status: (result.success && !hasFailedTests) ? "passed" as TestRunStatus : "failed" as TestRunStatus,
-        completedAt: new Date(), // Use Date object for database
-        duration: durationFormatted,
-        logs,
-        errorDetails,
+        duration: duration,
+        completedAt: new Date(),
+        logs: result.stdout || "",
+        errorDetails: result.stderr || "",
       })
-      .where(eq(testRuns.id, runId));
+      .where(eq(runs.id, runId));
 
     console.log(`Updated test run record with results, status: ${(result.success && !hasFailedTests) ? "passed" : "failed"}`);
 

@@ -1,5 +1,5 @@
 {
-  "id": "dd80fa95-5b7c-4778-82b4-5c2716d8b997",
+  "id": "c34271c5-6cb7-464f-a9f8-35f11ba6e029",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -654,55 +654,30 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "job_id": {
-          "name": "job_id",
+        "entity_type": {
+          "name": "entity_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "total_tests": {
-          "name": "total_tests",
-          "type": "integer",
+        "report_path": {
+          "name": "report_path",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
         },
-        "passed_tests": {
-          "name": "passed_tests",
-          "type": "integer",
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": true
-        },
-        "failed_tests": {
-          "name": "failed_tests",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "skipped_tests": {
-          "name": "skipped_tests",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "flaky_tests": {
-          "name": "flaky_tests",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "duration": {
-          "name": "duration",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "browser_metrics": {
-          "name": "browser_metrics",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'completed'"
         },
         "created_at": {
           "name": "created_at",
@@ -710,32 +685,47 @@
           "primaryKey": false,
           "notNull": false,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "reports_job_id_jobs_id_fk": {
-          "name": "reports_job_id_jobs_id_fk",
-          "tableFrom": "reports",
-          "tableTo": "jobs",
-          "columnsFrom": [
-            "job_id"
+      "indexes": {
+        "reports_entity_type_id_idx": {
+          "name": "reports_entity_type_id_idx",
+          "columns": [
+            {
+              "expression": "entity_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.test_runs": {
-      "name": "test_runs",
+    "public.runs": {
+      "name": "runs",
       "schema": "",
       "columns": {
         "id": {
@@ -797,9 +787,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "test_runs_job_id_jobs_id_fk": {
-          "name": "test_runs_job_id_jobs_id_fk",
-          "tableFrom": "test_runs",
+        "runs_job_id_jobs_id_fk": {
+          "name": "runs_job_id_jobs_id_fk",
+          "tableFrom": "runs",
           "tableTo": "jobs",
           "columnsFrom": [
             "job_id"

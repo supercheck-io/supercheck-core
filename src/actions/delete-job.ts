@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "../db/client";
-import { jobs, jobTests, testRuns } from "../db/schema";
+import { jobs, jobTests, runs } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -19,7 +19,7 @@ export async function deleteJob(jobId: string) {
     const dbInstance = await db();
 
     // First delete any test runs associated with this job
-    await dbInstance.delete(testRuns).where(eq(testRuns.jobId, jobId));
+    await dbInstance.delete(runs).where(eq(runs.jobId, jobId));
 
     // Then delete the job-test associations
     await dbInstance.delete(jobTests).where(eq(jobTests.jobId, jobId));

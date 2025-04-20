@@ -585,7 +585,7 @@ const Playground: React.FC<PlaygroundProps> = ({
       console.log(
         `Selected test report: ${testId}, setting URL to ${reportUrlWithCache}`
       );
-    }, 200);
+    }, 100);
   };
 
   // Add UI elements to show running and completed tests

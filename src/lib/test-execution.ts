@@ -5,21 +5,15 @@ import { existsSync } from "fs";
 import path from "path";
 import { validateCode } from "./code-validation";
 import crypto from "crypto";
-// Remove async import
 // Import S3 storage utilities
 import { uploadDirectory } from "./s3-storage";
-// Import pg-boss queue functions
-import { 
-  addTestToQueue, 
-  addJobToQueue, 
-  waitForJobCompletion, 
-  TestExecutionTask, 
-  JobExecutionTask,
-  setupTestExecutionWorker,
-  setupJobExecutionWorker,
-  setTestStatusMap,
-  TestStatusUpdateMap 
-} from "./queue";
+// Import database client and reports table
+import { getDb } from "@/db/client";
+import { reports } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+
+// Remove import of queue functions at the top level to make them lazy loaded
+// They will be imported only when needed
 
 const { spawn } = childProcess;
 const { join, normalize, sep, posix, dirname } = path;
@@ -84,9 +78,6 @@ interface TestExecutionResult {
 // A map to store the status of each test
 const testStatusMap = new Map<string, TestStatusUpdate>();
 
-// Share the testStatusMap with the queue module
-setTestStatusMap(testStatusMap as unknown as TestStatusUpdateMap);
-
 // track active test IDs to prevent premature cleanup
 const activeTestIds = new Set<string>();
 
@@ -106,165 +97,244 @@ function getResultsPath(testId: string, isJob: boolean = false): string {
   return join(basePath, typePath, testId);
 }
 
-// Remove async.queue implementation
-// Setup the pg-boss worker for test execution instead
-export async function initializeTestWorkers(): Promise<void> {
-  console.log('Initializing test and job workers...');
-  
+// Function to store report metadata
+async function storeReportMetadata(entityId: string, entityType: "test" | "job", reportPath: string): Promise<void> {
   try {
-    // Initialize test execution worker with proper error handling
-    await setupTestExecutionWorker(MAX_CONCURRENT_TESTS, async (task: TestExecutionTask) => {
-      try {
-        console.log(`Worker processing test execution for ${task.testId}`);
-        
-        // Update the test status to running
-        testStatusMap.set(task.testId, {
-          testId: task.testId,
-          status: "running",
-        });
-
-        // Execute the test
-        const result = await executeTestInChildProcess(
-          task.testId,
-          task.testPath
-        );
-
-        // Update the test status to completed
-        testStatusMap.set(task.testId, {
-          testId: task.testId,
-          status: "completed",
-          success: result.success,
-          error: result.error,
-          reportUrl: result.reportUrl,
-        });
-
-        console.log(`Test ${task.testId} completed with success: ${result.success}`);
-        
-        // IMPORTANT: Ensure we return a complete TestResult object
-        // This fixes the issue where the result is incomplete
-        const completeResult: TestResult = {
-          success: result.success,
-          error: result.error,
-          reportUrl: result.reportUrl,
-          testId: task.testId,
-          stdout: result.stdout || "",
-          stderr: result.stderr || ""
-        };
-        
-        return completeResult;
-      } catch (error) {
-        // Log detailed error for debugging
-        console.error(`Error in test worker for ${task.testId}:`, error);
-        
-        // Create a meaningful error message
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
-        // Update the test status to completed with error
-        testStatusMap.set(task.testId, {
-          testId: task.testId,
-          status: "completed",
-          success: false,
-          error: errorMessage,
-          reportUrl: task.testId ? toUrlPath(`/api/test-results/tests/${task.testId}/report/index.html`) : null,
-        });
-        
-        // Construct error result object
-        const errorResult: TestResult = {
-          success: false,
-          error: errorMessage,
-          testId: task.testId,
-          stdout: "",
-          stderr: errorMessage,
-          reportUrl: task.testId ? toUrlPath(`/api/test-results/tests/${task.testId}/report/index.html`) : null
-        };
-        
-        // Return the error result object instead of throwing
-        // This allows pg-boss to mark the job as completed instead of failed
-        return errorResult;
-      }
-    });
+    console.log(`Storing report metadata for ${entityType}/${entityId}`);
+    const db = await getDb();
     
-    // Initialize job execution worker with better concurrency
-    await setupJobExecutionWorker(
-      Math.max(1, Math.floor(MAX_CONCURRENT_TESTS / 2)), // Use fewer workers for job execution
-      async (task: JobExecutionTask) => {
-        try {
-          console.log(`Worker processing job execution for ${task.jobId}`);
-          
-          // Execute the tests
-          const result = await executeMultipleTests(task.testScripts, task.jobId);
-          
-          // Upload results to S3 after job completes
-          try {
-            console.log(`Uploading test results for job ${task.jobId} to S3`);
-            const testResultsDir = normalize(getResultsPath(task.jobId, true));
-            const reportDir = normalize(join(testResultsDir, "report"));
-            
-            await uploadDirectory(reportDir, `test-results/jobs/${task.jobId}/report`);
-            console.log(`Successfully uploaded results for ${task.jobId} to S3`);
-          } catch (uploadError) {
-            console.error(`Error uploading results to S3:`, uploadError);
-          }
-          
-          return result;
-        } catch (error) {
-          // Log detailed error for debugging
-          console.error(`Error in job worker for ${task.jobId}:`, error);
-          
-          // Create a meaningful error message
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          
-          // Construct error result
-          return {
-            jobId: task.jobId,
-            success: false,
-            error: errorMessage,
-            reportUrl: task.jobId ? toUrlPath(`/api/test-results/jobs/${task.jobId}/report/index.html`) : null,
-            results: task.testScripts.map(script => ({
-              testId: script.id,
-              success: false,
-              error: errorMessage,
-            })),
-            timestamp: new Date().toISOString(),
-            stdout: "",
-            stderr: error instanceof Error ? error.stack || errorMessage : errorMessage,
-          };
-        }
-      }
-    );
+    // Check if metadata already exists
+    const existing = await db.select()
+      .from(reports)
+      .where(and(
+        eq(reports.entityId, entityId),
+        eq(reports.entityType, entityType)
+      ))
+      .execute();
     
-    console.log('Test and job workers initialized successfully');
+    if (existing.length > 0) {
+      // Update existing metadata
+      await db.update(reports)
+        .set({
+          reportPath,
+          status: 'completed',
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(reports.entityId, entityId),
+          eq(reports.entityType, entityType)
+        ))
+        .execute();
+    } else {
+      // Insert new metadata
+      await db.insert(reports)
+        .values({
+          entityId,
+          entityType,
+          reportPath,
+          status: 'completed',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .execute();
+    }
+    
+    console.log(`Successfully stored report metadata for ${entityType}/${entityId}`);
   } catch (error) {
-    console.error('Failed to initialize workers:', error);
-    throw error;
+    // Log but don't fail the process
+    console.error(`Error storing report metadata for ${entityType}/${entityId}:`, error);
   }
 }
 
-// Call this on application startup - use more robust approach to only init once
-let workersInitialized = false;
-const initializeWorkers = async () => {
-  if (!workersInitialized) {
-    try {
-      workersInitialized = true; // Set flag first to prevent multiple initializations
-      await initializeTestWorkers();
-      console.log('Workers initialization complete');
-    } catch (err) {
-      workersInitialized = false; // Reset flag on error so we can retry
-      console.error('Worker initialization failed:', err);
-      // Try again after a delay
-      setTimeout(initializeWorkers, 5000);
-    }
+// Replace the sync worker initialization with a lazy-loading function
+let queueInitialized = false;
+let queueInitializing = false;
+let queueInitPromise: Promise<void> | null = null;
+
+// Lazy load and initialize the queue only when needed for test execution
+async function ensureQueueInitialized(): Promise<void> {
+  if (queueInitialized) {
+    return; // Already initialized
   }
-};
+  
+  if (queueInitializing && queueInitPromise) {
+    return queueInitPromise; // Already initializing, return the promise
+  }
+  
+  queueInitializing = true;
+  
+  // Create a promise for the initialization
+  queueInitPromise = (async () => {
+    try {
+      console.log('Lazy-initializing test and job workers...');
+      
+      // No environment variable checks - we're explicitly calling this function
+      // when we know we need the queue for test execution
+      
+      // Dynamically import queue functions only when needed
+      const { 
+        addTestToQueue, 
+        addJobToQueue, 
+        waitForJobCompletion, 
+        setupTestExecutionWorker,
+        setupJobExecutionWorker,
+        setTestStatusMap,
+      } = await import('./queue');
+      
+      // Share the test status map with the queue module
+      setTestStatusMap(testStatusMap as any);
+      
+      // Initialize test execution worker
+      await setupTestExecutionWorker(MAX_CONCURRENT_TESTS, async (task) => {
+        try {
+          console.log(`Worker processing test execution for ${task.testId}`);
+          
+          // Update the test status to running
+          testStatusMap.set(task.testId, {
+            testId: task.testId,
+            status: "running",
+          });
 
-// Start initialization immediately
-initializeWorkers().catch(err => {
-  console.error('Initial worker setup failed:', err);
-});
+          // Execute the test
+          const result = await executeTestInChildProcess(
+            task.testId,
+            task.testPath
+          );
 
-/**
- * Get content type based on file extension
- */
+          // Update the test status to completed
+          testStatusMap.set(task.testId, {
+            testId: task.testId,
+            status: "completed",
+            success: result.success,
+            error: result.error,
+            reportUrl: result.reportUrl,
+          });
+
+          // Store report metadata for faster access
+          if (result.success && result.reportUrl) {
+            // Extract the report path from the URL
+            const urlPath = result.reportUrl.split('/api/test-results')[1];
+            const reportPathParts = urlPath.split('/');
+            // Remove the file part (index.html) and query params
+            const reportDir = reportPathParts.slice(0, reportPathParts.length - 1).join('/').split('?')[0];
+            
+            // Store metadata
+            await storeReportMetadata(task.testId, 'test', reportDir);
+          }
+
+          console.log(`Test ${task.testId} completed with success: ${result.success}`);
+          
+          // Ensure we return a complete TestResult object
+          const completeResult: TestResult = {
+            success: result.success,
+            error: result.error,
+            reportUrl: result.reportUrl,
+            testId: task.testId,
+            stdout: result.stdout || "",
+            stderr: result.stderr || ""
+          };
+          
+          return completeResult;
+        } catch (error) {
+          // Error handling code
+          console.error(`Error in test worker for ${task.testId}:`, error);
+          
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          
+          testStatusMap.set(task.testId, {
+            testId: task.testId,
+            status: "completed",
+            success: false,
+            error: errorMessage,
+            reportUrl: task.testId ? toUrlPath(`/api/test-results/tests/${task.testId}/report/index.html`) : null,
+          });
+          
+          const errorResult: TestResult = {
+            success: false,
+            error: errorMessage,
+            testId: task.testId,
+            stdout: "",
+            stderr: errorMessage,
+            reportUrl: task.testId ? toUrlPath(`/api/test-results/tests/${task.testId}/report/index.html`) : null
+          };
+          
+          return errorResult;
+        }
+      });
+      
+      // Initialize job execution worker
+      await setupJobExecutionWorker(
+        Math.max(1, Math.floor(MAX_CONCURRENT_TESTS / 2)),
+        async (task) => {
+          try {
+            console.log(`Worker processing job execution for ${task.jobId}`);
+            
+            const result = await executeMultipleTests(task.testScripts, task.jobId);
+            
+            // Store report metadata for faster access
+            if (result.success && result.reportUrl) {
+              const urlPath = result.reportUrl.split('/api/test-results')[1];
+              const reportPathParts = urlPath.split('/');
+              const reportDir = reportPathParts.slice(0, reportPathParts.length - 1).join('/').split('?')[0];
+              
+              await storeReportMetadata(task.jobId, 'job', reportDir);
+            }
+            
+            // Upload results to S3
+            try {
+              console.log(`Uploading test results for job ${task.jobId} to S3`);
+              const testResultsDir = normalize(getResultsPath(task.jobId, true));
+              const reportDir = normalize(join(testResultsDir, "report"));
+              
+              await uploadDirectory(reportDir, `test-results/jobs/${task.jobId}/report`);
+              console.log(`Successfully uploaded results for ${task.jobId} to S3`);
+            } catch (uploadError) {
+              console.error(`Error uploading results to S3:`, uploadError);
+            }
+            
+            return result;
+          } catch (error) {
+            // Error handling code
+            console.error(`Error in job worker for ${task.jobId}:`, error);
+            
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            
+            return {
+              jobId: task.jobId,
+              success: false,
+              error: errorMessage,
+              reportUrl: task.jobId ? toUrlPath(`/api/test-results/jobs/${task.jobId}/report/index.html`) : null,
+              results: task.testScripts.map(script => ({
+                testId: script.id,
+                success: false,
+                error: errorMessage,
+              })),
+              timestamp: new Date().toISOString(),
+              stdout: "",
+              stderr: error instanceof Error ? error.stack || errorMessage : errorMessage,
+            };
+          }
+        }
+      );
+      
+      console.log('Queue initialization complete');
+      queueInitialized = true;
+    } catch (error) {
+      console.error('Failed to initialize queue:', error);
+      // Reset state so we can try again
+      queueInitialized = false;
+      queueInitializing = false;
+      queueInitPromise = null;
+      throw error;
+    } finally {
+      queueInitializing = false;
+    }
+  })();
+  
+  return queueInitPromise;
+}
+
+// Get content type based on file extension
 export function getContentType(path: string) {
   if (path.endsWith(".html")) return "text/html";
   if (path.endsWith(".css")) return "text/css";
@@ -898,6 +968,16 @@ export async function executeTest(code: string): Promise<TestResult> {
   // Also add to recent tests with current timestamp
   recentTestIds.set(testId, Date.now());
 
+  // Define result variable at the top level of the function to ensure it's in scope
+  let result: TestResult = {
+    success: false,
+    error: "Test execution not completed",
+    reportUrl: null,
+    testId,
+    stdout: "",
+    stderr: ""
+  };
+
   try {
     // Create necessary directories
     const publicDir = normalize(join(process.cwd(), "public"));
@@ -991,7 +1071,8 @@ export async function executeTest(code: string): Promise<TestResult> {
       });
       await fs.writeFile(join(reportDir, "index.html"), errorHtml);
 
-      return {
+      // Assign to the outer result variable
+      result = {
         success: false,
         error: validationResult.error || null,
         reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
@@ -999,6 +1080,8 @@ export async function executeTest(code: string): Promise<TestResult> {
         stdout: "",
         stderr: validationResult.error || "",
       };
+
+      return result;
     }
 
     // Optionally remove screenshot steps
@@ -1034,177 +1117,197 @@ test('test', async ({ page }) => {
       reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
     });
 
-    // Use pg-boss queue instead of async queue
-    const task: TestExecutionTask = {
-      testId,
-      testPath
-    };
+    // Initialize the queue when needed - dynamic import
+    await ensureQueueInitialized();
+    
+    // Dynamically import the queue functions only when needed
+    const { addTestToQueue, waitForJobCompletion } = await import('./queue');
     
     try {
       // Add the test to the queue
+      const task = { testId, testPath };
       const queuedJobId = await addTestToQueue(task);
       console.log(`Test ${testId} queued successfully with job ID: ${queuedJobId}`);
       
       // Wait for the job to complete
-      try {
-        const result = await waitForJobCompletion<TestResult>(testId, TEST_EXECUTION_TIMEOUT_MS);
+      const testResult = await waitForJobCompletion<TestResult>(testId, TEST_EXECUTION_TIMEOUT_MS);
+      
+      // Assign to the outer result variable
+      result = testResult;
+      
+      // Check if the result has all required fields
+      if (!result || typeof result !== 'object') {
+        throw new Error('Invalid result format received from test execution');
+      }
+      
+      // Check if the result has all required fields
+      if (!('success' in result) || !('testId' in result)) {
+        // Try to reconstruct a valid result
+        console.warn(`Incomplete result received for test ${testId}, attempting to reconstruct`);
         
-        // Ensure result is properly formatted
-        if (!result || typeof result !== 'object') {
-          throw new Error('Invalid result format received from test execution');
-        }
+        // Log what we received for debugging
+        console.log('Received incomplete result:', result);
         
-        // Check if the result has all required fields
-        if (!('success' in result) || !('testId' in result)) {
-          // Try to reconstruct a valid result
-          console.warn(`Incomplete result received for test ${testId}, attempting to reconstruct`);
-          
-          // Log what we received for debugging
-          console.log('Received incomplete result:', result);
-          
-          // Get status from status map as a fallback
-          const status = testStatusMap.get(testId);
-          
-          if (status && status.status === 'completed') {
-            // Create a complete result object
-            const reconstructedResult: TestResult = {
-              success: !!status.success,
-              error: status.error || null,
-              reportUrl: status.reportUrl || null,
-              testId,
-              stdout: typeof result === 'object' && result && 'stdout' in result ? (result as any).stdout : '',
-              stderr: status.error || ''
-            };
-            
-            console.log(`Using reconstructed result for test ${testId}`);
-            return reconstructedResult;
-          } else {
-            // If we don't have a status but have some result, try to use it
-            if (typeof result === 'object' && result) {
-              const resultObj = result as Record<string, any>;
-              const patchedResult: TestResult = {
-                success: 'success' in resultObj ? !!resultObj.success : true,
-                error: 'error' in resultObj ? resultObj.error : null,
-                reportUrl: 'reportUrl' in resultObj ? resultObj.reportUrl : 
-                          toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
-                testId,
-                stdout: 'stdout' in resultObj ? resultObj.stdout : '',
-                stderr: 'stderr' in resultObj ? resultObj.stderr : ''
-              };
-              
-              console.log(`Created patched result for test ${testId}`);
-              return patchedResult;
-            }
-          }
-        }
-        
-        // If we got here, the result has the required fields
-        return result as TestResult;
-      } catch (waitError) {
-        console.error(`Error waiting for test ${testId} completion:`, waitError);
-        
-        // Check if the test might have completed despite the error
+        // Get status from status map as a fallback
         const status = testStatusMap.get(testId);
         
         if (status && status.status === 'completed') {
-          console.log(`Test ${testId} appears to be completed despite queue error, using status data`);
-          
-          // Construct result from status
-          const fallbackResult: TestResult = {
+          // Create a complete result object
+          const reconstructedResult: TestResult = {
             success: !!status.success,
-            error: status.error || (waitError instanceof Error ? waitError.message : String(waitError)),
+            error: status.error || null,
             reportUrl: status.reportUrl || null,
             testId,
-            stdout: '',
-            stderr: (waitError instanceof Error ? waitError.message : String(waitError))
+            stdout: typeof result === 'object' && result && 'stdout' in result ? (result as any).stdout : '',
+            stderr: status.error || ''
           };
           
-          return fallbackResult;
+          console.log(`Using reconstructed result for test ${testId}`);
+          return reconstructedResult;
+        } else {
+          // If we don't have a status but have some result, try to use it
+          if (typeof result === 'object' && result) {
+            const resultObj = result as Record<string, any>;
+            const patchedResult: TestResult = {
+              success: 'success' in resultObj ? !!resultObj.success : true,
+              error: 'error' in resultObj ? resultObj.error : null,
+              reportUrl: 'reportUrl' in resultObj ? resultObj.reportUrl : 
+                                toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
+              testId,
+              stdout: 'stdout' in resultObj ? resultObj.stdout : '',
+              stderr: 'stderr' in resultObj ? resultObj.stderr : ''
+            };
+            
+            console.log(`Created patched result for test ${testId}`);
+            return patchedResult;
+          }
         }
-        
-        // If we get here, we need to create an error report
-        const errorHtml = `
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Test Failed - Queue Error</title>
-            <style>
-              body {
-                font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-                margin: 0;
-                padding: 20px;
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-              }
-              .container {
-                max-width: 800px;
-                margin: 0 auto;
-                background-color: #1e1e1e;
-                padding: 20px;
-                border-radius: 5px;
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-              }
-              h1 {
-                color: #e06c75;
-                margin-top: 0;
-              }
-              h2 {
-                color: #e5c07b;
-              }
-              pre {
-                background-color: #252526;
-                padding: 15px;
-                border-radius: 5px;
-                overflow-x: auto;
-                color: #d4d4d4;
-                border: 1px solid #333;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h1>Test Failed</h1>
-              <h2>Queue Error</h2>
-              <pre>${waitError instanceof Error ? waitError.message : String(waitError)}</pre>
-            </div>
-          </body>
-        </html>`;
-        
-        // Update the report with error
-        const htmlReportPath = normalize(join(reportDir, "index.html"));
-        await fs.writeFile(htmlReportPath, errorHtml).catch(err => 
-          console.error(`Failed to write error report for ${testId}:`, err)
-        );
-        
-        // Update test status
-        testStatusMap.set(testId, {
-          testId,
-          status: "completed",
-          success: false,
-          error: `Queue error: ${waitError instanceof Error ? waitError.message : String(waitError)}`,
-          reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
-        });
-        
-        // Throw to trigger the catch block
-        throw waitError;
       }
-    } catch (queueError) {
-      console.error(`Error with test queue for ${testId}:`, queueError);
       
-      // Create an error report for queue failure 
-      const errorMessage = queueError instanceof Error ? queueError.message : String(queueError);
+      // If we got here, the result has the required fields
+      return result as TestResult;
+    } catch (waitError) {
+      console.error(`Error waiting for test ${testId} completion:`, waitError);
       
-      return {
+      // Check if the test might have completed despite the error
+      const status = testStatusMap.get(testId);
+      
+      if (status && status.status === 'completed') {
+        console.log(`Test ${testId} appears to be completed despite queue error, using status data`);
+        
+        // Construct result from status
+        const fallbackResult: TestResult = {
+          success: !!status.success,
+          error: status.error || (waitError instanceof Error ? waitError.message : String(waitError)),
+          reportUrl: status.reportUrl || null,
+          testId,
+          stdout: '',
+          stderr: (waitError instanceof Error ? waitError.message : String(waitError))
+        };
+        
+        return fallbackResult;
+      }
+      
+      // If we get here, we need to create an error report
+      const errorHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Test Failed - Queue Error</title>
+          <style>
+            body {
+              font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+              margin: 0;
+              padding: 20px;
+              background-color: #1e1e1e;
+              color: #d4d4d4;
+            }
+            .container {
+              max-width: 800px;
+              margin: 0 auto;
+              background-color: #1e1e1e;
+              padding: 20px;
+              border-radius: 5px;
+              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            }
+            h1 {
+              color: #e06c75;
+              margin-top: 0;
+            }
+            h2 {
+              color: #e5c07b;
+            }
+            pre {
+              background-color: #252526;
+              padding: 15px;
+              border-radius: 5px;
+              overflow-x: auto;
+              color: #d4d4d4;
+              border: 1px solid #333;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>Test Failed</h1>
+            <h2>Queue Error</h2>
+            <pre>${waitError instanceof Error ? waitError.message : String(waitError)}</pre>
+          </div>
+        </body>
+      </html>`;
+      
+      // Update the report with error
+      const htmlReportPath = normalize(join(reportDir, "index.html"));
+      await fs.writeFile(htmlReportPath, errorHtml).catch(err => 
+        console.error(`Failed to write error report for ${testId}:`, err)
+      );
+      
+      // Update test status
+      testStatusMap.set(testId, {
+        testId,
+        status: "completed",
         success: false,
-        error: errorMessage,
+        error: `Queue error: ${waitError instanceof Error ? waitError.message : String(waitError)}`,
+        reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
+      });
+      
+      // Assign to the outer result variable
+      result = {
+        success: false,
+        error: `Queue error: ${waitError instanceof Error ? waitError.message : String(waitError)}`,
         reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
         testId,
         stdout: "",
-        stderr: `Queue error: ${errorMessage}`,
+        stderr: (waitError instanceof Error ? waitError.message : String(waitError))
       };
     }
+
+    // Store report metadata if the test was successful
+    if (result.success && result.reportUrl) {
+      try {
+        // Extract the report path from the URL
+        const urlPath = result.reportUrl.split('/api/test-results')[1];
+        const reportPathParts = urlPath.split('/');
+        // Remove the file part (index.html) and query params
+        const reportDir = reportPathParts.slice(0, reportPathParts.length - 1).join('/').split('?')[0];
+        
+        // Store metadata
+        await storeReportMetadata(testId, 'test', reportDir);
+      } catch (metadataError) {
+        console.error(`Error storing report metadata for test ${testId}:`, metadataError);
+        // Don't fail the test if metadata storage fails
+      }
+    }
+
+    console.log(`Test ${testId} completed with result:`, {
+      success: result.success,
+      error: result.error,
+      reportUrl: result.reportUrl,
+    });
+
+    return result;
   } catch (error) {
     console.error("Error setting up test:", error);
 
@@ -1283,18 +1386,21 @@ test('test', async ({ page }) => {
         error: errorMessage,
         reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
       });
+
+      // Assign to the outer result variable
+      result = {
+        success: false,
+        error: errorMessage,
+        reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
+        testId,
+        stdout: "",
+        stderr: errorMessage,
+      };
     } catch (reportError) {
       console.error("Error creating error report:", reportError);
     }
 
-    return {
-      success: false,
-      error: errorMessage,
-      reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
-      testId,
-      stdout: "",
-      stderr: errorMessage,
-    };
+    return result;
   } finally {
     // Now that the test is complete, we can mark it as inactive
     activeTestIds.delete(testId);
@@ -1490,11 +1596,14 @@ test('${testName} (ID: ${id})', async ({ page }) => {
     };
 
     try {
-      // Create a job task for pg-boss queue
-      const jobTask: JobExecutionTask = {
-        jobId: runId,
-        testScripts
-      };
+      // Initialize the queue when needed
+      await ensureQueueInitialized();
+      
+      // Dynamically import queue functions
+      const { addJobToQueue, waitForJobCompletion } = await import('./queue');
+      
+      // Create a job task for the queue
+      const jobTask = { jobId: runId, testScripts };
       
       // Add the job to the queue
       const queuedJobId = await addJobToQueue(jobTask);

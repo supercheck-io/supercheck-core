@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from "../db/client";
-import { testRuns, jobs } from "../db/schema";
+import { runs, jobs } from "../db/schema";
 import { eq, desc } from "drizzle-orm";
 
 export type RunResponse = {
@@ -22,22 +22,22 @@ export async function getRuns(): Promise<RunResponse[]> {
   try {
     const dbInstance = await db();
     
-    // Join testRuns with jobs to get job names
+    // Join runs with jobs to get job names
     const results = await dbInstance
       .select({
-        id: testRuns.id,
-        jobId: testRuns.jobId,
+        id: runs.id,
+        jobId: runs.jobId,
         jobName: jobs.name,
-        status: testRuns.status,
-        duration: testRuns.duration,
-        startedAt: testRuns.startedAt,
-        completedAt: testRuns.completedAt,
-        logs: testRuns.logs,
-        errorDetails: testRuns.errorDetails,
+        status: runs.status,
+        duration: runs.duration,
+        startedAt: runs.startedAt,
+        completedAt: runs.completedAt,
+        logs: runs.logs,
+        errorDetails: runs.errorDetails,
       })
-      .from(testRuns)
-      .leftJoin(jobs, eq(testRuns.jobId, jobs.id))
-      .orderBy(desc(testRuns.startedAt));
+      .from(runs)
+      .leftJoin(jobs, eq(runs.jobId, jobs.id))
+      .orderBy(desc(runs.startedAt));
     
     // Transform the results to include the report URL
     return results.map((run) => {
@@ -61,19 +61,19 @@ export async function getRun(id: string): Promise<RunResponse | null> {
     
     const result = await dbInstance
       .select({
-        id: testRuns.id,
-        jobId: testRuns.jobId,
+        id: runs.id,
+        jobId: runs.jobId,
         jobName: jobs.name,
-        status: testRuns.status,
-        duration: testRuns.duration,
-        startedAt: testRuns.startedAt,
-        completedAt: testRuns.completedAt,
-        logs: testRuns.logs,
-        errorDetails: testRuns.errorDetails,
+        status: runs.status,
+        duration: runs.duration,
+        startedAt: runs.startedAt,
+        completedAt: runs.completedAt,
+        logs: runs.logs,
+        errorDetails: runs.errorDetails,
       })
-      .from(testRuns)
-      .leftJoin(jobs, eq(testRuns.jobId, jobs.id))
-      .where(eq(testRuns.id, id))
+      .from(runs)
+      .leftJoin(jobs, eq(runs.jobId, jobs.id))
+      .where(eq(runs.id, id))
       .limit(1);
     
     if (result.length === 0) {

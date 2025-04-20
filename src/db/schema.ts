@@ -8,6 +8,7 @@ import {
   jsonb,
   uuid,
   customType,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 import {
@@ -228,7 +229,7 @@ export type ArtifactPaths = {
   video?: string;
   screenshots?: string[];
 };
-export const testRuns = pgTable("test_runs", {
+export const runs = pgTable("runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   jobId: uuid("job_id")
     .notNull()
@@ -254,20 +255,31 @@ export type BrowserMetrics = {
   memory?: Record<string, number>;
   timing?: Record<string, number>;
 };
-export const reports = pgTable("reports", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  jobId: uuid("job_id")
-    .notNull()
-    .references(() => jobs.id),
-  totalTests: integer("total_tests").notNull(),
-  passedTests: integer("passed_tests").notNull(),
-  failedTests: integer("failed_tests").notNull(),
-  skippedTests: integer("skipped_tests").default(0),
-  flakyTests: integer("flaky_tests").default(0),
-  duration: varchar("duration", { length: 100 }).notNull(),
-  browserMetrics: jsonb("browser_metrics").$type<BrowserMetrics>(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const jobsInsertSchema = createInsertSchema(jobs);
+export const jobsUpdateSchema = createUpdateSchema(jobs);
+export const jobsSelectSchema = createSelectSchema(jobs);
+
+// Export ReportType before using it in the reports table definition
+export type ReportType = "test" | "job";
+export const reports = pgTable(
+  "reports", 
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityType: varchar("entity_type", { length: 50 }).$type<ReportType>().notNull(),
+    entityId: uuid("entity_id").notNull(),
+    reportPath: varchar("report_path", { length: 255 }).notNull(),
+    status: varchar("status", { length: 50 }).notNull().default("completed"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    // Add a unique constraint on entityType and entityId to prevent duplicates
+    typeIdUnique: uniqueIndex("reports_entity_type_id_idx").on(
+      table.entityType, 
+      table.entityId
+    ),
+  })
+);
 
 /* ================================
    AUDIT LOGS TABLE
@@ -357,8 +369,4 @@ export const integrations = pgTable("integrations", {
 export const testsInsertSchema = createInsertSchema(tests);
 export const testsUpdateSchema = createUpdateSchema(tests);
 export const testsSelectSchema = createSelectSchema(tests);
-
-export const jobsInsertSchema = createInsertSchema(jobs);
-export const jobsUpdateSchema = createUpdateSchema(jobs);
-export const jobsSelectSchema = createSelectSchema(jobs);
 

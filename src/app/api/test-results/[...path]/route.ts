@@ -3,6 +3,9 @@ import { NextRequest } from "next/server";
 import path from "path";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
+import { getDb } from "@/db/client";
+import { reports } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 const { join, normalize } = path;
 
@@ -77,8 +80,44 @@ export async function GET(
   const filePath = normalize(join(testResultsDir, ...remainingPath));
 
   try {
-    // SIMPLIFIED LOGIC: Always check local folder first
-    console.log(`Checking local filesystem first for results: ${filePath}`);
+    // NEW: Check report metadata first to avoid queue operations
+    const db = await getDb();
+    const entityType = type === 'tests' ? 'test' : 'job';
+    
+    // First check the report metadata table
+    const metadata = await db.select().from(reports)
+      .where(and(
+        eq(reports.entityType, entityType),
+        eq(reports.entityId, id)
+      ))
+      .execute();
+    
+    // If we found metadata, we know the report exists and where it is
+    if (metadata.length > 0) {
+      console.log(`Found report metadata for ${type}/${id}, using cached path information`);
+      
+      // Check if the file exists in the expected location
+      if (existsSync(filePath)) {
+        console.log(`Serving report file from cached location: ${filePath}`);
+        
+        // Read file content
+        const content = await readFile(filePath);
+        
+        // Get the content type based on file extension
+        const contentType = getContentType(filePath);
+        
+        return new Response(content, {
+          headers: {
+            "Content-Type": contentType,
+            "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+            "Expires": new Date(Date.now() + 3600000).toUTCString() // 1 hour from now
+          },
+        });
+      }
+    }
+    
+    // SIMPLIFIED LOGIC: If no metadata, check local folder next
+    console.log(`No metadata found or file missing, checking local filesystem for results: ${filePath}`);
     
     // Check if the local directory exists and file exists
     if (existsSync(testResultsDir) && existsSync(filePath)) {
@@ -90,12 +129,45 @@ export async function GET(
       // Get the content type based on file extension
       const contentType = getContentType(filePath);
       
+      // Store metadata to speed up future requests
+      if (remainingPath[0] === 'report' && remainingPath[1] === 'index.html') {
+        try {
+          console.log(`Ensuring report metadata exists for ${type}/${id}`);
+          
+          // Check if metadata already exists before inserting
+          const existingMetadata = await db.select()
+            .from(reports)
+            .where(and(
+              eq(reports.entityType, entityType),
+              eq(reports.entityId, id)
+            ))
+            .execute();
+          
+          if (existingMetadata.length === 0) {
+            // Only insert if no metadata exists
+            console.log(`Creating new metadata entry for ${type}/${id}`);
+            await db.insert(reports).values({
+              entityType: entityType,
+              entityId: id,
+              reportPath: `/test-results/${type}/${id}/report`,
+              status: 'completed',
+              createdAt: new Date(),
+              updatedAt: new Date()
+            }).execute();
+          } else {
+            console.log(`Metadata already exists for ${type}/${id}, skipping insertion`);
+          }
+        } catch (dbError) {
+          // Log but don't fail the request if we can't save metadata
+          console.warn(`Failed to save report metadata: ${dbError}`);
+        }
+      }
+      
       return new Response(content, {
         headers: {
           "Content-Type": contentType,
-          "Cache-Control": "no-store, max-age=0",
-          "Pragma": "no-cache",
-          "Expires": "0"
+          "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+          "Expires": new Date(Date.now() + 3600000).toUTCString() // 1 hour from now
         },
       });
     }
@@ -135,12 +207,45 @@ export async function GET(
           // Get the content type based on file extension
           const contentType = getContentType(s3Key);
           
+          // Store metadata for S3 files too
+          if (remainingPath[0] === 'report' && remainingPath[1] === 'index.html') {
+            try {
+              console.log(`Ensuring S3 report metadata exists for ${type}/${id}`);
+              
+              // Check if metadata already exists before inserting
+              const existingMetadata = await db.select()
+                .from(reports)
+                .where(and(
+                  eq(reports.entityType, entityType),
+                  eq(reports.entityId, id)
+                ))
+                .execute();
+              
+              if (existingMetadata.length === 0) {
+                // Only insert if no metadata exists
+                console.log(`Creating new S3 metadata entry for ${type}/${id}`);
+                await db.insert(reports).values({
+                  entityType: entityType,
+                  entityId: id,
+                  reportPath: `/test-results/${type}/${id}/report`,
+                  status: 'completed',
+                  createdAt: new Date(),
+                  updatedAt: new Date()
+                }).execute();
+              } else {
+                console.log(`S3 metadata already exists for ${type}/${id}, skipping insertion`);
+              }
+            } catch (dbError) {
+              // Log but don't fail the request if we can't save metadata
+              console.warn(`Failed to save S3 report metadata: ${dbError}`);
+            }
+          }
+          
           return new Response(allBytes, {
             headers: {
               "Content-Type": contentType,
-              "Cache-Control": "no-store, max-age=0",
-              "Pragma": "no-cache",
-              "Expires": "0"
+              "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+              "Expires": new Date(Date.now() + 3600000).toUTCString() // 1 hour from now
             },
           });
         }
