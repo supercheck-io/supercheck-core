@@ -416,11 +416,17 @@ const Playground: React.FC<PlaygroundProps> = ({
               });
             }
             
-            // Set the report URL immediately without any delay and clear loading states
+            // Set the report URL immediately without any delay
             const refreshedUrl = `${result.reportUrl}?t=${Date.now()}`;
             setReportUrl(refreshedUrl);
             
-            // Verify the report exists before clearing loading states
+            // Set a reasonable timeout (8 seconds) to reset the running state 
+            // regardless of iframe loading status
+            setTimeout(() => {
+              setIsRunning(false);
+            }, 8000);
+            
+            // Verify the report exists and set isReportLoading accordingly
             fetch(refreshedUrl)
               .then(response => {
                 if (!response.ok) {
@@ -428,22 +434,25 @@ const Playground: React.FC<PlaygroundProps> = ({
                     // Handle the error response
                     setReportError(errorData.message || "Test results not found");
                     setIframeError(true);
+                    // Set isRunning to false immediately on error
+                    setIsRunning(false);
                   }).catch(() => {
                     // If we can't parse JSON, still show an error
                     setReportError("Test results not found");
                     setIframeError(true);
+                    // Set isRunning to false immediately on error
+                    setIsRunning(false);
                   });
                 }
-                // If response is OK, don't show error
+                // If response is OK, only clear isReportLoading
+                setIsReportLoading(false);
                 return null;
               })
               .catch(() => {
                 // Network error or other issue
                 setReportError("Failed to load test results");
                 setIframeError(true);
-              })
-              .finally(() => {
-                // Clear loading states
+                // Clear both loading states on network error
                 setIsReportLoading(false);
                 setIsRunning(false);
               });
@@ -486,22 +495,29 @@ const Playground: React.FC<PlaygroundProps> = ({
                 const refreshedUrl = `${result.reportUrl}?t=${Date.now()}`;
                 setReportUrl(refreshedUrl);
                 toast.dismiss(loadingToastId);
+                // Set isRunning to false in case of an API error
+                setIsRunning(false);
               });
           }
         };
         
         // Helper function to check if report exists
         const checkIfReportExists = (url: string, tId: string) => {
-          // Don't verify report existence, assume it's available
+          // Set a reasonable timeout to allow report to load but not block UI indefinitely
+          setTimeout(() => {
+            setIsRunning(false);
+          }, 8000);
+          
+          // Clear the report loading indicator
           setIsReportLoading(false);
-          setIsRunning(false);
         };
         
-        // Add a safety timeout to clear loading states after 10 seconds
+        // Add a safety timeout to clear loading states - reduced from 30 seconds to 15 seconds
+        // This ensures the button doesn't stay disabled indefinitely if something goes wrong
         setTimeout(() => {
           setIsReportLoading(false);
           setIsRunning(false);
-        }, 10000);
+        }, 15000);
         
         // Cleanup function to close SSE connection
         return () => {
@@ -807,6 +823,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                                   
                                   // Clear loading states when iframe loads successfully
                                   setIsReportLoading(false);
+                                  // Now that the iframe is fully loaded, we can set isRunning to false
                                   setIsRunning(false);
 
                                 } catch (err) {
