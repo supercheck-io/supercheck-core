@@ -504,132 +504,73 @@ export async function setupJobExecutionWorker(
 }
 
 /**
- * Wait for a specific job to complete using a polling mechanism with improvements
- * This function uses both in-memory tracking and pg-boss's job state
+ * Wait for a specific job to complete using pg-boss's pub/sub mechanism
  */
 export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number = DEFAULT_JOB_TIMEOUT_MS): Promise<T> {
   console.log(`Waiting for job ${jobId} to complete (timeout: ${timeoutMs}ms)`);
   
   const boss = await getQueueInstance();
   
+  // Define queue names for completion and failure events
+  const completedJobQueue = `${COMPLETED_JOB_PREFIX}${JOB_EXECUTION_QUEUE}`;
+  const failedJobQueue = `__state__failed__${JOB_EXECUTION_QUEUE}`;
+  
   return new Promise<T>((resolve, reject) => {
-    const startTime = Date.now();
-    let pollAttempts = 0;
+    let completionInterval: NodeJS.Timeout | null = null;
     
-    // Set a timeout to reject the promise if it takes too long
-    const timeoutId = setTimeout(() => {
-      clearInterval(checkInterval);
-      reject(new Error(`Job ${jobId} timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-    
-    // Register event listener for completed job (on both success and failure queues)
-    const setupListeners = async () => {
-      try {
-        // Use subscribe pattern which is available in pg-boss v10
-        await boss.subscribe(`${COMPLETED_JOB_PREFIX}${JOB_EXECUTION_QUEUE}`, async job => {
-          if (job?.data?.request?.id === jobId) {
-            console.log(`Received pg-boss completion event for job ${jobId}`);
-            clearInterval(checkInterval);
-            clearTimeout(timeoutId);
-            
-            // We still need to check the job results in memory to get the actual result object
-            if (jobResults.has(jobId)) {
-              const storedResult = jobResults.get(jobId);
-              if (storedResult) {
-                if (storedResult.error) {
-                  reject(new Error(`Job ${jobId} failed: ${storedResult.error}`));
-                } else {
-                  resolve(storedResult.result || storedResult as unknown as T);
-                }
-                return;
-              }
-            }
-            
-            // Fallback to job data if in-memory results aren't available
-            if (job.data.failed || job.data.error) {
-              reject(new Error(`Job ${jobId} failed: ${job.data.error || 'Unknown error'}`));
-            } else {
-              resolve(job.data.data as T);
-            }
-          }
-        });
-      } catch (err) {
-        console.warn(`Failed to setup pg-boss subscribe for job ${jobId}, falling back to polling: ${err}`);
-        // Continue with polling as fallback
+    // Cleanup function to clear resources
+    const cleanup = () => {
+      if (completionInterval) {
+        clearInterval(completionInterval);
+        completionInterval = null;
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     };
     
-    // Set up the event listeners (but don't wait for them)
-    setupListeners().catch(err => console.error(`Error in event setup: ${err}`));
+    // Set a timeout to reject the promise if it takes too long
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Job ${jobId} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     
-    // This creates a polling interval as a fallback mechanism
-    const checkInterval = setInterval(async () => {
-      pollAttempts++;
-      
-      try {
-        // Check our in-memory results map first (fastest)
-        if (jobResults.has(jobId)) {
-          const storedResult = jobResults.get(jobId);
+    // Process completed jobs queue - we're already setting this up in setupCompletionWorkers()
+    // So we can just rely on the job results map being updated by that worker
+    
+    // Helper function to check job results from the global map
+    const checkResult = () => {
+      if (jobResults.has(jobId)) {
+        const storedResult = jobResults.get(jobId);
+        
+        if (storedResult && !storedResult.pending) {
+          cleanup();
           
-          // Check if it's the FINAL result by looking for completedAt or error
-          if (storedResult && (storedResult.completedAt || storedResult.error)) { 
-            clearInterval(checkInterval);
-            clearTimeout(timeoutId);
-            
-            // If the result contains an error, reject
-            if (storedResult.error) {
-              console.log(`Job ${jobId} failed (found error in in-memory store)`);
-              reject(new Error(`Job ${jobId} failed: ${storedResult.error}`));
-              return;
-            }
-            
-            // If it's a success result
-            console.log(`Job ${jobId} completed (final result from in-memory store)`);
-            // Resolve with the actual result object stored by the worker
-            resolve(storedResult.result || storedResult as unknown as T);
-            return;
-          } 
-          
-          // Pending result, continue polling
-          if (pollAttempts % 5 === 0) { // Log periodically
-            console.log(`Job ${jobId} still pending in memory store after ${pollAttempts} checks...`);
-          }
-        } else {
-          // Not in memory yet
-          if (pollAttempts % 5 === 0) {
-            console.log(`Job ${jobId} not found in memory store after ${pollAttempts} checks...`);
+          if (storedResult.error || storedResult.success === false) {
+            console.log(`Job ${jobId} failed`);
+            reject(new Error(`Job ${jobId} failed: ${storedResult.error || 'Unknown error'}`));
+          } else {
+            console.log(`Job ${jobId} completed successfully`);
+            resolve(storedResult.result as T);
           }
           
-          // Check pg-boss job state as a backup to in-memory tracking
-          if (pollAttempts % 3 === 0) {
-            try {
-              // Check if job completed/failed
-              const completedJob = await boss.getJobById(`${COMPLETED_JOB_PREFIX}${JOB_EXECUTION_QUEUE}`, jobId);
-              
-              if (completedJob) {
-                clearInterval(checkInterval);
-                clearTimeout(timeoutId);
-                
-                if (completedJob.data.failed || completedJob.data.error) {
-                  console.log(`Job ${jobId} failed (found in pg-boss completed queue)`);
-                  reject(new Error(`Job ${jobId} failed: ${completedJob.data.error || 'Unknown error'}`));
-                } else {
-                  console.log(`Job ${jobId} completed (found in pg-boss completed queue)`);
-                  resolve(completedJob.data.data as T);
-                }
-                return;
-              }
-            } catch (error) {
-              // Ignore error in fallback check, just continue polling
-              console.debug(`Error checking pg-boss state: ${error}`);
-            }
-          }
+          return true;
         }
-      } catch (error) {
-        // Catch errors from accessing jobResults map etc.
-        console.error(`Error in poll check logic for ${jobId}:`, error);
       }
-    }, 1000); // Check every 1 second
+      return false;
+    };
+    
+    // Check immediately in case the job already completed
+    if (checkResult()) {
+      return;
+    }
+    
+    // Since we have completion workers already set up for state-based queues,
+    // we'll check periodically if our job is complete by monitoring the job results map
+    // This still relies on pg-boss's completion mechanisms to update the map
+    completionInterval = setInterval(checkResult, 1000);
+    
+    console.log(`Watching for job ${jobId} completion via pg-boss completion queues`);
   });
 }
 
@@ -715,8 +656,8 @@ async function setupQueue(): Promise<PgBoss | null> {
     await boss.start();
     console.log('PgBoss queue started successfully');
 
-    // Setup the completion worker for all jobs
-    // setupCompletionWorkers().catch(err => console.error('Failed to setup completion workers:', err));
+    // Setup the completion worker for all jobs - ensure this is uncommented
+    setupCompletionWorkers().catch(err => console.error('Failed to setup completion workers:', err));
     
     bossInstance = boss;
 
