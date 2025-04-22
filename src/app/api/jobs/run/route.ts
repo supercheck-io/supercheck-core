@@ -112,16 +112,22 @@ export async function POST(request: Request) {
     const durationMs = endTime - startTimeMs;
     const duration = `${Math.floor(durationMs / 1000)}s`;
 
+    // Check if any individual tests failed
+    const hasFailedTests = Array.isArray(result.results) ? result.results.some(r => !r.success) : false;
+    
+    // Determine overall success status - failed if either the test process failed or any individual test failed
+    const isOverallSuccess = result.success && !hasFailedTests;
+
     // Update the job status in the database
     await dbInstance
       .update(jobs)
       .set({
-        status: result.success ? "completed" as JobStatus : "failed" as JobStatus,
+        status: isOverallSuccess ? "completed" as JobStatus : "failed" as JobStatus,
         lastRunAt: new Date(), // Use Date object for database
       })
       .where(eq(jobs.id, jobId));
 
-    console.log(`Updated job status to ${result.success ? "completed" : "failed"}`);
+    console.log(`Updated job status to ${isOverallSuccess ? "completed" : "failed"}`);
 
     // The test results from executeMultipleTests don't include stdout/stderr in the results array
     // So we need to create a separate structure for logs
@@ -141,39 +147,35 @@ export async function POST(request: Request) {
     const logs = JSON.stringify(logsData);
 
     // Get error details if any tests failed
-    const errorDetails = result.success 
+    const errorDetails = isOverallSuccess 
       ? null 
       : JSON.stringify(
           Array.isArray(result.results)
             ? result.results
                 .filter(r => !r.success)
                 .map(r => r.error)
-            : []
+            : [result.error]
         );
-    
-    // Check if any individual tests failed - this is an additional check to ensure
-    // we correctly flag runs with failed tests
-    const hasFailedTests = Array.isArray(result.results) ? result.results.some(r => !r.success) : !result.success;
     
     // Update the test run record with results
     await dbInstance
       .update(runs)
       .set({
-        status: (result.success && !hasFailedTests) ? "passed" as TestRunStatus : "failed" as TestRunStatus,
+        status: isOverallSuccess ? "passed" as TestRunStatus : "failed" as TestRunStatus,
         duration: duration,
         completedAt: new Date(),
         logs: result.stdout || "",
-        errorDetails: result.stderr || "",
+        errorDetails: errorDetails || result.stderr || "",
       })
       .where(eq(runs.id, runId));
 
-    console.log(`Updated test run record with results, status: ${(result.success && !hasFailedTests) ? "passed" : "failed"}`);
+    console.log(`Updated test run record with results, status: ${isOverallSuccess ? "passed" : "failed"}`);
 
     // Return the combined result with the run ID
     return NextResponse.json({
       jobId,
       runId,
-      success: result.success,
+      success: isOverallSuccess,
       reportUrl: result.reportUrl,
       results: testResults,
       timestamp: new Date().toISOString(), // This is fine for API response

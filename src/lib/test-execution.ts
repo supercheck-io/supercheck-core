@@ -11,11 +11,15 @@ import { uploadDirectory } from "./s3-storage";
 import { getDb } from "@/db/client";
 import { reports } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { spawn } from 'child_process';
+import mime from 'mime-types';
+
+// Reference for the test status map, will be imported from queue.ts
+let testStatusMapRef: any = null;
 
 // Remove import of queue functions at the top level to make them lazy loaded
 // They will be imported only when needed
 
-const { spawn } = childProcess;
 const { join, normalize, sep, posix, dirname } = path;
 
 // Helper function to check if running on Windows
@@ -154,36 +158,33 @@ let queueInitPromise: Promise<void> | null = null;
 // Lazy load and initialize the queue only when needed for test execution
 async function ensureQueueInitialized(): Promise<void> {
   if (queueInitialized) {
-    return; // Already initialized
+    return;
   }
   
-  if (queueInitializing && queueInitPromise) {
-    return queueInitPromise; // Already initializing, return the promise
+  if (queueInitializing) {
+    console.log("Queue initialization already in progress, waiting...");
+    return queueInitPromise;
   }
   
   queueInitializing = true;
+  console.log("Lazy-initializing test and job workers...");
   
-  // Create a promise for the initialization
   queueInitPromise = (async () => {
     try {
-      console.log('Lazy-initializing test and job workers...');
-      
-      // No environment variable checks - we're explicitly calling this function
-      // when we know we need the queue for test execution
-      
-      // Dynamically import queue functions only when needed
-      const { 
-        addTestToQueue, 
-        addJobToQueue, 
-        waitForJobCompletion, 
+      const {
+        setTestStatusMap,
         setupTestExecutionWorker,
         setupJobExecutionWorker,
-        setTestStatusMap,
+        TEST_EXECUTION_QUEUE,
+        JOB_EXECUTION_QUEUE
       } = await import('./queue');
       
-      // Share the test status map with the queue module
-      setTestStatusMap(testStatusMap as any);
-      
+      // Set up the shared status map reference
+      setTestStatusMap(testStatusMap);
+      // Import the testStatusMapRef from queue for bidirectional updates
+      const queueModule = await import('./queue');
+      testStatusMapRef = queueModule.testStatusMapRef;
+
       // Initialize test execution worker
       await setupTestExecutionWorker(MAX_CONCURRENT_TESTS, async (task) => {
         try {
@@ -1311,14 +1312,6 @@ test('${testName} (ID: ${id})', async ({ page }) => {
         error: `Queue/Wait Error: ${errorMessage}`,
       });
 
-      // Create a minimal error report HTML
-      const errorHtml = `<!DOCTYPE html><html><head><title>Job Error - ${runId}</title></head><body><h1>Job Execution Failed</h1><p>Could not queue or complete the job via the execution queue.</p><pre>${errorMessage}</pre></body></html>`;
-       try {
-           await fs.writeFile(htmlReportPath, errorHtml);
-       } catch(writeErr) {
-           console.error(`Failed to write error report for job ${runId}:`, writeErr);
-       }
-
       // Return an error structure consistent with TestExecutionResult
       return { 
         jobId: runId,
@@ -1398,6 +1391,17 @@ async function _runJobTests(
     const testFailed = result.stdout.includes(`fail`) && result.stdout.includes(testFilename); 
     const testPassed = testWasRun && !testFailed;
 
+    // Update the test status in the shared status map
+    if (testStatusMapRef) {
+      testStatusMapRef.set(id, {
+        testId: id,
+        status: "completed",
+        success: testPassed,
+        error: testFailed ? `Test ${testName} failed during execution (check report)` : null,
+        reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`)
+      });
+    }
+
     return {
       testId: id,
       success: testPassed,
@@ -1408,6 +1412,17 @@ async function _runJobTests(
 
   // Overall success is true ONLY if the execution succeeded AND all individual tests passed
   const overallSuccess = result.success && individualResults.every((res) => res.success);
+
+  // Update the overall job status
+  if (testStatusMapRef) {
+    testStatusMapRef.set(runId, {
+      testId: runId,
+      status: "completed",
+      success: overallSuccess,
+      error: overallSuccess ? null : (result.error || "One or more tests failed"),
+      reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`)
+    });
+  }
 
   // Upload results to S3 only on overall success
   if (overallSuccess) {

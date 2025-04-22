@@ -51,6 +51,9 @@ const jobResults = new Map<string, StoredJobResult>();
 // We'll need to declare this but defer actual initialization to avoid circular dependencies
 let testStatusMapRef: TestStatusUpdateMap | null = null;
 
+// Export the test status map reference for bidirectional updates
+export { testStatusMapRef };
+
 // Function to set the status map reference from test-execution.ts
 export function setTestStatusMap(statusMap: TestStatusUpdateMap): void {
   testStatusMapRef = statusMap;
@@ -501,8 +504,8 @@ export async function setupJobExecutionWorker(
 }
 
 /**
- * Wait for a specific job to complete using a polling mechanism
- * This function uses pg-boss's job state to check for completion status
+ * Wait for a specific job to complete using a polling mechanism with improvements
+ * This function uses both in-memory tracking and pg-boss's job state
  */
 export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number = DEFAULT_JOB_TIMEOUT_MS): Promise<T> {
   console.log(`Waiting for job ${jobId} to complete (timeout: ${timeoutMs}ms)`);
@@ -519,12 +522,52 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
       reject(new Error(`Job ${jobId} timed out after ${timeoutMs}ms`));
     }, timeoutMs);
     
-    // This creates a polling interval to check for job completion
+    // Register event listener for completed job (on both success and failure queues)
+    const setupListeners = async () => {
+      try {
+        // Use subscribe pattern which is available in pg-boss v10
+        await boss.subscribe(`${COMPLETED_JOB_PREFIX}${JOB_EXECUTION_QUEUE}`, async job => {
+          if (job?.data?.request?.id === jobId) {
+            console.log(`Received pg-boss completion event for job ${jobId}`);
+            clearInterval(checkInterval);
+            clearTimeout(timeoutId);
+            
+            // We still need to check the job results in memory to get the actual result object
+            if (jobResults.has(jobId)) {
+              const storedResult = jobResults.get(jobId);
+              if (storedResult) {
+                if (storedResult.error) {
+                  reject(new Error(`Job ${jobId} failed: ${storedResult.error}`));
+                } else {
+                  resolve(storedResult.result || storedResult as unknown as T);
+                }
+                return;
+              }
+            }
+            
+            // Fallback to job data if in-memory results aren't available
+            if (job.data.failed || job.data.error) {
+              reject(new Error(`Job ${jobId} failed: ${job.data.error || 'Unknown error'}`));
+            } else {
+              resolve(job.data.data as T);
+            }
+          }
+        });
+      } catch (err) {
+        console.warn(`Failed to setup pg-boss subscribe for job ${jobId}, falling back to polling: ${err}`);
+        // Continue with polling as fallback
+      }
+    };
+    
+    // Set up the event listeners (but don't wait for them)
+    setupListeners().catch(err => console.error(`Error in event setup: ${err}`));
+    
+    // This creates a polling interval as a fallback mechanism
     const checkInterval = setInterval(async () => {
       pollAttempts++;
       
       try {
-        // --- SIMPLIFIED LOGIC: ONLY check our in-memory results map --- 
+        // Check our in-memory results map first (fastest)
         if (jobResults.has(jobId)) {
           const storedResult = jobResults.get(jobId);
           
@@ -546,37 +589,47 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
             resolve(storedResult.result || storedResult as unknown as T);
             return;
           } 
-          // else: It's the initial pending entry or still processing, keep polling.
-          if (pollAttempts % 5 === 0) { // Log periodically (more frequent)
-             console.log(`Job ${jobId} still pending in memory store after ${pollAttempts} checks...`);
+          
+          // Pending result, continue polling
+          if (pollAttempts % 5 === 0) { // Log periodically
+            console.log(`Job ${jobId} still pending in memory store after ${pollAttempts} checks...`);
           }
         } else {
-           // Job not even in the map yet (worker hasn't started/stored initial pending state)
-           if (pollAttempts % 5 === 0) { // Log periodically
-             console.log(`Job ${jobId} not found in memory store after ${pollAttempts} checks...`);
-           }
+          // Not in memory yet
+          if (pollAttempts % 5 === 0) {
+            console.log(`Job ${jobId} not found in memory store after ${pollAttempts} checks...`);
+          }
+          
+          // Check pg-boss job state as a backup to in-memory tracking
+          if (pollAttempts % 3 === 0) {
+            try {
+              // Check if job completed/failed
+              const completedJob = await boss.getJobById(`${COMPLETED_JOB_PREFIX}${JOB_EXECUTION_QUEUE}`, jobId);
+              
+              if (completedJob) {
+                clearInterval(checkInterval);
+                clearTimeout(timeoutId);
+                
+                if (completedJob.data.failed || completedJob.data.error) {
+                  console.log(`Job ${jobId} failed (found in pg-boss completed queue)`);
+                  reject(new Error(`Job ${jobId} failed: ${completedJob.data.error || 'Unknown error'}`));
+                } else {
+                  console.log(`Job ${jobId} completed (found in pg-boss completed queue)`);
+                  resolve(completedJob.data.data as T);
+                }
+                return;
+              }
+            } catch (error) {
+              // Ignore error in fallback check, just continue polling
+              console.debug(`Error checking pg-boss state: ${error}`);
+            }
+          }
         }
-        
-        // --- REMOVED Checks against pg-boss state (getJobById, fetch, etc.) ---
-        /*
-        try {
-          // Determine which queue...
-          let job = await boss.getJobById(queueName, jobId);
-          // ... rest of pg-boss checking logic ...
-        } catch (error) {
-          console.warn(`Error checking job state for ${jobId}:`, error);
-        }
-        */
-        
       } catch (error) {
         // Catch errors from accessing jobResults map etc.
         console.error(`Error in poll check logic for ${jobId}:`, error);
-        // Stop polling on unexpected errors
-        clearInterval(checkInterval);
-        clearTimeout(timeoutId);
-        reject(new Error(`Error during polling for ${jobId}: ${error instanceof Error ? error.message : String(error)}`));
       }
-    }, 1000); // Check every 1 second (reduced interval)
+    }, 1000); // Check every 1 second
   });
 }
 
