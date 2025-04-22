@@ -29,6 +29,8 @@ import {
 } from "@/components/form";
 import { ControllerRenderProps } from "react-hook-form";
 import TestSelector from "./test-selector";
+import CronScheduler from "./CronScheduler";
+import { Info } from "lucide-react";
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
@@ -60,6 +62,12 @@ export default function CreateJob() {
   const onSubmit = form.handleSubmit(async (values: FormData) => {
     setSubmissionAttempted(true);
 
+    // Ensure cronSchedule is a valid cron string or empty, default to '*' if empty but intended
+    // react-js-cron defaults to '*' when initialized empty, let's reflect that maybe?
+    // Or ensure it's explicitly empty string if user clears it.
+    // For now, we trim and use empty string if cleared.
+    const cronValue = values.cronSchedule?.trim() || ""; 
+
     try {
       // Validate that at least one test is selected
       if (selectedTests.length === 0) {
@@ -73,7 +81,7 @@ export default function CreateJob() {
       const jobData = {
         name: values.name.trim(),
         description: values.description.trim(),
-        cronSchedule: values.cronSchedule?.trim() || "",
+        cronSchedule: cronValue, // Use the processed cron value
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
 
@@ -133,73 +141,78 @@ export default function CreateJob() {
         <CardContent className="space-y-6">
           <Form {...form}>
             <form onSubmit={onSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({
-                    field,
-                  }: {
-                    field: ControllerRenderProps<FormData, "name">;
-                  }) => (
-                    <FormItem>
-                      <FormLabel>Job Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Enter job name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {/* Main grid: Left column for Name/Desc, Right for Cron */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column: Name and Description */}
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({
+                      field,
+                    }: {
+                      field: ControllerRenderProps<FormData, "name">;
+                    }) => (
+                      <FormItem>
+                        <FormLabel>Job Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Enter job name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="cronSchedule"
-                  render={({
-                    field,
-                  }: {
-                    field: ControllerRenderProps<FormData, "cronSchedule">;
-                  }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Cron Schedule{" "}
-                        <span className="text-gray-500">(optional)</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="e.g. 0 0 * * *"
-                        />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Leave empty for manual execution only
-                      </p>
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }: { field: ControllerRenderProps<FormData, "description"> }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder="Enter job description"
+                            className="min-h-[100px]"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Right Column: Cron Scheduler */}
+                <div className="space-y-4"> 
+                  <FormField
+                    control={form.control}
+                    name="cronSchedule"
+                    render={({
+                      field,
+                    }: {
+                      field: ControllerRenderProps<FormData, "cronSchedule">;
+                    }) => (
+                      <FormItem>
+                        <FormLabel className="mb-6">
+                          Cron Schedule{" "}
+                          <span className="text-gray-500">(optional)</span>
+                        </FormLabel>
+                        <FormControl>
+                          <CronScheduler 
+                            value={field.value || ""}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground mt-4 flex items-center">
+                          <Info className="h-3 w-3 mr-1" />
+                          <span>Leave empty for manual execution or use the scheduler.</span>
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={({
-                  field,
-                }: {
-                  field: ControllerRenderProps<FormData, "description">;
-                }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="Enter job description"
-                        className="min-h-[100px]"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               {/* Use the TestSelector component */}
               <TestSelector

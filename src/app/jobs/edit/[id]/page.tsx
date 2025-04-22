@@ -5,6 +5,7 @@ import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import EditJob from "@/components/jobs/edit-job";
 import { getJob } from "@/actions/get-jobs";
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function EditJobPage() {
   const params = useParams();
@@ -37,7 +38,12 @@ export default function EditJobPage() {
   ];
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex flex-col justify-center items-center h-full gap-2">
+        <Loader2 className="h-12 w-12 animate-spin" />
+        <p className="text-muted-foreground text-lg">Loading Job...</p>
+      </div>
+    );
   }
 
   return (
