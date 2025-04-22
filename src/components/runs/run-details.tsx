@@ -141,8 +141,8 @@ export function RunDetails({ run }: RunDetailsProps) {
           ) : (
             run.status === "running" ? (
               <StaticErrorPage 
-                title="Test Run In Progress" 
-                message="This test job is currently running. Please check back later to view the results."
+                title="Job Run In Progress" 
+                message="This job is currently running. Please check back later to view the results."
               />
             ) : (
               <div className="w-full h-[calc(100vh-210px)] overflow-hidden border rounded-md mb-4 relative">

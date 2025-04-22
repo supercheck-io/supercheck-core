@@ -12,7 +12,6 @@ import { getDb } from "@/db/client";
 import { reports } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { spawn } from 'child_process';
-import mime from 'mime-types';
 
 // Reference for the test status map, will be imported from queue.ts
 let testStatusMapRef: any = null;
@@ -163,7 +162,7 @@ async function ensureQueueInitialized(): Promise<void> {
   
   if (queueInitializing) {
     console.log("Queue initialization already in progress, waiting...");
-    return queueInitPromise;
+    return queueInitPromise!;
   }
   
   queueInitializing = true;
@@ -808,47 +807,111 @@ async function createErrorReport(
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Test Error</title>
       <style>
+        :root {
+          --bg-color: #f8f9fc;
+          --text-color: #1e293b;
+          --container-bg: white;
+          --container-shadow: rgba(0, 0, 0, 0.1);
+          --error-color: #dc2626;
+          --muted-color: #64748b;
+          --details-bg: #f1f5f9;
+          --details-text: #334155;
+          --details-title: #0f172a;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+          :root {
+            --bg-color: #1e1e1e;
+            --text-color: #f1f5f9;
+            --container-bg: #2d3748;
+            --container-shadow: rgba(0, 0, 0, 0.3);
+            --error-color: #dc2626;
+            --muted-color: #94a3b8;
+            --details-bg: #1e293b;
+            --details-text: #cbd5e1;
+            --details-title: #f1f5f9;
+          }
+        }
+
         body {
-          font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
           margin: 0;
           padding: 20px;
-          background-color: #1e1e1e;
-          color: #d4d4d4;
+          background-color: var(--bg-color);
+          color: var(--text-color);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          transform: translateY(-10%);
         }
         .container {
-          max-width: 800px;
+          max-width: 500px;
           margin: 0 auto;
-          background-color: #1e1e1e;
-          padding: 20px;
-          border-radius: 5px;
-          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+          padding: 2rem;
+          border-radius: 8px;
+          text-align: center;
+        }
+        .icon {
+          color: var(--error-color);
+          font-size: 64px;
+          margin-bottom: 1rem;
+          display: flex;
+          justify-content: center;
+        }
+        .icon svg {
+          width: 64px;
+          height: 64px;
+          stroke-width: 2.5;
         }
         h1 {
-          color: #e06c75;
-          margin-top: 0;
+          font-size: 1.875rem;
+          font-weight: bold;
+          margin-bottom: 0.5rem;
+          color: var(--text-color);
         }
-        h2 {
-          color: #e5c07b;
+        .message {
+          color: var(--muted-color);
+          margin-bottom: 1.5rem;
         }
-        pre {
-          background-color: #252526;
-          padding: 15px;
-          border-radius: 5px;
+        .details {
+          background-color: var(--details-bg);
+          padding: 1rem;
+          border-radius: 6px;
+          text-align: left;
+          font-family: monospace;
+          font-size: 0.875rem;
           overflow-x: auto;
-          color: #d4d4d4;
-          border: 1px solid #333;
+          margin-top: 1rem;
+          white-space: pre-wrap;
+          word-break: break-word;
+          color: var(--details-text);
+        }
+        .details-title {
+          font-weight: bold;
+          margin-bottom: 0.5rem;
+          color: var(--details-title);
+        }
+        .hint {
+          color: var(--muted-color);
+          font-size: 0.875rem;
+          margin-top: 1rem;
+          font-style: italic;
         }
       </style>
     </head>
     <body>
       <div class="container">
-        <h1>Test Error</h1>
-        <h2>Error Details</h2>
-        <pre>${errorMessage}</pre>
-        <h2>Test Output</h2>
-        <pre>${stdout}</pre>
-        <h2>Test Errors</h2>
-        <pre>${stderr}</pre>
+        <div class="icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <h1>Script Validation Error</h1>
+        <div class="message">${errorMessage}</div>
+        <div class="hint">Please check and fix your script in the editor tab</div>
       </div>
     </body>
   </html>
@@ -926,6 +989,15 @@ export async function executeTest(code: string): Promise<TestResult> {
         reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
       });
 
+      // Create an error report for validation failure
+      const htmlReportPath = normalize(join(reportDir, "index.html"));
+      await createErrorReport(
+        htmlReportPath,
+        validationResult.error || "Code validation failed",
+        "",
+        validationResult.error || ""
+      );
+
       // Assign to the outer result variable
       result = {
         success: false,
@@ -946,7 +1018,7 @@ export async function executeTest(code: string): Promise<TestResult> {
     );
 
     // Create a unique test file
-    testPath = normalize(join(testsDir, `test-${testId}.spec.js`));
+    testPath = normalize(join(testsDir, `${testId}.spec.js`));
 
     // Wrap code in test if needed
     const testContent = code.includes("import { test, expect }")
@@ -1249,8 +1321,7 @@ export async function executeMultipleTests(
       const validationResult = validateCode(script);
       if (!validationResult.valid) {
         console.error(`Code validation failed for test ${id}: ${validationResult.error}`);
-        const failingTestCode = `
-const { test, expect } = require('@playwright/test');
+        const failingTestCode = `const { test, expect } = require('@playwright/test');
 test('${testName} (ID: ${id})', async ({ page }) => {
   test.fail(); console.log('Test validation failed: ${validationResult.error?.replace(/'/g, "\'")}')
   expect(false).toBeTruthy();
@@ -1566,3 +1637,4 @@ async function executeMultipleTestFilesWithGlobalConfig(
     }
   });
 }
+
