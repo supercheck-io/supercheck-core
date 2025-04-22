@@ -267,38 +267,67 @@ async function ensureQueueInitialized(): Promise<void> {
         Math.max(1, Math.floor(MAX_CONCURRENT_TESTS / 2)),
         async (task) => {
           try {
-            console.log(`Worker processing job execution for ${task.jobId}`);
+            console.log(`Job worker started processing job ID: ${task.jobId}`);
             
-            const result = await executeMultipleTests(task.testScripts, task.jobId);
+            // === Worker Logic Start ===
+            // Prepare paths and test files similar to executeMultipleTests setup
+            const runId = task.jobId; // Use jobId as runId for consistency
+            const testScripts = task.testScripts;
+
+            const publicDir = normalize(join(process.cwd(), "public"));
+            const jobTestsDir = normalize(join(publicDir, "tests", runId));
+            const testResultsDir = normalize(getResultsPath(runId, true));
+            const reportDir = normalize(join(testResultsDir, "report"));
+            const htmlReportPath = normalize(join(reportDir, "index.html"));
+
+            // Ensure directories exist (might be redundant if created earlier, but safe)
+            await fs.mkdir(reportDir, { recursive: true });
+            await fs.mkdir(jobTestsDir, { recursive: true });
             
-            // Store report metadata for faster access
-            if (result.success && result.reportUrl) {
-              const urlPath = result.reportUrl.split('/api/test-results')[1];
-              const reportPathParts = urlPath.split('/');
-              const reportDir = reportPathParts.slice(0, reportPathParts.length - 1).join('/').split('?')[0];
-              
-              await storeReportMetadata(task.jobId, 'job', reportDir);
+            // Create individual test files (this duplicates setup in executeMultipleTests, consider refactoring later)
+            const testFilePaths: string[] = [];
+            for (const { id, script, name } of testScripts) {
+                const testName = name || `Test ${id}`;
+                const testFilePath = normalize(join(jobTestsDir, `${id}.spec.js`));
+                const validationResult = validateCode(script);
+
+                if (!validationResult.valid) {
+                    console.error(`Code validation failed for test ${id} in worker: ${validationResult.error}`);
+                    const failingTestCode = `
+const { test, expect } = require('@playwright/test');
+test('${testName} (ID: ${id})', async ({ page }) => {
+  test.fail(); console.log('Test validation failed: ${validationResult.error?.replace(/'/g, "\'")}')
+  expect(false).toBeTruthy();
+});`;
+                    await fs.writeFile(testFilePath, failingTestCode);
+                } else {
+                    await fs.writeFile(testFilePath, script);
+                }
+                testFilePaths.push(testFilePath);
             }
+
+            // Execute the tests using the new helper function
+            const result = await _runJobTests(
+              runId,
+              testScripts,
+              jobTestsDir,
+              reportDir,
+              testFilePaths
+            );
             
-            // Upload results to S3
-            try {
-              console.log(`Uploading test results for job ${task.jobId} to S3`);
-              const testResultsDir = normalize(getResultsPath(task.jobId, true));
-              const reportDir = normalize(join(testResultsDir, "report"));
-              
-              await uploadDirectory(reportDir, `test-results/jobs/${task.jobId}/report`);
-              console.log(`Successfully uploaded results for ${task.jobId} to S3`);
-            } catch (uploadError) {
-              console.error(`Error uploading results to S3:`, uploadError);
-            }
+            // S3 Upload and Metadata storage are now handled within _runJobTests
             
+            console.log(`Job worker successfully processed job ID: ${task.jobId}, Success: ${result.success}`);
             return result;
+            // === Worker Logic End ===
+
           } catch (error) {
-            // Error handling code
+            // Error handling code for the worker itself
             console.error(`Error in job worker for ${task.jobId}:`, error);
             
             const errorMessage = error instanceof Error ? error.message : String(error);
             
+            // Return a structured error result
             return {
               jobId: task.jobId,
               success: false,
@@ -316,7 +345,7 @@ async function ensureQueueInitialized(): Promise<void> {
           }
         }
       );
-      
+
       console.log('Queue initialization complete');
       queueInitialized = true;
     } catch (error) {
@@ -549,64 +578,6 @@ async function executeTestInChildProcess(
               console.log(
                 `Creating minimal HTML report for failed test ${testId}`
               );
-
-              const minimalHtml = `
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <title>Test Error</title>
-                  <style>
-                    body {
-                      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                      background-color: #f8f8f8;
-                      color: #333;
-                      margin: 0;
-                      padding: 20px;
-                      line-height: 1.6;
-                    }
-                    .container {
-                      max-width: 800px;
-                      margin: 0 auto;
-                      background-color: white;
-                      border-radius: 8px;
-                      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                      padding: 20px;
-                    }
-                    h1 {
-                      color: #dc2626;
-                      margin-top: 0;
-                    }
-                    .error-box {
-                      background-color: #fef2f2;
-                      border-left: 4px solid #dc2626;
-                      padding: 15px;
-                      margin: 20px 0;
-                    }
-                    pre {
-                      background-color: #f1f5f9;
-                      padding: 15px;
-                      border-radius: 4px;
-                      overflow-x: auto;
-                    }
-                  </style>
-                </head>
-                <body>
-                  <div class="container">
-                    <h1>Test Error</h1>
-                    <div class="error-box">
-                      <h2>Error Details</h2>
-                      <p>${errorMessage}</p>
-                    </div>
-                    <h2>Test Output</h2>
-                    <pre>${stdout}</pre>
-                    <h2>Test Errors</h2>
-                    <pre>${stderr}</pre>
-                  </div>
-                </body>
-              </html>
-              `;
-
-              await fs.writeFile(htmlReportPath, minimalHtml);
             }
 
             // Update the test status
@@ -649,66 +620,6 @@ async function executeTestInChildProcess(
           console.log(
             `No HTML report found for test ${testId} even though it completed successfully`
           );
-
-          // Create a basic report
-          const successHtml = `
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Test Completed Successfully</title>
-              <style>
-                body {
-                  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                  background-color: #f8f8f8;
-                  color: #333;
-                  margin: 0;
-                  padding: 20px;
-                  line-height: 1.6;
-                }
-                .container {
-                  max-width: 800px;
-                  margin: 0 auto;
-                  background-color: white;
-                  border-radius: 8px;
-                  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                  padding: 20px;
-                }
-                h1 {
-                  color: #16a34a;
-                  margin-top: 0;
-                }
-                .success-box {
-                  background-color: #f0fdf4;
-                  border-left: 4px solid #16a34a;
-                  padding: 15px;
-                  margin: 20px 0;
-                }
-                pre {
-                  background-color: #f1f5f9;
-                  padding: 15px;
-                  border-radius: 4px;
-                  overflow-x: auto;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <h1>Test Completed Successfully</h1>
-                <div class="success-box">
-                  <p>Your test ran successfully with no errors!</p>
-                </div>
-                <h2>Test Output</h2>
-                <pre>${stdout}</pre>
-              </div>
-            </body>
-          </html>
-          `;
-
-          try {
-            await fs.writeFile(htmlReportPath, successHtml);
-          } catch (writeError) {
-            console.error(`Error creating success report: ${writeError}`);
-          }
         }
 
         // Update the test status
@@ -1014,63 +925,6 @@ export async function executeTest(code: string): Promise<TestResult> {
         reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
       });
 
-      // Generate error report
-      const errorHtml = `
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Test Failed - Validation Error</title>
-          <style>
-            body {
-              font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-              margin: 0;
-              padding: 20px;
-              background-color: #1e1e1e;
-              color: #d4d4d4;
-            }
-            .container {
-              max-width: 800px;
-              margin: 0 auto;
-              background-color: #1e1e1e;
-              padding: 20px;
-              border-radius: 5px;
-              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-            }
-            h3 {
-              color: #e06c75;
-              margin-top: 0;
-            }
-            pre {
-              background-color: #252526;
-              padding: 15px;
-              border-radius: 5px;
-              overflow-x: auto;
-              color: #d4d4d4;
-              border: 1px solid #333;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h3>Validation Error</h3>
-            <pre>${validationResult.error || "Unknown validation error"}</pre>
-          </div>
-        </body>
-      </html>
-      `;
-
-      // Define the report directory
-      const testResultsDir = normalize(getResultsPath(testId));
-      const reportDir = normalize(join(testResultsDir, "report"));
-
-      // Ensure the directory exists
-      await fs.mkdir(dirname(join(reportDir, "index.html")), {
-        recursive: true,
-      });
-      await fs.writeFile(join(reportDir, "index.html"), errorHtml);
-
       // Assign to the outer result variable
       result = {
         success: false,
@@ -1316,89 +1170,24 @@ test('test', async ({ page }) => {
       errorMessage = error.message;
     }
 
-    // Create a minimal HTML report for the error case
-    try {
-      const errorHtml = `
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Test Failed - Setup Error</title>
-          <style>
-            body {
-              font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-              margin: 0;
-              padding: 20px;
-              background-color: #1e1e1e;
-              color: #d4d4d4;
-            }
-            .container {
-              max-width: 800px;
-              margin: 0 auto;
-              background-color: #1e1e1e;
-              padding: 20px;
-              border-radius: 5px;
-              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-            }
-            h1 {
-              color: #e06c75;
-              margin-top: 0;
-            }
-            h2 {
-              color: #e5c07b;
-            }
-            pre {
-              background-color: #252526;
-              padding: 15px;
-              border-radius: 5px;
-              overflow-x: auto;
-              color: #d4d4d4;
-              border: 1px solid #333;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>Test Failed</h1>
-            <h2>Setup Error</h2>
-            <pre>${errorMessage}</pre>
-          </div>
-        </body>
-      </html>
-      `;
+    // Update test status directly
+    testStatusMap.set(testId, {
+      testId,
+      status: "completed",
+      success: false,
+      error: errorMessage,
+      reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
+    });
 
-      // Define the report directory
-      const testResultsDir = normalize(getResultsPath(testId));
-      const reportDir = normalize(join(testResultsDir, "report"));
-
-      // Ensure the directory exists
-      await fs.mkdir(dirname(join(reportDir, "index.html")), {
-        recursive: true,
-      });
-      await fs.writeFile(join(reportDir, "index.html"), errorHtml);
-
-      // Update test status to completed with error
-      testStatusMap.set(testId, {
-        testId,
-        status: "completed",
-        success: false,
-        error: errorMessage,
-        reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
-      });
-
-      // Assign to the outer result variable
-      result = {
-        success: false,
-        error: errorMessage,
-        reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
-        testId,
-        stdout: "",
-        stderr: errorMessage,
-      };
-    } catch (reportError) {
-      console.error("Error creating error report:", reportError);
-    }
+    // Assign error result
+    result = {
+      success: false,
+      error: errorMessage,
+      reportUrl: toUrlPath(`/api/test-results/tests/${testId}/report/index.html`),
+      testId,
+      stdout: "",
+      stderr: errorMessage,
+    };
 
     return result;
   } finally {
@@ -1422,16 +1211,16 @@ export async function executeMultipleTests(
   // Also add to recent tests with current timestamp
   recentTestIds.set(runId, Date.now());
 
+  // Define directories early for cleanup purposes if needed
+  const publicDir = normalize(join(process.cwd(), "public"));
+  const jobTestsDir = normalize(join(publicDir, "tests", runId));
+  const testResultsDir = normalize(getResultsPath(runId, true));
+  const reportDir = normalize(join(testResultsDir, "report"));
+  // Define htmlReportPath here to be accessible in the catch block later
+  const htmlReportPath = normalize(join(reportDir, "index.html"));
+
   try {
-    console.log(`Executing multiple tests with run ID ${runId}`);
-
-    // Create a directory for the test files
-    const publicDir = normalize(join(process.cwd(), "public"));
-    const jobTestsDir = normalize(join(publicDir, "tests", runId));
-
-    // Create run-specific report directory using runId and the jobs subfolder
-    const testResultsDir = normalize(getResultsPath(runId, true)); // Using helper with isJob=true
-    const reportDir = normalize(join(testResultsDir, "report"));
+    console.log(`Executing multiple tests job with run ID ${runId}`);
 
     // Initialize the test status
     testStatusMap.set(runId, {
@@ -1440,99 +1229,38 @@ export async function executeMultipleTests(
     });
 
     // Create the directories
+    // Note: These might be created again in the worker, which is acceptable.
     await fs.mkdir(testResultsDir, { recursive: true });
     await fs.mkdir(reportDir, { recursive: true });
     await fs.mkdir(jobTestsDir, { recursive: true });
 
-    console.log(`Created test directory: ${jobTestsDir}`);
-    console.log(`Created report directory: ${reportDir}`);
+    console.log(`Created directories for job ${runId}`);
+    // console.log(`Created test directory: ${jobTestsDir}`);
+    // console.log(`Created report directory: ${reportDir}`);
 
     // Create individual test files for each test script
+    // This setup MUST happen before queuing, as the worker needs the files.
     const testFilePaths: string[] = [];
-
     for (const { id, script, name } of testScripts) {
       const testName = name || `Test ${id}`;
       const testFilePath = normalize(join(jobTestsDir, `${id}.spec.js`));
 
-      // Validate the test script
       const validationResult = validateCode(script);
-
       if (!validationResult.valid) {
-        console.error(
-          `Code validation failed for test ${id}: ${validationResult.error}`
-        );
-
-        // Create a failing test file
+        console.error(`Code validation failed for test ${id}: ${validationResult.error}`);
         const failingTestCode = `
 const { test, expect } = require('@playwright/test');
-
 test('${testName} (ID: ${id})', async ({ page }) => {
-  test.fail();
-  console.log('Test validation failed: ${validationResult.error?.replace(
-    /'/g,
-    "\\'"
-  )}');
+  test.fail(); console.log('Test validation failed: ${validationResult.error?.replace(/'/g, "\'")}')
   expect(false).toBeTruthy();
-});
-`;
+});`;
         await fs.writeFile(testFilePath, failingTestCode);
       } else {
-        // Write the original script to a file
         await fs.writeFile(testFilePath, script);
       }
-
       testFilePaths.push(testFilePath);
     }
-
-    // Create a loading indicator report
-    const loadingHtml = `<!DOCTYPE html>
-<html>
-  <head>
-    <title>Job Running - ${runId}</title>
-    <style>
-      body { font-family: system-ui; background-color: #f8f8f8; color: #333; margin: 0; padding: 20px; }
-      .container { max-width: 800px; margin: 0 auto; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; }
-      h1 { color: #2563eb; margin-top: 0; }
-      .loading { display: flex; align-items: center; margin: 20px 0; }
-      .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #2563eb; animation: spin 1s linear infinite; margin-right: 15px; }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        // Check status every 3 seconds and reload when complete
-        const checkStatus = async () => {
-          try {
-            const response = await fetch('/api/test-status/${runId}');
-            const data = await response.json();
-            
-            if (data.status === 'completed') {
-              window.location.reload();
-            } else {
-              setTimeout(checkStatus, 3000);
-            }
-          } catch (e) {
-            // If there's an error, try again after 5 seconds
-            setTimeout(checkStatus, 5000);
-          }
-        };
-        
-        checkStatus();
-      });
-    </script>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Job Execution in Progress</h1>
-      <div class="loading"><div class="spinner"></div><div>Running your test job...</div></div>
-      <p>Job ID: <code>${runId}</code></p>
-      <p>Running ${testScripts.length} test${testScripts.length !== 1 ? 's' : ''}...</p>
-    </div>
-  </body>
-</html>`;
-
-    // Write the loading indicator
-    const htmlReportPath = normalize(join(reportDir, "index.html"));
-    await fs.writeFile(htmlReportPath, loadingHtml);
+    console.log(`Created ${testFilePaths.length} test script files for job ${runId}`);
 
     // Update the test status to running
     testStatusMap.set(runId, {
@@ -1541,94 +1269,72 @@ test('${testName} (ID: ${id})', async ({ page }) => {
       reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
     });
 
-    // Execute the tests directly first if queue fails
-    const executeTestsDirectly = async (): Promise<TestExecutionResult> => {
-      console.log(`Executing job ${runId} directly due to queue error`);
-      
-      // Execute tests directly
-      const result = await executeMultipleTestFilesWithGlobalConfig(
-        runId,
-        testFilePaths,
-        reportDir,
-        jobTestsDir
-      );
-      
-      // Parse the results for each test
-      const individualResults = testScripts.map(({ id, name }) => {
-        const testName = name || id;
-        const testFilename = `${id}.spec.js`;
-        
-        // Check if the test was mentioned in the output
-        const testWasRun = result.stdout.includes(testFilename);
-        const testFailed = result.stdout.includes(`${testFilename}`) && 
-                            result.stdout.includes("failed");
-        const testPassed = !testFailed && testWasRun;
-        
-        return {
-          testId: id,
-          success: testPassed,
-          error: testFailed ? `Test ${testName} failed during execution` : null,
-          reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
-        };
-      });
-      
-      // Overall success is true if all individual tests succeeded
-      const overallSuccess = individualResults.every((res) => res.success);
-      
-      // Upload results to S3
-      try {
-        console.log(`Uploading test results for job ${runId} to S3`);
-        await uploadDirectory(reportDir, `test-results/jobs/${runId}/report`);
-      } catch (uploadError) {
-        console.error(`Error uploading test results to S3:`, uploadError);
-      }
-      
-      return {
-        jobId: runId,
-        success: overallSuccess,
-        error: result.error,
-        reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
-        results: individualResults,
-        timestamp: new Date().toISOString(),
-        stdout: result.stdout,
-        stderr: result.stderr,
-      };
-    };
-
+    // --- Attempt to queue the job ---
     try {
-      // Initialize the queue when needed
       await ensureQueueInitialized();
-      
-      // Dynamically import queue functions
       const { addJobToQueue, waitForJobCompletion } = await import('./queue');
       
-      // Create a job task for the queue
-      const jobTask = { jobId: runId, testScripts };
+      // Pass necessary info to the worker task
+      // Worker now handles directory/file creation and execution via _runJobTests
+      const jobTask = { 
+        jobId: runId, 
+        testScripts // Pass the scripts themselves
+        // Worker will derive paths
+      };
       
-      // Add the job to the queue
       const queuedJobId = await addJobToQueue(jobTask);
-      console.log(`Job ${runId} queued successfully with ID: ${queuedJobId}`);
+      console.log(`Job ${runId} queued successfully with internal ID: ${queuedJobId}`);
       
-      try {
-        // Wait for the job to complete with a timeout
-        return await waitForJobCompletion<TestExecutionResult>(runId, TEST_EXECUTION_TIMEOUT_MS * 2);
-      } catch (waitError) {
-        console.error(`Error waiting for job ${runId} to complete:`, waitError);
-        console.log(`Falling back to direct execution for job ${runId}`);
-        
-        // If waiting for the queued job fails, try executing directly
-        return await executeTestsDirectly();
+      // Wait for the job completion notification from the worker
+      console.log(`Waiting for job ${runId} completion via queue mechanism...`);
+      const result = await waitForJobCompletion<TestExecutionResult>(runId, TEST_EXECUTION_TIMEOUT_MS * 2);
+      console.log(`Job ${runId} completed via queue. Success: ${result.success}`);
+      
+      // Ensure the result structure is valid
+      if (!result || typeof result.success === 'undefined' || !Array.isArray(result.results)) {
+         console.error(`Invalid or incomplete result received from queue for job ${runId}:`, result);
+         throw new Error(`Incomplete result received for job ${runId} from queue.`);
       }
-    } catch (queueError) {
-      console.error(`Error queuing job ${runId}:`, queueError);
+
+      return result;
+
+    } catch (queueOrWaitError) {
+       // If queueing or waiting fails, report the error. No fallback here.
+      console.error(`Error during queue/wait for job ${runId}:`, queueOrWaitError);
+      const errorMessage = queueOrWaitError instanceof Error ? queueOrWaitError.message : String(queueOrWaitError);
       
-      // Fall back to direct execution if queuing fails
-      return await executeTestsDirectly();
+      // Update status map to reflect failure
+      testStatusMap.set(runId, {
+        testId: runId,
+        status: "completed",
+        success: false,
+        error: `Queue/Wait Error: ${errorMessage}`,
+      });
+
+      // Create a minimal error report HTML
+      const errorHtml = `<!DOCTYPE html><html><head><title>Job Error - ${runId}</title></head><body><h1>Job Execution Failed</h1><p>Could not queue or complete the job via the execution queue.</p><pre>${errorMessage}</pre></body></html>`;
+       try {
+           await fs.writeFile(htmlReportPath, errorHtml);
+       } catch(writeErr) {
+           console.error(`Failed to write error report for job ${runId}:`, writeErr);
+       }
+
+      // Return an error structure consistent with TestExecutionResult
+      return { 
+        jobId: runId,
+        success: false,
+        error: `Queue/Wait Error: ${errorMessage}`,
+        reportUrl: null, // Report might exist but indicates failure
+        results: [], // No individual results available in this case
+        timestamp: new Date().toISOString(),
+        stdout: "",
+        stderr: errorMessage,
+      };
     }
   } catch (error) {
-    console.error(`Error executing tests for run ${runId}:`, error);
+    // Catch errors from setup (directory creation, file writing, or propagated queue errors)
+    console.error(`Error setting up or executing job ${runId}:`, error);
 
-    // Update test status to completed with error
     const errorMessage = error instanceof Error ? error.message : String(error);
     testStatusMap.set(runId, {
       testId: runId,
@@ -1637,30 +1343,112 @@ test('${testName} (ID: ${id})', async ({ page }) => {
       error: errorMessage,
     });
     
+    // Return the standard error structure
     return {
       jobId: runId,
       success: false,
       error: errorMessage,
-      reportUrl: null,
-      results: testScripts.map(({ id }) => ({
+      reportUrl: null, // No successful report generated
+      results: testScripts.map(({ id }) => ({ // Map initial scripts to failed results
         testId: id,
         success: false,
-        error: errorMessage,
+        error: "Job setup or execution failed",
       })),
       timestamp: new Date().toISOString(),
       stdout: "",
-      stderr:
-        error instanceof Error ? error.stack || error.message : String(error),
+      stderr: error instanceof Error ? error.stack || error.message : String(error),
     };
   } finally {
-    // Remove the test from active tests
+    // Remove the test from active tests ONLY after completion or definite failure
     activeTestIds.delete(runId);
+    // Consider adding cleanup logic for test files/directories here or separately
+    // recentTestIds management might also need review based on cleanup strategy
   }
 }
 
 /**
- * Execute multiple test files with Playwright using the global config
+ * Internal helper to run the actual tests for a job, generate report, and handle S3 upload.
+ * This is called by the job worker.
  */
+async function _runJobTests(
+  runId: string,
+  testScripts: TestScript[],
+  jobTestsDir: string,
+  reportDir: string,
+  testFilePaths: string[]
+): Promise<TestExecutionResult> {
+  console.log(`Worker executing tests for job ${runId}`);
+
+  // Execute tests using the shared configuration
+  const result = await executeMultipleTestFilesWithGlobalConfig(
+    runId,
+    testFilePaths,
+    reportDir,
+    jobTestsDir
+  );
+
+  // Parse the results for each test based on stdout analysis (this might need refinement)
+  const individualResults = testScripts.map(({ id, name }) => {
+    const testName = name || id;
+    const testFilename = `${id}.spec.js`;
+    
+    // Basic check based on stdout - consider enhancing this if possible (e.g., parsing JUnit report)
+    const testWasRun = result.stdout.includes(testFilename);
+    // A simple heuristic: if the filename appears and "failed" appears later in the output for that context
+    const testFailed = result.stdout.includes(`fail`) && result.stdout.includes(testFilename); 
+    const testPassed = testWasRun && !testFailed;
+
+    return {
+      testId: id,
+      success: testPassed,
+      error: testFailed ? `Test ${testName} failed during execution (check report)` : null,
+      reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`), // Use job report URL
+    };
+  });
+
+  // Overall success is true ONLY if the execution succeeded AND all individual tests passed
+  const overallSuccess = result.success && individualResults.every((res) => res.success);
+
+  // Upload results to S3 only on overall success
+  if (overallSuccess) {
+      try {
+          console.log(`Uploading test results for job ${runId} to S3`);
+          await uploadDirectory(reportDir, `test-results/jobs/${runId}/report`);
+          console.log(`Successfully uploaded results for ${runId} to S3`);
+      } catch (uploadError) {
+          console.error(`Error uploading test results to S3:`, uploadError);
+          // Potentially mark as failed or log error? For now, just log.
+      }
+  } else {
+      console.log(`Skipping S3 upload for failed job ${runId}`);
+  }
+
+  // Store report metadata regardless of success (report might contain errors)
+  try {
+      console.log(`Storing report metadata for job ${runId}`);
+      const urlPath = `/api/test-results/jobs/${runId}/report/index.html`.split('/api/test-results')[1];
+      const reportPathParts = urlPath.split('/');
+      const finalReportDir = reportPathParts.slice(0, reportPathParts.length - 1).join('/').split('?')[0];
+      await storeReportMetadata(runId, 'job', finalReportDir);
+  } catch (metadataError) {
+      console.error(`Error storing report metadata for job ${runId}:`, metadataError);
+  }
+
+  const finalResult: TestExecutionResult = {
+    jobId: runId,
+    success: overallSuccess, // Use the refined overall success status
+    error: result.error, // Error from the playwright execution process itself
+    reportUrl: toUrlPath(`/api/test-results/jobs/${runId}/report/index.html`),
+    results: individualResults,
+    timestamp: new Date().toISOString(),
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+
+  console.log(`Worker finished job ${runId} with overall success: ${overallSuccess}`);
+  return finalResult;
+}
+
 async function executeMultipleTestFilesWithGlobalConfig(
   testId: string,
   testFilePaths: string[],
@@ -1670,67 +1458,67 @@ async function executeMultipleTestFilesWithGlobalConfig(
   return new Promise(async (resolve, reject) => {
     try {
       console.log(
-        `Executing multiple test files for run ${testId} using global config`
+        `Executing Playwright for ${testFilePaths.length} test files in job ${testId}` // Using testId as job/run ID here
       );
-
       
-      // Determine the command to run based on the OS
       const isWindows = process.platform === "win32";
       const command = isWindows ? "npx.cmd" : "npx";
-
-      // Build the arguments for the command - remove --output flag
       const args = [
         "playwright",
         "test",
-        ...testFilePaths.map((path) => toCLIPath(path)),
-        "--config=playwright.config.mjs"
+        ...testFilePaths.map((p) => toCLIPath(p)), // Use normalized paths
+        "--config=playwright.config.mjs", // Ensure config is specified
       ];
 
       console.log(`Running command: ${command} ${args.join(" ")}`);
 
-      // Set environment variables for the test directory and report directory
+      // Environment variables - USE PLAYWRIGHT_HTML_REPORT
       const env = {
         ...process.env,
-        PAGER: "cat",
-        // Set environment variables for Playwright config
-        PLAYWRIGHT_TEST_DIR: jobTestsDir,
-        PLAYWRIGHT_REPORT_DIR: reportDir,
+        PAGER: "cat", // Prevent paging in CI/programmatic environments
+        PLAYWRIGHT_HTML_REPORT: reportDir, // Set the environment variable
+        // PLAYWRIGHT_JUNIT_OUTPUT_NAME: normalize(join(reportDir, "..", "junit-report.xml")), // Optional: if JUnit needed
       };
 
-      console.log(`Using test directory: ${jobTestsDir}`);
-      console.log(`Using report directory: ${reportDir}`);
+      console.log(`Setting PLAYWRIGHT_HTML_REPORT env var to: ${reportDir}`);
 
-      // Spawn the child process with the environment variables
       const childProcess = spawn(command, args, {
         env,
         stdio: ["pipe", "pipe", "pipe"],
-        shell: isWindows, // Use shell on Windows to avoid EINVAL errors
-        windowsVerbatimArguments: isWindows, // Preserve quotes and special characters on Windows
-        cwd: process.cwd(),
+        shell: isWindows,
+        windowsVerbatimArguments: isWindows,
+        cwd: process.cwd(), // Run from project root
       });
 
       let stdout = "";
       let stderr = "";
+      const MAX_BUFFER = 1024 * 1024 * 5; // 5MB buffer limit for stdout/stderr
 
       childProcess.stdout.on("data", (data) => {
-        const chunk = data.toString();
-        stdout += chunk;
-        console.log(`[Test ${testId}] ${chunk}`);
+         const chunk = data.toString();
+         if (stdout.length < MAX_BUFFER) {
+            stdout += chunk;
+         }
+         // Log truncated output to console if needed, avoid storing huge logs in memory
+         console.log(`[Job ${testId} STDOUT] ${chunk.substring(0, 500)}${chunk.length > 500 ? '...' : ''}`);
       });
 
       childProcess.stderr.on("data", (data) => {
-        const chunk = data.toString();
-        stderr += chunk;
-        console.error(`[Test ${testId}] ${chunk}`);
+         const chunk = data.toString();
+          if (stderr.length < MAX_BUFFER) {
+             stderr += chunk;
+          }
+         console.error(`[Job ${testId} STDERR] ${chunk.substring(0, 500)}${chunk.length > 500 ? '...' : ''}`);
       });
 
       childProcess.on("error", (error) => {
-        console.error(`Child process error for test ${testId}:`, error);
+        console.error(`Child process error for job ${testId}:`, error);
+        // Resolve with failure, providing collected output
         resolve({
-          testId,
+          testId, // testId here represents the job/run ID
           success: false,
-          error: error.message,
-          reportUrl: toUrlPath(`/api/test-results/jobs/${testId}/report/index.html`),
+          error: `Process spawn error: ${error.message}`,
+          reportUrl: toUrlPath(`/api/test-results/jobs/${testId}/report/index.html`), // Best guess for report URL
           stdout,
           stderr,
         });
@@ -1738,36 +1526,28 @@ async function executeMultipleTestFilesWithGlobalConfig(
 
       childProcess.on("close", (code, signal) => {
         console.log(
-          `Child process for test ${testId} exited with code: ${code}, signal: ${signal}`
+          `Playwright process for job ${testId} exited with code: ${code}, signal: ${signal}`
         );
 
-        if (code !== 0) {
-          console.log(
-            `Test ${testId} failed: Test failed with exit code ${code}`
-          );
-          resolve({
-            testId,
-            success: false,
-            error: `Test failed with exit code ${code}`,
-            reportUrl: toUrlPath(`/api/test-results/jobs/${testId}/report/index.html`),
-            stdout,
-            stderr,
-          });
-        } else {
-          console.log(`Test ${testId} completed successfully`);
-          resolve({
-            testId,
-            success: true,
-            error: null,
-            reportUrl: toUrlPath(`/api/test-results/jobs/${testId}/report/index.html`),
-            stdout,
-            stderr,
-          });
+        // Check if report directory exists, sometimes playwright fails before creating it
+        if (!existsSync(reportDir)) {
+            console.warn(`Report directory ${reportDir} not found after playwright execution.`);
+            // Consider creating a minimal error report here
         }
+
+        resolve({
+            testId, // testId here represents the job/run ID
+            success: code === 0, // Success only if exit code is 0
+            error: code !== 0 ? `Playwright exited with code ${code}` : null,
+            reportUrl: toUrlPath(`/api/test-results/jobs/${testId}/report/index.html`),
+            stdout,
+            stderr,
+        });
       });
     } catch (error) {
-      console.error(`Error executing test ${testId}:`, error);
-      reject(error);
+      console.error(`Error setting up Playwright execution for job ${testId}:`, error);
+       // Reject the promise for setup errors
+      reject(new Error(`Setup error for Playwright execution: ${error instanceof Error ? error.message : String(error)}`));
     }
   });
 }

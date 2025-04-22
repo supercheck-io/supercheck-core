@@ -99,12 +99,12 @@ export async function POST(request: Request) {
     console.log("Test execution result:", { success: result.success, reportUrl: result.reportUrl });
     
     // Map individual test results for the response
-    const testResults = result.results.map(testResult => ({
+    const testResults = Array.isArray(result.results) ? result.results.map(testResult => ({
       testId: testResult.testId,
       success: testResult.success,
       error: testResult.error,
       reportUrl: result.reportUrl // All tests share the same report URL
-    }));
+    })) : [];
 
     // Calculate test duration
     const startTimeMs = startTime.getTime();
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
 
     // The test results from executeMultipleTests don't include stdout/stderr in the results array
     // So we need to create a separate structure for logs
-    const logsData = result.results.map((r: TestResult) => {
+    const logsData = Array.isArray(result.results) ? result.results.map((r: TestResult) => {
       // Create a basic log entry with the test ID
       const logEntry: { testId: string; stdout: string; stderr: string } = {
         testId: r.testId,
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
       
       // Return the log entry
       return logEntry;
-    });
+    }) : [];
     
     // Stringify the logs data for storage
     const logs = JSON.stringify(logsData);
@@ -144,14 +144,16 @@ export async function POST(request: Request) {
     const errorDetails = result.success 
       ? null 
       : JSON.stringify(
-          result.results
-            .filter(r => !r.success)
-            .map(r => r.error)
+          Array.isArray(result.results)
+            ? result.results
+                .filter(r => !r.success)
+                .map(r => r.error)
+            : []
         );
     
     // Check if any individual tests failed - this is an additional check to ensure
     // we correctly flag runs with failed tests
-    const hasFailedTests = result.results.some(r => !r.success);
+    const hasFailedTests = Array.isArray(result.results) ? result.results.some(r => !r.success) : !result.success;
     
     // Update the test run record with results
     await dbInstance

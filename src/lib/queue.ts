@@ -374,8 +374,7 @@ export async function setupTestExecutionWorker(
             const result = await handler(job.data);
             console.log(`Test job ${job.id} completed successfully`);
             
-            // IMPORTANT: Store the result in the global map for retrieval
-            // Ensure the stored result has all required fields
+            // Store the *complete* result directly in the map
             const completeResult = result && typeof result === 'object' ? 
               {
                 ...result,
@@ -399,6 +398,7 @@ export async function setupTestExecutionWorker(
             
             // Store the error in the global map
             jobResults.set(job.id, { 
+              success: false, // Mark as failed on error
               error: error instanceof Error ? error.message : String(error),
               timestamp: Date.now()
             });
@@ -412,37 +412,6 @@ export async function setupTestExecutionWorker(
         return results.length === 1 ? results[0] : results;
       }
     );
-    
-    // Setup an additional worker to listen for job completions
-    await boss.work(`${COMPLETED_JOB_PREFIX}${TEST_EXECUTION_QUEUE}`, async (jobs) => {
-      if (!Array.isArray(jobs) || jobs.length === 0) return;
-      
-      for (const job of jobs) {
-        try {
-          if (job.data && typeof job.data === 'object') {
-            // Extract the original job ID from the completion data
-            const originalJobId = (job.data as any).request?.id;
-            
-            if (originalJobId) {
-              console.log(`Completion worker: Job ${originalJobId} completed`);
-              
-              // Only update if we don't already have a result
-              if (!jobResults.has(originalJobId)) {
-                console.log(`Storing completion result for ${originalJobId}`);
-                jobResults.set(originalJobId, {
-                  result: (job.data as any).data || job.data, 
-                  completedAt: Date.now()
-                });
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error in completed job worker:', error);
-        }
-      }
-      
-      return true;
-    });
     
     workerInitialized.test = true;
     console.log(`Test worker initialized for queue: ${TEST_EXECUTION_QUEUE}`);
@@ -463,7 +432,7 @@ export async function setupJobExecutionWorker(
 ): Promise<void> {
   // If worker is already set up, don't do it again
   if (workerInitialized.job) {
-    console.log('Job execution worker already initialized, skipping setup');
+    console.log('Job execution worker already initialized.');
     return;
   }
   
@@ -497,17 +466,25 @@ export async function setupJobExecutionWorker(
           try {
             // Execute the handler with the job data
             const result = await handler(job.data);
-            console.log(`Job execution ${job.id} completed successfully`);
+            console.log(`Job worker handler completed for job ${job.id}, Success: ${result?.success}`);
             
-            // Store the result in case waitForJobCompletion is called before completion job is processed
-            jobResults.set(job.id, { result });
-            
-            return result;
+            // Store the *complete* result directly in the map
+            jobResults.set(job.id, { 
+              result: result, // Store the full result object
+              completedAt: Date.now(),
+              success: !!result?.success, // Use the success flag from the result
+              error: result?.error || null // Store error if present in result
+            });
+
           } catch (error) {
-            console.error(`Error processing job execution ${job.id}:`, error);
+            console.error(`Error processing job ${job.id}:`, error);
             
-            // Store the error in case waitForJobCompletion is called before completion job is processed
-            jobResults.set(job.id, { error: error instanceof Error ? error.message : String(error) });
+            // Store the error in the global map
+            jobResults.set(job.id, { 
+              success: false, // Mark as failed on error
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: Date.now()
+            });
             
             throw error; // Rethrow to let pg-boss handle retries
           }
@@ -547,177 +524,59 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
       pollAttempts++;
       
       try {
-        // First, check our in-memory results
+        // --- SIMPLIFIED LOGIC: ONLY check our in-memory results map --- 
         if (jobResults.has(jobId)) {
-          const result = jobResults.get(jobId);
-          clearInterval(checkInterval);
-          clearTimeout(timeoutId);
+          const storedResult = jobResults.get(jobId);
           
-          // If the result contains an error, reject
-          if (result && result.error) {
-            reject(new Error(`Job ${jobId} failed: ${result.error}`));
-            return;
-          }
-          
-          console.log(`Job ${jobId} completed (result from in-memory store)`);
-          if (result) {
-            resolve(result.result || result as unknown as T);
-          } else {
-            reject(new Error(`Job ${jobId} result is undefined`));
-          }
-          return;
-        }
-        
-        // Next, check the job state using different methods
-        try {
-          // Determine which queue this job belongs to based on the job ID format
-          const queueName = jobId.startsWith('test-') ? TEST_EXECUTION_QUEUE : JOB_EXECUTION_QUEUE;
-          
-          // Try first with getJobById - this returns a JobWithMetadata
-          let job = await boss.getJobById(queueName, jobId);
-          
-          // If not found directly, try to find using other methods
-          if (!job) {
-            try {
-              // For pg-boss v7+, use fetch with metadata to get job state
-              const fetchOptions = { includeMetadata: true };
-              const fetchedJobs = await boss.fetch(queueName, fetchOptions);
-              
-              if (Array.isArray(fetchedJobs) && fetchedJobs.length > 0) {
-                // This will be a JobWithMetadata because we used includeMetadata: true
-                const matchingJob = fetchedJobs.find(j => j.id === jobId);
-                
-                if (matchingJob) {
-                  job = matchingJob as JobWithMetadata<unknown>;
-                  console.log(`Found job ${jobId} in active queue`);
-                }
-              }
-            } catch (fetchErr) {
-              console.warn(`Error fetching active jobs for ${queueName}:`, fetchErr);
+          // Check if it's the FINAL result by looking for completedAt or error
+          if (storedResult && (storedResult.completedAt || storedResult.error)) { 
+            clearInterval(checkInterval);
+            clearTimeout(timeoutId);
+            
+            // If the result contains an error, reject
+            if (storedResult.error) {
+              console.log(`Job ${jobId} failed (found error in in-memory store)`);
+              reject(new Error(`Job ${jobId} failed: ${storedResult.error}`));
+              return;
             }
             
-            // If still not found, check in completed queue
-            if (!job) {
-              try {
-                const completedQueueName = `${COMPLETED_JOB_PREFIX}${queueName}`;
-                
-                // Use fetch with includeMetadata to get complete job details
-                const fetchOptions = { includeMetadata: true };
-                const completedJobs = await boss.fetch(completedQueueName, fetchOptions);
-                
-                if (Array.isArray(completedJobs) && completedJobs.length > 0) {
-                  // Find the job in completed jobs that matches our job ID
-                  const completedJob = completedJobs.find(j => {
-                    // Safely check data property
-                    if (j.data && typeof j.data === 'object') {
-                      const data = j.data as Record<string, any>;
-                      // Check if request.id matches our job ID
-                      return data.request && data.request.id === jobId;
-                    }
-                    return false;
-                  });
-                  
-                  // If found in completed jobs, extract the result and resolve
-                  if (completedJob && completedJob.data) {
-                    clearInterval(checkInterval);
-                    clearTimeout(timeoutId);
-                    
-                    // For completed jobs, the output is in the data field - safely access properties
-                    const outputData = completedJob.data as Record<string, any>;
-                    
-                    // Safely check for error indicators
-                    const hasError = 
-                      'error' in outputData || 
-                      (outputData.state === 'failed') || 
-                      (outputData.request && outputData.request.status === 'failed');
-                    
-                    if (hasError) {
-                      const errorMsg = 'error' in outputData ? outputData.error : 'Job failed with unknown error';
-                      reject(new Error(`Job ${jobId} failed: ${errorMsg}`));
-                    } else {
-                      console.log(`Job ${jobId} completed (found in completed queue)`);
-                      // Extract the data or use the whole object
-                      const result = 'data' in outputData ? outputData.data : outputData;
-                      resolve(result as unknown as T);
-                    }
-                    return;
-                  }
-                }
-              } catch (completeErr) {
-                console.warn(`Error checking completed queue for ${jobId}:`, completeErr);
-              }
-              
-              // Try getting archived job directly with includeArchive option
-              try {
-                const archivedJob = await boss.getJobById(queueName, jobId, { includeArchive: true });
-                if (archivedJob) {
-                  job = archivedJob;
-                  console.log(`Found job ${jobId} in archived jobs`);
-                }
-              } catch (archiveErr) {
-                console.warn(`Error checking archive for ${jobId}:`, archiveErr);
-                
-                // As a last resort, check for test results directly from the status map
-                if (queueName === TEST_EXECUTION_QUEUE && testStatusMapRef) {
-                  // For test jobs, we can check if the test completed in the status map
-                  const status = testStatusMapRef.get(jobId);
-                  if (status && status.status === 'completed') {
-                    console.log(`Job ${jobId} found in test status map as completed`);
-                    const testResult = {
-                      success: !!status.success,
-                      error: status.error || null,
-                      reportUrl: status.reportUrl || null,
-                      testId: jobId,
-                      stdout: "",
-                      stderr: status.error || ""
-                    };
-                    resolve(testResult as unknown as T);
-                    clearInterval(checkInterval);
-                    clearTimeout(timeoutId);
-                    return;
-                  }
-                }
-              }
-            }
+            // If it's a success result
+            console.log(`Job ${jobId} completed (final result from in-memory store)`);
+            // Resolve with the actual result object stored by the worker
+            resolve(storedResult.result || storedResult as unknown as T);
+            return;
+          } 
+          // else: It's the initial pending entry or still processing, keep polling.
+          if (pollAttempts % 5 === 0) { // Log periodically (more frequent)
+             console.log(`Job ${jobId} still pending in memory store after ${pollAttempts} checks...`);
           }
-          
-          if (job) {
-            // Check the state of the job
-            if (job.state === 'completed') {
-              clearInterval(checkInterval);
-              clearTimeout(timeoutId);
-              
-              console.log(`Job ${jobId} completed (found via job state)`);
-              // The result is in the data or output property
-              resolve((job.output || job.data) as unknown as T);
-              return;
-            } else if (job.state === 'failed') {
-              clearInterval(checkInterval);
-              clearTimeout(timeoutId);
-              
-              console.error(`Job ${jobId} failed (found via job state)`);
-              reject(new Error(`Job ${jobId} failed: ${JSON.stringify(job.output || 'Unknown error')}`));
-              return;
-            }
-            // If job is still in 'created' or 'active' state, continue polling
-            console.log(`Job ${jobId} is in state: ${job.state}, continuing to wait...`);
-          } else {
-            console.log(`Job ${jobId} not found in any queue, continuing to wait...`);
-          }
-        } catch (error) {
-          console.warn(`Error checking job state for ${jobId}:`, error);
-          // Continue polling on error
+        } else {
+           // Job not even in the map yet (worker hasn't started/stored initial pending state)
+           if (pollAttempts % 5 === 0) { // Log periodically
+             console.log(`Job ${jobId} not found in memory store after ${pollAttempts} checks...`);
+           }
         }
         
-        // Log a warning if the job has been running for a long time
-        const elapsed = Date.now() - startTime;
-        if (elapsed > timeoutMs * 0.8 && pollAttempts % 5 === 0) {
-          console.warn(`Job ${jobId} has been running for ${elapsed}ms (80% of timeout)`);
+        // --- REMOVED Checks against pg-boss state (getJobById, fetch, etc.) ---
+        /*
+        try {
+          // Determine which queue...
+          let job = await boss.getJobById(queueName, jobId);
+          // ... rest of pg-boss checking logic ...
+        } catch (error) {
+          console.warn(`Error checking job state for ${jobId}:`, error);
         }
+        */
+        
       } catch (error) {
-        console.error(`Error in poll check for ${jobId}:`, error);
+        // Catch errors from accessing jobResults map etc.
+        console.error(`Error in poll check logic for ${jobId}:`, error);
+        // Stop polling on unexpected errors
+        clearInterval(checkInterval);
+        clearTimeout(timeoutId);
+        reject(new Error(`Error during polling for ${jobId}: ${error instanceof Error ? error.message : String(error)}`));
       }
-    }, 2000); // Check every 2 seconds
+    }, 1000); // Check every 1 second (reduced interval)
   });
 }
 
@@ -804,9 +663,13 @@ async function setupQueue(): Promise<PgBoss | null> {
     console.log('PgBoss queue started successfully');
 
     // Setup the completion worker for all jobs
-    setupCompletionWorkers().catch(err => console.error('Failed to setup completion workers:', err));
+    // setupCompletionWorkers().catch(err => console.error('Failed to setup completion workers:', err));
     
-    return boss;
+    bossInstance = boss;
+
+    console.log("PgBoss queue started successfully");
+    queueInitialized = true;
+    return bossInstance;
   } catch (error) {
     console.error('Failed to initialize pg-boss:', error);
     throw error;
