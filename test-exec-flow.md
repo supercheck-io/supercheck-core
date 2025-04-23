@@ -97,7 +97,13 @@ flowchart TB
 
 To ensure consistent user experience and maximize code reuse between Playground and Jobs:
 
-* **Shared Report Component**: Both single test and job execution flows use the same ReportViewer component.
+* **Shared ReportViewer Component**: Both single test and job execution flows use the same ReportViewer component, which provides:
+  * Intelligent loading states with progress indicators
+  * Error handling with user-friendly messages
+  * Automatic detection of trace viewer navigation
+  * Sandboxed iframe for secure report rendering
+  * Dark/light mode support to match UI preferences
+  * Consistent navigation controls (back button, reload)
 * **Common Status Updates**: Both flows rely on the same SSE implementation for real-time status updates.
 * **Unified Report Retrieval Logic**: The same logic is used to attempt local file access first before falling back to S3 (when applicable).
 * **Consistent Artifacts Access**: Screenshots, videos, and traces are accessed through the same UI patterns in both flows.
@@ -134,6 +140,7 @@ These can often be overridden by environment variables (see `README.md`).
 * **Execution Failures:** Playwright captures errors; these are reflected in the report and the database status.
 * **Timeouts:** Governed by `TEST_EXECUTION_TIMEOUT_MS` for UI-driven tests and Playwright's own timeouts (`timeout`, `expect.timeout`).
 * **Queue/Worker Issues:** `pg-boss` has built-in retry mechanisms.
+* **Report Loading Errors:** The ReportViewer component provides a user-friendly error UI with reload functionality when reports cannot be loaded.
 
 ## Key Implementation Details
 
@@ -151,6 +158,7 @@ These can often be overridden by environment variables (see `README.md`).
 * **Lazy S3 Initialization:** Avoids unnecessary S3 connections.
 * **Local-First Storage:** Prioritizes local results, reducing S3 dependency for basic viewing.
 * **Optimized Artifact Paths:** Unique `runId` prevents collisions between concurrent runs.
+* **Smart Report Loading:** ReportViewer includes timeout and error recovery mechanisms to prevent UI freezes.
 
 ## Environment Configuration
 
@@ -172,7 +180,7 @@ The application uses two environment files:
 * Database file location
 * BrowserStack credentials
 * Test execution settings:
-  * `MAX_CONCURRENT_TESTS`: Number of tests running in parallel (default: 2)
+  * `MAX_CONCURRENT_TESTS`: Number of tests running in parallel (default: 3)
   * `TEST_EXECUTION_TIMEOUT_MS`: Maximum test execution time (default: 900000ms)
   * `TRACE_RECOVERY_INTERVAL_MS`: How often to check for trace issues (default: 300000ms)
 

@@ -3,16 +3,16 @@ import React from "react";
 import { CreateCard } from "./create-card";
 import { useRouter } from "next/navigation";
 import {
-  HelpCircle,
   Chrome,
   Webhook,
   ListOrdered,
   DatabaseZap,
   Clock,
   Zap,
+  Video,
 } from "lucide-react";
 
-type ScriptType = "browser" | "api" | "multistep" | "database" | "help";
+type ScriptType = "browser" | "api" | "multistep" | "database" | "record";
 
 export function CreatePageContent() {
   const router = useRouter();
@@ -76,11 +76,11 @@ export function CreatePageContent() {
     },
 
     {
-      icon: <HelpCircle size={24} />,
-      title: "New check type",
-      description: "There is a type missing?",
-      path: "#",
-      scriptType: "help" as ScriptType,
+      icon: <Video size={24} />,
+      title: "Record",
+      description: "Record a script via browser extension.",
+      path: "https://chromewebstore.google.com/detail/playwright-crx/jambeljnbnfbkcpnoiaedcabbgmnnlcd",
+      scriptType: "record" as ScriptType,
     },
   ];
 
@@ -101,12 +101,14 @@ export function CreatePageContent() {
             title={testType.title}
             description={testType.description}
             onClick={() =>
-              testType.scriptType
+              testType.title === "Record"
+                ? window.open(testType.path, "_blank")
+                : testType.scriptType
                 ? handleScriptSelection(testType.scriptType as ScriptType)
                 : undefined
             }
             className={
-              testType.title === "New check type" ? "border-dashed" : ""
+              testType.title === "Record" ? "border-dashed" : ""
             }
           />
         ))}

@@ -57,7 +57,7 @@ export function ReportViewer({
 
   // Static error page component
   const StaticErrorPage = ({ title, message }: { title: string; message: string }) => (
-    <div className={`flex flex-col items-center justify-center h-full p-8 ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
+    <div className={`flex flex-col items-center justify-center w-full h-full p-8 ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
       <div className="flex flex-col items-center text-center max-w-md">
         <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
         <h1 className={`text-3xl font-bold mb-2 ${darkMode ? 'text-[#d4d4d4]' : ''}`}>{title}</h1>
@@ -107,24 +107,28 @@ export function ReportViewer({
   }
 
   // Empty state when no report is available - check this after isRunning
-  if (!currentReportUrl) {
+  if (!currentReportUrl && !isRunning) {
     return (
-      <div className={`${containerClassName} flex items-center justify-center ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
-        <div className="flex flex-col items-center gap-2 text-muted-foreground">
-          <AlertCircle className="h-8 w-8" />
-          <p>No report available</p>
+      <div className={containerClassName}>
+        <div className={`w-full h-full flex items-center justify-center ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <AlertCircle className="h-8 w-8" />
+            <p>No report available</p>
+          </div>
         </div>
       </div>
     );
   }
 
   // Error state
-  if (iframeError) {
+  if (iframeError && !isRunning) {
     return (
-      <StaticErrorPage
-        title="Report Not Found"
-        message={reportError || "Test results not found or have been removed."}
-      />
+      <div className={containerClassName}>
+        <StaticErrorPage
+          title="Report Not Found"
+          message={reportError || "Test results not found or have been removed."}
+        />
+      </div>
     );
   }
 
@@ -145,150 +149,161 @@ export function ReportViewer({
         </div>
       )}
       
-      <iframe
-        ref={iframeRef}
-        key={currentReportUrl}
-        src={currentReportUrl}
-        className={`${iframeClassName} ${isReportLoading ? 'opacity-0' : ''}`}
-        style={{ backgroundColor: darkMode ? '#1e1e1e' : undefined }}
-        sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-        allow="cross-origin-isolated"
-        title="Playwright Test Report"
-        onLoad={(e) => {
-          const iframe = e.target as HTMLIFrameElement;
-          try {
-            // Check for JSON error response by examining body content
-            if (iframe.contentWindow?.document.body.textContent) {
-              const bodyText = iframe.contentWindow.document.body.textContent;
+      {!isRunning && currentReportUrl && (
+        <iframe
+          ref={iframeRef}
+          key={currentReportUrl}
+          src={currentReportUrl}
+          className={`${iframeClassName} ${isReportLoading ? 'opacity-0' : ''}`}
+          style={{ backgroundColor: darkMode ? '#1e1e1e' : undefined }}
+          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
+          allow="cross-origin-isolated"
+          title="Playwright Test Report"
+          onLoad={(e) => {
+            const iframe = e.target as HTMLIFrameElement;
+            try {
+              // Check for JSON error response by examining body content
+              if (iframe.contentWindow?.document.body.textContent) {
+                const bodyText = iframe.contentWindow.document.body.textContent;
+                
+                // Check for JSON error response
+                if (bodyText.includes('"error"') && bodyText.includes('"message"')) {
+                  try {
+                    const errorData = JSON.parse(bodyText);
+                    if (errorData.message) {
+                      setReportError(errorData.message);
+                      setIframeError(true);
+                      setIsReportLoading(false);
+                      return;
+                    }
+                  } catch (e) {
+                    // Not valid JSON, continue with normal display
+                    console.error("Error parsing JSON:", e);
+                  }
+                }
+              }
               
-              // Check for JSON error response
-              if (bodyText.includes('"error"') && bodyText.includes('"message"')) {
+              // Clear loading state
+              setIsReportLoading(false);
+              
+              // Setup trace viewer detection
+              const setupTraceDetection = () => {
                 try {
-                  const errorData = JSON.parse(bodyText);
-                  if (errorData.message) {
-                    setReportError(errorData.message);
-                    setIframeError(true);
-                    setIsReportLoading(false);
-                    return;
-                  }
-                } catch (e) {
-                  // Not valid JSON, continue with normal display
-                  console.error("Error parsing JSON:", e);
+                  // Function to check if trace viewer is loaded
+                  const checkTraceLoaded = () => {
+                    const traceViewerLoaded = iframe.contentWindow?.document.querySelector(
+                      ".film-strip, .timeline-view, .network-request-grid"
+                    );
+                    
+                    if (traceViewerLoaded) {
+                      setIsTraceLoading(false);
+                      return true;
+                    }
+                    return false;
+                  };
+                  
+                  // For the main HTML report, detect when trace viewer is clicked
+                  iframe.contentWindow?.document.addEventListener("click", (event) => {
+                    // @ts-ignore - target property exists on the event
+                    const target = event.target as HTMLElement;
+                    
+                    // Check if a trace link was clicked
+                    const isTraceLink = target.closest("a[href*='trace']") || 
+                                       (target.tagName === "A" && target.getAttribute("href")?.includes("trace"));
+                    
+                    if (isTraceLink) {
+                      setIsTraceLoading(true);
+                      
+                      // Check frequently for the trace viewer to load
+                      const quickCheck = setInterval(() => {
+                        if (checkTraceLoaded()) {
+                          clearInterval(quickCheck);
+                        }
+                      }, 100);
+                      
+                      // Safety timeout - assume loaded after 3 seconds
+                      setTimeout(() => {
+                        clearInterval(quickCheck);
+                        setIsTraceLoading(false);
+                      }, 3000);
+                    }
+                  });
+                  
+                  // Also detect navigation using hashchange
+                  iframe.contentWindow?.addEventListener('hashchange', () => {
+                    if (iframe.contentWindow?.location.hash.includes('trace')) {
+                      setIsTraceLoading(true);
+                      
+                      // Use the same check mechanism for hashchange
+                      const quickCheck = setInterval(() => {
+                        if (checkTraceLoaded()) {
+                          clearInterval(quickCheck);
+                        }
+                      }, 100);
+                      
+                      // Safety timeout
+                      setTimeout(() => {
+                        clearInterval(quickCheck);
+                        setIsTraceLoading(false);
+                      }, 2000);
+                    }
+                  });
+                } catch (err) {
+                  console.error("Error setting up trace detection:", err);
                 }
+              };
+              
+              // Run setup
+              if (!isTraceLoading) {
+                setupTraceDetection();
               }
+            } catch (err) {
+              console.error("Error processing iframe onLoad:", err);
+              setIframeError(true);
+              setReportError("An error occurred while displaying the report.");
+              setIsReportLoading(false);
             }
-            
-            // Clear loading state
-            setIsReportLoading(false);
-            
-            // Setup trace viewer detection
-            const setupTraceDetection = () => {
-              try {
-                // Function to check if trace viewer is loaded
-                const checkTraceLoaded = () => {
-                  const traceViewerLoaded = iframe.contentWindow?.document.querySelector(
-                    ".film-strip, .timeline-view, .network-request-grid"
-                  );
-                  
-                  if (traceViewerLoaded) {
-                    setIsTraceLoading(false);
-                    return true;
-                  }
-                  return false;
-                };
-                
-                // For the main HTML report, detect when trace viewer is clicked
-                iframe.contentWindow?.document.addEventListener("click", (event) => {
-                  // @ts-ignore - target property exists on the event
-                  const target = event.target as HTMLElement;
-                  
-                  // Check if a trace link was clicked
-                  const isTraceLink = target.closest("a[href*='trace']") || 
-                                     (target.tagName === "A" && target.getAttribute("href")?.includes("trace"));
-                  
-                  if (isTraceLink) {
-                    setIsTraceLoading(true);
-                    
-                    // Check frequently for the trace viewer to load
-                    const quickCheck = setInterval(() => {
-                      if (checkTraceLoaded()) {
-                        clearInterval(quickCheck);
-                      }
-                    }, 100);
-                    
-                    // Safety timeout - assume loaded after 3 seconds
-                    setTimeout(() => {
-                      clearInterval(quickCheck);
-                      setIsTraceLoading(false);
-                    }, 3000);
-                  }
-                });
-                
-                // Also detect navigation using hashchange
-                iframe.contentWindow?.addEventListener('hashchange', () => {
-                  if (iframe.contentWindow?.location.hash.includes('trace')) {
-                    setIsTraceLoading(true);
-                    
-                    // Use the same check mechanism for hashchange
-                    const quickCheck = setInterval(() => {
-                      if (checkTraceLoaded()) {
-                        clearInterval(quickCheck);
-                      }
-                    }, 100);
-                    
-                    // Safety timeout
-                    setTimeout(() => {
-                      clearInterval(quickCheck);
-                      setIsTraceLoading(false);
-                    }, 2000);
-                  }
-                });
-              } catch (err) {
-                console.error("Error setting up trace detection:", err);
-              }
-            };
-            
-            // Run setup
-            if (!isTraceLoading) {
-              setupTraceDetection();
-            }
-          } catch (err) {
-            console.error("Error processing iframe onLoad:", err);
+          }}
+          onError={(e) => {
+            console.error("Error loading iframe:", e);
             setIframeError(true);
-            setReportError("An error occurred while displaying the report.");
+            
+            // Try to fetch the URL to get a more specific error message
+            const iframe = e.target as HTMLIFrameElement;
+            if (iframe.src) {
+              fetch(iframe.src)
+                .then(response => {
+                  if (!response.ok) {
+                    // Attempt to parse JSON error response
+                    return response.json().catch(() => ({
+                      message: `Failed to load report (${response.status} ${response.statusText})`
+                    }));
+                  }
+                  return { message: "An unexpected error occurred while loading the report." };
+                })
+                .then(errorData => {
+                  setReportError(errorData.message || "Failed to load test report.");
+                })
+                .catch(() => {
+                  setReportError("Failed to load test report due to a network error.");
+                });
+            } else {
+              setReportError("Test report URL is missing.");
+            }
+            
             setIsReportLoading(false);
-          }
-        }}
-        onError={(e) => {
-          console.error("Error loading iframe:", e);
-          setIframeError(true);
-          
-          // Try to fetch the URL to get a more specific error message
-          const iframe = e.target as HTMLIFrameElement;
-          if (iframe.src) {
-            fetch(iframe.src)
-              .then(response => {
-                if (!response.ok) {
-                  // Attempt to parse JSON error response
-                  return response.json().catch(() => ({
-                    message: `Failed to load report (${response.status} ${response.statusText})`
-                  }));
-                }
-                return { message: "An unexpected error occurred while loading the report." };
-              })
-              .then(errorData => {
-                setReportError(errorData.message || "Failed to load test report.");
-              })
-              .catch(() => {
-                setReportError("Failed to load test report due to a network error.");
-              });
-          } else {
-            setReportError("Test report URL is missing.");
-          }
-          
-          setIsReportLoading(false);
-        }}
-      />
+          }}
+        />
+      )}
+      
+      {isRunning && !currentReportUrl && (
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <Loader2Icon className="h-12 w-12 animate-spin" />
+            <p className="text-muted-foreground text-lg">Test is running, please wait...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
