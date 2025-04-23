@@ -205,7 +205,7 @@ export default function CreateJob() {
                         </FormControl>
                         <p className="text-xs text-muted-foreground mt-4 flex items-center">
                           <Info className="h-3 w-3 mr-1" />
-                          <span>Leave empty for manual execution or use the scheduler.</span>
+                          <span>Leave empty for manual execution.</span>
                         </p>
                         <FormMessage />
                       </FormItem>

@@ -70,7 +70,7 @@ export function CreatePageContent() {
     {
       icon: <DatabaseZap size={24} />,
       title: "Database check",
-      description: "Test database connectivity and query execution.",
+      description: "Test database query execution.",
       path: "/create/database",
       scriptType: "database" as ScriptType,
     },
