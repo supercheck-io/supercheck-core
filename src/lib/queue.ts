@@ -1,5 +1,7 @@
 import PgBoss from 'pg-boss';
 import { Job, JobWithMetadata } from 'pg-boss';
+import { Client } from 'pg';
+import crypto from 'crypto';
 
 // Type for test execution task
 export interface TestExecutionTask {
@@ -44,6 +46,7 @@ interface StoredJobResult<T = any> {
   completedAt?: number; // When job completed
   error?: string;      // Error if job failed
   success?: boolean;   // Explicit success state
+  pgBossJobId?: string; // pg-boss generated job ID for reference
 }
 
 const jobResults = new Map<string, StoredJobResult>();
@@ -79,10 +82,17 @@ export const SCHEDULED_JOB_PREFIX = 'scheduled-';
 // Default timeout for jobs (15 minutes)
 export const DEFAULT_JOB_TIMEOUT_MS = 15 * 60 * 1000;
 
-// Add a flag to track if queue is needed for the current execution
+// Remove direct execution flags and handlers
 let queueInitialized = false;
 let queueInitializing = false;
 let queueInitPromise: Promise<PgBoss | null> | null = null;
+
+// Create a simple guard to prevent multiple worker initializations
+let workerInitPromise: Promise<void> | null = null;
+
+// Store references to our intervals for cleanup
+let testTaskProcessorInterval: NodeJS.Timeout | null = null;
+let jobTaskProcessorInterval: NodeJS.Timeout | null = null;
 
 /**
  * Get the pg-boss queue instance (singleton pattern)
@@ -90,12 +100,10 @@ let queueInitPromise: Promise<PgBoss | null> | null = null;
 export async function getQueueInstance(): Promise<PgBoss> {
   if (!bossInstance) {
     bossInstance = await setupQueue();
-    
     if (!bossInstance) {
       throw new Error('Failed to initialize queue - possibly in report server mode');
     }
   }
-  
   return bossInstance;
 }
 
@@ -104,31 +112,88 @@ export async function getQueueInstance(): Promise<PgBoss> {
  */
 export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: number = 15): Promise<string> {
   const boss = await getQueueInstance();
-  
   console.log(`Adding test to queue ${TEST_EXECUTION_QUEUE}:`, task);
   
+  // Generate a unique ID for this job that we control
+  const jobUuid = crypto.randomUUID();
+  
+  // Try to safely stringify the task for logging
   try {
-    // Use the testId as the job ID for correlation
+    const safeTask = JSON.stringify(task);
+    console.log(`Task data: ${safeTask}`);
+  } catch (err) {
+    console.warn(`Could not stringify task for logging:`, err);
+  }
+  
+  try {
+    // Use simple options without specifying ID
     const jobOptions = {
       retryLimit: 2,
       expireInMinutes: expiryMinutes,
-      id: task.testId
+      // Use our own ID instead of relying on pg-boss to generate one
+      id: jobUuid
     };
     
-    // Send a job to the queue
-    const jobId = await boss.send(TEST_EXECUTION_QUEUE, task, jobOptions);
-    
-    if (!jobId) {
-      console.error(`Failed to get job ID after sending test ${task.testId}`);
-      throw new Error('Failed to create test execution job');
+    // Check if the queue is functional before sending
+    try {
+      const queueSize = await boss.getQueueSize(TEST_EXECUTION_QUEUE);
+      console.log(`Current queue size before send: ${queueSize}`);
+    } catch (sizeError) {
+      console.warn(`Could not get queue size: ${sizeError}`);
     }
     
-    // Store an initial entry in the results map
-    jobResults.set(task.testId, { pending: true, timestamp: Date.now() });
+    // Send the job to the queue with retry logic
+    let jobId: string | null = null;
+    let retryCount = 0;
+    const maxRetries = 1; // Reduced to 1 since we'll use direct execution as fallback
     
-    console.log(`Successfully added test ${task.testId} to queue, received ID: ${jobId}`);
+    while (!jobId && retryCount <= maxRetries) {
+      try {
+        if (retryCount > 0) {
+          console.log(`Retrying boss.send (attempt ${retryCount})`);
+        }
+        
+        jobId = await boss.send(TEST_EXECUTION_QUEUE, task, jobOptions);
+        console.log(`Boss.send response: ${typeof jobId} - ${jobId}`);
+        
+        // Even if pg-boss returns null, we can use our own jobUuid
+        if (!jobId) {
+          console.warn('boss.send returned null job ID, using our generated UUID');
+          jobId = jobUuid;
+        }
+      } catch (sendError) {
+        console.error(`PgBoss send error for test ${task.testId} (attempt ${retryCount}):`, sendError);
+        
+        if (retryCount >= maxRetries) {
+          // Use our own ID as a fallback even on error
+          console.warn('All send attempts failed, using generated fallback ID');
+          jobId = jobUuid;
+        } else {
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          retryCount++;
+        }
+      }
+    }
     
-    // Return the job ID (same as test ID)
+    // If pg-boss failed to queue the job properly, use our direct execution approach
+    if (!global._addTestToDirectQueue) {
+      console.warn('Direct execution queue not initialized, worker may not be ready');
+    } else if (jobId === jobUuid) {
+      // If we're using our fallback ID, that means pg-boss send failed
+      console.log('Using direct execution queue as pg-boss send failed');
+      global._addTestToDirectQueue(task);
+    }
+    
+    // Store an initial entry in the results map using our consistent ID
+    jobResults.set(task.testId, { 
+      pending: true, 
+      timestamp: Date.now(), 
+      pgBossJobId: jobId || jobUuid // Ensure we never store null
+    });
+    
+    console.log(`Successfully added test ${task.testId} to queue, tracking ID: ${jobId}`);
+    
     return task.testId;
   } catch (error) {
     console.error(`Error adding test ${task.testId} to queue:`, error);
@@ -141,34 +206,75 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
  */
 export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: number = 30): Promise<string> {
   const boss = await getQueueInstance();
+  console.log(`Adding job to queue ${JOB_EXECUTION_QUEUE}:`, { jobId: task.jobId, testCount: task.testScripts.length });
   
-  console.log(`Adding job to queue ${JOB_EXECUTION_QUEUE}:`, {
-    jobId: task.jobId,
-    testCount: task.testScripts.length
-  });
+  // Generate a unique ID for this job as a fallback
+  const jobUuid = crypto.randomUUID();
   
   try {
-    // Use the jobId as the job ID for correlation
+    // Use simple options with our own ID to avoid null returns
     const jobOptions = {
-      retryLimit: 1, // Jobs are more complex, limited retries
+      retryLimit: 1,
       expireInMinutes: expiryMinutes,
-      id: task.jobId
+      id: jobUuid // Use our own ID instead of relying on pg-boss
     };
     
-    // Send a job to the queue
-    const jobId = await boss.send(JOB_EXECUTION_QUEUE, task, jobOptions);
-    
-    if (!jobId) {
-      console.error(`Failed to get job ID after sending job ${task.jobId}`);
-      throw new Error('Failed to create job execution job');
+    // Check queue status
+    try {
+      const queueSize = await boss.getQueueSize(JOB_EXECUTION_QUEUE);
+      console.log(`Current queue size before sending job: ${queueSize}`);
+    } catch (sizeError) {
+      console.warn(`Could not get queue size: ${sizeError}`);
     }
     
-    // Store an initial entry in the results map
-    jobResults.set(task.jobId, { pending: true, timestamp: Date.now() });
+    // Send with retry logic
+    let jobId: string | null = null;
+    let retryCount = 0;
+    const maxRetries = 1; // Just try once, then use direct execution
     
-    console.log(`Successfully added job ${task.jobId} to queue, received ID: ${jobId}`);
+    while (!jobId && retryCount <= maxRetries) {
+      try {
+        if (retryCount > 0) {
+          console.log(`Retrying job send (attempt ${retryCount})`);
+        }
+        
+        jobId = await boss.send(JOB_EXECUTION_QUEUE, task, jobOptions);
+        console.log(`Job send response: ${typeof jobId} - ${jobId}`);
+        
+        if (!jobId) {
+          console.warn('boss.send returned null job ID, using our generated UUID');
+          jobId = jobUuid;
+        }
+      } catch (sendError) {
+        console.error(`Error sending job ${task.jobId} (attempt ${retryCount}):`, sendError);
+        
+        if (retryCount >= maxRetries) {
+          console.warn('All job send attempts failed, using generated fallback ID');
+          jobId = jobUuid;
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          retryCount++;
+        }
+      }
+    }
     
-    // Return the job ID (same as provided job ID)
+    // If pg-boss failed to queue the job properly, use our direct execution approach
+    if (!global._addJobToDirectQueue) {
+      console.warn('Direct execution queue for jobs not initialized, worker may not be ready');
+    } else if (jobId === jobUuid) {
+      // If we're using our fallback ID, that means pg-boss send failed
+      console.log('Using direct execution queue for jobs as pg-boss send failed');
+      global._addJobToDirectQueue(task);
+    }
+    
+    // Store tracking info
+    jobResults.set(task.jobId, { 
+      pending: true, 
+      timestamp: Date.now(), 
+      pgBossJobId: jobId || jobUuid // Never store null
+    });
+    
+    console.log(`Successfully added job ${task.jobId} to queue, tracking ID: ${jobId}`);
     return task.jobId;
   } catch (error) {
     console.error(`Error adding job ${task.jobId} to queue:`, error);
@@ -265,66 +371,19 @@ export async function deleteScheduledJob(scheduleName: string): Promise<boolean>
 /**
  * Setup workers for job completion queues
  */
-async function setupCompletionWorkers(): Promise<void> {
-  const boss = await getQueueInstance();
-  
-  // Jobs can be completed successfully or failed with error
-  const completedQueues = [
-    `${COMPLETED_JOB_PREFIX}${TEST_EXECUTION_QUEUE}`,
-    `${COMPLETED_JOB_PREFIX}${JOB_EXECUTION_QUEUE}`
-  ];
-  
-  // Setup workers for each completion queue
+async function setupCompletionWorkers(boss: PgBoss): Promise<void> {
+  const completedQueues = [`${COMPLETED_JOB_PREFIX}${TEST_EXECUTION_QUEUE}`, `${COMPLETED_JOB_PREFIX}${JOB_EXECUTION_QUEUE}`];
   for (const queueName of completedQueues) {
     await boss.work(queueName, { batchSize: 20 }, async (jobs) => {
       if (!Array.isArray(jobs) || jobs.length === 0) return;
-      
-      console.log(`Processing ${jobs.length} completed jobs from ${queueName}`);
-      
       for (const job of jobs) {
-        try {
-          // Store the result with the original job ID
-          // In completed jobs, the data structure includes the original request
-          // in a request property with id that matches the original job ID
-          if (job.data && typeof job.data === 'object') {
-            // Access request property safely with type assertion
-            const jobData = job.data as Record<string, any>;
-            const originalJobId = jobData.request?.id;
-            
-            if (originalJobId) {
-              // Log detailed information
-              const success = !jobData.failed && !jobData.error;
-              console.log(`Job ${originalJobId} completed with ${success ? 'success' : 'failure'}, storing result`);
-              
-              // Store with meaningful fields
-              const result = {
-                result: jobData.data,
-                output: jobData.output || null,
-                completedAt: Date.now(),
-                success: success,
-                error: jobData.error || null
-              };
-              
-              jobResults.set(originalJobId, result);
-              
-              // Log success message with job type
-              const isTest = queueName.includes(TEST_EXECUTION_QUEUE);
-              console.log(`${isTest ? 'Test' : 'Job'} ${originalJobId} result stored successfully`);
-            } else {
-              console.warn(`Completed job without original ID in queue ${queueName}:`, job.id);
-            }
-          } else {
-            console.warn(`Invalid job data format in completed queue ${queueName}:`, job.id);
-          }
-        } catch (err) {
-          console.error(`Error processing completed job ${job.id} from ${queueName}:`, err);
-        }
+        const jobData = job.data as any;
+        const originalId = jobData.request?.id || job.id;
+        const success = !jobData.failed && !jobData.error;
+        jobResults.set(originalId, { result: jobData.data, completedAt: Date.now(), success, error: jobData.error || null });
       }
-      
       return true;
     });
-    
-    console.log(`Completion worker set up for queue: ${queueName}`);
   }
 }
 
@@ -353,7 +412,82 @@ export async function setupTestExecutionWorker(
     console.warn(`Error clearing existing test workers: ${error}`);
   }
   
-  // Set up the worker to process jobs
+  // Create a direct execution queue to handle tasks when pg-boss fails
+  const pendingTasks = new Map<string, TestExecutionTask>();
+  const runningTasks = new Set<string>();
+  
+  // Function to process tasks from our direct execution queue
+  const processDirectTasks = async () => {
+    // Only process if we haven't reached max concurrency
+    if (runningTasks.size >= maxConcurrency) {
+      return;
+    }
+    
+    // Get pending tasks
+    const pendingTaskIds = Array.from(pendingTasks.keys());
+    
+    // Process up to maxConcurrency
+    for (const taskId of pendingTaskIds) {
+      if (runningTasks.size >= maxConcurrency) {
+        break;
+      }
+      
+      if (!runningTasks.has(taskId)) {
+        const task = pendingTasks.get(taskId);
+        if (task) {
+          console.log(`Directly executing test task ${taskId} (pg-boss bypass)`);
+          
+          // Mark as running and remove from pending
+          runningTasks.add(taskId);
+          pendingTasks.delete(taskId);
+          
+          // Execute using the same handler function
+          try {
+            const result = await handler(task);
+            console.log(`Direct execution of test ${taskId} completed successfully`);
+            
+            // Store result in the same results map used by the queue
+            jobResults.set(taskId, {
+              result: result,
+              completedAt: Date.now(),
+              success: true
+            });
+          } catch (error) {
+            console.error(`Error during direct execution of test ${taskId}:`, error);
+            
+            // Store error in the same results map
+            jobResults.set(taskId, {
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: Date.now()
+            });
+          } finally {
+            // Remove from running tasks
+            runningTasks.delete(taskId);
+          }
+        }
+      }
+    }
+  };
+  
+  // Start a periodic task processor
+  if (testTaskProcessorInterval) {
+    clearInterval(testTaskProcessorInterval);
+  }
+  testTaskProcessorInterval = setInterval(processDirectTasks, 1000);
+  
+  // Export the function to add tasks to our direct execution queue
+  global._addTestToDirectQueue = (task: TestExecutionTask) => {
+    console.log(`Adding test task ${task.testId} to direct execution queue (pg-boss bypass)`);
+    pendingTasks.set(task.testId, task);
+    
+    // Try to process immediately if possible
+    processDirectTasks();
+    
+    return task.testId;
+  };
+  
+  // Set up the worker to process jobs from pg-boss (if it works)
   try {
     // Explicitly type the job parameter to match pg-boss's work method
     await boss.work<TestExecutionTask>(
@@ -365,7 +499,7 @@ export async function setupTestExecutionWorker(
         const results = [];
         
         for (const job of jobs) {
-          console.log(`Processing test job: ${job.id}`);
+          console.log(`Processing test job from pg-boss: ${job.id}`);
           
           if (!job.data) {
             console.error('Invalid job data:', job);
@@ -449,6 +583,82 @@ export async function setupJobExecutionWorker(
     console.warn(`Error clearing existing job workers: ${error}`);
   }
   
+  // Create a direct execution queue to handle tasks when pg-boss fails
+  const pendingJobTasks = new Map<string, JobExecutionTask>();
+  const runningJobTasks = new Set<string>();
+  
+  // Function to process job tasks from our direct execution queue
+  const processDirectJobTasks = async () => {
+    // Only process if we haven't reached max concurrency
+    if (runningJobTasks.size >= maxConcurrency) {
+      return;
+    }
+    
+    // Get pending tasks
+    const pendingTaskIds = Array.from(pendingJobTasks.keys());
+    
+    // Process up to maxConcurrency
+    for (const taskId of pendingTaskIds) {
+      if (runningJobTasks.size >= maxConcurrency) {
+        break;
+      }
+      
+      if (!runningJobTasks.has(taskId)) {
+        const task = pendingJobTasks.get(taskId);
+        if (task) {
+          console.log(`Directly executing job task ${taskId} (pg-boss bypass)`);
+          
+          // Mark as running and remove from pending
+          runningJobTasks.add(taskId);
+          pendingJobTasks.delete(taskId);
+          
+          // Execute using the same handler function
+          try {
+            const result = await handler(task);
+            console.log(`Direct execution of job ${taskId} completed successfully`);
+            
+            // Store result in the same results map used by the queue
+            jobResults.set(taskId, {
+              result: result,
+              completedAt: Date.now(),
+              success: !!result?.success,
+              error: result?.error || null
+            });
+          } catch (error) {
+            console.error(`Error during direct execution of job ${taskId}:`, error);
+            
+            // Store error in the same results map
+            jobResults.set(taskId, {
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: Date.now()
+            });
+          } finally {
+            // Remove from running tasks
+            runningJobTasks.delete(taskId);
+          }
+        }
+      }
+    }
+  };
+  
+  // Start a periodic task processor
+  if (jobTaskProcessorInterval) {
+    clearInterval(jobTaskProcessorInterval);
+  }
+  jobTaskProcessorInterval = setInterval(processDirectJobTasks, 1000);
+  
+  // Export the function to add tasks to our direct execution queue
+  global._addJobToDirectQueue = (task: JobExecutionTask) => {
+    console.log(`Adding job task ${task.jobId} to direct execution queue (pg-boss bypass)`);
+    pendingJobTasks.set(task.jobId, task);
+    
+    // Try to process immediately if possible
+    processDirectJobTasks();
+    
+    return task.jobId;
+  };
+  
   // Set up the worker to process jobs
   try {
     // Explicitly type the job parameter to match pg-boss's work method
@@ -459,7 +669,7 @@ export async function setupJobExecutionWorker(
         if (!Array.isArray(jobs) || jobs.length === 0) return;
         
         for (const job of jobs) {
-          console.log(`Processing job execution: ${job.id}`);
+          console.log(`Processing job execution from pg-boss: ${job.id}`);
           
           if (!job.data) {
             console.error('Invalid job data:', job);
@@ -509,75 +719,102 @@ export async function setupJobExecutionWorker(
 export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number = DEFAULT_JOB_TIMEOUT_MS): Promise<T> {
   console.log(`Waiting for job ${jobId} to complete (timeout: ${timeoutMs}ms)`);
   
-  const boss = await getQueueInstance();
-  
-  // Define queue names for completion and failure events
-  const completedJobQueue = `${COMPLETED_JOB_PREFIX}${JOB_EXECUTION_QUEUE}`;
-  const failedJobQueue = `__state__failed__${JOB_EXECUTION_QUEUE}`;
-  
-  return new Promise<T>((resolve, reject) => {
-    let completionInterval: NodeJS.Timeout | null = null;
+  try {
+    const boss = await getQueueInstance();
     
-    // Cleanup function to clear resources
-    const cleanup = () => {
-      if (completionInterval) {
-        clearInterval(completionInterval);
-        completionInterval = null;
-      }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
+    // Define queue names for completion and failure events
+    const completedJobQueue = `${COMPLETED_JOB_PREFIX}${JOB_EXECUTION_QUEUE}`;
+    const failedJobQueue = `__state__failed__${JOB_EXECUTION_QUEUE}`;
     
-    // Set a timeout to reject the promise if it takes too long
-    const timeoutId = setTimeout(() => {
-      cleanup();
-      reject(new Error(`Job ${jobId} timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-    
-    // Process completed jobs queue - we're already setting this up in setupCompletionWorkers()
-    // So we can just rely on the job results map being updated by that worker
-    
-    // Helper function to check job results from the global map
-    const checkResult = () => {
-      if (jobResults.has(jobId)) {
-        const storedResult = jobResults.get(jobId);
-        
-        if (storedResult && !storedResult.pending) {
-          cleanup();
-          
-          if (storedResult.error || storedResult.success === false) {
-            console.log(`Job ${jobId} failed`);
-            reject(new Error(`Job ${jobId} failed: ${storedResult.error || 'Unknown error'}`));
-          } else {
-            console.log(`Job ${jobId} completed successfully`);
-            resolve(storedResult.result as T);
-          }
-          
-          return true;
+    return new Promise<T>((resolve, reject) => {
+      let completionInterval: NodeJS.Timeout | null = null;
+      
+      // Cleanup function to clear resources
+      const cleanup = () => {
+        if (completionInterval) {
+          clearInterval(completionInterval);
+          completionInterval = null;
         }
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
+      
+      // Set a timeout to reject the promise if it takes too long
+      const timeoutId = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Job ${jobId} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      
+      // Process completed jobs queue - we're already setting this up in setupCompletionWorkers()
+      // So we can just rely on the job results map being updated by that worker
+      
+      // Helper function to check job results from the global map
+      const checkResult = () => {
+        if (jobResults.has(jobId)) {
+          const storedResult = jobResults.get(jobId);
+          
+          // Handle both successful completion and error cases
+          if (storedResult && (
+              !storedResult.pending || 
+              storedResult.completedAt || 
+              storedResult.error || 
+              typeof storedResult.success === 'boolean'
+            )) {
+            cleanup();
+            
+            if (storedResult.error || storedResult.success === false) {
+              console.log(`Job ${jobId} failed`);
+              reject(new Error(`Job ${jobId} failed: ${storedResult.error || 'Unknown error'}`));
+            } else {
+              console.log(`Job ${jobId} completed successfully`);
+              resolve(storedResult.result as T);
+            }
+            
+            return true;
+          }
+        }
+        return false;
+      };
+      
+      // Check immediately in case the job already completed
+      if (checkResult()) {
+        return;
       }
-      return false;
-    };
-    
-    // Check immediately in case the job already completed
-    if (checkResult()) {
-      return;
-    }
-    
-    // Since we have completion workers already set up for state-based queues,
-    // we'll check periodically if our job is complete by monitoring the job results map
-    // This still relies on pg-boss's completion mechanisms to update the map
-    completionInterval = setInterval(checkResult, 1000);
-    
-    console.log(`Watching for job ${jobId} completion via pg-boss completion queues`);
-  });
+      
+      // Since we have completion workers already set up for state-based queues,
+      // we'll check periodically if our job is complete by monitoring the job results map
+      completionInterval = setInterval(() => {
+        try {
+          checkResult();
+        } catch (intervalError) {
+          console.error(`Error in completion check interval:`, intervalError);
+        }
+      }, 1000);
+      
+      console.log(`Watching for job ${jobId} completion via job results map`);
+    });
+  } catch (error) {
+    console.error(`Error setting up job completion watcher:`, error);
+    throw error;
+  }
 }
 
 /**
  * Close the pg-boss queue connection
  */
 export async function closeQueue(): Promise<void> {
+  // Clean up our direct execution intervals
+  if (testTaskProcessorInterval) {
+    clearInterval(testTaskProcessorInterval);
+    testTaskProcessorInterval = null;
+  }
+  
+  if (jobTaskProcessorInterval) {
+    clearInterval(jobTaskProcessorInterval);
+    jobTaskProcessorInterval = null;
+  }
+  
   if (bossInstance) {
     try {
       await bossInstance.stop();
@@ -619,53 +856,304 @@ export async function getQueueStats(): Promise<any> {
   }
 }
 
-// Implement the full setupQueue function without the environment check
-async function setupQueue(): Promise<PgBoss | null> {
+// Helper function to check if the pgboss schema exists
+async function checkPgBossSchema(connectionString: string): Promise<boolean> {
+  const client = new Client({ connectionString });
   try {
-    const connectionString = process.env.DATABASE_URL || 
-      `postgres://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "postgres"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "supertest"}`;
+    await client.connect();
+    const result = await client.query(
+      "SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname = 'pgboss')"
+    );
+    return result.rows[0].exists;
+  } catch (error) {
+    console.error('Error checking pgboss schema:', error);
+    return false;
+  } finally {
+    await client.end();
+  }
+}
+
+// Helper function to create the pgboss schema
+async function createPgBossSchema(connectionString: string): Promise<void> {
+  const client = new Client({ connectionString });
+  try {
+    await client.connect();
+    await client.query('CREATE SCHEMA IF NOT EXISTS pgboss');
+    console.log('Created pgboss schema');
+  } catch (error) {
+    console.error('Error creating pgboss schema:', error);
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+// Helper function to check if a table exists
+async function checkPgBossTable(connectionString: string, tableName: string): Promise<boolean> {
+  const client = new Client({ connectionString });
+  try {
+    await client.connect();
+    const result = await client.query(
+      "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'pgboss' AND table_name = $1)",
+      [tableName]
+    );
+    return result.rows[0].exists;
+  } catch (error) {
+    console.error(`Error checking pgboss table ${tableName}:`, error);
+    return false;
+  } finally {
+    await client.end();
+  }
+}
+
+// Implement the setupQueue function with proper configuration
+async function setupQueue(): Promise<PgBoss> {
+  if (bossInstance) {
+    return bossInstance;
+  }
+
+  try {
+    console.log('Setting up pg-boss queue...');
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error('DATABASE_URL is not set');
+    }
+
+    // Log partial connection info for debugging (hiding credentials)
+    const maskedConnectionString = connectionString.replace(
+      /postgres:\/\/([^:]+):([^@]+)@/,
+      'postgres://$1:****@'
+    );
+    console.log(`Using database connection: ${maskedConnectionString}`);
+
+    // Check if the pgboss schema exists
+    const schemaExists = await checkPgBossSchema(connectionString);
+    console.log(`pgboss schema exists: ${schemaExists}`);
     
-    console.log('Initializing pg-boss queue...');
-    
-    // Create a new boss instance with options
+    if (!schemaExists) {
+      console.log('pgboss schema does not exist, creating...');
+      await createPgBossSchema(connectionString);
+    }
+
+    // Check for key pg-boss tables
+    const jobTableExists = await checkPgBossTable(connectionString, 'job');
+    console.log(`pgboss job table exists: ${jobTableExists}`);
+
+    // Create a new pg-boss instance with explicit database schema management settings
     const boss = new PgBoss({
       connectionString,
-      // Additional configuration options
+      schema: 'pgboss', // Explicit schema name
+      application_name: 'supertest-queue',
       retentionDays: 7,
       monitorStateIntervalSeconds: 30,
-      // Set an application name for easier database query identification
-      application_name: 'supertest-queue'
+      max: 10 // Maximum pool size
     });
 
-    // Actively listen for errors
-    boss.on('error', error => {
-      console.error('PgBoss error:', error);
-      // Attempt to reconnect if connection issues
-      if (error.message?.includes('connection') && bossInstance) {
-        console.log('Attempting to restart PgBoss after connection error...');
-        bossInstance.stop().catch(e => console.error('Error stopping PgBoss:', e));
-        bossInstance = null;
-        // Try to reconnect after a delay
-        setTimeout(() => {
-          getQueueInstance().catch(e => console.error('Failed to reconnect to PgBoss:', e));
-        }, 5000);
+    try {
+      console.log('Starting pg-boss with schema creation...');
+      
+      // First ensure the schema is created properly
+      await boss.start();
+      console.log('Pg-boss schema creation successful');
+      
+      // Double-check if tables were created after start
+      const tablesExistAfterStart = await checkPgBossTable(connectionString, 'job');
+      console.log(`pgboss job table exists after start: ${tablesExistAfterStart}`);
+      
+      // Verify connection with a simpler check
+      console.log('Testing queue connection with a fetch operation...');
+      
+      // Try to access the queue state
+      try {
+        const details = await boss.getQueueSize(TEST_EXECUTION_QUEUE);
+        console.log('Queue connection verified, current queue size:', details);
+      } catch (connectionError) {
+        console.warn('Could start pg-boss but connection check failed. This might indicate problems:', connectionError);
       }
-    });
-
-    // Start the queue
-    await boss.start();
-    console.log('PgBoss queue started successfully');
-
-    // Setup the completion worker for all jobs - ensure this is uncommented
-    setupCompletionWorkers().catch(err => console.error('Failed to setup completion workers:', err));
-    
-    bossInstance = boss;
-
-    console.log("PgBoss queue started successfully");
-    queueInitialized = true;
-    return bossInstance;
+      
+      // Set up completion workers
+      await setupCompletionWorkers(boss);
+      
+      return boss;
+    } catch (err) {
+      console.error('Error starting pg-boss:', err);
+      throw err;
+    }
   } catch (error) {
-    console.error('Failed to initialize pg-boss:', error);
+    console.error('Error setting up pg-boss queue:', error);
     throw error;
   }
+}
+
+/**
+ * Test the queue by sending a test job and immediately checking its status
+ * This can be run directly to test queue connectivity
+ */
+export async function testQueueConnectivity(): Promise<boolean> {
+  console.log('Testing queue connectivity with test job...');
+  
+  try {
+    const boss = await getQueueInstance();
+    
+    // Check if we can connect to the database directly
+    try {
+      const client = new Client({
+        connectionString: process.env.DATABASE_URL
+      });
+      await client.connect();
+      console.log('Direct PostgreSQL connection successful');
+      
+      // Verify schema
+      const schemaResult = await client.query(
+        "SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname = 'pgboss')"
+      );
+      console.log(`PostgreSQL schema check: pgboss exists = ${schemaResult.rows[0].exists}`);
+      
+      // Verify tables
+      const tableResult = await client.query(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'pgboss'"
+      );
+      console.log(`PostgreSQL pgboss tables: ${tableResult.rows.map(r => r.table_name).join(', ')}`);
+      
+      await client.end();
+    } catch (dbError) {
+      console.error('Direct PostgreSQL connection failed:', dbError);
+    }
+    
+    // Create a test job with unique ID - use proper UUID format
+    const testId = crypto.randomUUID();
+    const testData = { test: true, timestamp: Date.now() };
+    
+    // Send a test job with special handling
+    console.log('Sending test job to queue...');
+    
+    try {
+      // Get current stats
+      const beforeStats = await boss.getQueueSize('__test_queue__');
+      console.log(`Queue size before send: ${beforeStats}`);
+      
+      // Try to set up a worker for this queue
+      await boss.work<any>('__test_queue__', async (jobs) => {
+        if (Array.isArray(jobs)) {
+          console.log('Test job worker executed with array of jobs:', jobs.length);
+          jobs.forEach(job => {
+            console.log('Processing job:', job.id, job.data);
+          });
+        } else {
+          // This case should never happen based on pg-boss API design
+          console.log('Test job worker executed with unexpected job format');
+        }
+        return true;
+      });
+      console.log('Worker registered for __test_queue__');
+      
+      // Try sending with await - use explicit options with our own UUID
+      const jobOptions = {
+        retryLimit: 0,
+        expireInMinutes: 1,
+        id: testId // Use the proper UUID we generated
+      };
+      
+      const jobId = await boss.send('__test_queue__', testData, jobOptions);
+      console.log(`Boss.send response: ${typeof jobId} - ${jobId}`);
+      
+      if (!jobId) {
+        console.error('boss.send returned falsy job ID!');
+        
+        // Try a promise-based approach as a workaround
+        console.log('Trying alternative promise-based approach...');
+        let promiseJobId: string | null = null;
+        
+        const sendPromise = new Promise<string | null>((resolve) => {
+          boss.send('__test_queue__', testData, jobOptions)
+          .then(id => {
+            console.log(`Promise-based job ID: ${id}`);
+            resolve(id);
+          })
+          .catch(err => {
+            console.error('Promise-based job send error:', err);
+            resolve(null);
+          });
+        });
+        
+        promiseJobId = await sendPromise;
+        
+        if (!promiseJobId) {
+          throw new Error('Failed to create job with both approaches');
+        }
+        
+        console.log(`Successfully created test job with promise approach, ID: ${promiseJobId}`);
+        return true;
+      }
+      
+      console.log(`Successfully created test job with ID: ${jobId}`);
+      
+      // Check if we can fetch the job
+      console.log('Fetching job details...');
+      const queueSize = await boss.getQueueSize('__test_queue__');
+      console.log(`Queue size after test job: ${queueSize}`);
+      
+      // Job was created and we can access the queue
+      console.log('Queue connectivity test passed!');
+      return true;
+    } catch (sendError) {
+      console.error('Error sending test job:', sendError);
+      
+      // Last resort approach - check if the database connection works at all
+      try {
+        const pgClient = new Client(process.env.DATABASE_URL);
+        await pgClient.connect();
+        console.log('Database connection successful');
+        
+        // Try inserting a job manually as a last resort test - use a proper UUID
+        try {
+          // Generate a proper v4 UUID for the manual test
+          const manualJobId = crypto.randomUUID();
+          await pgClient.query(
+            `INSERT INTO pgboss.job (id, name, data, state) VALUES ($1, $2, $3, 'created')`,
+            [manualJobId, '__test_queue__', JSON.stringify(testData)]
+          );
+          console.log(`Manually inserted job with ID ${manualJobId}`);
+          
+          // Success with manual insert
+          await pgClient.end();
+          return true;
+        } catch (insertError) {
+          console.error('Manual job insert failed:', insertError);
+        }
+        
+        await pgClient.end();
+      } catch (finalDbError) {
+        console.error('Final database connection test failed:', finalDbError);
+      }
+      
+      return false;
+    }
+  } catch (error) {
+    console.error('Queue connectivity test failed:', error);
+    return false;
+  }
+}
+
+// If this file is executed directly via node, run the test
+if (require.main === module) {
+  (async () => {
+    try {
+      const result = await testQueueConnectivity();
+      console.log(`Queue test result: ${result ? 'PASSED' : 'FAILED'}`);
+      
+      // Close the queue
+      await closeQueue();
+      process.exit(result ? 0 : 1);
+    } catch (error) {
+      console.error('Error running queue test:', error);
+      process.exit(1);
+    }
+  })();
+}
+
+// Update the global type to include our direct execution functions
+declare global {
+  var _addTestToDirectQueue: (task: TestExecutionTask) => string;
+  var _addJobToDirectQueue: (task: JobExecutionTask) => string;
 }

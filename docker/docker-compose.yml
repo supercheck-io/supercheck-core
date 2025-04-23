@@ -1,5 +1,5 @@
 version: '3.8'
-
+# docker build -t supertest:latest .
 services:
   app:
     image: supertest:latest
@@ -17,11 +17,11 @@ services:
       - MAX_CONCURRENT_TESTS=2
       - TEST_EXECUTION_TIMEOUT_MS=900000
       - TRACE_RECOVERY_INTERVAL_MS=300000
-      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/supertest
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supertest
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
-      - DB_PASSWORD=postgrespassword
+      - DB_PASSWORD=postgres
       - DB_NAME=supertest
     command: >
       sh -c "
@@ -68,7 +68,7 @@ services:
     image: postgres:16
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgrespassword
+      - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=supertest
     ports:
       - "5432:5432"

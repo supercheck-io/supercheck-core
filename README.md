@@ -82,12 +82,7 @@ Install PostgreSQL locally or run it in a standalone Docker container:
 
 ```bash
 # Run PostgreSQL with Docker (Example)
-docker run -d --name postgres-supertest \\
-  -e POSTGRES_USER=postgres \\
-  -e POSTGRES_PASSWORD=postgrespassword \\
-  -e POSTGRES_DB=supertest \\
-  -p 5432:5432 \\
-  postgres:16
+docker run -d --name postgres-supertest -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supertest -p 5432:5432 postgres:16
 ```
 
 *(Adjust user/password/db name as needed and update your `.env.local` accordingly)*
