@@ -729,7 +729,7 @@ const Playground: React.FC<PlaygroundProps> = ({
               className="rounded-br-lg rounded-tr-lg"
             >
               <div className="flex h-full flex-col border rounded-tr-lg rounded-br-lg">
-                <div className="flex items-center justify-between border-b bg-card px-4 py-2 rounded-tr-lg">
+                <div className="flex items-center justify-between border-b bg-card px-4 py-4 rounded-tr-lg">
                   <div className="flex items-center">
                     <h3 className="text-sm font-medium">Test Details</h3>
                   </div>

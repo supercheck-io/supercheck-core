@@ -136,7 +136,7 @@ export function ReportViewer({
   return (
     <div className={containerClassName}>
       {isReportLoading && (
-        <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center -mt-16 text-muted-foreground ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
+        <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center text-muted-foreground  ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
           <Loader2Icon className={`h-12 w-12 animate-spin mb-3`} />
           <p className="text-lg">{loadingMessage}</p>
         </div>

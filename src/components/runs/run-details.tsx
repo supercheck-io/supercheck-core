@@ -31,10 +31,7 @@ export function RunDetails({ run }: RunDetailsProps) {
     return (
       <Badge
         variant="outline"
-        className={`${statusInfo.color} border-${statusInfo.color.replace(
-          "text-",
-          ""
-        )}`}
+        className={`${statusInfo.color} text-[16px] font-medium px-2 py-1`}
       >
         {statusInfo.icon && <statusInfo.icon className="mr-1 h-3 w-3" />}
         {statusInfo.label}
@@ -56,7 +53,7 @@ export function RunDetails({ run }: RunDetailsProps) {
                 Job Run Details
                 {getStatusBadge(run.status)}
               </h1>
-              <div className="text-sm text-muted-foreground flex items-center gap-1">
+              <div className="text-sm text-muted-foreground flex items-center gap-1 ml-1">
                 <CalendarIcon className="h-3 w-3" />
                 <span>
                   {run.startedAt || run.timestamp
