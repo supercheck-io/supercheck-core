@@ -26,6 +26,7 @@ import {
 import * as z from "zod";
 import type { editor } from "monaco-editor";
 import type { ScriptType } from "@/lib/script-service";
+import { ReportViewer } from "@/components/shared/report-viewer";
 
 // Define our own TestCaseFormData interface
 interface TestCaseFormData {
@@ -707,182 +708,13 @@ const Playground: React.FC<PlaygroundProps> = ({
                       value="report"
                       className="h-screen border-0 p-0 mt-0"
                     >
-                      {isRunning || isReportLoading ? (
-                        <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
-                          <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
-                            <Loader2Icon className="h-8 w-8 animate-spin" />
-                            <p>Please wait, running test...</p>
-                          </div>
-                        </div>
-                      ) : isTransitionLoading ? (
-                        <div className="flex flex-col h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
-                          <Loader2Icon className="h-12 w-12 animate-spin text-white mb-3" />
-                          <p className="text-white">Loading report...</p>
-                        </div>
-                      ) : reportUrl ? (
-                        iframeError ? (
-                          <div className="flex h-[calc(100vh-10rem)] flex-col items-center justify-center bg-[#1e1e1e]">
-                            <div className="flex flex-col items-center text-center max-w-md -mt-20">
-                              <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
-                              <h1 className="text-3xl font-bold mb-2 text-[#d4d4d4]">Test Results Not Found</h1>
-                              <p className="text-muted-foreground mb-6">
-                                {reportError || "The test results you're looking for don't exist or have been removed."}
-                              </p>
-                              <div className="flex gap-4">
-                                <Button
-                                  onClick={() => {
-                                    // Reset error state and try again
-                                    setIframeError(false);
-                                    setReportError(null);
-                                    
-                                    // Add a timestamp to force reload
-                                    const refreshedUrl = `${reportUrl}${reportUrl.includes('?') ? '&' : '?'}retry=true&t=${Date.now()}`;
-                                    setReportUrl(refreshedUrl);
-                                  }}
-                                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                                >
-                                  Reload Report
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="report-iframe-wrapper h-[calc(100vh-10rem)] w-full relative">
-                            {/* Remove the loading overlay with text, keep only trace loading overlay */}
-                            {isTraceLoading && (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1e1e1e] bg-opacity-90 z-20">
-                                <Loader2Icon className="h-12 w-12 animate-spin text-white mb-3" />
-                                <p className="text-white">Loading trace viewer...</p>
-                              </div>
-                            )}
-                            <iframe
-                              ref={iframeRef}
-                              key={reportUrl}
-                              src={reportUrl}
-                              className="h-[calc(100vh-10rem)] w-full opacity-0"
-                              style={{ backgroundColor: "#1e1e1e" }}
-                              sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-                              allow="cross-origin-isolated"
-                              onLoad={async (e) => {
-                                const iframe = e.target as HTMLIFrameElement;
-                                try {
-                                  // **New:** Fetch the source first to check content type
-                                  const response = await fetch(iframe.src);
-
-                                  if (!response.ok || response.headers.get("Content-Type")?.includes("application/json")) {
-                                    // Treat non-OK or JSON response as an error
-                                    console.log("iframe loaded non-HTML content, treating as error.", response.status, response.headers.get("Content-Type"));
-                                    setIframeError(true);
-                                    try {
-                                      const errorData = await response.json();
-                                      setReportError(errorData.message || `Failed to load report (${response.status})`);
-                                    } catch {
-                                      setReportError(`Failed to load report (${response.status})`);
-                                    }
-                                    setIsReportLoading(false);
-                                    setIsRunning(false);
-                                    return; // Stop further processing
-                                  }
-
-                                  // If we got here, it's likely HTML - proceed with original logic
-                                  const doc = iframe.contentWindow?.document;
-                                  if (!doc || !doc.body) {
-                                    // This case might still happen for unexpected errors
-                                    throw new Error("Cannot access iframe content document.");
-                                  }
-                                  
-                                  // Show the iframe immediately
-                                  iframe.classList.remove('opacity-0');
-                                  
-                                  // Setup detection for trace viewer loading events with simplified approach
-                                  const setupTraceDetection = () => {
-                                    try {
-                                      // Listen for clicks on trace links with improved detection
-                                      iframe.contentWindow?.document.body.addEventListener('click', (event) => {
-                                        const target = event.target as HTMLElement;
-                                        const traceLink = target.closest('a[href*="trace"]') || 
-                                                        target.closest('button[data-testid*="trace"]') ||
-                                                        (target.textContent?.toLowerCase().includes('trace') ? target : null);
-                                        
-                                        if (traceLink) {
-                                          setIsTraceLoading(true);
-                                          
-                                          // Use a shorter timeout for trace loading to match run details page
-                                          setTimeout(() => {
-                                            setIsTraceLoading(false);
-                                          }, 200);  // Reduced from 2000ms to 1000ms
-                                        }
-                                      }, true);
-                                    } catch (err) {
-                                      console.error("Error setting up trace detection:", err);
-                                    }
-                                  };
-                                  
-                                  // Setup trace detection immediately
-                                  setupTraceDetection();
-                                  
-                                  // Clear loading states when iframe loads successfully
-                                  setIsReportLoading(false);
-                                  // Now that the iframe is fully loaded, we can set isRunning to false
-                                  setIsRunning(false);
-
-                                } catch (err) {
-                                  console.error("Error processing iframe onLoad:", err);
-                                  // Fallback: Trigger error display if any part of onLoad fails after fetch
-                                  setIframeError(true);
-                                  setReportError("An error occurred while displaying the report."); 
-                                  setIsReportLoading(false);
-                                  setIsRunning(false);
-                                }
-                              }}
-                              onError={(e) => {
-                                console.error("Error loading iframe:", e);
-                                
-                                // Immediately set the error state to show the formatted error UI
-                                setIframeError(true);
-
-                                // Try to fetch the URL to get a more specific error message, but don't block UI on this
-                                const iframe = e.target as HTMLIFrameElement;
-                                if (iframe.src) {
-                                  fetch(iframe.src)
-                                    .then(response => {
-                                      if (!response.ok) {
-                                        // Attempt to parse JSON error response
-                                        return response.json().catch(() => ({
-                                          message: `Failed to load report (${response.status} ${response.statusText})`
-                                        }));
-                                      }
-                                      // If response is somehow OK but still errored, return a generic message
-                                      return { message: "An unexpected error occurred while loading the report." }; 
-                                    })
-                                    .then(errorData => {
-                                      // Set the specific error message if available
-                                      setReportError(errorData.message || "Failed to load test report.");
-                                    })
-                                    .catch(() => {
-                                      // Fallback error message if fetch fails
-                                      setReportError("Failed to load test report due to a network error.");
-                                    });
-                                } else {
-                                  // Fallback if src is somehow unavailable
-                                  setReportError("Test report URL is missing.");
-                                }
-                                
-                                // Ensure loading states are cleared
-                                setIsReportLoading(false);
-                                setIsRunning(false);
-                              }}
-                            />
-                          </div>
-                        )
-                      ) : (
-                        <div className="flex h-[calc(100vh-10rem)] items-center justify-center bg-[#1e1e1e]">
-                          <div className="flex flex-col items-center gap-2 text-[#d4d4d4]">
-                            <FileTextIcon className="h-8 w-8" />
-                            <p>Run a test to see the HTML report</p>
-                          </div>
-                        </div>
-                      )}
+                      <ReportViewer
+                        reportUrl={reportUrl}
+                        isRunning={isRunning || isReportLoading}
+                        containerClassName="h-[calc(100vh-10rem)] w-full relative"
+                        iframeClassName="h-[calc(100vh-10rem)] w-full"
+                        darkMode={true}
+                      />
                     </TabsContent>
                   </Tabs>
                 </div>
