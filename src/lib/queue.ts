@@ -90,10 +90,6 @@ let queueInitPromise: Promise<PgBoss | null> | null = null;
 // Create a simple guard to prevent multiple worker initializations
 let workerInitPromise: Promise<void> | null = null;
 
-// Store references to our intervals for cleanup
-let testTaskProcessorInterval: NodeJS.Timeout | null = null;
-let jobTaskProcessorInterval: NodeJS.Timeout | null = null;
-
 /**
  * Get the pg-boss queue instance (singleton pattern)
  */
@@ -145,7 +141,7 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
     // Send the job to the queue with retry logic
     let jobId: string | null = null;
     let retryCount = 0;
-    const maxRetries = 1; // Reduced to 1 since we'll use direct execution as fallback
+    const maxRetries = 1;
     
     while (!jobId && retryCount <= maxRetries) {
       try {
@@ -174,15 +170,6 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
           retryCount++;
         }
       }
-    }
-    
-    // If pg-boss failed to queue the job properly, use our direct execution approach
-    if (!global._addTestToDirectQueue) {
-      console.warn('Direct execution queue not initialized, worker may not be ready');
-    } else if (jobId === jobUuid) {
-      // If we're using our fallback ID, that means pg-boss send failed
-      console.log('Using direct execution queue as pg-boss send failed');
-      global._addTestToDirectQueue(task);
     }
     
     // Store an initial entry in the results map using our consistent ID
@@ -230,7 +217,7 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
     // Send with retry logic
     let jobId: string | null = null;
     let retryCount = 0;
-    const maxRetries = 1; // Just try once, then use direct execution
+    const maxRetries = 1;
     
     while (!jobId && retryCount <= maxRetries) {
       try {
@@ -256,15 +243,6 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
           retryCount++;
         }
       }
-    }
-    
-    // If pg-boss failed to queue the job properly, use our direct execution approach
-    if (!global._addJobToDirectQueue) {
-      console.warn('Direct execution queue for jobs not initialized, worker may not be ready');
-    } else if (jobId === jobUuid) {
-      // If we're using our fallback ID, that means pg-boss send failed
-      console.log('Using direct execution queue for jobs as pg-boss send failed');
-      global._addJobToDirectQueue(task);
     }
     
     // Store tracking info
@@ -380,7 +358,26 @@ async function setupCompletionWorkers(boss: PgBoss): Promise<void> {
         const jobData = job.data as any;
         const originalId = jobData.request?.id || job.id;
         const success = !jobData.failed && !jobData.error;
-        jobResults.set(originalId, { result: jobData.data, completedAt: Date.now(), success, error: jobData.error || null });
+        
+        // Store result with the pg-boss job ID
+        jobResults.set(originalId, { 
+          result: jobData.data, 
+          completedAt: Date.now(), 
+          success, 
+          error: jobData.error || null 
+        });
+        
+        // IMPORTANT: Also store using testId from the request data if available
+        // This ensures the UI can find the results when polling by testId
+        if (jobData.request?.data?.testId && jobData.request.data.testId !== originalId) {
+          jobResults.set(jobData.request.data.testId, { 
+            result: jobData.data, 
+            completedAt: Date.now(), 
+            success, 
+            error: jobData.error || null 
+          });
+          console.log(`Stored completion result for testId: ${jobData.request.data.testId}`);
+        }
       }
       return true;
     });
@@ -411,81 +408,6 @@ export async function setupTestExecutionWorker(
   } catch (error) {
     console.warn(`Error clearing existing test workers: ${error}`);
   }
-  
-  // Create a direct execution queue to handle tasks when pg-boss fails
-  const pendingTasks = new Map<string, TestExecutionTask>();
-  const runningTasks = new Set<string>();
-  
-  // Function to process tasks from our direct execution queue
-  const processDirectTasks = async () => {
-    // Only process if we haven't reached max concurrency
-    if (runningTasks.size >= maxConcurrency) {
-      return;
-    }
-    
-    // Get pending tasks
-    const pendingTaskIds = Array.from(pendingTasks.keys());
-    
-    // Process up to maxConcurrency
-    for (const taskId of pendingTaskIds) {
-      if (runningTasks.size >= maxConcurrency) {
-        break;
-      }
-      
-      if (!runningTasks.has(taskId)) {
-        const task = pendingTasks.get(taskId);
-        if (task) {
-          console.log(`Directly executing test task ${taskId} (pg-boss bypass)`);
-          
-          // Mark as running and remove from pending
-          runningTasks.add(taskId);
-          pendingTasks.delete(taskId);
-          
-          // Execute using the same handler function
-          try {
-            const result = await handler(task);
-            console.log(`Direct execution of test ${taskId} completed successfully`);
-            
-            // Store result in the same results map used by the queue
-            jobResults.set(taskId, {
-              result: result,
-              completedAt: Date.now(),
-              success: true
-            });
-          } catch (error) {
-            console.error(`Error during direct execution of test ${taskId}:`, error);
-            
-            // Store error in the same results map
-            jobResults.set(taskId, {
-              success: false,
-              error: error instanceof Error ? error.message : String(error),
-              timestamp: Date.now()
-            });
-          } finally {
-            // Remove from running tasks
-            runningTasks.delete(taskId);
-          }
-        }
-      }
-    }
-  };
-  
-  // Start a periodic task processor
-  if (testTaskProcessorInterval) {
-    clearInterval(testTaskProcessorInterval);
-  }
-  testTaskProcessorInterval = setInterval(processDirectTasks, 1000);
-  
-  // Export the function to add tasks to our direct execution queue
-  global._addTestToDirectQueue = (task: TestExecutionTask) => {
-    console.log(`Adding test task ${task.testId} to direct execution queue (pg-boss bypass)`);
-    pendingTasks.set(task.testId, task);
-    
-    // Try to process immediately if possible
-    processDirectTasks();
-    
-    return task.testId;
-  };
   
   // Set up the worker to process jobs from pg-boss (if it works)
   try {
@@ -522,11 +444,24 @@ export async function setupTestExecutionWorker(
                 stderr: result.stderr || ''
               } : result;
             
+            // Store the result with the job.id AND the testId from the job data
+            // This ensures results can be looked up by either ID
             jobResults.set(job.id, { 
               result: completeResult,
               completedAt: Date.now(),
               success: true
             });
+            
+            // IMPORTANT: Also store the result using the testId from the task
+            // This is crucial for UI to find the results
+            if (job.data && job.data.testId && job.data.testId !== job.id) {
+              jobResults.set(job.data.testId, { 
+                result: completeResult,
+                completedAt: Date.now(),
+                success: true
+              });
+              console.log(`Stored duplicate result mapping for testId: ${job.data.testId}`);
+            }
             
             // Add to results array
             results.push(completeResult);
@@ -583,82 +518,6 @@ export async function setupJobExecutionWorker(
     console.warn(`Error clearing existing job workers: ${error}`);
   }
   
-  // Create a direct execution queue to handle tasks when pg-boss fails
-  const pendingJobTasks = new Map<string, JobExecutionTask>();
-  const runningJobTasks = new Set<string>();
-  
-  // Function to process job tasks from our direct execution queue
-  const processDirectJobTasks = async () => {
-    // Only process if we haven't reached max concurrency
-    if (runningJobTasks.size >= maxConcurrency) {
-      return;
-    }
-    
-    // Get pending tasks
-    const pendingTaskIds = Array.from(pendingJobTasks.keys());
-    
-    // Process up to maxConcurrency
-    for (const taskId of pendingTaskIds) {
-      if (runningJobTasks.size >= maxConcurrency) {
-        break;
-      }
-      
-      if (!runningJobTasks.has(taskId)) {
-        const task = pendingJobTasks.get(taskId);
-        if (task) {
-          console.log(`Directly executing job task ${taskId} (pg-boss bypass)`);
-          
-          // Mark as running and remove from pending
-          runningJobTasks.add(taskId);
-          pendingJobTasks.delete(taskId);
-          
-          // Execute using the same handler function
-          try {
-            const result = await handler(task);
-            console.log(`Direct execution of job ${taskId} completed successfully`);
-            
-            // Store result in the same results map used by the queue
-            jobResults.set(taskId, {
-              result: result,
-              completedAt: Date.now(),
-              success: !!result?.success,
-              error: result?.error || null
-            });
-          } catch (error) {
-            console.error(`Error during direct execution of job ${taskId}:`, error);
-            
-            // Store error in the same results map
-            jobResults.set(taskId, {
-              success: false,
-              error: error instanceof Error ? error.message : String(error),
-              timestamp: Date.now()
-            });
-          } finally {
-            // Remove from running tasks
-            runningJobTasks.delete(taskId);
-          }
-        }
-      }
-    }
-  };
-  
-  // Start a periodic task processor
-  if (jobTaskProcessorInterval) {
-    clearInterval(jobTaskProcessorInterval);
-  }
-  jobTaskProcessorInterval = setInterval(processDirectJobTasks, 1000);
-  
-  // Export the function to add tasks to our direct execution queue
-  global._addJobToDirectQueue = (task: JobExecutionTask) => {
-    console.log(`Adding job task ${task.jobId} to direct execution queue (pg-boss bypass)`);
-    pendingJobTasks.set(task.jobId, task);
-    
-    // Try to process immediately if possible
-    processDirectJobTasks();
-    
-    return task.jobId;
-  };
-  
   // Set up the worker to process jobs
   try {
     // Explicitly type the job parameter to match pg-boss's work method
@@ -681,13 +540,24 @@ export async function setupJobExecutionWorker(
             const result = await handler(job.data);
             console.log(`Job worker handler completed for job ${job.id}, Success: ${result?.success}`);
             
-            // Store the *complete* result directly in the map
+            // Store the *complete* result directly in the map using job.id
             jobResults.set(job.id, { 
               result: result, // Store the full result object
               completedAt: Date.now(),
               success: !!result?.success, // Use the success flag from the result
               error: result?.error || null // Store error if present in result
             });
+            
+            // Also store using the jobId from the task if different from pg-boss job.id
+            if (job.data && job.data.jobId && job.data.jobId !== job.id) {
+              jobResults.set(job.data.jobId, { 
+                result: result,
+                completedAt: Date.now(),
+                success: !!result?.success,
+                error: result?.error || null
+              });
+              console.log(`Stored duplicate result mapping for jobId: ${job.data.jobId}`);
+            }
 
           } catch (error) {
             console.error(`Error processing job ${job.id}:`, error);
@@ -698,6 +568,15 @@ export async function setupJobExecutionWorker(
               error: error instanceof Error ? error.message : String(error),
               timestamp: Date.now()
             });
+            
+            // Also store error using task jobId if available
+            if (job.data && job.data.jobId && job.data.jobId !== job.id) {
+              jobResults.set(job.data.jobId, {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+                timestamp: Date.now()
+              });
+            }
             
             throw error; // Rethrow to let pg-boss handle retries
           }
@@ -751,6 +630,7 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
       
       // Helper function to check job results from the global map
       const checkResult = () => {
+        // First check by jobId directly
         if (jobResults.has(jobId)) {
           const storedResult = jobResults.get(jobId);
           
@@ -774,6 +654,48 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
             return true;
           }
         }
+        
+        // Also try to check for both job types
+        // For test jobs, the job ID might be the pg-boss ID, but results might be stored by testId
+        if (jobId.includes('-')) {  // Likely a UUID format test ID or job ID
+          // We don't have direct access to task queue, so we'll check data in jobResults
+          // Look for any pending entries that might contain our job ID in their data
+          for (const [key, value] of jobResults.entries()) {
+            if (value && value.pending && value.result) {
+              const taskData = value.result;
+              // Check if this task references our jobId
+              if (
+                (taskData.testId === jobId || taskData.jobId === jobId) &&
+                key !== jobId
+              ) {
+                // Found a different key that references our jobId
+                if (jobResults.has(key)) {
+                  const taskResult = jobResults.get(key);
+                  
+                  if (taskResult && (
+                    !taskResult.pending || 
+                    taskResult.completedAt || 
+                    taskResult.error || 
+                    typeof taskResult.success === 'boolean'
+                  )) {
+                    cleanup();
+                    
+                    if (taskResult.error || taskResult.success === false) {
+                      console.log(`Task ${key} (for job ${jobId}) failed`);
+                      reject(new Error(`Task ${key} (for job ${jobId}) failed: ${taskResult.error || 'Unknown error'}`));
+                    } else {
+                      console.log(`Task ${key} (for job ${jobId}) completed successfully`);
+                      resolve(taskResult.result as T);
+                    }
+                    
+                    return true;
+                  }
+                }
+              }
+            }
+          }
+        }
+        
         return false;
       };
       
@@ -804,17 +726,6 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
  * Close the pg-boss queue connection
  */
 export async function closeQueue(): Promise<void> {
-  // Clean up our direct execution intervals
-  if (testTaskProcessorInterval) {
-    clearInterval(testTaskProcessorInterval);
-    testTaskProcessorInterval = null;
-  }
-  
-  if (jobTaskProcessorInterval) {
-    clearInterval(jobTaskProcessorInterval);
-    jobTaskProcessorInterval = null;
-  }
-  
   if (bossInstance) {
     try {
       await bossInstance.stop();
@@ -1152,8 +1063,12 @@ if (require.main === module) {
   })();
 }
 
-// Update the global type to include our direct execution functions
-declare global {
-  var _addTestToDirectQueue: (task: TestExecutionTask) => string;
-  var _addJobToDirectQueue: (task: JobExecutionTask) => string;
+/**
+ * Get a job result directly from the job results map
+ */
+export function getJobResult(jobId: string): StoredJobResult | null {
+  if (jobResults.has(jobId)) {
+    return jobResults.get(jobId) || null;
+  }
+  return null;
 }
