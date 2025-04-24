@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Loader2Icon } from "lucide-react";
+import { AlertCircle, Loader2Icon, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -111,9 +111,9 @@ export function ReportViewer({
     return (
       <div className={containerClassName}>
         <div className={`w-full h-full flex items-center justify-center ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
-          <div className="flex flex-col items-center gap-2 text-muted-foreground">
-            <AlertCircle className="h-8 w-8" />
-            <p>No report available</p>
+          <div className="flex flex-col items-center gap-3 text-muted-foreground -mt-[70px]">
+            <FileText className="h-10 w-10" />
+            <p >Run the script to view the report</p>
           </div>
         </div>
       </div>

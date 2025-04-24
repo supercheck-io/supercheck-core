@@ -105,11 +105,7 @@ If you need S3 storage for job artifacts:
 
 ```bash
 # Run MinIO with Docker (Example)
-docker run -d --name minio-supertest \\
-  -p 9000:9000 -p 9001:9001 \\
-  -e "MINIO_ROOT_USER=minioadmin" \\
-  -e "MINIO_ROOT_PASSWORD=minioadmin" \\
-  minio/minio server /data --console-address ":9001"
+docker run -d --name minio-supertest -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
 ```
 
 #### 4. Create MinIO Bucket (if using MinIO)

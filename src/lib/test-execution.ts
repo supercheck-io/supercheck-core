@@ -840,17 +840,21 @@ async function createErrorReport(
           background-color: var(--bg-color);
           color: var(--text-color);
           display: flex;
-          align-items: center;
-          justify-content: center;
           min-height: 100vh;
-          transform: translateY(-10%);
+          overflow: hidden;
+          position: relative;
         }
         .container {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          transform: translate(-50%, calc(-50% - 50px));
           max-width: 500px;
-          margin: 0 auto;
           padding: 2rem;
           border-radius: 8px;
           text-align: center;
+          overflow-y: hidden;
         }
         .icon {
           color: var(--error-color);
