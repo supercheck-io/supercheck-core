@@ -48,9 +48,36 @@ interface StoredJobResult<T = any> {
   bullMQJobId?: string; // BullMQ generated job ID for reference
 }
 
-// Job results map for stateless operation
-// Note: In a Kubernetes environment, this should be replaced with Redis storage
-const jobResults = new Map<string, StoredJobResult>();
+// Redis key prefix for job results
+const JOB_RESULT_KEY_PREFIX = 'job:result:';
+// Default TTL for job results in Redis (4 hours)
+const JOB_RESULT_TTL_SECONDS = 4 * 60 * 60;
+
+// Helper functions for storing and retrieving job results from Redis
+async function setJobResult(jobId: string, result: StoredJobResult): Promise<void> {
+  const redis = await getRedisConnection();
+  const key = `${JOB_RESULT_KEY_PREFIX}${jobId}`;
+  await redis.set(key, JSON.stringify(result), 'EX', JOB_RESULT_TTL_SECONDS);
+}
+
+async function getJobResultFromRedis(jobId: string): Promise<StoredJobResult | null> {
+  const redis = await getRedisConnection();
+  const key = `${JOB_RESULT_KEY_PREFIX}${jobId}`;
+  const data = await redis.get(key);
+  if (!data) return null;
+  try {
+    return JSON.parse(data) as StoredJobResult;
+  } catch (err) {
+    console.error(`Error parsing job result for ${jobId}:`, err);
+    return null;
+  }
+}
+
+async function hasJobResult(jobId: string): Promise<boolean> {
+  const redis = await getRedisConnection();
+  const key = `${JOB_RESULT_KEY_PREFIX}${jobId}`;
+  return (await redis.exists(key)) > 0;
+}
 
 // We'll need to declare this but defer actual initialization to avoid circular dependencies
 let testStatusMapRef: TestStatusUpdateMap | null = null;
@@ -219,9 +246,9 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
     const job = await testQueue.add(TEST_EXECUTION_QUEUE, task, jobOptions);
     console.log(`Successfully added test ${task.testId} to queue, tracking ID: ${job.id}`);
     
-    // Store an initial entry in the results map
+    // Store an initial entry in Redis
     if (task.testId) {
-      jobResults.set(task.testId, {
+      await setJobResult(task.testId, {
         pending: true,
         timestamp: Date.now(),
         bullMQJobId: job.id
@@ -264,9 +291,9 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
     const job = await jobQueue.add(JOB_EXECUTION_QUEUE, task, jobOptions);
     console.log(`Successfully added job ${task.jobId} to queue, tracking ID: ${job.id}`);
     
-    // Store tracking info
+    // Store tracking info in Redis
     if (task.jobId) {
-      jobResults.set(task.jobId, {
+      await setJobResult(task.jobId, {
         pending: true,
         timestamp: Date.now(),
         bullMQJobId: job.id
@@ -427,9 +454,9 @@ export async function setupTestExecutionWorker(
           const result = await handler(job.data as TestExecutionTask);
           console.log(`Test job ${job.id} completed successfully`);
           
-          // Store the result
+          // Store the result in Redis
           if (job.id) {
-            jobResults.set(job.id, {
+            await setJobResult(job.id, {
               result,
               completedAt: Date.now(),
               success: true
@@ -439,7 +466,7 @@ export async function setupTestExecutionWorker(
           // Store the result using testId from the task
           const testData = job.data as any;
           if (testData && typeof testData.testId === 'string') {
-            jobResults.set(testData.testId, {
+            await setJobResult(testData.testId, {
               result,
               completedAt: Date.now(),
               success: true
@@ -451,9 +478,9 @@ export async function setupTestExecutionWorker(
         } catch (error) {
           console.error(`Error processing test job ${job.id}:`, error);
           
-          // Store the error
+          // Store the error in Redis
           if (job.id) {
-            jobResults.set(job.id, {
+            await setJobResult(job.id, {
               success: false,
               error: error instanceof Error ? error.message : String(error),
               timestamp: Date.now()
@@ -463,7 +490,7 @@ export async function setupTestExecutionWorker(
           // Store the error using testId if available
           const testErrorData = job.data as any;
           if (testErrorData && typeof testErrorData.testId === 'string') {
-            jobResults.set(testErrorData.testId, {
+            await setJobResult(testErrorData.testId, {
               success: false,
               error: error instanceof Error ? error.message : String(error),
               timestamp: Date.now()
@@ -477,11 +504,12 @@ export async function setupTestExecutionWorker(
         connection: await getRedisConnection(),
         concurrency: maxConcurrency,
         removeOnComplete: {
-          count: 100, // Keep last 100 completed jobs
-          age: 24 * 60 * 60 // Keep jobs for 1 day
+          count: 50, // Keep last 50 completed jobs
+          age: 4 * 60 * 60 // Keep jobs for 4 hours
         },
         removeOnFail: {
-          count: 100
+          count: 50, // Keep last 50 failed jobs
+          age: 4 * 60 * 60 // Keep jobs for 4 hours
         }
       }
     );
@@ -543,9 +571,9 @@ export async function setupJobExecutionWorker(
           const result = await handler(job.data as JobExecutionTask);
           console.log(`Job worker handler completed for job ${job.id}, Success: ${result?.success}`);
           
-          // Store the result
+          // Store the result in Redis
           if (job.id) {
-            jobResults.set(job.id, {
+            await setJobResult(job.id, {
               result,
               completedAt: Date.now(),
               success: !!result?.success,
@@ -556,7 +584,7 @@ export async function setupJobExecutionWorker(
           // Store using jobId from the task if different
           const jobData = job.data as any;
           if (jobData && typeof jobData.jobId === 'string') {
-            jobResults.set(jobData.jobId, {
+            await setJobResult(jobData.jobId, {
               result,
               completedAt: Date.now(),
               success: !!result?.success,
@@ -569,9 +597,9 @@ export async function setupJobExecutionWorker(
         } catch (error) {
           console.error(`Error processing job ${job.id}:`, error);
           
-          // Store the error
+          // Store the error in Redis
           if (job.id) {
-            jobResults.set(job.id, {
+            await setJobResult(job.id, {
               success: false,
               error: error instanceof Error ? error.message : String(error),
               timestamp: Date.now()
@@ -581,7 +609,7 @@ export async function setupJobExecutionWorker(
           // Store the error using jobId if available
           const jobErrorData = job.data as any;
           if (jobErrorData && typeof jobErrorData.jobId === 'string') {
-            jobResults.set(jobErrorData.jobId, {
+            await setJobResult(jobErrorData.jobId, {
               success: false,
               error: error instanceof Error ? error.message : String(error),
               timestamp: Date.now()
@@ -595,11 +623,12 @@ export async function setupJobExecutionWorker(
         connection: await getRedisConnection(),
         concurrency: maxConcurrency,
         removeOnComplete: {
-          count: 100, // Keep last 100 completed jobs
-          age: 24 * 60 * 60 // Keep jobs for 1 day
+          count: 50, // Keep last 50 completed jobs
+          age: 4 * 60 * 60 // Keep jobs for 4 hours
         },
         removeOnFail: {
-          count: 100
+          count: 50, // Keep last 50 failed jobs
+          age: 4 * 60 * 60 // Keep jobs for 4 hours
         }
       }
     );
@@ -658,19 +687,19 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
       reject(new Error(`Job ${jobId} timed out after ${timeoutMs}ms`));
     }, timeoutMs);
     
-    // Helper function to check job results from the global map
-    const checkResult = () => {
+    // Helper function to check job results from Redis
+    const checkResult = async () => {
       // First check by jobId directly
-      if (jobResults.has(jobId)) {
-        const storedResult = jobResults.get(jobId);
-        
+      const storedResult = await getJobResultFromRedis(jobId);
+      
+      if (storedResult) {
         // Check if the job is complete
-        if (storedResult && (
+        if (
           !storedResult.pending ||
           storedResult.completedAt ||
           storedResult.error ||
           typeof storedResult.success === 'boolean'
-        )) {
+        ) {
           cleanup();
           
           if (storedResult.error || storedResult.success === false) {
@@ -685,62 +714,22 @@ export async function waitForJobCompletion<T>(jobId: string, timeoutMs: number =
         }
       }
       
-      // Also check for results stored by task ID
-      if (jobId.includes('-')) {  // Likely a UUID format ID
-        for (const [key, value] of jobResults.entries()) {
-          if (value && value.pending && value.result) {
-            const taskData = value.result;
-            // Check if this task references our jobId
-            if (
-              (taskData.testId === jobId || taskData.jobId === jobId) &&
-              key !== jobId
-            ) {
-              // Found a different key that references our jobId
-              if (jobResults.has(key)) {
-                const taskResult = jobResults.get(key);
-                
-                if (taskResult && (
-                  !taskResult.pending ||
-                  taskResult.completedAt ||
-                  taskResult.error ||
-                  typeof taskResult.success === 'boolean'
-                )) {
-                  cleanup();
-                  
-                  if (taskResult.error || taskResult.success === false) {
-                    console.log(`Task ${key} (for job ${jobId}) failed`);
-                    reject(new Error(`Task ${key} (for job ${jobId}) failed: ${taskResult.error || 'Unknown error'}`));
-                  } else {
-                    console.log(`Task ${key} (for job ${jobId}) completed successfully`);
-                    resolve(taskResult.result as T);
-                  }
-                  
-                  return true;
-                }
-              }
-            }
-          }
-        }
-      }
-      
       return false;
     };
     
     // Check immediately in case the job already completed
-    if (checkResult()) {
-      return;
-    }
+    checkResult().catch(err => {
+      console.error(`Error checking job result:`, err);
+    });
     
     // Check periodically for job completion
     checkInterval = setInterval(() => {
-      try {
-        checkResult();
-      } catch (intervalError) {
-        console.error(`Error in completion check interval:`, intervalError);
-      }
+      checkResult().catch(err => {
+        console.error(`Error in completion check interval:`, err);
+      });
     }, 1000);
     
-    console.log(`Watching for job ${jobId} completion via job results map`);
+    console.log(`Watching for job ${jobId} completion via Redis`);
   });
 }
 
@@ -953,13 +942,10 @@ export async function testQueueConnectivity(): Promise<boolean> {
 }
 
 /**
- * Get a job result directly from the job results map
+ * Get a job result directly from Redis
  */
-export function getJobResult(jobId: string): StoredJobResult | null {
-  if (jobResults.has(jobId)) {
-    return jobResults.get(jobId) || null;
-  }
-  return null;
+export async function getJobResult(jobId: string): Promise<StoredJobResult | null> {
+  return await getJobResultFromRedis(jobId);
 }
 
 // If this file is executed directly via node, run the test

@@ -4,7 +4,7 @@
 
 To run this application in a Kubernetes environment using BullMQ, you'll need to set up the following environment variables in your deployment:
 
-```
+```bash
 # Database connection (PostgreSQL)
 DATABASE_URL=postgres://user:password@postgres-service:5432/supertest
 
@@ -35,6 +35,7 @@ SUPERTEST_REDIS_PREFIX=supertest
 ### 1. Stateless Application Design
 
 The application has been redesigned to be stateless by:
+
 - Using Redis as the queue backend instead of PostgreSQL
 - Storing job results in Redis (via BullMQ) rather than in-memory
 - Using shared storage for test reports (S3)
@@ -222,4 +223,4 @@ For complete statelessness, you should:
 3. Move all file operations to object storage (S3)
 4. Ensure all pods can be terminated at any time without data loss
 
-By implementing these recommendations and using the BullMQ-based queue system, your application will be properly configured for Kubernetes deployments. 
+By implementing these recommendations and using the BullMQ-based queue system, your application will be properly configured for Kubernetes deployments.

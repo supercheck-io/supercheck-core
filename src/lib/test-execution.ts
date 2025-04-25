@@ -897,10 +897,8 @@ async function createErrorReport(
           color: var(--details-title);
         }
         .hint {
-          color: var(--muted-color);
           font-size: 0.875rem;
           margin-top: 1rem;
-          font-style: italic;
         }
       </style>
     </head>

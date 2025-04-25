@@ -21,7 +21,7 @@ npm install --save bullmq ioredis
 
 Add the following environment variable:
 
-```bash
+```
 REDIS_URL=redis://localhost:6379
 ```
 
@@ -61,13 +61,11 @@ REDIS_URL=redis://localhost:6379
 If you need to migrate existing queued jobs from PgBoss to BullMQ:
 
 1. Get all pending jobs from PgBoss:
-
    ```sql
    SELECT * FROM pgboss.job WHERE state = 'created' OR state = 'retry';
    ```
 
 2. Re-queue these jobs in BullMQ:
-
    ```javascript
    for (const job of pgBossJobs) {
      await queue.add(job.name, JSON.parse(job.data), {
@@ -118,4 +116,4 @@ BullMQ provides better monitoring capabilities:
 
 4. **Statelessness Considerations**
    - For true statelessness, ensure Redis is clustered or highly available
-   - Use Redis Sentinel or Redis Cluster for production environments
+   - Use Redis Sentinel or Redis Cluster for production environments 
