@@ -1,48 +1,99 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
+# Global ignores
+## OS
 .DS_Store
-*.pem
 
-# debug
+## IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+## IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## Logs / Debug files
+logs # General logs dir
+*.log
 npm-debug.log*
+pnpm-debug.log* # From runner
+.pnpm-debug.log* # From app
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+lerna-debug.log* # From runner
 
-# env files (can opt-in for committing if needed)
-.env.local
+## Environment / Secrets
+.env
+.env.*.local
+# .env.local # Covered by .env.*.local
+# .env.development.local # Covered by .env.*.local
+# .env.test.local # Covered by .env.*.local
+# .env.production.local # Covered by .env.*.local
+*.pem
 
-# vercel
-.vercel
+## Temp / Runtime / Reports
+.temp
+.tmp
+pids
+*.pid
+*.seed
+*.pid.lock
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+*.tsbuildinfo # General typescript build info
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-public/tests/*
-public/test-results/*
-public/artifacts/*
-test-results/*
+# App specific ignores (app/)
+## Dependencies
+app/node_modules
+app/.pnp
+app/.pnp.*
+app/.yarn/*
+!app/.yarn/patches
+!app/.yarn/plugins
+!app/.yarn/releases
+!app/.yarn/versions
 
-# db
-src/db/supertest.db
+## Testing
+app/coverage
+
+## Next.js
+app/.next/
+app/out/
+
+## Production Build
+app/build
+
+## Vercel
+app/.vercel
+
+## Typescript / Public output
+app/next-env.d.ts
+app/public/tests/*
+app/public/test-results/*
+app/public/artifacts/*
+app/test-results/* # Specific test-results dir inside app?
+
+## DB
+app/src/db/supertest.db
+
+# Runner specific ignores (runner/)
+## Dependencies
+runner/node_modules
+
+## Compiled Output / Build
+runner/dist
+runner/build
+
+## Testing / Coverage
+runner/coverage
+runner/.nyc_output
+
+## Playwright reports
+runner/local-test-runs/*
+runner/playwright-report/*
+runner/report/* 
