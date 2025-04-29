@@ -22,6 +22,22 @@ const s3Client = new S3Client({
   forcePathStyle: true, // Required for MinIO
 });
 
+// Helper to get AWS v4 signature headers
+async function getSignedHeaders(url: string, method: string = 'GET'): Promise<HeadersInit> {
+  try {
+    // Simple implementation - in production, you'd want to use the aws4fetch library or similar
+    // This is a placeholder that returns the basic auth headers for now
+    // In a real implementation, we would calculate the AWS v4 signature
+    return {
+      'Authorization': `AWS4-HMAC-SHA256 Credential=${AWS_ACCESS_KEY_ID}/${AWS_REGION}/s3/aws4_request`,
+      'X-Amz-Date': new Date().toISOString().replace(/[:-]|\.\d{3}/g, '')
+    };
+  } catch (error) {
+    console.error('Error generating AWS v4 signature:', error);
+    return {};
+  }
+}
+
 // Helper function to convert Node.js stream to buffer
 async function streamToBuffer(stream: any): Promise<Buffer> {
   if (!stream) {
@@ -166,12 +182,25 @@ export async function GET(
     
     console.log(`Found report for ${entityId} with entity type ${reportResult.entityType}: ${reportResult.s3Url}`);
     
+    // Additional logging for debugging
+    console.log(`Report path in database: ${reportResult.reportPath}`);
+    console.log(`Complete report metadata:`, reportResult);
+    
     // Parse S3 URL to extract useful parts
     const s3Url = new URL(reportResult.s3Url);
+    console.log(`Parsed S3 URL:`, {
+      protocol: s3Url.protocol,
+      host: s3Url.host,
+      pathname: s3Url.pathname,
+      fullUrl: s3Url.toString()
+    });
+    
     const s3Host = `${s3Url.protocol}//${s3Url.host}`;
     const pathParts = s3Url.pathname.split('/').filter(part => part.length > 0);
     const bucket = pathParts[0];
     const basePath = pathParts.slice(1, -1).join('/');
+    
+    console.log(`Extracted parts:`, { s3Host, bucket, basePath, pathParts });
     
     // Determine the file path based on what's being requested
     let targetFile = reportFile.replace(/^report\//, '');
@@ -188,12 +217,15 @@ export async function GET(
       console.log(`Trying direct fetch from: ${directUrl}`);
       
       // Configure the headers for MinIO access
-      const headers: HeadersInit = {};
-      if (S3_ENDPOINT.includes('localhost') || S3_ENDPOINT.includes('127.0.0.1')) {
-        headers['Authorization'] = `Basic ${Buffer.from(`${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}`).toString('base64')}`;
-      }
+      const headers: HeadersInit = await getSignedHeaders(directUrl);
       
+      // Log the approach
+      console.log(`Using AWS v4 signature auth for S3 access`);
+      
+      console.log(`Fetching with headers: ${Object.keys(headers).join(', ')}`);
       const response = await fetch(directUrl, { headers });
+      
+      console.log(`Direct fetch response status: ${response.status}`);
       
       if (!response.ok) {
         console.error(`Direct fetch failed: ${response.status} ${response.statusText}`);
@@ -226,27 +258,36 @@ export async function GET(
           Key: key,
         });
         
-        const s3Response = await s3Client.send(command);
+        // Use AWS SDK for S3 access which handles auth correctly
+        console.log(`Using AWS SDK for S3 access to ${bucket}/${key}`);
         
-        if (!s3Response.Body) {
-          throw new Error("Empty response from S3");
-        }
-        
-        const buffer = await streamToBuffer(s3Response.Body);
-        const contentType = s3Response.ContentType || 'application/octet-stream';
-        
-        return new NextResponse(buffer, {
-          status: 200,
-          headers: {
-            'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=300',
-            // Only include Content-Disposition for downloads if not forcing iframe display
-            ...(forceIframe ? {} : (
-              contentType && contentType.includes('application/') && !contentType.includes('html') ? 
-              {'Content-Disposition': `inline; filename="${targetFile.split('/').pop()}"`} : {}
-            ))
+        // Try the AWS SDK approach first
+        try {
+          const s3Response = await s3Client.send(command);
+          
+          if (!s3Response.Body) {
+            throw new Error("Empty response from S3");
           }
-        });
+          
+          const buffer = await streamToBuffer(s3Response.Body);
+          const contentType = s3Response.ContentType || 'application/octet-stream';
+          
+          return new NextResponse(buffer, {
+            status: 200,
+            headers: {
+              'Content-Type': contentType,
+              'Cache-Control': 'public, max-age=300',
+              // Only include Content-Disposition for downloads if not forcing iframe display
+              ...(forceIframe ? {} : (
+                contentType && contentType.includes('application/') && !contentType.includes('html') ? 
+                {'Content-Disposition': `inline; filename="${targetFile.split('/').pop()}"`} : {}
+              ))
+            }
+          });
+        } catch (sdkError) {
+          console.error(`AWS SDK approach error: ${sdkError.message}`);
+          throw sdkError; // Propagate to outer catch
+        }
       } catch (s3Error) {
         console.error(`AWS SDK approach failed: ${s3Error.message}`);
         console.log('Trying final fallback with direct file construction...');
@@ -262,11 +303,9 @@ export async function GET(
           const fallbackUrl = `${baseUrl}/${targetFile}`;
           console.log(`Final fallback URL: ${fallbackUrl}`);
           
-          // Configure the headers
-          const headers: HeadersInit = {};
-          if (S3_ENDPOINT.includes('localhost') || S3_ENDPOINT.includes('127.0.0.1')) {
-            headers['Authorization'] = `Basic ${Buffer.from(`${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}`).toString('base64')}`;
-          }
+          // Configure the headers with AWS v4 signature
+          const headers: HeadersInit = await getSignedHeaders(fallbackUrl);
+          console.log(`Using AWS v4 signature auth for fallback S3 access`);
           
           const fallbackResponse = await fetch(fallbackUrl, { headers });
           

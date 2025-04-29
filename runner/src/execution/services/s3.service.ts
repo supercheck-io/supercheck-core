@@ -273,9 +273,8 @@ export class S3Service implements OnModuleInit {
   // Fix the method to get the base URL for entity reports
   getBaseUrlForEntity(entityType: string, entityId: string): string {
     const bucket = this.getBucketForEntityType(entityType);
-    const prefix = entityType === 'test' 
-      ? `test-results/tests/${entityId}/report` 
-      : `test-results/jobs/${entityId}/report`;
+    // Use consistent format for both tests and jobs
+    const prefix = `test-results/${entityType}s/${entityId}/report`;
     
     // Fix: Make sure URL format is correct for MinIO
     return `${this.s3Endpoint}/${bucket}/${prefix}`;

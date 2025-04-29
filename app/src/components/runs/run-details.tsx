@@ -16,15 +16,21 @@ interface RunDetailsProps {
 }
 
 export function RunDetails({ run }: RunDetailsProps) {
-  const [reportUrl, setReportUrl] = useState(run.reportUrl || '');
+  const [reportUrl, setReportUrl] = useState('');
   const [currentStatus, setCurrentStatus] = useState(run.status);
   
   useEffect(() => {
     if (run.reportUrl) {
-      setReportUrl(`${run.reportUrl}?t=${Date.now()}`);
+      // Use the API proxy instead of direct S3 URL
+      const apiUrl = `/api/test-results/jobs/${run.id}/report/index.html?t=${Date.now()}`;
+      console.log(`Setting report URL to API proxy: ${apiUrl} (original: ${run.reportUrl})`);
+      setReportUrl(apiUrl);
+    } else {
+      // If no report URL, still try to use the test-results API
+      setReportUrl(`/api/test-results/jobs/${run.id}/report/index.html?t=${Date.now()}`);
     }
     setCurrentStatus(run.status);
-  }, [run.reportUrl, run.status]);
+  }, [run.reportUrl, run.status, run.id]);
 
   // Handle status updates from SSE
   const handleStatusUpdate = (status: string, newReportUrl?: string) => {
@@ -34,8 +40,11 @@ export function RunDetails({ run }: RunDetailsProps) {
       setCurrentStatus(status);
     }
     
-    if (newReportUrl && newReportUrl !== reportUrl) {
-      setReportUrl(`${newReportUrl}?t=${Date.now()}`);
+    if (newReportUrl) {
+      // Regardless of the reportUrl from SSE, use our API proxy
+      const apiUrl = `/api/test-results/jobs/${run.id}/report/index.html?t=${Date.now()}`;
+      console.log(`Setting report URL after SSE update: ${apiUrl}`);
+      setReportUrl(apiUrl);
     }
   };
 

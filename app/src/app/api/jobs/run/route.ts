@@ -77,7 +77,8 @@ export async function POST(request: Request) {
 
     console.log(`[${jobId}/${runId}] Attempting to update job record with jobId: ${jobId}`);
     
-    await dbInstance.execute(sql`UPDATE ${jobs} SET "lastRunAt" = ${new Date()} WHERE ${jobs.id} = ${jobId}`);
+    const currentDate = new Date();
+    await dbInstance.execute(sql`UPDATE ${jobs} SET "last_run_at" = ${currentDate.toISOString()} WHERE ${jobs.id} = ${jobId}`);
     
     return NextResponse.json({
       message: "Job execution queued successfully.",

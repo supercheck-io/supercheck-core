@@ -395,8 +395,15 @@ export function getContentType(path: string) {
  * Convert a file path to a URL path (with forward slashes)
  */
 export function toUrlPath(filePath: string): string {
-  // Always use forward slashes for URLs, even on Windows
-  return filePath.split(sep).join(posix.sep);
+  // Make sure path starts with /api/test-results if not already
+  const prefix = '/api/test-results';
+  if (filePath.startsWith(prefix)) {
+    return filePath;
+  }
+  
+  // Remove any leading slashes for clean joining
+  const cleanPath = filePath.replace(/^\/+/, '');
+  return `${prefix}/${cleanPath}`;
 }
 
 /**
@@ -1517,7 +1524,7 @@ export async function executeMultipleTests(
     // Store report metadata in the database
     try {
       console.log(`Storing report metadata for job ${jobId}`);
-      const reportPathForDb = `/jobs/${jobId}/report`;
+      const reportPathForDb = `/test-results/jobs/${jobId}/report`;
       await storeReportMetadata(jobId, 'job', reportPathForDb);
     } catch (metadataError) {
       console.error(`Failed to store report metadata: ${metadataError}`);
@@ -1545,7 +1552,7 @@ export async function executeMultipleTests(
       // Store report metadata even for failed executions
       try {
         console.log(`Storing error report metadata for job ${jobId}`);
-        const reportPathForDb = `/jobs/${jobId}/report`;
+        const reportPathForDb = `/test-results/jobs/${jobId}/report`;
         await storeReportMetadata(jobId, 'job', reportPathForDb);
       } catch (metadataError) {
         console.error(`Failed to store error report metadata: ${metadataError}`);
@@ -1670,15 +1677,13 @@ async function _runJobTests(
       console.log(`Skipping S3 upload for failed job ${runId}`);
   }
 
-  // Store report metadata regardless of success (report might contain errors)
+  // Store report metadata
   try {
-      console.log(`Storing report metadata for job ${runId}`);
-      const urlPath = `/api/test-results/jobs/${runId}/report/index.html`.split('/api/test-results')[1];
-      const reportPathParts = urlPath.split('/');
-      const finalReportDir = reportPathParts.slice(0, reportPathParts.length - 1).join('/').split('?')[0];
-      await storeReportMetadata(runId, 'job', finalReportDir);
+    console.log(`Storing report metadata for ${runId}`);
+    const reportPathForDb = `/test-results/jobs/${runId}/report`;
+    await storeReportMetadata(runId, 'job', reportPathForDb);
   } catch (metadataError) {
-      console.error(`Error storing report metadata for job ${runId}:`, metadataError);
+    console.error(`Error storing report metadata for job ${runId}:`, metadataError);
   }
 
   const finalResult: TestExecutionResult = {
@@ -1839,15 +1844,6 @@ export async function executeMultipleTestFilesWithGlobalConfig(
         } catch (reportError) {
           console.error(`Failed to create fallback report: ${reportError}`);
         }
-      }
-      
-      // Store report metadata
-      try {
-        console.log(`Storing report metadata for ${runId}`);
-        const reportPathForDb = `/jobs/${runId}/report`;
-        await storeReportMetadata(runId, 'job', reportPathForDb);
-      } catch (metadataError) {
-        console.error(`Failed to store report metadata: ${metadataError}`);
       }
       
       resolve({
