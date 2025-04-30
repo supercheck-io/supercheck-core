@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { promisify } from 'util';
 import { exec } from 'child_process';
+import { randomUUID } from 'crypto';
 
 const execAsync = promisify(exec);
 
@@ -300,7 +301,7 @@ const path = require('path');
   }
 
   private async _createTempDir(): Promise<string> {
-    const tempDir = path.join(os.tmpdir(), `test-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
+    const tempDir = path.join(os.tmpdir(), `test-${randomUUID()}`);
     await fs.mkdir(tempDir, { recursive: true });
     this.logger.log(`Created temporary directory: ${tempDir}`);
     return tempDir;

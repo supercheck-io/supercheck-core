@@ -443,7 +443,7 @@ module.exports = defineConfig({
     await fs.writeFile(playwrightConfigPath, playwrightConfig);
 
     // Create the actual test file (e.g., test.spec.js)
-    const playwrightTestFile = path.join(tempDir, 'test.spec.js');
+    const playwrightTestFile = path.join(tempDir, `${testId}.spec.js`);
 
     // Prepare the script content for the test file
     let scriptForRunner = scriptContent;
@@ -532,7 +532,7 @@ const copyDirRecursive = (src, dest) => {
     // 2. Run Playwright tests using npx
     log('Running Playwright tests with npx...');
     await new Promise((resolve) => { // Removed reject as we handle exit code
-        const cmd = 'npx playwright test test.spec.js --config=playwright.config.js';
+        const cmd = \`npx playwright test \${testId}.spec.js --config=playwright.config.js\`;
         log(\`Executing: \${cmd}\`);
         const testProcess = exec(cmd, { cwd: runTempDir }, (error, stdout, stderr) => {
             log('--- Playwright STDOUT ---');

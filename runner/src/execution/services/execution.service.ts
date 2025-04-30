@@ -226,7 +226,7 @@ export class ExecutionService {
             this.logger.debug(`[${testId}] Code validation successful.`);
 
             // 3. Write test file LOCALLY
-            const testFileName = `test.spec.js`; // Simpler name
+            const testFileName = `${testId}.spec.js`; // Use testId in filename
             const testFilePath = path.join(runDir, testFileName);
             
             // Write the user's code directly to the file
@@ -467,7 +467,7 @@ export class ExecutionService {
                 }
                 
                 // Construct file path for individual test
-                const testFileName = `test-${testScript.id}.spec.js`;
+                const testFileName = `${testScript.id}.spec.js`;
                 const testFilePath = path.join(runDir, testFileName);
                 
                 // Write the individual test script content
@@ -656,9 +656,9 @@ export class ExecutionService {
             } else {
                 // For single tests, find the specific test.spec.js file
                 const files = await fs.readdir(runDir);
-                const singleTestFile = files.find(file => file === 'test.spec.js');
+                const singleTestFile = files.find(file => file.endsWith('.spec.js')); 
                 if (!singleTestFile) {
-                    throw new Error(`No test.spec.js file found in ${runDir}. Files present: ${files.join(', ')}`);
+                    throw new Error(`No .spec.js file found in ${runDir} for single test execution. Files present: ${files.join(', ')}`);
                 }
                 targetPath = path.join(runDir, singleTestFile);
                 this.logger.log(`[Single Test Execution] Running specific test file: ${targetPath}`);

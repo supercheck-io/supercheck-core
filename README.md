@@ -271,3 +271,16 @@ For debugging test execution issues:
 4. **Status API**:
    - Use `/api/test-status/sse/{testId}` and `/api/job-status/sse/{jobId}` for real-time status
    - Check database status entries for historical information
+
+## Start Services
+
+```bash
+Start Redis:
+docker run -d --name redis-supertest -p 6379:6379 redis
+
+Start Postgres:
+docker run -d --name postgres-supertest -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supertest -p 5432:5432 postgres:16
+
+Start MinIO:
+docker run -d --name minio-supertest -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
+```

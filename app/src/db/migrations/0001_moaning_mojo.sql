@@ -1,0 +1,1 @@
+ALTER TABLE "reports" ADD COLUMN "s3_url" varchar(1024);
