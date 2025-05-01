@@ -27,6 +27,12 @@ export const runStatuses = [
     color: "text-green-500",
   },
   {
+    value: "completed",
+    label: "Completed",
+    icon: CheckCircle,
+    color: "text-green-500",
+  },
+  {
     value: "failed",
     label: "Failed",
     icon: XCircle,

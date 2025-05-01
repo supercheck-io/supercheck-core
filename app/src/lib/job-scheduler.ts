@@ -113,12 +113,24 @@ export async function initializeJobScheduler() {
           })
           .where(eq(jobsTable.id, task.jobId));
         
-        // Update run status with more details
+        // After test execution completion:
+        const completionTime = new Date();
+        const startTime = new Date(await dbInstance
+          .select({ startedAt: runsTable.startedAt })
+          .from(runsTable)
+          .where(eq(runsTable.id, runId))
+          .then(rows => rows[0]?.startedAt?.toISOString() || completionTime.toISOString()));
+        
+        // Calculate duration in milliseconds
+        const durationMs = completionTime.getTime() - new Date(startTime).getTime();
+        
+        // Update run status with duration and correct status
         await dbInstance
           .update(runsTable)
           .set({
             status: result.success ? 'passed' : 'failed',
-            completedAt: new Date(),
+            completedAt: completionTime,
+            duration: durationMs, // Store the duration in milliseconds
             logs: result.stdout || null,
             errorDetails: result.error || null,
           })
@@ -157,11 +169,23 @@ export async function initializeJobScheduler() {
             .limit(1);
             
           if (existingRun.length > 0) {
+            const failureTime = new Date();
+            const startTimeForFailure = new Date(await dbInstance
+              .select({ startedAt: runsTable.startedAt })
+              .from(runsTable)
+              .where(eq(runsTable.id, existingRun[0].id))
+              .then(rows => rows[0]?.startedAt?.toISOString() || failureTime.toISOString()));
+            
+            // Calculate duration for the failed run
+            const failureDurationMs = failureTime.getTime() - new Date(startTimeForFailure).getTime();
+            
+            // Update run with duration
             await dbInstance
               .update(runsTable)
               .set({
                 status: 'failed',
-                completedAt: new Date(),
+                completedAt: failureTime,
+                duration: failureDurationMs, // Store the duration in milliseconds
                 errorDetails: error instanceof Error ? error.message : String(error),
                 logs: error instanceof Error && error.stack ? error.stack : 'Execution failed',
               })

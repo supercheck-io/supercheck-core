@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
 import { JobStatus } from "./job-status";
+import { Badge } from "@/components/ui/badge";
 
 export const columns: ColumnDef<TestRun>[] = [
   {
@@ -66,9 +67,12 @@ export const columns: ColumnDef<TestRun>[] = [
       const status = row.getValue("status") as string;
       const jobId = row.getValue("jobId") as string;
       
+      // Map the status to a valid status for display
+      const mappedStatus = mapDbStatusToDisplayStatus(status);
+      
       return (
         <div className="flex items-center">
-          <JobStatus jobId={jobId} initialStatus={status} />
+          <JobStatus jobId={jobId} initialStatus={mappedStatus} />
         </div>
       );
     },
@@ -102,42 +106,59 @@ export const columns: ColumnDef<TestRun>[] = [
       <DataTableColumnHeader column={column} title="Duration" />
     ),
     cell: ({ row }) => {
-      const duration = row.getValue("duration") as number | undefined;
+      const duration = row.getValue("duration") as string | number | undefined;
+      const status = row.getValue("status") as string;
+      
       if (!duration) {
-        const status = row.getValue("status") as string;
         return (
           <div className="text-muted-foreground">
             {status === "running" ? "Running..." : "-"}
           </div>
         );
       }
+      
+      // Format the duration when it's a number (milliseconds)
+      let formattedDuration = duration;
+      if (typeof duration === 'number') {
+        // Convert milliseconds to a readable format
+        const seconds = Math.floor(duration / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        
+        formattedDuration = minutes > 0 
+          ? `${minutes}m ${remainingSeconds}s` 
+          : `${remainingSeconds}s`;
+      }
+      
       return (
         <div className="flex items-center gap-1">
           <ClockIcon className="h-3 w-3 text-muted-foreground" />
-          <span>{formatDuration(duration)}</span>
+          <span>{formattedDuration}</span>
         </div>
       );
     },
   },
 ];
 
-function formatDuration(durationMs: number): string {
-  if (durationMs < 1000) {
-    return `${durationMs}ms`;
-  }
+// Helper to map DB status to a display status that matches runStatuses values
+function mapDbStatusToDisplayStatus(dbStatus: string): string {
+  // Convert the dbStatus to lowercase for case-insensitive comparison
+  const status = typeof dbStatus === 'string' ? dbStatus.toLowerCase() : '';
   
-  const seconds = Math.floor(durationMs / 1000);
-  if (seconds < 60) {
-    return `${seconds}s`;
+  switch (status) {
+    case 'passed':
+      return 'completed';
+    case 'failed':
+    case 'error':
+      return 'failed';
+    case 'running':
+    case 'pending':
+    case 'skipped':
+      return status;
+    case 'completed':
+      return 'completed';
+    default:
+      console.warn(`Unknown status: ${dbStatus}`);
+      return 'pending';
   }
-  
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  if (minutes < 60) {
-    return `${minutes}m ${remainingSeconds}s`;
-  }
-  
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return `${hours}h ${remainingMinutes}m ${remainingSeconds}s`;
 }

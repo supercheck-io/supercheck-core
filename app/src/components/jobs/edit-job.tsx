@@ -230,14 +230,31 @@ export default function EditJob({ jobId }: EditJobProps) {
     setIsDeleting(true);
     try {
       const result = await deleteJob(jobId);
+      
       if (!result.success) {
+        // If error is "Job not found", job may have been deleted already
+        if (result.error === "Job not found") {
+          // Show a warning instead of an error
+          toast.warning("Job already deleted", {
+            description: "This job was already deleted or doesn't exist. Returning to job list."
+          });
+          
+          // Navigate back to jobs page
+          router.push("/jobs");
+          return;
+        }
+        
+        // For other errors, throw the error to be caught below
         throw new Error(result.error || "Failed to delete job");
       }
+      
       toast.success("Job deleted successfully");
       router.push("/jobs");
     } catch (error) {
       console.error("Error deleting job:", error);
-      toast.error("Failed to delete job");
+      toast.error("Failed to delete job", {
+        description: error instanceof Error ? error.message : "Unknown error occurred"
+      });
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);

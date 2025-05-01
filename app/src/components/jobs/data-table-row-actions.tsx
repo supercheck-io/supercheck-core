@@ -55,12 +55,27 @@ export function DataTableRowActions<TData>({
       const result = await deleteJob(job.id);
 
       if (!result.success) {
+        // If error is "Job not found", job may have been deleted already
+        if (result.error === "Job not found") {
+          // Show a warning instead of an error
+          toast.warning("Job already deleted", {
+            description: "This job was already deleted or doesn't exist. Refreshing view."
+          });
+          
+          // Refresh anyway to update the UI
+          if (onDelete) {
+            onDelete();
+          }
+          router.refresh();
+          return;
+        }
+        
+        // For other errors, throw the error to be caught below
         throw new Error(result.error || "Failed to delete job");
       }
 
       toast.success("Job deleted successfully");
   
-
       // Call onDelete callback if provided
       if (onDelete) {
         onDelete();

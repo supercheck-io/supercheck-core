@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
@@ -18,74 +18,85 @@ export function RunStatusListener({
   onStatusUpdate 
 }: RunStatusListenerProps) {
   const router = useRouter();
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const hasShownToastRef = useRef<boolean>(false);
 
   useEffect(() => {
-    // If the run is already completed or failed, don't set up SSE
-    if (status === 'completed' || status === 'failed') {
+    // If the run is already in a terminal state, don't set up SSE
+    if (status === 'completed' || status === 'failed' || status === 'passed' || status === 'error') {
+      console.log(`[RunStatusListener] Run ${runId} is already in terminal state: ${status}, not setting up SSE`);
       return;
     }
 
-    // If status is running, set up SSE to get real-time updates
-    if (status === 'running') {
-      console.log(`Setting up SSE for job ${jobId} and run ${runId}`);
-      const eventSource = new EventSource(`/api/job-status/sse/${jobId}`);
-      let eventSourceClosed = false;
+    // Clean up function
+    const cleanupSSE = () => {
+      if (eventSourceRef.current) {
+        console.log(`[RunStatusListener] Cleaning up SSE connection for run ${runId}`);
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
 
-      // Handle status updates
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log("SSE job status update:", data);
+    // Establish SSE connection
+    // Using runId instead of jobId for the SSE connection
+    console.log(`[RunStatusListener] Setting up SSE connection for run ${runId}`);
+    const eventSource = new EventSource(`/api/job-status/sse/${runId}`);
+    eventSourceRef.current = eventSource;
+    
+    // Reset toast flag on new connection
+    hasShownToastRef.current = false;
 
-          // Update status in parent component
-          if (data.status && onStatusUpdate) {
-            onStatusUpdate(data.status, data.s3Url);
-          }
-
-          // Handle terminal states
-          if (data.status === 'completed' || data.status === 'failed') {
-            // Show toast with status
-            toast[data.status === 'completed' ? 'success' : 'error'](
-              `Job run ${data.status}`,
-              { 
-                description: data.status === 'completed' 
-                  ? 'Job execution completed successfully' 
-                  : `Job execution failed: ${data.error || 'Unknown error'}`, 
-                duration: 5000 
-              }
-            );
-
-            // Close connection
-            eventSource.close();
-            eventSourceClosed = true;
-
-            // Refresh the page data
-            router.refresh();
-          }
-        } catch (e) {
-          console.error("Error parsing SSE event:", e);
-        }
-      };
-
-      // Handle connection errors
-      eventSource.onerror = (error) => {
-        console.error("SSE connection error:", error);
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log(`[RunStatusListener] Status update for run ${runId}:`, data);
         
-        if (!eventSourceClosed) {
-          eventSource.close();
-          eventSourceClosed = true;
+        // Notify parent component of status updates
+        if (data.status && onStatusUpdate) {
+          onStatusUpdate(data.status, data.s3Url);
         }
-      };
-
-      // Clean up on unmount
-      return () => {
-        if (!eventSourceClosed) {
-          eventSource.close();
+        
+        // Handle terminal statuses (show toast only once per connection)
+        if ((data.status === 'completed' || data.status === 'failed' || 
+            data.status === 'passed' || data.status === 'error') && !hasShownToastRef.current) {
+          
+          // Mark as shown to prevent duplicates
+          hasShownToastRef.current = true;
+          
+          // Determine success or failure
+          const passed = data.status === 'completed' || data.status === 'passed';
+          
+          // Show toast
+          toast[passed ? 'success' : 'error'](
+            passed ? "Run completed successfully" : "Run failed",
+            {
+              description: passed 
+                ? "All tests passed successfully." 
+                : `One or more tests failed. ${data.error || ''}`,
+              duration: 5000
+            }
+          );
+          
+          // Close SSE connection after terminal status
+          cleanupSSE();
+          
+          // Refresh page data to show updated statuses
+          setTimeout(() => router.refresh(), 500);
         }
-      };
-    }
-  }, [runId, jobId, status, onStatusUpdate, router]);
+      } catch (error) {
+        console.error(`[RunStatusListener] Error parsing message:`, error);
+      }
+    };
 
-  // This component doesn't render anything
+    eventSource.onerror = (error) => {
+      console.error(`[RunStatusListener] SSE error:`, error);
+      cleanupSSE();
+    };
+
+    // Clean up on unmount
+    return cleanupSSE;
+  }, [runId, status, onStatusUpdate, router]);
+
+  // Component doesn't render anything visible
   return null;
 } 

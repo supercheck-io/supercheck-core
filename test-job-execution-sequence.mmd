@@ -1,0 +1,112 @@
+sequenceDiagram
+    participant Client as Browser Client
+    participant NextFE as Next.js Frontend
+    participant NextAPI as Next.js API Routes
+    participant Redis as Redis (Queue + PubSub)
+    participant NestJS as NestJS Worker Service
+    participant S3 as S3/MinIO Storage
+    participant DB as PostgreSQL Database
+    participant PW as Playwright Test Runner
+
+    %% Individual Test Execution Flow (e.g., Playground)
+    Client->>NextFE: Submit test script
+    NextFE->>NextFE: Show loading toast notification
+    NextFE->>NextAPI: POST /api/test
+    NextAPI->>Redis: Add test to 'test-execution' queue
+    NextAPI-->>NextFE: Return testId, success status
+    NextFE->>NextAPI: Open SSE connection<br>/api/test-status/sse/[testId]
+    NextAPI->>Redis: Subscribe to 'test-status:[testId]' channel<br>with TTL
+    NextAPI-->>NextFE: Establish SSE stream
+
+    %% Worker picks up test from queue
+    Redis->>NestJS: TestExecutionProcessor<br>receives test task
+    activate NestJS
+    NestJS->>Redis: Publish 'running' status with TTL
+    Redis-->>NextAPI: Message: status='running'
+    NextAPI-->>NextFE: SSE event: status='running'
+    
+    %% Test execution process
+    NestJS->>NestJS: Validate test script
+    NestJS->>NestJS: Create test run directory
+    NestJS->>NestJS: Write test to JavaScript file
+    NestJS->>PW: Execute test with Playwright
+    activate PW
+    PW-->>NestJS: Return execution results
+    deactivate PW
+    
+    %% Handling test results
+    NestJS->>S3: Upload test report/artifacts
+    NestJS->>DB: Update test status & metadata
+    NestJS->>Redis: Publish completion status with TTL
+    Redis-->>NextAPI: Message: status='completed'/'failed'
+    NextAPI-->>NextFE: SSE event: status='completed'/'failed'
+    NextFE->>NextFE: Dismiss loading toast
+    NextFE->>NextFE: Show success/error toast
+    NextFE->>NextAPI: Close SSE connection
+    NextFE->>NextFE: Display test results/report
+
+    %% Job Execution Flow
+    Note over Client,PW: Job Execution Flow (Multiple Tests)
+    Client->>NextFE: Run job with multiple tests
+    NextFE->>NextFE: Show loading toast notification
+    NextFE->>NextAPI: POST /api/jobs/run
+    NextAPI->>DB: Create run record with 'pending' status<br>Generate runId
+    NextAPI->>NextAPI: Fetch test scripts from DB if needed
+    NextAPI->>Redis: Add job to 'job-execution' queue with runId
+    NextAPI-->>NextFE: Return jobId, runId, success status
+    NextFE->>NextAPI: Open SSE connection<br>/api/job-status/sse/[runId]
+    NextAPI->>Redis: Subscribe to 'job-status:[runId]' channel<br>with TTL
+    NextAPI-->>NextFE: Establish SSE stream
+
+    %% Worker picks up job from queue
+    Redis->>NestJS: JobExecutionProcessor<br>receives job task with runId
+    activate NestJS
+    NestJS->>Redis: Publish 'running' status with TTL
+    Redis-->>NextAPI: Message: status='running'
+    NextAPI-->>NextFE: SSE event: status='running'
+    
+    %% Job execution process
+    NestJS->>NestJS: Create job run directory
+    NestJS->>NestJS: Write test scripts to separate files
+    NestJS->>PW: Execute tests with Playwright
+    activate PW
+    Note right of PW: Tests run in parallel<br>with HTML reporter
+    PW-->>NestJS: Return aggregated results
+    deactivate PW
+    
+    %% Handling job results
+    NestJS->>S3: Upload consolidated report
+    NestJS->>DB: Update job run status & metadata<br>including duration
+    NestJS->>Redis: Publish completion status with results<br>and TTL
+    Redis-->>NextAPI: Message: status='completed'/'failed'
+    NextAPI-->>NextFE: SSE event: status='completed'/'failed'
+    NextFE->>NextFE: Dismiss loading toast
+    NextFE->>NextFE: Show success/error toast<br>with "View Run Report" link
+    NextFE->>NextAPI: Close SSE connection
+    NextFE->>NextFE: Display job results summary
+    
+    %% Report viewing
+    Client->>NextFE: View test/job report
+    NextFE->>NextAPI: GET /api/test-results/[...path]
+    NextAPI->>S3: Fetch report files from S3
+    S3-->>NextAPI: Return report HTML/assets
+    NextAPI-->>NextFE: Stream report content
+    NextFE-->>Client: Display HTML report in iframe
+
+    %% Job deletion flow
+    Client->>NextFE: Delete job
+    NextFE->>NextFE: Show confirmation dialog
+    NextFE->>NextAPI: DELETE /api/jobs/[jobId]
+    NextAPI->>DB: Check if job exists
+    Alt Job exists
+        NextAPI->>DB: Delete job runs and associations
+        NextAPI->>DB: Delete job record
+        NextAPI-->>NextFE: Return success
+        NextFE->>NextFE: Show success toast<br>refresh job list
+    Else Job not found
+        NextAPI-->>NextFE: Return "Job not found" error
+        NextFE->>NextFE: Show "Already deleted" warning
+        NextFE->>NextFE: Refresh view
+    End
+
+    deactivate NestJS 

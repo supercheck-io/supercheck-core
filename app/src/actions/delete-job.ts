@@ -18,6 +18,20 @@ export async function deleteJob(jobId: string) {
 
     const dbInstance = await db();
 
+    // Check if the job exists before attempting deletion
+    const existingJob = await dbInstance
+      .select({ id: jobs.id })
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1);
+
+    if (existingJob.length === 0) {
+      return {
+        success: false,
+        error: "Job not found",
+      };
+    }
+
     // First delete any test runs associated with this job
     await dbInstance.delete(runs).where(eq(runs.jobId, jobId));
 
@@ -25,14 +39,7 @@ export async function deleteJob(jobId: string) {
     await dbInstance.delete(jobTests).where(eq(jobTests.jobId, jobId));
 
     // Finally delete the job itself
-    const result = await dbInstance.delete(jobs).where(eq(jobs.id, jobId));
-
-    if (result.length === 0) {
-      return {
-        success: false,
-        error: "Job not found",
-      };
-    }
+    await dbInstance.delete(jobs).where(eq(jobs.id, jobId));
 
     // Revalidate the jobs path to ensure UI is updated
     revalidatePath("/jobs");

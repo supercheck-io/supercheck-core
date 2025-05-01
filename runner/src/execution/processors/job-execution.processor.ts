@@ -35,12 +35,15 @@ export class JobExecutionProcessor extends WorkerHost {
   // Specify concurrency if needed, e.g., @Process({ concurrency: 2 })
   // @Process()
   async process(job: Job<JobExecutionTask>): Promise<TestExecutionResult> { // Renamed to process
-    const { jobId } = job.data;
-    this.logger.log(`[${jobId}] Processing job execution job ID: ${job.id} (${job.data.testScripts?.length || 0} tests)`);
+    const { jobId } = job.data; // Note: this is actually the runId from the Next.js side
+    const runId = jobId; // For clarity, let's use runId variable name
+    
+    this.logger.log(`[${runId}] Processing job execution job ID: ${job.id} (${job.data.testScripts?.length || 0} tests)`);
 
-    // Publish initial status
-    await this.redisService.publishJobStatus(jobId, { 
+    // Publish initial status with runId
+    await this.redisService.publishJobStatus(runId, { 
       status: 'running', 
+      runId: runId,
       message: `Starting execution of ${job.data.testScripts?.length || 0} tests` 
     });
 
@@ -53,11 +56,12 @@ export class JobExecutionProcessor extends WorkerHost {
       const result = await this.executionService.runJob(job.data);
 
       await job.updateProgress(100);
-      this.logger.log(`[${jobId}] Job execution job ID: ${job.id} completed. Overall Success: ${result.success}`);
+      this.logger.log(`[${runId}] Job execution job ID: ${job.id} completed. Overall Success: ${result.success}`);
       
-      // Publish completion status
-      await this.redisService.publishJobStatus(jobId, { 
+      // Publish completion status with runId
+      await this.redisService.publishJobStatus(runId, { 
         status: result.success ? 'completed' : 'failed',
+        runId: runId,
         success: result.success,
         results: result.results,
         s3Url: result.reportUrl
@@ -67,13 +71,14 @@ export class JobExecutionProcessor extends WorkerHost {
       // BullMQ will store this in Redis.
       return result; 
     } catch (error) {
-      this.logger.error(`[${jobId}] Job execution job ID: ${job.id} failed. Error: ${error.message}`, error.stack);
+      this.logger.error(`[${runId}] Job execution job ID: ${job.id} failed. Error: ${error.message}`, error.stack);
       
-      // Publish error status
-      await this.redisService.publishJobStatus(jobId, { 
+      // Publish error status with runId
+      await this.redisService.publishJobStatus(runId, { 
         status: 'failed',
+        runId: runId,
         error: error.message,
-      }).catch(redisErr => this.logger.error(`[${jobId}] Failed to publish error status: ${redisErr.message}`));
+      }).catch(redisErr => this.logger.error(`[${runId}] Failed to publish error status: ${redisErr.message}`));
       
       // Update job progress to indicate failure stage if applicable
       await job.updateProgress(100);

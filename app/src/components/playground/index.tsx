@@ -372,7 +372,10 @@ const Playground: React.FC<PlaygroundProps> = ({
     setIsRunning(true);
 
     // Show a loading toast to indicate that the test is running
-    const loadingToastId = toast.loading("Running test...", { duration: 30000 });
+    const loadingToastId = toast.loading(`Executing test${testId ? `: ${testCase.title.length > 25 ? testCase.title.substring(0, 25) + '...' : testCase.title}` : ''}`, {
+      description: "Test execution is in progress...",
+      duration: Infinity, // Keep this visible until execution completes
+    });
 
     try {
       console.log("Sending test data to API:", { id: testId, script: editorContent });
@@ -396,12 +399,8 @@ const Playground: React.FC<PlaygroundProps> = ({
 
       // If we successfully started a test and got back the needed test info
       if (res.ok && result.testId && result.reportUrl) {
-        // Update the toast to indicate that the test is running
-        toast.success("Test queued successfully", {
-          id: loadingToastId,
-          description: `Test ID: ${result.testId}`,
-          duration: 3000,
-        });
+        // No need for success toast here - the loading toast is already shown
+        // We'll keep the loading toast until we get the final status update
 
         // Set the report URL to display the test results
         setReportUrl(result.reportUrl);
@@ -453,11 +452,16 @@ const Playground: React.FC<PlaygroundProps> = ({
                    toast.error("Error displaying report", { description: "Could not determine the test ID to load the report." });
                 }
                 
-                // Show a toast indicating test completion
+                // Dismiss loading toast and show completion toast
                 toast.dismiss(loadingToastId);
                 toast[data.status === "completed" ? "success" : "error"](
-                  data.status === "completed" ? "Test completed successfully" : "Test failed",
-                  { description: `Status: ${data.status}`, duration: 5000 }
+                  data.status === "completed" ? "Test execution passed" : "Test execution failed",
+                  { 
+                    description: data.status === "completed" 
+                      ? "All checks completed successfully." 
+                      : "Test did not complete successfully.",
+                    duration: 10000 
+                  }
                 );
               }
             }
@@ -472,7 +476,15 @@ const Playground: React.FC<PlaygroundProps> = ({
           // Fallback for SSE errors - just set not running
           setIsRunning(false);
           setIsReportLoading(false);
+          
+          // Dismiss the loading toast
           toast.dismiss(loadingToastId);
+          
+          // Show error toast
+          toast.error("Test execution error", {
+            description: "Connection to test status updates was lost. The test may still be running in the background.",
+            duration: 5000,
+          });
           
           if (!eventSourceClosed) {
             eventSource.close();

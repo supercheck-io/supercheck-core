@@ -1,7 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { CalendarIcon, TimerIcon, Loader2, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 import { jobStatuses } from "./data";
 import type { Job } from "./schema";
@@ -25,6 +25,25 @@ function RunButton({ job }: { job: Job }) {
   const [isRunning, setIsRunning] = useState(false);
   const router = useRouter();
   const { isAnyJobRunning, setJobRunning } = useJobContext();
+  const [sseConnected, setSseConnected] = useState(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  // Cleanup function to handle SSE connection close
+  const closeSSEConnection = useCallback(() => {
+    if (eventSourceRef.current) {
+      console.log('[RunButton] Closing existing SSE connection');
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+      setSseConnected(false);
+    }
+  }, []);
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      closeSSEConnection();
+    };
+  }, [closeSSEConnection]);
 
   const handleRunJob = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent row click event
@@ -40,9 +59,12 @@ function RunButton({ job }: { job: Job }) {
       return;
     }
 
-    let runToastId: string | number | undefined = undefined; // Initialize with undefined
+    let runToastId: string | number | undefined = undefined;
 
     try {
+      // Close any existing SSE connection first
+      closeSSEConnection();
+      
       setIsRunning(true);
       setJobRunning(true);
 
@@ -57,17 +79,16 @@ function RunButton({ job }: { job: Job }) {
       }
 
       // Show a loading toast that stays visible during the entire job execution
-      runToastId = toast.loading(`Running job: ${job.name.length > 25 ? job.name.substring(0, 25) + '...' : job.name}`, {
-        description:
-          "Job execution may take a few moments...",
-        duration: Infinity, // Keep loading until dismissed/updated
+      runToastId = toast.loading(`Executing job: ${job.name.length > 25 ? job.name.substring(0, 25) + '...' : job.name}`, {
+        description: "Job execution is in progress...",
+        duration: Infinity, // Keep this visible until execution completes
       });
 
       // Prepare the test data
       const testData = job.tests.map((test) => ({
         id: test.id,
         name: test.name || "",
-        title: test.name || "", // Include title as a fallback
+        title: test.name || "",
       }));
 
       // Call the API endpoint for running jobs
@@ -89,51 +110,113 @@ function RunButton({ job }: { job: Job }) {
       }
 
       const data = await response.json();
+      console.log("[RunButton] Job queued successfully:", data);
 
-      // Show a result toast with more detailed information
-      if (data.success) {
-        toast.success("Job completed successfully", {
-          description: (
-            <>
-              Ran {data.results.length} tests. All tests passed.{" "}
-              <a href={`/runs/${data.runId}`} className="underline font-medium">
-                View Run Report
-              </a>
-            </>
-          ),
-          duration: 10000,
-          id: runToastId,
-        });
+      if (data.runId) {
+        // Set up SSE to get real-time job status
+        const eventSource = new EventSource(`/api/job-status/sse/${data.runId}`);
+        eventSourceRef.current = eventSource;
+        let hasShownFinalToast = false;
+
+        // Handle status updates from SSE
+        eventSource.onmessage = (event) => {
+          try {
+            const statusData = JSON.parse(event.data);
+            console.log(`[RunButton] SSE status update for run ${data.runId}:`, statusData);
+            setSseConnected(true);
+
+            // Handle terminal statuses with final toast
+            if ((statusData.status === 'completed' || statusData.status === 'failed' || 
+                 statusData.status === 'passed' || statusData.status === 'error') && !hasShownFinalToast) {
+              
+              // Only show the toast once
+              hasShownFinalToast = true;
+              
+              // Determine if job passed or failed
+              const passed = statusData.status === 'completed' || statusData.status === 'passed';
+              
+              // Dismiss the loading toast
+              if (runToastId) {
+                toast.dismiss(runToastId);
+              }
+              
+              // Update with final status toast
+              toast[passed ? 'success' : 'error'](
+                passed ? "Job execution passed" : "Job execution failed",
+                {
+                  description: (
+                    <>
+                      {passed 
+                        ? 'All tests executed successfully.' 
+                        : 'One or more tests did not complete successfully.'}{" "}
+                      <a href={`/runs/${data.runId}`} className="underline font-medium">
+                        View Run Report
+                      </a>
+                    </>
+                  ),
+                  duration: 10000,
+                }
+              );
+
+              // Cleanup
+              closeSSEConnection();
+              
+              // Reset states
+              setIsRunning(false);
+              setJobRunning(false);
+              
+              // Refresh the page to show updated job status
+              router.refresh();
+            }
+          } catch (e) {
+            console.error("[RunButton] Error parsing SSE event:", e);
+          }
+        };
+
+        // Handle connection errors
+        eventSource.onerror = (error) => {
+          console.error("[RunButton] SSE connection error:", error);
+          
+          if (!hasShownFinalToast) {
+            hasShownFinalToast = true;
+            
+            // Dismiss loading toast on error
+            if (runToastId) {
+              toast.dismiss(runToastId);
+            }
+            
+            // Show error toast
+            toast.error("Job execution error", {
+              description: "Connection to job status updates was lost. Check job status in the runs page.",
+            });
+          }
+          
+          closeSSEConnection();
+          setIsRunning(false);
+          setJobRunning(false);
+        };
+
+        // Set connection open handler
+        eventSource.onopen = () => {
+          console.log(`[RunButton] SSE connection opened for job ${job.id}`);
+          setSseConnected(true);
+        };
       } else {
-        toast.error("Job execution failed", {
-          description: (
-            <>
-              One or more tests did not complete successfully.{" "}
-              <a href={`/runs/${data.runId}`} className="underline font-medium">
-                View Run Report
-              </a>
-            </>
-          ),
-          duration: 10000,
+        // No runId received, something is wrong
+        toast.error("Error running job", {
           id: runToastId,
+          description: "Failed to get run ID for the job.",
         });
+        setIsRunning(false);
+        setJobRunning(false);
       }
-
-      // Remove automatic navigation
-      // if (data.runId) {
-      //   router.push(`/runs/${data.runId}`);
-      // }
-
-      // Refresh the page to show updated job status
-      router.refresh();
     } catch (error) {
-      console.error("Error running job:", error);
+      console.error("[RunButton] Error running job:", error);
       // Update the loading toast to show error, if it exists
       toast.error("Error running job", {
-        description: "Failed to execute the job. Please try again later.",
         id: runToastId,
+        description: `Failed to execute the job: ${error instanceof Error ? error.message : "Unknown error"}`,
       });
-    } finally {
       setIsRunning(false);
       setJobRunning(false);
     }
