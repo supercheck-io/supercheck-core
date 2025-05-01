@@ -210,32 +210,29 @@ export async function GET(
     const key = `${basePath}/${targetFile}`.replace(/\/+/g, '/');
     console.log(`Constructed key path: ${key}`);
     
-    // 1. Try direct S3 URL construction first
+    // Skip the direct fetch approach that's failing and go straight to the AWS SDK
+    console.log('Using AWS SDK approach for S3 access...');
+      
     try {
-      // Construct direct URL to the file
-      const directUrl = `${s3Host}/${bucket}/${key}`;
-      console.log(`Trying direct fetch from: ${directUrl}`);
+      // Try AWS SDK approach
+      const command = new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      });
       
-      // Configure the headers for MinIO access
-      const headers: HeadersInit = await getSignedHeaders(directUrl);
+      // Use AWS SDK for S3 access which handles auth correctly
+      console.log(`Using AWS SDK for S3 access to ${bucket}/${key}`);
       
-      // Log the approach
-      console.log(`Using AWS v4 signature auth for S3 access`);
+      const s3Response = await s3Client.send(command);
       
-      console.log(`Fetching with headers: ${Object.keys(headers).join(', ')}`);
-      const response = await fetch(directUrl, { headers });
-      
-      console.log(`Direct fetch response status: ${response.status}`);
-      
-      if (!response.ok) {
-        console.error(`Direct fetch failed: ${response.status} ${response.statusText}`);
-        throw new Error(`HTTP error: ${response.status}`);
+      if (!s3Response.Body) {
+        throw new Error("Empty response from S3");
       }
       
-      const data = await response.arrayBuffer();
-      const contentType = response.headers.get('Content-Type') || 'application/octet-stream';
+      const buffer = await streamToBuffer(s3Response.Body);
+      const contentType = s3Response.ContentType || 'application/octet-stream';
       
-      return new NextResponse(data, {
+      return new NextResponse(buffer, {
         status: 200,
         headers: {
           'Content-Type': contentType,
@@ -247,94 +244,52 @@ export async function GET(
           ))
         }
       });
-    } catch (directFetchError) {
-      console.log(`Direct URL approach failed: ${directFetchError.message}`);
-      console.log('Trying fallback approach with AWS SDK...');
+    } catch (s3Error) {
+      console.error(`AWS SDK approach failed: ${s3Error.message}`);
+      console.log('Trying final fallback with direct file construction...');
       
+      // 3. Last resort: try a simple file URL construction 
       try {
-        // 2. Try AWS SDK approach
-        const command = new GetObjectCommand({
-          Bucket: bucket,
-          Key: key,
+        // Extract the base URL without the file part
+        const baseUrlParts = reportResult.s3Url.split('/');
+        baseUrlParts.pop(); // Remove the last part (index.html)
+        const baseUrl = baseUrlParts.join('/');
+        
+        // Build the complete URL
+        const fallbackUrl = `${baseUrl}/${targetFile}`;
+        console.log(`Final fallback URL: ${fallbackUrl}`);
+        
+        // Configure the headers with AWS v4 signature
+        const headers: HeadersInit = await getSignedHeaders(fallbackUrl);
+        console.log(`Using AWS v4 signature auth for fallback S3 access`);
+        
+        const fallbackResponse = await fetch(fallbackUrl, { headers });
+        
+        if (!fallbackResponse.ok) {
+          throw new Error(`Fallback fetch failed: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
+        }
+        
+        const fallbackData = await fallbackResponse.arrayBuffer();
+        const fallbackContentType = fallbackResponse.headers.get('Content-Type') || 'application/octet-stream';
+        
+        return new NextResponse(fallbackData, {
+          status: 200,
+          headers: {
+            'Content-Type': fallbackContentType,
+            'Cache-Control': 'public, max-age=300',
+            // Only include Content-Disposition for downloads if not forcing iframe display
+            ...(forceIframe ? {} : (
+              fallbackContentType && fallbackContentType.includes('application/') && !fallbackContentType.includes('html') ? 
+              {'Content-Disposition': `inline; filename="${targetFile.split('/').pop()}"`} : {}
+            ))
+          }
         });
-        
-        // Use AWS SDK for S3 access which handles auth correctly
-        console.log(`Using AWS SDK for S3 access to ${bucket}/${key}`);
-        
-        // Try the AWS SDK approach first
-        try {
-          const s3Response = await s3Client.send(command);
-          
-          if (!s3Response.Body) {
-            throw new Error("Empty response from S3");
-          }
-          
-          const buffer = await streamToBuffer(s3Response.Body);
-          const contentType = s3Response.ContentType || 'application/octet-stream';
-          
-          return new NextResponse(buffer, {
-            status: 200,
-            headers: {
-              'Content-Type': contentType,
-              'Cache-Control': 'public, max-age=300',
-              // Only include Content-Disposition for downloads if not forcing iframe display
-              ...(forceIframe ? {} : (
-                contentType && contentType.includes('application/') && !contentType.includes('html') ? 
-                {'Content-Disposition': `inline; filename="${targetFile.split('/').pop()}"`} : {}
-              ))
-            }
-          });
-        } catch (sdkError) {
-          console.error(`AWS SDK approach error: ${sdkError.message}`);
-          throw sdkError; // Propagate to outer catch
-        }
-      } catch (s3Error) {
-        console.error(`AWS SDK approach failed: ${s3Error.message}`);
-        console.log('Trying final fallback with direct file construction...');
-        
-        // 3. Last resort: try a simple file URL construction 
-        try {
-          // Extract the base URL without the file part
-          const baseUrlParts = reportResult.s3Url.split('/');
-          baseUrlParts.pop(); // Remove the last part (index.html)
-          const baseUrl = baseUrlParts.join('/');
-          
-          // Build the complete URL
-          const fallbackUrl = `${baseUrl}/${targetFile}`;
-          console.log(`Final fallback URL: ${fallbackUrl}`);
-          
-          // Configure the headers with AWS v4 signature
-          const headers: HeadersInit = await getSignedHeaders(fallbackUrl);
-          console.log(`Using AWS v4 signature auth for fallback S3 access`);
-          
-          const fallbackResponse = await fetch(fallbackUrl, { headers });
-          
-          if (!fallbackResponse.ok) {
-            throw new Error(`Fallback fetch failed: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
-          }
-          
-          const fallbackData = await fallbackResponse.arrayBuffer();
-          const fallbackContentType = fallbackResponse.headers.get('Content-Type') || 'application/octet-stream';
-          
-          return new NextResponse(fallbackData, {
-            status: 200,
-            headers: {
-              'Content-Type': fallbackContentType,
-              'Cache-Control': 'public, max-age=300',
-              // Only include Content-Disposition for downloads if not forcing iframe display
-              ...(forceIframe ? {} : (
-                fallbackContentType && fallbackContentType.includes('application/') && !fallbackContentType.includes('html') ? 
-                {'Content-Disposition': `inline; filename="${targetFile.split('/').pop()}"`} : {}
-              ))
-            }
-          });
-        } catch (fallbackError) {
-          console.error(`All approaches failed. Last error: ${fallbackError.message}`);
-          return NextResponse.json({
-            error: "Failed to fetch report",
-            details: "All approaches to fetch the report failed. Please check server logs for details."
-          }, { status: 500 });
-        }
+      } catch (fallbackError) {
+        console.error(`All approaches failed. Last error: ${fallbackError.message}`);
+        return NextResponse.json({
+          error: "Failed to fetch report",
+          details: "All approaches to fetch the report failed. Please check server logs for details."
+        }, { status: 500 });
       }
     }
   } catch (error) {

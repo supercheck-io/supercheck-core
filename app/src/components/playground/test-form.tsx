@@ -91,16 +91,6 @@ type TestCaseFormData = z.infer<typeof testCaseSchema> & {
   createdAt?: string | null;
 };
 
-// <<< ADDED Type definition for Run History (matching Playground) >>>
-interface TestRunHistoryItem {
-  id: number; // Report ID
-  status: string;
-  s3Url: string | null;
-  createdAt: string;
-  updatedAt: string;
-  entityId?: string; // Test ID
-}
-
 interface TestFormProps {
   testCase: {
     title: string;
@@ -138,10 +128,6 @@ interface TestFormProps {
   }>;
   initialEditorContent: string;
   testId?: string | null;
-  // <<< ADDED Props for Run History >>>
-  runHistory: TestRunHistoryItem[];
-  historyLoading: boolean;
-  onSelectReport: (run: TestRunHistoryItem) => void; // Function to view a specific report
 }
 
 export function TestForm({
@@ -155,9 +141,6 @@ export function TestForm({
   initialFormValues,
   initialEditorContent: initialEditorContentProp,
   testId,
-  runHistory,
-  historyLoading,
-  onSelectReport,
 }: TestFormProps) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -351,35 +334,6 @@ export function TestForm({
       setShowDeleteDialog(false);
     }
   };
-
-  // <<< ADDED: Helper to get status badge variant >>>
-  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-    switch (status) {
-      case 'completed':
-      case 'success': // Handle potential variations
-        return "secondary"; // Use secondary for success (often green)
-      case 'failed':
-        return "destructive";
-      case 'running':
-        return "default"; // Use default for running (often blue/primary)
-      default:
-        return "outline"; // Default greyish outline
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-      case 'success':
-        return <CheckCircleIcon className="h-3.5 w-3.5 text-green-600" />;
-      case 'failed':
-        return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
-      case 'running':
-        return <Loader2Icon className="h-3.5 w-3.5 animate-spin text-primary" />;
-      default:
-        return <AlertCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />;
-    }
-  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-3 -mt-2">
@@ -602,63 +556,6 @@ export function TestForm({
           )}
         </div>
       </div>
-
-      {/* <<< ADDED: Test Runs History Section >>> */}
-      {testId && (
-        <div className="space-y-3 bg-card p-4 rounded-lg border border-border/40">
-          <h3 className="text-sm font-medium text-foreground mb-3">Run History</h3>
-          {historyLoading ? (
-            <div className="flex items-center justify-center p-4">
-              <Loader2Icon className="h-5 w-5 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Loading history...</span>
-            </div>
-          ) : runHistory.length === 0 ? (
-            <p className="text-sm text-muted-foreground px-1 py-2">No run history found for this test.</p>
-          ) : (
-            <ScrollArea className="h-[200px] w-full pr-3"> {/* Adjust height as needed */}
-              <Table className="text-xs">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[120px]">Status</TableHead>
-                    <TableHead>Ran</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runHistory.map((run) => (
-                    <TableRow key={run.id}>
-                      <TableCell>
-                        <Badge variant={getStatusVariant(run.status)} className="capitalize text-[10px] px-1.5 py-0.5 font-normal flex items-center gap-1 w-fit">
-                          {getStatusIcon(run.status)}
-                          {run.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDistanceToNow(new Date(run.createdAt), { addSuffix: true })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="xs" // Use a smaller button size
-                          onClick={(e) => { 
-                            e.preventDefault(); // Prevent form submission if inside form
-                            onSelectReport(run);
-                          }}
-                          disabled={!run.s3Url && run.status !== 'failed'} // Disable if no report URL unless it explicitly failed (might have artifacts)
-                          className="h-6 px-2 text-[10px]"
-                        >
-                          <FileTextIcon className="h-3 w-3 mr-1" />
-                          View Report
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          )}
-        </div>
-      )}
 
       <div className="mt-4">
         <div className="flex justify-between items-center">
