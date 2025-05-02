@@ -71,6 +71,7 @@ export async function POST(request: Request) {
     const task: JobExecutionTask = {
       jobId: runId,
       testScripts,
+      runId: runId
     };
 
     await addJobToQueue(task);

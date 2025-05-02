@@ -10,7 +10,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { testId: string } }
 ) {
-  const testId = params.testId;
+  // Ensure params is properly awaited in the App Router
+  const { testId } = params;
 
   if (!testId) {
     return NextResponse.json({ error: 'Test ID is required' }, { status: 400 });

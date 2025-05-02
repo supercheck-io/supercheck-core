@@ -29,12 +29,8 @@ yarn-error.log*
 lerna-debug.log* # From runner
 
 ## Environment / Secrets
-.env
+.env.local
 .env.*.local
-# .env.local # Covered by .env.*.local
-# .env.development.local # Covered by .env.*.local
-# .env.test.local # Covered by .env.*.local
-# .env.production.local # Covered by .env.*.local
 *.pem
 
 ## Temp / Runtime / Reports

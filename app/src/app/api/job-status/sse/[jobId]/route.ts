@@ -166,10 +166,18 @@ export async function GET(
                       );
                       redis = null;
                     }
-                    controller.close();
+                    
+                    // Check if controller is already closed before attempting to close it
+                    try {
+                      if (controller.desiredSize !== null) {
+                        controller.close();
+                      }
+                    } catch (err: unknown) {
+                      console.warn('[SSE] Controller already closed:', err instanceof Error ? err.message : String(err));
+                    }
                   }, 1000); // Small delay to ensure client receives the message
                 }
-              } catch (err) {
+              } catch (err: unknown) {
                 console.error('[SSE] Error parsing message:', err);
               }
             }

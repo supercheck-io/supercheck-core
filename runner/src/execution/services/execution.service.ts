@@ -5,6 +5,7 @@ import * as fs from 'fs/promises';
 import { existsSync, mkdirSync, writeFileSync, cpSync, readFileSync, rmSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import { S3Service } from './s3.service';
 import { DbService } from './db.service';
 import { ValidationService } from './validation.service';
@@ -19,6 +20,9 @@ import {
 import {
     isWindows,
     toCLIPath,
+    getTemporaryRunPath,
+    createDiscoverableTestFile,
+    ensureProperTraceConfiguration
 } from '../utils';
 
 // Helper function to check if a file exists with fs.promises
@@ -225,20 +229,19 @@ export class ExecutionService {
             }
             this.logger.debug(`[${testId}] Code validation successful.`);
 
-            // 3. Write test file LOCALLY
-            const testFileName = `${testId}.spec.js`; // Use testId in filename
-            const testFilePath = path.join(runDir, testFileName);
-            
-            // Write the user's code directly to the file
-            const testContent = code; // Use the original code directly
-            
-            await fs.writeFile(testFilePath, testContent);
-            this.logger.debug(`[${testId}] Test file written to ${testFilePath}`);
+            // 3. Write the test to a file
+            // Don't strip imports - tests are meant to be self-contained
+            let testFilePath: string;
+            try {
+                testFilePath = await this.prepareSingleTest(testId, code, runDir);
+            } catch (error) {
+                throw new Error(`Failed to prepare test: ${error.message}`);
+            }
 
             // 4. Execute the test script
             this.logger.log(`[${testId}] Executing test script...`);
             // Use the native runner helper function
-            const execResult = await this._executePlaywrightNativeRunner(runDir, reportDir);
+            const execResult = await this._executePlaywrightNativeRunner(runDir, false);
 
             // 5. Process result and upload report
             const testBucket = this.s3Service.getBucketForEntityType(entityType);
@@ -251,6 +254,9 @@ export class ExecutionService {
                 try {
                     const indexHtmlPath = path.join(reportDir, 'index.html');
                     if (existsSync(indexHtmlPath)) {
+                        // Process the report files to fix trace URLs before uploading
+                        await this._processReportFilesForS3(reportDir, testId, entityType);
+                        
                         await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket);
                         this.logger.log(`[${testId}] HTML report uploaded to S3 prefix: ${s3ReportKeyPrefix}`);
                         s3Url = this.s3Service.getBaseUrlForEntity(entityType, testId) + '/index.html';
@@ -263,6 +269,8 @@ export class ExecutionService {
                            this.logger.log(`[${testId}] Found HTML report in default location. Copying to test report directory...`);
                            try {
                              cpSync(defaultPlaywrightReportDir, reportDir, { recursive: true });
+                             // Process the report files to fix trace URLs before uploading
+                             await this._processReportFilesForS3(reportDir, testId, entityType);
                              await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket);
                              this.logger.log(`[${testId}] Copied and uploaded HTML report to S3 prefix: ${s3ReportKeyPrefix}`);
                              s3Url = this.s3Service.getBaseUrlForEntity(entityType, testId) + '/index.html';
@@ -320,6 +328,9 @@ export class ExecutionService {
                 try {
                    const indexHtmlPath = path.join(reportDir, 'index.html');
                    if (existsSync(indexHtmlPath)) { // Check specifically for index.html on failure too
+                        // Process the report files to fix trace URLs before uploading
+                        await this._processReportFilesForS3(reportDir, testId, entityType);
+                        
                         await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket);
                         this.logger.log(`[${testId}] Error report/artifacts uploaded to S3 prefix: ${s3ReportKeyPrefix}`);
                         s3Url = this.s3Service.getBaseUrlForEntity(entityType, testId) + '/index.html';
@@ -332,6 +343,8 @@ export class ExecutionService {
                        this.logger.log(`[${testId}] Found HTML report in default location. Copying to test report directory...`);
                        try {
                          cpSync(defaultPlaywrightReportDir, reportDir, { recursive: true });
+                         // Process the report files to fix trace URLs before uploading
+                         await this._processReportFilesForS3(reportDir, testId, entityType);
                          await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket);
                          this.logger.log(`[${testId}] Copied and uploaded HTML report to S3 prefix: ${s3ReportKeyPrefix}`);
                          s3Url = this.s3Service.getBaseUrlForEntity(entityType, testId) + '/index.html';
@@ -421,14 +434,12 @@ export class ExecutionService {
      * Uses the native Playwright test runner and HTML reporter.
      */
     async runJob(task: JobExecutionTask): Promise<TestExecutionResult> {
-        const { jobId, testScripts } = task;
-        const runId = jobId; // Use jobId as the unique identifier for this run
+        const { jobId, testScripts, runId } = task;
         const entityType = 'job';
         this.logger.log(`[${runId}] Starting job execution with ${testScripts.length} tests.`);
 
         const runDir = path.join(this.baseLocalRunDir, runId);
         const reportDir = path.join(runDir, 'report');
-        const playwrightReportDir = path.join(runDir, 'playwright-report'); // Native reporter output
         const s3ReportKeyPrefix = `test-results/${entityType}s/${runId}/report`; // S3 prefix for the final report
         let finalResult: TestExecutionResult;
         let s3Url: string | null = null;
@@ -457,35 +468,37 @@ export class ExecutionService {
             // Publish initial job status via Redis
             await this.redisService.publishJobStatus(runId, { status: 'running' });
 
-            // <<< REVISED: Prepare individual test spec files >>>
-            let testsWritten = 0;
-            for (const testScript of testScripts) {
-                // Basic validation (can be enhanced)
-                if (!testScript.script || typeof testScript.script !== 'string') {
-                    this.logger.warn(`[${runId}] Skipping test ${testScript.id} due to missing or invalid script content.`);
+            // Process each script, creating a Playwright test file for each
+            for (let i = 0; i < testScripts.length; i++) {
+                const { id, script: originalScript, name } = testScripts[i];
+                const testId = id;
+                
+                try {
+                    // Ensure the script has proper trace configuration
+                    const script = ensureProperTraceConfiguration(originalScript, testId);
+                    
+                    // Create the test file with unique ID in filename
+                    const testFilePath = path.join(runDir, `test-${i}-${testId}.spec.js`);
+                    
+                    // Write the individual test script content
+                    // No need to remove require/import as each is a standalone file
+                    await fs.writeFile(testFilePath, script);
+                    this.logger.debug(`[${runId}] Individual test spec written to: ${testFilePath}`);
+                } catch (error) {
+                    this.logger.error(`[${runId}] Error creating test file for ${testId}: ${error.message}`, error.stack);
                     continue;
                 }
-                
-                // Construct file path for individual test
-                const testFileName = `${testScript.id}.spec.js`;
-                const testFilePath = path.join(runDir, testFileName);
-                
-                // Write the individual test script content
-                // No need to remove require/import as each is a standalone file
-                await fs.writeFile(testFilePath, testScript.script);
-                this.logger.debug(`[${runId}] Individual test spec written to: ${testFilePath}`);
-                testsWritten++;
             }
             
-            if (testsWritten === 0) {
+            if (testScripts.length === 0) {
                 throw new Error("No valid test scripts found to execute for this job.");
             }
-            this.logger.log(`[${runId}] Prepared ${testsWritten} individual test spec files.`);
+            this.logger.log(`[${runId}] Prepared ${testScripts.length} individual test spec files.`);
 
             // 4. Execute ALL tests in the runDir using the native runner
             this.logger.log(`[${runId}] Executing all test specs in directory via Playwright runner...`);
             // Pass isJob=true so the helper knows to execute the directory
-            const execResult = await this._executePlaywrightNativeRunner(runDir, reportDir, true);
+            const execResult = await this._executePlaywrightNativeRunner(runDir, true);
             overallSuccess = execResult.success;
             stdout_log = execResult.stdout;
             stderr_log = execResult.stderr;
@@ -511,6 +524,9 @@ export class ExecutionService {
                     reportFound = true;
                     
                     try {
+                        // Process the report files to fix trace URLs before uploading
+                        await this._processReportFilesForS3(reportDir, runId, entityType);
+                        
                         await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, jobBucket);
                         this.logger.log(`[${runId}] Report directory contents uploaded to S3 prefix: ${s3ReportKeyPrefix}`);
                     } catch (uploadErr: any) {
@@ -530,6 +546,9 @@ export class ExecutionService {
                 if (existsSync(playwrightReportDir)) {
                     this.logger.log(`[${runId}] Found HTML report in default location: ${playwrightReportDir}`);
                     try {
+                        // Process the report files to fix trace URLs before uploading
+                        await this._processReportFilesForS3(playwrightReportDir, runId, entityType);
+                        
                         // Upload the playwright-report directory contents
                         await this.s3Service.uploadDirectory(playwrightReportDir, s3ReportKeyPrefix, jobBucket);
                         this.logger.log(`[${runId}] Report directory uploaded from default location to S3 prefix: ${s3ReportKeyPrefix}`);
@@ -549,6 +568,9 @@ export class ExecutionService {
                 if (existsSync(reportDir)) {
                     // If the reportDir exists but doesn't have index.html, upload it anyway for the artifacts
                     try {
+                        // Process the report files to fix trace URLs before uploading
+                        await this._processReportFilesForS3(reportDir, runId, entityType);
+                        
                         await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, jobBucket);
                         this.logger.log(`[${runId}] Uploaded test artifacts to S3 prefix: ${s3ReportKeyPrefix}`);
                     } catch (uploadErr: any) {
@@ -634,17 +656,18 @@ export class ExecutionService {
     /**
      * Execute a Playwright test using the native binary
      * @param runDir The base directory for this specific run where test files are located
-     * @param outputDir The unified directory Playwright should use for all output (HTML report + artifacts)
      * @param isJob Whether this is a job execution (multiple tests)
      */
     private async _executePlaywrightNativeRunner(
         runDir: string,      // Directory containing the spec file(s) OR the single spec file for single tests
-        outputDir: string,   // Absolute path to the final output directory for test artifacts
         isJob: boolean = false, // Flag to indicate if running multiple tests in a dir (job) vs single file
     ): Promise<PlaywrightExecutionResult> {
         const serviceRoot = process.cwd(); 
         const playwrightConfigPath = path.join(serviceRoot, 'playwright.config.js'); // Get absolute path to config
-        const playwrightReportDir = path.join(serviceRoot, 'playwright-report'); // Default HTML report location
+        const playwrightReportDir = path.join(serviceRoot, 'playwright-report');
+        
+        // Create a unique ID for this execution to prevent conflicts in parallel runs
+        const executionId = crypto.randomUUID().substring(0, 8);
 
         try {
             let targetPath: string; // Path to run tests against (file or directory)
@@ -652,7 +675,7 @@ export class ExecutionService {
             if (isJob) {
                 // For jobs, run all tests in the runDir
                 targetPath = runDir;
-                this.logger.log(`[Job Execution] Running tests in directory: ${targetPath}`);
+                this.logger.log(`[Job Execution ${executionId}] Running tests in directory: ${targetPath}`);
             } else {
                 // For single tests, find the specific test.spec.js file
                 const files = await fs.readdir(runDir);
@@ -661,40 +684,65 @@ export class ExecutionService {
                     throw new Error(`No .spec.js file found in ${runDir} for single test execution. Files present: ${files.join(', ')}`);
                 }
                 targetPath = path.join(runDir, singleTestFile);
-                this.logger.log(`[Single Test Execution] Running specific test file: ${targetPath}`);
+                this.logger.log(`[Single Test Execution ${executionId}] Running specific test file: ${targetPath}`);
             }
             
+            // Add unique environment variables for this execution
             const envVars = {
                 PLAYWRIGHT_TEST_DIR: runDir,
-                CI: 'true'
+                CI: 'true',
+                PLAYWRIGHT_EXECUTION_ID: executionId,
+                // Create a unique artifacts folder for this execution
+                PLAYWRIGHT_ARTIFACTS_DIR: path.join(runDir, `.artifacts-${executionId}`),
+                // Add timestamp to prevent caching issues
+                PLAYWRIGHT_TIMESTAMP: Date.now().toString()
             };
-            this.logger.debug('Executing playwright with CI=true');
             
-            const playwrightCliPath = path.join(serviceRoot, 'node_modules', '.bin', 'playwright');
-            const nodeCommand = 'node';
+            this.logger.debug(`Executing playwright with execution ID: ${executionId}`);
             
-            // Separate the reporter (HTML) from the output directory for artifacts
-            // This ensures the HTML report goes to the default location (playwright-report)
-            // while test artifacts go to the specified output directory
-            const args = [
-                playwrightCliPath, 
-                'test',
-                targetPath, 
-                `--config=${playwrightConfigPath}`,
-                '--reporter=html,list', // Removed from output param - will go to default location
-            ];
-            
-            // Only add output if it's different from the default
-            if (outputDir !== playwrightReportDir) {
-                args.push(`--output=${outputDir}`); // For artifacts, not HTML report
+            // Handle path differences between Windows and Unix-like systems
+            let playwrightCliPath;
+            if (isWindows) {
+                // On Windows, use the .cmd extension
+                playwrightCliPath = path.join(serviceRoot, 'node_modules', '.bin', 'playwright.cmd');
+            } else {
+                playwrightCliPath = path.join(serviceRoot, 'node_modules', '.bin', 'playwright');
             }
             
-            this.logger.log(`Running Playwright directly with command: ${nodeCommand} ${args.join(' ')} and env vars:`, envVars);
+            // Use proper command based on platform
+            const command = isWindows ? playwrightCliPath : 'node';
+            
+            // Build args array - for Windows the command itself is the executable
+            let args: string[];
+            
+            if (isWindows) {
+                args = [
+                    'test',
+                    targetPath, 
+                    `--config=${playwrightConfigPath}`,
+                    '--reporter=html,list',
+                ];
+            } else {
+                args = [
+                    playwrightCliPath, 
+                    'test',
+                    targetPath, 
+                    `--config=${playwrightConfigPath}`,
+                    '--reporter=html,list',
+                ];
+            }
+            
+            // Add unique output dir for this execution
+            const outputDir = path.join(runDir, `report-${executionId}`);
+            args.push(`--output=${outputDir}`);
+            
+            this.logger.log(`Running Playwright directly with command: ${command} ${args.join(' ')} and env vars:`, envVars);
             
             // Execute the command with environment variables, ensuring correct CWD
-            const { success, stdout, stderr } = await this._executeCommand(nodeCommand, args, {
+            const { success, stdout, stderr } = await this._executeCommand(command, args, {
                 env: { ...process.env, ...envVars }, 
                 cwd: serviceRoot, // Run playwright from service root
+                shell: isWindows, // Use shell on Windows for proper command execution
             });
             
             // Improve error reporting
@@ -741,13 +789,15 @@ export class ExecutionService {
         options: { 
             env?: Record<string, string | undefined>; 
             cwd?: string; 
+            shell?: boolean;
         } = {}
     ): Promise<{success: boolean, stdout: string, stderr: string}> {
         return new Promise((resolve) => {
             try {
                 const childProcess = spawn(command, args, {
                     env: { ...process.env, ...(options.env || {}) }, 
-                    cwd: options.cwd || process.cwd() 
+                    cwd: options.cwd || process.cwd(),
+                    shell: options.shell,
                 });
                 
                 let stdout = '';
@@ -803,6 +853,147 @@ export class ExecutionService {
     }
 
     /**
-     * Helper to escape HTML for safe insertion in the fallback report
+     * Fix trace file paths in HTML reports before uploading to S3
+     * This prevents issues when absolute file paths are used in trace URLs
      */
+    private async _processReportFilesForS3(reportDir: string, runId: string, entityType: string): Promise<void> {
+        try {
+            // Look for index.html in the report directory
+            const indexPath = path.join(reportDir, 'index.html');
+            if (!existsSync(indexPath)) {
+                this.logger.warn(`No index.html found in ${reportDir}, skipping trace path processing`);
+                return;
+            }
+
+            // Process HTML files in the report directory
+            const processHtmlFile = async (filePath: string) => {
+                this.logger.log(`Processing HTML file at ${filePath}`);
+                let content = await fs.readFile(filePath, 'utf8');
+                let modified = false;
+                
+                // Patterns to replace absolute trace paths with relative ones
+                const patterns = [
+                    // Pattern 1: URL search parameter with absolute path to trace.zip
+                    {
+                        regex: /trace=(https?:\/\/[^"'&]+\/[^"'&]+\/trace\.zip)/g,
+                        replacement: 'trace=../data'
+                    },
+                    // Pattern 2: Direct absolute path references to trace.zip
+                    {
+                        regex: /(["'])(https?:\/\/[^"']+\/[^"']+\/trace\.zip)(['"])/g,
+                        replacement: '$1../data$3'
+                    },
+                    // Pattern 3: Absolute file paths starting with file:// or /Users, /home, etc.
+                    {
+                        regex: /(["'])(file:\/\/\/|\/(?:Users|home|var|tmp)[^"']+\/trace\.zip)(['"])/g,
+                        replacement: '$1../data$3'
+                    },
+                    // Pattern 4: Windows absolute paths (C:\, D:\, etc.)
+                    {
+                        regex: /(["'])([A-Z]:\\[^"']+\\trace\.zip)(['"])/g,
+                        replacement: '$1../data$3'
+                    },
+                    // Pattern 5: Trace directory paths (including custom trace-* directories)
+                    {
+                        regex: /(["'])(\.\/trace-[^"']+|\.playwright-artifacts-\d+\/traces)[^"']*(['"])/g,
+                        replacement: '$1../data$3'
+                    },
+                    // Pattern 6: Any reference to .network files in absolute paths
+                    {
+                        regex: /(["'])(\/[^"']+\.network)(['"])/g,
+                        replacement: '$1../data$3'
+                    },
+                    // Pattern 7: Any path with the runId in it - could be an artifact path
+                    {
+                        regex: new RegExp(`(["'])(\/[^"']*${runId}[^"']*)(['"])`, 'g'),
+                        replacement: '$1../data$3'
+                    }
+                ];
+                
+                // Apply all patterns
+                for (const pattern of patterns) {
+                    const newContent = content.replace(pattern.regex, pattern.replacement);
+                    if (newContent !== content) {
+                        modified = true;
+                        content = newContent;
+                    }
+                }
+                
+                // Process iframe srcs that might contain trace references
+                const iframeSrcRegex = /<iframe[^>]+src=["']([^"']+)["'][^>]*>/g;
+                let match;
+                while ((match = iframeSrcRegex.exec(content)) !== null) {
+                    const originalSrc = match[1];
+                    if (originalSrc.includes('trace') || originalSrc.includes(runId)) {
+                        // Replace absolute paths in iframe src with relative ones
+                        const newSrc = originalSrc.replace(/\/[^/]+\/trace\.zip/, '../data');
+                        if (newSrc !== originalSrc) {
+                            content = content.replace(originalSrc, newSrc);
+                            modified = true;
+                        }
+                    }
+                }
+                
+                // Only save the file if we made changes
+                if (modified) {
+                    await fs.writeFile(filePath, content, 'utf8');
+                    this.logger.log(`Successfully processed trace paths in ${filePath}`);
+                } else {
+                    this.logger.log(`No trace path replacements needed in ${filePath}`);
+                }
+            };
+            
+            // Process main index.html
+            await processHtmlFile(indexPath);
+            
+            // Process trace/index.html if it exists
+            const traceIndexPath = path.join(reportDir, 'trace', 'index.html');
+            if (existsSync(traceIndexPath)) {
+                await processHtmlFile(traceIndexPath);
+            }
+            
+            // Look for other HTML files in the trace directory
+            const traceDir = path.join(reportDir, 'trace');
+            if (existsSync(traceDir)) {
+                try {
+                    const files = await fs.readdir(traceDir);
+                    for (const file of files) {
+                        if (file.endsWith('.html') && file !== 'index.html') {
+                            await processHtmlFile(path.join(traceDir, file));
+                        }
+                    }
+                } catch (err) {
+                    this.logger.warn(`Error reading trace directory: ${err.message}`);
+                }
+            }
+        } catch (error) {
+            // Log error but don't fail the process
+            this.logger.error(`Error processing report files for S3: ${error.message}`, error.stack);
+        }
+    }
+
+    /**
+     * Inner function to handle test preparation
+     */
+    private async prepareSingleTest(testId: string, testScript: string, runDir: string): Promise<string> {
+        try {
+            this.logger.log(`[${testId}] Preparing test in directory: ${runDir}`);
+            
+            // Ensure proper trace configuration to avoid path issues
+            const enhancedScript = ensureProperTraceConfiguration(testScript, testId);
+            
+            // Create the test file using our utility
+            const { filePath } = await createDiscoverableTestFile(
+                enhancedScript, 
+                testId, 
+                runDir
+            );
+            
+            this.logger.log(`[${testId}] Created test file at: ${filePath}`);
+            return filePath;
+        } catch (error) {
+            this.logger.error(`[${testId}] Failed to prepare test: ${error.message}`, error.stack);
+            throw new Error(`Test preparation failed: ${error.message}`);
+        }
+    }
 }

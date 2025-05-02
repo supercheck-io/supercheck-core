@@ -16,12 +16,10 @@ import { LoadingOverlay } from "./loading-overlay";
 import { TestPriority, TestType } from "@/db/schema";
 import {
   FileTextIcon,
-  CheckCircleIcon,
-  AlertTriangleIcon,
   Loader2Icon,
   ZapIcon,
-  AlertCircle,
-  Code2Icon
+  Code2Icon,
+  Text
 } from "lucide-react";
 import * as z from "zod";
 import type { editor } from "monaco-editor";
@@ -710,7 +708,7 @@ const Playground: React.FC<PlaygroundProps> = ({
               <div className="flex h-full flex-col border rounded-tr-lg rounded-br-lg">
                 <div className="flex items-center justify-between border-b bg-card px-4 py-4 rounded-tr-lg">
                   <div className="flex items-center">
-                    <FileTextIcon className="h-4 w-4 mr-2" />
+                    <Text className="h-4 w-4 mr-2" />
                     <h3 className="text-sm font-medium">Test Details</h3>
                   </div>
                 </div>
@@ -727,9 +725,6 @@ const Playground: React.FC<PlaygroundProps> = ({
                       testId={testId}
                       errors={errors}
                       validateForm={validateForm}
-                      runHistory={runHistory}
-                      historyLoading={historyLoading}
-                      onSelectReport={selectTestReport}
                     />
                   </div>
                 </ScrollArea>

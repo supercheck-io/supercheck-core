@@ -39,28 +39,6 @@ export class S3Service implements OnModuleInit {
       credentials: { accessKeyId, secretAccessKey },
       maxAttempts: this.maxRetries,
     });
-    
-    this.testS3Connection();
-  }
-
-  private async testS3Connection() {
-    try {
-      this.logger.log('Testing S3 connection...');
-      const testBucket = this.jobBucketName;
-      const testKey = 'test-connection.txt';
-      const testBody = 'S3 connection test';
-      
-      await this.s3Client.send(new PutObjectCommand({
-        Bucket: testBucket,
-        Key: testKey,
-        Body: testBody,
-        ContentType: 'text/plain',
-      }));
-      
-      this.logger.log('S3 connection test successful');
-    } catch (error) {
-      this.logger.error(`S3 connection test failed: ${error.message}`, error.stack);
-    }
   }
 
   async onModuleInit() {

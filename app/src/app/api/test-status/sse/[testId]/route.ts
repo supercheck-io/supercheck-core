@@ -32,7 +32,7 @@ export async function GET(
   { params: routeParams }: { params: { testId: string } }
 ) {
   const params = await Promise.resolve(routeParams);
-  const testId = params.testId;
+  const { testId } = params;
   console.log(`[SSE] Request received for testId: ${testId}`);
 
   if (!testId) {
@@ -84,8 +84,11 @@ export async function GET(
       const controllerToClean = streamController;
       streamController = null;
       try {
-        controllerToClean.close();
-        console.log(`[SSE Cleanup ${testId}] Stream controller closed.`);
+        // Check if controller is already closed before attempting to close it
+        if (controllerToClean.desiredSize !== null) {
+          controllerToClean.close();
+          console.log(`[SSE Cleanup ${testId}] Stream controller closed.`);
+        }
       } catch (closeError: any) {
         console.warn(`[SSE Cleanup ${testId}] Error closing stream controller (ignoring): ${closeError.message}`);
       }
@@ -94,8 +97,13 @@ export async function GET(
     // Close DB connection if open
     if (dbInstance) {
         try {
-            await dbInstance.closeConnection(); // Assuming createDb returns an obj with closeConnection
-            console.log(`[SSE Cleanup ${testId}] Database connection closed.`);
+            // Close the database connection using the $client property
+            if (dbInstance.$client) {
+                await dbInstance.$client.end();
+                console.log(`[SSE Cleanup ${testId}] Database connection closed.`);
+            } else {
+                console.log(`[SSE Cleanup ${testId}] No database client found.`);
+            }
             dbInstance = null;
         } catch (dbCloseError: any) {
             console.warn(`[SSE Cleanup ${testId}] Error closing database connection (ignoring): ${dbCloseError.message}`);

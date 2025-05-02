@@ -15,6 +15,7 @@ export interface JobExecutionTask {
     script: string;
     name?: string;
   }>;
+  runId: string; // Optional run ID to distinguish parallel executions of the same job
 }
 
 // Queue names must match the worker service

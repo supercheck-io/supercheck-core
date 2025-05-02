@@ -35,8 +35,7 @@ export class JobExecutionProcessor extends WorkerHost {
   // Specify concurrency if needed, e.g., @Process({ concurrency: 2 })
   // @Process()
   async process(job: Job<JobExecutionTask>): Promise<TestExecutionResult> { // Renamed to process
-    const { jobId } = job.data; // Note: this is actually the runId from the Next.js side
-    const runId = jobId; // For clarity, let's use runId variable name
+    const { jobId, runId } = job.data; // Extract both jobId and runId
     
     this.logger.log(`[${runId}] Processing job execution job ID: ${job.id} (${job.data.testScripts?.length || 0} tests)`);
 

@@ -48,6 +48,7 @@ export interface TestExecutionTask {
 export interface JobExecutionTask {
   jobId: string;
   testScripts: TestScript[];
+  runId: string; // Required run ID to distinguish parallel executions of the same job
 }
 
 // Optional: Interface for database report metadata storage
