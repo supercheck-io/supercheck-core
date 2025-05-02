@@ -301,7 +301,7 @@ const path = require('path');
   }
 
   private async _createTempDir(): Promise<string> {
-    const tempDir = path.join(os.tmpdir(), `test-${randomUUID()}`);
+    const tempDir = path.join(os.tmpdir(), `${randomUUID()}`);
     await fs.mkdir(tempDir, { recursive: true });
     this.logger.log(`Created temporary directory: ${tempDir}`);
     return tempDir;

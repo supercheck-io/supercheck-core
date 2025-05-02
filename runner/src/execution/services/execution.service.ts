@@ -478,7 +478,7 @@ export class ExecutionService {
                     const script = ensureProperTraceConfiguration(originalScript, testId);
                     
                     // Create the test file with unique ID in filename
-                    const testFilePath = path.join(runDir, `test-${i}-${testId}.spec.js`);
+                    const testFilePath = path.join(runDir, `${testId}.spec.js`);
                     
                     // Write the individual test script content
                     // No need to remove require/import as each is a standalone file

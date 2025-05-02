@@ -1,31 +1,22 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-const postgres = require('postgres');
+import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from 'src/db/schema'; // Import the schema we copied
 import { reports } from 'src/db/schema'; // Specifically import reports table
 import { eq, and, sql } from 'drizzle-orm';
 import { ReportMetadata } from '../interfaces'; // Import our interface
 
 // Define a token for the Drizzle provider
-export const DB_PROVIDER_TOKEN = 'DRIZZLE_ORM';
+export const DB_PROVIDER_TOKEN = 'DB_DRIZZLE';
 
 @Injectable()
 export class DbService implements OnModuleInit {
   private readonly logger = new Logger(DbService.name);
-  private dbInstance: PostgresJsDatabase<typeof schema>;
 
-  constructor(private configService: ConfigService) {
-    const connectionString = this.configService.get<string>('DATABASE_URL');
-    if (!connectionString) {
-      this.logger.error('DATABASE_URL environment variable is not set!');
-      throw new Error('Database connection string is missing.');
-    }
-
-    // TODO: Add SSL config based on environment if needed
-    // const sslConfig = this.configService.get('NODE_ENV') === 'production' ? { rejectUnauthorized: true } : false;
-    const client = postgres(connectionString, { ssl: false /* ssl: sslConfig */ }); // Use the require'd postgres
-    this.dbInstance = drizzle(client, { schema });
+  constructor(
+    @Inject(DB_PROVIDER_TOKEN) private dbInstance: PostgresJsDatabase<typeof schema>,
+    private configService: ConfigService
+  ) {
     this.logger.log('Drizzle ORM initialized.');
   }
 
