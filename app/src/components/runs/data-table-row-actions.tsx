@@ -1,66 +1,151 @@
 "use client";
 
-import { Row } from "@tanstack/react-table";
-import { FileIcon, MoreHorizontal, ExternalLinkIcon } from "lucide-react";
+import type { Row } from "@tanstack/react-table";
+import { MoreHorizontal, Trash2, ExternalLink } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useState } from "react";
+import { deleteRun } from "@/actions/delete-run";
+
 import { TestRun } from "./schema";
-import { useRouter } from "next/navigation";
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
+  onDelete?: () => void;
 }
 
 export function DataTableRowActions<TData>({
   row,
+  onDelete,
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
-  const run = row.original as TestRun;
+  const run = row.original as unknown as TestRun;
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   
+  const handleViewRun = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click event
+    router.push(`/runs/${run.id}`);
+  };
+
+  const handleDeleteRun = async () => {
+    if (!run.id) return;
+
+    setIsDeleting(true);
+
+    try {
+      // Use the server action to delete the run
+      const result = await deleteRun(run.id);
+
+      if (!result.success) {
+        // If error is "Run not found", run may have been deleted already
+        if (result.error === "Run not found") {
+          // Show a warning instead of an error
+          toast.warning("Run already deleted", {
+            description: "This run was already deleted or doesn't exist."
+          });
+          
+          // Call the onDelete callback to refresh data
+          if (onDelete) {
+            onDelete();
+          }
+          return;
+        }
+        
+        // For other errors, throw the error to be caught below
+        throw new Error(result.error || "Failed to delete run");
+      }
+
+      toast.success("Run deleted successfully");
+  
+      // Call onDelete callback if provided to refresh data
+      if (onDelete) {
+        onDelete();
+      }
+    } catch (error) {
+      console.error("Error deleting run:", error);
+      toast.error("Error deleting run", {
+        description:
+          error instanceof Error ? error.message : "Failed to delete run",
+        duration: 5000, // Add auto-dismiss after 5 seconds
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="flex h-8 w-8 p-0 data-[state=open]:bg-muted"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-          <span className="sr-only">Open menu</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[160px]">
-        {run.reportUrl && (
-          <DropdownMenuItem
-            onClick={() => window.open(run.reportUrl as string, "_blank")}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            className="flex h-8 w-8 p-0 data-[state=open]:bg-muted"
           >
-            <FileIcon className="mr-2 h-4 w-4" />
-            <span>View Report</span>
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">Open menu</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-[160px]" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuItem onClick={handleViewRun}>
+            <ExternalLink className="mr-2 h-4 w-4" />
+            <span>View Run</span>
           </DropdownMenuItem>
-        )}
-        
-        <DropdownMenuItem
-          onClick={() => router.push(`/jobs/${run.jobId}`)}
-        >
-          <ExternalLinkIcon className="mr-2 h-4 w-4" />
-          <span>View Job</span>
-        </DropdownMenuItem>
-        
-        <DropdownMenuSeparator />
-        
-        <DropdownMenuItem
-          onClick={() => router.push(`/runs/${run.id}`)}
-        >
-          <FileIcon className="mr-2 h-4 w-4" />
-          <span>View Details</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteDialog(true);
+            }}
+            className="text-red-600"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            <span>Delete</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this run. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteRun();
+              }}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

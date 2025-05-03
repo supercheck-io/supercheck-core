@@ -31,11 +31,18 @@ import { DataTablePagination } from "@/components/jobs/data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
 import { cn } from "@/lib/utils";
 
+// Define a more specific meta type
+interface TableMeta {
+  globalFilterColumns?: string[];
+  onDelete?: () => void;
+}
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   isLoading?: boolean;
   onRowClick?: (row: Row<TData>) => void;
+  meta?: TableMeta;
 }
 
 export function DataTable<TData, TValue>({
@@ -43,6 +50,7 @@ export function DataTable<TData, TValue>({
   data,
   isLoading,
   onRowClick,
+  meta,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -78,8 +86,29 @@ export function DataTable<TData, TValue>({
     globalFilterFn: "auto",
     meta: {
       globalFilterColumns: ["id", "jobName", "jobId"],
-    },
+      ...meta,
+    } as TableMeta,
   });
+
+  // Handle row clicks while checking for action column clicks
+  const handleRowClick = (e: React.MouseEvent, row: Row<TData>) => {
+    const target = e.target as HTMLElement;
+    
+    // Check if the click was inside or on a dropdown menu or button
+    if (
+      target.closest('.actions-column') || 
+      target.closest('[role="menuitem"]') || 
+      target.closest('[role="menu"]') || 
+      target.closest('button')
+    ) {
+      return; // Don't process row click
+    }
+    
+    // Process row click if handler provided
+    if (onRowClick) {
+      onRowClick(row);
+    }
+  };
 
   // Initialize pagination after component has mounted
   React.useEffect(() => {
@@ -131,14 +160,20 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={() => onRowClick && onRowClick(row)}
+                  onClick={(e) => handleRowClick(e, row)}
                   className={cn(
-                    onRowClick ? "hover:bg-muted" : "",
+                    onRowClick ? "hover:bg-muted cursor-pointer" : "",
                     "h-16"
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-4">
+                    <TableCell 
+                      key={cell.id} 
+                      className={cn(
+                        "py-4",
+                        cell.column.id === "actions" ? "actions-column" : ""
+                      )}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

@@ -8,9 +8,10 @@ import { formatDistanceToNow } from "date-fns";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
 import { JobStatus } from "./job-status";
-import { Badge } from "@/components/ui/badge";
+import { DataTableRowActions } from "./data-table-row-actions";
 
-export const columns: ColumnDef<TestRun>[] = [
+// Create a function that returns the columns with the onDelete prop
+export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
   {
     accessorKey: "id",
     header: ({ column }) => (
@@ -65,14 +66,23 @@ export const columns: ColumnDef<TestRun>[] = [
     ),
     cell: ({ row }) => {
       const status = row.getValue("status") as string;
-      const jobId = row.getValue("jobId") as string;
       
       // Map the status to a valid status for display
       const mappedStatus = mapDbStatusToDisplayStatus(status);
+      const statusInfo = runStatuses.find(s => s.value === mappedStatus);
       
       return (
         <div className="flex items-center">
-          <JobStatus jobId={jobId} initialStatus={mappedStatus} />
+          {statusInfo ? (
+            <div className="flex items-center">
+              {statusInfo.icon && (
+                <statusInfo.icon className={`h-4 w-4 mr-2 ${statusInfo.color}`} />
+              )}
+              <span>{statusInfo.label}</span>
+            </div>
+          ) : (
+            <JobStatus jobId={row.getValue("jobId")} initialStatus={mappedStatus} />
+          )}
         </div>
       );
     },
@@ -138,7 +148,14 @@ export const columns: ColumnDef<TestRun>[] = [
       );
     },
   },
+  {
+    id: "actions",
+    cell: ({ row }) => <DataTableRowActions row={row} onDelete={onDelete} />,
+  },
 ];
+
+// Export a default set of columns for backward compatibility
+export const columns = createColumns();
 
 // Helper to map DB status to a display status that matches runStatuses values
 function mapDbStatusToDisplayStatus(dbStatus: string): string {
@@ -147,7 +164,7 @@ function mapDbStatusToDisplayStatus(dbStatus: string): string {
   
   switch (status) {
     case 'passed':
-      return 'completed';
+      return 'passed';
     case 'failed':
     case 'error':
       return 'failed';
