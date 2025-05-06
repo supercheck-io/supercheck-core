@@ -113,6 +113,15 @@ function RunButton({ job }: { job: Job }) {
       console.log("[RunButton] Job queued successfully:", data);
 
       if (data.runId) {
+        // Update the loading toast with the run ID link once we have it
+        if (runToastId) {
+          toast.loading(`Executing job: ${job.name.length > 25 ? job.name.substring(0, 25) + '...' : job.name}`, {
+            id: runToastId,
+            description: "Job execution is in progress...",
+            duration: Infinity,
+          });
+        }
+        
         // Set up SSE to get real-time job status
         const eventSource = new EventSource(`/api/job-status/sse/${data.runId}`);
         eventSourceRef.current = eventSource;
@@ -138,6 +147,8 @@ function RunButton({ job }: { job: Job }) {
               // Dismiss the loading toast
               if (runToastId) {
                 toast.dismiss(runToastId);
+                // Ensure toast is dismissed
+                runToastId = undefined;
               }
               
               // Update with final status toast
@@ -183,6 +194,8 @@ function RunButton({ job }: { job: Job }) {
             // Dismiss loading toast on error
             if (runToastId) {
               toast.dismiss(runToastId);
+              // Ensure toast is dismissed
+              runToastId = undefined;
             }
             
             // Show error toast
@@ -207,6 +220,8 @@ function RunButton({ job }: { job: Job }) {
           id: runToastId,
           description: "Failed to get run ID for the job.",
         });
+        // Ensure runToastId is cleared
+        runToastId = undefined;
         setIsRunning(false);
         setJobRunning(false);
       }
@@ -217,6 +232,8 @@ function RunButton({ job }: { job: Job }) {
         id: runToastId,
         description: `Failed to execute the job: ${error instanceof Error ? error.message : "Unknown error"}`,
       });
+      // Ensure runToastId is cleared
+      runToastId = undefined;
       setIsRunning(false);
       setJobRunning(false);
     }
