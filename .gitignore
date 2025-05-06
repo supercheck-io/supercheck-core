@@ -91,5 +91,5 @@ runner/.nyc_output
 
 ## Playwright reports
 runner/local-test-runs/*
-runner/playwright-report/*
+runner/playwright-reports/*
 runner/report/* 

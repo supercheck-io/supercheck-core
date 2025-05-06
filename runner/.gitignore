@@ -53,6 +53,4 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Playwright reports
-local-test-runs/*
-playwright-report/*
-report/*
+playwright-reports/*

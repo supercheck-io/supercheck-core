@@ -137,12 +137,28 @@ export class S3Service implements OnModuleInit {
     }
   }
 
+  // Format a path for report storage using the entity ID directly without nested folders
+  formatReportPath(entityId: string, reportPath: string = 'report'): string {
+    return `${entityId}/${reportPath}`;
+  }
+
   async uploadDirectory(
     localDirPath: string,
     s3KeyPrefix: string,
     bucket?: string,
+    entityId?: string,
+    entityType?: string,
   ): Promise<string[]> {
     const targetBucket = bucket || this.jobBucketName;
+    
+    // If entityId and entityType are provided, use the direct ID format
+    if (entityId && entityType) {
+      // Replace any test-results/entity paths with direct ID path
+      if (s3KeyPrefix.includes('test-results')) {
+        s3KeyPrefix = this.formatReportPath(entityId);
+      }
+    }
+    
     this.logger.log(`[S3 UPLOAD] Starting directory upload from ${localDirPath} to s3://${targetBucket}/${s3KeyPrefix}`);
     
     // Check if directory exists
@@ -248,11 +264,11 @@ export class S3Service implements OnModuleInit {
     return uploadedKeys; // Return keys of successfully uploaded files
   }
 
-  // Fix the method to get the base URL for entity reports
+  // Get the base URL for entity reports
   getBaseUrlForEntity(entityType: string, entityId: string): string {
     const bucket = this.getBucketForEntityType(entityType);
-    // Use consistent format for both tests and jobs
-    const prefix = `test-results/${entityType}s/${entityId}/report`;
+    // Use direct UUID without nested folders
+    const prefix = `${entityId}/report`;
     
     // Fix: Make sure URL format is correct for MinIO
     return `${this.s3Endpoint}/${bucket}/${prefix}`;

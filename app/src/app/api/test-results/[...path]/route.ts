@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { reports } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { Readable } from "stream";
+import { notFound } from "next/navigation";
 
 // Get S3 credentials from environment variables
 const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || 'minioadmin';
@@ -38,20 +38,10 @@ async function getSignedHeaders(url: string, method: string = 'GET'): Promise<He
   }
 }
 
-// Helper function to convert Node.js stream to buffer
-async function streamToBuffer(stream: any): Promise<Buffer> {
+// Helper function to handle various stream types from S3
+async function streamToUint8Array(stream: any): Promise<Uint8Array> {
   if (!stream) {
     throw new Error("Stream is undefined or null");
-  }
-  
-  // For Node.js Readable streams (from AWS SDK)
-  if (typeof stream.pipe === 'function') {
-    return new Promise<Buffer>((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-      stream.on('end', () => resolve(Buffer.concat(chunks)));
-      stream.on('error', reject);
-    });
   }
   
   // For Web API ReadableStream
@@ -62,18 +52,63 @@ async function streamToBuffer(stream: any): Promise<Buffer> {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      chunks.push(value);
+      if (value) chunks.push(value);
     }
     
-    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+    // Calculate total length
+    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    
+    // Merge chunks into a single Uint8Array
     const result = new Uint8Array(totalLength);
     let offset = 0;
     for (const chunk of chunks) {
       result.set(chunk, offset);
-      offset += chunk.length;
+      offset += chunk.byteLength;
     }
     
-    return Buffer.from(result.buffer);
+    return result;
+  }
+  
+  // For Node.js-like streams that have a .on() method 
+  if (typeof stream.on === 'function') {
+    return new Promise<Uint8Array>((resolve, reject) => {
+      const chunks: Uint8Array[] = [];
+      
+      stream.on('data', (chunk: Uint8Array | ArrayBuffer) => {
+        // Convert anything to Uint8Array
+        const typedChunk = chunk instanceof Uint8Array 
+          ? chunk 
+          : new Uint8Array(chunk instanceof ArrayBuffer ? chunk : new Uint8Array(chunk).buffer);
+        chunks.push(typedChunk);
+      });
+      
+      stream.on('end', () => {
+        // Calculate total size
+        const totalSize = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+        
+        // Create a new array and copy all chunks into it
+        const result = new Uint8Array(totalSize);
+        let offset = 0;
+        for (const chunk of chunks) {
+          result.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+        
+        resolve(result);
+      });
+      
+      stream.on('error', reject);
+    });
+  }
+  
+  // If the stream is already an ArrayBuffer
+  if (stream instanceof ArrayBuffer) {
+    return new Uint8Array(stream);
+  }
+  
+  // If the stream is an ArrayBuffer view (like Uint8Array)
+  if (ArrayBuffer.isView(stream)) {
+    return new Uint8Array(stream.buffer);
   }
   
   throw new Error("Unsupported stream type");
@@ -91,41 +126,37 @@ export async function GET(
   const url = new URL(request.url);
   const forceIframe = url.searchParams.get('forceIframe') === 'true';
   
-  // Path format could be:
-  // /jobs/[runId]/report/[...reportPath] for job runs
-  // /tests/[testId]/report/[...reportPath] for test runs
-  if (path.length < 3 || (path[0] !== 'jobs' && path[0] !== 'tests')) {
-    return NextResponse.json({ 
-      error: "Invalid path", 
-      details: "Path must start with 'jobs' or 'tests' followed by an ID and optional report path" 
-    }, { status: 400 });
+  if (path.length < 1) {
+    return notFound();
   }
   
-  const entityType = path[0] === 'jobs' ? 'job' : 'test';
-  const entityId = path[1];
-  let reportFile = path.slice(2).join('/');
+  // Handle both old-style URLs (/jobs/[uuid]/...) and new-style URLs (/[uuid]/...)
+  let entityId: string;
+  let reportFile: string;
   
-  // Ensure path has report/ prefix
-  if (!reportFile.startsWith('report/') && reportFile !== 'report') {
-    reportFile = `report/${reportFile}`;
+  // Check if the first segment is 'jobs' or 'tests' (old URL format)
+  if (path[0] === 'jobs' || path[0] === 'tests') {
+    // Old-style URL: /[entityType]/[uuid]/[...reportPath]
+    if (path.length < 2) {
+      return notFound();
+    }
+    
+    entityId = path[1]; // Second segment is the entity ID
+    reportFile = path.length > 2 ? path.slice(2).join('/') : '';
+    console.log(`Handling old-style URL for entity type ${path[0]}, ID ${entityId}, file: ${reportFile}`);
+  } else {
+    // New-style URL: /[uuid]/[...reportPath]
+    entityId = path[0]; // First segment is the entity ID
+    reportFile = path.length > 1 ? path.slice(1).join('/') : '';
+    console.log(`Handling new-style URL for entity ID ${entityId}, file: ${reportFile}`);
   }
-  
-  // If reportFile ends with just 'report', append index.html
-  if (reportFile === 'report') {
-    reportFile = 'report/index.html';
-  }
-  
-  console.log(`Handling report request for ${entityType} ${entityId}, file: ${reportFile}`);
   
   try {
     const dbInstance = await db();
     
     // Query the reports table to get the s3Url for this entity
     let reportResult = await dbInstance.query.reports.findFirst({
-      where: and(
-        eq(reports.entityId, entityId),
-        eq(reports.entityType, entityType)
-      ),
+      where: eq(reports.entityId, entityId),
       columns: {
         s3Url: true,
         reportPath: true,
@@ -134,36 +165,8 @@ export async function GET(
       }
     });
     
-    // If not found with the specified entity type, try the alternate entity type
-    // This helps with entity type mismatches between UI expectations and stored data
     if (!reportResult) {
-      const alternateEntityType = entityType === 'job' ? 'test' : 'job';
-      
-      console.log(`Report not found for ${entityType} ${entityId}, trying ${alternateEntityType} instead...`);
-      
-      reportResult = await dbInstance.query.reports.findFirst({
-        where: and(
-          eq(reports.entityId, entityId),
-          eq(reports.entityType, alternateEntityType)
-        ),
-        columns: {
-          s3Url: true,
-          reportPath: true,
-          entityType: true,
-          status: true
-        }
-      });
-      
-      if (reportResult) {
-        console.log(`Found report using alternate entity type ${alternateEntityType}`);
-      }
-    }
-    
-    if (!reportResult) {
-      return NextResponse.json({ 
-        error: "Report not found", 
-        details: `No report found for ${entityType} with ID ${entityId}`
-      }, { status: 404 });
+      return notFound();
     }
     
     if (!reportResult.s3Url) {
@@ -174,17 +177,10 @@ export async function GET(
         }, { status: 202 });
       }
       
-      return NextResponse.json({ 
-        error: "Report S3 URL not available",
-        details: "The S3 URL for this report is missing. This could happen if the report upload to S3 failed or if the report was not generated."
-      }, { status: 404 });
+      return notFound();
     }
     
     console.log(`Found report for ${entityId} with entity type ${reportResult.entityType}: ${reportResult.s3Url}`);
-    
-    // Additional logging for debugging
-    console.log(`Report path in database: ${reportResult.reportPath}`);
-    console.log(`Complete report metadata:`, reportResult);
     
     // Parse S3 URL to extract useful parts
     const s3Url = new URL(reportResult.s3Url);
@@ -195,20 +191,31 @@ export async function GET(
       fullUrl: s3Url.toString()
     });
     
-    const s3Host = `${s3Url.protocol}//${s3Url.host}`;
     const pathParts = s3Url.pathname.split('/').filter(part => part.length > 0);
     const bucket = pathParts[0];
-    const basePath = pathParts.slice(1, -1).join('/');
     
-    console.log(`Extracted parts:`, { s3Host, bucket, basePath, pathParts });
+    console.log(`Extracted parts:`, { bucket, pathParts });
     
     // Determine the file path based on what's being requested
-    let targetFile = reportFile.replace(/^report\//, '');
-    if (targetFile === '') targetFile = 'index.html';
+    let targetFile = reportFile || 'index.html';
     
-    // Clean up the key path
-    const key = `${basePath}/${targetFile}`.replace(/\/+/g, '/');
-    console.log(`Constructed key path: ${key}`);
+    // Extract the base path without the file part and use only the entityId/report structure
+    const entityIdIndex = pathParts.indexOf(entityId);
+    let s3Key;
+    
+    if (entityIdIndex !== -1) {
+      // Use the actual entityId and report path structure from S3 URL
+      const prefix = pathParts.slice(entityIdIndex, pathParts.length - 1).join('/');
+      s3Key = `${prefix}/${targetFile}`;
+    } else {
+      // Fallback to direct construction if we can't find entityId in path
+      s3Key = `${entityId}/report/${targetFile}`;
+    }
+    
+    // Clean up any duplicate path segments (like report/report)
+    s3Key = s3Key.replace(/\/report\/report\//g, '/report/');
+    
+    console.log(`Constructed key path: ${s3Key}`);
     
     // Skip the direct fetch approach that's failing and go straight to the AWS SDK
     console.log('Using AWS SDK approach for S3 access...');
@@ -217,11 +224,11 @@ export async function GET(
       // Try AWS SDK approach
       const command = new GetObjectCommand({
         Bucket: bucket,
-        Key: key,
+        Key: s3Key,
       });
       
       // Use AWS SDK for S3 access which handles auth correctly
-      console.log(`Using AWS SDK for S3 access to ${bucket}/${key}`);
+      console.log(`Using AWS SDK for S3 access to ${bucket}/${s3Key}`);
       
       const s3Response = await s3Client.send(command);
       
@@ -229,7 +236,7 @@ export async function GET(
         throw new Error("Empty response from S3");
       }
       
-      const buffer = await streamToBuffer(s3Response.Body);
+      const buffer = await streamToUint8Array(s3Response.Body);
       const contentType = s3Response.ContentType || 'application/octet-stream';
       
       return new NextResponse(buffer, {
@@ -244,19 +251,20 @@ export async function GET(
           ))
         }
       });
-    } catch (s3Error) {
+    } catch (error: unknown) {
+      const s3Error = error as Error;
       console.error(`AWS SDK approach failed: ${s3Error.message}`);
       console.log('Trying final fallback with direct file construction...');
       
       // 3. Last resort: try a simple file URL construction 
       try {
-        // Extract the base URL without the file part
-        const baseUrlParts = reportResult.s3Url.split('/');
-        baseUrlParts.pop(); // Remove the last part (index.html)
-        const baseUrl = baseUrlParts.join('/');
+        // Construct a direct URL using the same pattern as the S3 key
+        const urlBase = s3Url.protocol + '//' + s3Url.host;
+        const bucketPrefix = '/' + bucket + '/';
         
-        // Build the complete URL
-        const fallbackUrl = `${baseUrl}/${targetFile}`;
+        // Use the same s3Key we built earlier for consistency
+        const fallbackUrl = `${urlBase}${bucketPrefix}${s3Key}`;
+        
         console.log(`Final fallback URL: ${fallbackUrl}`);
         
         // Configure the headers with AWS v4 signature
@@ -272,7 +280,7 @@ export async function GET(
         const fallbackData = await fallbackResponse.arrayBuffer();
         const fallbackContentType = fallbackResponse.headers.get('Content-Type') || 'application/octet-stream';
         
-        return new NextResponse(fallbackData, {
+        return new NextResponse(new Uint8Array(fallbackData), {
           status: 200,
           headers: {
             'Content-Type': fallbackContentType,
@@ -284,19 +292,14 @@ export async function GET(
             ))
           }
         });
-      } catch (fallbackError) {
+      } catch (error: unknown) {
+        const fallbackError = error as Error;
         console.error(`All approaches failed. Last error: ${fallbackError.message}`);
-        return NextResponse.json({
-          error: "Failed to fetch report",
-          details: "All approaches to fetch the report failed. Please check server logs for details."
-        }, { status: 500 });
+        return notFound();
       }
     }
   } catch (error) {
-    console.error(`Error fetching report for ${entityType} ${entityId}:`, error);
-    return NextResponse.json(
-      { error: "Failed to fetch report", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
+    console.error(`Error fetching report for entity ${entityId}:`, error);
+    return notFound();
   }
 } 

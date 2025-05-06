@@ -66,7 +66,7 @@ export class ExecutionService {
         }
         this.playwrightConfigPath = configPath;
 
-        this.baseLocalRunDir = path.join(process.cwd(), 'local-test-runs');
+        this.baseLocalRunDir = path.join(process.cwd(), 'playwright-reports');
         this.logger.log(`Test execution timeout set to: ${this.testExecutionTimeoutMs}ms`);
         this.logger.log(`Base local run directory: ${this.baseLocalRunDir}`);
         this.logger.log(`Using Playwright config (relative): ${path.relative(process.cwd(), this.playwrightConfigPath)}`);
@@ -86,9 +86,11 @@ export class ExecutionService {
 
         await this.redisService.publishTestStatus(testId, { status: 'running' });
 
-        const runDir = path.join(this.baseLocalRunDir, testId);
+        // Generate unique ID for this run to avoid conflicts in parallel executions
+        const uniqueRunId = `${testId}-${crypto.randomUUID().substring(0, 8)}`;
+        const runDir = path.join(this.baseLocalRunDir, uniqueRunId);
         const reportDir = path.join(runDir, 'report');
-        const s3ReportKeyPrefix = `test-results/tests/${testId}/report`;
+        const s3ReportKeyPrefix = `${testId}/report`;
         const entityType = 'test';
         let finalResult: TestResult;
         let s3Url: string | null = null;
@@ -204,7 +206,7 @@ export class ExecutionService {
                 // Try to upload the error report from the local path
                 try {
                     const testBucket = this.s3Service.getBucketForEntityType(entityType);
-                    await this.s3Service.uploadDirectory(errorReportDir, s3ReportKeyPrefix, testBucket);
+                    await this.s3Service.uploadDirectory(errorReportDir, s3ReportKeyPrefix, testBucket, testId, entityType);
                     // s3Url is already set to baseS3ReportUrl
                     this.logger.log(`[${testId}] Validation error report uploaded to S3 prefix: ${s3ReportKeyPrefix}`);
                 } catch (uploadErr) {
@@ -257,12 +259,12 @@ export class ExecutionService {
                         // Process the report files to fix trace URLs before uploading
                         await this._processReportFilesForS3(reportDir, testId, entityType);
                         
-                        await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket);
+                        await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket, testId, entityType);
                         this.logger.log(`[${testId}] HTML report uploaded to S3 prefix: ${s3ReportKeyPrefix}`);
                         s3Url = this.s3Service.getBaseUrlForEntity(entityType, testId) + '/index.html';
                     } else {
                         // Handle case where playwright-report might exist instead (e.g., native runner used directly)
-                         const defaultPlaywrightReportDir = path.join(process.cwd(), 'playwright-report');
+                         const defaultPlaywrightReportDir = path.join(runDir, 'pw-report');
                          const defaultIndexHtml = path.join(defaultPlaywrightReportDir, 'index.html');
 
                          if (existsSync(defaultIndexHtml)) {
@@ -271,7 +273,7 @@ export class ExecutionService {
                              cpSync(defaultPlaywrightReportDir, reportDir, { recursive: true });
                              // Process the report files to fix trace URLs before uploading
                              await this._processReportFilesForS3(reportDir, testId, entityType);
-                             await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket);
+                             await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket, testId, entityType);
                              this.logger.log(`[${testId}] Copied and uploaded HTML report to S3 prefix: ${s3ReportKeyPrefix}`);
                              s3Url = this.s3Service.getBaseUrlForEntity(entityType, testId) + '/index.html';
                            } catch (copyErr: any) {
@@ -331,12 +333,12 @@ export class ExecutionService {
                         // Process the report files to fix trace URLs before uploading
                         await this._processReportFilesForS3(reportDir, testId, entityType);
                         
-                        await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket);
+                        await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket, testId, entityType);
                         this.logger.log(`[${testId}] Error report/artifacts uploaded to S3 prefix: ${s3ReportKeyPrefix}`);
                         s3Url = this.s3Service.getBaseUrlForEntity(entityType, testId) + '/index.html';
                    } else {
-                     // Check for default Playwright report in root directory
-                     const defaultPlaywrightReportDir = path.join(process.cwd(), 'playwright-report');
+                     // Check for default Playwright report in run directory
+                     const defaultPlaywrightReportDir = path.join(runDir, 'pw-report');
                      const defaultIndexHtml = path.join(defaultPlaywrightReportDir, 'index.html');
 
                      if (existsSync(defaultIndexHtml)) {
@@ -345,7 +347,7 @@ export class ExecutionService {
                          cpSync(defaultPlaywrightReportDir, reportDir, { recursive: true });
                          // Process the report files to fix trace URLs before uploading
                          await this._processReportFilesForS3(reportDir, testId, entityType);
-                         await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket);
+                         await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, testBucket, testId, entityType);
                          this.logger.log(`[${testId}] Copied and uploaded HTML report to S3 prefix: ${s3ReportKeyPrefix}`);
                          s3Url = this.s3Service.getBaseUrlForEntity(entityType, testId) + '/index.html';
                        } catch (copyErr: any) {
@@ -416,14 +418,14 @@ export class ExecutionService {
             throw error; 
         } finally {
             // 6. Cleanup local run directory
-            // <<< TEMP: Comment out cleanup for debugging failed reports >>>
-            // <<< RE-ENABLED Cleanup >>>
-            // /*
-            this.logger.debug(`[${testId}] Cleaning up local run directory: ${runDir}`);
+            // Skip cleanup to preserve test reports
+            this.logger.debug(`[${testId}] Preserving local run directory: ${runDir}`);
+            // Comment out the cleanup code
+            /*
             await fs.rm(runDir, { recursive: true, force: true }).catch(err => {
                 this.logger.warn(`[${testId}] Failed to cleanup local run directory ${runDir}: ${err.message}`);
             });
-            // */
+            */
         }
 
         return finalResult;
@@ -438,9 +440,11 @@ export class ExecutionService {
         const entityType = 'job';
         this.logger.log(`[${runId}] Starting job execution with ${testScripts.length} tests.`);
 
-        const runDir = path.join(this.baseLocalRunDir, runId);
+        // Generate unique ID for this run to avoid conflicts in parallel executions
+        const uniqueRunId = `${runId}-${crypto.randomUUID().substring(0, 8)}`;
+        const runDir = path.join(this.baseLocalRunDir, uniqueRunId);
         const reportDir = path.join(runDir, 'report');
-        const s3ReportKeyPrefix = `test-results/${entityType}s/${runId}/report`; // S3 prefix for the final report
+        const s3ReportKeyPrefix = `${runId}/report`;
         let finalResult: TestExecutionResult;
         let s3Url: string | null = null;
         let finalError: string | null = null;
@@ -527,7 +531,7 @@ export class ExecutionService {
                         // Process the report files to fix trace URLs before uploading
                         await this._processReportFilesForS3(reportDir, runId, entityType);
                         
-                        await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, jobBucket);
+                        await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, jobBucket, runId, entityType);
                         this.logger.log(`[${runId}] Report directory contents uploaded to S3 prefix: ${s3ReportKeyPrefix}`);
                     } catch (uploadErr: any) {
                         this.logger.error(`[${runId}] Report upload failed from ${reportDir}: ${uploadErr.message}`);
@@ -541,7 +545,7 @@ export class ExecutionService {
             // If no report found in the output directory, check for the default playwright-report location
             if (!reportFound) {
                 const serviceRoot = process.cwd();
-                const playwrightReportDir = path.join(serviceRoot, 'playwright-report');
+                const playwrightReportDir = path.join(runDir, 'pw-report');
                 
                 if (existsSync(playwrightReportDir)) {
                     this.logger.log(`[${runId}] Found HTML report in default location: ${playwrightReportDir}`);
@@ -550,7 +554,7 @@ export class ExecutionService {
                         await this._processReportFilesForS3(playwrightReportDir, runId, entityType);
                         
                         // Upload the playwright-report directory contents
-                        await this.s3Service.uploadDirectory(playwrightReportDir, s3ReportKeyPrefix, jobBucket);
+                        await this.s3Service.uploadDirectory(playwrightReportDir, s3ReportKeyPrefix, jobBucket, runId, entityType);
                         this.logger.log(`[${runId}] Report directory uploaded from default location to S3 prefix: ${s3ReportKeyPrefix}`);
                         reportFound = true;
                     } catch (uploadErr: any) {
@@ -571,7 +575,7 @@ export class ExecutionService {
                         // Process the report files to fix trace URLs before uploading
                         await this._processReportFilesForS3(reportDir, runId, entityType);
                         
-                        await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, jobBucket);
+                        await this.s3Service.uploadDirectory(reportDir, s3ReportKeyPrefix, jobBucket, runId, entityType);
                         this.logger.log(`[${runId}] Uploaded test artifacts to S3 prefix: ${s3ReportKeyPrefix}`);
                     } catch (uploadErr: any) {
                         this.logger.error(`[${runId}] Artifacts upload failed: ${uploadErr.message}`);
@@ -644,10 +648,13 @@ export class ExecutionService {
             throw error; 
         } finally {
             // 7. Cleanup local run directory
-            this.logger.debug(`[${runId}] Cleaning up local run directory: ${runDir}`);
+            this.logger.debug(`[${runId}] Preserving local run directory: ${runDir}`);
+            // Comment out the cleanup code to keep reports
+            /*
             await fs.rm(runDir, { recursive: true, force: true }).catch(err => {
                 this.logger.warn(`[${runId}] Failed to cleanup local run directory ${runDir}: ${err.message}`);
             });
+            */
         }
 
         return finalResult;
@@ -664,7 +671,8 @@ export class ExecutionService {
     ): Promise<PlaywrightExecutionResult> {
         const serviceRoot = process.cwd(); 
         const playwrightConfigPath = path.join(serviceRoot, 'playwright.config.js'); // Get absolute path to config
-        const playwrightReportDir = path.join(serviceRoot, 'playwright-report');
+        // Use a subdirectory in the provided runDir instead of a global playwright-report
+        const playwrightReportDir = path.join(runDir, 'pw-report');
         
         // Create a unique ID for this execution to prevent conflicts in parallel runs
         const executionId = crypto.randomUUID().substring(0, 8);
@@ -694,6 +702,8 @@ export class ExecutionService {
                 PLAYWRIGHT_EXECUTION_ID: executionId,
                 // Create a unique artifacts folder for this execution
                 PLAYWRIGHT_ARTIFACTS_DIR: path.join(runDir, `.artifacts-${executionId}`),
+                // Redirect the report to the run directory
+                PLAYWRIGHT_HTML_REPORT: path.join(runDir, 'pw-report'),
                 // Add timestamp to prevent caching issues
                 PLAYWRIGHT_TIMESTAMP: Date.now().toString()
             };

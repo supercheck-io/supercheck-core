@@ -21,13 +21,13 @@ export function RunDetails({ run }: RunDetailsProps) {
   
   useEffect(() => {
     if (run.reportUrl) {
-      // Use the API proxy instead of direct S3 URL
-      const apiUrl = `/api/test-results/jobs/${run.id}/report/index.html?t=${Date.now()}`;
+      // Use the API proxy with direct UUID format instead of /jobs/ prefix
+      const apiUrl = `/api/test-results/${run.id}/report/index.html?t=${Date.now()}`;
       console.log(`Setting report URL to API proxy: ${apiUrl} (original: ${run.reportUrl})`);
       setReportUrl(apiUrl);
     } else {
-      // If no report URL, still try to use the test-results API
-      setReportUrl(`/api/test-results/jobs/${run.id}/report/index.html?t=${Date.now()}`);
+      // If no report URL, still try to use the test-results API with direct UUID
+      setReportUrl(`/api/test-results/${run.id}/report/index.html?t=${Date.now()}`);
     }
     setCurrentStatus(run.status);
   }, [run.reportUrl, run.status, run.id]);
@@ -41,8 +41,8 @@ export function RunDetails({ run }: RunDetailsProps) {
     }
     
     if (newReportUrl) {
-      // Regardless of the reportUrl from SSE, use our API proxy
-      const apiUrl = `/api/test-results/jobs/${run.id}/report/index.html?t=${Date.now()}`;
+      // Regardless of the reportUrl from SSE, use our API proxy with direct UUID
+      const apiUrl = `/api/test-results/${run.id}/report/index.html?t=${Date.now()}`;
       console.log(`Setting report URL after SSE update: ${apiUrl}`);
       setReportUrl(apiUrl);
     }
@@ -130,6 +130,7 @@ export function RunDetails({ run }: RunDetailsProps) {
             containerClassName="w-full h-[calc(100vh-220px)] relative"
             iframeClassName="w-full h-full border-0"
             darkMode={false}
+            hideEmptyMessage={true}
           />
         </div>
       </div>

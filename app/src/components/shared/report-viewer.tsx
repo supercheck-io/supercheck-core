@@ -13,6 +13,7 @@ interface ReportViewerProps {
   loadingMessage?: string;
   darkMode?: boolean;
   isFailedTest?: boolean;
+  hideEmptyMessage?: boolean;
 }
 
 export function ReportViewer({
@@ -25,6 +26,7 @@ export function ReportViewer({
   loadingMessage = "Loading report...",
   darkMode = true,
   isFailedTest = false,
+  hideEmptyMessage = false,
 }: ReportViewerProps) {
   const [isReportLoading, setIsReportLoading] = useState(!!reportUrl);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -128,8 +130,12 @@ export function ReportViewer({
       <div className={containerClassName}>
         <div className={`w-full h-full flex items-center justify-center ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
           <div className="flex flex-col items-center gap-3 text-muted-foreground -mt-[70px]">
-            <FileText className="h-10 w-10" />
-            <p >Run the script to view the report</p>
+            {!hideEmptyMessage && (
+              <>
+                <FileText className="h-10 w-10" />
+                <p>Run the script to view the report</p>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -197,11 +203,12 @@ export function ReportViewer({
               }
               
               // Check if there's any HTML content at all in the iframe
-              const hasContent = iframe.contentWindow?.document.body.innerHTML?.trim().length > 0;
+              // Use nullish coalescing to safely check length after potential undefined values
+              const hasContent = (iframe.contentWindow?.document.body.innerHTML?.trim()?.length ?? 0) > 0;
               
               if (!hasContent) {
                 console.log("ReportViewer: Empty iframe content, treating as error");
-                setReportError("No report content available. The test may have failed to generate a valid report.");
+                setReportError("No report content available.");
                 setIframeError(true);
                 setIsReportLoading(false);
                 return;

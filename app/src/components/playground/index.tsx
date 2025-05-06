@@ -434,7 +434,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                 
                 // Construct the relative API report URL, don't use the direct S3 URL from data
                 if (result.testId) { // Ensure we have the testId from the initial API call
-                  const apiUrl = `/api/test-results/tests/${result.testId}/report/index.html?t=${Date.now()}&forceIframe=true`;
+                  const apiUrl = `/api/test-results/${result.testId}/report/index.html?t=${Date.now()}&forceIframe=true`;
                   console.log(`Test ${data.status}: Setting report URL to API path: ${apiUrl}`);
                   setReportUrl(apiUrl); // Use the relative API path
                   
@@ -490,7 +490,7 @@ const Playground: React.FC<PlaygroundProps> = ({
             
             // Try to load the report anyway using the API path if testId is available
             if (result.testId) {
-               const apiUrl = `/api/test-results/tests/${result.testId}/report/index.html?t=${Date.now()}&forceIframe=true`;
+               const apiUrl = `/api/test-results/${result.testId}/report/index.html?t=${Date.now()}&forceIframe=true`;
               console.log(`SSE error fallback: Setting report URL to API path: ${apiUrl}`);
               setReportUrl(apiUrl); // Use the relative API path
               setActiveTab("report");
@@ -586,7 +586,7 @@ const Playground: React.FC<PlaygroundProps> = ({
         return;
       }
       // Construct the report URL with the API path, using the 'tests' prefix
-      const reportUrlWithCache = `/api/test-results/tests/${run.entityId}/report/index.html?t=${Date.now()}&forceIframe=true`;
+      const reportUrlWithCache = `/api/test-results/${run.entityId}/report/index.html?t=${Date.now()}&forceIframe=true`;
 
       // Update state
       setReportUrl(reportUrlWithCache);

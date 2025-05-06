@@ -99,7 +99,7 @@ module.exports = defineConfig({
   workers: process.env.CI ? 1 : undefined, // Opt out of parallel tests on CI.
   outputDir: './test-results', // Folder for test artifacts like screenshots, videos, traces, etc.
   reporter: [
-    ['html', { open: 'never', outputFolder: 'playwright-report' }], // Generate HTML report
+    ['html', { open: 'never', outputFolder: 'report' }], // Generate HTML report
     ['list'] // Use list reporter in console
   ],
   use: {
@@ -151,7 +151,7 @@ const path = require('path');
 const testId = "${testId}";
 const runTempDir = process.env.RUN_TEMP_DIR || __dirname;
 const reportDir = path.join(runTempDir, 'report'); // Target directory for final report
-const playwrightReportDir = path.join(runTempDir, 'playwright-report'); // Default Playwright HTML report output
+const playwrightReportDir = path.join(runTempDir, 'report'); // Default Playwright HTML report output
 
 // --- Helper Functions ---
 const log = (message) => console.log(\`[\${testId}] \${message}\`);

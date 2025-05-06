@@ -23,9 +23,8 @@ export async function POST(request: NextRequest) {
 
     await addTestToQueue(task);
 
-    // Include the reportUrl in the response - use the tests path to match the correct entity type
-    // This path structure should match how reports are stored in the execution service
-    const reportUrl = `/api/test-results/tests/${testId}/report/index.html`;
+    // Include the reportUrl in the response using direct UUID path
+    const reportUrl = `/api/test-results/${testId}/report/index.html`;
 
     return NextResponse.json({
       message: "Test execution queued successfully.",

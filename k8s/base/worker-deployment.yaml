@@ -35,9 +35,7 @@ spec:
             name: app-secrets
         volumeMounts:
         - name: test-artifacts
-          mountPath: /app/local-test-runs
-        - name: playwright-reports
-          mountPath: /app/playwright-report
+          mountPath: /app/playwright-reports
         readinessProbe:
           httpGet:
             path: /health
@@ -52,6 +50,4 @@ spec:
           periodSeconds: 20
       volumes:
       - name: test-artifacts
-        emptyDir: {}
-      - name: playwright-reports
         emptyDir: {} 
