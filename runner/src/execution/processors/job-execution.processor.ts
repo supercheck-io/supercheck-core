@@ -37,14 +37,14 @@ export class JobExecutionProcessor extends WorkerHost {
   // Specify concurrency if needed, e.g., @Process({ concurrency: 2 })
   // @Process()
   async process(job: Job<JobExecutionTask>): Promise<TestExecutionResult> { // Renamed to process
-    const { jobId, runId } = job.data; // Extract both jobId and runId
+    const { jobId, runId, originalJobId } = job.data; // Extract both jobId and runId
     
     this.logger.log(`[${runId}] Processing job execution job ID: ${job.id} (${job.data.testScripts?.length || 0} tests)`);
 
     // Update job status to running in the database
-    // We need to update the original job ID (not the run ID)
-    if (jobId) {
-      await this.dbService.updateJobStatus(jobId, 'running')
+    // Use originalJobId instead of runId for updating the jobs table
+    if (originalJobId) {
+      await this.dbService.updateJobStatus(originalJobId, 'running')
         .catch(err => this.logger.error(`[${runId}] Failed to update job status to running: ${err.message}`));
     }
 
@@ -67,8 +67,9 @@ export class JobExecutionProcessor extends WorkerHost {
       this.logger.log(`[${runId}] Job execution job ID: ${job.id} completed. Overall Success: ${result.success}`);
       
       // Update job status in the database based on result success
-      if (jobId) {
-        await this.dbService.updateJobStatus(jobId, result.success ? 'completed' : 'failed')
+      // Use originalJobId instead of runId for updating the jobs table
+      if (originalJobId) {
+        await this.dbService.updateJobStatus(originalJobId, result.success ? 'completed' : 'failed')
           .catch(err => this.logger.error(`[${runId}] Failed to update job status on completion: ${err.message}`));
       }
       
@@ -88,8 +89,9 @@ export class JobExecutionProcessor extends WorkerHost {
       this.logger.error(`[${runId}] Job execution job ID: ${job.id} failed. Error: ${error.message}`, error.stack);
       
       // Update job status to failed in the database
-      if (jobId) {
-        await this.dbService.updateJobStatus(jobId, 'failed')
+      // Use originalJobId instead of runId for updating the jobs table
+      if (originalJobId) {
+        await this.dbService.updateJobStatus(originalJobId, 'failed')
           .catch(err => this.logger.error(`[${runId}] Failed to update job status on error: ${err.message}`));
       }
       
