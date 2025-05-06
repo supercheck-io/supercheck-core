@@ -9,6 +9,9 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";
 
+// Refresh interval in milliseconds (10 seconds)
+const REFRESH_INTERVAL = 10000;
+
 export function RunsClient() {
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,7 +51,16 @@ export function RunsClient() {
   }, []);
 
   useEffect(() => {
+    // Initial fetch
     fetchRuns();
+    
+    // Set up periodic refresh
+    const refreshInterval = setInterval(() => {
+      fetchRuns();
+    }, REFRESH_INTERVAL);
+    
+    // Clean up interval on unmount
+    return () => clearInterval(refreshInterval);
   }, [fetchRuns]);
 
   const handleRowClick = (row: Row<TestRun>) => {
