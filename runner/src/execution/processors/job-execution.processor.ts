@@ -5,6 +5,7 @@ import { Logger } from '@nestjs/common';
 import { JOB_EXECUTION_QUEUE } from '../constants'; // Use constants file
 import { ExecutionService } from '../services/execution.service';
 import { RedisService } from '../services/redis.service';
+import { DbService } from '../services/db.service';
 import { TestScript, JobExecutionTask, TestExecutionResult } from '../interfaces'; // Use updated interfaces
 
 // Define the expected structure of the job data
@@ -27,7 +28,8 @@ export class JobExecutionProcessor extends WorkerHost {
 
   constructor(
     private readonly executionService: ExecutionService,
-    private readonly redisService: RedisService
+    private readonly redisService: RedisService,
+    private readonly dbService: DbService
   ) {
     super();
   }
@@ -38,6 +40,13 @@ export class JobExecutionProcessor extends WorkerHost {
     const { jobId, runId } = job.data; // Extract both jobId and runId
     
     this.logger.log(`[${runId}] Processing job execution job ID: ${job.id} (${job.data.testScripts?.length || 0} tests)`);
+
+    // Update job status to running in the database
+    // We need to update the original job ID (not the run ID)
+    if (jobId) {
+      await this.dbService.updateJobStatus(jobId, 'running')
+        .catch(err => this.logger.error(`[${runId}] Failed to update job status to running: ${err.message}`));
+    }
 
     // Publish initial status with runId
     await this.redisService.publishJobStatus(runId, { 
@@ -57,6 +66,12 @@ export class JobExecutionProcessor extends WorkerHost {
       await job.updateProgress(100);
       this.logger.log(`[${runId}] Job execution job ID: ${job.id} completed. Overall Success: ${result.success}`);
       
+      // Update job status in the database based on result success
+      if (jobId) {
+        await this.dbService.updateJobStatus(jobId, result.success ? 'completed' : 'failed')
+          .catch(err => this.logger.error(`[${runId}] Failed to update job status on completion: ${err.message}`));
+      }
+      
       // Publish completion status with runId
       await this.redisService.publishJobStatus(runId, { 
         status: result.success ? 'completed' : 'failed',
@@ -71,6 +86,12 @@ export class JobExecutionProcessor extends WorkerHost {
       return result; 
     } catch (error) {
       this.logger.error(`[${runId}] Job execution job ID: ${job.id} failed. Error: ${error.message}`, error.stack);
+      
+      // Update job status to failed in the database
+      if (jobId) {
+        await this.dbService.updateJobStatus(jobId, 'failed')
+          .catch(err => this.logger.error(`[${runId}] Failed to update job status on error: ${err.message}`));
+      }
       
       // Publish error status with runId
       await this.redisService.publishJobStatus(runId, { 

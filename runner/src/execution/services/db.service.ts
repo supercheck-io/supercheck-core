@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from 'src/db/schema'; // Import the schema we copied
-import { reports } from 'src/db/schema'; // Specifically import reports table
+import { reports, jobs } from 'src/db/schema'; // Specifically import reports table
 import { eq, and, sql } from 'drizzle-orm';
 import { ReportMetadata } from '../interfaces'; // Import our interface
 
@@ -84,6 +84,33 @@ export class DbService implements OnModuleInit {
       this.logger.error(`Error storing report metadata for ${entityType}/${entityId}: ${error.message}`, error.stack);
       // Decide whether to re-throw or just log
       // throw error; 
+    }
+  }
+
+  /**
+   * Updates the status of a job in the jobs table
+   * @param jobId The ID of the job to update
+   * @param status The new status to set
+   */
+  async updateJobStatus(
+    jobId: string, 
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  ): Promise<void> {
+    this.logger.debug(`Updating job status for job ${jobId} to ${status}`);
+    
+    try {
+      await this.db.update(jobs)
+        .set({
+          status,
+          updatedAt: new Date(),
+          ...(status === 'completed' || status === 'failed' ? { lastRunAt: new Date() } : {})
+        })
+        .where(eq(jobs.id, jobId))
+        .execute();
+        
+      this.logger.log(`Successfully updated job status for job ${jobId} to ${status}`);
+    } catch (error) {
+      this.logger.error(`Error updating job status for job ${jobId}: ${error.message}`, error.stack);
     }
   }
 }
