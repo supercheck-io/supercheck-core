@@ -16,6 +16,7 @@ export interface JobExecutionTask {
     name?: string;
   }>;
   runId: string; // Optional run ID to distinguish parallel executions of the same job
+  originalJobId?: string; // The original job ID from the 'jobs' table
 }
 
 // Queue names must match the worker service
