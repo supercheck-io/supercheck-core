@@ -127,11 +127,25 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
         );
       }
       
-      // Format the duration when it's a number (milliseconds)
+      // Format the duration when it's a number (seconds)
       let formattedDuration = duration;
-      if (typeof duration === 'number') {
-        // Convert milliseconds to a readable format
-        const seconds = Math.floor(duration / 1000);
+      
+      if (typeof duration === 'string') {
+        // Check if the string contains only a number (legacy format)
+        const numericDuration = parseInt(duration, 10);
+        if (!isNaN(numericDuration)) {
+          const seconds = numericDuration;
+          const minutes = Math.floor(seconds / 60);
+          const remainingSeconds = seconds % 60;
+          
+          formattedDuration = minutes > 0 
+            ? `${minutes}m ${remainingSeconds}s` 
+            : `${remainingSeconds}s`;
+        }
+        // If the duration is already formatted (like "3s" or "2m 5s"), use it as is
+      } else if (typeof duration === 'number') {
+        // Convert seconds to a readable format (not milliseconds)
+        const seconds = duration;
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         
@@ -173,7 +187,7 @@ function mapDbStatusToDisplayStatus(dbStatus: string): string {
     case 'skipped':
       return status;
     case 'completed':
-      return 'completed';
+      return 'passed';
     default:
       console.warn(`Unknown status: ${dbStatus}`);
       return 'pending';

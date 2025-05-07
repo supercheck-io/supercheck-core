@@ -31,6 +31,7 @@ export interface TestExecutionResult {
     reportUrl?: string | null; // Use job report URL
   }>;
   timestamp: string;
+  duration?: string;
   stdout?: string;
   stderr?: string;
 }

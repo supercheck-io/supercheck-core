@@ -10,6 +10,7 @@ import { ReportViewer } from "@/components/shared/report-viewer";
 import { formatDistanceToNow } from "date-fns";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 import { RunStatusListener } from "./run-status-listener";
+import { TestRunStatus } from "@/db/schema";
 
 interface RunDetailsProps {
   run: RunResponse;
@@ -17,7 +18,17 @@ interface RunDetailsProps {
 
 export function RunDetails({ run }: RunDetailsProps) {
   const [reportUrl, setReportUrl] = useState('');
-  const [currentStatus, setCurrentStatus] = useState(run.status);
+  const [duration, setDuration] = useState<string | undefined>(run.duration || undefined);
+
+  // Helper to map status for display
+  const mapStatusForDisplay = (status: string): TestRunStatus => {
+    if (status.toLowerCase() === 'completed') {
+      return 'passed' as TestRunStatus;
+    }
+    return status as TestRunStatus;
+  };
+  
+  const [currentStatus, setCurrentStatus] = useState<TestRunStatus>(mapStatusForDisplay(run.status as TestRunStatus));
   
   useEffect(() => {
     if (run.reportUrl) {
@@ -29,15 +40,16 @@ export function RunDetails({ run }: RunDetailsProps) {
       // If no report URL, still try to use the test-results API with direct UUID
       setReportUrl(`/api/test-results/${run.id}/report/index.html?t=${Date.now()}`);
     }
-    setCurrentStatus(run.status);
-  }, [run.reportUrl, run.status, run.id]);
+    setCurrentStatus(mapStatusForDisplay(run.status as TestRunStatus));
+    setDuration(run.duration || undefined);
+  }, [run.reportUrl, run.status, run.id, run.duration]);
 
   // Handle status updates from SSE
-  const handleStatusUpdate = (status: string, newReportUrl?: string) => {
-    console.log(`Status update: ${status}, reportUrl: ${newReportUrl}`);
+  const handleStatusUpdate = (status: string, newReportUrl?: string, newDuration?: string) => {
+    console.log(`Status update: ${status}, reportUrl: ${newReportUrl}, duration: ${newDuration}`);
     
     if (status !== currentStatus) {
-      setCurrentStatus(status);
+      setCurrentStatus(mapStatusForDisplay(status as TestRunStatus));
     }
     
     if (newReportUrl) {
@@ -46,6 +58,41 @@ export function RunDetails({ run }: RunDetailsProps) {
       console.log(`Setting report URL after SSE update: ${apiUrl}`);
       setReportUrl(apiUrl);
     }
+
+    // Update duration if it changed
+    if (newDuration && newDuration !== duration) {
+      console.log(`Updating duration from ${duration} to ${newDuration}`);
+      setDuration(newDuration);
+    }
+  };
+
+  // Format the duration for display
+  const formatDuration = (durationStr?: string) => {
+    if (!durationStr) return "Unknown";
+    
+    // If it's already a nicely formatted string like "3s" or "1m 30s", just return it
+    if (typeof durationStr === 'string' && (durationStr.includes('s') || durationStr.includes('m'))) {
+      return durationStr;
+    }
+    
+    // Try to parse as number of seconds
+    const seconds = parseInt(durationStr, 10);
+    if (!isNaN(seconds)) {
+      if (seconds === 0) return "< 1s"; // Show something meaningful for zero seconds
+      
+      // Format seconds into a readable string
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      
+      if (minutes > 0) {
+        return `${minutes}m ${remainingSeconds > 0 ? `${remainingSeconds}s` : ''}`.trim();
+      } else {
+        return `${seconds}s`;
+      }
+    }
+    
+    // If we can't parse it, just return the original string
+    return durationStr;
   };
 
   const getStatusBadge = (status: string) => {
@@ -83,16 +130,23 @@ export function RunDetails({ run }: RunDetailsProps) {
                 Job Run Details
                 {getStatusBadge(currentStatus)}
               </h1>
-              <div className="text-sm text-muted-foreground flex items-center gap-1 ml-1">
-                <CalendarIcon className="h-3 w-3" />
-                <span>
-                  {run.startedAt || run.timestamp
-                    ? formatDistanceToNow(new Date(run.startedAt || run.timestamp), {
-                        addSuffix: true,
-                      })
-                    : "Unknown time"}
-                </span>
-              
+              <div className="flex gap-3">
+                <div className="text-sm text-muted-foreground flex items-center gap-1 ml-1">
+                  <CalendarIcon className="h-3 w-3" />
+                  <span>
+                    {(run.startedAt || run.timestamp)
+                      ? formatDistanceToNow(new Date(run.startedAt || run.timestamp || ''), {
+                          addSuffix: true,
+                        })
+                      : "Unknown time"}
+                  </span>
+                </div>
+                {duration && (
+                  <div className="text-sm text-muted-foreground flex items-center gap-1 ml-1">
+                    <ClockIcon className="h-3 w-3" />
+                    <span>{formatDuration(duration)}</span>
+                  </div>
+                )}
               </div>
             </div>
 

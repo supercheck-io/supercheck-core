@@ -10,9 +10,36 @@ import {
 } from "@/db/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 
-import { executeMultipleTests } from "@/lib/test-execution";
 import { getTest } from "@/actions/get-test";
 import { randomUUID } from "crypto";
+
+// Create a simple implementation here
+async function executeJob(jobId: string, tests: { id: string; script: string }[]) {
+  // This function is now simplified to just create a run record
+  // The actual execution is handled by the backend service
+  
+  console.log(`Received job execution request: { jobId: ${jobId}, testCount: ${tests.length} }`);
+  
+  const runId = randomUUID();
+  const dbInstance = await db();
+  
+  // Create a run record
+  await dbInstance.insert(runs).values({
+    id: runId,
+    jobId: jobId,
+    status: 'pending' as TestRunStatus,
+    startedAt: new Date(),
+  });
+  
+  console.log(`[${jobId}] Created pending test run record: ${runId}`);
+  
+  return {
+    runId,
+    jobId,
+    status: 'pending',
+    message: 'Job execution request queued'
+  };
+}
 
 interface Test {
   id: string;
@@ -320,7 +347,7 @@ async function runJob(request: Request) {
     }
 
     // Execute all tests in a single run
-    const result = await executeMultipleTests(testScripts, runId);
+    const result = await executeJob(jobId, testScripts);
 
     // Map individual test results for the response
     const testResults = result.results.map((testResult: TestResult) => ({

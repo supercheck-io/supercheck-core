@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from 'src/db/schema'; // Import the schema we copied
-import { reports, jobs } from 'src/db/schema'; // Specifically import reports table
+import { reports, jobs, runs } from 'src/db/schema'; // Specifically import reports table
 import { eq, and, sql } from 'drizzle-orm';
 import { ReportMetadata } from '../interfaces'; // Import our interface
 
@@ -111,6 +111,64 @@ export class DbService implements OnModuleInit {
       this.logger.log(`Successfully updated job status for job ${jobId} to ${status}`);
     } catch (error) {
       this.logger.error(`Error updating job status for job ${jobId}: ${error.message}`, error.stack);
+    }
+  }
+
+  /**
+   * Updates the status and duration of a run in the runs table
+   * @param runId The ID of the run to update
+   * @param status The new status to set
+   * @param duration The duration of the run (string like "3s" or "1m 30s")
+   */
+  async updateRunStatus(
+    runId: string,
+    status: string,
+    duration?: string
+  ): Promise<void> {
+    this.logger.debug(`Updating run ${runId} with status ${status} and duration ${duration}`);
+    
+    try {
+      const now = new Date();
+      const updateData: any = {
+        status,
+      };
+      
+      // Add duration if provided - convert string duration to seconds (integer)
+      if (duration) {
+        // Extract just the seconds as integer
+        let durationSeconds = 0;
+        
+        if (duration.includes('m')) {
+          // Format like "1m 30s"
+          const minutes = parseInt(duration.split('m')[0].trim(), 10) || 0;
+          const secondsMatch = duration.match(/(\d+)s/);
+          const seconds = secondsMatch ? parseInt(secondsMatch[1], 10) : 0;
+          durationSeconds = minutes * 60 + seconds;
+        } else {
+          // Format like "45s" or just number
+          const secondsMatch = duration.match(/(\d+)s/) || duration.match(/^(\d+)$/);
+          durationSeconds = secondsMatch ? parseInt(secondsMatch[1], 10) : 0;
+        }
+        
+        // Store both the numeric seconds and the formatted string
+        updateData.duration = durationSeconds;
+      }
+      
+      // Add completedAt timestamp for terminal statuses
+      if (['completed', 'failed', 'passed', 'error'].includes(status)) {
+        updateData.completedAt = now;
+      }
+      
+      // Update the database
+      await this.dbInstance
+        .update(runs)
+        .set(updateData)
+        .where(eq(runs.id, runId));
+      
+      this.logger.log(`Successfully updated run ${runId} with status ${status}`);
+    } catch (error) {
+      this.logger.error(`Failed to update run status: ${error.message}`, error.stack);
+      throw error;
     }
   }
 }

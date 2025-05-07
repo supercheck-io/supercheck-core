@@ -123,7 +123,8 @@ export async function GET(
           controller.enqueue(encoder.encode(createSSEMessage({ 
             status: 'running',
             runId: run.id,
-            startedAt: run.startedAt
+            startedAt: run.startedAt,
+            duration: run.duration
           })));
         } else {
           controller.enqueue(encoder.encode(createSSEMessage({ status: 'waiting' })));
@@ -137,48 +138,37 @@ export async function GET(
           redis.on('message', (channel, message) => {
             if (channel === channelName && !connectionClosed) {
               try {
-                const data = JSON.parse(message);
+                const statusData = JSON.parse(message);
+                // Log the received message for debugging
+                console.log(`[SSE] Message received on channel ${channel}:`, statusData);
                 
-                // Add runId to the response data if not present
-                if (!data.runId) {
-                  data.runId = runId;
-                }
+                // Always include the duration in the message to client
+                const messageToSend = {
+                  ...statusData,
+                  // Ensure duration is included in the message if available
+                  duration: statusData.duration || undefined,
+                };
                 
-                // Log each message for debugging
-                console.log(`[SSE] Message received on channel ${channel}:`, data);
+                // Send the message to the client
+                controller.enqueue(encoder.encode(createSSEMessage(messageToSend)));
                 
-                controller.enqueue(encoder.encode(createSSEMessage(data)));
-                
-                // If status is terminal, close the connection
-                if (data.status === 'completed' || data.status === 'failed' || 
-                    data.status === 'passed' || data.status === 'error') {
-                  console.log(`[SSE] Received terminal status ${data.status} for job ${jobId}, closing connection`);
+                // If this is a terminal status, close the connection
+                if (['completed', 'failed', 'passed', 'error'].includes(statusData.status)) {
+                  console.log(`[SSE] Received terminal status ${statusData.status} for job ${runId}, closing connection`);
                   connectionClosed = true;
-                  clearInterval(pingInterval);
-                  
-                  setTimeout(() => {
-                    if (redis) {
-                      redis.unsubscribe(channelName).catch(err => 
-                        console.error(`[SSE] Error unsubscribing from ${channelName}:`, err)
-                      );
-                      redis.quit().catch(err => 
-                        console.error('[SSE] Error closing Redis connection:', err)
-                      );
-                      redis = null;
-                    }
-                    
-                    // Check if controller is already closed before attempting to close it
-                    try {
-                      if (controller.desiredSize !== null) {
-                        controller.close();
-                      }
-                    } catch (err: unknown) {
-                      console.warn('[SSE] Controller already closed:', err instanceof Error ? err.message : String(err));
-                    }
-                  }, 1000); // Small delay to ensure client receives the message
+                  controller.close();
+                  // Continue subscribe to avoid leaking resources
+                  redis.unsubscribe(channelName).catch(err => 
+                    console.error(`[SSE] Error unsubscribing from ${channelName}:`, err)
+                  );
+                  redis.quit().catch(err => 
+                    console.error('[SSE] Error closing Redis connection:', err)
+                  );
+                  redis = null;
                 }
-              } catch (err: unknown) {
-                console.error('[SSE] Error parsing message:', err);
+              } catch (error) {
+                console.error(`[SSE] Error parsing status message for job ${runId}:`, error, message);
+                // Don't close connection on error, just log it
               }
             }
           });

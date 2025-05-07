@@ -8,7 +8,7 @@ interface RunStatusListenerProps {
   runId: string;
   jobId: string;
   status: string;
-  onStatusUpdate?: (status: string, reportUrl?: string) => void;
+  onStatusUpdate?: (status: string, reportUrl?: string, duration?: string) => void;
 }
 
 export function RunStatusListener({ 
@@ -20,14 +20,33 @@ export function RunStatusListener({
   const router = useRouter();
   const eventSourceRef = useRef<EventSource | null>(null);
   const hasShownToastRef = useRef<boolean>(false);
+  const loadingToastIdRef = useRef<string | number | null>(null);
+
+  useEffect(() => {
+    // Clean up any existing loading toast when unmounting
+    return () => {
+      if (loadingToastIdRef.current) {
+        toast.dismiss(loadingToastIdRef.current);
+        loadingToastIdRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // If the run is already in a terminal state, don't set up SSE
     if (status === 'completed' || status === 'failed' || status === 'passed' || status === 'error') {
       console.log(`[RunStatusListener] Run ${runId} is already in terminal state: ${status}, not setting up SSE`);
+      
+      // Dismiss any existing loading toast
+      if (loadingToastIdRef.current) {
+        toast.dismiss(loadingToastIdRef.current);
+        loadingToastIdRef.current = null;
+      }
+      
       return;
     }
 
+    // Do not show loading toast - handled by JobContext
     // Clean up function
     const cleanupSSE = () => {
       if (eventSourceRef.current) {
@@ -51,31 +70,26 @@ export function RunStatusListener({
         const data = JSON.parse(event.data);
         console.log(`[RunStatusListener] Status update for run ${runId}:`, data);
         
-        // Notify parent component of status updates
+        // Notify parent component of status updates - now with duration
         if (data.status && onStatusUpdate) {
-          onStatusUpdate(data.status, data.s3Url);
+          console.log(`[RunStatusListener] Calling onStatusUpdate with: status=${data.status}, reportUrl=${data.s3Url}, duration=${data.duration}`);
+          onStatusUpdate(data.status, data.s3Url, data.duration);
         }
         
-        // Handle terminal statuses (show toast only once per connection)
+        // Handle terminal statuses
         if ((data.status === 'completed' || data.status === 'failed' || 
             data.status === 'passed' || data.status === 'error') && !hasShownToastRef.current) {
+          
+          // First dismiss the loading toast if it exists
+          if (loadingToastIdRef.current) {
+            toast.dismiss(loadingToastIdRef.current);
+            loadingToastIdRef.current = null;
+          }
           
           // Mark as shown to prevent duplicates
           hasShownToastRef.current = true;
           
-          // Determine success or failure
-          const passed = data.status === 'completed' || data.status === 'passed';
-          
-          // Show toast
-          toast[passed ? 'success' : 'error'](
-            passed ? "Run completed successfully" : "Run failed",
-            {
-              description: passed 
-                ? "All tests passed successfully." 
-                : `One or more tests failed. ${data.error || ''}`,
-              duration: 5000
-            }
-          );
+          // No toast notifications here - handled by JobContext
           
           // Close SSE connection after terminal status
           cleanupSSE();
@@ -90,11 +104,23 @@ export function RunStatusListener({
 
     eventSource.onerror = (error) => {
       console.error(`[RunStatusListener] SSE error:`, error);
+      // Dismiss the loading toast on error
+      if (loadingToastIdRef.current) {
+        toast.dismiss(loadingToastIdRef.current);
+        loadingToastIdRef.current = null;
+      }
       cleanupSSE();
     };
 
     // Clean up on unmount
-    return cleanupSSE;
+    return () => {
+      // Dismiss the loading toast when unmounting
+      if (loadingToastIdRef.current) {
+        toast.dismiss(loadingToastIdRef.current);
+        loadingToastIdRef.current = null; 
+      }
+      cleanupSSE();
+    };
   }, [runId, status, onStatusUpdate, router]);
 
   // Component doesn't render anything visible

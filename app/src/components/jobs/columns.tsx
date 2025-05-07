@@ -24,8 +24,7 @@ interface JobsTableMeta {
 function RunButton({ job }: { job: Job }) {
   const [isRunning, setIsRunning] = useState(false);
   const router = useRouter();
-  const { isAnyJobRunning, setJobRunning } = useJobContext();
-  const [sseConnected, setSseConnected] = useState(false);
+  const { isAnyJobRunning, setJobRunning, startJobRun } = useJobContext();
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Cleanup function to handle SSE connection close
@@ -34,7 +33,6 @@ function RunButton({ job }: { job: Job }) {
       console.log('[RunButton] Closing existing SSE connection');
       eventSourceRef.current.close();
       eventSourceRef.current = null;
-      setSseConnected(false);
     }
   }, []);
 
@@ -59,8 +57,6 @@ function RunButton({ job }: { job: Job }) {
       return;
     }
 
-    let runToastId: string | number | undefined = undefined;
-
     try {
       // Close any existing SSE connection first
       closeSSEConnection();
@@ -77,12 +73,6 @@ function RunButton({ job }: { job: Job }) {
         setJobRunning(false);
         return;
       }
-
-      // Show a loading toast that stays visible during the entire job execution
-      runToastId = toast.loading(`Executing job: ${job.name.length > 25 ? job.name.substring(0, 25) + '...' : job.name}`, {
-        description: "Job execution is in progress...",
-        duration: Infinity, // Keep this visible until execution completes
-      });
 
       // Prepare the test data
       const testData = job.tests.map((test) => ({
@@ -113,127 +103,21 @@ function RunButton({ job }: { job: Job }) {
       console.log("[RunButton] Job queued successfully:", data);
 
       if (data.runId) {
-        // Update the loading toast with the run ID link once we have it
-        if (runToastId) {
-          toast.loading(`Executing job: ${job.name.length > 25 ? job.name.substring(0, 25) + '...' : job.name}`, {
-            id: runToastId,
-            description: "Job execution is in progress...",
-            duration: Infinity,
-          });
-        }
-        
-        // Set up SSE to get real-time job status
-        const eventSource = new EventSource(`/api/job-status/sse/${data.runId}`);
-        eventSourceRef.current = eventSource;
-        let hasShownFinalToast = false;
-
-        // Handle status updates from SSE
-        eventSource.onmessage = (event) => {
-          try {
-            const statusData = JSON.parse(event.data);
-            console.log(`[RunButton] SSE status update for run ${data.runId}:`, statusData);
-            setSseConnected(true);
-
-            // Handle terminal statuses with final toast
-            if ((statusData.status === 'completed' || statusData.status === 'failed' || 
-                 statusData.status === 'passed' || statusData.status === 'error') && !hasShownFinalToast) {
-              
-              // Only show the toast once
-              hasShownFinalToast = true;
-              
-              // Determine if job passed or failed
-              const passed = statusData.status === 'completed' || statusData.status === 'passed';
-              
-              // Dismiss the loading toast
-              if (runToastId) {
-                toast.dismiss(runToastId);
-                // Ensure toast is dismissed
-                runToastId = undefined;
-              }
-              
-              // Update with final status toast
-              toast[passed ? 'success' : 'error'](
-                passed ? "Job execution passed" : "Job execution failed",
-                {
-                  description: (
-                    <>
-                      {passed 
-                        ? 'All tests executed successfully.' 
-                        : 'One or more tests did not complete successfully.'}{" "}
-                      <a href={`/runs/${data.runId}`} className="underline font-medium">
-                        View Run Report
-                      </a>
-                    </>
-                  ),
-                  duration: 10000,
-                }
-              );
-
-              // Cleanup
-              closeSSEConnection();
-              
-              // Reset states
-              setIsRunning(false);
-              setJobRunning(false);
-              
-              // Refresh the page to show updated job status
-              router.refresh();
-            }
-          } catch (e) {
-            console.error("[RunButton] Error parsing SSE event:", e);
-          }
-        };
-
-        // Handle connection errors
-        eventSource.onerror = (error) => {
-          console.error("[RunButton] SSE connection error:", error);
-          
-          if (!hasShownFinalToast) {
-            hasShownFinalToast = true;
-            
-            // Dismiss loading toast on error
-            if (runToastId) {
-              toast.dismiss(runToastId);
-              // Ensure toast is dismissed
-              runToastId = undefined;
-            }
-            
-            // Show error toast
-            toast.error("Job execution error", {
-              description: "Connection to job status updates was lost. Check job status in the runs page.",
-            });
-          }
-          
-          closeSSEConnection();
-          setIsRunning(false);
-          setJobRunning(false);
-        };
-
-        // Set connection open handler
-        eventSource.onopen = () => {
-          console.log(`[RunButton] SSE connection opened for job ${job.id}`);
-          setSseConnected(true);
-        };
+        // Use the global job context to manage toast notifications and SSE
+        startJobRun(data.runId, job.id, job.name);
       } else {
         // No runId received, something is wrong
         toast.error("Error running job", {
-          id: runToastId,
           description: "Failed to get run ID for the job.",
         });
-        // Ensure runToastId is cleared
-        runToastId = undefined;
         setIsRunning(false);
         setJobRunning(false);
       }
     } catch (error) {
       console.error("[RunButton] Error running job:", error);
-      // Update the loading toast to show error, if it exists
       toast.error("Error running job", {
-        id: runToastId,
         description: `Failed to execute the job: ${error instanceof Error ? error.message : "Unknown error"}`,
       });
-      // Ensure runToastId is cleared
-      runToastId = undefined;
       setIsRunning(false);
       setJobRunning(false);
     }

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { spawn, execSync, exec } from 'child_process';
 import * as fs from 'fs/promises';
@@ -10,12 +10,15 @@ import { S3Service } from './s3.service';
 import { DbService } from './db.service';
 import { ValidationService } from './validation.service';
 import { RedisService } from './redis.service';
+import { eq } from 'drizzle-orm';
+import * as schema from '../../db/schema';
 import {
     TestResult,
     TestExecutionResult,
     TestScript,
     TestExecutionTask,
-    JobExecutionTask
+    JobExecutionTask,
+    ReportMetadata
 } from '../interfaces';
 import {
     isWindows,
@@ -586,6 +589,14 @@ export class ExecutionService {
                 this.logger.warn(`[${runId}] No valid HTML report found. S3 URL will point to an expected but possibly missing index.html.`);
             }
             
+            // Before publishing final status, calculate duration
+            const endTime = new Date();
+            const startTimeMs = new Date(timestamp).getTime();
+            const durationMs = endTime.getTime() - startTimeMs;
+            const durationStr = this.formatDuration(durationMs);
+            const durationSeconds = this.getDurationSeconds(durationMs);
+
+            // Update the finalResult to include duration
             finalResult = {
                 jobId: runId,
                 success: overallSuccess,
@@ -600,10 +611,11 @@ export class ExecutionService {
                     reportUrl: s3Url, // Link to the combined job report
                 })),
                 timestamp,
+                duration: durationStr,
                 stdout: stdout_log,
                 stderr: stderr_log,
             };
-            
+
             // 6. Store final metadata in DB & publish status
             const finalStatus = overallSuccess ? 'completed' : 'failed';
             await this.dbService.storeReportMetadata({
@@ -613,11 +625,21 @@ export class ExecutionService {
                 status: finalStatus,
                 s3Url: s3Url ?? undefined,
             });
+
+            // Update the run record in the database with the duration
+            try {
+                await this.dbService.updateRunStatus(runId, finalStatus, durationSeconds.toString());
+            } catch (updateError) {
+                this.logger.error(`[${runId}] Error updating run duration: ${updateError.message}`, updateError.stack);
+            }
+
+            // Publish final status with duration
             await this.redisService.publishJobStatus(runId, { 
                 status: finalStatus, 
                 reportPath: s3ReportKeyPrefix, 
                 s3Url: s3Url ?? undefined, 
-                error: finalError ?? undefined 
+                error: finalError ?? undefined,
+                duration: durationStr
             });
 
         } catch (error) {
@@ -1005,5 +1027,30 @@ export class ExecutionService {
             this.logger.error(`[${testId}] Failed to prepare test: ${error.message}`, error.stack);
             throw new Error(`Test preparation failed: ${error.message}`);
         }
+    }
+
+    /**
+     * Formats duration in ms to a human-readable string
+     * @param durationMs Duration in milliseconds
+     * @returns Formatted duration string like "3s" or "1m 30s"
+     */
+    private formatDuration(durationMs: number): string {
+        const seconds = Math.floor(durationMs / 1000);
+        if (seconds < 60) {
+            return `${seconds}s`;
+        } else {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+        }
+    }
+
+    /**
+     * Gets the duration in seconds from milliseconds
+     * @param durationMs Duration in milliseconds
+     * @returns Total seconds
+     */
+    private getDurationSeconds(durationMs: number): number {
+        return Math.floor(durationMs / 1000);
     }
 }
