@@ -32,9 +32,10 @@ export function ReportViewer({
   const [reportError, setReportError] = useState<string | null>(null);
   const [iframeError, setIframeError] = useState(false);
   const [currentReportUrl, setCurrentReportUrl] = useState<string | null>(reportUrl);
+  const [isValidationError, setIsValidationError] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  console.log("--- REPORT VIEWER RENDERING ---", { reportUrl, isRunning, isReportLoading, iframeError });
+  console.log("--- REPORT VIEWER RENDERING ---", { reportUrl, isRunning, isReportLoading, iframeError, isValidationError });
 
   // Update URL when prop changes
   useEffect(() => {
@@ -184,8 +185,8 @@ export function ReportViewer({
     );
   }
 
-  // Error state
-  if (iframeError && !isRunning) {
+  // Error state - only show if it's not a validation error
+  if (iframeError && !isRunning && !isValidationError) {
     console.log("ReportViewer: Showing error state:", reportError);
     return (
       <div className={containerClassName}>
@@ -208,81 +209,107 @@ export function ReportViewer({
         </div>
       )}
       
-      {!isRunning && currentReportUrl && (
-        <iframe
-          ref={iframeRef}
-          key={currentReportUrl}
-          src={currentReportUrl}
-          className={`${iframeClassName} ${isReportLoading ? 'opacity-0' : ''}`}
-          style={{ backgroundColor: darkMode ? '#1e1e1e' : undefined }}
-          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-          title="Playwright Test Report"
-          onLoad={(e) => {
-            console.log("ReportViewer: iframe onLoad triggered for URL:", currentReportUrl);
-            const iframe = e.target as HTMLIFrameElement;
-            try {
-              // Verify we can access the contentWindow - if not, it's likely a CORS issue
-              if (!iframe.contentWindow) {
-                console.error("ReportViewer: Cannot access iframe contentWindow - likely CORS issue");
-                setReportError("Cannot load report due to security restrictions. The report may be on a different domain.");
-                setIframeError(true);
-                setIsReportLoading(false);
-                return;
-              }
-              
-              // Check for JSON error response by examining body content
-              if (iframe.contentWindow?.document.body.textContent) {
-                const bodyText = iframe.contentWindow.document.body.textContent;
-                console.log("ReportViewer: iframe content body text:", bodyText.substring(0, 100) + (bodyText.length > 100 ? '...' : ''));
-                
-                // Check for error status codes in the URL or HTML
-                if (iframe.contentDocument?.title?.includes("Error") || 
-                    iframe.contentDocument?.title?.includes("404") ||
-                    iframe.contentDocument?.title?.includes("Not Found")) {
-                  console.error("ReportViewer: Error page detected in iframe");
-                  setReportError("The test report could not be found.");
+      <div className="flex flex-col h-full w-full">
+        {!isRunning && currentReportUrl && (
+          <iframe
+            ref={iframeRef}
+            key={currentReportUrl}
+            src={currentReportUrl}
+            className={`${iframeClassName} ${isReportLoading ? 'opacity-0' : ''} ${isValidationError ? 'h-4/5 flex-grow' : 'h-full'}`}
+            style={{ backgroundColor: darkMode ? '#1e1e1e' : undefined }}
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
+            title="Playwright Test Report"
+            onLoad={(e) => {
+              console.log("ReportViewer: iframe onLoad triggered for URL:", currentReportUrl);
+              const iframe = e.target as HTMLIFrameElement;
+              try {
+                // Verify we can access the contentWindow - if not, it's likely a CORS issue
+                if (!iframe.contentWindow) {
+                  console.error("ReportViewer: Cannot access iframe contentWindow - likely CORS issue");
+                  setReportError("Cannot load report due to security restrictions. The report may be on a different domain.");
                   setIframeError(true);
+                  setIsValidationError(false);
                   setIsReportLoading(false);
                   return;
                 }
                 
-                // Check for JSON error response
-                if (bodyText.includes('"error"') && (bodyText.includes('"message"') || bodyText.includes('"details"'))) {
-                  try {
-                    const errorData = JSON.parse(bodyText);
-                    const errorMessage = errorData.message || errorData.details || errorData.error || "Unknown error";
-                    console.log("ReportViewer: Error in iframe content:", errorMessage);
-                    setReportError(errorMessage);
-                    setIframeError(true);
+                // Check for JSON error response by examining body content
+                if (iframe.contentWindow?.document.body.textContent) {
+                  const bodyText = iframe.contentWindow.document.body.textContent;
+                  const pageTitle = iframe.contentDocument?.title || '';
+                  console.log("ReportViewer: iframe content body text:", bodyText.substring(0, 100) + (bodyText.length > 100 ? '...' : ''));
+                  console.log("ReportViewer: iframe title:", pageTitle);
+                  
+                  // Check for validation error page - allow these to display normally
+                  if (pageTitle.includes("Validation Error") || bodyText.includes("Test Validation Failed")) {
+                    console.log("ReportViewer: Validation error page detected - displaying content");
+                    setIsValidationError(true);
+                    setIframeError(false);
                     setIsReportLoading(false);
                     return;
-                  } catch (e) {
-                    // Not valid JSON, continue with normal display
-                    console.error("ReportViewer: Error parsing JSON:", e);
+                  }
+                  
+                  // Check for other error status codes in the URL or HTML
+                  if (iframe.contentDocument?.title?.includes("Error") || 
+                      iframe.contentDocument?.title?.includes("404") ||
+                      iframe.contentDocument?.title?.includes("Not Found")) {
+                    console.error("ReportViewer: Error page detected in iframe");
+                    setReportError("The test report could not be found.");
+                    setIframeError(true);
+                    setIsValidationError(false);
+                    setIsReportLoading(false);
+                    return;
+                  }
+                  
+                  // Check for JSON error response
+                  if (bodyText.includes('"error"') && (bodyText.includes('"message"') || bodyText.includes('"details"'))) {
+                    try {
+                      const errorData = JSON.parse(bodyText);
+                      const errorMessage = errorData.message || errorData.details || errorData.error || "Unknown error";
+                      console.log("ReportViewer: Error in iframe content:", errorMessage);
+                      setReportError(errorMessage);
+                      setIframeError(true);
+                      setIsValidationError(false);
+                      setIsReportLoading(false);
+                      return;
+                    } catch (e) {
+                      // Not valid JSON, continue with normal display
+                      console.error("ReportViewer: Error parsing JSON:", e);
+                    }
                   }
                 }
+                
+                // Always clear loading state, even if we think there might be an issue
+                console.log("ReportViewer: Load complete, clearing loading state");
+                setIsReportLoading(false);
+                
+              } catch (loadError) {
+                console.error("ReportViewer: Error in onLoad event:", loadError);
+                setIsReportLoading(false);
+                // Set error state on any unexpected error
+                setReportError("Failed to load test report. Please try refreshing the page.");
+                setIframeError(true);
               }
-              
-              // Always clear loading state, even if we think there might be an issue
-              console.log("ReportViewer: Load complete, clearing loading state");
+            }}
+            onError={(e) => {
+              console.error("ReportViewer: iframe onError triggered", e);
               setIsReportLoading(false);
-              
-            } catch (loadError) {
-              console.error("ReportViewer: Error in onLoad event:", loadError);
-              setIsReportLoading(false);
-              // Set error state on any unexpected error
-              setReportError("Failed to load test report. Please try refreshing the page.");
+              setReportError("Failed to load test report. The report server might be unreachable.");
               setIframeError(true);
-            }
-          }}
-          onError={(e) => {
-            console.error("ReportViewer: iframe onError triggered", e);
-            setIsReportLoading(false);
-            setReportError("Failed to load test report. The report server might be unreachable.");
-            setIframeError(true);
-          }}
-        />
-      )}
+            }}
+          />
+        )}
+        
+        {isValidationError && !isReportLoading && (
+          <div className={`px-6 py-4 ${darkMode ? 'bg-[#1e1e1e] text-[#d4d4d4]' : 'bg-background'} border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+              <h3 className="text-base font-medium">Action Required</h3>
+            </div>
+            <p className="text-sm">Please edit the script to fix the validation error shown above. You cannot run the script until this issue is resolved.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
