@@ -61,28 +61,6 @@ export function RunDetails({ run }: RunDetailsProps) {
     // No need for refresh timer since we're using SSE for real-time updates
   }, [run.reportUrl, run.status, run.id, run.duration]);
 
-  // Handle status updates from SSE
-  const handleStatusUpdate = (status: string, newReportUrl?: string, newDuration?: string) => {
-    console.log(`Status update: ${status}, reportUrl: ${newReportUrl}, duration: ${newDuration}`);
-    
-    if (status !== currentStatus) {
-      setCurrentStatus(mapStatusForDisplay(status as TestRunStatus));
-    }
-    
-    if (newReportUrl) {
-      // Regardless of the reportUrl from SSE, use our API proxy with direct UUID
-      const apiUrl = `/api/test-results/${run.id}/report/index.html?t=${Date.now()}`;
-      console.log(`Setting report URL after SSE update: ${apiUrl}`);
-      setReportUrl(apiUrl);
-    }
-
-    // Update duration if it changed
-    if (newDuration && newDuration !== duration) {
-      console.log(`Updating duration from ${duration} to ${newDuration}`);
-      setDuration(newDuration);
-    }
-  };
-
   // Format the duration for display
   const formatDuration = (durationStr?: string) => {
     if (!durationStr) return "Unknown";
@@ -125,6 +103,28 @@ export function RunDetails({ run }: RunDetailsProps) {
         {statusInfo.label}
       </Badge>
     );
+  };
+
+  // Handle status updates from SSE
+  const handleStatusUpdate = (status: string, newReportUrl?: string, newDuration?: string) => {
+    console.log(`Status update: ${status}, reportUrl: ${newReportUrl}, duration: ${newDuration}`);
+    
+    if (status !== currentStatus) {
+      setCurrentStatus(mapStatusForDisplay(status as TestRunStatus));
+    }
+    
+    if (newReportUrl) {
+      // Regardless of the reportUrl from SSE, use our API proxy with direct UUID
+      const apiUrl = `/api/test-results/${run.id}/report/index.html?t=${Date.now()}`;
+      console.log(`Setting report URL after SSE update: ${apiUrl}`);
+      setReportUrl(apiUrl);
+    }
+
+    // Update duration if it changed
+    if (newDuration && newDuration !== duration) {
+      console.log(`Updating duration from ${duration} to ${newDuration}`);
+      setDuration(newDuration);
+    }
   };
 
   return (

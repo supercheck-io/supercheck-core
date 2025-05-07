@@ -6,9 +6,9 @@ export default function NotFound() {
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
       <div className="flex flex-col items-center text-center max-w-md">
         <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
-        <h1 className="text-3xl font-bold mb-2">Job Run Not Found</h1>
+        <h1 className="text-3xl font-bold mb-2">Test Report Not Found</h1>
         <p className="text-muted-foreground mb-6">
-          The job run you&apos;re looking for doesn&apos;t exist or has been removed.
+          The test report for this job run couldn&apos;t be found. It may have been deleted or not generated properly.
         </p>
         <div className="flex gap-4">
           <Link

@@ -52,6 +52,29 @@ export function ReportViewer({
       setIsReportLoading(true);
       setIframeError(false);
       setReportError(null);
+
+      // Check if the URL exists, but don't call the callback here
+      // The onReportError callback will be called by the safety timeout or iframe error handlers
+      fetch(finalUrl, { method: 'HEAD' })
+        .then(response => {
+          if (!response.ok) {
+            console.log("ReportViewer: Report URL returned status:", response.status);
+            if (response.status === 404) {
+              console.log("ReportViewer: Report not found (404), setting error state");
+              setIsReportLoading(false);
+              setIframeError(true);
+              setReportError("The test report could not be found. It may have been deleted or not generated properly.");
+              // Don't call onReportError here to prevent redirect loops
+            }
+          }
+        })
+        .catch(error => {
+          console.error("ReportViewer: Error pre-checking report URL:", error);
+          setIsReportLoading(false);
+          setIframeError(true);
+          setReportError("Failed to load test report. The report server might be unreachable.");
+          // Don't call onReportError here to prevent redirect loops
+        });
     } else {
       console.log("ReportViewer: reportUrl is null or empty");
       setCurrentReportUrl(null);
@@ -115,16 +138,8 @@ export function ReportViewer({
           )}
           <Button
             onClick={() => {
-              // Reset error state and try again
-              setIframeError(false);
-              setReportError(null);
-              
-              // Add a timestamp to force reload
-              if (currentReportUrl) {
-                const refreshedUrl = `${currentReportUrl}${currentReportUrl.includes('?') ? '&' : '?'}retry=true&t=${Date.now()}`;
-                console.log("ReportViewer: Reloading with URL:", refreshedUrl);
-                setCurrentReportUrl(refreshedUrl);
-              }
+              // Reload the entire page instead of just adding parameters to a broken URL
+              window.location.reload();
             }}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
