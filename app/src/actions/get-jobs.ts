@@ -13,7 +13,7 @@ interface TestFromAction {
   name: string;
   description: string;
   type: TestType; // Use the DB TestType
-  status?: "pending" | "pass" | "fail" | "skipped";
+  status?: "running" | "passed" | "failed" | "error";
   lastRunAt?: string;
   duration?: number;
 }
@@ -23,7 +23,7 @@ interface JobFromAction {
   name: string;
   description: string;
   cronSchedule: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  status: "running" | "passed" | "failed" | "error";
   createdAt: string;
   updatedAt: string;
   lastRunAt: string;
@@ -48,7 +48,7 @@ interface JobWithTests {
   name: string;
   description: string;
   cronSchedule: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  status: "running" | "passed" | "failed" | "error";
   createdAt: string;
   updatedAt: string;
   lastRunAt: string;
@@ -229,11 +229,10 @@ export async function getJob(id: string): Promise<JobResponse> {
       description: jobRow.description || "",
       cronSchedule: jobRow.cronSchedule || "",
       status: jobRow.status as
-        | "pending"
         | "running"
-        | "completed"
+        | "passed"
         | "failed"
-        | "cancelled",
+        | "error",
       createdAt: jobRow.createdAt
         ? new Date(jobRow.createdAt).toISOString()
         : new Date().toISOString(),

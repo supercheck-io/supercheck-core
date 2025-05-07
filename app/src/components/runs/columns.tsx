@@ -171,25 +171,23 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
 // Export a default set of columns for backward compatibility
 export const columns = createColumns();
 
-// Helper to map DB status to a display status that matches runStatuses values
+// Helper to validate status is one of the allowed values
 function mapDbStatusToDisplayStatus(dbStatus: string): string {
   // Convert the dbStatus to lowercase for case-insensitive comparison
   const status = typeof dbStatus === 'string' ? dbStatus.toLowerCase() : '';
   
+  // Only return one of the allowed status values
   switch (status) {
+    case 'running':
+      return 'running';
     case 'passed':
       return 'passed';
     case 'failed':
-    case 'error':
       return 'failed';
-    case 'running':
-    case 'pending':
-    case 'skipped':
-      return status;
-    case 'completed':
-      return 'passed';
+    case 'error':
+      return 'error';
     default:
-      console.warn(`Unknown status: ${dbStatus}`);
-      return 'pending';
+      console.warn(`Unknown status: ${dbStatus}, defaulting to running`);
+      return 'running';
   }
 }

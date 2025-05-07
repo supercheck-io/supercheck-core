@@ -32,11 +32,11 @@ export async function POST(request: Request) {
     await dbInstance.insert(runs).values({
       id: runId,
       jobId,
-      status: "pending",
+      status: "running",
       startedAt: startTime,
     });
 
-    console.log(`[${jobId}/${runId}] Created pending test run record: ${runId}`);
+    console.log(`[${jobId}/${runId}] Created running test run record: ${runId}`);
 
     const testScripts = [];
     

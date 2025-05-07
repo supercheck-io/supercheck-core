@@ -122,7 +122,7 @@ export default function EditJob({ jobId }: EditJobProps) {
         name: test.name,
         description: test.description || null,
         type: test.type as "browser" | "api" | "multistep" | "database",
-        status: "pending" as const,
+        status: "running" as const,
         lastRunAt: null,
         duration: null,
       }));

@@ -58,7 +58,7 @@ export interface ReportMetadata {
   entityId: string;
   entityType: "test" | "job";
   reportPath: string; // This might be the S3 key/path
-  status: "pending" | "running" | "completed" | "failed";
+  status: "running" | "passed" | "failed" | "error";
   s3Url?: string; // Explicitly store the final S3 URL
   createdAt?: Date;
   updatedAt?: Date;

@@ -90,7 +90,7 @@ export default function TestSelector({
                 name: test.title,
                 description: test.description || null,
                 type: mappedType,
-                status: "pending" as const,
+                status: "running" as const,
                 lastRunAt: test.updatedAt,
                 duration: null as number | null,
               };

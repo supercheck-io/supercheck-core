@@ -250,10 +250,10 @@ export class ExecutionService {
 
             // 5. Process result and upload report
             const testBucket = this.s3Service.getBucketForEntityType(entityType);
-            let finalStatus: 'completed' | 'failed' = 'failed'; // Default to failed
+            let finalStatus: 'passed' | 'failed' = 'failed'; // Default to failed
 
             if (execResult.success) {
-                finalStatus = 'completed';
+                finalStatus = 'passed';
                 this.logger.log(`[${testId}] Playwright execution successful.`);
                 // Attempt to upload the report directory
                 try {
@@ -303,7 +303,7 @@ export class ExecutionService {
                     entityId: testId,
                     entityType,
                     reportPath: s3ReportKeyPrefix,
-                    status: finalStatus,
+                    status: 'passed',
                     s3Url: s3Url ?? undefined,
                 });
 
@@ -617,7 +617,7 @@ export class ExecutionService {
             };
 
             // 6. Store final metadata in DB & publish status
-            const finalStatus = overallSuccess ? 'completed' : 'failed';
+            const finalStatus = overallSuccess ? 'passed' : 'failed';
             await this.dbService.storeReportMetadata({
                 entityId: runId,
                 entityType,
