@@ -76,7 +76,7 @@ export default function PlaygroundPage() {
     { label: "Home", href: "/" },
     { label: "Playground", href: "/playground" },
     { label: "Test", href: "/tests" },
-    { label: id, isCurrentPage: true },
+    { label: id?.slice(0, 8) + ".." || "", isCurrentPage: true },
   ];
 
   // Fetch test data and set loading state

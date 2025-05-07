@@ -34,7 +34,7 @@ export default function EditJobPage() {
     { label: "Home", href: "/" },
     { label: "Jobs", href: "/jobs" },
     { label: "Edit", isCurrentPage: true },
-    { label: jobId, href: `/jobs/${jobId}`, isCurrentPage: true },
+    { label: jobId.slice(0, 8) + "..", href: `/jobs/${jobId}`, isCurrentPage: true },
   ];
 
   if (isLoading) {
