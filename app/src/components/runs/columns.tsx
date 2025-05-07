@@ -122,7 +122,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       if (!duration) {
         return (
           <div className="text-muted-foreground">
-            {status === "running" ? "Running..." : "-"}
+           -
           </div>
         );
       }

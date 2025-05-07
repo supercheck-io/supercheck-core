@@ -63,7 +63,7 @@ export function ReportViewer({
               console.log("ReportViewer: Report not found (404), setting error state");
               setIsReportLoading(false);
               setIframeError(true);
-              setReportError("The test report could not be found. It may have been deleted or not generated properly.");
+              setReportError("The test report could not be found.");
               // Don't call onReportError here to prevent redirect loops
             }
           }
@@ -240,7 +240,7 @@ export function ReportViewer({
                     iframe.contentDocument?.title?.includes("404") ||
                     iframe.contentDocument?.title?.includes("Not Found")) {
                   console.error("ReportViewer: Error page detected in iframe");
-                  setReportError("The test report could not be found. It may have been deleted or not generated properly.");
+                  setReportError("The test report could not be found.");
                   setIframeError(true);
                   setIsReportLoading(false);
                   return;
