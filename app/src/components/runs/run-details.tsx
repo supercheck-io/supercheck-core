@@ -58,16 +58,7 @@ export function RunDetails({ run }: RunDetailsProps) {
     setCurrentStatus(mapStatusForDisplay(run.status as TestRunStatus));
     setDuration(run.duration || undefined);
     
-    // Only auto-refresh if the run is still in progress
-    if (mapStatusForDisplay(run.status as TestRunStatus) === 'running') {
-      const retryTimer = setTimeout(() => {
-        const refreshUrl = `/api/test-results/${run.id}/report/index.html?t=${Date.now()}&retry=true`;
-        console.log(`Auto-refreshing report for running job: ${refreshUrl}`);
-        setReportUrl(refreshUrl);
-      }, 5000); // 5 second delay before retry for running jobs
-      
-      return () => clearTimeout(retryTimer);
-    }
+    // No need for refresh timer since we're using SSE for real-time updates
   }, [run.reportUrl, run.status, run.id, run.duration]);
 
   // Handle status updates from SSE
