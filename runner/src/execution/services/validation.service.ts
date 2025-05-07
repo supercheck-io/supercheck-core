@@ -13,6 +13,7 @@ const BLOCKED_MODULES = new Set([
   'https',
   'dgram',
   'inspector',
+  'path',
 ]);
 
 // Modules allowed within the test environment
@@ -20,7 +21,6 @@ const ALLOWED_MODULES = new Set([
   '@playwright/test',
   'playwright',
   'expect',
-  'path',
 ]);
 
 const BLOCKED_IDENTIFIERS = new Set(['process', 'Buffer', 'global']);
@@ -108,8 +108,8 @@ export class ValidationService {
               
               // For other modules, check if they're safe
               if (!moduleName.startsWith('@playwright/')) {
-                // Log unknown modules without blocking them
-                this.logger.warn(`[WARN] Unknown module required: ${moduleName}`);
+                // Mark unknown modules as errors with clear message
+                throw new Error(`Security Error: Requiring module '${moduleName}' is not allowed.`);
               }
             } else {
               throw new Error('Security Error: Dynamic require() calls are not allowed.');
@@ -131,8 +131,8 @@ export class ValidationService {
             
             // For other modules, check if they're safe
             if (!moduleName.startsWith('@playwright/')) {
-              // Log unknown modules without blocking them
-              this.logger.warn(`[WARN] Unknown module imported: ${moduleName}`);
+              // Mark unknown modules as errors with clear message
+              throw new Error(`Security Error: Importing module '${moduleName}' is not allowed.`);
             }
           }
         },
@@ -149,6 +149,9 @@ export class ValidationService {
             if (BLOCKED_MODULES.has(moduleName)) {
               throw new Error(`Security Error: Dynamic import of module '${moduleName}' is not allowed.`);
             }
+            
+            // For other modules, throw with clear message
+            throw new Error(`Security Error: Dynamic import of module '${moduleName}' is not allowed.`);
           } else {
             throw new Error('Security Error: Dynamic imports with variable sources are not allowed.');
           }
