@@ -4,9 +4,9 @@ import { z } from "zod";
 export const jobStatusEnum = z.enum([
   "pending",
   "running",
-  "completed",
+  "passed",
   "failed",
-  "cancelled",
+  "error",
 ]);
 
 export type JobStatus = z.infer<typeof jobStatusEnum>;
@@ -31,7 +31,7 @@ export const testSchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
   type: z.enum(["browser", "api", "multistep", "database"]),
-  status: z.enum(["pass", "fail", "pending", "skipped"]).optional(),
+  status: z.enum(["running", "passed", "failed", "error"]).optional(),
   lastRunAt: z.string().nullable().optional(),
   duration: z.number().nullable().optional(), // in milliseconds
 });

@@ -42,7 +42,13 @@ export class JobExecutionProcessor extends WorkerHost {
     
     this.logger.log(`[${runId}] Processing job execution job ID: ${job.id} (${job.data.testScripts?.length || 0} tests)`);
 
-    // Update job status to running in the database
+    // Update job status to 'pending' in the database for the original job entry
+    if (originalJobId) {
+      await this.dbService.updateJobStatus(originalJobId, 'pending')
+        .catch(err => this.logger.error(`[${runId}] Failed to update job status to pending: ${err.message}`));
+    }
+
+    // Update job status to 'running' in the database when execution begins
     // Use originalJobId instead of runId for updating the jobs table
     if (originalJobId) {
       await this.dbService.updateJobStatus(originalJobId, 'running')
@@ -78,7 +84,7 @@ export class JobExecutionProcessor extends WorkerHost {
       const durationSeconds = Math.floor(durationMs / 1000);
       
       // Update the job status based on test results
-      const finalStatus = result.success ? 'completed' : 'failed';
+      const finalStatus = result.success ? 'passed' : 'failed';
       try {
         if (originalJobId) {
           await this.dbService.updateJobStatus(originalJobId, finalStatus)

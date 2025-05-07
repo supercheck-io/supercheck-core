@@ -11,6 +11,8 @@ import {
   AlertTriangle,
   Play,
   Pause,
+  XCircle,
+  AlertCircle,
 } from "lucide-react"
 
 export const labels = [
@@ -61,7 +63,7 @@ export const jobStatuses = [
     value: "pending",
     label: "Pending",
     icon: Clock,
-    color: "text-yellow-500",
+    color: "text-gray-500",
   },
   {
     value: "running",
@@ -70,22 +72,22 @@ export const jobStatuses = [
     color: "text-blue-500",
   },
   {
-    value: "completed",
-    label: "Completed",
+    value: "passed",
+    label: "Passed",
     icon: CheckCircle,
     color: "text-green-500",
   },
   {
     value: "failed",
     label: "Failed",
-    icon: AlertTriangle,
+    icon: XCircle,
     color: "text-red-500",
   },
   {
-    value: "cancelled",
-    label: "Cancelled",
-    icon: Pause,
-    color: "text-gray-500",
+    value: "error",
+    label: "Error",
+    icon: AlertCircle,
+    color: "text-orange-500",
   },
 ]
 

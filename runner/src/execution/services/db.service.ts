@@ -94,7 +94,7 @@ export class DbService implements OnModuleInit {
    */
   async updateJobStatus(
     jobId: string, 
-    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+    status: 'pending' | 'running' | 'passed' | 'failed' | 'error'
   ): Promise<void> {
     this.logger.debug(`Updating job status for job ${jobId} to ${status}`);
     
@@ -103,7 +103,7 @@ export class DbService implements OnModuleInit {
         .set({
           status,
           updatedAt: new Date(),
-          ...(status === 'completed' || status === 'failed' ? { lastRunAt: new Date() } : {})
+          ...(status === 'passed' || status === 'failed' || status === 'error' ? { lastRunAt: new Date() } : {})
         })
         .where(eq(jobs.id, jobId))
         .execute();

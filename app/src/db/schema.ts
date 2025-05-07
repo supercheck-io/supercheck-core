@@ -156,9 +156,9 @@ export const tests = pgTable("tests", {
 export type JobStatus =
   | "pending"
   | "running"
-  | "completed"
+  | "passed"
   | "failed"
-  | "cancelled";
+  | "error";
 export type JobConfig = {
   environment?: string;
   variables?: Record<string, string>;
@@ -218,11 +218,9 @@ export const jobTests = pgTable(
    error details, video URL, and screenshot URLs.
 =================================== */
 export type TestRunStatus =
-  | "pending"
   | "running"
   | "passed"
   | "failed"
-  | "skipped"
   | "error";
 export type ArtifactPaths = {
   logs?: string;
@@ -234,7 +232,7 @@ export const runs = pgTable("runs", {
   jobId: uuid("job_id")
     .notNull()
     .references(() => jobs.id),
-  status: varchar("status", { length: 50 }).$type<TestRunStatus>().notNull().default("pending"),
+  status: varchar("status", { length: 50 }).$type<TestRunStatus>().notNull().default("running"),
   duration: varchar("duration", { length: 100 }),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
@@ -268,7 +266,7 @@ export const reports = pgTable(
     entityType: varchar("entity_type", { length: 50 }).$type<ReportType>().notNull(),
     entityId: uuid("entity_id").notNull(),
     reportPath: varchar("report_path", { length: 255 }).notNull(),
-    status: varchar("status", { length: 50 }).notNull().default("completed"),
+    status: varchar("status", { length: 50 }).notNull().default("passed"),
     s3Url: varchar("s3_url", { length: 1024 }),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
