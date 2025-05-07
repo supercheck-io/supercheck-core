@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { jobStatuses } from "./data";
 
 interface JobRunState {
   runId: string | null;
@@ -11,9 +12,18 @@ interface JobRunState {
   toastId: string | number | null;
 }
 
+// Simple map to track job statuses within the session
+interface JobStatuses {
+  [jobId: string]: string;
+}
+
 interface JobContextType {
   isAnyJobRunning: boolean;
-  setJobRunning: (isRunning: boolean) => void;
+  runningJobs: Set<string>;
+  isJobRunning: (jobId: string) => boolean;
+  getJobStatus: (jobId: string) => string | null;
+  setJobRunning: (isRunning: boolean, jobId?: string) => void;
+  setJobStatus: (jobId: string, status: string) => void;
   activeRun: JobRunState | null;
   startJobRun: (runId: string, jobId: string, jobName: string) => void;
   completeJobRun: (success: boolean, reportUrl?: string) => void;
@@ -21,8 +31,40 @@ interface JobContextType {
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
 
+// React component to display job status by reading from context
+export function JobStatusDisplay({ jobId, dbStatus }: { jobId: string, dbStatus: string }) {
+  const { isJobRunning, getJobStatus } = useJobContext();
+  const [effectiveStatus, setEffectiveStatus] = useState(dbStatus);
+  
+  // Determine status priority: running > context status > db status
+  useEffect(() => {
+    if (isJobRunning(jobId)) {
+      setEffectiveStatus('running');
+    } else {
+      const contextStatus = getJobStatus(jobId);
+      setEffectiveStatus(contextStatus || dbStatus);
+    }
+  }, [jobId, dbStatus, isJobRunning, getJobStatus]);
+  
+  const statusInfo = jobStatuses.find(
+    (status) => status.value === effectiveStatus
+  ) || jobStatuses[0];
+  
+  const StatusIcon = statusInfo.icon;
+  
+  return (
+    <div className="flex w-[120px] items-center">
+      <StatusIcon className={`mr-2 h-4 w-4 ${statusInfo.color}`} />
+      <span>{statusInfo.label}</span>
+    </div>
+  );
+}
+
 export function JobProvider({ children }: { children: React.ReactNode }) {
   const [isAnyJobRunning, setIsAnyJobRunning] = useState(false);
+  const [runningJobs, setRunningJobs] = useState<Set<string>>(new Set());
+  // Simple in-memory job status tracking (not persisted)
+  const [jobStatuses, setJobStatuses] = useState<JobStatuses>({});
   const [activeRun, setActiveRun] = useState<JobRunState | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const router = useRouter();
@@ -37,14 +79,88 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const setJobRunning = (isRunning: boolean) => {
-    setIsAnyJobRunning(isRunning);
-    if (!isRunning) {
+  // Check if a specific job is running
+  const isJobRunning = (jobId: string): boolean => {
+    return runningJobs.has(jobId);
+  };
+  
+  // Get the status of a job from context
+  const getJobStatus = (jobId: string): string | null => {
+    return jobStatuses[jobId] || null;
+  };
+  
+  // Set the status of a job in context
+  const setJobStatus = (jobId: string, status: string) => {
+    console.log(`[JobContext] Setting job ${jobId} status to ${status}`);
+    
+    setJobStatuses(prev => ({
+      ...prev,
+      [jobId]: status
+    }));
+    
+    // If status is running, add to running jobs
+    if (status === 'running') {
+      setRunningJobs(prev => {
+        const newSet = new Set(prev);
+        newSet.add(jobId);
+        return newSet;
+      });
+      setIsAnyJobRunning(true);
+    } 
+    // If status is terminal, remove from running jobs
+    else if (['passed', 'failed', 'error', 'completed'].includes(status)) {
+      setRunningJobs(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(jobId);
+        // Update global state if no more jobs are running
+        if (newSet.size === 0) {
+          setIsAnyJobRunning(false);
+        }
+        return newSet;
+      });
+    }
+  };
+
+  const setJobRunning = (isRunning: boolean, jobId?: string) => {
+    if (isRunning && jobId) {
+      // Add job to running jobs
+      setRunningJobs(prev => {
+        const newSet = new Set(prev);
+        newSet.add(jobId);
+        return newSet;
+      });
+      setIsAnyJobRunning(true);
+      
+      // Update job status in context
+      setJobStatus(jobId, 'running');
+    } else if (!isRunning) {
       // If no job is running, clean up active run state
       if (activeRun?.toastId) {
         toast.dismiss(activeRun.toastId);
       }
-      setActiveRun(null);
+      
+      if (jobId) {
+        // Remove specific job from running jobs
+        setRunningJobs(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(jobId);
+          // Update global state if no more jobs are running
+          if (newSet.size === 0) {
+            setIsAnyJobRunning(false);
+          }
+          return newSet;
+        });
+        
+        // Reset active run if it matches this job
+        if (activeRun?.jobId === jobId) {
+          setActiveRun(null);
+        }
+      } else {
+        // Clear all running jobs
+        setRunningJobs(new Set());
+        setIsAnyJobRunning(false);
+        setActiveRun(null);
+      }
     }
   };
 
@@ -66,6 +182,16 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       duration: Infinity,
     });
     
+    // Mark this job as running
+    setRunningJobs(prev => {
+      const newSet = new Set(prev);
+      newSet.add(jobId);
+      return newSet;
+    });
+    
+    // Update job status
+    setJobStatus(jobId, 'running');
+    
     // Set up SSE to get real-time job status
     const eventSource = new EventSource(`/api/job-status/sse/${runId}`);
     eventSourceRef.current = eventSource;
@@ -82,6 +208,9 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
           
           // Only show the toast once
           hasShownFinalToast = true;
+          
+          // Update the job status
+          setJobStatus(jobId, statusData.status);
           
           // Determine if job passed or failed
           const passed = statusData.status === 'completed' || statusData.status === 'passed';
@@ -113,9 +242,21 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
             eventSourceRef.current = null;
           }
           
-          // Reset states
-          setIsAnyJobRunning(false);
-          setActiveRun(null);
+          // Remove this job from running jobs
+          setRunningJobs(prev => {
+            const newSet = new Set(prev);
+            if (jobId) newSet.delete(jobId);
+            // Update global running state based on remaining jobs
+            if (newSet.size === 0) {
+              setIsAnyJobRunning(false);
+            }
+            return newSet;
+          });
+          
+          // Reset active run if this specific job finished
+          if (jobId && activeRun?.jobId === jobId) {
+            setActiveRun(null);
+          }
           
           // Refresh the page to show updated job status
           router.refresh();
@@ -146,9 +287,24 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
         eventSourceRef.current = null;
       }
       
-      // Reset states
-      setIsAnyJobRunning(false);
-      setActiveRun(null);
+      // Set error status
+      setJobStatus(jobId, 'error');
+      
+      // Remove this job from running jobs
+      setRunningJobs(prev => {
+        const newSet = new Set(prev);
+        if (jobId) newSet.delete(jobId);
+        // Update global running state based on remaining jobs
+        if (newSet.size === 0) {
+          setIsAnyJobRunning(false);
+        }
+        return newSet;
+      });
+      
+      // Reset active run if this specific job finished
+      if (jobId && activeRun?.jobId === jobId) {
+        setActiveRun(null);
+      }
     };
     
     // Update the state
@@ -196,8 +352,25 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       eventSourceRef.current = null;
     }
     
-    // Reset states
-    setIsAnyJobRunning(false);
+    // Update job status
+    if (activeRun.jobId) {
+      setJobStatus(activeRun.jobId, success ? 'passed' : 'failed');
+    }
+    
+    // Remove this job from running jobs
+    if (activeRun.jobId) {
+      setRunningJobs(prev => {
+        const newSet = new Set(prev);
+        if (activeRun.jobId) newSet.delete(activeRun.jobId);
+        // Update global running state based on remaining jobs
+        if (newSet.size === 0) {
+          setIsAnyJobRunning(false);
+        }
+        return newSet;
+      });
+    }
+    
+    // Reset active run state
     setActiveRun(null);
     
     // Refresh the page
@@ -207,7 +380,11 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
   return (
     <JobContext.Provider value={{ 
       isAnyJobRunning, 
+      runningJobs,
+      isJobRunning,
+      getJobStatus,
       setJobRunning, 
+      setJobStatus,
       activeRun,
       startJobRun,
       completeJobRun

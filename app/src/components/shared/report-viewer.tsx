@@ -156,7 +156,7 @@ export function ReportViewer({
     return (
       <div className={containerClassName}>
         <div className={`w-full h-full flex items-center justify-center ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
-          <div className="flex flex-col items-center gap-2 text-muted-foreground -mt-20">
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Loader2Icon className="h-12 w-12 animate-spin" />
             <p className="text-muted-foreground text-lg">Please wait, running test...</p>
           </div>

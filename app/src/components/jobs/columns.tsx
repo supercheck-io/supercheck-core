@@ -10,7 +10,7 @@ import { DataTableRowActions } from "./data-table-row-actions";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useJobContext } from "./job-context";
+import { useJobContext, JobStatusDisplay } from "./job-context";
 import { UUIDField } from "@/components/ui/uuid-field";
 
 // Type definition for the extended meta object used in this table
@@ -22,10 +22,12 @@ interface JobsTableMeta {
 
 // Create a proper React component for the run button
 function RunButton({ job }: { job: Job }) {
-  const [isRunning, setIsRunning] = useState(false);
   const router = useRouter();
-  const { isAnyJobRunning, setJobRunning, startJobRun } = useJobContext();
+  const { isAnyJobRunning, isJobRunning, setJobRunning, startJobRun } = useJobContext();
   const eventSourceRef = useRef<EventSource | null>(null);
+  
+  // Get job running state from global context
+  const isRunning = isJobRunning(job.id);
 
   // Cleanup function to handle SSE connection close
   const closeSSEConnection = useCallback(() => {
@@ -48,7 +50,7 @@ function RunButton({ job }: { job: Job }) {
     e.preventDefault(); // Prevent opening the sheet
 
     if (isRunning || isAnyJobRunning) {
-      if (isAnyJobRunning) {
+      if (isAnyJobRunning && !isRunning) {
         toast.error("Cannot run job", {
           description:
             "Another job is currently running. Please wait for it to complete.",
@@ -61,16 +63,14 @@ function RunButton({ job }: { job: Job }) {
       // Close any existing SSE connection first
       closeSSEConnection();
       
-      setIsRunning(true);
-      setJobRunning(true);
+      setJobRunning(true, job.id);
 
       if (!job.tests || job.tests.length === 0) {
         toast.error("Cannot run job", {
           description: "This job has no tests associated with it.",
         });
         // Reset state if returning early
-        setIsRunning(false);
-        setJobRunning(false);
+        setJobRunning(false, job.id);
         return;
       }
 
@@ -110,16 +110,14 @@ function RunButton({ job }: { job: Job }) {
         toast.error("Error running job", {
           description: "Failed to get run ID for the job.",
         });
-        setIsRunning(false);
-        setJobRunning(false);
+        setJobRunning(false, job.id);
       }
     } catch (error) {
       console.error("[RunButton] Error running job:", error);
       toast.error("Error running job", {
         description: `Failed to execute the job: ${error instanceof Error ? error.message : "Unknown error"}`,
       });
-      setIsRunning(false);
-      setJobRunning(false);
+      setJobRunning(false, job.id);
     }
   };
 
@@ -138,10 +136,12 @@ function RunButton({ job }: { job: Job }) {
         "ml-1"
       )}
       disabled={
-        isRunning || isAnyJobRunning || !job.tests || job.tests.length === 0
+        isRunning || (isAnyJobRunning && !isRunning) || !job.tests || job.tests.length === 0
       }
       title={
-        isAnyJobRunning
+        isRunning
+          ? "Job is currently running"
+          : isAnyJobRunning && !isRunning
           ? "Another job is currently running"
           : !job.tests || job.tests.length === 0
           ? "No tests available to run"
@@ -226,22 +226,10 @@ export const columns: ColumnDef<Job>[] = [
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
-      const status = jobStatuses.find(
-        (status) => status.value === row.getValue("status")
-      );
-
-      if (!status) {
-        return null;
-      }
-
-      return (
-        <div className="flex w-[120px] items-center">
-          {status.icon && (
-            <status.icon className={`mr-2 h-4 w-4 ${status.color}`} />
-          )}
-          <span>{status.label}</span>
-        </div>
-      );
+      const jobId = row.getValue("id") as string;
+      const dbStatus = row.getValue("status") as string;
+      
+      return <JobStatusDisplay jobId={jobId} dbStatus={dbStatus} />;
     },
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));

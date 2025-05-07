@@ -9,7 +9,7 @@ import {
   Timer,
   Clock,
   AlertTriangle,
-  Play,
+  PlayCircle,
   Pause,
   XCircle,
   AlertCircle,
@@ -68,7 +68,7 @@ export const jobStatuses = [
   {
     value: "running",
     label: "Running",
-    icon: Play,
+    icon: PlayCircle,
     color: "text-blue-500",
   },
   {

@@ -77,11 +77,13 @@ export async function POST(request: Request) {
 
     await addJobToQueue(task);
 
-    console.log(`[${jobId}/${runId}] Attempting to update job record with jobId: ${jobId}`);
-    
+    console.log(`[${jobId}/${runId}] Setting job status to "running" in the database.`);
     const currentDate = new Date();
-    await dbInstance.execute(sql`UPDATE ${jobs} SET "last_run_at" = ${currentDate.toISOString()} WHERE ${jobs.id} = ${jobId}`);
-    
+    await dbInstance.update(jobs).set({ 
+      status: "running", 
+      lastRunAt: currentDate 
+    }).where(eq(jobs.id, jobId));
+
     return NextResponse.json({
       message: "Job execution queued successfully.",
       jobId: jobId,
