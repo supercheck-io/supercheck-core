@@ -20,12 +20,23 @@ export function RunDetails({ run }: RunDetailsProps) {
   const [reportUrl, setReportUrl] = useState('');
   const [duration, setDuration] = useState<string | undefined>(run.duration || undefined);
 
-  // Helper to map status for display
+  // Helper to validate status is one of the allowed values
   const mapStatusForDisplay = (status: string): TestRunStatus => {
-    if (status.toLowerCase() === 'completed') {
-      return 'passed' as TestRunStatus;
+    const statusLower = status.toLowerCase();
+    
+    switch(statusLower) {
+      case 'running':
+        return 'running';
+      case 'passed':
+        return 'passed';
+      case 'failed':
+        return 'failed';
+      case 'error':
+        return 'error';
+      default:
+        console.warn(`Unknown status: ${status}, defaulting to running`);
+        return 'running';
     }
-    return status as TestRunStatus;
   };
   
   const [currentStatus, setCurrentStatus] = useState<TestRunStatus>(mapStatusForDisplay(run.status as TestRunStatus));
@@ -38,10 +49,26 @@ export function RunDetails({ run }: RunDetailsProps) {
       setReportUrl(apiUrl);
     } else {
       // If no report URL, still try to use the test-results API with direct UUID
-      setReportUrl(`/api/test-results/${run.id}/report/index.html?t=${Date.now()}`);
+      const apiUrl = `/api/test-results/${run.id}/report/index.html?t=${Date.now()}`;
+      console.log(`No direct reportUrl, trying API proxy path: ${apiUrl}`);
+      setReportUrl(apiUrl);
     }
+    
+    // Always update status and duration regardless of reportUrl
     setCurrentStatus(mapStatusForDisplay(run.status as TestRunStatus));
     setDuration(run.duration || undefined);
+    
+    // Set a timer to retry loading the report if status is 'running'
+    // This helps when the UI shows a report is ready but the report itself is still uploading
+    if (mapStatusForDisplay(run.status as TestRunStatus) !== 'running') {
+      const retryTimer = setTimeout(() => {
+        const refreshUrl = `/api/test-results/${run.id}/report/index.html?t=${Date.now()}&retry=true`;
+        console.log(`Auto-refreshing report URL after delay: ${refreshUrl}`);
+        setReportUrl(refreshUrl);
+      }, 2000); // 2 second delay before retry
+      
+      return () => clearTimeout(retryTimer);
+    }
   }, [run.reportUrl, run.status, run.id, run.duration]);
 
   // Handle status updates from SSE

@@ -61,14 +61,41 @@ export function ReportViewer({
   // Safety timeout to prevent loading state from getting stuck
   useEffect(() => {
     if (isReportLoading) {
+      console.log("ReportViewer: Setting safety timeout for report loading");
       const safetyTimeout = setTimeout(() => {
         console.log("ReportViewer: Safety timeout triggered - report still loading after timeout");
         setIsReportLoading(false);
+        
+        // If the iframe failed silently, set error state
+        if (currentReportUrl && !iframeError) {
+          console.log("ReportViewer: Setting iframe error due to timeout");
+          setIframeError(true);
+          setReportError("Report loading timed out. The report server might be unreachable.");
+        }
       }, 10000); // 10 second timeout
 
-      return () => clearTimeout(safetyTimeout);
+      return () => {
+        console.log("ReportViewer: Clearing safety timeout");
+        clearTimeout(safetyTimeout);
+      };
     }
-  }, [isReportLoading]);
+  }, [isReportLoading, currentReportUrl, iframeError]);
+
+  // Add new effect to force retry if report is stuck loading
+  useEffect(() => {
+    if (isReportLoading && currentReportUrl) {
+      // Set a shorter timeout for initial retry
+      const retryTimeout = setTimeout(() => {
+        console.log("ReportViewer: Attempting auto-retry of report loading");
+        // Add timestamp to force reload and bypass cache
+        const refreshedUrl = `${currentReportUrl.split('?')[0]}?retry=true&t=${Date.now()}`;
+        console.log("ReportViewer: Auto-retrying with URL:", refreshedUrl);
+        setCurrentReportUrl(refreshedUrl);
+      }, 5000); // 5 second timeout before retry
+
+      return () => clearTimeout(retryTimeout);
+    }
+  }, [isReportLoading, currentReportUrl]);
 
   // Static error page component
   const StaticErrorPage = ({ title, message }: { title: string; message: string }) => (
@@ -176,25 +203,44 @@ export function ReportViewer({
           sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
           title="Playwright Test Report"
           onLoad={(e) => {
-            console.log("ReportViewer: iframe onLoad triggered");
+            console.log("ReportViewer: iframe onLoad triggered for URL:", currentReportUrl);
             const iframe = e.target as HTMLIFrameElement;
             try {
+              // Verify we can access the contentWindow - if not, it's likely a CORS issue
+              if (!iframe.contentWindow) {
+                console.error("ReportViewer: Cannot access iframe contentWindow - likely CORS issue");
+                setReportError("Cannot load report due to security restrictions. The report may be on a different domain.");
+                setIframeError(true);
+                setIsReportLoading(false);
+                return;
+              }
+              
               // Check for JSON error response by examining body content
               if (iframe.contentWindow?.document.body.textContent) {
                 const bodyText = iframe.contentWindow.document.body.textContent;
                 console.log("ReportViewer: iframe content body text:", bodyText.substring(0, 100) + (bodyText.length > 100 ? '...' : ''));
                 
+                // Check for error status codes in the URL or HTML
+                if (iframe.contentDocument?.title?.includes("Error") || 
+                    iframe.contentDocument?.title?.includes("404") ||
+                    iframe.contentDocument?.title?.includes("Not Found")) {
+                  console.error("ReportViewer: Error page detected in iframe");
+                  setReportError("The test report could not be found. It may have been deleted or not generated properly.");
+                  setIframeError(true);
+                  setIsReportLoading(false);
+                  return;
+                }
+                
                 // Check for JSON error response
-                if (bodyText.includes('"error"') && bodyText.includes('"message"')) {
+                if (bodyText.includes('"error"') && (bodyText.includes('"message"') || bodyText.includes('"details"'))) {
                   try {
                     const errorData = JSON.parse(bodyText);
-                    if (errorData.message) {
-                      console.log("ReportViewer: Error in iframe content:", errorData.message);
-                      setReportError(errorData.message);
-                      setIframeError(true);
-                      setIsReportLoading(false);
-                      return;
-                    }
+                    const errorMessage = errorData.message || errorData.details || errorData.error || "Unknown error";
+                    console.log("ReportViewer: Error in iframe content:", errorMessage);
+                    setReportError(errorMessage);
+                    setIframeError(true);
+                    setIsReportLoading(false);
+                    return;
                   } catch (e) {
                     // Not valid JSON, continue with normal display
                     console.error("ReportViewer: Error parsing JSON:", e);
@@ -202,19 +248,7 @@ export function ReportViewer({
                 }
               }
               
-              // Check if there's any HTML content at all in the iframe
-              // Use nullish coalescing to safely check length after potential undefined values
-              const hasContent = (iframe.contentWindow?.document.body.innerHTML?.trim()?.length ?? 0) > 0;
-              
-              if (!hasContent) {
-                console.log("ReportViewer: Empty iframe content, treating as error");
-                setReportError("No report content available.");
-                setIframeError(true);
-                setIsReportLoading(false);
-                return;
-              }
-              
-              // Clear loading state
+              // Always clear loading state, even if we think there might be an issue
               console.log("ReportViewer: Load complete, clearing loading state");
               setIsReportLoading(false);
               
@@ -229,7 +263,7 @@ export function ReportViewer({
           onError={(e) => {
             console.error("ReportViewer: iframe onError triggered", e);
             setIsReportLoading(false);
-            setReportError("Failed to load test report. Please check if the test completed successfully.");
+            setReportError("Failed to load test report. The report server might be unreachable.");
             setIframeError(true);
           }}
         />

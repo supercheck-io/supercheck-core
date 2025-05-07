@@ -422,8 +422,14 @@ const Playground: React.FC<PlaygroundProps> = ({
               // Set the test status in state
               setTestStatus(data.status);
               
+              // Normalize status value for consistency
+              const normalizedStatus = data.status.toLowerCase();
+              
               // Handle status - this could update a state variable to show in UI
-              if (data.status === "completed" || data.status === "failed") {
+              if (normalizedStatus === "completed" || 
+                  normalizedStatus === "passed" || 
+                  normalizedStatus === "failed" || 
+                  normalizedStatus === "error") {
                 // Test is done, update the UI
                 setIsRunning(false);
                 setIsReportLoading(false);
@@ -435,7 +441,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                 // Construct the relative API report URL, don't use the direct S3 URL from data
                 if (result.testId) { // Ensure we have the testId from the initial API call
                   const apiUrl = `/api/test-results/${result.testId}/report/index.html?t=${Date.now()}&forceIframe=true`;
-                  console.log(`Test ${data.status}: Setting report URL to API path: ${apiUrl}`);
+                  console.log(`Test ${normalizedStatus}: Setting report URL to API path: ${apiUrl}`);
                   setReportUrl(apiUrl); // Use the relative API path
                   
                   // Always stay on report tab and ensure we're viewing the report
@@ -450,12 +456,15 @@ const Playground: React.FC<PlaygroundProps> = ({
                    toast.error("Error displaying report", { description: "Could not determine the test ID to load the report." });
                 }
                 
+                // Determine if it was a success or failure for the toast
+                const isSuccess = normalizedStatus === "completed" || normalizedStatus === "passed";
+                
                 // Dismiss loading toast and show completion toast
                 toast.dismiss(loadingToastId);
-                toast[data.status === "completed" ? "success" : "error"](
-                  data.status === "completed" ? "Test execution passed" : "Test execution failed",
+                toast[isSuccess ? "success" : "error"](
+                  isSuccess ? "Test execution passed" : "Test execution failed",
                   { 
-                    description: data.status === "completed" 
+                    description: isSuccess 
                       ? "All checks completed successfully." 
                       : "Test did not complete successfully.",
                     duration: 10000 

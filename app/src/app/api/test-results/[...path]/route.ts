@@ -154,6 +154,9 @@ export async function GET(
   try {
     const dbInstance = await db();
     
+    // Add debugging log to show full path information
+    console.log(`[TEST-RESULTS API] Processing request for path: ${path.join('/')} (entityId: ${entityId})`);
+    
     // Query the reports table to get the s3Url for this entity
     let reportResult = await dbInstance.query.reports.findFirst({
       where: eq(reports.entityId, entityId),
@@ -165,11 +168,16 @@ export async function GET(
       }
     });
     
+    // Debug the report lookup result
+    console.log(`[TEST-RESULTS API] Report lookup result for ${entityId}:`, reportResult);
+    
     if (!reportResult) {
+      console.error(`[TEST-RESULTS API] No report found for entity ID: ${entityId}`);
       return notFound();
     }
     
     if (!reportResult.s3Url) {
+      console.log(`[TEST-RESULTS API] Report missing s3Url. Status: ${reportResult.status}`);
       if (reportResult.status === 'running') {
         return NextResponse.json({ 
           error: "Report not ready", 
@@ -228,13 +236,16 @@ export async function GET(
       });
       
       // Use AWS SDK for S3 access which handles auth correctly
-      console.log(`Using AWS SDK for S3 access to ${bucket}/${s3Key}`);
+      console.log(`[TEST-RESULTS API] Using AWS SDK for S3 access to ${bucket}/${s3Key}`);
       
       const s3Response = await s3Client.send(command);
       
       if (!s3Response.Body) {
+        console.error(`[TEST-RESULTS API] Empty response from S3 for ${bucket}/${s3Key}`);
         throw new Error("Empty response from S3");
       }
+      
+      console.log(`[TEST-RESULTS API] Successfully retrieved object from S3, ContentType: ${s3Response.ContentType}`);
       
       const buffer = await streamToUint8Array(s3Response.Body);
       const contentType = s3Response.ContentType || 'application/octet-stream';
@@ -253,7 +264,7 @@ export async function GET(
       });
     } catch (error: unknown) {
       const s3Error = error as Error;
-      console.error(`AWS SDK approach failed: ${s3Error.message}`);
+      console.error(`[TEST-RESULTS API] AWS SDK approach failed for ${bucket}/${s3Key}: ${s3Error.message}`, s3Error);
       console.log('Trying final fallback with direct file construction...');
       
       // 3. Last resort: try a simple file URL construction 
@@ -299,7 +310,7 @@ export async function GET(
       }
     }
   } catch (error) {
-    console.error(`Error fetching report for entity ${entityId}:`, error);
+    console.error(`[TEST-RESULTS API] Fatal error processing request for entity ${entityId}:`, error);
     return notFound();
   }
 } 
