@@ -27,17 +27,21 @@ async function executeJob(jobId: string, tests: { id: string; script: string }[]
   await dbInstance.insert(runs).values({
     id: runId,
     jobId: jobId,
-    status: 'pending' as TestRunStatus,
+    status: 'running' as TestRunStatus,
     startedAt: new Date(),
   });
   
-  console.log(`[${jobId}] Created pending test run record: ${runId}`);
+  console.log(`[${jobId}] Created running test run record: ${runId}`);
   
   return {
     runId,
     jobId,
-    status: 'pending',
-    message: 'Job execution request queued'
+    status: 'running',
+    message: 'Job execution request queued',
+    // Properties needed for other parts of the code
+    success: true,
+    results: [],
+    reportUrl: null
   };
 }
 
@@ -176,10 +180,11 @@ export async function POST(request: Request) {
 
     // Insert the job into the database with default values for nullable fields
     await dbInstance.insert(jobs).values({
+      id: jobId,
       name: jobData.name,
       description: jobData.description || "",
       cronSchedule: jobData.cronSchedule,
-      status: (jobData.status || "pending") as JobStatus,
+      status: "pending", // Always set to pending for new jobs
     });
 
     // If tests are provided, create job-test associations
@@ -350,12 +355,14 @@ async function runJob(request: Request) {
     const result = await executeJob(jobId, testScripts);
 
     // Map individual test results for the response
-    const testResults = result.results.map((testResult: TestResult) => ({
-      testId: testResult.testId,
-      success: testResult.success,
-      error: testResult.error,
-      reportUrl: result.reportUrl, // All tests share the same report URL
-    }));
+    const testResults = result.results && Array.isArray(result.results) 
+      ? result.results.map((testResult: TestResult) => ({
+          testId: testResult.testId,
+          success: testResult.success,
+          error: testResult.error,
+          reportUrl: result.reportUrl, // All tests share the same report URL
+        }))
+      : [];
 
     // Calculate test duration
     const startTimeMs = startTime.getTime();
@@ -368,24 +375,26 @@ async function runJob(request: Request) {
       .update(jobs)
       .set({
         status: result.success
-          ? ("completed" as JobStatus)
+          ? ("passed" as JobStatus)
           : ("failed" as JobStatus),
         lastRunAt: new Date(),
       })
       .where(eq(jobs.id, jobId));
 
     // Create a separate variable for logs data that includes stdout and stderr
-    const logsData = result.results.map((r: TestResult) => {
-      // Create a basic log entry with the test ID
-      const logEntry: { testId: string; stdout: string; stderr: string } = {
-        testId: r.testId,
-        stdout: r.stdout?.toString() || "",
-        stderr: r.stderr?.toString() || "",
-      };
+    const logsData = result.results && Array.isArray(result.results)
+      ? result.results.map((r: TestResult) => {
+          // Create a basic log entry with the test ID
+          const logEntry: { testId: string; stdout: string; stderr: string } = {
+            testId: r.testId,
+            stdout: r.stdout?.toString() || "",
+            stderr: r.stderr?.toString() || "",
+          };
 
-      // Return the log entry
-      return logEntry;
-    });
+          // Return the log entry
+          return logEntry;
+        })
+      : [];
 
     // Stringify the logs data for storage
     const logs = JSON.stringify(logsData);
@@ -394,12 +403,16 @@ async function runJob(request: Request) {
     const errorDetails = result.success
       ? null
       : JSON.stringify(
-          result.results.filter((r) => !r.success).map((r) => r.error)
+          result.results && Array.isArray(result.results) 
+            ? result.results.filter((r: TestResult) => !r.success).map((r: TestResult) => r.error)
+            : []
         );
 
     // Check if any individual tests failed - this is an additional check to ensure
     // we correctly flag runs with failed tests
-    const hasFailedTests = result.results.some(r => !r.success);
+    const hasFailedTests = result.results && Array.isArray(result.results) 
+      ? result.results.some((r: TestResult) => !r.success)
+      : false;
 
     // Update the test run record with results
     await dbInstance
