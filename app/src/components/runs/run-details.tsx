@@ -58,14 +58,13 @@ export function RunDetails({ run }: RunDetailsProps) {
     setCurrentStatus(mapStatusForDisplay(run.status as TestRunStatus));
     setDuration(run.duration || undefined);
     
-    // Set a timer to retry loading the report if status is 'running'
-    // This helps when the UI shows a report is ready but the report itself is still uploading
-    if (mapStatusForDisplay(run.status as TestRunStatus) !== 'running') {
+    // Only auto-refresh if the run is still in progress
+    if (mapStatusForDisplay(run.status as TestRunStatus) === 'running') {
       const retryTimer = setTimeout(() => {
         const refreshUrl = `/api/test-results/${run.id}/report/index.html?t=${Date.now()}&retry=true`;
-        console.log(`Auto-refreshing report URL after delay: ${refreshUrl}`);
+        console.log(`Auto-refreshing report for running job: ${refreshUrl}`);
         setReportUrl(refreshUrl);
-      }, 2000); // 2 second delay before retry
+      }, 5000); // 5 second delay before retry for running jobs
       
       return () => clearTimeout(retryTimer);
     }
