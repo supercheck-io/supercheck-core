@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ParallelThreads } from "@/components/parallel-threads";
 import { Toaster } from "@/components/ui/sonner";
 import { BreadcrumbProvider } from "@/components/breadcrumb-context";
 import { BreadcrumbDisplay } from "@/components/breadcrumb-display";
@@ -84,7 +85,8 @@ export default function RootLayout({
                       />
                       <BreadcrumbDisplay />
                     </div>
-                    <div className="ml-auto mr-4">
+                    <div className="ml-auto mr-4 flex items-center gap-4">
+                      <ParallelThreads />
                       <ThemeToggle />
                     </div>
                   </header>
