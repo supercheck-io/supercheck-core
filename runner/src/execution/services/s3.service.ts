@@ -8,7 +8,7 @@ import {
 } from '@aws-sdk/client-s3';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { getContentType } from '../utils';
+import { getContentType } from '../services/execution.service';
 
 @Injectable()
 export class S3Service implements OnModuleInit {

@@ -32,12 +32,16 @@ This document explains the end-to-end flow of test and job execution in the appl
 3. **Worker Processing**:
    - The TestExecutionProcessor picks up the queued test
    - Publishes initial "running" status via Redis pub/sub with TTL
-   - Creates a test run directory
+   - Creates a test run directory with a unique ID to prevent conflicts
+   - Validates the test script content
+   - Enhances the script with proper trace configuration
    - Writes the test script to a JavaScript file
-   - Executes the test using Playwright
+   - Executes the test using Playwright's native runner
    - Collects test results and generates HTML report
 
 4. **Results Handling**:
+   - Searches for reports in expected output directories
+   - Processes report files to fix trace URLs before uploading
    - Uploads test report and artifacts to S3/MinIO
    - Updates test status in the database
    - Publishes completion status via Redis with TTL
@@ -62,14 +66,19 @@ This document explains the end-to-end flow of test and job execution in the appl
 3. **Worker Processing**:
    - The JobExecutionProcessor picks up the queued job
    - Publishes initial "running" status via Redis pub/sub with TTL
-   - Creates a job run directory
-   - Writes each test script to separate JavaScript files
-   - Executes all tests with Playwright (potentially in parallel)
+   - Creates a job run directory with a unique ID to prevent conflicts
+   - For each test script in the job:
+     - Ensures proper trace configuration to prevent path issues
+     - Writes each test script to separate JavaScript files
+   - Executes all tests using Playwright's native runner
    - Collects aggregated results and generates a combined HTML report
 
 4. **Results Handling**:
+   - Searches for reports in expected output directories
+   - Processes report files to fix trace URLs before uploading
    - Uploads consolidated report and artifacts to S3/MinIO
-   - Updates job status in the database, including duration
+   - Calculates and stores test duration in the database
+   - Updates job status in the database, including duration information
    - Publishes completion status with results via Redis with TTL
    - Frontend receives real-time updates via SSE
    - Frontend dismisses loading toast and shows success/error toast with "View Run Report" link
@@ -121,4 +130,6 @@ The application provides job management capabilities:
 4. **Persistence**: Jobs survive application restarts
 5. **Rich Reporting**: Comprehensive HTML reports with screenshots and traces
 6. **Memory Management**: Redis TTL implementation prevents memory leaks
-7. **Consistent UX**: Unified notification system for both test and job execution 
+7. **Consistent UX**: Unified notification system for both test and job execution
+8. **Trace Management**: Automatic processing of trace files for consistent report viewing
+9. **Duration Tracking**: Test execution durations are tracked and displayed in reports 

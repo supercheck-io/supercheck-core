@@ -27,14 +27,17 @@ sequenceDiagram
     
     %% Test execution process
     NestJS->>NestJS: Validate test script
-    NestJS->>NestJS: Create test run directory
+    NestJS->>NestJS: Create test run directory with unique ID
+    NestJS->>NestJS: Enhance script with trace configuration
     NestJS->>NestJS: Write test to JavaScript file
-    NestJS->>PW: Execute test with Playwright
+    NestJS->>PW: Execute test with Playwright native runner
     activate PW
     PW-->>NestJS: Return execution results
     deactivate PW
     
     %% Handling test results
+    NestJS->>NestJS: Search for reports in expected directories
+    NestJS->>NestJS: Process report files to fix trace URLs
     NestJS->>S3: Upload test report/artifacts
     NestJS->>DB: Update test status & metadata
     NestJS->>Redis: Publish completion status with TTL
@@ -66,15 +69,20 @@ sequenceDiagram
     NextAPI-->>NextFE: SSE event: status='running'
     
     %% Job execution process
-    NestJS->>NestJS: Create job run directory
-    NestJS->>NestJS: Write test scripts to separate files
-    NestJS->>PW: Execute tests with Playwright
+    NestJS->>NestJS: Create job run directory with unique ID
+    NestJS->>NestJS: For each test script:
+    NestJS->>NestJS: - Enhance with trace configuration
+    NestJS->>NestJS: - Write to separate JavaScript file
+    NestJS->>PW: Execute tests with Playwright native runner
     activate PW
-    Note right of PW: Tests run in parallel<br>with HTML reporter
+    Note right of PW: Tests run with HTML reporter
     PW-->>NestJS: Return aggregated results
     deactivate PW
     
     %% Handling job results
+    NestJS->>NestJS: Search for reports in expected directories
+    NestJS->>NestJS: Process report files to fix trace URLs
+    NestJS->>NestJS: Calculate test duration
     NestJS->>S3: Upload consolidated report
     NestJS->>DB: Update job run status & metadata<br>including duration
     NestJS->>Redis: Publish completion status with results<br>and TTL
