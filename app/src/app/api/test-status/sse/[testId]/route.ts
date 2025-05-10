@@ -1,226 +1,210 @@
 import { NextRequest, NextResponse } from 'next/server';
-// import { createClient, RedisClientType } from 'redis';
-import Redis from 'ioredis'; // Import ioredis
-import { createDb } from '@/db/client';
+import { getDb } from '@/db/client';
 import { reports } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { Queue } from 'bullmq';
+import { TEST_EXECUTION_QUEUE } from '@/lib/queue';
+import Redis from 'ioredis';
 
-// Define types for message data
-interface TestStatusMessage {
-  status: 'queued' | 'running' | 'completed' | 'failed';
-  reportPath?: string;
-  s3Url?: string;
-  error?: string;
-}
+/**
+ * Helper function to create SSE message
+ */
+const createSSEMessage = (data: any) => {
+  return `data: ${JSON.stringify(data)}\n\n`;
+};
 
-// Helper function to create Redis client
-async function createRedisClient() {
-  // Instantiate ioredis client
-  const client = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-    // Add any specific ioredis options here if needed
-    // lazyConnect: true // Example option
+/**
+ * Helper function to get Redis connection - internal function that doesn't rely on exported getRedisConnection
+ */
+const getRedisConnection = async (): Promise<Redis> => {
+  console.log(`Creating Redis connection for SSE endpoint`);
+  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  
+  const redis = new Redis(redisUrl, {
+    maxRetriesPerRequest: null, // Required for BullMQ
+    enableReadyCheck: false,    // Speed up connection
   });
-
-  client.on('error', (err) => console.error('SSE Redis Client Error', err));
-  // No explicit connect() needed for ioredis in basic cases
-  // await client.connect(); 
-  return client;
-}
+  
+  redis.on('error', (err) => console.error('[SSE Redis Client Error]', err));
+  redis.on('connect', () => console.log('[SSE Redis Client Connected]'));
+  
+  return redis;
+};
 
 export async function GET(
-  req: NextRequest,
-  { params: routeParams }: { params: { testId: string } }
+  request: NextRequest,
+  { params }: { params: { testId: string } }
 ) {
-  const params = await Promise.resolve(routeParams);
-  const { testId } = params;
-  console.log(`[SSE] Request received for testId: ${testId}`);
-
-  if (!testId) {
-    return NextResponse.json({ error: 'Missing testId' }, { status: 400 });
-  }
-
-  // let subRedis: RedisClientType | null = null;
-  let subRedis: Redis | null = null; // Use ioredis type
-  let streamController: ReadableStreamDefaultController<any> | null = null;
-  let pingInterval: NodeJS.Timeout | null = null;
-  let cleanedUp = false; // Flag to prevent multiple cleanups
-  let dbInstance: Awaited<ReturnType<typeof createDb>> | null = null; // Hold DB instance
-  const channelName = `test-status:${testId}`; // Define channel name early
-
-  const cleanup = async () => {
-    if (cleanedUp) {
-      return;
-    }
-    cleanedUp = true;
-    console.log(`[SSE Cleanup ${testId}] Starting cleanup...`);
-
-    if (pingInterval) {
-      clearInterval(pingInterval);
-      pingInterval = null;
-      console.log(`[SSE Cleanup ${testId}] Cleared ping interval.`);
-    }
-
-    if (subRedis) {
-      const redisToClean = subRedis;
-      subRedis = null;
-      // Remove message listener before unsubscribing/disconnecting
-      redisToClean.off('message', messageHandler); 
+  // Explicitly await the params object to fix the "sync dynamic APIs" error
+  const resolvedParams = await Promise.resolve(params);
+  const testId = resolvedParams.testId;
+  let connectionClosed = false;
+  
+  // Create response with appropriate headers for SSE
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
       try {
-        await redisToClean.unsubscribe(channelName);
-        console.log(`[SSE Cleanup ${testId}] Unsubscribed from ${channelName}.`);
-      } catch (unsubError: any) {
-        console.warn(`[SSE Cleanup ${testId}] Error unsubscribing (ignoring): ${unsubError.message}`);
-      }
-      try {
-        // Use disconnect for ioredis
-        await redisToClean.disconnect(); 
-        console.log(`[SSE Cleanup ${testId}] Redis connection quit.`);
-      } catch (quitError: any) {
-        console.warn(`[SSE Cleanup ${testId}] Error quitting Redis (ignoring): ${quitError.message}`);
-      }
-    }
+        // Check if we already have a result for this test
+        const db = await getDb();
+        
+        // Get the specific report by test ID
+        const report = await db.query.reports.findFirst({
+          where: and(
+            eq(reports.entityType, 'test'),
+            eq(reports.entityId, testId)
+          ),
+        });
 
-    if (streamController) {
-      const controllerToClean = streamController;
-      streamController = null;
-      try {
-        // Check if controller is already closed before attempting to close it
-        if (controllerToClean.desiredSize !== null) {
-          controllerToClean.close();
-          console.log(`[SSE Cleanup ${testId}] Stream controller closed.`);
-        }
-      } catch (closeError: any) {
-        console.warn(`[SSE Cleanup ${testId}] Error closing stream controller (ignoring): ${closeError.message}`);
-      }
-    }
-    
-    // Close DB connection if open
-    if (dbInstance) {
-        try {
-            // Close the database connection using the $client property
-            if (dbInstance.$client) {
-                await dbInstance.$client.end();
-                console.log(`[SSE Cleanup ${testId}] Database connection closed.`);
-            } else {
-                console.log(`[SSE Cleanup ${testId}] No database client found.`);
-            }
-            dbInstance = null;
-        } catch (dbCloseError: any) {
-            console.warn(`[SSE Cleanup ${testId}] Error closing database connection (ignoring): ${dbCloseError.message}`);
-            dbInstance = null;
-        }
-    }
-    
-    console.log(`[SSE Cleanup ${testId}] Cleanup finished.`);
-  };
-
-  // Define the message handler function separately for easier removal
-  const messageHandler = (channel: string, message: string) => {
-      if (cleanedUp || channel !== channelName) return; // Ensure correct channel
-      console.log(`[SSE ${testId}] Received message from ${channel}:`, message);
-      try {
-        const data: TestStatusMessage = JSON.parse(message);
-        if (streamController) {
-          streamController.enqueue(`data: ${JSON.stringify(data)}\n\n`);
-        } else {
-          console.warn(`[SSE ${testId}] Received message but stream controller is null.`);
-          cleanup();
+        // If report exists and has a terminal status, send result and close
+        if (report && ['completed', 'failed'].includes(report.status)) {
+          controller.enqueue(encoder.encode(createSSEMessage({ 
+            status: report.status,
+            testId: report.entityId,
+            reportPath: report.reportPath,
+            s3Url: report.s3Url,
+            error: report.errorDetails
+          })));
+          connectionClosed = true;
+          controller.close();
           return;
         }
 
-        if (data.status === 'completed' || data.status === 'failed') {
-          console.log(`[SSE ${testId}] Received final status (${data.status}). Scheduling cleanup.`);
-          setTimeout(cleanup, 1000); 
+        // Get Redis connection and create the Bull queue
+        const connection = await getRedisConnection();
+        const testQueue = new Queue(TEST_EXECUTION_QUEUE, { connection });
+        
+        // Handle disconnection
+        const cleanup = async () => {
+          if (!connectionClosed) {
+            connectionClosed = true;
+            controller.close();
+            console.log(`[SSE] Client disconnected for test ${testId}`);
+            // Clean up Redis connection
+            try {
+              await connection.disconnect();
+            } catch (err) {
+              console.error(`Error disconnecting Redis: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+        };
+        
+        request.signal.addEventListener('abort', () => {
+          cleanup().catch(err => console.error("Error in cleanup:", err));
+        });
+        
+        // Set up ping interval to keep connection alive
+        const pingInterval = setInterval(() => {
+          if (!connectionClosed) {
+            controller.enqueue(encoder.encode(': ping\n\n'));
+          } else {
+            clearInterval(pingInterval);
+          }
+        }, 30000);
+        
+        // Clean up on close
+        request.signal.addEventListener('abort', () => {
+          clearInterval(pingInterval);
+        });
+        
+        // Send initial running status if we have an active report
+        if (report && report.status === 'running') {
+          controller.enqueue(encoder.encode(createSSEMessage({ 
+            status: 'running',
+            testId: report.entityId
+          })));
+        } else {
+          controller.enqueue(encoder.encode(createSSEMessage({ status: 'waiting' })));
         }
-      } catch (err: any) {
-        console.error(`[SSE ${testId}] Error parsing message or enqueuing: ${err.message}`);
-        cleanup();
-      }
-  };
-
-  try {
-    // Create DB instance for this request
-    dbInstance = await createDb();
-    console.log(`[SSE ${testId}] Attempting database query...`);
-    const existingReport = await dbInstance.query.reports.findFirst({
-      where: and(eq(reports.entityType, 'test'), eq(reports.entityId, testId)),
-      columns: { status: true, reportPath: true, s3Url: true },
-    });
-    console.log(`[SSE ${testId}] Database query completed.`);
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        streamController = controller;
-        console.log(`[SSE ${testId}] Stream started.`);
-
-        if (existingReport) {
-          console.log(`[SSE ${testId}] Found existing report with status: ${existingReport.status}`);
-          const initialData: TestStatusMessage = {
-            status: existingReport.status as TestStatusMessage['status'],
-            reportPath: existingReport.reportPath ?? undefined,
-            s3Url: existingReport.s3Url ?? undefined,
-          };
-          controller.enqueue(`data: ${JSON.stringify(initialData)}\n\n`);
-          if (existingReport.status === 'completed' || existingReport.status === 'failed') {
-            console.log(`[SSE ${testId}] Test already finished (${existingReport.status}). Closing stream immediately.`);
-            await cleanup();
+        
+        // Get all Bull jobs for this test ID
+        const jobs = await testQueue.getJobs(['waiting', 'active', 'completed', 'failed']);
+        const testJob = jobs.find(job => job.data.testId === testId);
+        
+        if (!testJob) {
+          console.log(`[SSE] Test ${testId} not found in Bull queue`);
+          // Even if test not found in Bull, keep the connection alive
+          // as it might be added later or already completed
+          return;
+        }
+        
+        // Set up polling to check test status from Bull queue
+        const pollInterval = setInterval(async () => {
+          if (connectionClosed) {
+            clearInterval(pollInterval);
             return;
           }
-        } else {
-          console.log(`[SSE ${testId}] No existing report found. Sending initial queued/running status.`);
-          controller.enqueue(`data: ${JSON.stringify({ status: 'running' })}\n\n`);
-        }
-
-        console.log(`[SSE ${testId}] Connecting to Redis for Pub/Sub...`);
-        subRedis = await createRedisClient();
-        console.log(`[SSE ${testId}] Redis connected. Subscribing...`);
-        
-        // Register the message listener
-        subRedis.on('message', messageHandler);
-
-        // Subscribe to the channel
-        await subRedis.subscribe(channelName);
-        console.log(`[SSE ${testId}] Subscribed to ${channelName}.`);
-
-        req.signal.onabort = () => {
-          console.log(`[SSE ${testId}] Client disconnected (abort signal).`);
-          cleanup();
-        };
-
-        pingInterval = setInterval(() => {
-          if (cleanedUp) return;
+          
           try {
-            // Check connection status for ioredis
-            if (streamController && subRedis && subRedis.status === 'ready') { 
-              streamController.enqueue(': ping\n\n');
-            } else {
-              console.warn(`[SSE ${testId}] Ping: Stream/Redis unavailable (Status: ${subRedis?.status}). Cleaning up.`);
-              cleanup();
+            // Get all jobs again to find the latest state
+            const updatedJobs = await testQueue.getJobs(['waiting', 'active', 'completed', 'failed']);
+            const updatedTestJob = updatedJobs.find(job => job.data.testId === testId);
+            
+            if (!updatedTestJob) {
+              return;
             }
-          } catch (pingErr: any) {
-            console.error(`[SSE ${testId}] Error during ping: ${pingErr.message}. Cleaning up.`);
-            cleanup();
+            
+            // Get job state
+            const state = await updatedTestJob.getState();
+            const progress = JSON.stringify(await updatedTestJob.progress);
+            
+            // Map Bull states to our application states
+            let status = state;
+            if (state === 'completed') {
+              const result = await updatedTestJob.returnvalue;
+              status = result?.success === true ? 'completed' : 'failed';
+            }
+            
+            // Get latest report data from DB
+            const updatedReport = await db.query.reports.findFirst({
+              where: and(
+                eq(reports.entityType, 'test'),
+                eq(reports.entityId, testId)
+              ),
+            });
+            
+            controller.enqueue(encoder.encode(createSSEMessage({ 
+              status,
+              testId,
+              progress,
+              reportPath: updatedReport?.reportPath,
+              s3Url: updatedReport?.s3Url,
+              error: updatedReport?.errorDetails,
+              ...(updatedTestJob.returnvalue || {})
+            })));
+            
+            // If terminal state, close connection
+            if (['completed', 'failed'].includes(state)) {
+              console.log(`[SSE] Test ${testId} reached terminal state ${status}, closing connection`);
+              connectionClosed = true;
+              clearInterval(pollInterval);
+              // Close Redis connection using our cleanup function
+              await cleanup();
+              controller.close();
+            }
+          } catch (pollError) {
+            console.error(`[SSE] Error polling test ${testId} status:`, pollError);
           }
-        }, 10000); 
+        }, 1000); // Poll every second
+      } catch (err) {
+        console.error('[SSE] Error in SSE stream:', err);
+        controller.enqueue(encoder.encode(createSSEMessage({ 
+          status: 'error', 
+          message: 'Failed to establish status stream' 
+        })));
+        
+        // Clean up resources
+        connectionClosed = true;
+        controller.close();
+      }
+    }
+  });
 
-      },
-      cancel(reason) {
-        console.log(`[SSE ${testId}] Stream cancelled. Reason:`, reason);
-        cleanup();
-      },
-    });
-
-    return new NextResponse(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-      },
-    });
-
-  } catch (error: any) {
-    console.error(`[SSE ${testId}] Error setting up SSE stream: ${error.message}`);
-    await cleanup(); 
-    return NextResponse.json({ error: 'Failed to establish SSE connection', details: error.message }, { status: 500 });
-  }
+  return new NextResponse(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+    },
+  });
 } 

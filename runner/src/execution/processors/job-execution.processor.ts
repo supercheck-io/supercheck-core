@@ -4,7 +4,6 @@ import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { JOB_EXECUTION_QUEUE } from '../constants'; // Use constants file
 import { ExecutionService } from '../services/execution.service';
-import { RedisService } from '../services/redis.service';
 import { DbService } from '../services/db.service';
 import { TestScript, JobExecutionTask, TestExecutionResult } from '../interfaces'; // Use updated interfaces
 
@@ -28,7 +27,6 @@ export class JobExecutionProcessor extends WorkerHost {
 
   constructor(
     private readonly executionService: ExecutionService,
-    private readonly redisService: RedisService,
     private readonly dbService: DbService
   ) {
     super();
@@ -40,7 +38,7 @@ export class JobExecutionProcessor extends WorkerHost {
     const { jobId, runId, originalJobId } = job.data; // Extract both jobId and runId
     const startTime = new Date(); // Record the start time for duration calculation
     
-    this.logger.log(`[${runId}] Processing job execution job ID: ${job.id} (${job.data.testScripts?.length || 0} tests)`);
+    this.logger.log(`[${runId}] Starting job execution for job ID: ${jobId} (Run: ${runId})`);
 
     // Update job status to 'pending' in the database for the original job entry
     if (originalJobId) {
@@ -59,16 +57,6 @@ export class JobExecutionProcessor extends WorkerHost {
     await this.dbService.updateRunStatus(runId, 'running')
       .catch(err => this.logger.error(`[${runId}] Failed to update run status to running: ${err.message}`));
 
-    // Notify observers that the job is running via Redis
-    await this.redisService.publishJobStatus(runId, {
-      status: 'running',
-      runId,
-      message: `Starting execution of ${job.data.testScripts?.length || 0} tests`
-    }).catch(err => this.logger.error(`[${runId}] Failed to publish running status: ${err.message}`));
-
-    // Add job progress updates if desired
-    await job.updateProgress(10);
-
     try {
       // Delegate the actual execution to the service
       // The service handles validation, writing files, execution, upload, DB updates
@@ -80,36 +68,26 @@ export class JobExecutionProcessor extends WorkerHost {
       // Calculate execution duration
       const endTime = new Date();
       const durationMs = endTime.getTime() - startTime.getTime();
-      const durationStr = this.formatDuration(durationMs);
       const durationSeconds = Math.floor(durationMs / 1000);
       
       // Update the job status based on test results
       const finalStatus = result.success ? 'passed' : 'failed';
-      try {
-        if (originalJobId) {
-          await this.dbService.updateJobStatus(originalJobId, finalStatus)
-            .catch(err => this.logger.error(`[${runId}] Failed to update job status to ${finalStatus}: ${err.message}`));
-        }
-        
-        // Update the run status with duration
-        await this.dbService.updateRunStatus(runId, finalStatus, durationSeconds.toString())
-          .catch(err => this.logger.error(`[${runId}] Failed to update run status to ${finalStatus}: ${err.message}`)); 
-          
-        // Include duration in the final status update
-        await this.redisService.publishJobStatus(runId, {
-          status: finalStatus,
-          runId,
-          success: result.success,
-          results: result.results,
-          s3Url: result.reportUrl,
-          duration: durationStr // Include the formatted duration string for display
-        });
-      } catch (error) {
-        this.logger.error(`[${runId}] Error publishing final status: ${error.message}`);
+      
+      // Update database directly
+      if (originalJobId) {
+        await this.dbService.updateJobStatus(originalJobId, finalStatus)
+          .catch(err => this.logger.error(`[${runId}] Failed to update job status to ${finalStatus}: ${err.message}`));
       }
       
+      // Update the run status with duration
+      await this.dbService.updateRunStatus(runId, finalStatus, durationSeconds.toString())
+        .catch(err => this.logger.error(`[${runId}] Failed to update run status to ${finalStatus}: ${err.message}`)); 
+      
+      // Status updates via Redis are now handled by QueueStatusService
+      // through the Bull queue event listeners
+
       // The result object (TestExecutionResult) from the service is returned.
-      // BullMQ will store this in Redis.
+      // BullMQ will store this in Redis and trigger the 'completed' event.
       return result; 
     } catch (error) {
       this.logger.error(`[${runId}] Job execution job ID: ${job.id} failed. Error: ${error.message}`, error.stack);
@@ -117,7 +95,6 @@ export class JobExecutionProcessor extends WorkerHost {
       // Calculate the job duration even for failed jobs
       const endTime = new Date();
       const durationMs = endTime.getTime() - startTime.getTime();
-      const durationStr = this.formatDuration(durationMs);
       const durationSeconds = Math.floor(durationMs / 1000);
       
       // Update job status to failed in the database
@@ -131,18 +108,14 @@ export class JobExecutionProcessor extends WorkerHost {
       await this.dbService.updateRunStatus(runId, 'failed', durationSeconds.toString())
         .catch(err => this.logger.error(`[${runId}] Failed to update run status on error: ${err.message}`));
       
-      // Publish error status with runId and duration
-      await this.redisService.publishJobStatus(runId, { 
-        status: 'failed',
-        runId: runId,
-        error: error.message,
-        duration: durationStr
-      }).catch(redisErr => this.logger.error(`[${runId}] Failed to publish error status: ${redisErr.message}`));
-      
+      // Status updates via Redis are now handled by QueueStatusService
+      // through the Bull queue event listeners
+
       // Update job progress to indicate failure stage if applicable
       await job.updateProgress(100);
+      
       // It's crucial to re-throw the error for BullMQ to mark the job as failed.
-      // The ExecutionService should have logged details and updated DB status.
+      // This will trigger the 'failed' event for the queue.
       throw error; 
     }
   }
@@ -154,12 +127,15 @@ export class JobExecutionProcessor extends WorkerHost {
    */
   private formatDuration(durationMs: number): string {
     const seconds = Math.floor(durationMs / 1000);
-    if (seconds < 60) {
-      return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
     } else {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+      return `${seconds}s`;
     }
   }
 } 

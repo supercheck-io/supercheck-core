@@ -165,8 +165,6 @@ export class ExecutionService {
         const { testId, code } = task;
         this.logger.log(`[${testId}] Starting single test execution.`);
 
-        await this.redisService.publishTestStatus(testId, { status: 'running' });
-
         // Generate unique ID for this run to avoid conflicts in parallel executions
         const uniqueRunId = `${testId}-${crypto.randomUUID().substring(0, 8)}`;
         const runDir = path.join(this.baseLocalRunDir, uniqueRunId);
@@ -283,12 +281,7 @@ export class ExecutionService {
                 }
 
                 // Publish final status
-                await this.redisService.publishTestStatus(testId, {
-                    status: finalStatus,
-                    reportPath: s3ReportKeyPrefix,
-                    s3Url: s3Url // Use final s3Url
-                });
-                 await this.dbService.storeReportMetadata({
+                await this.dbService.storeReportMetadata({
                     entityId: testId,
                     entityType,
                     reportPath: s3ReportKeyPrefix,
@@ -378,12 +371,6 @@ export class ExecutionService {
                 }
 
                 // Update status *after* logging and upload attempt
-                await this.redisService.publishTestStatus(testId, {
-                    status: 'failed',
-                    error: specificError, // Use specific error
-                    reportPath: s3ReportKeyPrefix,
-                    s3Url: s3Url // Use final s3Url
-                });
                 await this.dbService.storeReportMetadata({
                     entityId: testId, entityType, reportPath: s3ReportKeyPrefix,
                     status: 'failed', s3Url: s3Url ?? undefined, // Use final s3Url
@@ -405,13 +392,6 @@ export class ExecutionService {
 
         } catch (error: any) { // Catch unexpected errors during the process
             this.logger.error(`[${testId}] Unhandled error during single test execution: ${error.message}`, error.stack);
-            
-            // Publish error status
-            await this.redisService.publishTestStatus(testId, {
-                status: 'failed',
-                error: error.message,
-                s3Url: s3Url // Use whatever s3Url was set to (likely null or the base url)
-            }).catch(redisErr => this.logger.error(`[${testId}] Failed to publish error status: ${redisErr.message}`));
             
             // Ensure DB status is marked as failed
             await this.dbService.storeReportMetadata({
@@ -449,7 +429,7 @@ export class ExecutionService {
      * Uses the native Playwright test runner and HTML reporter.
      */
     async runJob(task: JobExecutionTask): Promise<TestExecutionResult> {
-        const { jobId, testScripts, runId } = task;
+        const { runId, testScripts, originalJobId } = task;
         const entityType = 'job';
         this.logger.log(`[${runId}] Starting job execution with ${testScripts.length} tests.`);
 
@@ -482,9 +462,6 @@ export class ExecutionService {
                 entityId: runId, entityType, status: 'running', reportPath: s3ReportKeyPrefix,
             });
             
-            // Publish initial job status via Redis
-            await this.redisService.publishJobStatus(runId, { status: 'running' });
-
             // Process each script, creating a Playwright test file for each
             for (let i = 0; i < testScripts.length; i++) {
                 const { id, script: originalScript, name } = testScripts[i];
@@ -643,14 +620,8 @@ export class ExecutionService {
                 this.logger.error(`[${runId}] Error updating run duration: ${updateError.message}`, updateError.stack);
             }
 
-            // Publish final status with duration
-            await this.redisService.publishJobStatus(runId, { 
-                status: finalStatus, 
-                reportPath: s3ReportKeyPrefix, 
-                s3Url: s3Url ?? undefined, 
-                error: finalError ?? undefined,
-                duration: durationStr
-            });
+            // Store final run result
+            await this.dbService.updateRunStatus(runId, finalStatus, durationStr);
 
         } catch (error) {
             this.logger.error(`[${runId}] Unhandled error during job execution: ${error.message}`, error.stack);
@@ -661,11 +632,8 @@ export class ExecutionService {
                 status: finalStatus, s3Url: s3Url ?? undefined,
             }).catch(dbErr => this.logger.error(`[${runId}] Failed to update DB status on error: ${dbErr.message}`));
             
-            // Publish failed status
-            await this.redisService.publishJobStatus(runId, { 
-                status: finalStatus, 
-                error: error.message 
-            }).catch(redisErr => this.logger.error(`[${runId}] Failed to publish error status: ${redisErr.message}`));
+            // Store final run result with error
+            await this.dbService.updateRunStatus(runId, 'failed', '0ms');
 
             finalResult = {
                 jobId: runId,

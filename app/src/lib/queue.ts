@@ -34,7 +34,7 @@ let initPromise: Promise<void> | null = null;
 /**
  * Get or create Redis connection using environment variables.
  */
-async function getRedisConnection(): Promise<Redis> {
+export async function getRedisConnection(): Promise<Redis> {
   if (redisClient && redisClient.status === 'ready') {
     return redisClient;
   }

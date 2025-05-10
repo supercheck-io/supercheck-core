@@ -17,6 +17,15 @@ import * as schema from './db/schema';
 export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
 
+// Define common job options with TTL settings
+const defaultJobOptions = {
+  removeOnComplete: { count: 1000, age: 24 * 3600 }, // Keep completed jobs for 24 hours (1000 max)
+  removeOnFail: { count: 5000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (5000 max)
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 1000 }
+};
+
+// PostgreSQL database connection provider
 const drizzleProvider: Provider = {
   provide: DB_PROVIDER_TOKEN,
   inject: [ConfigService],
@@ -42,15 +51,14 @@ const drizzleProvider: Provider = {
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
     BullModule.registerQueue(
       {
         name: TEST_EXECUTION_QUEUE,
+        defaultJobOptions
       },
       {
         name: JOB_EXECUTION_QUEUE,
+        defaultJobOptions
       }
     ),
   ],
@@ -66,14 +74,5 @@ const drizzleProvider: Provider = {
     TestExecutionProcessor,
     JobExecutionProcessor,
   ],
-  exports: [
-    // Export services if they need to be used by other modules
-    // ExecutionService, // Potentially useful if API endpoints are added later
-  ],
 })
-export class ExecutionModule implements OnModuleInit {
-  onModuleInit() {
-    console.log('DB_PROVIDER_TOKEN:', DB_PROVIDER_TOKEN);
-    console.log('Environment DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
-  }
-}
+export class ExecutionModule {}

@@ -1,33 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Redis } from 'ioredis';
 import { getDb } from '@/db/client';
 import { runs } from '@/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { Queue } from 'bullmq';
+import { JOB_EXECUTION_QUEUE } from '@/lib/queue';
+import Redis from 'ioredis';
 
-// Constants for Redis TTL
-const REDIS_CHANNEL_TTL = 60 * 60; // 1 hour in seconds
-
-// Create a Redis client for pub/sub
-const getRedisClient = () => {
-  const host = process.env.REDIS_HOST || 'localhost';
-  const port = parseInt(process.env.REDIS_PORT || '6379');
-  const password = process.env.REDIS_PASSWORD;
-
-  const redis = new Redis({
-    host,
-    port,
-    password: password || undefined,
-    maxRetriesPerRequest: null,
-  });
-
-  redis.on('error', (err) => console.error('[SSE] Redis Error:', err));
-  
-  return redis;
-};
-
-// Helper function to create SSE message
+/**
+ * Helper function to create SSE message
+ */
 const createSSEMessage = (data: any) => {
   return `data: ${JSON.stringify(data)}\n\n`;
+};
+
+/**
+ * Helper function to get Redis connection - internal function that doesn't rely on exported getRedisConnection
+ */
+const getRedisConnection = async (): Promise<Redis> => {
+  console.log(`Creating Redis connection for SSE endpoint`);
+  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  
+  const redis = new Redis(redisUrl, {
+    maxRetriesPerRequest: null, // Required for BullMQ
+    enableReadyCheck: false,    // Speed up connection
+  });
+  
+  redis.on('error', (err) => console.error('[SSE Redis Client Error]', err));
+  redis.on('connect', () => console.log('[SSE Redis Client Connected]'));
+  
+  return redis;
 };
 
 export async function GET(
@@ -37,9 +38,6 @@ export async function GET(
   // Explicitly await the params object to fix the "sync dynamic APIs" error
   const resolvedParams = await Promise.resolve(params);
   const jobId = resolvedParams.jobId;
-  let redis: Redis | null = null;
-  
-  // Track if the connection is already closed to prevent multiple cleanup attempts
   let connectionClosed = false;
   
   // Create response with appropriate headers for SSE
@@ -72,25 +70,27 @@ export async function GET(
           return;
         }
 
-        // Set up Redis client for subscribing to status updates
-        redis = getRedisClient();
-        const channelName = `job-status:${runId}`; // Use runId for the channel name
+        // Get Redis connection and create the Bull queue
+        const connection = await getRedisConnection();
+        const jobQueue = new Queue(JOB_EXECUTION_QUEUE, { connection });
         
         // Handle disconnection
-        request.signal.addEventListener('abort', () => {
+        const cleanup = async () => {
           if (!connectionClosed) {
             connectionClosed = true;
-            if (redis) {
-              redis.unsubscribe(channelName).catch(err => 
-                console.error(`[SSE] Error unsubscribing from ${channelName}:`, err)
-              );
-              redis.quit().catch(err => 
-                console.error('[SSE] Error closing Redis connection:', err)
-              );
-            }
             controller.close();
             console.log(`[SSE] Client disconnected for job ${jobId}`);
+            // Clean up Redis connection
+            try {
+              await connection.disconnect();
+            } catch (err) {
+              console.error(`Error disconnecting Redis: ${err instanceof Error ? err.message : String(err)}`);
+            }
           }
+        };
+        
+        request.signal.addEventListener('abort', () => {
+          cleanup().catch(err => console.error("Error in cleanup:", err));
         });
         
         // Set up ping interval to keep connection alive
@@ -107,17 +107,6 @@ export async function GET(
           clearInterval(pingInterval);
         });
         
-        // Set TTL on Redis channel for this job status
-        // This ensures Redis keys don't accumulate forever
-        if (redis) {
-          try {
-            await redis.set(`job-status-ttl:${runId}`, "active", "EX", REDIS_CHANNEL_TTL);
-            console.log(`[SSE] Set TTL for job status channel ${runId}: ${REDIS_CHANNEL_TTL}s`);
-          } catch (ttlError) {
-            console.error(`[SSE] Error setting TTL for job status ${runId}:`, ttlError);
-          }
-        }
-        
         // Send initial running status if we have an active run
         if (run && run.status === 'running') {
           controller.enqueue(encoder.encode(createSSEMessage({ 
@@ -130,49 +119,67 @@ export async function GET(
           controller.enqueue(encoder.encode(createSSEMessage({ status: 'waiting' })));
         }
         
-        // Subscribe to Redis channel for updates
-        if (redis) {
-          await redis.subscribe(channelName);
-          
-          // Listen for messages on the channel
-          redis.on('message', (channel, message) => {
-            if (channel === channelName && !connectionClosed) {
-              try {
-                const statusData = JSON.parse(message);
-                // Log the received message for debugging
-                console.log(`[SSE] Message received on channel ${channel}:`, statusData);
-                
-                // Always include the duration in the message to client
-                const messageToSend = {
-                  ...statusData,
-                  // Ensure duration is included in the message if available
-                  duration: statusData.duration || undefined,
-                };
-                
-                // Send the message to the client
-                controller.enqueue(encoder.encode(createSSEMessage(messageToSend)));
-                
-                // If this is a terminal status, close the connection
-                if (['completed', 'failed', 'passed', 'error'].includes(statusData.status)) {
-                  console.log(`[SSE] Received terminal status ${statusData.status} for job ${runId}, closing connection`);
-                  connectionClosed = true;
-                  controller.close();
-                  // Continue subscribe to avoid leaking resources
-                  redis.unsubscribe(channelName).catch(err => 
-                    console.error(`[SSE] Error unsubscribing from ${channelName}:`, err)
-                  );
-                  redis.quit().catch(err => 
-                    console.error('[SSE] Error closing Redis connection:', err)
-                  );
-                  redis = null;
-                }
-              } catch (error) {
-                console.error(`[SSE] Error parsing status message for job ${runId}:`, error, message);
-                // Don't close connection on error, just log it
-              }
-            }
-          });
+        // Get the Bull job to watch for events
+        const job = await jobQueue.getJob(runId);
+        if (!job) {
+          console.log(`[SSE] Job ${runId} not found in Bull queue`);
+          // Even if job not found in Bull, keep the connection alive
+          // as it might be added later or already completed
+          return;
         }
+        
+        // Set up polling to check job status from Bull queue
+        const pollInterval = setInterval(async () => {
+          if (connectionClosed) {
+            clearInterval(pollInterval);
+            return;
+          }
+          
+          try {
+            // Get fresh job data
+            const updatedJob = await jobQueue.getJob(runId);
+            if (!updatedJob) {
+              return;
+            }
+            
+            // Get job state
+            const state = await updatedJob.getState();
+            const progress = JSON.stringify(await updatedJob.progress);
+            
+            // Map Bull states to our application states
+            let status = state;
+            if (state === 'completed') {
+              // Check result to determine if passed or failed
+              const result = await updatedJob.returnvalue;
+              status = result?.success === true ? 'passed' : 'failed';
+            }
+            
+            // Send status update
+            const dbRun = await db.query.runs.findFirst({
+              where: eq(runs.id, runId),
+            });
+            
+            controller.enqueue(encoder.encode(createSSEMessage({ 
+              status,
+              runId,
+              progress,
+              duration: dbRun?.duration || null,
+              ...(updatedJob.returnvalue || {})
+            })));
+            
+            // If terminal state, close connection
+            if (['completed', 'failed'].includes(state)) {
+              console.log(`[SSE] Job ${runId} reached terminal state ${status}, closing connection`);
+              connectionClosed = true;
+              clearInterval(pollInterval);
+              // Close Redis connection using our cleanup function
+              await cleanup();
+              controller.close();
+            }
+          } catch (pollError) {
+            console.error(`[SSE] Error polling job ${runId} status:`, pollError);
+          }
+        }, 1000); // Poll every second
       } catch (err) {
         console.error('[SSE] Error in SSE stream:', err);
         controller.enqueue(encoder.encode(createSSEMessage({ 
@@ -182,12 +189,6 @@ export async function GET(
         
         // Clean up resources
         connectionClosed = true;
-        if (redis) {
-          redis.quit().catch(err => 
-            console.error('[SSE] Error closing Redis connection during error handling:', err)
-          );
-          redis = null;
-        }
         controller.close();
       }
     }

@@ -1,80 +1,37 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Redis } from 'ioredis';
+import { Injectable, Logger } from '@nestjs/common';
 import { Queue, QueueEvents } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { JOB_EXECUTION_QUEUE, TEST_EXECUTION_QUEUE } from '../constants';
 import { DbService } from './db.service';
 
-// Constants for Redis TTL
-const REDIS_CHANNEL_TTL = 60 * 60; // 1 hour in seconds
-
 /**
- * Redis Service for application-wide Redis operations and Bull queue status management
+ * Queue Status Service - Centralized Bull Queue Status Management
  * 
- * This service combines direct Redis operations with Bull queue event management,
- * providing a unified interface for Redis-related functionality. It handles:
+ * This service manages status updates directly through Bull queues rather than
+ * separate Redis pub/sub channels. This simplifies the architecture by:
  * 
- * 1. Direct Redis client operations when needed
- * 2. Bull queue event monitoring for job and test status updates
- * 3. Database updates based on Bull queue events (completed, failed, etc.)
+ * 1. Using Bull's built-in event system for status tracking
+ * 2. Leveraging Bull's existing Redis data with proper TTL settings
+ * 3. Removing the need for separate Redis pub/sub channels
  * 
- * The service eliminates the need for separate Redis pub/sub channels by using
- * Bull's built-in event system with proper TTL for automatic cleanup.
+ * Clients can subscribe to Bull queue events directly through the existing APIs.
  */
 @Injectable()
-export class RedisService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(RedisService.name);
-  private redisClient: Redis;
+export class QueueStatusService {
+  private readonly logger = new Logger(QueueStatusService.name);
   private jobQueueEvents: QueueEvents;
   private testQueueEvents: QueueEvents;
 
   constructor(
-    private configService: ConfigService,
     @InjectQueue(JOB_EXECUTION_QUEUE) private jobQueue: Queue,
     @InjectQueue(TEST_EXECUTION_QUEUE) private testQueue: Queue,
     private dbService: DbService
   ) {
-    const host = this.configService.get<string>('REDIS_HOST', 'localhost');
-    const port = this.configService.get<number>('REDIS_PORT', 6379);
-    const password = this.configService.get<string>('REDIS_PASSWORD');
-
-    this.logger.log(`Initializing Redis connection to ${host}:${port}`);
-    
-    this.redisClient = new Redis({
-      host,
-      port,
-      password: password || undefined,
-      maxRetriesPerRequest: null,
-    });
-
-    this.redisClient.on('error', (err) => this.logger.error('Redis Error:', err));
-    this.redisClient.on('connect', () => this.logger.log('Redis Connected'));
-    this.redisClient.on('ready', () => this.logger.log('Redis Ready'));
-
-    // Initialize Queue Events listeners
     this.initializeQueueListeners();
-  }
-
-  async onModuleInit() {
-    try {
-      await this.redisClient.ping();
-      this.logger.log('Redis connection successful');
-    } catch (error) {
-      this.logger.error('Redis connection failed:', error);
-    }
-  }
-
-  /**
-   * Returns the Redis client for direct operations
-   */
-  getClient(): Redis {
-    return this.redisClient;
   }
 
   /**
    * Sets up listeners for Bull queue events to update database status
-   * This is the core of the status update system that replaces Redis pub/sub
    */
   private initializeQueueListeners() {
     // Set up QueueEvents for job queue
@@ -188,12 +145,5 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         this.logger.error(`Test ${testId} failed: ${failedReason}`);
       }
     });
-  }
-
-
-
-  async onModuleDestroy() {
-    this.logger.log('Closing Redis connection');
-    await this.redisClient.quit();
   }
 } 
