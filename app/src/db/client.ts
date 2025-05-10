@@ -11,8 +11,13 @@ export async function createDbClient() {
   const connectionString = process.env.DATABASE_URL || 
     `postgres://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "postgres"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "supertest"}`;
   
-  // For query building
-  return postgres(connectionString, { ssl: false });
+  // For query building with connection pool limits to prevent "too many clients" error
+  return postgres(connectionString, { 
+    ssl: false,
+    max: 10, // Limit max connections in the pool
+    idle_timeout: 20, // Close idle connections after 20 seconds
+    connect_timeout: 10 // Connection timeout in seconds
+  });
 }
 
 /**

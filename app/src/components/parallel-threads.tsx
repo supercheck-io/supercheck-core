@@ -66,7 +66,10 @@ export function ParallelThreads() {
   return (
     <div className="flex items-center mr-4">
       {error ? (
-        <div className="text-xs text-red-500">Error: {error}</div>
+        <div className="flex items-center text-xs">
+          <span className="font-medium text-gray-500 mr-3">STATUS:</span>
+          <span className="text-red-500 font-medium">{error}</span>
+        </div>
       ) : (
         <div className="flex items-center text-xs">
           <span className="font-medium text-gray-500 mr-3">PARALLEL EXECUTIONS:</span>
@@ -86,12 +89,12 @@ export function ParallelThreads() {
           
           <div className="flex flex-col">
             <div className="flex items-center justify-between mb-0.5">
-              <span className={`font-medium ${stats.queued > 0 ? 'text-blue-600 dark:text-blue-500' : 'text-gray-500'}`}>Queued</span>
+              <span className={`font-medium ${stats.queued > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-gray-500'}`}>Queued</span>
               <span className="text-gray-700 dark:text-gray-300">{stats.queued}/{stats.queuedCapacity}</span>
             </div>
             <div className="w-32 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gray-400 dark:bg-gray-500 rounded-full" 
+                className="h-full bg-amber-600 rounded-full" 
                 style={{ width: `${queuedProgress}%` }}
               />
             </div>

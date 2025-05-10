@@ -2,14 +2,14 @@ import { Redis } from 'ioredis';
 import { TEST_EXECUTION_QUEUE, JOB_EXECUTION_QUEUE } from '@/lib/queue';
 
 // Default capacity limits - enforced at both API and worker level
-export const RUNNING_CAPACITY = 5;
+export const RUNNING_CAPACITY = parseInt(process.env.RUNNING_CAPACITY || '5');
 
 /**
  * Maximum number of jobs that can be queued.
  * This is a hard limit enforced at the API layer - new submissions will be rejected
  * with a 429 (Too Many Requests) status code once this limit is reached.
  */
-export const QUEUED_CAPACITY = 5;
+export const QUEUED_CAPACITY = parseInt(process.env.QUEUED_CAPACITY || '50');
 
 export interface QueueStats {
   running: number;
