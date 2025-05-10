@@ -68,6 +68,60 @@ flowchart TB
     F1 <-->|Retrieve Report Metadata| C3
 ```
 
+## Execution Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Client as Browser Client
+    participant NextFE as Next.js Frontend
+    participant NextAPI as Next.js API Routes
+    participant Redis as Redis (Queue + PubSub)
+    participant NestJS as NestJS Worker Service
+    participant S3 as S3/MinIO Storage
+    participant DB as PostgreSQL Database
+    participant PW as Playwright Test Runner
+
+    %% Individual Test Execution Flow (e.g., Playground)
+    Client->>NextFE: Submit test script
+    NextFE->>NextFE: Show loading toast notification
+    NextFE->>NextAPI: POST /api/test
+    NextAPI->>Redis: Add test to 'test-execution' queue
+    NextAPI-->>NextFE: Return testId, success status
+    NextFE->>NextAPI: Open SSE connection<br>/api/test-status/sse/[testId]
+    NextAPI->>Redis: Subscribe to 'test-status:[testId]' channel<br>with TTL
+    NextAPI-->>NextFE: Establish SSE stream
+
+    %% Worker picks up test from queue
+    Redis->>NestJS: TestExecutionProcessor<br>receives test task
+    activate NestJS
+    NestJS->>Redis: Publish 'running' status with TTL
+    Redis-->>NextAPI: Message: status='running'
+    NextAPI-->>NextFE: SSE event: status='running'
+    
+    %% Test execution process
+    NestJS->>NestJS: Validate test script
+    NestJS->>NestJS: Create test run directory with unique ID
+    NestJS->>NestJS: Enhance script with trace configuration
+    NestJS->>NestJS: Write test to JavaScript file
+    NestJS->>PW: Execute test with Playwright native runner
+    activate PW
+    PW-->>NestJS: Return execution results
+    deactivate PW
+    
+    %% Handling test results
+    NestJS->>NestJS: Search for reports in expected directories
+    NestJS->>NestJS: Process report files to fix trace URLs
+    NestJS->>S3: Upload test report/artifacts
+    NestJS->>DB: Update test status & metadata
+    NestJS->>Redis: Publish completion status with TTL
+    Redis-->>NextAPI: Message: status='completed'/'failed'
+    NextAPI-->>NextFE: SSE event: status='completed'/'failed'
+    NextFE->>NextFE: Dismiss loading toast
+    NextFE->>NextFE: Show success/error toast
+    NextFE->>NextAPI: Close SSE connection
+    NextFE->>NextFE: Display test results/report
+```
+
 ## Test Execution Flow
 
 ### 1. Single Test Execution (Playground)
@@ -143,6 +197,92 @@ flowchart TB
    - The ReportViewer component fetches report via `/api/test-results`
    - API proxy handles authentication and retrieves the report from S3
 
+## Parallel Execution System
+
+The application includes a sophisticated parallel execution system that provides real-time visibility into test and job execution while enforcing configurable capacity limits.
+
+### Core Concepts
+
+1. **Parallel Executions:** Each test or job run counts as a separate "execution" that consumes execution capacity.
+
+2. **Capacity Limits:** The system enforces two primary limits:
+   - **Running Capacity (default: 5):** Maximum number of concurrent executions that can run simultaneously.
+   - **Queued Capacity (default: 10):** Maximum number of executions that can be queued when running capacity is full.
+
+3. **Execution Flow:**
+   - New executions are added to the running pool if capacity is available.
+   - If running capacity is full, executions are placed in the queue.
+   - If queued capacity is full, new submissions are rejected with a 429 (Too Many Requests) status code.
+   - As running executions complete, queued executions are automatically moved to the running state.
+
+### How Capacity Limits Are Enforced
+
+The system enforces capacity limits at multiple levels:
+
+1. **API Layer Enforcement (QUEUED_CAPACITY):**
+   - Before adding a job to the queue, the API checks if queued capacity is exceeded
+   - If queue is full, the API rejects the submission with a 429 status code
+   - Prevents overloading the system with too many pending executions
+
+2. **Worker Layer Enforcement (RUNNING_CAPACITY):**
+   - Workers check running job count before processing each job
+   - If running capacity is full, the job is delayed and returned to the queue
+   - This ensures only the allowed number of jobs run simultaneously
+
+3. **Technical Limit (MAX_CONCURRENT_TESTS):**
+   - Controls the maximum number of BullMQ worker processes
+   - Sets the absolute system-level limit on parallel job processing
+
+These multi-level checks ensure the system maintains stability under heavy load while providing accurate UI feedback.
+
+### Technical Implementation
+
+The parallel execution system is implemented using several coordinated components:
+
+1. **Direct Redis Capacity Checking:**
+   - Each processor directly interfaces with Redis to obtain accurate counts of running and queued jobs
+   - Counts are derived from BullMQ active job lists for both test and job execution queues
+   - This approach eliminates dependency on external queue stats services and reduces complexity
+
+2. **Capacity Limit Enforcement:**
+   - **RUNNING_CAPACITY:** Workers check current running job count before processing a job
+   - **QUEUED_CAPACITY:** API layer checks current queued job count before accepting new submissions
+   - This two-tiered approach ensures both limits are respected at appropriate system boundaries
+
+3. **Redis Connection Management:**
+   - Each capacity check creates a temporary Redis connection that is properly closed after use
+   - This prevents connection leaks and "Connection to queue stats lost" errors
+   - Error handling ensures graceful degradation if Redis is temporarily unavailable
+
+4. **Real-time Updates:**
+   - Uses Server-Sent Events (SSE) for efficient real-time UI updates
+   - The UI component displays current running and queued counts
+   - Progress bars show utilization percentages relative to capacity limits
+
+### Balancing Concurrency: BullMQ vs. Playwright Parallelism
+
+When configuring the system, it's important to understand the relationship between BullMQ concurrency and Playwright's internal parallelism:
+
+**Two Types of Parallelism:**
+
+1. **BullMQ Worker Concurrency (MAX_CONCURRENT_TESTS)**
+   - Controls how many separate test jobs run simultaneously
+   - Set this based on your total system capacity
+
+2. **Playwright's Internal Parallelism**
+   - Controls browser instances within a single test job
+   - Set in `playwright.config.js` as the `workers` option
+
+**Recommended Settings:**
+
+| Scenario | MAX_CONCURRENT_TESTS | Playwright `workers` |
+|----------|----------------------|---------------------|
+| Using Playwright parallelism | 1 | 3-4 (match CPU cores) |
+| Not using Playwright parallelism | 3-5 | 1 |
+| Short tests with max throughput | 2 | 2 |
+
+Always ensure that `RUNNING_CAPACITY` ≥ `MAX_CONCURRENT_TESTS` for the UI to accurately reflect execution state.
+
 ## Key Components
 
 ### 1. Queue System
@@ -164,14 +304,14 @@ The application uses BullMQ with Redis for job queuing:
 The NestJS worker service processes queued jobs:
 
 - **Processors**:
-  - `TestExecutionProcessor`: Handles single test execution
-  - `JobExecutionProcessor`: Handles job execution with multiple tests
+  - `TestExecutionProcessor`: Handles single test execution and enforces running capacity
+  - `JobExecutionProcessor`: Handles job execution with multiple tests and enforces running capacity
 
 - **Services**:
   - `ExecutionService`: Orchestrates test execution
   - `S3Service`: Handles artifact uploads to S3/MinIO
   - `DbService`: Manages database operations
-  - `RedisService`: Handles real-time status updates
+  - `RedisService`: Handles real-time status updates and connection management
 
 ### 3. Report Storage and Retrieval
 
@@ -230,7 +370,7 @@ The system implements several error handling mechanisms:
 
 The test execution system can be configured via environment variables:
 
-``` bash
+```bash
 # Database
 DATABASE_URL=postgres://user:password@localhost:5432/supertest
 
@@ -246,41 +386,21 @@ AWS_ACCESS_KEY_ID=minioadmin
 AWS_SECRET_ACCESS_KEY=minioadmin
 
 # Execution Parameters
-MAX_CONCURRENT_TESTS=3
-TEST_EXECUTION_TIMEOUT_MS=900000  # 15 minutes
+MAX_CONCURRENT_TESTS=3             # Maximum number of BullMQ worker processes
+RUNNING_CAPACITY=5                 # Maximum concurrent executions allowed to run
+QUEUED_CAPACITY=10                 # Maximum executions allowed in queued state
+TEST_EXECUTION_TIMEOUT_MS=900000   # 15 minutes default
 ```
 
-## Debugging and Monitoring
-
-For debugging test execution issues:
-
-1. **Log Access**:
-   - Check the NextJS logs for API issues
-   - Check the NestJS worker logs for execution issues
-   - All logs include test/job IDs for correlation
-
-2. **Queue Inspection**:
-   - Use a Redis client to inspect queues
-   - Check for stalled or failed jobs
-
-3. **Test Reports**:
-   - All test reports include detailed error information
-   - Trace files can be viewed for step-by-step execution
-   - Screenshots are captured at failure points
-
-4. **Status API**:
-   - Use `/api/test-status/sse/{testId}` and `/api/job-status/sse/{jobId}` for real-time status
-   - Check database status entries for historical information
-
-## Start Services
+## Start Services Quick Reference
 
 ```bash
-Start Redis:
+# Start Redis
 docker run -d --name redis-supertest -p 6379:6379 redis
 
-Start Postgres:
+# Start Postgres
 docker run -d --name postgres-supertest -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supertest -p 5432:5432 postgres:16
 
-Start MinIO:
+# Start MinIO
 docker run -d --name minio-supertest -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
 ```

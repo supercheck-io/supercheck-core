@@ -75,7 +75,36 @@ export async function POST(request: Request) {
       originalJobId: jobId
     };
 
-    await addJobToQueue(task);
+    try {
+      await addJobToQueue(task);
+    } catch (error) {
+      // Check if this is a queue capacity error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('Queue capacity limit reached')) {
+        // Update the run status to failed with capacity limit error
+        await dbInstance.update(runs)
+          .set({
+            status: "failed",
+            completedAt: new Date(),
+            errorDetails: errorMessage
+          })
+          .where(eq(runs.id, runId));
+          
+        return NextResponse.json(
+          {
+            success: false,
+            error: errorMessage,
+            jobId: jobId,
+            runId: runId,
+          },
+          { status: 429 } // Too Many Requests
+        );
+      }
+      
+      // Re-throw for other errors to be caught by the main catch block
+      throw error;
+    }
 
     console.log(`[${jobId}/${runId}] Setting job status to "running" in the database.`);
     const currentDate = new Date();

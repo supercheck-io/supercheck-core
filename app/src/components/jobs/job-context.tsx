@@ -6,15 +6,20 @@ import { useRouter } from "next/navigation";
 import { jobStatuses } from "./data";
 
 interface JobRunState {
-  runId: string | null;
-  jobId: string | null;
-  jobName: string | null;
+  runId: string;
+  jobId: string;
+  jobName: string;
   toastId: string | number | null;
 }
 
 // Simple map to track job statuses within the session
 interface JobStatuses {
   [jobId: string]: string;
+}
+
+// Map to track active runs for each job
+interface ActiveRunsMap {
+  [jobId: string]: JobRunState;
 }
 
 interface JobContextType {
@@ -24,9 +29,9 @@ interface JobContextType {
   getJobStatus: (jobId: string) => string | null;
   setJobRunning: (isRunning: boolean, jobId?: string) => void;
   setJobStatus: (jobId: string, status: string) => void;
-  activeRun: JobRunState | null;
+  activeRuns: ActiveRunsMap;
   startJobRun: (runId: string, jobId: string, jobName: string) => void;
-  completeJobRun: (success: boolean, reportUrl?: string) => void;
+  completeJobRun: (success: boolean, jobId: string, runId: string) => void;
 }
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
@@ -65,17 +70,18 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
   const [runningJobs, setRunningJobs] = useState<Set<string>>(new Set());
   // Simple in-memory job status tracking (not persisted)
   const [jobStatuses, setJobStatuses] = useState<JobStatuses>({});
-  const [activeRun, setActiveRun] = useState<JobRunState | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const [activeRuns, setActiveRuns] = useState<ActiveRunsMap>({});
+  const eventSourcesRef = useRef<Map<string, EventSource>>(new Map());
   const router = useRouter();
   
-  // Clean up event source on unmount
+  // Clean up event sources on unmount
   useEffect(() => {
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
+      // Close all event sources when component unmounts
+      eventSourcesRef.current.forEach((eventSource) => {
+        eventSource.close();
+      });
+      eventSourcesRef.current.clear();
     };
   }, []);
 
@@ -134,11 +140,6 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       // Update job status in context
       setJobStatus(jobId, 'running');
     } else if (!isRunning) {
-      // If no job is running, clean up active run state
-      if (activeRun?.toastId) {
-        toast.dismiss(activeRun.toastId);
-      }
-      
       if (jobId) {
         // Remove specific job from running jobs
         setRunningJobs(prev => {
@@ -151,32 +152,49 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
           return newSet;
         });
         
-        // Reset active run if it matches this job
-        if (activeRun?.jobId === jobId) {
-          setActiveRun(null);
+        // Clean up the toast for this job if it exists
+        if (activeRuns[jobId]?.toastId) {
+          toast.dismiss(activeRuns[jobId].toastId);
+        }
+        
+        // Remove the job from active runs
+        setActiveRuns(prev => {
+          const newRuns = { ...prev };
+          delete newRuns[jobId];
+          return newRuns;
+        });
+        
+        // Close the event source for this job
+        if (eventSourcesRef.current.has(jobId)) {
+          eventSourcesRef.current.get(jobId)?.close();
+          eventSourcesRef.current.delete(jobId);
         }
       } else {
         // Clear all running jobs
         setRunningJobs(new Set());
         setIsAnyJobRunning(false);
-        setActiveRun(null);
+        
+        // Clean up all toasts
+        Object.values(activeRuns).forEach(run => {
+          if (run.toastId) {
+            toast.dismiss(run.toastId);
+          }
+        });
+        
+        // Reset all active runs
+        setActiveRuns({});
+        
+        // Close all event sources
+        eventSourcesRef.current.forEach((eventSource) => {
+          eventSource.close();
+        });
+        eventSourcesRef.current.clear();
       }
     }
   };
 
   const startJobRun = (runId: string, jobId: string, jobName: string) => {
-    // Clean up any existing SSE connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-    
-    // Clean up any existing toast
-    if (activeRun?.toastId) {
-      toast.dismiss(activeRun.toastId);
-    }
-    
-    // Show a loading toast
+    // Show a loading toast for this job
     const toastId = toast.loading(`Executing job: ${jobName.length > 25 ? jobName.substring(0, 25) + '...' : jobName}`, {
       description: "Job execution is in progress...",
       duration: Infinity,
@@ -192,22 +210,36 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     // Update job status
     setJobStatus(jobId, 'running');
     
+    // Add this run to the active runs map
+    setActiveRuns(prev => ({
+      ...prev,
+      [jobId]: { runId, jobId, jobName, toastId }
+    }));
+    
+    // Close existing SSE connection for this job if any
+    if (eventSourcesRef.current.has(jobId)) {
+      eventSourcesRef.current.get(jobId)?.close();
+      eventSourcesRef.current.delete(jobId);
+    }
+    
     // Set up SSE to get real-time job status
     const eventSource = new EventSource(`/api/job-status/sse/${runId}`);
-    eventSourceRef.current = eventSource;
-    let hasShownFinalToast = false;
+    eventSourcesRef.current.set(jobId, eventSource);
+    
+    // Flag to track if we've shown the final toast for this run
+    let hasShownFinalToastForRun = false;
     
     eventSource.onmessage = (event) => {
       try {
         const statusData = JSON.parse(event.data);
-        console.log(`[JobContext] SSE status update for run ${runId}:`, statusData);
+        console.log(`[JobContext] SSE status update for run ${runId} (job ${jobId}):`, statusData);
 
         // Handle terminal statuses with final toast
         if ((statusData.status === 'completed' || statusData.status === 'failed' || 
-             statusData.status === 'passed' || statusData.status === 'error') && !hasShownFinalToast) {
+             statusData.status === 'passed' || statusData.status === 'error') && !hasShownFinalToastForRun) {
           
-          // Only show the toast once
-          hasShownFinalToast = true;
+          // Only show the toast once for this run
+          hasShownFinalToastForRun = true;
           
           // Update the job status
           setJobStatus(jobId, statusData.status);
@@ -215,8 +247,13 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
           // Determine if job passed or failed
           const passed = statusData.status === 'completed' || statusData.status === 'passed';
           
-          // Dismiss the loading toast
-          toast.dismiss(toastId);
+          // Get the toast ID for this job
+          const jobToastId = activeRuns[jobId]?.toastId;
+          
+          // Dismiss the loading toast for this job if it exists
+          if (jobToastId) {
+            toast.dismiss(jobToastId);
+          }
           
           // Update with final status toast
           toast[passed ? 'success' : 'error'](
@@ -224,7 +261,7 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
             {
               description: (
                 <>
-                  {passed 
+                  {jobName}: {passed 
                     ? 'All tests executed successfully.' 
                     : 'One or more tests did not complete successfully.'}{" "}
                   <a href={`/runs/${runId}`} className="underline font-medium">
@@ -236,16 +273,16 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
             }
           );
 
-          // Clean up SSE connection
-          if (eventSourceRef.current) {
-            eventSourceRef.current.close();
-            eventSourceRef.current = null;
+          // Clean up SSE connection for this job
+          if (eventSourcesRef.current.has(jobId)) {
+            eventSourcesRef.current.get(jobId)?.close();
+            eventSourcesRef.current.delete(jobId);
           }
           
           // Remove this job from running jobs
           setRunningJobs(prev => {
             const newSet = new Set(prev);
-            if (jobId) newSet.delete(jobId);
+            newSet.delete(jobId);
             // Update global running state based on remaining jobs
             if (newSet.size === 0) {
               setIsAnyJobRunning(false);
@@ -253,10 +290,12 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
             return newSet;
           });
           
-          // Reset active run if this specific job finished
-          if (jobId && activeRun?.jobId === jobId) {
-            setActiveRun(null);
-          }
+          // Remove this job from active runs
+          setActiveRuns(prev => {
+            const newRuns = { ...prev };
+            delete newRuns[jobId];
+            return newRuns;
+          });
           
           // Refresh the page to show updated job status
           router.refresh();
@@ -267,24 +306,27 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     };
     
     eventSource.onerror = (error) => {
-      console.error("[JobContext] SSE connection error:", error);
+      console.error("[JobContext] SSE connection error for job", jobId, ":", error);
       
-      if (!hasShownFinalToast) {
-        hasShownFinalToast = true;
+      if (!hasShownFinalToastForRun) {
+        hasShownFinalToastForRun = true;
         
-        // Dismiss loading toast on error
-        toast.dismiss(toastId);
+        // Dismiss loading toast for this job
+        const jobToastId = activeRuns[jobId]?.toastId;
+        if (jobToastId) {
+          toast.dismiss(jobToastId);
+        }
         
         // Show error toast
-        toast.error("Job execution error", {
+        toast.error(`Job execution error for ${jobName}`, {
           description: "Connection to job status updates was lost. Check job status in the runs page.",
         });
       }
       
-      // Clean up SSE connection
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
+      // Clean up SSE connection for this job
+      if (eventSourcesRef.current.has(jobId)) {
+        eventSourcesRef.current.get(jobId)?.close();
+        eventSourcesRef.current.delete(jobId);
       }
       
       // Set error status
@@ -293,7 +335,7 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       // Remove this job from running jobs
       setRunningJobs(prev => {
         const newSet = new Set(prev);
-        if (jobId) newSet.delete(jobId);
+        newSet.delete(jobId);
         // Update global running state based on remaining jobs
         if (newSet.size === 0) {
           setIsAnyJobRunning(false);
@@ -301,29 +343,28 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
         return newSet;
       });
       
-      // Reset active run if this specific job finished
-      if (jobId && activeRun?.jobId === jobId) {
-        setActiveRun(null);
-      }
+      // Remove this job from active runs
+      setActiveRuns(prev => {
+        const newRuns = { ...prev };
+        delete newRuns[jobId];
+        return newRuns;
+      });
     };
     
-    // Update the state
+    // Update the global running state
     setIsAnyJobRunning(true);
-    setActiveRun({
-      runId,
-      jobId,
-      jobName,
-      toastId
-    });
   };
   
-  const completeJobRun = (success: boolean, reportUrl?: string) => {
+  const completeJobRun = (success: boolean, jobId: string, runId: string) => {
     // This can be called manually if needed
-    if (!activeRun) return;
+    if (!activeRuns[jobId]) return;
     
-    // Dismiss the loading toast
-    if (activeRun.toastId) {
-      toast.dismiss(activeRun.toastId);
+    // Get job info
+    const jobInfo = activeRuns[jobId];
+    
+    // Dismiss the loading toast for this job
+    if (jobInfo.toastId) {
+      toast.dismiss(jobInfo.toastId);
     }
     
     // Show success/error toast
@@ -332,48 +373,46 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       {
         description: (
           <>
-            {success 
+            {jobInfo.jobName}: {success 
               ? 'All tests executed successfully.' 
               : 'One or more tests did not complete successfully.'}{" "}
-            {reportUrl && (
-              <a href={`/runs/${activeRun.runId}`} className="underline font-medium">
-                View Run Report
-              </a>
-            )}
+            <a href={`/runs/${runId}`} className="underline font-medium">
+              View Run Report
+            </a>
           </>
         ),
         duration: 10000,
       }
     );
     
-    // Clean up SSE connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+    // Clean up SSE connection for this job
+    if (eventSourcesRef.current.has(jobId)) {
+      eventSourcesRef.current.get(jobId)?.close();
+      eventSourcesRef.current.delete(jobId);
     }
     
     // Update job status
-    if (activeRun.jobId) {
-      setJobStatus(activeRun.jobId, success ? 'passed' : 'failed');
-    }
+    setJobStatus(jobId, success ? 'passed' : 'failed');
     
     // Remove this job from running jobs
-    if (activeRun.jobId) {
-      setRunningJobs(prev => {
-        const newSet = new Set(prev);
-        if (activeRun.jobId) newSet.delete(activeRun.jobId);
-        // Update global running state based on remaining jobs
-        if (newSet.size === 0) {
-          setIsAnyJobRunning(false);
-        }
-        return newSet;
-      });
-    }
+    setRunningJobs(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(jobId);
+      // Update global running state based on remaining jobs
+      if (newSet.size === 0) {
+        setIsAnyJobRunning(false);
+      }
+      return newSet;
+    });
     
-    // Reset active run state
-    setActiveRun(null);
+    // Remove this job from active runs
+    setActiveRuns(prev => {
+      const newRuns = { ...prev };
+      delete newRuns[jobId];
+      return newRuns;
+    });
     
-    // Refresh the page
+    // Refresh the page to show updated job status
     router.refresh();
   };
 
@@ -385,7 +424,7 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       getJobStatus,
       setJobRunning, 
       setJobStatus,
-      activeRun,
+      activeRuns,
       startJobRun,
       completeJobRun
     }}>

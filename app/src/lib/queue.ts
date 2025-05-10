@@ -1,6 +1,7 @@
 import { Queue, ConnectionOptions } from 'bullmq';
 import { Redis } from 'ioredis';
 import crypto from 'crypto';
+import { QueueStats } from './queue-stats';
 
 // Interfaces matching those in the worker service
 export interface TestExecutionTask {
@@ -30,6 +31,9 @@ let jobQueue: Queue | null = null;
 
 // Store initialization promise to prevent race conditions
 let initPromise: Promise<void> | null = null;
+
+// Queue event subscription type
+export type JobType = 'test' | 'job';
 
 /**
  * Get or create Redis connection using environment variables.
@@ -93,7 +97,7 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue }> {
   if (!initPromise) {
     initPromise = (async () => {
       try {
-        const connection = await getRedisConnection(); // No ConfigService passed
+        const connection = await getRedisConnection();
         const defaultJobOptions = {
           removeOnComplete: { count: 1000, age: 24 * 3600 }, // Keep completed jobs for 24 hours (1000 max)
           removeOnFail: { count: 5000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (5000 max)
@@ -133,6 +137,9 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
   console.log(`[Queue Client] Adding test ${jobUuid} to queue ${TEST_EXECUTION_QUEUE}`);
 
   try {
+    // Check the current queue size against QUEUED_CAPACITY
+    await verifyQueueCapacityOrThrow();
+    
     const jobOptions = {
       jobId: jobUuid,
       // timeout: expiryMinutes * 60 * 1000, // Timeout/duration managed by worker
@@ -155,6 +162,9 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
   console.log(`[Queue Client] Adding job ${jobUuid} (${task.testScripts.length} tests) to queue ${JOB_EXECUTION_QUEUE}`);
   
   try {
+    // Check the current queue size against QUEUED_CAPACITY
+    await verifyQueueCapacityOrThrow();
+    
     const jobOptions = {
       jobId: jobUuid,
       // timeout: expiryMinutes * 60 * 1000, // Timeout/duration managed by worker
@@ -169,11 +179,43 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
 }
 
 /**
+ * Verify that we haven't exceeded QUEUED_CAPACITY before adding a new job
+ * Throws an error if the queue capacity is exceeded
+ */
+export async function verifyQueueCapacityOrThrow(): Promise<void> {
+  // Import the queue stats
+  const { fetchQueueStats, QUEUED_CAPACITY } = await import('@/lib/queue-stats');
+  
+  try {
+    // Get real queue stats from Redis
+    const stats = await fetchQueueStats();
+    
+    // Check if adding one more job would exceed the queued capacity
+    if (stats.running >= stats.runningCapacity && stats.queued >= stats.queuedCapacity) {
+      throw new Error(`Queue capacity limit reached (${stats.queued}/${stats.queuedCapacity} queued jobs). Please try again later.`);
+    }
+    
+    // All good - we haven't hit capacity limits
+    return;
+  } catch (error) {
+    // Rethrow capacity errors
+    if (error instanceof Error && error.message.includes('capacity limit')) {
+      throw error;
+    }
+    
+    // For connection errors, log but allow the job (fail open)
+    console.error('Error checking queue capacity:', error instanceof Error ? error.message : String(error));
+    return;
+  }
+}
+
+/**
  * Close queue connections (useful for graceful shutdown).
  */
 export async function closeQueue(): Promise<void> {
   console.log('[Queue Client] Closing queue connections...');
   await initPromise; // Ensure initialization finished before closing
+  
   const promises = [];
   if (testQueue) promises.push(testQueue.close());
   if (jobQueue) promises.push(jobQueue.close());
@@ -187,6 +229,3 @@ export async function closeQueue(): Promise<void> {
   initPromise = null;
   console.log('[Queue Client] Queue connections closed.');
 }
-
-// Remove worker setup, status map, result storage, scheduling, and waiting logic.
-// This file is now purely a client for adding jobs.

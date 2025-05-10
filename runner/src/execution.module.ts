@@ -13,9 +13,12 @@ import { TestExecutionProcessor } from './execution/processors/test-execution.pr
 import { JobExecutionProcessor } from './execution/processors/job-execution.processor';
 import * as schema from './db/schema';
 
-// Define queue names (consider moving to constants file)
-export const TEST_EXECUTION_QUEUE = 'test-execution';
-export const JOB_EXECUTION_QUEUE = 'job-execution';
+// Import constants from constants file
+import { 
+  TEST_EXECUTION_QUEUE, 
+  JOB_EXECUTION_QUEUE,
+  MAX_CONCURRENT_TESTS
+} from './execution/constants';
 
 // Define common job options with TTL settings
 const defaultJobOptions = {
@@ -54,11 +57,15 @@ const drizzleProvider: Provider = {
     BullModule.registerQueue(
       {
         name: TEST_EXECUTION_QUEUE,
-        defaultJobOptions
+        defaultJobOptions,
+        // Note: Worker concurrency is controlled by the processor options
+        // MAX_CONCURRENT_TESTS is used by the job processors internally
       },
       {
         name: JOB_EXECUTION_QUEUE,
-        defaultJobOptions
+        defaultJobOptions,
+        // Note: Worker concurrency is controlled by the processor options
+        // MAX_CONCURRENT_TESTS is used by the job processors internally
       }
     ),
   ],

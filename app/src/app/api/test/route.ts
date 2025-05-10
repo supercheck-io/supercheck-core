@@ -21,7 +21,26 @@ export async function POST(request: NextRequest) {
       code,
     };
 
-    await addTestToQueue(task);
+    try {
+      await addTestToQueue(task);
+    } catch (error) {
+      // Check if this is a queue capacity error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('Queue capacity limit reached')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: errorMessage,
+            testId: null,
+          },
+          { status: 429 } // Too Many Requests
+        );
+      }
+      
+      // Re-throw for other errors to be caught by the main catch block
+      throw error;
+    }
 
     // Include the reportUrl in the response using direct UUID path
     const reportUrl = `/api/test-results/${testId}/report/index.html`;

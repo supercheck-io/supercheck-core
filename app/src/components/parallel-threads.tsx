@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Skeleton } from "./ui/skeleton";
 
+// Define our queue stats interface here for reference
 interface QueueStats {
   running: number;
   runningCapacity: number;
@@ -13,46 +14,44 @@ interface QueueStats {
 export function ParallelThreads() {
   const [stats, setStats] = useState<QueueStats>({
     running: 0,
-    runningCapacity: 100, // Updated to match new capacity
+    runningCapacity: 5, // Hardcoded to match server-side configuration
     queued: 0,
-    queuedCapacity: 100, // Updated to match new capacity
+    queuedCapacity: 5, // Hardcoded to match server-side configuration
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let isSubscribed = true;
-    const fetchQueueStats = async () => {
-      try {
-        // Fetch queue stats from API
-        const response = await fetch('/api/queue-stats');
-        if (!response.ok) {
-          throw new Error('Failed to fetch queue statistics');
-        }
-        const data = await response.json();
-        
-        if (isSubscribed) {
+    let source: EventSource | null = null;
+
+    // Use SSE for real-time updates
+    try {
+      source = new EventSource('/api/queue-stats/sse');
+      
+      source.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
           setStats(data);
           setLoading(false);
+        } catch (err) {
+          console.error('Error parsing SSE data:', err);
         }
-      } catch (err) {
-        if (isSubscribed) {
-          setError(err instanceof Error ? err.message : 'Unknown error');
-          setLoading(false);
-        }
-      }
-    };
+      };
+      
+      source.onerror = (e) => {
+        console.error('SSE connection error:', e);
+        setError('Connection to queue stats lost');
+      };
+    } catch (err) {
+      console.error('Failed to initialize SSE:', err);
+      setError('Could not connect to queue stats');
+    }
 
-    // Initial fetch
-    fetchQueueStats();
-
-    // Set up interval for updates
-    const intervalId = setInterval(fetchQueueStats, 3000); // Update more frequently (3s)
-
-    // Cleanup
+    // Cleanup function
     return () => {
-      isSubscribed = false;
-      clearInterval(intervalId);
+      if (source) {
+        source.close();
+      }
     };
   }, []);
 
@@ -60,16 +59,17 @@ export function ParallelThreads() {
   const runningProgress = Math.min(100, (stats.running / stats.runningCapacity) * 100);
   const queuedProgress = Math.min(100, (stats.queued / stats.queuedCapacity) * 100);
 
+  if (loading) {
+    return <LoadingSkeleton />;
+  }
+
   return (
     <div className="flex items-center mr-4">
-      {loading ? (
-        <div className="flex items-center">
-          <Loader2 className="animate-spin h-4 w-4 mr-2" />
-          <span className="text-gray-400 text-xs">Loading...</span>
-        </div>
+      {error ? (
+        <div className="text-xs text-red-500">Error: {error}</div>
       ) : (
         <div className="flex items-center text-xs">
-          <span className="font-medium text-gray-500 mr-3">PARALLEL THREADS:</span>
+          <span className="font-medium text-gray-500 mr-3">PARALLEL EXECUTIONS:</span>
           
           <div className="flex flex-col mr-6">
             <div className="flex items-center justify-between mb-0.5">
@@ -98,6 +98,33 @@ export function ParallelThreads() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Loading skeleton for parallel executions component
+function LoadingSkeleton() {
+  return (
+    <div className="flex items-center mr-4">
+      <div className="flex items-center text-xs">
+        <Skeleton className="h-4 w-36 mr-3" />
+        
+        <div className="flex flex-col mr-6">
+          <div className="flex items-center justify-between mb-0.5">
+            <Skeleton className="h-4 w-14" />
+            <Skeleton className="h-4 w-10" />
+          </div>
+          <Skeleton className="w-32 h-1.5 rounded-full" />
+        </div>
+        
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between mb-0.5">
+            <Skeleton className="h-4 w-14" />
+            <Skeleton className="h-4 w-10" />
+          </div>
+          <Skeleton className="w-32 h-1.5 rounded-full" />
+        </div>
+      </div>
     </div>
   );
 } 

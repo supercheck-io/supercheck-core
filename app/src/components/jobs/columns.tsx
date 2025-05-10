@@ -49,13 +49,8 @@ function RunButton({ job }: { job: Job }) {
     e.stopPropagation(); // Prevent row click event
     e.preventDefault(); // Prevent opening the sheet
 
-    if (isRunning || isAnyJobRunning) {
-      if (isAnyJobRunning && !isRunning) {
-        toast.error("Cannot run job", {
-          description:
-            "Another job is currently running. Please wait for it to complete.",
-        });
-      }
+    // Only prevent execution if this specific job is running
+    if (isRunning) {
       return;
     }
 
@@ -63,6 +58,7 @@ function RunButton({ job }: { job: Job }) {
       // Close any existing SSE connection first
       closeSSEConnection();
       
+      // Set just this job as running
       setJobRunning(true, job.id);
 
       if (!job.tests || job.tests.length === 0) {
@@ -136,13 +132,11 @@ function RunButton({ job }: { job: Job }) {
         "ml-1"
       )}
       disabled={
-        isRunning || (isAnyJobRunning && !isRunning) || !job.tests || job.tests.length === 0
+        isRunning || !job.tests || job.tests.length === 0
       }
       title={
         isRunning
           ? "Job is currently running"
-          : isAnyJobRunning && !isRunning
-          ? "Another job is currently running"
           : !job.tests || job.tests.length === 0
           ? "No tests available to run"
           : "Run job"
