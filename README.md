@@ -207,7 +207,7 @@ The application includes a sophisticated parallel execution system that provides
 
 2. **Capacity Limits:** The system enforces two primary limits:
    - **Running Capacity (default: 5):** Maximum number of concurrent executions that can run simultaneously.
-   - **Queued Capacity (default: 10):** Maximum number of executions that can be queued when running capacity is full.
+   - **Queued Capacity (default: 5):** Maximum number of executions that can be queued when running capacity is full.
 
 3. **Execution Flow:**
    - New executions are added to the running pool if capacity is available.
@@ -249,37 +249,34 @@ The parallel execution system is implemented using several coordinated component
    - **QUEUED_CAPACITY:** API layer checks current queued job count before accepting new submissions
    - This two-tiered approach ensures both limits are respected at appropriate system boundaries
 
-3. **Redis Connection Management:**
-   - Each capacity check creates a temporary Redis connection that is properly closed after use
-   - This prevents connection leaks and "Connection to queue stats lost" errors
-   - Error handling ensures graceful degradation if Redis is temporarily unavailable
+3. **Multi-Job Tracking System:**
+   - The front-end utilizes an `ActiveRunsMap` to track multiple concurrent jobs
+   - Each job has its own toast notification and event source connection
+   - Jobs statuses persist across page refreshes via a `/api/jobs/status/running` endpoint
 
-4. **Real-time Updates:**
-   - Uses Server-Sent Events (SSE) for efficient real-time UI updates
-   - The UI component displays current running and queued counts
-   - Progress bars show utilization percentages relative to capacity limits
+4. **User Feedback:**
+   - Interactive toast notifications clearly indicate job status (running, success, failure)
+   - Loading toasts for running jobs are displayed until completion
+   - Success/failure toasts are shown for completed jobs with links to reports
+   - Robust toast management ensures proper transition between states
+   - User-friendly error messages for capacity limits and execution failures
 
-### Balancing Concurrency: BullMQ vs. Playwright Parallelism
+5. **Error Handling:**
+   - The system implements a "fail closed" approach for capacity checking
+   - If capacity status can't be determined, requests are rejected rather than potentially overloading the system
+   - Detailed error messages help users understand when to retry their requests
 
-When configuring the system, it's important to understand the relationship between BullMQ concurrency and Playwright's internal parallelism:
+### Balancing Concurrency Settings
 
-**Two Types of Parallelism:**
+When configuring the system, it's important to understand how BullMQ concurrency settings work with Playwright:
 
 1. **BullMQ Worker Concurrency (MAX_CONCURRENT_TESTS)**
-   - Controls how many separate test jobs run simultaneously
-   - Set this based on your total system capacity
+   - Controls how many separate test jobs can run simultaneously
+   - Should be set based on your total system resources
 
 2. **Playwright's Internal Parallelism**
    - Controls browser instances within a single test job
-   - Set in `playwright.config.js` as the `workers` option
-
-**Recommended Settings:**
-
-| Scenario | MAX_CONCURRENT_TESTS | Playwright `workers` |
-|----------|----------------------|---------------------|
-| Using Playwright parallelism | 1 | 3-4 (match CPU cores) |
-| Not using Playwright parallelism | 3-5 | 1 |
-| Short tests with max throughput | 2 | 2 |
+   - Configured in `playwright.config.js` as the `workers` option
 
 Always ensure that `RUNNING_CAPACITY` ≥ `MAX_CONCURRENT_TESTS` for the UI to accurately reflect execution state.
 
@@ -388,7 +385,7 @@ AWS_SECRET_ACCESS_KEY=minioadmin
 # Execution Parameters
 MAX_CONCURRENT_TESTS=3             # Maximum number of BullMQ worker processes
 RUNNING_CAPACITY=5                 # Maximum concurrent executions allowed to run
-QUEUED_CAPACITY=10                 # Maximum executions allowed in queued state
+QUEUED_CAPACITY=5                  # Maximum executions allowed in queued state
 TEST_EXECUTION_TIMEOUT_MS=900000   # 15 minutes default
 ```
 

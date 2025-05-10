@@ -73,7 +73,61 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
   const [activeRuns, setActiveRuns] = useState<ActiveRunsMap>({});
   const eventSourcesRef = useRef<Map<string, EventSource>>(new Map());
   const router = useRouter();
+  const initializedRef = useRef(false);
   
+  // Check for running jobs on initial load
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    
+    // Function to fetch running jobs from the server
+    const checkForRunningJobs = async () => {
+      try {
+        // Fetch all currently running jobs via an API endpoint
+        const response = await fetch('/api/jobs/status/running');
+        
+        if (!response.ok) {
+          console.error('[JobContext] Failed to fetch running jobs');
+          return;
+        }
+        
+        const data = await response.json();
+        const runningJobsData = data.runningJobs || [];
+        
+        if (runningJobsData.length === 0) {
+          return; // No running jobs
+        }
+        
+        console.log('[JobContext] Found running jobs:', runningJobsData);
+        
+        // Update our running jobs tracking
+        const newRunningJobs = new Set<string>();
+        const newJobStatuses: JobStatuses = {};
+        
+        // Update job statuses and running jobs set
+        runningJobsData.forEach((job: { jobId: string, runId: string, name: string }) => {
+          newRunningJobs.add(job.jobId);
+          newJobStatuses[job.jobId] = 'running';
+          
+          // Set up SSE for this job's run
+          startJobRun(job.runId, job.jobId, job.name);
+        });
+        
+        // Update state
+        if (newRunningJobs.size > 0) {
+          setRunningJobs(newRunningJobs);
+          setJobStatuses(prev => ({ ...prev, ...newJobStatuses }));
+          setIsAnyJobRunning(true);
+        }
+      } catch (error) {
+        console.error('[JobContext] Error checking for running jobs:', error);
+      }
+    };
+    
+    // Call the function to check for running jobs
+    checkForRunningJobs();
+  }, []);
+
   // Clean up event sources on unmount
   useEffect(() => {
     return () => {
@@ -197,7 +251,6 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     // Show a loading toast for this job
     const toastId = toast.loading(`Executing job: ${jobName.length > 25 ? jobName.substring(0, 25) + '...' : jobName}`, {
       description: "Job execution is in progress...",
-      duration: Infinity,
     });
     
     // Mark this job as running
@@ -247,58 +300,57 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
           // Determine if job passed or failed
           const passed = statusData.status === 'completed' || statusData.status === 'passed';
           
-          // Get the toast ID for this job
-          const jobToastId = activeRuns[jobId]?.toastId;
-          
-          // Dismiss the loading toast for this job if it exists
-          if (jobToastId) {
-            toast.dismiss(jobToastId);
+          // Force dismiss existing toast with ID immediately
+          if (toastId) {
+            toast.dismiss(toastId);
           }
           
-          // Update with final status toast
-          toast[passed ? 'success' : 'error'](
-            passed ? 'Job execution passed' : 'Job execution failed',
-            {
-              description: (
-                <>
-                  {jobName}: {passed 
-                    ? 'All tests executed successfully.' 
-                    : 'One or more tests did not complete successfully.'}{" "}
-                  <a href={`/runs/${runId}`} className="underline font-medium">
-                    View Run Report
-                  </a>
-                </>
-              ),
-              duration: 10000,
-            }
-          );
-
-          // Clean up SSE connection for this job
+          // Clean up resources
           if (eventSourcesRef.current.has(jobId)) {
             eventSourcesRef.current.get(jobId)?.close();
             eventSourcesRef.current.delete(jobId);
           }
           
-          // Remove this job from running jobs
-          setRunningJobs(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(jobId);
-            // Update global running state based on remaining jobs
-            if (newSet.size === 0) {
-              setIsAnyJobRunning(false);
-            }
-            return newSet;
-          });
-          
-          // Remove this job from active runs
+          // Remove from active runs
           setActiveRuns(prev => {
             const newRuns = { ...prev };
             delete newRuns[jobId];
             return newRuns;
           });
           
-          // Refresh the page to show updated job status
-          router.refresh();
+          // Remove from running jobs
+          setRunningJobs(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(jobId);
+            if (newSet.size === 0) {
+              setIsAnyJobRunning(false);
+            }
+            return newSet;
+          });
+          
+          // Use a timeout to ensure the UI has time to process the dismissal
+          setTimeout(() => {
+            // Show a new toast with the completion status
+            toast[passed ? 'success' : 'error'](
+              passed ? 'Job execution passed' : 'Job execution failed',
+              {
+                description: (
+                  <>
+                    {jobName}: {passed 
+                      ? 'All tests executed successfully.' 
+                      : 'One or more tests did not complete successfully.'}{" "}
+                    <a href={`/runs/${runId}`} className="underline font-medium">
+                      View Run Report
+                    </a>
+                  </>
+                ),
+                duration: 10000,
+              }
+            );
+            
+            // Refresh the page
+            router.refresh();
+          }, 300); // Longer delay to ensure no overlap
         }
       } catch (e) {
         console.error("[JobContext] Error parsing SSE event:", e);
@@ -311,44 +363,47 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       if (!hasShownFinalToastForRun) {
         hasShownFinalToastForRun = true;
         
-        // Dismiss loading toast for this job
-        const jobToastId = activeRuns[jobId]?.toastId;
-        if (jobToastId) {
-          toast.dismiss(jobToastId);
+        // Force dismiss any loading toast
+        if (toastId) {
+          toast.dismiss(toastId);
         }
         
-        // Show error toast
-        toast.error(`Job execution error for ${jobName}`, {
-          description: "Connection to job status updates was lost. Check job status in the runs page.",
-        });
-      }
-      
-      // Clean up SSE connection for this job
-      if (eventSourcesRef.current.has(jobId)) {
-        eventSourcesRef.current.get(jobId)?.close();
-        eventSourcesRef.current.delete(jobId);
-      }
-      
-      // Set error status
-      setJobStatus(jobId, 'error');
-      
-      // Remove this job from running jobs
-      setRunningJobs(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(jobId);
-        // Update global running state based on remaining jobs
-        if (newSet.size === 0) {
-          setIsAnyJobRunning(false);
+        // Clean up resources
+        if (eventSourcesRef.current.has(jobId)) {
+          eventSourcesRef.current.get(jobId)?.close();
+          eventSourcesRef.current.delete(jobId);
         }
-        return newSet;
-      });
-      
-      // Remove this job from active runs
-      setActiveRuns(prev => {
-        const newRuns = { ...prev };
-        delete newRuns[jobId];
-        return newRuns;
-      });
+        
+        // Set error status
+        setJobStatus(jobId, 'error');
+        
+        // Remove from running jobs
+        setRunningJobs(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(jobId);
+          if (newSet.size === 0) {
+            setIsAnyJobRunning(false);
+          }
+          return newSet;
+        });
+        
+        // Remove from active runs
+        setActiveRuns(prev => {
+          const newRuns = { ...prev };
+          delete newRuns[jobId];
+          return newRuns;
+        });
+        
+        // Show error toast with delay
+        setTimeout(() => {
+          toast.error(`Job execution error for ${jobName}`, {
+            description: "Connection to job status updates was lost. Check job status in the runs page.",
+          });
+          
+          // Refresh the page
+          router.refresh();
+        }, 300);
+      }
     };
     
     // Update the global running state
@@ -362,30 +417,12 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     // Get job info
     const jobInfo = activeRuns[jobId];
     
-    // Dismiss the loading toast for this job
+    // Force dismiss the loading toast if it exists
     if (jobInfo.toastId) {
       toast.dismiss(jobInfo.toastId);
     }
     
-    // Show success/error toast
-    toast[success ? 'success' : 'error'](
-      success ? 'Job execution passed' : 'Job execution failed',
-      {
-        description: (
-          <>
-            {jobInfo.jobName}: {success 
-              ? 'All tests executed successfully.' 
-              : 'One or more tests did not complete successfully.'}{" "}
-            <a href={`/runs/${runId}`} className="underline font-medium">
-              View Run Report
-            </a>
-          </>
-        ),
-        duration: 10000,
-      }
-    );
-    
-    // Clean up SSE connection for this job
+    // Clean up resources
     if (eventSourcesRef.current.has(jobId)) {
       eventSourcesRef.current.get(jobId)?.close();
       eventSourcesRef.current.delete(jobId);
@@ -394,26 +431,45 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     // Update job status
     setJobStatus(jobId, success ? 'passed' : 'failed');
     
-    // Remove this job from running jobs
+    // Remove from running jobs
     setRunningJobs(prev => {
       const newSet = new Set(prev);
       newSet.delete(jobId);
-      // Update global running state based on remaining jobs
       if (newSet.size === 0) {
         setIsAnyJobRunning(false);
       }
       return newSet;
     });
     
-    // Remove this job from active runs
+    // Remove from active runs
     setActiveRuns(prev => {
       const newRuns = { ...prev };
       delete newRuns[jobId];
       return newRuns;
     });
     
-    // Refresh the page to show updated job status
-    router.refresh();
+    // Show the completion toast with delay
+    setTimeout(() => {
+      toast[success ? 'success' : 'error'](
+        success ? 'Job execution passed' : 'Job execution failed',
+        {
+          description: (
+            <>
+              {jobInfo.jobName}: {success 
+                ? 'All tests executed successfully.' 
+                : 'One or more tests did not complete successfully.'}{" "}
+              <a href={`/runs/${runId}`} className="underline font-medium">
+                View Run Report
+              </a>
+            </>
+          ),
+          duration: 10000,
+        }
+      );
+      
+      // Refresh the page
+      router.refresh();
+    }, 300);
   };
 
   return (

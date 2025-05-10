@@ -14,9 +14,9 @@ interface QueueStats {
 export function ParallelThreads() {
   const [stats, setStats] = useState<QueueStats>({
     running: 0,
-    runningCapacity: 5, // Hardcoded to match server-side configuration
+    runningCapacity: parseInt(process.env.MAX_CONCURRENT_TESTS || '5'),
     queued: 0,
-    queuedCapacity: 5, // Hardcoded to match server-side configuration
+    queuedCapacity: parseInt(process.env.QUEUED_CAPACITY || '50'),
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

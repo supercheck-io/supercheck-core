@@ -27,19 +27,22 @@ export async function POST(request: NextRequest) {
       // Check if this is a queue capacity error
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      if (errorMessage.includes('Queue capacity limit reached')) {
+      if (errorMessage.includes('capacity limit') || errorMessage.includes('Unable to verify queue capacity')) {
+        console.log(`[Test API] Capacity limit reached: ${errorMessage}`);
+        
+        // Return a 429 status code (Too Many Requests) with the error message
         return NextResponse.json(
-          {
-            success: false,
-            error: errorMessage,
-            testId: null,
-          },
-          { status: 429 } // Too Many Requests
+          { error: "Queue capacity limit reached", message: errorMessage },
+          { status: 429 }
         );
       }
       
-      // Re-throw for other errors to be caught by the main catch block
-      throw error;
+      // For other errors, log and return a 500 status code
+      console.error("Error adding test to queue:", error);
+      return NextResponse.json(
+        { error: "Failed to queue test for execution", details: errorMessage },
+        { status: 500 }
+      );
     }
 
     // Include the reportUrl in the response using direct UUID path
@@ -51,15 +54,9 @@ export async function POST(request: NextRequest) {
       reportUrl: reportUrl
     });
   } catch (error) {
-    console.error("Error in test API route:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-
+    console.error("Error processing test request:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: `Failed to queue test execution: ${errorMessage}`,
-        testId: null,
-      },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

@@ -110,9 +110,31 @@ function RunButton({ job }: { job: Job }) {
       }
     } catch (error) {
       console.error("[RunButton] Error running job:", error);
+      
+      // Get error message directly from the response if possible
+      let errorMessage = "Unknown error";
+      
+      if (error instanceof Error) {
+        const message = error.message;
+        
+        // Try to extract the more specific error message from the JSON string
+        if (message.includes('429')) {
+          errorMessage = "Queue capacity limit reached. Please try again later.";
+        } else {
+          // Use the original error message but trim it to be more concise
+          errorMessage = message.replace("Failed to run job: ", "");
+          
+          // Limit the length of the error message
+          if (errorMessage.length > 100) {
+            errorMessage = errorMessage.substring(0, 100) + "...";
+          }
+        }
+      }
+      
       toast.error("Error running job", {
-        description: `Failed to execute the job: ${error instanceof Error ? error.message : "Unknown error"}`,
+        description: errorMessage
       });
+      
       setJobRunning(false, job.id);
     }
   };

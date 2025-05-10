@@ -122,18 +122,21 @@ export async function fetchQueueStats(): Promise<QueueStats> {
     // First determine how many jobs we can still run before hitting capacity
     const availableRunningSlots = Math.max(0, RUNNING_CAPACITY - runningCount);
     
-    // Jobs are only considered "queued" if they can't be run immediately due to capacity
-    if (availableRunningSlots >= totalWaiting) {
-      // We have enough capacity for all waiting jobs - so they're not truly "queued"
-      queuedCount = 0; 
-      // The running count should include jobs that will run immediately
-      runningCount = Math.min(RUNNING_CAPACITY, runningCount + totalWaiting);
+    // Check if we've reached RUNNING_CAPACITY
+    if (availableRunningSlots > 0) {
+      // Running capacity not reached yet - all jobs count as "running" until we hit capacity
+      // Any jobs that fit within running capacity are not counted as queued
+      const immediatelyRunnable = Math.min(availableRunningSlots, totalWaiting);
+      runningCount += immediatelyRunnable;
+      // Only count truly queued jobs (those that exceed running capacity)
+      queuedCount = Math.max(0, totalWaiting - immediatelyRunnable);
     } else {
-      // Some jobs will need to wait in queue
-      queuedCount = totalWaiting - availableRunningSlots;
-      // All available slots will be filled
-      runningCount = RUNNING_CAPACITY;
+      // Running capacity is full - all waiting jobs count as queued
+      queuedCount = totalWaiting;
     }
+    
+    // Enforce limits - running cannot exceed capacity
+    runningCount = Math.min(runningCount, RUNNING_CAPACITY);
     
     return {
       running: runningCount,

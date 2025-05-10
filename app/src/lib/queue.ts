@@ -184,15 +184,26 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
  */
 export async function verifyQueueCapacityOrThrow(): Promise<void> {
   // Import the queue stats
-  const { fetchQueueStats, QUEUED_CAPACITY } = await import('@/lib/queue-stats');
+  const { fetchQueueStats, RUNNING_CAPACITY, QUEUED_CAPACITY } = await import('@/lib/queue-stats');
   
   try {
     // Get real queue stats from Redis
     const stats = await fetchQueueStats();
     
-    // Check if adding one more job would exceed the queued capacity
-    if (stats.running >= stats.runningCapacity && stats.queued >= stats.queuedCapacity) {
-      throw new Error(`Queue capacity limit reached (${stats.queued}/${stats.queuedCapacity} queued jobs). Please try again later.`);
+    console.log(`[Queue Client] Checking capacity - running: ${stats.running}/${stats.runningCapacity}, queued: ${stats.queued}/${stats.queuedCapacity}`);
+    
+    // First check: If running < RUNNING_CAPACITY, we can add more jobs immediately
+    if (stats.running < stats.runningCapacity) {
+      // There are available running slots, no need to check queue capacity
+      return;
+    }
+    
+    // Second check: If running at capacity, verify queued capacity is not exceeded
+    if (stats.running >= stats.runningCapacity) {
+      // Running is at or over capacity, need to check queue capacity
+      if (stats.queued >= stats.queuedCapacity) {
+        throw new Error(`Queue capacity limit reached (${stats.queued}/${stats.queuedCapacity} queued jobs). Please try again later when running capacity (${stats.running}/${stats.runningCapacity}) is available.`);
+      }
     }
     
     // All good - we haven't hit capacity limits
@@ -200,12 +211,15 @@ export async function verifyQueueCapacityOrThrow(): Promise<void> {
   } catch (error) {
     // Rethrow capacity errors
     if (error instanceof Error && error.message.includes('capacity limit')) {
+      console.error(`[Queue Client] Capacity limit error: ${error.message}`);
       throw error;
     }
     
-    // For connection errors, log but allow the job (fail open)
+    // For connection errors, log but still enforce a basic check
     console.error('Error checking queue capacity:', error instanceof Error ? error.message : String(error));
-    return;
+    
+    // Fail closed on errors - be conservative when we can't verify capacity
+    throw new Error(`Unable to verify queue capacity due to an error. Please try again later.`);
   }
 }
 

@@ -81,7 +81,9 @@ export async function POST(request: Request) {
       // Check if this is a queue capacity error
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      if (errorMessage.includes('Queue capacity limit reached')) {
+      if (errorMessage.includes('capacity limit') || errorMessage.includes('Unable to verify queue capacity')) {
+        console.log(`[Job API] Capacity limit reached: ${errorMessage}`);
+        
         // Update the run status to failed with capacity limit error
         await dbInstance.update(runs)
           .set({
@@ -91,16 +93,22 @@ export async function POST(request: Request) {
           })
           .where(eq(runs.id, runId));
           
+        // Update the job status back to its previous state (not running)
+        await dbInstance.update(jobs)
+          .set({
+            status: "pending" as JobStatus
+          })
+          .where(eq(jobs.id, jobId));
+          
+        // Return a 429 status code (Too Many Requests) with the error message
         return NextResponse.json(
-          {
-            success: false,
-            error: errorMessage,
-            jobId: jobId,
-            runId: runId,
-          },
-          { status: 429 } // Too Many Requests
+          { error: "Queue capacity limit reached", message: errorMessage },
+          { status: 429 }
         );
       }
+      
+      // For other errors, log and return a 500 status code
+      console.error(`[${jobId}/${runId}] Error processing job:`, error);
       
       // Re-throw for other errors to be caught by the main catch block
       throw error;
