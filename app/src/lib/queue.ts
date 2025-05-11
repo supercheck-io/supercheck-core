@@ -24,6 +24,12 @@ export interface JobExecutionTask {
 export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
 
+// Redis key TTL values (in seconds) - applies to both job and test execution
+export const REDIS_JOB_KEY_TTL = 7 * 24 * 60 * 60;  // 7 days for job data (completed/failed jobs)
+export const REDIS_EVENT_KEY_TTL = 24 * 60 * 60;    // 24 hours for events/stats
+export const REDIS_METRICS_TTL = 48 * 60 * 60;      // 48 hours for metrics data
+export const REDIS_CLEANUP_BATCH_SIZE = 100;        // Process keys in smaller batches to reduce memory pressure
+
 // Singleton instances
 let redisClient: Redis | null = null;
 let testQueue: Queue | null = null;
@@ -98,18 +104,35 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue }> {
     initPromise = (async () => {
       try {
         const connection = await getRedisConnection();
+        
+        // Memory-optimized job options
         const defaultJobOptions = {
-          removeOnComplete: { count: 1000, age: 24 * 3600 }, // Keep completed jobs for 24 hours (1000 max)
-          removeOnFail: { count: 5000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (5000 max)
+          removeOnComplete: { count: 500, age: 24 * 3600 }, // Keep completed jobs for 24 hours (500 max)
+          removeOnFail: { count: 1000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (1000 max)
           attempts: 3,
           backoff: { type: 'exponential', delay: 1000 }
         };
 
-        testQueue = new Queue(TEST_EXECUTION_QUEUE, { connection, defaultJobOptions });
-        jobQueue = new Queue(JOB_EXECUTION_QUEUE, { connection, defaultJobOptions });
+        // Queue settings with Redis TTL and auto-cleanup options
+        const queueSettings = {
+          connection,
+          defaultJobOptions,
+          // Settings to prevent orphaned Redis keys
+          stalledInterval: 30000, // Check for stalled jobs every 30 seconds
+          metrics: {
+            maxDataPoints: 60, // Limit metrics storage to 60 data points (1 hour at 1 min interval)
+            collectDurations: true
+          }
+        };
+
+        testQueue = new Queue(TEST_EXECUTION_QUEUE, queueSettings);
+        jobQueue = new Queue(JOB_EXECUTION_QUEUE, queueSettings);
 
         testQueue.on('error', (error) => console.error(`[Queue Client] Test Queue Error:`, error));
         jobQueue.on('error', (error) => console.error(`[Queue Client] Job Queue Error:`, error));
+
+        // Set up periodic cleanup for orphaned Redis keys
+        await setupQueueCleanup(connection);
 
         console.log('[Queue Client] BullMQ Queues initialized');
       } catch (error) {
@@ -126,6 +149,115 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue }> {
     throw new Error('Queue initialization failed or did not complete.');
   }
   return { testQueue, jobQueue };
+}
+
+/**
+ * Sets up periodic cleanup of orphaned Redis keys to prevent unbounded growth
+ */
+async function setupQueueCleanup(connection: Redis): Promise<void> {
+  try {
+    // Run initial cleanup on startup to clear any existing orphaned keys
+    await performQueueCleanup(connection);
+    
+    // Schedule queue cleanup every 12 hours (43200000 ms) - more frequent than before
+    const cleanupInterval = setInterval(async () => {
+      try {
+        await performQueueCleanup(connection);
+      } catch (error) {
+        console.error('[Queue Client] Error during scheduled queue cleanup:', error);
+      }
+    }, 12 * 60 * 60 * 1000); // Run cleanup every 12 hours
+    
+    // Make sure interval is properly cleared on process exit
+    process.on('exit', () => clearInterval(cleanupInterval));
+  } catch (error) {
+    console.error('[Queue Client] Failed to set up queue cleanup:', error);
+  }
+}
+
+/**
+ * Performs the actual queue cleanup operations
+ * Extracted to a separate function for reuse in initial and scheduled cleanup
+ */
+async function performQueueCleanup(connection: Redis): Promise<void> {
+  console.log('[Queue Client] Running queue cleanup for Redis keys');
+  
+  // 1. Clean up completed/failed jobs older than their TTL
+  if (testQueue) {
+    await testQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
+    await testQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
+  }
+  
+  if (jobQueue) {
+    await jobQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
+    await jobQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
+  }
+
+  // 2. Trim event streams to reduce memory usage (keep last 1000 events)
+  if (testQueue) {
+    await testQueue.trimEvents(1000);
+  }
+  
+  if (jobQueue) {
+    await jobQueue.trimEvents(1000);
+  }
+  
+  // 3. Process orphaned keys in smaller batches to reduce memory pressure
+  await cleanupOrphanedKeys(connection, TEST_EXECUTION_QUEUE);
+  await cleanupOrphanedKeys(connection, JOB_EXECUTION_QUEUE);
+  
+  console.log('[Queue Client] Queue cleanup completed');
+}
+
+/**
+ * Cleans up orphaned keys for a specific queue in batches to reduce memory pressure
+ */
+async function cleanupOrphanedKeys(connection: Redis, queueName: string): Promise<void> {
+  try {
+    // Get keys in batches using scan instead of keys command
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await connection.scan(
+        cursor, 
+        'MATCH', 
+        `bull:${queueName}:*`, 
+        'COUNT', 
+        '100'
+      );
+      
+      cursor = nextCursor;
+      
+      // Process this batch of keys
+      for (const key of keys) {
+        // Skip keys that BullMQ manages properly (active jobs, waiting jobs, etc.)
+        if (key.includes(':active') || key.includes(':wait') || 
+            key.includes(':delayed') || key.includes(':failed') ||
+            key.includes(':completed')) {
+          continue;
+        }
+        
+        // Check if the key has a TTL set
+        const ttl = await connection.ttl(key);
+        if (ttl === -1) { // -1 means no TTL is set
+          // Set appropriate TTL based on key type
+          let expiryTime = REDIS_JOB_KEY_TTL;
+          
+          if (key.includes(':events:')) {
+            expiryTime = REDIS_EVENT_KEY_TTL;
+          } else if (key.includes(':metrics')) {
+            expiryTime = REDIS_METRICS_TTL;
+          } else if (key.includes(':meta')) {
+            continue; // Skip meta keys as they should live as long as the app runs
+          }
+          
+          await connection.expire(key, expiryTime);
+          console.log(`[Queue Client] Set TTL of ${expiryTime}s for key: ${key}`);
+        }
+      }
+    } while (cursor !== '0');
+  } catch (error) {
+    console.error(`[Queue Client] Error cleaning up orphaned keys for ${queueName}:`, error);
+  }
 }
 
 /**

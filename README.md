@@ -235,51 +235,6 @@ The system enforces capacity limits at multiple levels:
 
 These multi-level checks ensure the system maintains stability under heavy load while providing accurate UI feedback.
 
-### Technical Implementation
-
-The parallel execution system is implemented using several coordinated components:
-
-1. **Direct Redis Capacity Checking:**
-   - Each processor directly interfaces with Redis to obtain accurate counts of running and queued jobs
-   - Counts are derived from BullMQ active job lists for both test and job execution queues
-   - This approach eliminates dependency on external queue stats services and reduces complexity
-
-2. **Capacity Limit Enforcement:**
-   - **RUNNING_CAPACITY:** Workers check current running job count before processing a job
-   - **QUEUED_CAPACITY:** API layer checks current queued job count before accepting new submissions
-   - This two-tiered approach ensures both limits are respected at appropriate system boundaries
-
-3. **Multi-Job Tracking System:**
-   - The front-end utilizes an `ActiveRunsMap` to track multiple concurrent jobs
-   - Each job has its own toast notification and event source connection
-   - Jobs statuses persist across page refreshes via a `/api/jobs/status/running` endpoint
-
-4. **User Feedback:**
-   - Interactive toast notifications clearly indicate job status (running, success, failure)
-   - Loading toasts for running jobs are displayed until completion
-   - Success/failure toasts are shown for completed jobs with links to reports
-   - Robust toast management ensures proper transition between states
-   - User-friendly error messages for capacity limits and execution failures
-
-5. **Error Handling:**
-   - The system implements a "fail closed" approach for capacity checking
-   - If capacity status can't be determined, requests are rejected rather than potentially overloading the system
-   - Detailed error messages help users understand when to retry their requests
-
-### Balancing Concurrency Settings
-
-When configuring the system, it's important to understand how BullMQ concurrency settings work with Playwright:
-
-1. **BullMQ Worker Concurrency (MAX_CONCURRENT_TESTS)**
-   - Controls how many separate test jobs can run simultaneously
-   - Should be set based on your total system resources
-
-2. **Playwright's Internal Parallelism**
-   - Controls browser instances within a single test job
-   - Configured in `playwright.config.js` as the `workers` option
-
-Always ensure that `RUNNING_CAPACITY` ≥ `MAX_CONCURRENT_TESTS` for the UI to accurately reflect execution state.
-
 ## Key Components
 
 ### 1. Queue System
@@ -338,6 +293,32 @@ Status updates use a publish/subscribe pattern:
 - **Subscribers**:
   - Frontend subscribes to updates via Server-Sent Events (SSE)
   - Updates are used to show real-time progress and status
+
+### 5. Redis Memory Management
+
+The system includes a sophisticated Redis memory management strategy to prevent unbounded memory growth:
+
+- **Key TTL (Time-To-Live) Settings**:
+  - **Job Data (7 days)**: Completed and failed jobs are retained for analysis
+  - **Event Streams (24 hours)**: Real-time status updates expire after a day
+  - **Metrics Data (48 hours)**: Performance metrics are kept for two days
+
+- **Automated Cleanup Mechanisms**:
+  - **Job Cleanup**: Regular cleaning of completed/failed jobs older than TTL
+  - **Event Stream Trimming**: Event streams capped at 1000 events
+  - **Orphaned Key Detection**: Background workers scan for keys without TTL and add expiration
+
+- **Memory Optimization Techniques**:
+  - **Batched Processing**: Keys are processed in small batches (100 at a time)
+  - **Efficient Key Scanning**: Uses Redis SCAN instead of KEYS to reduce memory pressure
+  - **Reduced Storage Limits**: Lower limits for completed jobs (500) and failed jobs (1000)
+  - **Frequent Cleanup**: Cleanup operations run every 12 hours
+
+- **Benefits**:
+  - Predictable memory usage over time
+  - Automatic recovery from memory leaks
+  - Protection against Redis out-of-memory conditions
+  - Consistent performance regardless of system uptime
 
 ## Error Handling and Recovery
 
