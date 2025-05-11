@@ -22,8 +22,8 @@ import {
 
 // Define common job options with TTL settings
 const defaultJobOptions = {
-  removeOnComplete: { count: 1000, age: 24 * 3600 }, // Keep completed jobs for 24 hours (1000 max)
-  removeOnFail: { count: 5000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (5000 max)
+  removeOnComplete: { count: 500, age: 24 * 3600 }, // Keep completed jobs for 24 hours (500 max)
+  removeOnFail: { count: 1000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (1000 max)
   attempts: 3,
   backoff: { type: 'exponential', delay: 1000 }
 };
@@ -57,13 +57,13 @@ const drizzleProvider: Provider = {
     BullModule.registerQueue(
       {
         name: TEST_EXECUTION_QUEUE,
-        defaultJobOptions,
+        defaultJobOptions
         // Note: Worker concurrency is controlled by the processor options
         // MAX_CONCURRENT_TESTS is used by the job processors internally
       },
       {
         name: JOB_EXECUTION_QUEUE,
-        defaultJobOptions,
+        defaultJobOptions
         // Note: Worker concurrency is controlled by the processor options
         // MAX_CONCURRENT_TESTS is used by the job processors internally
       }

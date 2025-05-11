@@ -314,6 +314,12 @@ The system includes a sophisticated Redis memory management strategy to prevent 
   - **Reduced Storage Limits**: Lower limits for completed jobs (500) and failed jobs (1000)
   - **Frequent Cleanup**: Cleanup operations run every 12 hours
 
+- **BullMQ Configuration**:
+  - Queue configuration follows NestJS BullMQ best practices
+  - Default job options set job removal limits (500 completed/1000 failed jobs)
+  - Worker processors implement proper stalled job handling
+  - Implementation across both client and server for consistent memory management
+
 - **Benefits**:
   - Predictable memory usage over time
   - Automatic recovery from memory leaks
@@ -364,9 +370,9 @@ AWS_ACCESS_KEY_ID=minioadmin
 AWS_SECRET_ACCESS_KEY=minioadmin
 
 # Execution Parameters
-MAX_CONCURRENT_TESTS=3             # Maximum number of BullMQ worker processes
+MAX_CONCURRENT_TESTS=2             # Maximum number of BullMQ worker processes
 RUNNING_CAPACITY=5                 # Maximum concurrent executions allowed to run
-QUEUED_CAPACITY=5                  # Maximum executions allowed in queued state
+QUEUED_CAPACITY=50                  # Maximum executions allowed in queued state
 TEST_EXECUTION_TIMEOUT_MS=900000   # 15 minutes default
 ```
 

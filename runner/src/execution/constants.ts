@@ -6,26 +6,22 @@ export const RUNNING_CAPACITY = parseInt(process.env.RUNNING_CAPACITY || '5', 10
 
 /**
  * QUEUED_CAPACITY defines the maximum number of jobs that can be in the queue.
- * This is a hard limit enforced at the API layer - new submissions will be rejected
- * with a 429 (Too Many Requests) status code once this limit is reached.
+ * The API layer will reject new job submissions once this limit is reached.
+ * This is a safety measure to prevent overwhelming the queue with too many jobs.
  */
-export const QUEUED_CAPACITY = parseInt(process.env.QUEUED_CAPACITY || '10', 10);
+export const QUEUED_CAPACITY = parseInt(process.env.QUEUED_CAPACITY || '50', 10);
 
 /**
  * MAX_CONCURRENT_TESTS is different from Playwright's own parallelism setting:
  * 
- * - Playwright parallelism (in playwright.config.js): Controls how many browser 
- *   instances run WITHIN a single test job
- * 
+ * In the context of our system:
+ * - Playwright's workers: Controls browser instance parallelism WITHIN a single test
  * - MAX_CONCURRENT_TESTS: Controls how many separate test JOBS can run in parallel
- *   on the worker service
  * 
- * If you're using Playwright's parallelism, you may want to set this to 1 to avoid
- * overloading the system, as each job will already spawn multiple browser instances.
+ * This is a critical setting that determines worker concurrency and resource usage.
  */
 export const MAX_CONCURRENT_TESTS = parseInt(
   process.env.MAX_CONCURRENT_TESTS || 
-  // Default to 1 for optimal use with Playwright's internal parallelism
-  '1', 
+  '2', // Default to 2 concurrent test jobs
   10
 ); 
