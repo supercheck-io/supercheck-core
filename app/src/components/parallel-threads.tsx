@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Skeleton } from "./ui/skeleton";
 
 // Define our queue stats interface here for reference
@@ -19,36 +19,93 @@ export function ParallelThreads() {
     queuedCapacity: parseInt(process.env.QUEUED_CAPACITY || '50'),
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-  useEffect(() => {
-    let source: EventSource | null = null;
+  // Function to create and set up the SSE connection
+  const setupEventSource = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
 
-    // Use SSE for real-time updates
     try {
-      source = new EventSource('/api/queue-stats/sse');
+      const source = new EventSource('/api/queue-stats/sse');
+      eventSourceRef.current = source;
+      
+      source.onopen = () => {
+        setConnectionStatus('connected');
+        reconnectAttemptsRef.current = 0;
+      };
       
       source.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           setStats(data);
           setLoading(false);
+          setConnectionStatus('connected');
         } catch (err) {
           console.error('Error parsing SSE data:', err);
         }
       };
       
-      source.onerror = (e) => {
-        console.error('SSE connection error:', e);
-        setError('Connection to queue stats lost');
+      source.onerror = () => {
+        // Only change connection status if we're not already trying to reconnect
+        if (connectionStatus !== 'connecting') {
+          setConnectionStatus('connecting');
+        }
+        
+        // Close the current connection
+        source.close();
+        eventSourceRef.current = null;
+        
+        // Implement exponential backoff for reconnection
+        const backoffTime = Math.min(1000 * Math.pow(1.5, reconnectAttemptsRef.current), 10000);
+        reconnectAttemptsRef.current++;
+        
+        // Clear any existing timeout
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+        
+        // Schedule reconnection
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (document.visibilityState !== 'hidden') {
+            setupEventSource();
+          }
+        }, backoffTime);
       };
+      
+      return source;
     } catch (err) {
       console.error('Failed to initialize SSE:', err);
-      setError('Could not connect to queue stats');
+      setConnectionStatus('disconnected');
+      return null;
     }
+  };
 
+  useEffect(() => {
+    // Set up visibility change listener to reconnect when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !eventSourceRef.current) {
+        setupEventSource();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Initial setup
+    const source = setupEventSource();
+    
     // Cleanup function
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      
       if (source) {
         source.close();
       }
@@ -63,44 +120,40 @@ export function ParallelThreads() {
     return <LoadingSkeleton />;
   }
 
+  // Just show the data even if we're reconnecting - the user doesn't need to know about temporary connectivity issues
   return (
     <div className="flex items-center mr-4">
-      {error ? (
-        <div className="flex items-center text-xs">
-          <span className="font-medium text-gray-500 mr-3">STATUS:</span>
-          <span className="text-red-500 font-medium">{error}</span>
+      <div className="flex items-center text-[11px]">
+        <div className="font-medium text-gray-500 mr-3 ">PARALLEL 
+          <div className="font-medium text-gray-500 mr-3 ">EXECUTIONS:</div>
         </div>
-      ) : (
-        <div className="flex items-center text-xs">
-          <span className="font-medium text-gray-500 mr-3">PARALLEL EXECUTIONS:</span>
-          
-          <div className="flex flex-col mr-6">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className={`font-medium ${stats.running > 0 ? 'text-blue-600 dark:text-blue-500' : 'text-gray-500'}`}>Running</span>
-              <span className="text-gray-700 dark:text-gray-300">{stats.running}/{stats.runningCapacity}</span>
-            </div>
-            <div className="w-32 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-blue-500 rounded-full" 
-                style={{ width: `${runningProgress}%` }}
-              />
-            </div>
+        
+        <div className="flex flex-col mr-6">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className={`font-medium ${stats.running > 0 ? 'text-blue-600 dark:text-blue-500' : 'text-gray-500'}`}>RUNNING</span>
+            <span className="text-gray-700 dark:text-gray-300">{stats.running}/{stats.runningCapacity}</span>
           </div>
-          
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className={`font-medium ${stats.queued > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-gray-500'}`}>Queued</span>
-              <span className="text-gray-700 dark:text-gray-300">{stats.queued}/{stats.queuedCapacity}</span>
-            </div>
-            <div className="w-32 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-amber-600 rounded-full" 
-                style={{ width: `${queuedProgress}%` }}
-              />
-            </div>
+          <div className="w-32 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-blue-500 rounded-full" 
+              style={{ width: `${runningProgress}%` }}
+            />
           </div>
         </div>
-      )}
+        
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className={`font-medium ${stats.queued > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-gray-500'}`}>QUEUED</span>
+            <span className="text-gray-700 dark:text-gray-300">{stats.queued}/{stats.queuedCapacity}</span>
+          </div>
+          <div className="w-32 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-amber-600 rounded-full" 
+              style={{ width: `${queuedProgress}%` }}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

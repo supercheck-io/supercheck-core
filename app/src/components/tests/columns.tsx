@@ -19,7 +19,7 @@ export const columns: ColumnDef<Test>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="ID" />
+      <DataTableColumnHeader className="ml-2"  column={column} title="ID" />
     ),
     cell: ({ row }) => (
       <div className="w-[120px] ml-2">

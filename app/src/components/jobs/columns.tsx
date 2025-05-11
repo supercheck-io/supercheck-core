@@ -182,7 +182,7 @@ function RunButton({ job }: { job: Job }) {
 export const columns: ColumnDef<Job>[] = [
   {
     id: "run",
-    header: () => <div>Run</div>,
+    header: () => <div className="ml-2">Run</div>,
     cell: ({ row }) => {
       const job = row.original;
       return <RunButton job={job} />;

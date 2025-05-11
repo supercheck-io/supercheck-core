@@ -15,7 +15,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Run ID" />
+      <DataTableColumnHeader className="ml-2" column={column} title ="Run ID" />
     ),
     cell: ({ row }) => (
       <div className="w-[120px] ml-2">
