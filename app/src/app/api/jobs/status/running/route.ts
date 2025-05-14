@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { jobs, runs } from "@/db/schema";
@@ -7,7 +7,7 @@ import { jobs, runs } from "@/db/schema";
  * API endpoint to return all currently running jobs
  * Used by the JobContext to maintain state across page refreshes
  */
-export async function GET(request: NextRequest) {
+export async function GET(): Promise<NextResponse> {
   try {
     const db = await getDb();
     

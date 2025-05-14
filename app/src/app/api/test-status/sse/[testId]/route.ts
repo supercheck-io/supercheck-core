@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getDb } from '@/db/client';
 import { reports } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -9,7 +9,7 @@ import Redis from 'ioredis';
 /**
  * Helper function to create SSE message
  */
-const createSSEMessage = (data: any) => {
+const createSSEMessage = (data: Record<string, unknown>) => {
   return `data: ${JSON.stringify(data)}\n\n`;
 };
 
@@ -31,13 +31,12 @@ const getRedisConnection = async (): Promise<Redis> => {
   return redis;
 };
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { testId: string } }
-) {
-  // Explicitly await the params object to fix the "sync dynamic APIs" error
-  const resolvedParams = await Promise.resolve(params);
-  const testId = resolvedParams.testId;
+export async function GET(request: Request) {
+  // Extract testId from the URL path
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/');
+  const testId = pathParts[pathParts.length - 1]; // Get the last part of the URL
+
   let connectionClosed = false;
   
   // Create response with appropriate headers for SSE
@@ -63,7 +62,7 @@ export async function GET(
             testId: report.entityId,
             reportPath: report.reportPath,
             s3Url: report.s3Url,
-            error: report.errorDetails
+            error: undefined
           })));
           connectionClosed = true;
           controller.close();
@@ -169,7 +168,7 @@ export async function GET(
               progress,
               reportPath: updatedReport?.reportPath,
               s3Url: updatedReport?.s3Url,
-              error: updatedReport?.errorDetails,
+              error: undefined,
               ...(updatedTestJob.returnvalue || {})
             })));
             

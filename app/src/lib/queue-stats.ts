@@ -85,7 +85,7 @@ export async function fetchQueueStats(): Promise<QueueStats> {
             if (processedOn && !finishedOn) {
               processingIds.add(jobId);
             }
-          } catch (e) {
+          } catch {
             // Ignore errors for individual jobs
           }
         }

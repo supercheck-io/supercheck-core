@@ -16,6 +16,7 @@ interface TestFromAction {
   status?: "running" | "passed" | "failed" | "error";
   lastRunAt?: string;
   duration?: number;
+  script?: string;
 }
 
 interface JobFromAction {
@@ -28,6 +29,7 @@ interface JobFromAction {
   updatedAt: string;
   lastRunAt: string;
   nextRunAt: string;
+  scheduledJobId?: string;
   tests: TestFromAction[];
 }
 
@@ -53,6 +55,7 @@ interface JobWithTests {
   updatedAt: string;
   lastRunAt: string;
   nextRunAt: string;
+  scheduledJobId?: string;
   tests: { testId: string }[];
 }
 
@@ -74,6 +77,7 @@ export async function getJobs(): Promise<JobsResponse> {
           updatedAt: jobs.updatedAt,
           lastRunAt: jobs.lastRunAt,
           nextRunAt: jobs.nextRunAt,
+          scheduledJobId: jobs.scheduledJobId,
         },
         jobTests: {
           testId: jobTests.testId,
@@ -104,6 +108,7 @@ export async function getJobs(): Promise<JobsResponse> {
             : new Date().toISOString(),
           lastRunAt: job.lastRunAt ? new Date(job.lastRunAt).toISOString() : "",
           nextRunAt: job.nextRunAt ? new Date(job.nextRunAt).toISOString() : "",
+          scheduledJobId: job.scheduledJobId || undefined,
           tests: testId ? [{ testId }] : [],
         });
       } else if (testId) {
@@ -141,6 +146,7 @@ export async function getJobs(): Promise<JobsResponse> {
           status: undefined,
           lastRunAt: undefined,
           duration: undefined,
+          script: dbTest.script || "",
         };
         return map;
       }, {} as Record<string, TestFromAction>);
@@ -163,6 +169,7 @@ export async function getJobs(): Promise<JobsResponse> {
         updatedAt: job.updatedAt,
         lastRunAt: job.lastRunAt,
         nextRunAt: job.nextRunAt,
+        scheduledJobId: job.scheduledJobId,
         tests: testDetails,
       };
     });
@@ -190,6 +197,7 @@ export async function getJob(id: string): Promise<JobResponse> {
         updatedAt: jobs.updatedAt,
         lastRunAt: jobs.lastRunAt,
         nextRunAt: jobs.nextRunAt,
+        scheduledJobId: jobs.scheduledJobId,
       })
       .from(jobs)
       .where(eq(jobs.id, id));
@@ -220,6 +228,7 @@ export async function getJob(id: string): Promise<JobResponse> {
       status: undefined,
       lastRunAt: undefined,
       duration: undefined,
+      script: test.script || "",
     }));
 
     // Create the job object
@@ -245,6 +254,7 @@ export async function getJob(id: string): Promise<JobResponse> {
       nextRunAt: jobRow.nextRunAt
         ? new Date(jobRow.nextRunAt).toISOString()
         : "",
+      scheduledJobId: jobRow.scheduledJobId || undefined,
       tests: uiTests,
     };
 

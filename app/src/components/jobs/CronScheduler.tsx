@@ -1,9 +1,8 @@
 "use client";
 
 import React from "react";
-import { Cron } from "react-js-cron";
+import { Cron, OnError } from "react-js-cron";
 import "react-js-cron/dist/styles.css"; // Import base styles
-import { useTheme } from "next-themes"; // To potentially adjust styles based on theme
 import { Input } from "@/components/ui/input"; // Import shadcn Input
 import { Button } from "@/components/ui/button"; // Import shadcn Button
 import { X } from "lucide-react"; // Import icon for clear button
@@ -12,7 +11,7 @@ import { toast } from "sonner"; // Import toast
 interface CronSchedulerProps {
   value: string;
   onChange: (value: string) => void;
-  onError?: (error: any) => void; // Optional error handler
+  onError?: OnError; // Use the type from the library
   disabled?: boolean;
   readOnly?: boolean;
 }
@@ -28,8 +27,6 @@ const CronScheduler: React.FC<CronSchedulerProps> = ({
   disabled = false,
   readOnly = false,
 }) => {
-  const { theme } = useTheme(); // Get current theme
-
   // Note: react-js-cron uses antd internally. Proper theme integration
   // with shadcn/ui might require more specific CSS overrides targeting
   // antd classes based on the current theme (light/dark).

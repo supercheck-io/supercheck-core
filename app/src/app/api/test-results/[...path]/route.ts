@@ -23,7 +23,7 @@ const s3Client = new S3Client({
 });
 
 // Helper to get AWS v4 signature headers
-async function getSignedHeaders(url: string, method: string = 'GET'): Promise<HeadersInit> {
+async function getSignedHeaders(): Promise<HeadersInit> {
   try {
     // Simple implementation - in production, you'd want to use the aws4fetch library or similar
     // This is a placeholder that returns the basic auth headers for now
@@ -39,14 +39,24 @@ async function getSignedHeaders(url: string, method: string = 'GET'): Promise<He
 }
 
 // Helper function to handle various stream types from S3
-async function streamToUint8Array(stream: any): Promise<Uint8Array> {
+async function streamToUint8Array(
+  stream: ReadableStream | NodeJS.ReadableStream | ArrayBuffer | ArrayBufferView | Blob | unknown
+): Promise<Uint8Array> {
   if (!stream) {
     throw new Error("Stream is undefined or null");
   }
   
+  // For AWS SDK v3 response bodies (Blob with stream methods)
+  const awsStream = stream as { transformToByteArray?: () => Promise<Uint8Array> };
+  if (awsStream.transformToByteArray) {
+    // Use AWS SDK's built-in transformation
+    const bytes = await awsStream.transformToByteArray();
+    return new Uint8Array(bytes);
+  }
+  
   // For Web API ReadableStream
-  if (typeof stream.getReader === 'function') {
-    const reader = stream.getReader();
+  if (stream && typeof (stream as ReadableStream).getReader === 'function') {
+    const reader = (stream as ReadableStream).getReader();
     const chunks: Uint8Array[] = [];
     
     while (true) {
@@ -70,11 +80,11 @@ async function streamToUint8Array(stream: any): Promise<Uint8Array> {
   }
   
   // For Node.js-like streams that have a .on() method 
-  if (typeof stream.on === 'function') {
+  if (stream && typeof (stream as NodeJS.ReadableStream).on === 'function') {
     return new Promise<Uint8Array>((resolve, reject) => {
       const chunks: Uint8Array[] = [];
       
-      stream.on('data', (chunk: Uint8Array | ArrayBuffer) => {
+      (stream as NodeJS.ReadableStream).on('data', (chunk: Uint8Array | ArrayBuffer) => {
         // Convert anything to Uint8Array
         const typedChunk = chunk instanceof Uint8Array 
           ? chunk 
@@ -82,7 +92,7 @@ async function streamToUint8Array(stream: any): Promise<Uint8Array> {
         chunks.push(typedChunk);
       });
       
-      stream.on('end', () => {
+      (stream as NodeJS.ReadableStream).on('end', () => {
         // Calculate total size
         const totalSize = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
         
@@ -97,7 +107,7 @@ async function streamToUint8Array(stream: any): Promise<Uint8Array> {
         resolve(result);
       });
       
-      stream.on('error', reject);
+      (stream as NodeJS.ReadableStream).on('error', reject);
     });
   }
   
@@ -114,16 +124,15 @@ async function streamToUint8Array(stream: any): Promise<Uint8Array> {
   throw new Error("Unsupported stream type");
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: { path: string[] } }
-) {
-  // Explicitly await params to fix the "sync dynamic APIs" error
-  const resolvedParams = await Promise.resolve(params);
-  const path = resolvedParams.path || [];
+export async function GET(request: Request) {
+  // Extract path parameters from the URL
+  const url = new URL(request.url);
+  // Remove the initial part of the path to get the dynamic part
+  const fullPath = url.pathname;
+  const basePath = '/api/test-results/';
+  const path = fullPath.slice(basePath.length).split('/').filter(segment => segment.length > 0);
   
   // Extract URL parameters including our special forceIframe parameter
-  const url = new URL(request.url);
   const forceIframe = url.searchParams.get('forceIframe') === 'true';
   
   if (path.length < 1) {
@@ -158,7 +167,7 @@ export async function GET(
     console.log(`[TEST-RESULTS API] Processing request for path: ${path.join('/')} (entityId: ${entityId})`);
     
     // Query the reports table to get the s3Url for this entity
-    let reportResult = await dbInstance.query.reports.findFirst({
+    const reportResult = await dbInstance.query.reports.findFirst({
       where: eq(reports.entityId, entityId),
       columns: {
         s3Url: true,
@@ -205,7 +214,7 @@ export async function GET(
     console.log(`Extracted parts:`, { bucket, pathParts });
     
     // Determine the file path based on what's being requested
-    let targetFile = reportFile || 'index.html';
+    const targetFile = reportFile || 'index.html';
     
     // Extract the base path without the file part and use only the entityId/report structure
     const entityIdIndex = pathParts.indexOf(entityId);
@@ -279,7 +288,7 @@ export async function GET(
         console.log(`Final fallback URL: ${fallbackUrl}`);
         
         // Configure the headers with AWS v4 signature
-        const headers: HeadersInit = await getSignedHeaders(fallbackUrl);
+        const headers: HeadersInit = await getSignedHeaders();
         console.log(`Using AWS v4 signature auth for fallback S3 access`);
         
         const fallbackResponse = await fetch(fallbackUrl, { headers });

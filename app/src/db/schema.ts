@@ -181,6 +181,7 @@ export const jobs = pgTable("jobs", {
   // timeoutSeconds: integer("timeout_seconds").default(600),
   lastRunAt: timestamp("last_run_at"),
   nextRunAt: timestamp("next_run_at"),
+  scheduledJobId: varchar("scheduled_job_id", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

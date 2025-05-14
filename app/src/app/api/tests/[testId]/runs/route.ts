@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db } from '@/db/client';
 import { reports } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -6,12 +6,11 @@ import { desc } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic'; // Ensure fresh data on each request
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { testId: string } }
-) {
-  // Ensure params is properly awaited in the App Router
-  const { testId } = params;
+export async function GET(request: Request) {
+  // Extract testId from the URL path
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/');
+  const testId = pathParts[pathParts.length - 2]; // Get the second-to-last segment (before "runs")
 
   if (!testId) {
     return NextResponse.json({ error: 'Test ID is required' }, { status: 400 });

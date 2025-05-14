@@ -1,9 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { CalendarIcon, TimerIcon, Loader2, Zap } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect } from "react";
 
-import { jobStatuses } from "./data";
 import type { Job } from "./schema";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
@@ -22,8 +20,7 @@ interface JobsTableMeta {
 
 // Create a proper React component for the run button
 function RunButton({ job }: { job: Job }) {
-  const router = useRouter();
-  const { isAnyJobRunning, isJobRunning, setJobRunning, startJobRun } = useJobContext();
+  const { isJobRunning, setJobRunning, startJobRun } = useJobContext();
   const eventSourceRef = useRef<EventSource | null>(null);
   
   // Get job running state from global context
@@ -45,7 +42,7 @@ function RunButton({ job }: { job: Job }) {
     };
   }, [closeSSEConnection]);
 
-  const handleRunJob = async (e: React.MouseEvent) => {
+  const handleRunJob = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation(); // Prevent row click event
     e.preventDefault(); // Prevent opening the sheet
 

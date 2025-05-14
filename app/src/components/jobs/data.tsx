@@ -8,9 +8,7 @@ import {
   HelpCircle,
   Timer,
   Clock,
-  AlertTriangle,
   PlayCircle,
-  Pause,
   XCircle,
   AlertCircle,
 } from "lucide-react"

@@ -3,7 +3,7 @@ import { getQueueStats } from '@/lib/queue-stats';
 
 // Helper to create SSE messages
 const encoder = new TextEncoder();
-function createSSEMessage(data: any) {
+function createSSEMessage<T>(data: T) {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
         aborted = true;
         try {
           controller.close();
-        } catch (e) {
+        } catch {
           // Ignore errors when closing
         }
       });
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
           const stats = await getQueueStats();
           const message = createSSEMessage(stats);
           controller.enqueue(encoder.encode(message));
-        } catch (error) {
+        } catch {
           // Suppress detailed error logging to reduce noise
           console.error('Error in SSE stream');
         }

@@ -2,7 +2,7 @@
 
 import { db } from "@/db/client";
 import { runs, jobs, reports } from "@/db/schema";
-import { desc, eq, or, and } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { runSchema } from "@/components/runs/schema";
 
@@ -55,41 +55,6 @@ export async function getRuns(): Promise<RunResponse[]> {
   } catch (error) {
     console.error("Failed to fetch runs:", error);
     return [];
-  }
-}
-
-// Helper function to get the report URL for a run
-async function getReportUrlForRun(
-  dbInstance: any,
-  runId: string
-): Promise<string | null> {
-  try {
-    // First check for a job report
-    const report = await dbInstance
-      .select({
-        s3Url: reports.s3Url,
-        entityType: reports.entityType,
-      })
-      .from(reports)
-      .where(
-        or(
-          and(eq(reports.entityId, runId), eq(reports.entityType, "job")),
-          and(eq(reports.entityId, runId), eq(reports.entityType, "test"))
-        )
-      )
-      .limit(1);
-
-    if (report.length > 0) {
-      console.log(
-        `Found report for run ${runId} with type ${report[0].entityType}: ${report[0].s3Url}`
-      );
-      return report[0].s3Url;
-    }
-
-    return null;
-  } catch (error) {
-    console.error(`Failed to get report URL for run ${runId}:`, error);
-    return null;
   }
 }
 

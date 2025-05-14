@@ -22,6 +22,13 @@
       "when": 1747081980916,
       "tag": "0002_next_madame_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1747242484215,
+      "tag": "0003_needy_raider",
+      "breakpoints": true
     }
   ]
 }

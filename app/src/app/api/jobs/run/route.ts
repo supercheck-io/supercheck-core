@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { getTest } from "@/actions/get-test";
 import { createDb } from "@/db/client";
-import { jobs, runs, JobStatus, TestRunStatus } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { jobs, runs, JobStatus } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
 
 export async function POST(request: Request) {
   let jobId: string | null = null;
   let runId: string | null = null;
-  let dbInstance = await createDb();
+  const dbInstance = await createDb();
 
   try {
     const data = await request.json();

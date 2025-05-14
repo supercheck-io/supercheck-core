@@ -12,7 +12,6 @@ interface ReportViewerProps {
   iframeClassName?: string;
   loadingMessage?: string;
   darkMode?: boolean;
-  isFailedTest?: boolean;
   hideEmptyMessage?: boolean;
 }
 
@@ -25,7 +24,6 @@ export function ReportViewer({
   iframeClassName = "w-full h-full",
   loadingMessage = "Loading report...",
   darkMode = true,
-  isFailedTest = false,
   hideEmptyMessage = false,
 }: ReportViewerProps) {
   const [isReportLoading, setIsReportLoading] = useState(!!reportUrl);

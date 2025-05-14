@@ -601,14 +601,20 @@ export default function Jobs() {
                           </Label>
                           <Select
                             value={selectedTest.status || "pending"}
-                            onValueChange={(
-                              value: "pass" | "fail" | "pending" | "skipped",
-                            ) =>
+                            onValueChange={(value) => {
+                              // Map the UI status values to the DB status values
+                              const statusMap: Record<string, "running" | "passed" | "failed" | "error" | undefined> = {
+                                "pass": "passed",
+                                "fail": "failed",
+                                "pending": "running",
+                                "skipped": undefined
+                              };
+                              
                               setSelectedTest({
                                 ...selectedTest,
-                                status: value,
-                              })
-                            }
+                                status: statusMap[value]
+                              });
+                            }}
                           >
                             <SelectTrigger className="col-span-3">
                               <SelectValue placeholder="Select status" />

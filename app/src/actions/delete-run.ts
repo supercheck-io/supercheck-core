@@ -4,7 +4,6 @@ import { db } from "../db/client";
 import { runs, reports } from "../db/schema";
 import { eq, or, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { sql } from "drizzle-orm";
 
 type DeleteRunResult = {
   success: boolean;

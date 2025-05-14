@@ -6,14 +6,12 @@ import { useRouter } from 'next/navigation';
 
 interface RunStatusListenerProps {
   runId: string;
-  jobId: string;
   status: string;
   onStatusUpdate?: (status: string, reportUrl?: string, duration?: string) => void;
 }
 
 export function RunStatusListener({ 
   runId, 
-  jobId, 
   status,
   onStatusUpdate 
 }: RunStatusListenerProps) {

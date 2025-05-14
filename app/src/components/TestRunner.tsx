@@ -18,7 +18,7 @@ interface RunStatus {
 }
 
 export default function TestRunner() {
-  const [code, setCode] = useState<string>('// Add your Playwright script here\n\');
+  const [code, setCode] = useState<string>('// Add your Playwright script here\n');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);

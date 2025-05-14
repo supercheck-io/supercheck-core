@@ -3,11 +3,11 @@ import { db } from "@/db/client";
 import { runs, reports, ReportType } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
-export async function GET(
-  request: Request, 
-  { params }: { params: { runId: string } }
-) {
-  const runId = params.runId;
+export async function GET(request: Request) {
+  // Extract runId from the URL path
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/');
+  const runId = pathParts[pathParts.length - 2]; // Get the second-to-last segment (before "status")
 
   if (!runId) {
     return NextResponse.json({ error: "Run ID is required" }, { status: 400 });

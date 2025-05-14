@@ -132,7 +132,6 @@ export function RunDetails({ run }: RunDetailsProps) {
       {/* Status listener for real-time updates */}
       <RunStatusListener 
         runId={run.id} 
-        jobId={run.jobId} 
         status={run.status}
         onStatusUpdate={handleStatusUpdate}
       />

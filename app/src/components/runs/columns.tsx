@@ -117,7 +117,6 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
     ),
     cell: ({ row }) => {
       const duration = row.getValue("duration") as string | number | undefined;
-      const status = row.getValue("status") as string;
       
       if (!duration) {
         return (

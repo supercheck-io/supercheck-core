@@ -30,10 +30,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileTextIcon, ExternalLinkIcon, Loader2Icon, CheckCircleIcon, XCircleIcon, AlertCircleIcon } from "lucide-react";
 
 // Define the type for the display map keys explicitly based on allowed UI values
 type AllowedPriorityKey = "low" | "medium" | "high";

@@ -25,19 +25,6 @@ import * as z from "zod";
 import type { editor } from "monaco-editor";
 import type { ScriptType } from "@/lib/script-service";
 import { ReportViewer } from "@/components/shared/report-viewer";
-import { Badge } from "@/components/ui/badge";
-import { formatDistanceToNow } from "date-fns";
-
-// Define the type for run history items based on API response
-interface TestRunHistoryItem {
-  id: number; // Assuming the report ID is a number
-  status: string;
-  s3Url: string | null;
-  createdAt: string; // Assuming it comes as an ISO string
-  updatedAt: string;
-  // Add entityId if needed, API currently doesn't select it
-  entityId?: string; // <<< ADDED: Add entityId to link back to the report viewer logic
-}
 
 // Define our own TestCaseFormData interface
 interface TestCaseFormData {
@@ -74,14 +61,10 @@ const Playground: React.FC<PlaygroundProps> = ({
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
-  const [reportError, setReportError] = useState<string | null>(null);
-  const [iframeError, setIframeError] = useState(false);
-  const [isTraceLoading, setIsTraceLoading] = useState(false);
-  const [isTransitionLoading, setIsTransitionLoading] = useState(false);
-  const [testStatus, setTestStatus] = useState<'running' | 'completed' | 'failed' | null>(null);
   // Only set testId from initialTestId if we're on a specific test page
   // Always ensure testId is null when on the main playground page
   const [testId, setTestId] = useState<string | null>(initialTestId || null);
+  const [completedTestIds, setCompletedTestIds] = useState<string[]>([]);
   const [editorContent, setEditorContent] = useState(
     initialTestData?.script || ""
   );
@@ -115,18 +98,9 @@ const Playground: React.FC<PlaygroundProps> = ({
   // Create empty errors object for TestForm
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Track test runs
-  const [testIds, setTestIds] = useState<string[]>([]);
-  const [completedTestIds, setCompletedTestIds] = useState<string[]>([]);
-
   // Editor reference
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const searchParams = useSearchParams();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // <<< ADDED: State for run history
-  const [runHistory, setRunHistory] = useState<TestRunHistoryItem[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Reset testId when on the main playground page
   useEffect(() => {
@@ -415,61 +389,60 @@ const Playground: React.FC<PlaygroundProps> = ({
         eventSource.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log("SSE status update:", data);
-            
-            // Update status in UI
-            if (data.status) {
-              // Set the test status in state
-              setTestStatus(data.status);
+            if (data) {
+              console.log("SSE event:", data);
               
-              // Normalize status value for consistency
-              const normalizedStatus = data.status.toLowerCase();
-              
-              // Handle status - this could update a state variable to show in UI
-              if (normalizedStatus === "completed" || 
-                  normalizedStatus === "passed" || 
-                  normalizedStatus === "failed" || 
-                  normalizedStatus === "error") {
-                // Test is done, update the UI
-                setIsRunning(false);
-                setIsReportLoading(false);
+              // Check if data includes status field
+              if (data.status) {
+                // Normalize status value for consistency
+                const normalizedStatus = data.status.toLowerCase();
                 
-                // Close the SSE connection
-                eventSource.close();
-                eventSourceClosed = true;
-                
-                // Construct the relative API report URL, don't use the direct S3 URL from data
-                if (result.testId) { // Ensure we have the testId from the initial API call
-                  const apiUrl = `/api/test-results/${result.testId}/report/index.html?t=${Date.now()}&forceIframe=true`;
-                  console.log(`Test ${normalizedStatus}: Setting report URL to API path: ${apiUrl}`);
-                  setReportUrl(apiUrl); // Use the relative API path
+                // Handle status - this could update a state variable to show in UI
+                if (normalizedStatus === "completed" || 
+                    normalizedStatus === "passed" || 
+                    normalizedStatus === "failed" || 
+                    normalizedStatus === "error") {
+                  // Test is done, update the UI
+                  setIsRunning(false);
+                  setIsReportLoading(false);
                   
-                  // Always stay on report tab and ensure we're viewing the report
-                  setActiveTab("report");
+                  // Close the SSE connection
+                  eventSource.close();
+                  eventSourceClosed = true;
+                  
+                  // Construct the relative API report URL, don't use the direct S3 URL from data
+                  if (result.testId) { // Ensure we have the testId from the initial API call
+                    const apiUrl = `/api/test-results/${result.testId}/report/index.html?t=${Date.now()}&forceIframe=true`;
+                    console.log(`Test ${normalizedStatus}: Setting report URL to API path: ${apiUrl}`);
+                    setReportUrl(apiUrl); // Use the relative API path
+                    
+                    // Always stay on report tab and ensure we're viewing the report
+                    setActiveTab("report");
 
-                  // Add test ID to the list of completed tests
-                  if (result.testId && !completedTestIds.includes(result.testId)) {
-                    setCompletedTestIds(prev => [...prev, result.testId]);
+                    // Add test ID to the list of completed tests
+                    if (result.testId && !completedTestIds.includes(result.testId)) {
+                      setCompletedTestIds(prev => [...prev, result.testId]);
+                    }
+                  } else {
+                     console.error("Cannot construct report URL: testId from initial API call is missing.");
+                     toast.error("Error displaying report", { description: "Could not determine the test ID to load the report." });
                   }
-                } else {
-                   console.error("Cannot construct report URL: testId from initial API call is missing.");
-                   toast.error("Error displaying report", { description: "Could not determine the test ID to load the report." });
+                  
+                  // Determine if it was a success or failure for the toast
+                  const isSuccess = normalizedStatus === "completed" || normalizedStatus === "passed";
+                  
+                  // Dismiss loading toast and show completion toast
+                  toast.dismiss(loadingToastId);
+                  toast[isSuccess ? "success" : "error"](
+                    isSuccess ? "Test execution passed" : "Test execution failed",
+                    { 
+                      description: isSuccess 
+                        ? "All checks completed successfully." 
+                        : "Test did not complete successfully.",
+                      duration: 10000 
+                    }
+                  );
                 }
-                
-                // Determine if it was a success or failure for the toast
-                const isSuccess = normalizedStatus === "completed" || normalizedStatus === "passed";
-                
-                // Dismiss loading toast and show completion toast
-                toast.dismiss(loadingToastId);
-                toast[isSuccess ? "success" : "error"](
-                  isSuccess ? "Test execution passed" : "Test execution failed",
-                  { 
-                    description: isSuccess 
-                      ? "All checks completed successfully." 
-                      : "Test did not complete successfully.",
-                    duration: 10000 
-                  }
-                );
               }
             }
           } catch (e) {
@@ -540,74 +513,6 @@ const Playground: React.FC<PlaygroundProps> = ({
       });
       setIsRunning(false);
     }
-  };
-
-  // <<< ADDED: useEffect to fetch run history when testId changes
-  useEffect(() => {
-    const fetchRunHistory = async () => {
-      if (!testId) {
-        setRunHistory([]); // Clear history if no testId
-        return;
-      }
-
-      setHistoryLoading(true);
-      try {
-        console.log(`[Playground] Fetching run history for testId: ${testId}`);
-        const response = await fetch(`/api/tests/${testId}/runs`);
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-        }
-        const data: TestRunHistoryItem[] = await response.json();
-        // <<< ADDED: Map entityId to the run history items
-        const dataWithEntityId = data.map(run => ({ ...run, entityId: testId }));
-        setRunHistory(dataWithEntityId);
-        console.log(`[Playground] Fetched ${data.length} run history items.`);
-      } catch (error) {
-        console.error("[Playground] Failed to fetch run history:", error);
-        setRunHistory([]); // Clear history on error
-        toast.error("Failed to load run history", {
-          description: error instanceof Error ? error.message : "Could not fetch past run data."
-        });
-      } finally {
-        setHistoryLoading(false);
-      }
-    };
-
-    fetchRunHistory();
-  }, [testId]); // Re-run when testId changes
-
-  const selectTestReport = (run: TestRunHistoryItem) => { // <<< CHANGED: Accept run item
-    // Reset any existing error states
-    setIframeError(false);
-    setReportError(null);
-
-    // Show transition loading state
-    setIsTransitionLoading(true);
-
-    // Add a delay for smooth transition
-    setTimeout(() => {
-       // Use the entityId from the run item
-      if (!run.entityId) {
-        console.error("Cannot view report: Missing entityId on run history item.");
-        toast.error("Cannot view report", { description: "Internal error: Run history item is missing ID." });
-        setIsTransitionLoading(false);
-        return;
-      }
-      // Construct the report URL with the API path, using the 'tests' prefix
-      const reportUrlWithCache = `/api/test-results/${run.entityId}/report/index.html?t=${Date.now()}&forceIframe=true`;
-
-      // Update state
-      setReportUrl(reportUrlWithCache);
-      setIsTransitionLoading(false);
-
-      // Switch to report tab
-      setActiveTab("report");
-
-      console.log(
-        `Selected test report for run ID: ${run.id}, entity ID: ${run.entityId}, setting URL to ${reportUrlWithCache}`
-      );
-    }, 100);
   };
 
   return (
@@ -699,7 +604,6 @@ const Playground: React.FC<PlaygroundProps> = ({
                         containerClassName="h-[calc(100vh-10rem)] w-full relative"
                         iframeClassName="h-[calc(100vh-10rem)] w-full"
                         darkMode={true}
-                        isFailedTest={testStatus === "failed"}
                       />
                     </TabsContent>
                   </Tabs>

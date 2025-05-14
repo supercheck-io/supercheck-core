@@ -3,7 +3,7 @@
 import { db } from "../db/client";
 import { jobs as jobsTable } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { scheduleJob } from "../lib/queue";
+import { scheduleJob } from "../lib/job-scheduler";
 import { getJob } from "./get-jobs";
 
 interface ScheduleJobResponse {
@@ -107,7 +107,7 @@ export async function cancelScheduledJob(jobId: string): Promise<ScheduleJobResp
 
     try {
       // Import deleteScheduledJob dynamically to avoid circular imports
-      const { deleteScheduledJob } = await import("../lib/queue");
+      const { deleteScheduledJob } = await import("../lib/job-scheduler");
       const deleted = await deleteScheduledJob(job.scheduledJobId);
 
       if (!deleted) {

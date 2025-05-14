@@ -1,7 +1,5 @@
-import { Queue, ConnectionOptions } from 'bullmq';
-import { Redis } from 'ioredis';
-import crypto from 'crypto';
-import { QueueStats } from './queue-stats';
+import { Queue } from 'bullmq';
+import Redis, { RedisOptions } from 'ioredis';
 
 // Interfaces matching those in the worker service
 export interface TestExecutionTask {
@@ -20,9 +18,13 @@ export interface JobExecutionTask {
   originalJobId?: string; // The original job ID from the 'jobs' table
 }
 
-// Queue names must match the worker service
+// Constants for queue names and Redis keys
 export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
+
+// Redis capacity limit keys
+export const RUNNING_CAPACITY_LIMIT_KEY = 'supertest:capacity:running';
+export const QUEUE_CAPACITY_LIMIT_KEY = 'supertest:capacity:queued';
 
 // Redis key TTL values (in seconds) - applies to both job and test execution
 export const REDIS_JOB_KEY_TTL = 7 * 24 * 60 * 60;  // 7 days for job data (completed/failed jobs)
@@ -61,7 +63,7 @@ export async function getRedisConnection(): Promise<Redis> {
 
   console.log(`[Queue Client] Connecting to Redis at ${host}:${port}`);
   
-  const connectionOpts: any = {
+  const connectionOpts: RedisOptions = {
     host,
     port,
     password: password || undefined,
@@ -272,9 +274,13 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
     // Check the current queue size against QUEUED_CAPACITY
     await verifyQueueCapacityOrThrow();
     
+    const timeoutMs = expiryMinutes * 60 * 1000; // Convert minutes to milliseconds
+    console.log(`[Queue Client] Setting timeout of ${timeoutMs}ms (${expiryMinutes} minutes)`);
+    
     const jobOptions = {
       jobId: jobUuid,
-      // timeout: expiryMinutes * 60 * 1000, // Timeout/duration managed by worker
+      // Timeout option would be: timeout: timeoutMs
+      // But timeout/duration is managed by worker instead
     };
     await testQueue.add(TEST_EXECUTION_QUEUE, task, jobOptions);
     console.log(`[Queue Client] Test ${jobUuid} added successfully.`);
@@ -297,9 +303,13 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
     // Check the current queue size against QUEUED_CAPACITY
     await verifyQueueCapacityOrThrow();
     
+    const timeoutMs = expiryMinutes * 60 * 1000; // Convert minutes to milliseconds
+    console.log(`[Queue Client] Setting timeout of ${timeoutMs}ms (${expiryMinutes} minutes)`);
+    
     const jobOptions = {
       jobId: jobUuid,
-      // timeout: expiryMinutes * 60 * 1000, // Timeout/duration managed by worker
+      // Timeout option would be: timeout: timeoutMs
+      // But timeout/duration is managed by worker instead
     };
     await jobQueue.add(JOB_EXECUTION_QUEUE, task, jobOptions);
     console.log(`[Queue Client] Job ${jobUuid} added successfully.`);
@@ -316,7 +326,7 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
  */
 export async function verifyQueueCapacityOrThrow(): Promise<void> {
   // Import the queue stats
-  const { fetchQueueStats, RUNNING_CAPACITY, QUEUED_CAPACITY } = await import('@/lib/queue-stats');
+  const { fetchQueueStats } = await import('@/lib/queue-stats');
   
   try {
     // Get real queue stats from Redis
@@ -374,4 +384,30 @@ export async function closeQueue(): Promise<void> {
   redisClient = null;
   initPromise = null;
   console.log('[Queue Client] Queue connections closed.');
+}
+
+/**
+ * Set capacity limit for running tests through Redis
+ */
+export async function setRunCapacityLimit(limit: number): Promise<void> {
+  const redis = await getRedisConnection();
+  try {
+    await redis.set(RUNNING_CAPACITY_LIMIT_KEY, String(limit));
+    console.log(`Set running capacity limit to ${limit} in Redis`);
+  } finally {
+    await redis.quit();
+  }
+}
+
+/**
+ * Set capacity limit for queued tests through Redis
+ */
+export async function setQueueCapacityLimit(limit: number): Promise<void> {
+  const redis = await getRedisConnection();
+  try {
+    await redis.set(QUEUE_CAPACITY_LIMIT_KEY, String(limit));
+    console.log(`Set queue capacity limit to ${limit} in Redis`);
+  } finally {
+    await redis.quit();
+  }
 }
