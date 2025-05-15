@@ -36,25 +36,14 @@ export async function scheduleCronJob(jobId: string, cronExpression: string): Pr
 
     const job = jobResult.job;
     
-    // Map the tests to the format expected by the queue
-    const testScripts = job.tests.map(test => ({
-      id: test.id,
-      script: test.script || '',
-      name: test.name
-    }));
-
     // Schedule the job in BullMQ
     const scheduleName = await scheduleJob({
       name: job.name,
       cron: cronExpression,
       timezone: "UTC", // Could make this configurable in the future
-      data: {
-        jobId,
-        testScripts
-      },
+      jobId: jobId,
       queue: "job-execution",
-      retryLimit: 1,
-      expireInMinutes: 30
+      retryLimit: 1
     });
 
     // Update job in the database with next run details

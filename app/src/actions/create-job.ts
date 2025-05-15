@@ -1,107 +1,116 @@
 "use server";
 
-import { db } from "../db/client";
-import { jobs, jobTests } from "../db/schema";
+import { db } from "@/db/client";
+import { jobs, jobTests } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { scheduleJob } from "@/lib/job-scheduler";
+import { JOB_EXECUTION_QUEUE } from "@/lib/queue";
 import crypto from "crypto";
 
-export async function createJob(data: {
-  name: string;
-  description: string | null;
-  cronSchedule: string | null;
-  timeoutSeconds?: number;
-  retryCount?: number;
-  config?: Record<string, unknown>;
-  tests?: { id: string }[];
-}) {
+const createJobSchema = z.object({
+  name: z.string(),
+  description: z.string().optional().default(""),
+  cronSchedule: z.string().optional(),
+  tests: z.array(z.object({
+    id: z.string().uuid(),
+  })),
+});
+
+export type CreateJobData = z.infer<typeof createJobSchema>;
+
+export async function createJob(data: CreateJobData) {
+  console.log(`Creating job with data:`, JSON.stringify(data, null, 2));
+  
   try {
-    console.log("Creating job with data:", JSON.stringify(data));
-
-    // Validate required fields
-    if (!data.name) {
-      return {
-        success: false,
-        error: "Job name is required",
-      };
-    }
-
-    if (!data.description) {
-      return {
-        success: false,
-        error: "Job description is required",
-      };
-    }
-
-    // Validate tests - at least one test is required
-    if (!data.tests || data.tests.length === 0) {
-      return {
-        success: false,
-        error: "At least one test must be selected",
-      };
-    }
-
-    // Generate a unique ID for the job
+    // Validate the data
+    const validatedData = createJobSchema.parse(data);
+    
+    // Generate a UUID for the job
     const jobId = crypto.randomUUID();
-
+    
+    // Start a database transaction
+    const dbInstance = await db();
+    
     try {
-      // Get the database instance
-      const dbInstance = await db();
-
-      // Insert the job into the database
+      // Create the job
       await dbInstance.insert(jobs).values({
         id: jobId,
-        name: data.name,
-        description: data.description || "",
-        cronSchedule: data.cronSchedule || "",
+        name: validatedData.name,
+        description: validatedData.description || "",
+        cronSchedule: validatedData.cronSchedule || null,
         status: "pending",
         createdAt: new Date(),
         updatedAt: new Date(),
-        lastRunAt: null,
-        nextRunAt: null,
       });
-
-      // Associate tests with the job
-      const jobTestValues = data.tests.map((test, index) => ({
+      
+      // Create job-test relationships, tracking the order of the tests
+      const testRelations = validatedData.tests.map((test, index) => ({
         jobId,
         testId: test.id,
         orderPosition: index,
       }));
-
-      await dbInstance.insert(jobTests).values(jobTestValues);
-
-      // Return a plain serializable object
+      
+      if (testRelations.length > 0) {
+        await dbInstance.insert(jobTests).values(testRelations);
+      }
+      
+      // If a cronSchedule is provided, set up the schedule
+      let scheduledJobId = null;
+      if (validatedData.cronSchedule && validatedData.cronSchedule.trim() !== '') {
+        try {
+          scheduledJobId = await scheduleJob({
+            name: validatedData.name,
+            cron: validatedData.cronSchedule,
+            jobId,
+            queue: JOB_EXECUTION_QUEUE,
+            retryLimit: 3
+          });
+          
+          // Update the job with the scheduler ID
+          await dbInstance.update(jobs)
+            .set({ scheduledJobId })
+            .where(eq(jobs.id, jobId));
+            
+          console.log(`Job ${jobId} scheduled with ID ${scheduledJobId}`);
+        } catch (scheduleError) {
+          console.error("Failed to schedule job:", scheduleError);
+          // Continue anyway - the job exists but without scheduling
+        }
+      }
+      
+      console.log(`Job ${jobId} created successfully`);
+      
+      // Revalidate the jobs page
+      revalidatePath('/jobs');
+      
       return {
         success: true,
+        message: "Job created successfully",
         job: {
           id: jobId,
-          name: data.name,
-          description: data.description || "",
-          cronSchedule: data.cronSchedule || "",
-          status: "pending",
-          timeoutSeconds: data.timeoutSeconds || 30,
-          retryCount: data.retryCount || 0,
-          config: JSON.parse(JSON.stringify(data.config || {})),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          lastRunAt: null,
-          nextRunAt: null,
-          tests: data.tests.map((test) => ({ id: test.id })),
-        },
+          name: validatedData.name,
+          description: validatedData.description || "",
+          cronSchedule: validatedData.cronSchedule || null,
+          scheduledJobId,
+          testCount: validatedData.tests.length,
+        }
       };
     } catch (dbError) {
-      console.error("Database error creating job:", dbError);
+      console.error("Database error:", dbError);
       return {
         success: false,
-        error:
-          dbError instanceof Error
-            ? `Database error: ${dbError.message}`
-            : "Database error while creating job",
+        message: `Failed to create job: ${dbError instanceof Error ? dbError.message : String(dbError)}`,
+        error: dbError
       };
     }
-  } catch (error) {
-    console.error("Error creating job:", error);
+  } catch (validationError) {
+    console.error("Validation error:", validationError);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to create job",
+      message: "Invalid data provided",
+      error: validationError
     };
   }
 }

@@ -100,7 +100,7 @@ export default function CreateJob() {
       } else {
         console.error("Failed to create job:", response.error);
         toast.error("Failed to create job", {
-          description: response.error || "An unknown error occurred",
+          description: typeof response.error === 'string' ? response.error : "An unknown error occurred",
         });
       }
     } catch (error) {

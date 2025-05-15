@@ -234,7 +234,7 @@ async function cleanupOrphanedKeys(connection: Redis, queueName: string): Promis
         // Skip keys that BullMQ manages properly (active jobs, waiting jobs, etc.)
         if (key.includes(':active') || key.includes(':wait') || 
             key.includes(':delayed') || key.includes(':failed') ||
-            key.includes(':completed')) {
+            key.includes(':completed') || key.includes(':schedulers')) { // Preserve job scheduler keys
           continue;
         }
         
@@ -248,8 +248,8 @@ async function cleanupOrphanedKeys(connection: Redis, queueName: string): Promis
             expiryTime = REDIS_EVENT_KEY_TTL;
           } else if (key.includes(':metrics')) {
             expiryTime = REDIS_METRICS_TTL;
-          } else if (key.includes(':meta')) {
-            continue; // Skip meta keys as they should live as long as the app runs
+          } else if (key.includes(':meta') || key.includes(':scheduler:')) {
+            continue; // Skip meta keys and scheduler keys as they should live as long as the app runs
           }
           
           await connection.expire(key, expiryTime);

@@ -161,7 +161,7 @@ export default function EditJob({ jobId }: EditJobProps) {
 
       // Prepare job data for submission
       const jobData = {
-        id: jobId,
+        jobId: jobId,
         name: values.name.trim(),
         description: values.description.trim(),
         cronSchedule: values.cronSchedule?.trim() || "",
@@ -169,7 +169,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       };
 
       // Submit the job data
-      const response = await updateJob(jobId, jobData);
+      const response = await updateJob(jobData);
 
       if (!response.success) {
         throw new Error(response.error || "Failed to update job");

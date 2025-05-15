@@ -15,6 +15,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { BreadcrumbProvider } from "@/components/breadcrumb-context";
 import { BreadcrumbDisplay } from "@/components/breadcrumb-display";
 import { JobProvider } from "@/components/jobs/job-context";
+import { SchedulerInitializer } from "@/components/scheduler-initializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,6 +71,8 @@ export default function RootLayout({
           <BreadcrumbProvider>
             <SidebarProvider>
               <JobProvider>
+                {/* Initialize job scheduler */}
+                <SchedulerInitializer />
                 {/* Toaster for system notifications */}
                 <Toaster position="bottom-right" richColors />
                 {/* Custom Toaster for our application notifications */}

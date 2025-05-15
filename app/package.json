@@ -38,7 +38,7 @@
     "antd": "^5.24.8",
     "async": "^3.2.6",
     "better-auth": "^1.2.1",
-    "bullmq": "^5.49.2",
+    "bullmq": "^5.52.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",

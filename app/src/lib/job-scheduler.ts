@@ -1,173 +1,468 @@
-import { Queue } from 'bullmq';
+import { Queue, Job, Worker } from 'bullmq';
 import { db } from "@/db/client";
-import { jobs } from "@/db/schema";
-import { eq, isNotNull } from "drizzle-orm";
+import { jobs, jobTests, runs } from "@/db/schema";
+import { eq, isNotNull, and } from "drizzle-orm";
 import { getRedisConnection } from "./queue";
-import { JobExecutionTask } from "./queue";
+import { JobExecutionTask, JOB_EXECUTION_QUEUE } from "./queue";
+import crypto from "crypto";
+import { getTest } from "@/actions/get-test";
 
-// Map to store the created queues by name
+// Map to store the created queues
 const queueMap = new Map<string, Queue>();
+// Map to store created workers
+const workerMap = new Map<string, Worker>();
+
+// Constants
+const SCHEDULER_QUEUE = "job-execution-scheduler";
 
 interface ScheduleOptions {
   name: string;
   cron: string;
   timezone?: string;
-  data: JobExecutionTask | Record<string, unknown>;
+  jobId: string;
   queue: string;
   retryLimit?: number;
-  expireInMinutes?: number;
 }
 
 /**
- * Schedules a job to run on a cron schedule
- * @returns The name of the scheduled job (to be used for cancellation)
+ * Creates or updates a job scheduler using BullMQ
  */
 export async function scheduleJob(options: ScheduleOptions): Promise<string> {
   try {
-    const redisConnection = await getRedisConnection();
-    
-    // Generate a unique name for this schedule
-    const scheduleName = `schedule_${options.name}_${Date.now()}`;
-    
-    // Create a queue if it doesn't exist or get the existing one
-    if (!queueMap.has(options.queue)) {
-      queueMap.set(options.queue, new Queue(options.queue, { 
-        connection: redisConnection 
-      }));
+    console.log(`Setting up scheduled job "${options.name}" (${options.jobId}) with cron pattern ${options.cron}`);
+
+    // Redis connection for BullMQ
+    const connection = await getRedisConnection();
+
+    // Create scheduler queue if it doesn't exist
+    let schedulerQueue: Queue;
+    if (!queueMap.has(SCHEDULER_QUEUE)) {
+      schedulerQueue = new Queue(SCHEDULER_QUEUE, { connection });
+      queueMap.set(SCHEDULER_QUEUE, schedulerQueue);
+    } else {
+      schedulerQueue = queueMap.get(SCHEDULER_QUEUE)!;
     }
+
+    // Create execution queue if needed
+    let executionQueue: Queue;
+    if (!queueMap.has(options.queue)) {
+      executionQueue = new Queue(options.queue, { connection });
+      queueMap.set(options.queue, executionQueue);
+    } else {
+      executionQueue = queueMap.get(options.queue)!;
+    }
+
+    // Generate a unique name for this scheduled job
+    const schedulerJobName = `scheduled-job-${options.jobId}`;
+
+    // Fetch all tests associated with the job
+    const dbInstance = await db();
+    const jobTestsList = await dbInstance
+      .select({ testId: jobTests.testId, orderPosition: jobTests.orderPosition })
+      .from(jobTests)
+      .where(eq(jobTests.jobId, options.jobId))
+      .orderBy(jobTests.orderPosition);
+
+    console.log(`Job has ${jobTestsList.length} tests. Setting up repeatable job...`);
+
+    // Fetch all test scripts upfront
+    const testCasePromises = jobTestsList.map(async (jobTest) => {
+      const test = await getTest(jobTest.testId);
+      return {
+        ...test.test,
+        orderPosition: jobTest.orderPosition
+      };
+    });
     
-    const queue = queueMap.get(options.queue)!;
-    
-    // Add a repeatable job
-    await queue.add(
-      scheduleName,
-      options.data,
-      { 
-        repeat: { 
-          pattern: options.cron,
-          tz: options.timezone || 'UTC' 
-        },
-        jobId: scheduleName,
-        attempts: options.retryLimit || 1,
-        removeOnComplete: true,
-        removeOnFail: 10
-      }
+    const testCases = await Promise.all(testCasePromises);
+
+    // Clean up any existing repeatable jobs for this job ID
+    const repeatableJobs = await schedulerQueue.getRepeatableJobs();
+    const existingJob = repeatableJobs.find(job => 
+      job.id === options.jobId || 
+      job.key.includes(options.jobId) || 
+      job.name === schedulerJobName
     );
     
-    console.log(`Scheduled job ${scheduleName} with cron pattern ${options.cron}`);
-    return scheduleName;
+    if (existingJob) {
+      console.log(`Removing existing repeatable job: ${existingJob.key}`);
+      await schedulerQueue.removeRepeatableByKey(existingJob.key);
+    }
+
+    // Create a repeatable job that follows the cron schedule
+    await schedulerQueue.add(
+      schedulerJobName,
+      {
+        jobId: options.jobId,
+        name: options.name,
+        testCases,
+        queue: options.queue,
+        retryLimit: options.retryLimit || 3,
+      },
+      {
+        repeat: {
+          pattern: options.cron,
+          tz: options.timezone || 'UTC'
+        },
+        removeOnComplete: true,
+        removeOnFail: 100,
+      }
+    );
+
+    // Ensure the worker exists
+    await ensureSchedulerWorker();
+
+    console.log(`Created job scheduler ${options.jobId} with cron pattern ${options.cron}`);
+    return options.jobId;
   } catch (error) {
-    console.error(`Error scheduling job:`, error);
-    throw new Error(`Failed to schedule job: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Failed to schedule job:`, error);
+    throw error;
   }
 }
 
 /**
- * Deletes a scheduled job by name
- * @returns True if the job was deleted successfully
+ * Ensures a worker exists to process the scheduler queue jobs
  */
-export async function deleteScheduledJob(scheduleName: string): Promise<boolean> {
-  try {
-    // We need to find which queue this schedule belongs to
-    // Either we need to keep track of this or search through all queues
+async function ensureSchedulerWorker() {
+  if (!workerMap.has(SCHEDULER_QUEUE)) {
+    console.log(`Creating worker for ${SCHEDULER_QUEUE}`);
+    const connection = await getRedisConnection();
     
-    // For simplicity, assume it's in the job-execution queue
-    const queue = queueMap.get('job-execution') || new Queue('job-execution', {
-      connection: await getRedisConnection()
+    const worker = new Worker(
+      SCHEDULER_QUEUE,
+      async (job) => {
+        console.log(`Processing scheduled job: ${job.name} (${job.id})`);
+        await handleScheduledJobTrigger(job);
+        return { success: true };
+      },
+      { connection }
+    );
+
+    worker.on('completed', (job) => {
+      console.log(`Scheduled job completed: ${job.name}`);
     });
+
+    worker.on('failed', (job, error) => {
+      console.error(`Scheduled job failed: ${job?.name}`, error);
+    });
+
+    workerMap.set(SCHEDULER_QUEUE, worker);
+  }
+}
+
+/**
+ * Handles a scheduled job trigger by creating a run record and adding an execution task
+ */
+async function handleScheduledJobTrigger(job: Job) {
+  try {
+    const data = job.data;
+    const jobId = data.jobId;
     
-    // Remove the repeatable job
-    const removed = await queue.removeRepeatable(
-      scheduleName,    // job name
-      { 
-        pattern: "* * * * *",  // A default pattern (doesn't matter as we use jobId)
-        jobId: scheduleName 
-      }
+    console.log(`Handling scheduled job trigger for job ${jobId}`);
+    
+    // Check if there's already a run in progress for this job
+    const dbInstance = await db();
+    const runningRuns = await dbInstance
+      .select()
+      .from(runs)
+      .where(and(
+        eq(runs.jobId, jobId),
+        eq(runs.status, "running")
+      ));
+    
+    if (runningRuns.length > 0) {
+      console.log(`Job ${jobId} already has a running execution, skipping`);
+      return;
+    }
+
+    // Create a run record
+    const runId = crypto.randomUUID();
+    
+    // Insert with known fields from the schema
+    await dbInstance
+      .insert(runs)
+      .values({
+        id: runId,
+        jobId: jobId,
+        status: "running", // Using direct value matching TestRunStatus from schema
+        startedAt: new Date(),
+      });
+    
+    console.log(`Created run record ${runId} for scheduled job ${jobId}`);
+    
+    // Update job's lastRunAt field
+    await dbInstance
+      .update(jobs)
+      .set({
+        lastRunAt: new Date(),
+        status: "running", // Using direct value matching JobStatus from schema
+      })
+      .where(eq(jobs.id, jobId));
+    
+    // Get the queue for execution
+    const connection = await getRedisConnection();
+    let executionQueue: Queue;
+    
+    if (!queueMap.has(data.queue)) {
+      executionQueue = new Queue(data.queue, { connection });
+      queueMap.set(data.queue, executionQueue);
+    } else {
+      executionQueue = queueMap.get(data.queue)!;
+    }
+    
+    // Create task for runner service with all necessary information
+    const task: JobExecutionTask = {
+      runId,
+      jobId,
+      testScripts: data.testCases.map((test: { id: string; script: string; title: string }) => ({
+        id: test.id,
+        script: test.script,
+        name: test.title
+      }))
+    };
+    
+    // Add task to the execution queue - always use runId as both job name and ID
+    // This ensures SSE can find it consistently for both manual and scheduled jobs
+    const jobOptions = {
+      jobId: runId, // Set explicit jobId to match runId for SSE lookups
+      attempts: data.retryLimit || 3,
+      backoff: {
+        type: 'exponential' as const,
+        delay: 5000
+      },
+      removeOnComplete: true,
+      removeOnFail: false,
+    };
+    
+    await executionQueue.add(runId, task, jobOptions);
+    
+    console.log(`Created execution task for scheduled job ${jobId}, run ${runId} with jobId = runId`);
+    
+  } catch (error) {
+    console.error(`Failed to process scheduled job trigger:`, error);
+    
+    // Update job status to error
+    try {
+      const dbInstance = await db();
+      const jobId = job.data.jobId;
+      
+      await dbInstance
+        .update(jobs)
+        .set({
+          status: "error", // Using direct value matching JobStatus from schema
+        })
+        .where(eq(jobs.id, jobId));
+      
+      // Update any "running" runs to "error" status
+      await dbInstance
+        .update(runs)
+        .set({
+          status: "error", // Using direct value matching TestRunStatus from schema
+          errorDetails: `Failed to process scheduled job: ${error instanceof Error ? error.message : String(error)}`,
+          completedAt: new Date(),
+        })
+        .where(and(
+          eq(runs.jobId, jobId),
+          eq(runs.status, "running")
+        ));
+        
+    } catch (dbError) {
+      console.error(`Failed to update job/run status:`, dbError);
+    }
+  }
+}
+
+/**
+ * Deletes a job scheduler
+ */
+export async function deleteScheduledJob(schedulerId: string): Promise<boolean> {
+  try {
+    console.log(`Removing job scheduler ${schedulerId}`);
+    
+    const connection = await getRedisConnection();
+    
+    let schedulerQueue: Queue;
+    if (!queueMap.has(SCHEDULER_QUEUE)) {
+      schedulerQueue = new Queue(SCHEDULER_QUEUE, { connection });
+      queueMap.set(SCHEDULER_QUEUE, schedulerQueue);
+    } else {
+      schedulerQueue = queueMap.get(SCHEDULER_QUEUE)!;
+    }
+    
+    // Get all repeatable jobs
+    const repeatableJobs = await schedulerQueue.getRepeatableJobs();
+    
+    // Find all jobs that match this scheduler - checking both key and name patterns
+    const jobsToRemove = repeatableJobs.filter(job => 
+      job.id === schedulerId || 
+      job.key.includes(schedulerId) ||
+      job.name === `scheduled-job-${schedulerId}` ||
+      job.key.includes(`scheduled-job-${schedulerId}`)
     );
     
-    console.log(`Deleted scheduled job ${scheduleName}: ${removed}`);
-    return true;
+    if (jobsToRemove.length > 0) {
+      // Remove all matching jobs
+      const removePromises = jobsToRemove.map(async (job) => {
+        console.log(`Removing repeatable job with key ${job.key}`);
+        return schedulerQueue.removeRepeatableByKey(job.key);
+      });
+      
+      await Promise.all(removePromises);
+      console.log(`Removed ${jobsToRemove.length} repeatable jobs for scheduler ${schedulerId}`);
+      return true;
+    } else {
+      console.log(`No repeatable jobs found for scheduler ${schedulerId}`);
+      return false;
+    }
   } catch (error) {
-    console.error(`Error deleting scheduled job ${scheduleName}:`, error);
+    console.error(`Failed to delete scheduled job:`, error);
     return false;
   }
 }
 
 /**
- * Initialize the job scheduler by scheduling all jobs that have a scheduledJobId
- * This is meant to be called during app startup
- * @returns Promise<boolean> true if successful, false otherwise
+ * Initializes job schedulers for all jobs with cron schedules
+ * Called on application startup
  */
-export async function safeInitializeJobScheduler(): Promise<boolean> {
+export async function initializeJobSchedulers() {
   try {
-    console.log(`[JOB SCHEDULER] Initializing job scheduler...`);
+    console.log("Initializing job scheduler...");
     
-    // Get the database instance
+    // Close any existing workers
+    for (const [name, worker] of workerMap.entries()) {
+      console.log(`Closing worker: ${name}`);
+      await worker.close();
+    }
+    workerMap.clear();
+    
+    // Ensure the scheduler worker is created
+    await ensureSchedulerWorker();
+    
     const dbInstance = await db();
     
-    // Find all jobs with scheduled jobs
-    const scheduledJobs = await dbInstance
-      .select({
-        id: jobs.id,
-        name: jobs.name,
-        cronSchedule: jobs.cronSchedule,
-        scheduledJobId: jobs.scheduledJobId,
-      })
+    const jobsWithSchedules = await dbInstance
+      .select()
       .from(jobs)
-      .where(
-        isNotNull(jobs.scheduledJobId)
-      );
+      .where(isNotNull(jobs.cronSchedule));
+      
+    console.log(`Found ${jobsWithSchedules.length} scheduled jobs to initialize`);
     
-    console.log(`[JOB SCHEDULER] Found ${scheduledJobs.length} jobs with schedules to initialize`);
+    let initializedCount = 0;
+    let failedCount = 0;
     
-    // Loop through each job and reschedule it
-    for (const job of scheduledJobs) {
+    for (const job of jobsWithSchedules) {
+      if (!job.cronSchedule) continue;
+      
       try {
-        if (job.scheduledJobId && job.cronSchedule) {
-          // First, clean up any existing schedule
-          try {
-            await deleteScheduledJob(job.scheduledJobId);
-          } catch (cleanupError) {
-            console.warn(`[JOB SCHEDULER] Error cleaning up existing schedule for job ${job.id}:`, cleanupError);
-            // Continue anyway, we'll create a new schedule
-          }
-          
-          // Create a new schedule using the same cronSchedule
-          console.log(`[JOB SCHEDULER] Rescheduling job ${job.id} (${job.name}) with cron: ${job.cronSchedule}`);
-          
-          // Schedule the job with the job execution queue
-          const newScheduleId = await scheduleJob({
-            name: job.name,
-            cron: job.cronSchedule,
-            timezone: "UTC", // Default timezone
-            data: {
-              jobId: job.id,
-            },
-            queue: "job-execution",
-            retryLimit: 1,
-          });
-          
-          // Update the job with the new schedule ID
+        const schedulerId = await scheduleJob({
+          name: job.name,
+          cron: job.cronSchedule,
+          jobId: job.id,
+          queue: JOB_EXECUTION_QUEUE,
+          retryLimit: 3
+        });
+        
+        // Update the job with the scheduler ID if needed
+        if (!job.scheduledJobId || job.scheduledJobId !== schedulerId) {
           await dbInstance
             .update(jobs)
-            .set({
-              scheduledJobId: newScheduleId,
-              updatedAt: new Date(),
-            })
+            .set({ scheduledJobId: schedulerId })
             .where(eq(jobs.id, job.id));
-            
-          console.log(`[JOB SCHEDULER] Successfully rescheduled job ${job.id} with new schedule ID: ${newScheduleId}`);
         }
-      } catch (jobError) {
-        console.error(`[JOB SCHEDULER] Error scheduling job ${job.id}:`, jobError);
-        // Continue with other jobs even if one fails
+        
+        console.log(`Initialized job scheduler ${schedulerId} for job ${job.id}`);
+        initializedCount++;
+      } catch (error) {
+        console.error(`Failed to initialize scheduler for job ${job.id}:`, error);
+        failedCount++;
       }
     }
     
-    console.log(`[JOB SCHEDULER] Job scheduler initialization complete`);
+    console.log(`Job scheduler initialization complete: ${initializedCount} succeeded, ${failedCount} failed`);
+    return { success: true, initialized: initializedCount, failed: failedCount };
+  } catch (error) {
+    console.error(`Failed to initialize job schedulers:`, error);
+    return { success: false, error };
+  }
+}
+
+/**
+ * Cleanup function to close all queues and workers
+ * Should be called when shutting down the application
+ */
+export async function cleanupJobScheduler() {
+  try {
+    console.log("Cleaning up job scheduler...");
+    
+    // Close all workers
+    for (const [name, worker] of workerMap.entries()) {
+      console.log(`Closing worker: ${name}`);
+      await worker.close();
+    }
+    workerMap.clear();
+    
+    // Close all queues
+    for (const [name, queue] of queueMap.entries()) {
+      console.log(`Closing queue: ${name}`);
+      await queue.close();
+    }
+    queueMap.clear();
+    
+    // Clean up orphaned repeatable jobs in Redis
+    try {
+      console.log("Cleaning up orphaned Redis entries...");
+      const connection = await getRedisConnection();
+      const schedulerQueue = new Queue(SCHEDULER_QUEUE, { connection });
+      
+      // Get all repeatable jobs
+      const repeatableJobs = await schedulerQueue.getRepeatableJobs();
+      console.log(`Found ${repeatableJobs.length} repeatable jobs in Redis`);
+      
+      // Get all jobs with schedules from the database
+      const dbInstance = await db();
+      const jobsWithSchedules = await dbInstance
+        .select({ id: jobs.id, scheduledJobId: jobs.scheduledJobId })
+        .from(jobs)
+        .where(isNotNull(jobs.scheduledJobId));
+      
+      const validJobIds = new Set(jobsWithSchedules.map(job => job.id));
+      const validSchedulerIds = new Set(jobsWithSchedules.map(job => job.scheduledJobId).filter(Boolean));
+      
+      // Find orphaned jobs (jobs in Redis that don't have a valid jobId or schedulerId in the database)
+      const orphanedJobs = repeatableJobs.filter(job => {
+        // Extract the job ID from the job name if it follows the pattern "scheduled-job-{jobId}"
+        const jobIdMatch = job.name?.match(/scheduled-job-([0-9a-f-]+)/);
+        const jobId = jobIdMatch ? jobIdMatch[1] : null;
+        
+        return (!jobId || !validJobIds.has(jobId)) && 
+               (!job.id || !validSchedulerIds.has(job.id));
+      });
+      
+      if (orphanedJobs.length > 0) {
+        console.log(`Found ${orphanedJobs.length} orphaned repeatable jobs to clean up`);
+        
+        // Remove all orphaned jobs
+        const removePromises = orphanedJobs.map(async (job) => {
+          console.log(`Removing orphaned repeatable job: ${job.key}`);
+          return schedulerQueue.removeRepeatableByKey(job.key);
+        });
+        
+        await Promise.all(removePromises);
+        console.log(`Removed ${orphanedJobs.length} orphaned repeatable jobs`);
+      } else {
+        console.log("No orphaned repeatable jobs found");
+      }
+      
+      await schedulerQueue.close();
+    } catch (redisError) {
+      console.error("Error cleaning up Redis entries:", redisError);
+      // Continue with initialization even if cleanup fails
+    }
+    
+    console.log("Job scheduler cleanup complete");
     return true;
   } catch (error) {
-    console.error(`[JOB SCHEDULER] Error initializing job scheduler:`, error);
+    console.error("Failed to cleanup job scheduler:", error);
     return false;
   }
 } 

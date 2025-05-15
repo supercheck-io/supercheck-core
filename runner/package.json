@@ -30,7 +30,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "acorn": "^8.14.1",
     "acorn-walk": "^8.3.4",
-    "bullmq": "^5.51.0",
+    "bullmq": "^5.52.2",
     "drizzle-orm": "^0.43.1",
     "drizzle-zod": "^0.7.1",
     "ioredis": "^5.6.1",
