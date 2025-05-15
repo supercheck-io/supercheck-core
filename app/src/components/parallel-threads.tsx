@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Skeleton } from "./ui/skeleton";
 
 // Define our queue stats interface here for reference
@@ -25,7 +25,7 @@ export function ParallelThreads() {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Function to create and set up the SSE connection
-  const setupEventSource = () => {
+  const setupEventSource = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
@@ -83,7 +83,7 @@ export function ParallelThreads() {
       setConnectionStatus('disconnected');
       return null;
     }
-  };
+  }, [connectionStatus]);
 
   useEffect(() => {
     // Set up visibility change listener to reconnect when tab becomes visible
@@ -110,7 +110,7 @@ export function ParallelThreads() {
         source.close();
       }
     };
-  }, []);
+  }, [setupEventSource]);
 
   // Calculate progress percentages
   const runningProgress = Math.min(100, (stats.running / stats.runningCapacity) * 100);
@@ -162,21 +162,23 @@ export function ParallelThreads() {
 function LoadingSkeleton() {
   return (
     <div className="flex items-center mr-4">
-      <div className="flex items-center text-xs">
-        <Skeleton className="h-4 w-36 mr-3" />
-        
+      <div className="flex items-center text-[11px]">
+        <div className="font-medium text-gray-500 mr-3 ">PARALLEL
+          <div className="font-medium text-gray-500 mr-3 ">EXECUTIONS:</div>
+        </div>
+     
         <div className="flex flex-col mr-6">
-          <div className="flex items-center justify-between mb-0.5">
-            <Skeleton className="h-4 w-14" />
-            <Skeleton className="h-4 w-10" />
+          <div className="flex items-center justify-between mb-1">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="h-3 w-8" />
           </div>
           <Skeleton className="w-32 h-1.5 rounded-full" />
         </div>
         
         <div className="flex flex-col">
-          <div className="flex items-center justify-between mb-0.5">
-            <Skeleton className="h-4 w-14" />
-            <Skeleton className="h-4 w-10" />
+          <div className="flex items-center justify-between mb-1">
+            <Skeleton className="h-3 w-14" />
+            <Skeleton className="h-3 w-8" />
           </div>
           <Skeleton className="w-32 h-1.5 rounded-full" />
         </div>

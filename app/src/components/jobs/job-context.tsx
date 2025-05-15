@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { jobStatuses } from "./data";
@@ -75,82 +75,18 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const initializedRef = useRef(false);
   
-  // Check for running jobs on initial load
-  useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    
-    // Function to fetch running jobs from the server
-    const checkForRunningJobs = async () => {
-      try {
-        // Fetch all currently running jobs via an API endpoint
-        const response = await fetch('/api/jobs/status/running');
-        
-        if (!response.ok) {
-          console.error('[JobContext] Failed to fetch running jobs');
-          return;
-        }
-        
-        const data = await response.json();
-        const runningJobsData = data.runningJobs || [];
-        
-        if (runningJobsData.length === 0) {
-          return; // No running jobs
-        }
-        
-        console.log('[JobContext] Found running jobs:', runningJobsData);
-        
-        // Update our running jobs tracking
-        const newRunningJobs = new Set<string>();
-        const newJobStatuses: JobStatuses = {};
-        
-        // Update job statuses and running jobs set
-        runningJobsData.forEach((job: { jobId: string, runId: string, name: string }) => {
-          newRunningJobs.add(job.jobId);
-          newJobStatuses[job.jobId] = 'running';
-          
-          // Set up SSE for this job's run
-          startJobRun(job.runId, job.jobId, job.name);
-        });
-        
-        // Update state
-        if (newRunningJobs.size > 0) {
-          setRunningJobs(newRunningJobs);
-          setJobStatuses(prev => ({ ...prev, ...newJobStatuses }));
-          setIsAnyJobRunning(true);
-        }
-      } catch (error) {
-        console.error('[JobContext] Error checking for running jobs:', error);
-      }
-    };
-    
-    // Call the function to check for running jobs
-    checkForRunningJobs();
-  }, []);
-
-  // Clean up event sources on unmount
-  useEffect(() => {
-    return () => {
-      // Close all event sources when component unmounts
-      eventSourcesRef.current.forEach((eventSource) => {
-        eventSource.close();
-      });
-      eventSourcesRef.current.clear();
-    };
-  }, []);
-
   // Check if a specific job is running
-  const isJobRunning = (jobId: string): boolean => {
+  const isJobRunning = useCallback((jobId: string): boolean => {
     return runningJobs.has(jobId);
-  };
+  }, [runningJobs]);
   
   // Get the status of a job from context
-  const getJobStatus = (jobId: string): string | null => {
+  const getJobStatus = useCallback((jobId: string): string | null => {
     return jobStatuses[jobId] || null;
-  };
+  }, [jobStatuses]);
   
   // Set the status of a job in context
-  const setJobStatus = (jobId: string, status: string) => {
+  const setJobStatus = useCallback((jobId: string, status: string) => {
     console.log(`[JobContext] Setting job ${jobId} status to ${status}`);
     
     setJobStatuses(prev => ({
@@ -172,82 +108,16 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       setRunningJobs(prev => {
         const newSet = new Set(prev);
         newSet.delete(jobId);
-        // Update global state if no more jobs are running
         if (newSet.size === 0) {
           setIsAnyJobRunning(false);
         }
         return newSet;
       });
     }
-  };
-
-  const setJobRunning = (isRunning: boolean, jobId?: string) => {
-    if (isRunning && jobId) {
-      // Add job to running jobs
-      setRunningJobs(prev => {
-        const newSet = new Set(prev);
-        newSet.add(jobId);
-        return newSet;
-      });
-      setIsAnyJobRunning(true);
-      
-      // Update job status in context
-      setJobStatus(jobId, 'running');
-    } else if (!isRunning) {
-      if (jobId) {
-        // Remove specific job from running jobs
-        setRunningJobs(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(jobId);
-          // Update global state if no more jobs are running
-          if (newSet.size === 0) {
-            setIsAnyJobRunning(false);
-          }
-          return newSet;
-        });
-        
-        // Clean up the toast for this job if it exists
-        if (activeRuns[jobId]?.toastId) {
-          toast.dismiss(activeRuns[jobId].toastId);
-        }
-        
-        // Remove the job from active runs
-        setActiveRuns(prev => {
-          const newRuns = { ...prev };
-          delete newRuns[jobId];
-          return newRuns;
-        });
-        
-        // Close the event source for this job
-        if (eventSourcesRef.current.has(jobId)) {
-          eventSourcesRef.current.get(jobId)?.close();
-          eventSourcesRef.current.delete(jobId);
-        }
-      } else {
-        // Clear all running jobs
-        setRunningJobs(new Set());
-        setIsAnyJobRunning(false);
-        
-        // Clean up all toasts
-        Object.values(activeRuns).forEach(run => {
-          if (run.toastId) {
-            toast.dismiss(run.toastId);
-          }
-        });
-        
-        // Reset all active runs
-        setActiveRuns({});
-        
-        // Close all event sources
-        eventSourcesRef.current.forEach((eventSource) => {
-          eventSource.close();
-        });
-        eventSourcesRef.current.clear();
-      }
-    }
-  };
-
-  const startJobRun = (runId: string, jobId: string, jobName: string) => {
+  }, []);
+  
+  // Define startJobRun as a useCallback before it's used in useEffect
+  const startJobRun = useCallback((runId: string, jobId: string, jobName: string) => {
     // Show a loading toast for this job
     const toastId = toast.loading(`Executing job: ${jobName.length > 25 ? jobName.substring(0, 25) + '...' : jobName}`, {
       description: "Job execution is in progress...",
@@ -408,8 +278,141 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     
     // Update the global running state
     setIsAnyJobRunning(true);
-  };
+  }, [router, setJobStatus]);
   
+  // Check for running jobs on initial load
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    
+    // Function to fetch running jobs from the server
+    const checkForRunningJobs = async () => {
+      try {
+        // Fetch all currently running jobs via an API endpoint
+        const response = await fetch('/api/jobs/status/running');
+        
+        if (!response.ok) {
+          console.error('[JobContext] Failed to fetch running jobs');
+          return;
+        }
+        
+        const data = await response.json();
+        const runningJobsData = data.runningJobs || [];
+        
+        if (runningJobsData.length === 0) {
+          return; // No running jobs
+        }
+        
+        console.log('[JobContext] Found running jobs:', runningJobsData);
+        
+        // Update our running jobs tracking
+        const newRunningJobs = new Set<string>();
+        const newJobStatuses: JobStatuses = {};
+        
+        // Update job statuses and running jobs set
+        runningJobsData.forEach((job: { jobId: string, runId: string, name: string }) => {
+          newRunningJobs.add(job.jobId);
+          newJobStatuses[job.jobId] = 'running';
+          
+          // Set up SSE for this job's run
+          startJobRun(job.runId, job.jobId, job.name);
+        });
+        
+        // Update state
+        if (newRunningJobs.size > 0) {
+          setRunningJobs(newRunningJobs);
+          setJobStatuses(prev => ({ ...prev, ...newJobStatuses }));
+          setIsAnyJobRunning(true);
+        }
+      } catch (error) {
+        console.error('[JobContext] Error checking for running jobs:', error);
+      }
+    };
+    
+    // Call the function to check for running jobs
+    checkForRunningJobs();
+  }, [startJobRun]);
+
+  // Clean up event sources on unmount
+  useEffect(() => {
+    // Create a local variable that holds a reference to the Map
+    const currentEventSources = eventSourcesRef.current;
+    
+    return () => {
+      // Use the captured reference in cleanup
+      currentEventSources.forEach((eventSource) => {
+        eventSource.close();
+      });
+      currentEventSources.clear();
+    };
+  }, []);
+
+  const setJobRunning = (isRunning: boolean, jobId?: string) => {
+    if (isRunning && jobId) {
+      // Add job to running jobs
+      setRunningJobs(prev => {
+        const newSet = new Set(prev);
+        newSet.add(jobId);
+        return newSet;
+      });
+      setIsAnyJobRunning(true);
+      
+      // Update job status in context
+      setJobStatus(jobId, 'running');
+    } else if (!isRunning) {
+      if (jobId) {
+        // Remove specific job from running jobs
+        setRunningJobs(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(jobId);
+          // Update global state if no more jobs are running
+          if (newSet.size === 0) {
+            setIsAnyJobRunning(false);
+          }
+          return newSet;
+        });
+        
+        // Clean up the toast for this job if it exists
+        if (activeRuns[jobId]?.toastId) {
+          toast.dismiss(activeRuns[jobId].toastId);
+        }
+        
+        // Remove the job from active runs
+        setActiveRuns(prev => {
+          const newRuns = { ...prev };
+          delete newRuns[jobId];
+          return newRuns;
+        });
+        
+        // Close the event source for this job
+        if (eventSourcesRef.current.has(jobId)) {
+          eventSourcesRef.current.get(jobId)?.close();
+          eventSourcesRef.current.delete(jobId);
+        }
+      } else {
+        // Clear all running jobs
+        setRunningJobs(new Set());
+        setIsAnyJobRunning(false);
+        
+        // Clean up all toasts
+        Object.values(activeRuns).forEach(run => {
+          if (run.toastId) {
+            toast.dismiss(run.toastId);
+          }
+        });
+        
+        // Reset all active runs
+        setActiveRuns({});
+        
+        // Close all event sources
+        eventSourcesRef.current.forEach((eventSource) => {
+          eventSource.close();
+        });
+        eventSourcesRef.current.clear();
+      }
+    }
+  };
+
   const completeJobRun = (success: boolean, jobId: string, runId: string) => {
     // This can be called manually if needed
     if (!activeRuns[jobId]) return;

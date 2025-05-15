@@ -172,7 +172,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       const response = await updateJob(jobData);
 
       if (!response.success) {
-        throw new Error(response.error || "Failed to update job");
+        throw new Error(typeof response.error === 'string' ? response.error : "Failed to update job");
       }
 
       toast.success("Success", {
