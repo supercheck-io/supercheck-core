@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: redis
-  namespace: supertest
+  namespace: supercheck
   labels:
     app: redis
 spec:

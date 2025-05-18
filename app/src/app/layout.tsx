@@ -28,7 +28,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Supertest | Dashboard",
+  title: "Supercheck | Dashboard",
   description: "Monitor and manage your tests, jobs, and runs",
 };
 

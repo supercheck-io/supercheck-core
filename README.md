@@ -356,7 +356,7 @@ The test execution system can be configured via environment variables:
 
 ```bash
 # Database
-DATABASE_URL=postgres://user:password@localhost:5432/supertest
+DATABASE_URL=postgres://user:password@localhost:5432/supercheck
 
 # Redis (for queue)
 REDIS_URL=redis://localhost:6379
@@ -380,11 +380,11 @@ TEST_EXECUTION_TIMEOUT_MS=900000   # 15 minutes default
 
 ```bash
 # Start Redis
-docker run -d --name redis-supertest -p 6379:6379 redis
+docker run -d --name redis-supercheck -p 6379:6379 redis
 
 # Start Postgres
-docker run -d --name postgres-supertest -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supertest -p 5432:5432 postgres:16
+docker run -d --name postgres-supercheck -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supercheck -p 5432:5432 postgres:16
 
 # Start MinIO
-docker run -d --name minio-supertest -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
+docker run -d --name minio-supercheck -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
 ```

@@ -360,6 +360,27 @@ export default function Jobs() {
                       </div>
                     </div>
 
+                    {/* Next Run in its own row */}
+                    {selectedJob.cronSchedule && (
+                      <div className="space-y-2 bg-card p-4 rounded-lg border border-border/40">
+                        <h3 className="text-xs font-medium text-muted-foreground">Next Run</h3>
+                        <div className="flex items-center space-x-2">
+                          <ClockIcon className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">
+                            {selectedJob.nextRunAt 
+                              ? new Date(selectedJob.nextRunAt).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }) 
+                              : "N/A"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Description */}
                     <div className="space-y-2 bg-card p-4 rounded-lg border border-border/40">
                       <h3 className="text-xs font-medium text-muted-foreground">Description</h3>

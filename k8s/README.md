@@ -1,6 +1,6 @@
-# Kubernetes Deployment for SuperTest
+# Kubernetes Deployment for SuperCheck
 
-This directory contains Kubernetes manifests to deploy the SuperTest application in a scalable, cloud-native architecture.
+This directory contains Kubernetes manifests to deploy the SuperCheck application in a scalable, cloud-native architecture.
 
 ## Architecture
 
@@ -40,22 +40,22 @@ Build the frontend and worker images:
 
 ```bash
 # Build frontend image
-docker build -t supertest-frontend:latest -f kubernetes/Dockerfile.frontend .
+docker build -t supercheck-frontend:latest -f kubernetes/Dockerfile.frontend .
 
 # Build worker image
-docker build -t supertest-worker:latest -f kubernetes/Dockerfile.worker .
+docker build -t supercheck-worker:latest -f kubernetes/Dockerfile.worker .
 ```
 
 For production, tag and push to your container registry:
 
 ```bash
 # Tag images
-docker tag supertest-frontend:latest your-registry.com/supertest-frontend:latest
-docker tag supertest-worker:latest your-registry.com/supertest-worker:latest
+docker tag supercheck-frontend:latest your-registry.com/supercheck-frontend:latest
+docker tag supercheck-worker:latest your-registry.com/supercheck-worker:latest
 
 # Push images
-docker push your-registry.com/supertest-frontend:latest
-docker push your-registry.com/supertest-worker:latest
+docker push your-registry.com/supercheck-frontend:latest
+docker push your-registry.com/supercheck-worker:latest
 ```
 
 ## Deployment
@@ -67,7 +67,7 @@ docker push your-registry.com/supertest-worker:latest
 kubectl apply -k kubernetes/overlays/dev/
 
 # View deployed resources
-kubectl get all -n supertest-dev
+kubectl get all -n supercheck-dev
 ```
 
 ### Production Environment
@@ -79,7 +79,7 @@ Before deploying to production, update the secrets in `kubernetes/overlays/prod/
 kubectl apply -k kubernetes/overlays/prod/
 
 # View deployed resources
-kubectl get all -n supertest
+kubectl get all -n supercheck
 ```
 
 ## Accessing the Application
@@ -88,7 +88,7 @@ kubectl get all -n supertest
 
 ```bash
 # Port forward the frontend service to access locally
-kubectl port-forward -n supertest-dev svc/dev-frontend 3000:80
+kubectl port-forward -n supercheck-dev svc/dev-frontend 3000:80
 
 # Access the application at http://localhost:3000
 ```
@@ -103,16 +103,16 @@ Monitor the application using:
 
 ```bash
 # View pod status
-kubectl get pods -n supertest
+kubectl get pods -n supercheck
 
 # View logs for frontend
-kubectl logs -n supertest deploy/frontend
+kubectl logs -n supercheck deploy/frontend
 
 # View logs for worker
-kubectl logs -n supertest deploy/worker
+kubectl logs -n supercheck deploy/worker
 
 # Monitor HPA
-kubectl get hpa -n supertest
+kubectl get hpa -n supercheck
 ```
 
 ## Scaling
@@ -126,10 +126,10 @@ You can manually scale if needed:
 
 ```bash
 # Scale frontend
-kubectl scale deploy/frontend -n supertest --replicas=5
+kubectl scale deploy/frontend -n supercheck --replicas=5
 
 # Scale worker
-kubectl scale deploy/worker -n supertest --replicas=10
+kubectl scale deploy/worker -n supercheck --replicas=10
 ```
 
 ## Cleanup

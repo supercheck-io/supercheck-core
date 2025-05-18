@@ -29,8 +29,9 @@ import {
 } from "@/components/form";
 import { ControllerRenderProps } from "react-hook-form";
 import TestSelector from "./test-selector";
-import CronScheduler from "./CronScheduler";
+import CronScheduler from "./cron-scheduler";
 import { Info } from "lucide-react";
+import NextRunDisplay from "./next-run-display";
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
@@ -203,6 +204,7 @@ export default function CreateJob() {
                             onChange={field.onChange}
                           />
                         </FormControl>
+                        <NextRunDisplay cronExpression={field.value} />
                         <p className="text-xs text-muted-foreground mt-4 flex items-center">
                           <Info className="h-3 w-3 mr-1" />
                           <span>Leave empty for manual execution.</span>

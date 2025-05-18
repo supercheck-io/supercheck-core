@@ -1,8 +1,8 @@
 version: '3'
-# docker build -t supertest:latest .
+# docker build -t supercheck:latest .
 services:
   app:
-    image: supertest:latest
+    image: supercheck:latest
     ports:
       - "3000:3000"
     environment:
@@ -19,12 +19,12 @@ services:
       - QUEUED_CAPACITY=50
       - TEST_EXECUTION_TIMEOUT_MS=900000
       - TRACE_RECOVERY_INTERVAL_MS=300000
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supertest
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=supertest
+      - DB_NAME=supercheck
     command: >
       sh -c "
         apt-get update && apt-get install -y postgresql-client &&
@@ -59,7 +59,7 @@ services:
       minio:
         condition: service_healthy
     networks:
-      - supertest-network
+      - supercheck-network
     deploy:
       resources:
         limits:
@@ -71,14 +71,14 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=supertest
+      - POSTGRES_DB=supercheck
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
-      - supertest-network
+      - supercheck-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -103,7 +103,7 @@ services:
       - minio-data:/data
     restart: unless-stopped
     networks:
-      - supertest-network
+      - supercheck-network
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
@@ -120,5 +120,5 @@ volumes:
   postgres-data:
 
 networks:
-  supertest-network:
+  supercheck-network:
     driver: bridge 

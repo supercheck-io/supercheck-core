@@ -10,7 +10,7 @@ import { ReportViewer } from "@/components/shared/report-viewer";
 import { formatDistanceToNow } from "date-fns";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 import { RunStatusListener } from "./run-status-listener";
-import { TestRunStatus } from "@/db/schema";
+import { TestRunStatus } from "@/db/schema/schema";
 
 interface RunDetailsProps {
   run: RunResponse;

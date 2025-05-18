@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db/client';
-import { reports } from '@/db/schema';
+import { db } from '@/lib/db';
+import { reports } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
 import { desc } from 'drizzle-orm';
 

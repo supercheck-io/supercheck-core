@@ -1,7 +1,7 @@
 import { Metadata } from "next/types";
 
 export const metadata: Metadata = {
-  title: "Supertest | Playground",
+  title: "Supercheck | Playground",
   description: "View and edit test scripts",
 };
 

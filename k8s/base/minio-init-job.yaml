@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: minio-bucket-init
-  namespace: supertest
+  namespace: supercheck
 spec:
   ttlSecondsAfterFinished: 100
   template:

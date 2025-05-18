@@ -2,7 +2,7 @@ import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { RunsClient } from "@/components/runs/runs-client";
 
 export const metadata = {
-  title: "Supertest | Runs",
+  title: "Supercheck | Runs",
   description: "View and manage all test run executions",
 };
 

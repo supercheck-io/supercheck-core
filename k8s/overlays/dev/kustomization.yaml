@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: supertest-dev
+namespace: supercheck-dev
 
 resources:
   - ../../base
@@ -23,6 +23,6 @@ secretGenerator:
     behavior: merge
     literals:
       - POSTGRES_PASSWORD=dev-password
-      - DATABASE_URL=postgres://postgres:dev-password@postgres:5432/supertest
+      - DATABASE_URL=postgres://postgres:dev-password@postgres:5432/supercheck
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin 

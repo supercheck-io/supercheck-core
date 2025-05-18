@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/db/client';
-import { runs } from '@/db/schema';
+import { getDb } from '@/lib/db';
+import { runs } from '@/db/schema/schema';
 import { eq } from 'drizzle-orm';
 import { Queue } from 'bullmq';
 import { JOB_EXECUTION_QUEUE } from '@/lib/queue';

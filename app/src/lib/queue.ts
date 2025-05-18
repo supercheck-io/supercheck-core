@@ -23,8 +23,8 @@ export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
 
 // Redis capacity limit keys
-export const RUNNING_CAPACITY_LIMIT_KEY = 'supertest:capacity:running';
-export const QUEUE_CAPACITY_LIMIT_KEY = 'supertest:capacity:queued';
+export const RUNNING_CAPACITY_LIMIT_KEY = 'supercheck:capacity:running';
+export const QUEUE_CAPACITY_LIMIT_KEY = 'supercheck:capacity:queued';
 
 // Redis key TTL values (in seconds) - applies to both job and test execution
 export const REDIS_JOB_KEY_TTL = 7 * 24 * 60 * 60;  // 7 days for job data (completed/failed jobs)

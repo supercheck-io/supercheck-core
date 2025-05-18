@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "../db/client";
-import { tests, jobTests } from "../db/schema";
+import { db } from "../lib/db";
+import { tests, jobTests } from "../db/schema/schema";
 import { eq, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 

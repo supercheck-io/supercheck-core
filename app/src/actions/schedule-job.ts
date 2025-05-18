@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "../db/client";
-import { jobs as jobsTable } from "../db/schema";
+import { db } from "../lib/db";
+import { jobs as jobsTable } from "../db/schema/schema";
 import { eq } from "drizzle-orm";
 import { scheduleJob } from "../lib/job-scheduler";
 import { getJob } from "./get-jobs";

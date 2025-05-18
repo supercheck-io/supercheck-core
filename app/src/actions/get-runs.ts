@@ -1,7 +1,7 @@
 'use server';
 
-import { db } from "@/db/client";
-import { runs, jobs, reports } from "@/db/schema";
+import { db } from "@/lib/db";
+import { runs, jobs, reports } from "@/db/schema/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { runSchema } from "@/components/runs/schema";

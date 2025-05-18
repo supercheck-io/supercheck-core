@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db/client";
+import { db } from "@/lib/db";
 import {
   jobs,
   jobTests,
@@ -7,7 +7,7 @@ import {
   runs,
   JobStatus,
   TestRunStatus,
-} from "@/db/schema";
+} from "@/db/schema/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 
 import { getTest } from "@/actions/get-test";

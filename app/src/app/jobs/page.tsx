@@ -3,7 +3,7 @@ import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 
 export async function generateMetadata() {
   return {
-    title: "Supertest | Jobs",
+    title: "Supercheck | Jobs",
     description: "View and manage all test jobs",
   };
 }

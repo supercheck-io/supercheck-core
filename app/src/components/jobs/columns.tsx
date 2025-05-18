@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { CalendarIcon, TimerIcon, Loader2, Zap } from "lucide-react";
+import { CalendarIcon, TimerIcon, Loader2, Zap, Clock } from "lucide-react";
 import { useRef, useCallback, useEffect } from "react";
 
 import type { Job } from "./schema";
@@ -274,19 +274,64 @@ export const columns: ColumnDef<Job>[] = [
         return <div className="text-muted-foreground">Never</div>;
       }
       return (
-        <div className="flex items-center">
-          <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-          <span>
-            {new Date(lastRunAt).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
+        <div className="flex flex-col">
+          <div className="flex items-center">
+            <Clock className="mr-2 h-4 w-4 text-muted-foreground self-center" />
+            <div className="flex items-center">
+              <span>
+                {new Date(lastRunAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            </div>
+            <span className="text-muted-foreground ml-1 text-xs">
+              {new Date(lastRunAt).toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "nextRunAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Next Run" />
+    ),
+    cell: ({ row }) => {
+      const nextRunAt = row.getValue("nextRunAt") as string | null;
+      const cronSchedule = row.getValue("cronSchedule") as string | null;
+      
+      if (!cronSchedule || !nextRunAt) {
+        return <div className="text-muted-foreground">N/A</div>;
+      }
+      
+      return (
+        <div className="flex flex-col">
+          <div className="flex items-center">
+          <Clock className="mr-2 h-4 w-4 text-muted-foreground self-center" />
+          <div className="flex items-center">
+            <span>
+              {new Date(nextRunAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </span>
+          </div>
+            <span className="text-muted-foreground ml-1 text-xs">
+            {new Date(nextRunAt).toLocaleTimeString("en-US", {
               hour: "2-digit",
               minute: "2-digit",
             })}
           </span>
-        </div>
-      );
+          </div>
+          </div>
+        );
     },
   },
   {

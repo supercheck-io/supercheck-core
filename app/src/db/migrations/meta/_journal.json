@@ -29,6 +29,20 @@
       "when": 1747242484215,
       "tag": "0003_needy_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1747425707081,
+      "tag": "0004_illegal_mockingbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1747428032791,
+      "tag": "0005_purple_nico_minoru",
+      "breakpoints": true
     }
   ]
 }

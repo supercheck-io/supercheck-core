@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { SaveIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { testsInsertSchema, TestPriority, TestType } from "@/db/schema";
+import { testsInsertSchema, TestPriority, TestType } from "@/db/schema/schema";
 import { saveTest } from "@/actions/save-test";
 import { decodeTestScript } from "@/actions/save-test";
 import { useRouter } from "next/navigation";

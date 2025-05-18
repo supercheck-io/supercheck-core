@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db/client";
-import { runs, reports, ReportType } from "@/db/schema";
+import { db } from "@/lib/db";
+import { runs, reports, ReportType } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function GET(request: Request) {

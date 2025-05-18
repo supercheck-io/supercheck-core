@@ -13,7 +13,7 @@ import {
 import { CodeEditor } from "./code-editor";
 import { TestForm } from "./test-form";
 import { LoadingOverlay } from "./loading-overlay";
-import { TestPriority, TestType } from "@/db/schema";
+import { TestPriority, TestType } from "@/db/schema/schema";
 import {
   FileTextIcon,
   Loader2Icon,
@@ -335,8 +335,8 @@ const Playground: React.FC<PlaygroundProps> = ({
 
   const runTest = async () => {
     if (isRunning) {
-      toast.warning("A test is already running", {
-        description: "Please wait for the current test to complete, or cancel it before running a new test.",
+      toast.warning("A script is already running", {
+        description: "Please wait for the current script to complete, or cancel it before running a new script.",
       });
       return;
     }
@@ -344,8 +344,8 @@ const Playground: React.FC<PlaygroundProps> = ({
     setIsRunning(true);
 
     // Show a loading toast to indicate that the test is running
-    const loadingToastId = toast.loading(`Executing test${testId ? `: ${testCase.title.length > 25 ? testCase.title.substring(0, 25) + '...' : testCase.title}` : ''}`, {
-      description: "Test execution is in progress...",
+    const loadingToastId = toast.loading(`Executing script${testId ? `: ${testCase.title.length > 25 ? testCase.title.substring(0, 25) + '...' : testCase.title}` : ''}`, {
+      description: "Script execution is in progress...",
       duration: Infinity, // Keep this visible until execution completes
     });
 
@@ -434,7 +434,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                   // Dismiss loading toast and show completion toast
                   toast.dismiss(loadingToastId);
                   toast[isSuccess ? "success" : "error"](
-                    isSuccess ? "Test execution passed" : "Test execution failed",
+                    isSuccess ? "Script execution passed" : "Script execution failed",
                     { 
                       description: isSuccess 
                         ? "All checks completed successfully." 
@@ -489,16 +489,16 @@ const Playground: React.FC<PlaygroundProps> = ({
         
         // Check for errors first
         if (result.error) {
-          console.error("Test execution error:", result.error);
+          console.error("Script execution error:", result.error);
 
           // Always show a user-friendly message regardless of the actual error
-          toast.error("Test Execution Failed", {
+          toast.error("Script Execution Failed", {
             description: result.error || "The test encountered an error during execution. Please check your test script and try again.",
             duration: 5000,
           });
         } else {
           console.error("API response missing required fields:", result);
-          toast.error("Test Execution Issue", {
+          toast.error("Script Execution Issue", {
             description: "Could not retrieve test report URL.",
             duration: 5000,
           });

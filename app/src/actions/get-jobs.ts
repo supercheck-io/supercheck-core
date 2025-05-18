@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "../db/client";
-import { jobs, tests, jobTests } from "../db/schema";
+import { db } from "../lib/db";
+import { jobs, tests, jobTests } from "../db/schema/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 
 type TestType = "browser" | "api" | "multistep" | "database";

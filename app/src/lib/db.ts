@@ -2,14 +2,14 @@
 
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from '@/db/schema';
+import * as schema from '@/db/schema/schema';
 
 /**
  * Creates a database client using PostgreSQL
  */
 export async function createDbClient() {
   const connectionString = process.env.DATABASE_URL || 
-    `postgres://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "postgres"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "supertest"}`;
+    `postgres://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "postgres"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "supercheck"}`;
   
   // For query building with connection pool limits to prevent "too many clients" error
   return postgres(connectionString, { 

@@ -8,7 +8,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const resolvedParams = await params;
   return {
-    title: `Supertest | Edit Job ${resolvedParams.id}`,
+    title: `Supercheck | Edit Job ${resolvedParams.id}`,
     description: `Edit configuration for job #${resolvedParams.id}`,
   };
 }

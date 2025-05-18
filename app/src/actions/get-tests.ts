@@ -1,8 +1,8 @@
 "use server";
 
-import { tests } from "@/db/schema";
+import { tests } from "@/db/schema/schema";
 import { desc } from "drizzle-orm";
-import { db } from "../db/client";
+import { db } from "../lib/db";
 import { decodeTestScript } from "./get-test";
 
 /**

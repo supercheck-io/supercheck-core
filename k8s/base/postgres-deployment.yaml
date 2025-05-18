@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
-  namespace: supertest
+  namespace: supercheck
   labels:
     app: postgres
 spec:
@@ -22,7 +22,7 @@ spec:
         - containerPort: 5432
         env:
         - name: POSTGRES_DB
-          value: supertest
+          value: supercheck
         - name: POSTGRES_USER
           value: postgres
         - name: POSTGRES_PASSWORD

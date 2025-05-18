@@ -41,7 +41,7 @@ export function toCLIPath(inputPath: string): string {
 // Generates a temporary directory path for a given execution ID
 export function getTemporaryRunPath(runId: string): string {
   // Use os.tmpdir() for a system-appropriate temporary directory
-  const basePath = path.join(os.tmpdir(), 'supertest-runs');
+  const basePath = path.join(os.tmpdir(), 'supercheck-runs');
   return path.join(basePath, runId);
 }
 
@@ -783,10 +783,10 @@ export class ExecutionService {
                     if (failureMatch) {
                          extractedError = `${failureMatch[1]} - Check report/logs for details.`;
                     } else {
-                        extractedError = 'Test execution failed. Check report/logs.'; // Fallback if stderr is empty/unhelpful
+                        extractedError = 'Script execution failed. Check report/logs.'; // Fallback if stderr is empty/unhelpful
                     }
                 } else {
-                     extractedError = 'Test execution failed with no error message.'; // Absolute fallback
+                    extractedError = 'Script execution failed with no error message.'; // Absolute fallback
                 }
             }
             

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { getDb } from "@/db/client";
-import { jobs, runs } from "@/db/schema";
+import { getDb } from "@/lib/db";
+import { jobs, runs } from "@/db/schema/schema";
 
 /**
  * API endpoint to return all currently running jobs

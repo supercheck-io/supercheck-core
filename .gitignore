@@ -75,7 +75,7 @@ app/public/artifacts/*
 app/test-results/* # Specific test-results dir inside app?
 
 ## DB
-app/src/db/supertest.db
+app/src/db/supercheck.db
 
 # Runner specific ignores (runner/)
 ## Dependencies

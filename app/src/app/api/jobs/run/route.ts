@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getTest } from "@/actions/get-test";
-import { createDb } from "@/db/client";
-import { jobs, runs, JobStatus } from "@/db/schema";
+import { createDb } from "@/lib/db";
+import { jobs, runs, JobStatus } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { addJobToQueue, JobExecutionTask } from "@/lib/queue";

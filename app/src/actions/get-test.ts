@@ -4,9 +4,9 @@ declare const Buffer: {
   from(data: string, encoding: string): { toString(encoding: string): string };
 };
 
-import { tests } from "@/db/schema";
+import { tests } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
-import { getDb } from "@/db/client";
+import { getDb } from "@/lib/db";
 
 /**
  * Helper function to decode base64-encoded test scripts

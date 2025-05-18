@@ -1,11 +1,12 @@
 import { Queue, Job, Worker } from 'bullmq';
-import { db } from "@/db/client";
-import { jobs, jobTests, runs } from "@/db/schema";
+import { db } from "@/lib/db";
+import { jobs, jobTests, runs } from "@/db/schema/schema";
 import { eq, isNotNull, and } from "drizzle-orm";
 import { getRedisConnection } from "./queue";
 import { JobExecutionTask, JOB_EXECUTION_QUEUE } from "./queue";
 import crypto from "crypto";
 import { getTest } from "@/actions/get-test";
+import { getNextRunDate } from "@/lib/cron-utils";
 
 // Map to store the created queues
 const queueMap = new Map<string, Queue>();
@@ -109,6 +110,23 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
       }
     );
 
+    // Update the job's nextRunAt field in the database
+    let nextRunAt = null;
+    try {
+      if (options.cron) {
+        nextRunAt = getNextRunDate(options.cron);
+      }
+    } catch (error) {
+      console.error(`Failed to calculate next run date: ${error}`);
+    }
+    
+    if (nextRunAt) {
+      const dbInstance = await db();
+      await dbInstance.update(jobs)
+        .set({ nextRunAt })
+        .where(eq(jobs.id, options.jobId));
+    }
+
     // Ensure the worker exists
     await ensureSchedulerWorker();
 
@@ -190,14 +208,35 @@ async function handleScheduledJobTrigger(job: Job) {
     
     console.log(`Created run record ${runId} for scheduled job ${jobId}`);
     
-    // Update job's lastRunAt field
-    await dbInstance
-      .update(jobs)
-      .set({
-        lastRunAt: new Date(),
-        status: "running", // Using direct value matching JobStatus from schema
-      })
-      .where(eq(jobs.id, jobId));
+    // Update job's lastRunAt field and calculate nextRunAt
+    const now = new Date();
+    const jobData = await dbInstance
+      .select()
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1);
+    
+    if (jobData.length > 0) {
+      const cronSchedule = jobData[0].cronSchedule;
+      let nextRunAt = null;
+      
+      try {
+        if (cronSchedule) {
+          nextRunAt = getNextRunDate(cronSchedule);
+        }
+      } catch (error) {
+        console.error(`Failed to calculate next run date: ${error}`);
+      }
+      
+      await dbInstance
+        .update(jobs)
+        .set({
+          lastRunAt: now,
+          nextRunAt: nextRunAt,
+          status: "running", // Using direct value matching JobStatus from schema
+        })
+        .where(eq(jobs.id, jobId));
+    }
     
     // Get the queue for execution
     const connection = await getRedisConnection();
@@ -364,9 +403,22 @@ export async function initializeJobSchedulers() {
         
         // Update the job with the scheduler ID if needed
         if (!job.scheduledJobId || job.scheduledJobId !== schedulerId) {
+          let nextRunAt = null;
+          
+          try {
+            if (job.cronSchedule) {
+              nextRunAt = getNextRunDate(job.cronSchedule);
+            }
+          } catch (error) {
+            console.error(`Failed to calculate next run date: ${error}`);
+          }
+          
           await dbInstance
             .update(jobs)
-            .set({ scheduledJobId: schedulerId })
+            .set({ 
+              scheduledJobId: schedulerId,
+              nextRunAt: nextRunAt
+            })
             .where(eq(jobs.id, job.id));
         }
         

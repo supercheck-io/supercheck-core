@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: supertest
+namespace: supercheck
 
 resources:
   - ../../base
@@ -25,6 +25,6 @@ secretGenerator:
     behavior: merge
     literals:
       - POSTGRES_PASSWORD=REPLACE_ME
-      - DATABASE_URL=postgres://postgres:REPLACE_ME@postgres:5432/supertest
+      - DATABASE_URL=postgres://postgres:REPLACE_ME@postgres:5432/supercheck
       - AWS_ACCESS_KEY_ID=REPLACE_ME
       - AWS_SECRET_ACCESS_KEY=REPLACE_ME 

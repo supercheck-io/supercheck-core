@@ -5,7 +5,7 @@ import { getTest } from "@/actions/get-test";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useParams, notFound } from "next/navigation";
-import { TestPriority, TestType } from "@/db/schema";
+import { TestPriority, TestType } from "@/db/schema/schema";
 
 // Skeleton Component
 function PlaygroundSkeleton() {

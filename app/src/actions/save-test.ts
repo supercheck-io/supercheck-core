@@ -10,8 +10,8 @@ import {
   testsInsertSchema,
   type TestPriority,
   type TestType,
-} from "@/db/schema";
-import { getDb } from "@/db/client";
+} from "@/db/schema/schema";
+import { getDb } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import crypto from "crypto";

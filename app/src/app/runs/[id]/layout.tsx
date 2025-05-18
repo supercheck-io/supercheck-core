@@ -8,7 +8,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const resolvedParams = await params;
   return {
-    title: `Supertest | Run ${resolvedParams.id}`,
+    title: `Supercheck | Run ${resolvedParams.id}`,
     description: `View execution details and results for run #${resolvedParams.id}`,
   };
 }

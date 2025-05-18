@@ -1,12 +1,13 @@
 "use server";
 
-import { db } from "@/db/client";
-import { jobs, jobTests } from "@/db/schema";
+import { db } from "@/lib/db";
+import { jobs, jobTests } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { scheduleJob, deleteScheduledJob } from "@/lib/job-scheduler";
 import { JOB_EXECUTION_QUEUE } from "@/lib/queue";
+import { getNextRunDate } from "@/lib/cron-utils";
 
 const updateJobSchema = z.object({
   jobId: z.string().uuid(),
@@ -46,12 +47,23 @@ export async function updateJob(data: UpdateJobData) {
     const job = existingJob[0];
     
     try {
+      // Calculate next run date if cron schedule is provided
+      let nextRunAt = null;
+      try {
+        if (validatedData.cronSchedule) {
+          nextRunAt = getNextRunDate(validatedData.cronSchedule);
+        }
+      } catch (error) {
+        console.error(`Failed to calculate next run date: ${error}`);
+      }
+      
       // Update the job basic information
       await dbInstance.update(jobs)
         .set({
           name: validatedData.name,
           description: validatedData.description || "",
           cronSchedule: validatedData.cronSchedule || null,
+          nextRunAt: nextRunAt,
           updatedAt: new Date(),
         })
         .where(eq(jobs.id, validatedData.jobId));
@@ -137,6 +149,7 @@ export async function updateJob(data: UpdateJobData) {
           name: validatedData.name,
           description: validatedData.description || "",
           cronSchedule: validatedData.cronSchedule || null,
+          nextRunAt: nextRunAt?.toISOString() || null,
           scheduledJobId,
           testCount: validatedData.tests.length,
         }

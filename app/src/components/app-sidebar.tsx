@@ -48,7 +48,7 @@ const data = {
   },
   teams: [
     {
-      name: "Supertest",
+      name: "Supercheck",
       logo: Shield,
       plan: "Enterprise",
     },
