@@ -438,7 +438,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                     { 
                       description: isSuccess 
                         ? "All checks completed successfully." 
-                        : "Test did not complete successfully.",
+                        : "All checks did not complete successfully.",
                       duration: 10000 
                     }
                   );
@@ -461,7 +461,7 @@ const Playground: React.FC<PlaygroundProps> = ({
           toast.dismiss(loadingToastId);
           
           // Show error toast
-          toast.error("Test execution error", {
+          toast.error("Script execution error", {
             description: "Connection to test status updates was lost. The test may still be running in the background.",
             duration: 5000,
           });
@@ -505,9 +505,9 @@ const Playground: React.FC<PlaygroundProps> = ({
         }
       }
     } catch (error) {
-      console.error("Error running test:", error);
+      console.error("Error running script:", error);
       toast.dismiss(loadingToastId);
-      toast.error("Error running test", {
+      toast.error("Error running script", {
         description: error instanceof Error ? error.message : "Unknown error",
         duration: 5000,
       });

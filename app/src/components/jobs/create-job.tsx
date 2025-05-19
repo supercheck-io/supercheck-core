@@ -195,7 +195,7 @@ export default function CreateJob() {
                     }) => (
                       <FormItem>
                         <FormLabel className="mb-6">
-                          Cron Schedule{" "}
+                          Cron Schedule (UTC){" "}
                           <span className="text-gray-500">(optional)</span>
                         </FormLabel>
                         <FormControl>

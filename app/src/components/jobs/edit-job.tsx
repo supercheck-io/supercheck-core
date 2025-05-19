@@ -350,7 +350,7 @@ export default function EditJob({ jobId }: EditJobProps) {
                     }) => (
                       <FormItem>
                         <FormLabel className="mb-6">
-                          Cron Schedule{" "}
+                          Cron Schedule (UTC){" "}
                           <span className="text-gray-500">(optional)</span>
                         </FormLabel>
                         <FormControl>
