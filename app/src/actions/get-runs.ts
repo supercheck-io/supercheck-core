@@ -1,13 +1,30 @@
 'use server';
 
 import { db } from "@/lib/db";
-import { runs, jobs, reports } from "@/db/schema/schema";
-import { desc, eq, and } from "drizzle-orm";
+import { runs, jobs, reports, jobTests } from "@/db/schema/schema";
+import { desc, eq, and, count } from "drizzle-orm";
 import { z } from "zod";
 import { runSchema } from "@/components/runs/schema";
 
 // Type for the response
 export type RunResponse = z.infer<typeof runSchema>;
+
+// Function to get test count for a job
+export async function getJobTestCount(jobId: string): Promise<number> {
+  try {
+    const dbInstance = await db();
+    
+    const result = await dbInstance
+      .select({ count: count() })
+      .from(jobTests)
+      .where(eq(jobTests.jobId, jobId));
+    
+    return result[0].count || 0;
+  } catch (error) {
+    console.error(`Failed to get test count for job ${jobId}:`, error);
+    return 0;
+  }
+}
 
 export async function getRuns(): Promise<RunResponse[]> {
   try {
@@ -93,12 +110,16 @@ export async function getRun(id: string): Promise<RunResponse | null> {
     
     const run = result[0];
     
+    // Get test count for this job
+    const testCount = await getJobTestCount(run.jobId);
+    
     return {
       ...run,
       jobName: run.jobName ?? undefined,
       startedAt: run.startedAt ? run.startedAt.toISOString() : null,
       completedAt: run.completedAt ? run.completedAt.toISOString() : null,
       timestamp: run.startedAt ? run.startedAt.toISOString() : new Date().toISOString(),
+      testCount: testCount,
     };
   } catch (error) {
     console.error(`Failed to fetch run ${id}:`, error);

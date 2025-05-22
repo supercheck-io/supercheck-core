@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Loader2Icon, FileText } from "lucide-react";
+import { AlertCircle, Loader2Icon, FileText, Maximize2, ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { PlaywrightLogo } from "./icons/playwright-logo";
 
 interface ReportViewerProps {
   reportUrl: string | null;
@@ -31,7 +32,9 @@ export function ReportViewer({
   const [iframeError, setIframeError] = useState(false);
   const [currentReportUrl, setCurrentReportUrl] = useState<string | null>(reportUrl);
   const [isValidationError, setIsValidationError] = useState(false);
+  const [showFullscreen, setShowFullscreen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const fullscreenIframeRef = useRef<HTMLIFrameElement>(null);
 
   console.log("--- REPORT VIEWER RENDERING ---", { reportUrl, isRunning, isReportLoading, iframeError, isValidationError });
 
@@ -40,9 +43,11 @@ export function ReportViewer({
     console.log("ReportViewer: reportUrl changed:", reportUrl);
     if (reportUrl) {
       // Always ensure we have a timestamp parameter to prevent caching issues
+      // Add theme parameter based on darkMode prop
+      const themeParam = darkMode ? 'theme=dark' : 'theme=light';
       const formattedUrl = reportUrl.includes('?') ? 
-        (reportUrl.includes('t=') ? reportUrl : `${reportUrl}&t=${Date.now()}`) : 
-        `${reportUrl}?t=${Date.now()}`;
+        (reportUrl.includes('t=') ? `${reportUrl}&${themeParam}` : `${reportUrl}&t=${Date.now()}&${themeParam}`) : 
+        `${reportUrl}?t=${Date.now()}&${themeParam}`;
       
       const finalUrl = formattedUrl; // Use the timestamped URL directly
       
@@ -78,7 +83,7 @@ export function ReportViewer({
       console.log("ReportViewer: reportUrl is null or empty");
       setCurrentReportUrl(null);
     }
-  }, [reportUrl]);
+  }, [reportUrl, darkMode]);
 
   // Safety timeout to prevent loading state from getting stuck
   useEffect(() => {
@@ -121,10 +126,10 @@ export function ReportViewer({
 
   // Static error page component
   const StaticErrorPage = ({ title, message }: { title: string; message: string }) => (
-    <div className={`flex flex-col items-center justify-center w-full h-full p-8 ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
+    <div className="flex flex-col items-center justify-center w-full h-full p-8">
       <div className="flex flex-col items-center text-center max-w-md">
         <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
-        <h1 className={`text-3xl font-bold mb-2 ${darkMode ? 'text-[#d4d4d4]' : ''}`}>{title}</h1>
+        <h1 className="text-3xl font-bold mb-2">{title}</h1>
         <p className="text-muted-foreground mb-6">{message}</p>
         <div className="flex gap-4">
           {backToUrl && (
@@ -154,7 +159,7 @@ export function ReportViewer({
     console.log("ReportViewer: Test is running, showing running state");
     return (
       <div className={containerClassName}>
-        <div className={`w-full h-full flex items-center justify-center ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
+        <div className="w-full h-full flex items-center justify-center">
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Loader2Icon className="h-12 w-12 animate-spin" />
             <p className="text-muted-foreground text-lg">Please wait, running script...</p>
@@ -169,7 +174,7 @@ export function ReportViewer({
     console.log("ReportViewer: No reportUrl and not running, showing empty state");
     return (
       <div className={containerClassName}>
-        <div className={`w-full h-full flex items-center justify-center ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
+        <div className="w-full h-full flex items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-muted-foreground -mt-[70px]">
             {!hideEmptyMessage && (
               <>
@@ -201,22 +206,36 @@ export function ReportViewer({
   return (
     <div className={containerClassName}>
       {isReportLoading && (
-        <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center text-muted-foreground  ${darkMode ? 'bg-[#1e1e1e]' : 'bg-background'}`}>
-          <Loader2Icon className={`h-12 w-12 animate-spin mb-3`} />
-          <p className="text-lg">{loadingMessage}</p>
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/95">
+          <Loader2Icon className="h-12 w-12 animate-spin mb-3 text-muted-foreground" />
+          <p className="text-lg text-muted-foreground">{loadingMessage}</p>
         </div>
       )}
       
       <div className="flex flex-col h-full w-full">
+        {!isRunning && currentReportUrl && !isReportLoading && !iframeError && (
+          <div className="absolute top-2 right-2 z-10">
+            <Button 
+              size="sm"
+              className="cursor-pointer flex items-center gap-1"
+              onClick={() => setShowFullscreen(true)}
+            >
+             
+              <Maximize2 className="h-4 w-4" />
+              
+            </Button>
+          </div>
+        )}
+        
         {!isRunning && currentReportUrl && (
           <iframe
             ref={iframeRef}
             key={currentReportUrl}
             src={currentReportUrl}
             className={`${iframeClassName} ${isReportLoading ? 'opacity-0' : ''} ${isValidationError ? 'h-4/5 flex-grow' : 'h-full'}`}
-            style={{ backgroundColor: darkMode ? '#1e1e1e' : undefined }}
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-            title="Playwright Test Report"
+          
+            title="Playwright Report"
             onLoad={(e) => {
               console.log("ReportViewer: iframe onLoad triggered for URL:", currentReportUrl);
               const iframe = e.target as HTMLIFrameElement;
@@ -299,7 +318,7 @@ export function ReportViewer({
         )}
         
         {isValidationError && !isReportLoading && (
-          <div className={`px-6 py-4 ${darkMode ? 'bg-[#1e1e1e] text-[#d4d4d4]' : 'bg-background'} border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+          <div className="px-6 py-4 border-t">
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className="h-5 w-5 text-amber-500" />
               <h3 className="text-base font-medium">Action Required</h3>
@@ -308,6 +327,37 @@ export function ReportViewer({
           </div>
         )}
       </div>
+      
+      {/* Manual fullscreen implementation */}
+      {showFullscreen && currentReportUrl && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
+          <div className="fixed inset-8 bg-background rounded-lg shadow-lg flex flex-col overflow-hidden border">
+            <div className="p-4 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <PlaywrightLogo width={42} height={42} />
+                <h2 className="text-xl font-semibold">Playwright Report</h2>
+              </div>
+              <Button 
+                className="cursor-pointer"
+                size="sm"
+                onClick={() => setShowFullscreen(false)}
+              >
+                <X className="h-4 w-4" />
+                Close
+              </Button>
+            </div>
+            <div className="flex-grow overflow-hidden">
+              <iframe
+                ref={fullscreenIframeRef}
+                src={currentReportUrl}
+                className="w-full h-full border-0"
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
+                title="Fullscreen Playwright Report"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

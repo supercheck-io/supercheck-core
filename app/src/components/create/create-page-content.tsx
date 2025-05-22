@@ -37,13 +37,7 @@ export function CreatePageContent() {
       path: "/create/api",
       scriptType: "api" as ScriptType,
     },
-    // {
-    //   icon: <Server size={24} />,
-    //   title: "TCP check",
-    //   description: "Monitor connectivity to TCP endpoints.",
-    //   path: "/create/tcp",
-    //   scriptType: "tcp" as ScriptType,
-    // },
+
     {
       icon: <ListOrdered size={24} />,
       title: "Multistep check",
@@ -51,21 +45,7 @@ export function CreatePageContent() {
       path: "/create/multistep",
       scriptType: "multistep" as ScriptType,
     },
-    
-    // {
-    //   icon: <Clock size={24} />,
-    //   title: "CRON/Heartbeat",
-    //   description: "Monitor tasks that run automatically.",
-    //   path: "/create/cron",
-    //   scriptType: "cron" as ScriptType,
-    // },
-    // {
-    //   icon: <Zap size={24} />,
-    //   title: "Group check",
-    //   description: "Organize multiple tests into logical groups.",
-    //   path: "/create/group",
-    //   scriptType: "group" as ScriptType,
-    // },
+
 
     {
       icon: <DatabaseZap size={24} />,

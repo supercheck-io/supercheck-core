@@ -2,31 +2,48 @@ import { RunDetails } from "@/components/runs/run-details";
 import { getRun } from "@/actions/get-runs";
 import { notFound } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
+import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
-interface RunPageProps {
-  params: Promise<{
-    id: string;
-  }>;
+type Params = {
+  params: {
+    id: string
+  }
 }
 
-export default async function RunPage({ params }: RunPageProps) {
-  // Await the params object before accessing its properties
-  const resolvedParams = await params;
-  const run = await getRun(resolvedParams.id);
-  const breadcrumbs = [
-    { label: "Home", href: "/" },
-    { label: "Runs", href: "/runs" },
-    { label: run?.id.slice(0, 8) + "..", isCurrentPage: true },
-  ];
+function DetailSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-10 w-24" />
+      </div>
+      <Skeleton className="h-[300px] w-full" />
+      <Skeleton className="h-[400px] w-full" />
+    </div>
+  );
+}
 
+export default async function RunPage({ params }: Params) {
+  const { id } = params;
+  const run = await getRun(id);
+  
   if (!run) {
     notFound();
   }
+  
+  const breadcrumbs = [
+    { label: "Home", href: "/" },
+    { label: "Runs", href: "/runs" },
+    { label: run.id.slice(0, 8) + "..", isCurrentPage: true },
+  ];
 
   return (
-    <div>
+    <div className="w-full max-w-full">
       <PageBreadcrumbs items={breadcrumbs} />
-      <RunDetails run={run} />
+      <Suspense fallback={<DetailSkeleton />}>
+        <RunDetails run={run} />
+      </Suspense>
     </div>
   );
 }

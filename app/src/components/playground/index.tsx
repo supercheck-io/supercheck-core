@@ -601,8 +601,8 @@ const Playground: React.FC<PlaygroundProps> = ({
                       <ReportViewer
                         reportUrl={reportUrl}
                         isRunning={isRunning || isReportLoading}
-                        containerClassName="h-[calc(100vh-10rem)] w-full relative"
-                        iframeClassName="h-[calc(100vh-10rem)] w-full"
+                        containerClassName="h-[calc(100vh-10rem)] w-full relative bg-black/95 border-1 rounded-bl-lg "
+                        iframeClassName="h-[calc(100vh-10rem)] w-full rounded-bl-lg"
                         darkMode={true}
                       />
                     </TabsContent>

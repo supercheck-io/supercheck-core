@@ -1,5 +1,5 @@
 import { Redis } from 'ioredis';
-import { TEST_EXECUTION_QUEUE, JOB_EXECUTION_QUEUE } from '@/lib/queue';
+import { TEST_EXECUTION_QUEUE, JOB_EXECUTION_QUEUE, HEALTH_CHECK_QUEUE } from '@/lib/queue';
 
 // Default capacity limits - enforced at both API and worker level
 export const RUNNING_CAPACITY = parseInt(process.env.RUNNING_CAPACITY || '5');
@@ -11,11 +11,25 @@ export const RUNNING_CAPACITY = parseInt(process.env.RUNNING_CAPACITY || '5');
  */
 export const QUEUED_CAPACITY = parseInt(process.env.QUEUED_CAPACITY || '50');
 
+/**
+ * Maximum number of health checks that can be active at once.
+ * This is enforced at the API layer to prevent overloading the system with too many checks.
+ */
+export const HEALTH_CHECK_CAPACITY = parseInt(process.env.HEALTH_CHECK_CAPACITY || '100');
+
 export interface QueueStats {
   running: number;
   runningCapacity: number;
   queued: number;
   queuedCapacity: number;
+}
+
+/**
+ * Extended queue stats including health check stats
+ */
+export interface ExtendedQueueStats extends QueueStats {
+  healthChecks: number;
+  healthCheckCapacity: number;
 }
 
 /**
@@ -157,6 +171,83 @@ export async function fetchQueueStats(): Promise<QueueStats> {
 }
 
 /**
+ * Fetch health check statistics from Redis
+ */
+export async function fetchHealthCheckStats(): Promise<{ healthChecks: number, healthCheckCapacity: number }> {
+  // Set up Redis connection
+  const host = process.env.REDIS_HOST || 'localhost';
+  const port = parseInt(process.env.REDIS_PORT || '6379');
+  const password = process.env.REDIS_PASSWORD;
+  
+  const redisClient = new Redis({
+    host,
+    port,
+    password: password || undefined,
+    maxRetriesPerRequest: null,
+    connectTimeout: 3000,
+  });
+
+  try {
+    // Count active, waiting, and delayed health checks
+    const [activeHealthChecks, waitingHealthChecks, delayedHealthChecks] = await Promise.all([
+      redisClient.llen(`bull:${HEALTH_CHECK_QUEUE}:active`),
+      redisClient.llen(`bull:${HEALTH_CHECK_QUEUE}:wait`),
+      redisClient.zcard(`bull:${HEALTH_CHECK_QUEUE}:delayed`)
+    ]);
+    
+    // Count health checks waiting to be processed
+    const totalHealthChecks = activeHealthChecks + waitingHealthChecks + delayedHealthChecks;
+    
+    return {
+      healthChecks: totalHealthChecks,
+      healthCheckCapacity: HEALTH_CHECK_CAPACITY,
+    };
+  } catch (error) {
+    console.error('Error fetching health check stats:', 
+      error instanceof Error ? error.message : String(error));
+    return {
+      healthChecks: 0,
+      healthCheckCapacity: HEALTH_CHECK_CAPACITY,
+    };
+  } finally {
+    // Always close Redis connection
+    await redisClient.quit().catch(() => {
+      // Silently ignore Redis quit errors
+    });
+  }
+}
+
+/**
+ * Fetch comprehensive stats including both regular queue and health checks
+ */
+export async function fetchExtendedQueueStats(): Promise<ExtendedQueueStats> {
+  try {
+    const [queueStats, healthCheckStats] = await Promise.all([
+      fetchQueueStats(),
+      fetchHealthCheckStats()
+    ]);
+    
+    return {
+      ...queueStats,
+      ...healthCheckStats
+    };
+  } catch (error) {
+    console.error('Error fetching extended queue stats:', 
+      error instanceof Error ? error.message : String(error));
+    
+    // Return default/empty stats if there's an error
+    return {
+      running: 0,
+      runningCapacity: RUNNING_CAPACITY,
+      queued: 0,
+      queuedCapacity: QUEUED_CAPACITY,
+      healthChecks: 0,
+      healthCheckCapacity: HEALTH_CHECK_CAPACITY
+    };
+  }
+}
+
+/**
  * Generate mock queue statistics for development or when Redis is unavailable
  */
 export function generateMockQueueStats(): QueueStats {
@@ -193,6 +284,22 @@ export function generateMockQueueStats(): QueueStats {
 }
 
 /**
+ * Generate mock extended queue statistics including health checks
+ */
+export function generateMockExtendedQueueStats(): ExtendedQueueStats {
+  const baseStats = generateMockQueueStats();
+  
+  // Generate semi-realistic mock health check data
+  const healthChecks = Math.floor(Math.random() * HEALTH_CHECK_CAPACITY * 0.5); // Up to 50% of capacity
+  
+  return {
+    ...baseStats,
+    healthChecks,
+    healthCheckCapacity: HEALTH_CHECK_CAPACITY
+  };
+}
+
+/**
  * Get queue statistics with fallback to zeros
  */
 export async function getQueueStats(): Promise<QueueStats> {
@@ -207,6 +314,27 @@ export async function getQueueStats(): Promise<QueueStats> {
       runningCapacity: RUNNING_CAPACITY,
       queued: 0,
       queuedCapacity: QUEUED_CAPACITY
+    };
+  }
+}
+
+/**
+ * Get extended queue statistics with health checks
+ */
+export async function getExtendedQueueStats(): Promise<ExtendedQueueStats> {
+  try {
+    return await fetchExtendedQueueStats();
+  } catch (error) {
+    console.error('Error fetching real extended queue stats:', 
+      error instanceof Error ? error.message : String(error));
+    // Return zeros rather than mock data
+    return {
+      running: 0,
+      runningCapacity: RUNNING_CAPACITY,
+      queued: 0,
+      queuedCapacity: QUEUED_CAPACITY,
+      healthChecks: 0,
+      healthCheckCapacity: HEALTH_CHECK_CAPACITY
     };
   }
 } 

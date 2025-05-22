@@ -43,6 +43,12 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 *.tsbuildinfo # General typescript build info
 
+## Node modules
+node_modules
+*/node_modules
+**/node_modules
+**/*/node_modules
+
 # App specific ignores (app/)
 ## Dependencies
 app/node_modules

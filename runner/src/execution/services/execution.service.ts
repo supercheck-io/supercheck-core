@@ -721,7 +721,9 @@ export class ExecutionService {
                 // Standard location for Playwright HTML report
                 PLAYWRIGHT_HTML_REPORT: playwrightReportDir,
                 // Add timestamp to prevent caching issues
-                PLAYWRIGHT_TIMESTAMP: Date.now().toString()
+                PLAYWRIGHT_TIMESTAMP: Date.now().toString(),
+                // Set the default theme to dark for HTML reports
+                PLAYWRIGHT_HTML_REPORT_THEME: 'dark'
             };
             
             this.logger.debug(`Executing playwright with execution ID: ${executionId}`);

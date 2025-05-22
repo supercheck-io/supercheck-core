@@ -20,8 +20,10 @@ import {
 import Link from "next/link";
 
 export function NavMain({
+  groupLabel,
   items,
 }: {
+  groupLabel: string;
   items: {
     title: string;
     url: string;
@@ -35,7 +37,7 @@ export function NavMain({
 }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
+      <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           <Collapsible

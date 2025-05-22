@@ -9,7 +9,7 @@ import {
   CalendarClock,
   Frame,
   ChartColumn,
-  // Activity,
+  Activity,
   Map,
   PieChart,
   // ChartBar,
@@ -19,6 +19,10 @@ import {
   // PlusIcon,
   Shield,
   PlusCircleIcon,
+  Globe,
+  Globe2,
+  ChartBar,
+  BellRing,
   // MailIcon,
 } from "lucide-react";
 
@@ -63,13 +67,30 @@ const data = {
       plan: "Free",
     },
   ],
-  navMain: [
+
+  Communicate: [
     {
       title: "Dashboard",
       url: "/",
       icon: ChartColumn,
       isActive: true,
     },
+    
+      {
+        title: "Status",
+        url: "/status",
+        icon: ChartBar,
+      },
+      {
+        title: "Alerts",
+        url: "/alerts",
+        icon: BellRing,
+      },
+
+  ],
+
+  Detect: [
+
     {
       title: "Playground",
       url: "#",
@@ -110,11 +131,7 @@ const data = {
       url: "/runs",
       icon: NotepadText,
     },
-    // {
-    //   title: "Heartbeats",
-    //   url: "/heartbests",
-    //   icon: Activity,
-    // },
+  
     // {
     //   title: "Panels",
     //   url: "/panels",
@@ -125,6 +142,21 @@ const data = {
     //   url: "/alerts",
     //   icon: BellRing,
     // },
+
+  ],
+
+  Monitor: [
+    
+    {
+      title: "Monitors",
+      url: "/monitors",
+      icon: Globe,
+    },
+    {
+      title: "Heartbeats",
+      url: "/heartbeats",
+      icon: Activity,
+    },
 
     {
       title: "Settings",
@@ -150,6 +182,7 @@ const data = {
       ],
     },
   ],
+
   projects: [
     {
       name: "Design Engineering",
@@ -191,8 +224,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-        <NavMain items={data.navMain} />
-        {/* <NavProjects projects={data.projects} /> */}
+        <NavMain groupLabel="Communicate" items={data.Communicate} />
+        <NavMain groupLabel="Detect" items={data.Detect} />
+        <NavMain groupLabel="Monitor" items={data.Monitor} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

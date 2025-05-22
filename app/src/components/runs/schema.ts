@@ -15,6 +15,7 @@ export const runSchema = z.object({
   videoUrl: z.string().nullable().optional(),
   screenshotUrls: z.array(z.string()).optional(),
   timestamp: z.string().optional(),
+  testCount: z.number().optional(),
 });
 
 export type TestRun = z.infer<typeof runSchema>;
