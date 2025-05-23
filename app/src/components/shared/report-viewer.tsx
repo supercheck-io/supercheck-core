@@ -175,7 +175,7 @@ export function ReportViewer({
     return (
       <div className={containerClassName}>
         <div className="w-full h-full flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3 text-muted-foreground -mt-[70px]">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground ">
             {!hideEmptyMessage && (
               <>
                 <FileText className="h-10 w-10" />
@@ -206,8 +206,8 @@ export function ReportViewer({
   return (
     <div className={containerClassName}>
       {isReportLoading && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/95">
-          <Loader2Icon className="h-12 w-12 animate-spin mb-3 text-muted-foreground" />
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#191919]">
+          <Loader2Icon className="h-12 w-12 animate-spin mb-2 text-muted-foreground" />
           <p className="text-lg text-muted-foreground">{loadingMessage}</p>
         </div>
       )}

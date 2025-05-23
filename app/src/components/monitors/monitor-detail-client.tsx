@@ -1,4 +1,4 @@
-"use client";
+    "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import {
   CheckCircle,
   Clock,
   CalendarIcon,
+  Calendar as CalendarIcon2,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { 
@@ -48,6 +50,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface MonitorDetailClientProps {
   monitor: Monitor;
@@ -60,6 +74,9 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5; // Show 5 items per page to avoid scrolling
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     // Set mounted flag to true and mark as client-side rendered
@@ -209,8 +226,40 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
     setCurrentPage(1); // Reset to first page when changing date
   };
 
+  const handleDeleteMonitor = async () => {
+    if (!monitor.id) {
+      toast.error('Monitor ID is missing');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/monitors/${encodeURIComponent(monitor.id)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete monitor (status ${response.status})`);
+      }
+      
+      toast.success('Monitor deleted successfully');
+      setShowDeleteDialog(false);
+      router.push('/monitors');
+      router.refresh(); // Refresh the page data
+    } catch (error) {
+      console.error('Error deleting monitor:', error);
+      toast.error('Failed to delete monitor');
+      setShowDeleteDialog(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
-    <div className="container py-4 px-4 ">
+    <div className="container py-4 px-4 h-full overflow-hidden">
       <div className="border rounded-lg p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -243,14 +292,7 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
           </div>
           
           <div className="flex gap-2">
-            <div className="flex flex-col items-end gap-1 mr-3">
-              <div className="text-xs text-muted-foreground">
-                Last checked: <span className="font-medium">{lastCheckedFormatted}</span>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Created: <span className="font-medium">{formatDate(monitor.createdAt)}</span>
-              </div>
-            </div>
+       
             
             <Button size="sm" className="h-7 px-2 py-0 text-xs" asChild>
               <Link href={`/monitors/${monitor.id}/edit`}>
@@ -258,11 +300,20 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
                 Edit
               </Link>
             </Button>
+            <Button 
+              variant="destructive"
+              size="sm"
+              className="h-7 px-2 py-0 text-xs"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="mr-1 h-3.5 w-3.5" />
+              Delete
+            </Button>
           </div>
         </div>
 
         {/* Status cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center">
             {status && (
               <status.icon className={`h-6 w-6 mr-2 ${status.color}`} />
@@ -296,25 +347,41 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
               <div className="text-sm font-semibold">{intervalFormatted}</div>
             </div>
           </div>
+
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center">
+            <CalendarIcon2 className="h-6 w-6 mr-2 text-amber-500" />
+            <div>
+              <div className="text-xs font-medium text-muted-foreground">Created</div>
+              <div className="text-sm font-semibold">
+                {monitor.createdAt ? new Date(monitor.createdAt).toLocaleString('en-US', {
+                  year: 'numeric',
+                  month: 'numeric',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                }) : "Unknown"}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Main content grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-270px)]">
         {/* Left column - Response time graph and uptime stats */}
-        <div className="space-y-6">
+        <div className="flex flex-col h-full">
           {/* Response time graph */}
-          <Card className="h-auto">
+          <Card>
             <CardHeader className="pb-2 px-6 pt-6">
               <CardTitle className="text-base font-medium flex items-center">
                 <Activity className="h-5 w-5 mr-2 text-muted-foreground" />
                 Response Times
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
-              <div className="w-full h-[240px] rounded bg-slate-900 overflow-hidden relative">
-                {/* Simulate response time graph */}
-                <svg width="100%" height="100%" viewBox="0 0 1000 240" preserveAspectRatio="none">
+            <CardContent className="p-6 pt-2">
+              <div className="w-full h-[300px] rounded bg-slate-900 relative">
+                <svg width="100%" height="300" viewBox="0 0 1000 240" preserveAspectRatio="none">
                   <defs>
                     <linearGradient id="grad1" x1="0%" y1="0%" x2="0%" y2="100%">
                       <stop offset="0%" style={{ stopColor: 'rgb(16, 185, 129)', stopOpacity: 0.2 }} />
@@ -327,17 +394,16 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
                   <line x1="0" y1="120" x2="1000" y2="120" stroke="#374151" strokeWidth="1" strokeDasharray="4" />
                   <line x1="0" y1="180" x2="1000" y2="180" stroke="#374151" strokeWidth="1" strokeDasharray="4" />
                   
-                  {/* Generate a spiky response curve that matches the image */}
+                  {/* Generate a spiky response curve that matches the image - adjusted for 300px height */}
                   {(() => {
-                    // Generate a spiky pattern more similar to the image
                     const points = [];
-                    const baseY = 170; // Base Y value (lower value = higher on graph)
+                    const baseY = 220; // Adjusted base Y value for 300px height
                     
                     // Starting portion - low spikes
                     for (let i = 0; i < 200; i++) {
                       const x = i;
-                      const randomFactor = Math.random() * 30;
-                      const y = baseY - 10 - randomFactor - (i < 150 ? Math.sin(i/20) * 20 : 0);
+                      const randomFactor = Math.random() * 40;
+                      const y = baseY - 10 - randomFactor - (i < 150 ? Math.sin(i/20) * 25 : 0);
                       points.push(`${x},${y}`);
                     }
                     
@@ -346,48 +412,42 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
                       const x = i;
                       const progress = (i - 200) / 200;
                       const peakFactor = Math.sin(progress * Math.PI);
-                      const y = baseY - 10 - peakFactor * 120;
+                      const y = baseY - 10 - peakFactor * 150;
                       points.push(`${x},${y}`);
                     }
                     
                     // Later portion - medium spikes
                     for (let i = 400; i < 1000; i++) {
                       const x = i;
-                      const randomFactor = Math.random() * 20;
-                      // Add a small peak around position 600
-                      const secondaryPeak = i > 580 && i < 650 ? 40 * Math.sin((i-580)/70 * Math.PI) : 0;
+                      const randomFactor = Math.random() * 25;
+                      const secondaryPeak = i > 580 && i < 650 ? 50 * Math.sin((i-580)/70 * Math.PI) : 0;
                       const y = baseY - 15 - randomFactor - secondaryPeak;
                       points.push(`${x},${y}`);
                     }
                     
-                    // Create path for line
                     const linePath = `M${points.join(' L')}`;
-                    
-                    // Create path for area fill, extended to bottom
-                    const areaPath = `${linePath} L1000,240 L0,240 Z`;
+                    const areaPath = `${linePath} L1000,300 L0,300 Z`;
                     
                     return (
                       <>
-                        {/* Fill area under curve */}
                         <path d={areaPath} fill="url(#grad1)" />
-                        {/* Draw the actual line */}
                         <path d={linePath} fill="none" stroke="#10B981" strokeWidth="2" />
                       </>
                     );
                   })()}
 
                   {/* Simulate a brief outage with a red segment */}
-                  <circle cx="780" cy="190" r="3" fill="#EF4444" />
-                  <circle cx="790" cy="190" r="3" fill="#EF4444" />
-                  <circle cx="800" cy="190" r="3" fill="#EF4444" />
+                  <circle cx="780" cy="240" r="3" fill="#EF4444" />
+                  <circle cx="790" cy="240" r="3" fill="#EF4444" />
+                  <circle cx="800" cy="240" r="3" fill="#EF4444" />
                 </svg>
                 
-                {/* Y-axis labels */}
+                {/* Y-axis labels - adjusted for 300px height */}
                 <div className="absolute top-0 left-0 h-full text-xs text-slate-400 p-2 flex flex-col justify-between">
-                  <div>8.00</div>
-                  <div>6.00</div>
-                  <div>4.00</div>
-                  <div>2.00</div>
+                  <div>10.00</div>
+                  <div>7.50</div>
+                  <div>5.00</div>
+                  <div>2.50</div>
                   <div>0.00</div>
                 </div>
                 
@@ -404,7 +464,7 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
           </Card>
 
           {/* Uptime statistics */}
-          <Card className="h-auto">
+          <Card className="flex-1 mt-4">
             <CardHeader className="pb-2 px-6 pt-5">
               <CardTitle className="text-base font-medium flex items-center">
                 <CheckCircle2 className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -439,7 +499,7 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
         </div>
 
         {/* Right column - Check Results */}
-        <Card className="flex flex-col">
+        <Card className="flex flex-col h-full">
           <CardHeader className="pb-2 px-6 pt-5 flex flex-row justify-between items-center">
             <CardTitle className="text-base font-medium flex items-center">
               <CheckCircle2 className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -448,7 +508,6 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
             
             {/* Date Picker with Presets */}
             <div className="flex items-center">
-            
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -492,8 +551,8 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
               </Popover>
             </div>
           </CardHeader>
-          <CardContent className="px-0 py-0 flex-1 h-full">
-            <div className="overflow-hidden">
+          <CardContent className="px-0 py-0 flex-1">
+            <div className="h-full overflow-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/30 border-b">
                   <tr>
@@ -564,10 +623,6 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
             </div>
           </CardContent>
           <CardFooter className="flex justify-between items-center border-t py-3 px-4">
-            {/* Pagination centered */}
-            <div className="text-sm text-muted-foreground">
-              Page {currentPage} of {totalPages}
-            </div>
             <Pagination className="w-auto">
               <PaginationContent>
                 <PaginationItem>
@@ -611,6 +666,28 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
           </CardFooter>
         </Card>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Monitor</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this monitor? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMonitor}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

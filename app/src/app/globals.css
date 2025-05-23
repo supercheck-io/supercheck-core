@@ -130,10 +130,10 @@
 }
 
 /* Custom styles for iframe content */
-/* iframe {
-  background-color: #1e1e1e;
+iframe {
+  background-color: #191919;
   color-scheme: dark;
-} */
+}
 
 /* Add a custom class for the report iframe wrapper */
 /* .report-iframe-wrapper {
