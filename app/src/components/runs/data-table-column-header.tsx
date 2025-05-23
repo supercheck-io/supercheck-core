@@ -1,15 +1,13 @@
-import * as React from "react";
-import type { Column } from "@tanstack/react-table";
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   EyeOff,
 } from "lucide-react";
-import type { SortDirection } from "@tanstack/react-table";
+import { Column } from "@tanstack/react-table";
 
 import { cn } from "@/lib/utils";
-import { Button } from "~/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,4 +69,4 @@ export function DataTableColumnHeader<TData, TValue>({
       </Button>
     </div>
   );
-}
+} 

@@ -61,6 +61,48 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = React.useState("");
 
+  // Create a ref to track if the component is mounted
+  const isMounted = React.useRef(false);
+
+  // Set mounted to true after initial render
+  React.useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  // Safe state setters that only run when component is mounted
+  const safeSetRowSelection = React.useCallback((value: any) => {
+    if (isMounted.current) {
+      setRowSelection(value);
+    }
+  }, []);
+  
+  const safeSetSorting = React.useCallback((value: any) => {
+    if (isMounted.current) {
+      setSorting(value);
+    }
+  }, []);
+  
+  const safeSetColumnFilters = React.useCallback((value: any) => {
+    if (isMounted.current) {
+      setColumnFilters(value);
+    }
+  }, []);
+  
+  const safeSetColumnVisibility = React.useCallback((value: any) => {
+    if (isMounted.current) {
+      setColumnVisibility(value);
+    }
+  }, []);
+  
+  const safeSetGlobalFilter = React.useCallback((value: any) => {
+    if (isMounted.current) {
+      setGlobalFilter(value);
+    }
+  }, []);
+
   const table = useReactTable({
     data,
     columns,
@@ -72,11 +114,11 @@ export function DataTable<TData, TValue>({
       globalFilter,
     },
     enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onGlobalFilterChange: setGlobalFilter,
+    onRowSelectionChange: safeSetRowSelection,
+    onSortingChange: safeSetSorting,
+    onColumnFiltersChange: safeSetColumnFilters,
+    onColumnVisibilityChange: safeSetColumnVisibility,
+    onGlobalFilterChange: safeSetGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -89,6 +131,14 @@ export function DataTable<TData, TValue>({
       ...meta,
     } as TableMeta,
   });
+
+  // Use useEffect to reset pagination after the component has mounted
+  React.useEffect(() => {
+    // Only reset if there's data and the component is mounted
+    if (data.length > 0 && isMounted.current) {
+      table.resetPageIndex(true);
+    }
+  }, [data, table]);
 
   // Handle row clicks while checking for action column clicks
   const handleRowClick = (e: React.MouseEvent, row: Row<TData>) => {
@@ -110,13 +160,6 @@ export function DataTable<TData, TValue>({
     }
   };
 
-  // Initialize pagination after component has mounted
-  React.useEffect(() => {
-    if (data.length > 0) {
-      table.resetPageIndex(true);
-    }
-  }, [data, table]);
-
   return (
     <div className="space-y-4">
       <DataTableToolbar table={table} />
@@ -127,7 +170,7 @@ export function DataTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
+                    <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -160,15 +203,15 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={(e) => handleRowClick(e, row)}
                   className={cn(
                     onRowClick ? "hover:bg-muted cursor-pointer" : "",
                     "h-16"
                   )}
+                  onClick={(e) => handleRowClick(e, row)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell 
-                      key={cell.id} 
+                      key={cell.id}
                       className={cn(
                         "py-4",
                         cell.column.id === "actions" ? "actions-column" : ""

@@ -11,12 +11,17 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { useBreadcrumbs } from "@/components/breadcrumb-context";
+import { Home } from "lucide-react";
 
 export function BreadcrumbDisplay() {
   const { breadcrumbs } = useBreadcrumbs();
 
   if (!breadcrumbs || breadcrumbs.length === 0) {
-    return <div className="text-sm text-muted-foreground">[Home]</div>;
+    return (
+      <div className="text-sm text-muted-foreground">
+        <Home className="h-4 w-4" />
+      </div>
+    );
   }
 
   return (
@@ -26,10 +31,14 @@ export function BreadcrumbDisplay() {
           <React.Fragment key={`${item.label}-${index}`}>
             <BreadcrumbItem className="block">
               {item.isCurrentPage ? (
-                <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                <BreadcrumbPage>
+                  {item.label === "Home" ? <Home className="h-4 w-4" /> : item.label}
+                </BreadcrumbPage>
               ) : (
                 <BreadcrumbLink asChild>
-                  <Link href={item.href || "#"}>{item.label}</Link>
+                  <Link href={item.href || "#"}>
+                    {item.label === "Home" ? <Home className="h-4 w-4" /> : item.label}
+                  </Link>
                 </BreadcrumbLink>
               )}
             </BreadcrumbItem>

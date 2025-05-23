@@ -64,6 +64,46 @@ export function DataTable<TData, TValue>({
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = React.useState("");
+  const [mounted, setMounted] = React.useState(false);
+
+  // Set mounted to true after initial render
+  React.useEffect(() => {
+    setMounted(true);
+    return () => {
+      setMounted(false);
+    };
+  }, []);
+
+  // Safe state setters that only run when component is mounted
+  const safeSetRowSelection = React.useCallback((value: any) => {
+    if (mounted) {
+      setRowSelection(value);
+    }
+  }, [mounted]);
+  
+  const safeSetSorting = React.useCallback((value: any) => {
+    if (mounted) {
+      setSorting(value);
+    }
+  }, [mounted]);
+  
+  const safeSetColumnFilters = React.useCallback((value: any) => {
+    if (mounted) {
+      setColumnFilters(value);
+    }
+  }, [mounted]);
+  
+  const safeSetColumnVisibility = React.useCallback((value: any) => {
+    if (mounted) {
+      setColumnVisibility(value);
+    }
+  }, [mounted]);
+  
+  const safeSetGlobalFilter = React.useCallback((value: any) => {
+    if (mounted) {
+      setGlobalFilter(value);
+    }
+  }, [mounted]);
 
   const table = useReactTable({
     data,
@@ -76,11 +116,11 @@ export function DataTable<TData, TValue>({
       globalFilter,
     },
     enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onGlobalFilterChange: setGlobalFilter,
+    onRowSelectionChange: safeSetRowSelection,
+    onSortingChange: safeSetSorting,
+    onColumnFiltersChange: safeSetColumnFilters,
+    onColumnVisibilityChange: safeSetColumnVisibility,
+    onGlobalFilterChange: safeSetGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -94,12 +134,32 @@ export function DataTable<TData, TValue>({
     } as ExtendedTableMeta<TData>,
   });
 
-  // Initialize pagination after component has mounted
+  // Use useEffect to reset pagination after the component has mounted
   React.useEffect(() => {
-    if (data.length > 0) {
+    // Only reset if there's data and the component is mounted
+    if (data.length > 0 && mounted) {
       table.resetPageIndex(true);
     }
-  }, [data, table]);
+  }, [data, table, mounted]);
+
+  // Handle row clicks while checking for action column clicks
+  const handleRowClick = (e: React.MouseEvent, row: Row<TData>) => {
+    const target = e.target as HTMLElement;
+    
+    // Check if the click was inside or on a dropdown menu or button
+    if (
+      target.closest('[role="menuitem"]') || 
+      target.closest('[role="menu"]') || 
+      target.closest('button')
+    ) {
+      return; // Don't process row click
+    }
+    
+    // Process row click if handler provided
+    if (onRowClick) {
+      onRowClick(row);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -111,7 +171,7 @@ export function DataTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
+                    <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -144,25 +204,20 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={(e) => {
-                    // Only trigger row click if the click was directly on the row
-                    // and not on a button or other interactive element
-                    if (
-                      e.target instanceof HTMLElement &&
-                      !e.target.closest("button") &&
-                      !e.target.closest('[role="menuitem"]') &&
-                      !e.target.closest('[role="menu"]')
-                    ) {
-                      onRowClick?.(row);
-                    }
-                  }}
+                  onClick={(e) => handleRowClick(e, row)}
                   className={cn(
-                    onRowClick ? "hover:bg-muted" : "",
+                    onRowClick ? "hover:bg-muted cursor-pointer" : "",
                     "h-16"
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell 
+                      key={cell.id}
+                      className={cn(
+                        "py-4",
+                        cell.column.id === "actions" ? "actions-column" : ""
+                      )}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

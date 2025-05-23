@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import {
   type ColumnDef,
@@ -54,56 +56,51 @@ export function DataTable<TData, TValue>({
   onRowClick,
   meta,
 }: DataTableProps<TData, TValue>) {
+  const [mounted, setMounted] = React.useState(false);
   const [rowSelection, setRowSelection] = React.useState({});
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  );
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = React.useState("");
 
-  // Create a ref to track if the component is mounted
-  const isMounted = React.useRef(false);
-
   // Set mounted to true after initial render
   React.useEffect(() => {
-    isMounted.current = true;
+    setMounted(true);
     return () => {
-      isMounted.current = false;
+      setMounted(false);
     };
   }, []);
 
   // Safe state setters that only run when component is mounted
   const safeSetRowSelection = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setRowSelection(value);
     }
-  }, []);
+  }, [mounted]);
   
   const safeSetSorting = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setSorting(value);
     }
-  }, []);
+  }, [mounted]);
   
   const safeSetColumnFilters = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setColumnFilters(value);
     }
-  }, []);
+  }, [mounted]);
   
   const safeSetColumnVisibility = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setColumnVisibility(value);
     }
-  }, []);
+  }, [mounted]);
   
   const safeSetGlobalFilter = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setGlobalFilter(value);
     }
-  }, []);
+  }, [mounted]);
 
   const table = useReactTable({
     data,
@@ -137,10 +134,10 @@ export function DataTable<TData, TValue>({
   // Use useEffect to reset pagination after the component has mounted
   React.useEffect(() => {
     // Only reset if there's data and the component is mounted
-    if (data.length > 0 && isMounted.current) {
+    if (data.length > 0 && mounted) {
       table.resetPageIndex(true);
     }
-  }, [data, table]);
+  }, [data, table, mounted]);
 
   // Handle row clicks while checking for action column clicks
   const handleRowClick = (e: React.MouseEvent, row: Row<TData>) => {
@@ -161,17 +158,53 @@ export function DataTable<TData, TValue>({
     }
   };
 
+  // Don't render anything until mounted to prevent hydration issues
+  if (!mounted) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-md border relative">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
+                  <div className="flex justify-center items-center space-x-2">
+                    <Loader2 className="h-6 w-4 animate-spin text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                      Loading...
+                    </span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <DataTableToolbar table={table} />
-      <div className={cn("rounded-md border", 
-        isLoading ? "relative min-h-[300px]" : ""
-      )}>
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/60 z-10">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        )}
+      <div className="rounded-md border relative">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -192,14 +225,28 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
+                  <div className="flex justify-center items-center space-x-2">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                      Loading data...
+                    </span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className={cn(
                     onRowClick ? "hover:bg-muted cursor-pointer" : "",
-                    "h-16" // Match the height from runs table
+                    "h-16"
                   )}
                   onClick={(e) => handleRowClick(e, row)}
                 >
@@ -207,7 +254,7 @@ export function DataTable<TData, TValue>({
                     <TableCell 
                       key={cell.id}
                       className={cn(
-                        "py-4", // Match the padding from runs table
+                        "py-4",
                         cell.column.id === "actions" ? "actions-column" : ""
                       )}
                     >

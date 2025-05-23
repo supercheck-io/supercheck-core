@@ -14,7 +14,7 @@ type Params = {
 export async function generateMetadata({ 
   params 
 }: Params): Promise<Metadata> {
-  const id = params.id;
+  const { id } = await Promise.resolve(params);
   
   return {
     title: "Monitor Details | Supercheck",
@@ -54,10 +54,10 @@ function DetailSkeleton() {
 //   }
 // }
 
-export default function MonitorDetailsPage({ 
+export default async function MonitorDetailsPage({ 
   params 
 }: Params) {
-  const id = params.id;
+  const { id } = await Promise.resolve(params);
   
   // Define breadcrumbs
   const breadcrumbs = [
