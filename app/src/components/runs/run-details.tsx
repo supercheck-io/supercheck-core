@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { RunResponse } from "@/actions/get-runs";
-import { Badge } from "@/components/ui/badge";
-import { UUIDField } from "@/components/ui/uuid-field";
 import { runStatuses } from "./data";
 import { toast } from "sonner";
 import { ReportViewer } from "@/components/shared/report-viewer";
@@ -14,7 +12,6 @@ import {
   CalendarClock,
   Copy,
   FileText,
-  Tag,
   Calendar,
   Trash2
 } from "lucide-react";
@@ -183,7 +180,7 @@ export function RunDetails({ run }: RunDetailsProps) {
   };
 
   return (
-    <div className="container py-6 px-6 h-full overflow-hidden">
+    <div className="container py-4 px-4 h-full overflow-hidden">
       {/* Status listener for real-time updates */}
       <RunStatusListener 
         runId={run.id} 
@@ -311,7 +308,7 @@ export function RunDetails({ run }: RunDetailsProps) {
             isRunning={currentStatus === "running"}
             backToLabel="Back to Runs"
             backToUrl="/runs"
-            containerClassName="w-full h-[calc(100vh-290px)] relative"
+            containerClassName="w-full h-[calc(100vh-270px)] relative"
             iframeClassName="w-full h-full border-0 rounded-lg"
             darkMode={false}
             hideEmptyMessage={true}

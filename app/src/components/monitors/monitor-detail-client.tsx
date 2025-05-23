@@ -210,7 +210,7 @@ export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
   };
 
   return (
-    <div className="container py-6 px-6">
+    <div className="container py-4 px-4 ">
       <div className="border rounded-lg p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
