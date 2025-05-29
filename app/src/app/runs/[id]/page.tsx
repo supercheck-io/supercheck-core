@@ -35,7 +35,7 @@ export default async function RunPage({ params }: Params) {
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Runs", href: "/runs" },
-    { label: run.id.slice(0, 8) + "..", isCurrentPage: true },
+    { label: "Report", isCurrentPage: true },
   ];
 
   return (

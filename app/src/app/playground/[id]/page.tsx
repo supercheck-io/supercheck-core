@@ -75,8 +75,8 @@ export default function PlaygroundPage() {
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Playground", href: "/playground" },
-    { label: "Test", href: "/tests" },
-    { label: id?.slice(0, 8) + ".." || "", isCurrentPage: true },
+    { label: "Tests", href: "/tests" },
+    { label: "Edit", isCurrentPage: true },
   ];
 
   // Fetch test data and set loading state

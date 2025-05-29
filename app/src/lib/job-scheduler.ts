@@ -14,7 +14,8 @@ const queueMap = new Map<string, Queue>();
 const workerMap = new Map<string, Worker>();
 
 // Constants
-const SCHEDULER_QUEUE = "job-execution-scheduler";
+const SCHEDULER_QUEUE = "job-scheduler";
+const JOB_QUEUE_FOR_SCHEDULER = "job-execution";
 
 interface ScheduleOptions {
   name: string;

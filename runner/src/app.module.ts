@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ExecutionModule } from './execution.module';
+import { MonitorModule } from './monitor/monitor.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ExecutionModule } from './execution.module';
       inject: [ConfigService],
     }),
     ExecutionModule,
+    MonitorModule,
   ],
   controllers: [AppController],
   providers: [AppService],

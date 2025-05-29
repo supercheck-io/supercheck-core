@@ -1,6 +1,6 @@
-    "use client";
+"use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   ChevronLeft, 
@@ -14,6 +14,15 @@ import {
   CalendarIcon,
   Calendar as CalendarIcon2,
   Trash2,
+  MoreHorizontal,
+  Edit3,
+  Play,
+  Pause,
+  BarChart2,
+  ListChecks,
+  Zap,
+  TrendingUp,
+  ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { 
@@ -21,11 +30,12 @@ import {
   CardContent, 
   CardHeader, 
   CardTitle,
-  CardFooter
+  CardFooter,
+  CardDescription,
 } from "@/components/ui/card";
 import { monitorStatuses, monitorTypes } from "@/components/monitors/data";
-import { Monitor } from "@/components/monitors/schema";
-import { formatDistanceToNow, format, addDays, startOfDay, endOfDay } from "date-fns";
+import { Monitor as MonitorSchemaType } from "./schema";
+import { formatDistanceToNow, format, addDays, startOfDay, endOfDay, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -62,627 +72,345 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { ResponseTimeBarChart } from "@/components/monitors/response-time-bar-chart";
+import { MonitorChart, MonitorChartDataPoint } from "./monitor-chart";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MonitorStatusIndicator } from "./monitor-status-indicator";
+import { 
+    MonitorStatus as DBMoniotorStatusType,
+    MonitorResultStatus as DBMonitorResultStatusType, 
+    MonitorResultDetails as DBMonitorResultDetailsType 
+} from "@/db/schema/schema";
 
-interface MonitorDetailClientProps {
-  monitor: Monitor;
+export interface MonitorResultItem {
+  id: string;
+  monitorId: string;
+  checkedAt: string | Date;
+  status: DBMonitorResultStatusType;
+  responseTimeMs?: number | null;
+  details?: DBMonitorResultDetailsType | null;
+  isUp: boolean;
 }
 
-export function MonitorDetailClient({ monitor }: MonitorDetailClientProps) {
-  // Track component mount state to prevent state updates on unmounted components
-  const isMounted = useRef(false);
-  const [isClient, setIsClient] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5; // Show 5 items per page to avoid scrolling
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+export type MonitorWithResults = MonitorSchemaType & {
+  recentResults?: MonitorResultItem[];
+  type?: string;
+};
+
+interface MonitorDetailClientProps {
+  monitor: MonitorWithResults;
+}
+
+const formatDateTime = (dateTimeInput?: string | Date): string => {
+    if (!dateTimeInput) return "N/A";
+    try {
+        const date = typeof dateTimeInput === 'string' ? parseISO(dateTimeInput) : dateTimeInput;
+        return formatDistanceToNow(date, { addSuffix: true });
+    } catch (error) {
+        console.warn("Failed to format date:", dateTimeInput, error);
+        return "Invalid date";
+    }
+};
+
+export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailClientProps) {
   const router = useRouter();
+  const [monitor, setMonitor] = useState<MonitorWithResults>(initialMonitor);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
-    // Set mounted flag to true and mark as client-side rendered
-    isMounted.current = true;
-    setIsClient(true);
-    
-    // Cleanup on unmount
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-  
-  const status = monitorStatuses.find(s => s.value === monitor.status);
-  const type = monitorTypes.find(t => t.value === monitor.method);
-  
-  // Format the uptime as a number for the chart
-  const uptimeValue = typeof monitor.uptime === 'number' 
-    ? monitor.uptime 
-    : parseFloat(monitor.uptime || '0');
-  
-  // Format last checked time
-  const lastCheckedFormatted = monitor.lastCheckedAt
-    ? formatDistanceToNow(new Date(monitor.lastCheckedAt), { addSuffix: true })
-    : 'Unknown';
-  
-  // Format interval
-  const intervalFormatted = monitor.interval < 60 
-    ? `${monitor.interval}s` 
-    : `${Math.floor(monitor.interval / 60)}m`;
+    setMonitor(initialMonitor);
+  }, [initialMonitor]);
 
-  // Format date consistently to prevent hydration errors
-  const formatDate = (date: string | Date | undefined) => {
-    if (!isClient || !date) return ""; // Return empty during SSR or if date is undefined
-    
-    const d = new Date(date);
-    return `${d.getUTCDate().toString().padStart(2, '0')}/${(d.getUTCMonth() + 1).toString().padStart(2, '0')}/${d.getUTCFullYear()}`;
-  };
-
-  // Ensure responseTime is a number
-  const responseTime = monitor.responseTime || 342; // Default to 342ms if undefined
-
-  // Generate mock check results across different days
-  const generateCheckResults = () => {
-    // Create results for the last 90 days to cover all time periods
-    const results = [];
-    for (let i = 0; i < 90; i++) {
-      // Create 3-5 entries per day
-      const entriesPerDay = 3 + Math.floor(Math.random() * 3);
-      const dayDate = new Date();
-      dayDate.setDate(dayDate.getDate() - i);
-      
-      for (let j = 0; j < entriesPerDay; j++) {
-        const time = new Date(dayDate);
-        time.setHours(Math.floor(Math.random() * 24));
-        time.setMinutes(Math.floor(Math.random() * 60));
-        
-        results.push({
-          time,
-          responseTime: Math.floor(responseTime * (0.8 + Math.random() * 0.4)),
-          status: Math.random() > 0.1 ? "up" : "down",
-          region: Math.random() > 0.5 ? "US East" : "Europe"
-        });
-      }
-    }
-    return results;
-  };
-
-  const allCheckResults = generateCheckResults();
-
-  // Filter results by selected date
-  const filteredResults = selectedDate 
-    ? allCheckResults.filter(check => {
-        const checkDate = new Date(check.time);
-        return checkDate.getDate() === selectedDate.getDate() && 
-               checkDate.getMonth() === selectedDate.getMonth() && 
-               checkDate.getFullYear() === selectedDate.getFullYear();
-      })
-    : allCheckResults.slice(0, 50); // Default to showing most recent entries
-
-  // Calculate pagination
-  const totalPages = Math.max(1, Math.ceil(filteredResults.length / itemsPerPage));
-  const paginatedResults = filteredResults.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // Generate uptime statistics for various time periods
-  const getUptimeStats = () => {
-    return [
-      {
-        period: "Today",
-        uptime: "100.000%",
-        downtime: "none",
-        avgResponse: responseTime - 15,
-      },
-      {
-        period: "Last 7 days",
-        uptime: "99.982%",
-        downtime: "12 minutes",
-        avgResponse: responseTime,
-      },
-      {
-        period: "Last 30 days",
-        uptime: "99.991%",
-        downtime: "12 minutes",
-        avgResponse: responseTime + 8,
-      },
-      {
-        period: "Last 3 months",
-        uptime: "99.987%",
-        downtime: "38 minutes",
-        avgResponse: responseTime + 12,
-      },
-      {
-        period: "Last 6 months",
-        uptime: "99.979%",
-        downtime: "1.5 hours",
-        avgResponse: responseTime + 14,
-      },
-      
-    ];
-  };
-
-  const uptimeStats = getUptimeStats();
-
-  // Handle preset date selection
-  const handleDatePreset = (value: string) => {
-    if (!isMounted.current) return;
-    
-    let newDate: Date;
-    
-    switch(value) {
-      case "0":
-        newDate = new Date(); // Today
-        break;
-      case "-1":
-        newDate = addDays(new Date(), -1); // Yesterday
-        break;
-      case "-7":
-        newDate = addDays(new Date(), -7); // Last week
-        break;
-      default:
-        newDate = addDays(new Date(), parseInt(value));
-    }
-    
-    setSelectedDate(newDate);
-    setCurrentPage(1); // Reset to first page when changing date
-  };
-
-  const handleDeleteMonitor = async () => {
-    if (!monitor.id) {
-      toast.error('Monitor ID is missing');
-      return;
-    }
-
+  const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/monitors/${encodeURIComponent(monitor.id)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      const response = await fetch(`/api/monitors/${monitor.id}`, {
+        method: "DELETE",
       });
-      
       if (!response.ok) {
-        throw new Error(`Failed to delete monitor (status ${response.status})`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete monitor");
       }
-      
-      toast.success('Monitor deleted successfully');
-      setShowDeleteDialog(false);
-      router.push('/monitors');
-      router.refresh(); // Refresh the page data
+      toast.success(`Monitor "${monitor.name}" deleted successfully.`);
+      router.push("/monitors");
+      router.refresh();
     } catch (error) {
-      console.error('Error deleting monitor:', error);
-      toast.error('Failed to delete monitor');
-      setShowDeleteDialog(false);
+      console.error("Error deleting monitor:", error);
+      toast.error((error as Error).message || "Could not delete monitor.");
     } finally {
-      setIsDeleting(false);
+        setIsDeleting(false);
+        setShowDeleteDialog(false);
+    }
+  };
+  
+  const handleToggleStatus = async () => {
+    let newStatus: DBMoniotorStatusType = monitor.status === 'paused' ? 'up' : 'paused';
+    if (monitor.status === 'paused' && monitor.recentResults && monitor.recentResults.length > 0) {
+        newStatus = monitor.recentResults[0].isUp ? 'up' : 'down';
+    }
+
+    try {
+      const response = await fetch(`/api/monitors/${monitor.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update monitor status");
+      }
+      const updatedMonitorData: MonitorWithResults = await response.json();
+      setMonitor(prev => ({...prev, ...updatedMonitorData}));
+      toast.success(`Monitor "${monitor.name}" status updated to ${newStatus}.`);
+    } catch (error) {
+      console.error("Error toggling monitor status:", error);
+      toast.error((error as Error).message || "Could not update monitor status.");
     }
   };
 
+  const responseTimeData = useMemo(() => {
+    if (!monitor.recentResults || monitor.recentResults.length === 0) return [];
+    return monitor.recentResults
+      .map(r => ({ 
+        name: formatDateTime(r.checkedAt),
+        time: r.responseTimeMs || 0 
+      }))
+      .reverse();
+  }, [monitor.recentResults]);
+  
+  const statusHistoryData: MonitorChartDataPoint[] = useMemo(() => {
+    if (!monitor.recentResults || monitor.recentResults.length === 0) return [];
+    return monitor.recentResults.map(r => ({
+        timestamp: (typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt).getTime(),
+        status: r.isUp ? 1 : 0, 
+        label: r.status,
+        responseTime: r.responseTimeMs
+    })).reverse(); 
+  }, [monitor.recentResults]);
+
+  const statusInfo = monitorStatuses.find((s) => s.value === monitor.status);
+  const monitorTypeInfo = monitorTypes.find((t) => t.value === monitor.type);
+
+  const avgResponse24h = "122 ms";
+  const uptime30d = "99.95%";
+  const currentResponseTime = monitor.responseTime !== undefined && monitor.responseTime !== null ? `${monitor.responseTime} ms` : (monitor.recentResults && monitor.recentResults.length > 0 && monitor.recentResults[0].responseTimeMs !== undefined && monitor.recentResults[0].responseTimeMs !== null ? `${monitor.recentResults[0].responseTimeMs} ms` : "N/A");
+  const uptime24h = monitor.uptime ? `${parseFloat(monitor.uptime as string).toFixed(2)}%` : "N/A";
+
   return (
-    <div className="container py-4 px-4 h-full overflow-hidden">
-      <div className="border rounded-lg p-4 mb-4">
+    <div className="container py-6 px-4 md:px-6 h-full overflow-hidden">
+      <div className="border rounded-lg p-4 mb-6 shadow-sm bg-card">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button 
               variant="outline" 
               size="icon"
-              className="h-7 w-7"
-              asChild
+              className="h-8 w-8"
+              onClick={() => router.push('/monitors')}
             >
-              <Link href="/monitors">
-                <ChevronLeft className="h-3.5 w-3.5" />
-                <span className="sr-only">Back to monitors</span>
-              </Link>
+              <ChevronLeft className="h-4 w-4" />
+              <span className="sr-only">Back to monitors</span>
             </Button>
             <div>
-              <h1 className="text-xl font-bold">
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                {monitorTypeInfo?.icon && <monitorTypeInfo.icon className="h-6 w-6 text-primary" />}
                 {monitor.name}
               </h1>
-              <div className="text-muted-foreground text-xs flex items-center gap-2">
-                <Globe className="h-3 w-3" />
-                <span className="truncate max-w-md">{monitor.url}</span>
-                {type && (
-                  <Badge variant="outline" className="ml-2 capitalize">
-                    <type.icon className={`mr-1 h-2.5 w-2.5 ${type.color}`} />
-                    {type.label}
-                  </Badge>
-                )}
+              <div className="text-sm text-muted-foreground truncate max-w-md" title={monitor.url}>
+                {monitor.url} 
               </div>
             </div>
           </div>
-          
-          <div className="flex gap-2">
-       
-            
-            <Button size="sm" className="h-7 px-2 py-0 text-xs" asChild>
-              <Link href={`/monitors/${monitor.id}/edit`}>
-                <Edit className="mr-1 h-3.5 w-3.5" />
-                Edit
-              </Link>
-            </Button>
-            <Button 
-              variant="destructive"
-              size="sm"
-              className="h-7 px-2 py-0 text-xs"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              <Trash2 className="mr-1 h-3.5 w-3.5" />
-              Delete
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-auto">
+                <MoreHorizontal className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Actions</span>
+                <span className="sr-only sm:hidden">Actions</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Monitor Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push(`/monitors/${monitor.id}/edit`)}>
+                <Edit3 className="mr-2 h-4 w-4" />
+                <span>Edit Monitor</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleToggleStatus}>
+                {monitor.status === 'paused' ? (
+                    <><Play className="mr-2 h-4 w-4" /><span>Resume Checks</span></>
+                ) : (
+                    <><Pause className="mr-2 h-4 w-4" /><span>Pause Checks</span></>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-red-600 focus:text-red-700 focus:bg-red-50 dark:focus:bg-red-900/50">
+                <Trash2 className="mr-2 h-4 w-4" />
+                <span>Delete Monitor</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        {/* Status cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
-          <div className="bg-muted/30 rounded-lg p-2 border flex items-center">
-            {status && (
-              <status.icon className={`h-6 w-6 mr-2 ${status.color}`} />
-            )}
-            <div>
-              <div className="text-xs font-medium text-muted-foreground">Status</div>
-              <div className="text-sm font-semibold">{status?.label || 'Unknown'}</div>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-4">
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              {statusInfo && <statusInfo.icon className={cn("h-5 w-5", statusInfo.color)} />}
+              <CardTitle className="text-sm font-medium text-muted-foreground">Status</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-2xl font-bold">{statusInfo?.label || 'Unknown'}</div>
+            </CardContent>
+          </Card>
           
-          <div className="bg-muted/30 rounded-lg p-2 border flex items-center">
-            <Activity className="h-6 w-6 mr-2 text-emerald-500" />
-            <div>
-              <div className="text-xs font-medium text-muted-foreground">Uptime</div>
-              <div className="text-sm font-semibold">{uptimeValue.toFixed(2)}%</div>
-            </div>
-          </div>
-          
-          <div className="bg-muted/30 rounded-lg p-2 border flex items-center">
-            <Clock className="h-6 w-6 mr-2 text-blue-500" />
-            <div>
-              <div className="text-xs font-medium text-muted-foreground">Response Time</div>
-              <div className="text-sm font-semibold">{responseTime} ms</div>
-            </div>
-          </div>
-          
-          <div className="bg-muted/30 rounded-lg p-2 border flex items-center">
-            <CheckCircle className="h-6 w-6 mr-2 text-purple-500" />
-            <div>
-              <div className="text-xs font-medium text-muted-foreground">Check Interval</div>
-              <div className="text-sm font-semibold">{intervalFormatted}</div>
-            </div>
-          </div>
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Activity className="h-5 w-5 text-blue-500" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Response</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-2xl font-bold">{currentResponseTime}</div>
+            </CardContent>
+          </Card>
 
-          <div className="bg-muted/30 rounded-lg p-2 border flex items-center">
-            <CalendarIcon2 className="h-6 w-6 mr-2 text-amber-500" />
-            <div>
-              <div className="text-xs font-medium text-muted-foreground">Created</div>
-              <div className="text-sm font-semibold">
-                {monitor.createdAt ? new Date(monitor.createdAt).toLocaleString('en-US', {
-                  year: 'numeric',
-                  month: 'numeric',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true,
-                }) : "Unknown"}
-              </div>
-            </div>
-          </div>
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (24h)</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-2xl font-bold">{uptime24h}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Zap className="h-5 w-5 text-orange-500" /> 
+              <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Response (24h)</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-2xl font-bold">{avgResponse24h}</div>
+            </CardContent>
+          </Card>
+
+           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <ShieldCheck className="h-5 w-5 text-indigo-500" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-2xl font-bold">{uptime30d}</div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      {/* Main content grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-270px)]">
-        {/* Left column - Response time graph and uptime stats */}
-        <div className="flex flex-col h-full">
-          {/* Response time graph */}
-          <Card>
-            <CardHeader className="pb-2 px-6 pt-6">
-              <CardTitle className="text-base font-medium flex items-center">
-                <Activity className="h-5 w-5 mr-2 text-muted-foreground" />
-                Response Times
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 pt-2">
-              <div className="w-full h-[300px] rounded bg-slate-900 relative">
-                <svg width="100%" height="300" viewBox="0 0 1000 240" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="grad1" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" style={{ stopColor: 'rgb(16, 185, 129)', stopOpacity: 0.2 }} />
-                      <stop offset="100%" style={{ stopColor: 'rgb(16, 185, 129)', stopOpacity: 0 }} />
-                    </linearGradient>
-                  </defs>
-                  
-                  {/* Background grid lines */}
-                  <line x1="0" y1="60" x2="1000" y2="60" stroke="#374151" strokeWidth="1" strokeDasharray="4" />
-                  <line x1="0" y1="120" x2="1000" y2="120" stroke="#374151" strokeWidth="1" strokeDasharray="4" />
-                  <line x1="0" y1="180" x2="1000" y2="180" stroke="#374151" strokeWidth="1" strokeDasharray="4" />
-                  
-                  {/* Generate a spiky response curve that matches the image - adjusted for 300px height */}
-                  {(() => {
-                    const points = [];
-                    const baseY = 220; // Adjusted base Y value for 300px height
-                    
-                    // Starting portion - low spikes
-                    for (let i = 0; i < 200; i++) {
-                      const x = i;
-                      const randomFactor = Math.random() * 40;
-                      const y = baseY - 10 - randomFactor - (i < 150 ? Math.sin(i/20) * 25 : 0);
-                      points.push(`${x},${y}`);
-                    }
-                    
-                    // Middle portion - large spike
-                    for (let i = 200; i < 400; i++) {
-                      const x = i;
-                      const progress = (i - 200) / 200;
-                      const peakFactor = Math.sin(progress * Math.PI);
-                      const y = baseY - 10 - peakFactor * 150;
-                      points.push(`${x},${y}`);
-                    }
-                    
-                    // Later portion - medium spikes
-                    for (let i = 400; i < 1000; i++) {
-                      const x = i;
-                      const randomFactor = Math.random() * 25;
-                      const secondaryPeak = i > 580 && i < 650 ? 50 * Math.sin((i-580)/70 * Math.PI) : 0;
-                      const y = baseY - 15 - randomFactor - secondaryPeak;
-                      points.push(`${x},${y}`);
-                    }
-                    
-                    const linePath = `M${points.join(' L')}`;
-                    const areaPath = `${linePath} L1000,300 L0,300 Z`;
-                    
-                    return (
-                      <>
-                        <path d={areaPath} fill="url(#grad1)" />
-                        <path d={linePath} fill="none" stroke="#10B981" strokeWidth="2" />
-                      </>
-                    );
-                  })()}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          {/* New Availability Chart Card */}
+          <Card className="shadow-sm mb-6">
+            <CardContent className="p-1 h-[80px]"> {/* Small height, minimal padding for the chart */}
+              {/*
+                This card is intended to show a bar chart for the availability of each check,
+                covering the full width of this card.
+                It is placed above the "Response Time Overview" chart within the same layout column.
 
-                  {/* Simulate a brief outage with a red segment */}
-                  <circle cx="780" cy="240" r="3" fill="#EF4444" />
-                  <circle cx="790" cy="240" r="3" fill="#EF4444" />
-                  <circle cx="800" cy="240" r="3" fill="#EF4444" />
-                </svg>
-                
-                {/* Y-axis labels - adjusted for 300px height */}
-                <div className="absolute top-0 left-0 h-full text-xs text-slate-400 p-2 flex flex-col justify-between">
-                  <div>10.00</div>
-                  <div>7.50</div>
-                  <div>5.00</div>
-                  <div>2.50</div>
-                  <div>0.00</div>
-                </div>
-                
-                {/* X-axis labels */}
-                <div className="absolute bottom-0 left-0 w-full text-xs text-slate-400 p-1 flex justify-between">
-                  <div>00:00</div>
-                  <div>06:00</div>
-                  <div>12:00</div>
-                  <div>18:00</div>
-                  <div>00:00</div>
-                </div>
+                To achieve true "full page width" as requested, this card and its content
+                would need to be moved outside of the current two-column grid structure
+                (i.e., outside the parent <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">).
+                The current placement is constrained by the selection edit rule.
+
+                A dedicated chart component (e.g., AvailabilityTimelineChart) would be suitable here,
+                taking `availabilityTimelineData` (an array of objects like 
+                { timestamp: number, status: 0|1, label?: string }) and rendering a series of bars
+                colored by status, without axes, to fit the small height.
+                The existing MonitorChart component might be too complex or have a fixed height
+                not suitable for this compact view unless modified.
+              */}
+              {/* Placeholder for the actual availability bar chart component */}
+              {/* Example: <AvailabilityTimelineChart data={availabilityTimelineData} /> */}
+              <div className="w-full h-full bg-muted/20 flex items-center justify-center text-xs text-muted-foreground p-2 text-center">
+                [Availability Timeline Chart: Shows individual check statuses (up/down) as a series of colored bars. Requires `availabilityTimelineData`.]
               </div>
             </CardContent>
           </Card>
 
-          {/* Uptime statistics */}
-          <Card className="flex-1 mt-4">
-            <CardHeader className="pb-2 px-6 pt-5">
-              <CardTitle className="text-base font-medium flex items-center">
-                <CheckCircle2 className="h-5 w-5 mr-2 text-muted-foreground" />
-                Uptime Statistics
+          {/* Original Response Time Overview Card (now below the new availability chart) */}
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center">
+                <BarChart2 className="mr-2 h-5 w-5" />
+                Response Time Overview
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left py-2 px-4 font-medium">Time Period</th>
-                      <th className="text-left py-2 px-4 font-medium">Availability</th>
-                      <th className="text-left py-2 px-4 font-medium">Downtime</th>
-                      <th className="text-left py-2 px-4 font-medium">Avg. Response</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {uptimeStats.map((stat, index) => (
-                      <tr key={index} className="hover:bg-muted/20">
-                        <td className="py-2 px-4">{stat.period}</td>
-                        <td className="py-2 px-4 font-medium text-green-500">{stat.uptime}</td>
-                        <td className="py-2 px-4">{stat.downtime}</td>
-                        <td className="py-2 px-4">{stat.avgResponse} ms</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <CardContent className="pl-2">
+              <ResponseTimeBarChart data={responseTimeData} />
             </CardContent>
           </Card>
         </div>
 
-        {/* Right column - Check Results */}
-        <Card className="flex flex-col h-full">
-          <CardHeader className="pb-2 px-6 pt-5 flex flex-row justify-between items-center">
-            <CardTitle className="text-base font-medium flex items-center">
-              <CheckCircle2 className="h-5 w-5 mr-2 text-muted-foreground" />
-              Check Results
-            </CardTitle>
-            
-            {/* Date Picker with Presets */}
-            <div className="flex items-center">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={cn(
-                      "justify-start text-left font-normal",
-                      !selectedDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  className="flex w-auto flex-col space-y-2 p-2"
-                >
-                  <Select
-                    onValueChange={handleDatePreset}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent position="popper">
-                      <SelectItem value="0">Today</SelectItem>
-                      <SelectItem value="-1">Yesterday</SelectItem>
-                      <SelectItem value="-7">Last week</SelectItem>
-                      <SelectItem value="-30">Last month</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="rounded-md border">
-                    <Calendar 
-                      mode="single" 
-                      selected={selectedDate} 
-                      onSelect={(date) => isMounted.current && setSelectedDate(date)} 
-                      initialFocus 
-                    />
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </CardHeader>
-          <CardContent className="px-0 py-0 flex-1">
-            <div className="h-full overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/30 border-b">
-                  <tr>
-                    <th className="text-left py-2 px-4 font-medium">Time</th>
-                    <th className="text-left py-2 px-4 font-medium">Status</th>
-                    <th className="text-left py-2 px-4 font-medium">Response</th>
-                    <th className="text-left py-2 px-4 font-medium">Region</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y max-h-[calc(100%-2rem)]">
-                  {paginatedResults.length > 0 ? (
-                    paginatedResults.map((check, i) => {
-                      const statusObj = monitorStatuses.find(s => s.value === check.status);
-                      
-                      return (
-                        <tr key={i} className="hover:bg-muted/20">
-                          <td className="py-2 px-4">
-                            <div className="flex flex-col">
-                              <span>{isClient ? format(check.time, "HH:mm:ss") : ''}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {isClient ? format(check.time, "dd/MM/yyyy") : ''}
-                              </span>
-                            </div>
+        <div className="space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center">
+                <ListChecks className="mr-2 h-5 w-5" />
+                Recent Check Results
+              </CardTitle>
+              <CardDescription>
+                Showing the last {monitor.recentResults?.length || 0} checks for this monitor.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {monitor.recentResults && monitor.recentResults.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-800">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Status</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Checked At</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Response Time (ms)</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
+                      {monitor.recentResults.map((result) => (
+                        <tr key={result.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <MonitorStatusIndicator monitorId={result.monitorId} status={result.status as string} />
                           </td>
-                          <td className="py-2 px-4">
-                            <div className="flex items-center">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className={`py-0 px-2 h-6 ${check.status === 'up' ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20 hover:text-green-600' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20 hover:text-red-600'}`}
-                              >
-                                {statusObj && (
-                                  <>
-                                    <statusObj.icon className={`h-3 w-3 mr-1 ${statusObj.color}`} />
-                                    <span className="text-xs font-medium">{statusObj.label}</span>
-                                  </>
-                                )}
-                              </Button>
-                            </div>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{formatDateTime(result.checkedAt)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                            {result.responseTimeMs !== null && result.responseTimeMs !== undefined ? result.responseTimeMs : 'N/A'}
                           </td>
-                          <td className="py-2 px-4 font-mono">
-                            {check.responseTime} ms
-                          </td>
-                          <td className="py-2 px-4">
-                            {check.region}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                            {result.details?.errorMessage || (result.details?.statusCode ? `HTTP ${result.details.statusCode}` : '-')}
                           </td>
                         </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-muted-foreground">
-                        No check results for the selected date
-                      </td>
-                    </tr>
-                  )}
-
-                  {/* Add empty rows if we have fewer results than itemsPerPage */}
-                  {paginatedResults.length > 0 && paginatedResults.length < itemsPerPage && (
-                    Array.from({ length: itemsPerPage - paginatedResults.length }).map((_, i) => (
-                      <tr key={`empty-${i}`} className="h-[52px]">
-                        <td colSpan={4}></td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between items-center border-t py-3 px-4">
-            <Pagination className="w-auto">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => isMounted.current && setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-                
-                {[...Array(Math.min(totalPages, 3))].map((_, i) => {
-                  const pageNumber = i + 1;
-                  const isActive = pageNumber === currentPage;
-                  
-                  return (
-                    <PaginationItem key={pageNumber}>
-                      <PaginationLink 
-                        isActive={isActive}
-                        onClick={() => isMounted.current && setCurrentPage(pageNumber)}
-                        className="cursor-pointer"
-                      >
-                        {pageNumber}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                })}
-                
-                {totalPages > 3 && (
-                  <PaginationItem>
-                    <PaginationEllipsis />
-                  </PaginationItem>
-                )}
-                
-                <PaginationItem>
-                  <PaginationNext 
-                    onClick={() => isMounted.current && setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </CardFooter>
-        </Card>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-center text-sm text-muted-foreground py-4">No recent check results found.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Delete confirmation dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Monitor</AlertDialogTitle>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this monitor? This action cannot be undone.
+              This action cannot be undone. This will permanently delete the monitor
+              "{monitor.name}" and all its associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteMonitor}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
               {isDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -26,10 +26,11 @@ import {
   // MailIcon,
 } from "lucide-react";
 
+import { CheckIcon } from "@/components/logo/supercheck-logo";
 import { NavMain } from "@/components/nav-main";
 // import { NavProjects } from "@/components/nav-projects";
 import { NavUser } from "@/components/nav-user";
-import { TeamSwitcher } from "@/components/team-switcher";
+// import { TeamSwitcher } from "@/components/team-switcher";
 import Link from "next/link";
 import {
   Sidebar,
@@ -50,23 +51,23 @@ const data = {
     email: "m@example.com",
     avatar: "https://ui-avatars.com/api/?name=Test+User&background=random",
   },
-  teams: [
+  /* teams: [
     {
-      name: "Supercheck",
-      logo: Shield,
+      name: "Supercheck", 
+      logo: CheckIcon,
       plan: "Enterprise",
     },
     {
-      name: "Test Corp 1",
+      name: "Test Team 1",
       logo: AudioWaveform,
       plan: "Startup",
     },
     {
-      name: "Test Corp 2",
+      name: "Test Team 2",
       logo: Command,
-      plan: "Free",
+      plan: "Enterprise",
     },
-  ],
+  ], */
 
   Communicate: [
     {
@@ -203,10 +204,22 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  // const activeTeam = data.teams[0]; // Assuming we want to display the first team
+  const LogoToDisplay = CheckIcon;
+  const teamName = "Supercheck";
+  const teamPlan = "Enterprise";
+
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+      <SidebarHeader className="group-data-[collapsible=icon]:px-0">
+        {/* <TeamSwitcher teams={data.teams} /> */}
+        <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
+          <LogoToDisplay className="h-8 w-8 flex-shrink-0" /> 
+          <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+            <span className="truncate font-medium">{teamName}</span>
+            <span className="truncate text-xs">{teamPlan}</span>
+          </div>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup className="-mb-2 ">

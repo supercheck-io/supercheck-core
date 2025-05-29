@@ -43,6 +43,13 @@
       "when": 1747428032791,
       "tag": "0005_purple_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1748350011588,
+      "tag": "0006_curved_songbird",
+      "breakpoints": true
     }
   ]
 }

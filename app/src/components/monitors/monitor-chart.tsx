@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer, Tooltip, LineChart, Line, YAxis, AreaChart, Area } from "recharts";
 
 import {
   Card,
@@ -10,51 +10,59 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-interface MonitorChartProps {
-  monitorId?: string;
-  uptime?: number;
-  responseTime?: number;
+// Define the structure for data points passed to the chart
+export interface MonitorChartDataPoint {
+    timestamp: number; // Milliseconds timestamp for X-axis
+    status: number;    // 0 for down/error, 1 for up
+    label?: string;     // e.g., 'up', 'down', 'error'
+    responseTime?: number | null;
+    // Add other relevant fields from MonitorResultItem if needed for tooltips
 }
 
-// Generate some sample monitoring data (in a real app, this would come from the API)
-const generateChartData = (days = 14) => {
-  const data = [];
+interface MonitorChartProps {
+  data?: MonitorChartDataPoint[]; // Data is now optional, falls back to generated if not provided
+  chartType?: "bar" | "line" | "step" | "area"; // Optional chart type
+  // monitorId?: string; // Kept if there's a use case for fetching within component later
+  // uptime?: number; // These can be derived from data or passed for summary display
+  // responseTime?: number;
+}
+
+// Default data generation if no data is provided via props
+const generateDefaultChartData = (days = 14) => {
+  const data: MonitorChartDataPoint[] = [];
   const now = new Date();
-  let successRate = 92; // Starting success rate
-  let responseTime = 342; // Starting response time
+  let successRate = 92; 
+  let responseTimeVal = 342; 
   
   for (let i = days; i >= 0; i--) {
     const date = new Date();
     date.setDate(now.getDate() - i);
     
-    // Create some natural variation in the data
-    const randomChange = Math.random() * 10 - 5; // -5 to +5
+    const randomChange = Math.random() * 10 - 5; 
     successRate = Math.min(100, Math.max(70, successRate + randomChange));
+    responseTimeVal = Math.max(300, Math.min(400, responseTimeVal + (Math.random() * 40 - 20)));
     
-    // Create some variation in response time (300-400ms)
-    responseTime = Math.max(300, Math.min(400, responseTime + (Math.random() * 40 - 20)));
-    
-    // Calculate passed and failed values
-    const passed = Math.round(successRate);
-    const failed = 100 - passed;
-    
+    const isUp = Math.random() > (1 - successRate/100); // Simulate up/down based on successRate
+
     data.push({
-      date: date.toISOString().split('T')[0],
-      passed,
-      failed,
-      responseTime: Math.round(responseTime)
+      timestamp: date.getTime(),
+      status: isUp ? 1 : 0,
+      label: isUp ? 'up' : 'down',
+      responseTime: Math.round(responseTimeVal)
     });
   }
-  
   return data;
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const date = new Date(label);
+    const dataPoint = payload[0].payload as MonitorChartDataPoint;
+    const date = new Date(dataPoint.timestamp);
     const formattedDate = date.toLocaleDateString("en-US", {
       month: "short",
-      day: "numeric"
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric"
     });
     
     return (
@@ -62,129 +70,94 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p className="font-medium mb-1">{formattedDate}</p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
           <div className="flex items-center">
-            <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-            <span className="text-muted-foreground">Passed:</span>
+            <div className={`w-2 h-2 ${dataPoint.status === 1 ? 'bg-green-500' : 'bg-red-500'} rounded-full mr-1`}></div>
+            <span className="text-muted-foreground">Status:</span>
           </div>
-          <span>{payload[0].value}%</span>
+          <span>{dataPoint.label || (dataPoint.status === 1 ? 'Up' : 'Down')}</span>
           
-          <div className="flex items-center">
-            <div className="w-2 h-2 bg-red-500 rounded-full mr-1"></div>
-            <span className="text-muted-foreground">Failed:</span>
-          </div>
-          <span>{payload[1]?.value || 0}%</span>
-          
-          <div className="flex items-center">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
-            <span className="text-muted-foreground">Response:</span>
-          </div>
-          <span>{payload[2]?.value || 0} ms</span>
+          {dataPoint.responseTime !== undefined && dataPoint.responseTime !== null && (
+            <>
+                <div className="flex items-center">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
+                    <span className="text-muted-foreground">Response:</span>
+                </div>
+                <span>{dataPoint.responseTime} ms</span>
+            </>
+          )}
         </div>
       </div>
     );
   }
-
   return null;
 };
 
-export function MonitorChart({ monitorId, uptime = 99, responseTime }: MonitorChartProps) {
-  // In a real app, we would fetch data based on monitorId
-  const chartData = React.useMemo(() => generateChartData(), []);
-  const [activeTab, setActiveTab] = React.useState<"uptime" | "response">("uptime");
+export function MonitorChart({ 
+    data: providedData,
+    chartType = "line", // Default to line chart
+}: MonitorChartProps) {
+  
+  const chartData = React.useMemo(() => providedData && providedData.length > 0 ? providedData : generateDefaultChartData(), [providedData]);
+  // const [activeTab, setActiveTab] = React.useState<"uptime" | "response">("uptime"); // This tab logic seems specific to old data structure
+
+  // Determine which dataKey to use for the Y-axis based on chart content.
+  // For status, we use the 'status' field (0 or 1).
+  const yDataKey = "status"; 
+
+  const renderChart = () => {
+    switch(chartType) {
+        case "bar":
+            return (
+                <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} vertical={false}/>
+                    <XAxis dataKey="timestamp" tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} angle={-30} textAnchor="end" height={40} />
+                    <YAxis domain={[0, 1]} tickFormatter={(value) => value === 1 ? 'Up' : 'Down'} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey={yDataKey} fill="rgba(34, 197, 94, 0.8)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+            );
+        case "area":
+            return (
+                <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} vertical={false}/>
+                    <XAxis dataKey="timestamp" tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} angle={-30} textAnchor="end" height={40} />
+                    <YAxis domain={[0, 1]} tickFormatter={(value) => value === 1 ? 'Up' : 'Down'} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey={yDataKey} stroke="#22c55e" fill="rgba(34, 197, 94, 0.3)" />
+                </AreaChart>
+            );
+        case "step": // Recharts doesn't have a dedicated "step" type for Line, use Line with type="step"
+        case "line":
+        default:
+            return (
+                <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} vertical={false}/>
+                    <XAxis dataKey="timestamp" tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} angle={-30} textAnchor="end" height={40} />
+                    <YAxis domain={[0, 1]} tickFormatter={(value) => value === 1 ? 'Up' : 'Down'} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line type={chartType === "step" ? "stepAfter" : "monotone"} dataKey={yDataKey} stroke="#22c55e" strokeWidth={2} dot={false} />
+                </LineChart>
+            );
+    }
+  }
 
   return (
     <Card>
-      <CardHeader className="pb-0 pt-4 px-4">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-sm font-medium">Performance History</CardTitle>
-          <div className="flex text-xs">
-            <button
-              className={`px-3 py-1.5 rounded-t-md transition-colors ${
-                activeTab === "uptime" 
-                  ? "bg-background border border-b-0 font-medium" 
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              onClick={() => setActiveTab("uptime")}
-            >
-              Uptime
-            </button>
-            <button
-              className={`px-3 py-1.5 rounded-t-md transition-colors ${
-                activeTab === "response" 
-                  ? "bg-background border border-b-0 font-medium" 
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              onClick={() => setActiveTab("response")}
-            >
-              Response Time
-            </button>
-          </div>
-        </div>
+      {/* Header can be simplified if title is managed by parent */}
+      <CardHeader className="pb-2 pt-4 px-4">
+        <CardTitle className="text-sm font-medium">Status Over Time ({chartType})</CardTitle>
       </CardHeader>
-      <CardContent className="p-4">
-        <div className="h-[240px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            {activeTab === "uptime" ? (
-              <BarChart
-                data={chartData}
-                margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
-                barGap={0}
-                barCategoryGap={4}
-              >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.2} />
-                <XAxis 
-                  dataKey="date" 
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(value) => {
-                    const date = new Date(value);
-                    return date.toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    });
-                  }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar 
-                  dataKey="passed" 
-                  stackId="status" 
-                  fill="rgba(34, 197, 94, 0.8)" 
-                  radius={[4, 4, 0, 0]} 
-                />
-                <Bar 
-                  dataKey="failed" 
-                  stackId="status" 
-                  fill="rgba(239, 68, 68, 0.8)" 
-                  radius={[4, 4, 0, 0]} 
-                />
-              </BarChart>
-            ) : (
-              <BarChart
-                data={chartData}
-                margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
-              >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.2} />
-                <XAxis 
-                  dataKey="date" 
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(value) => {
-                    const date = new Date(value);
-                    return date.toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    });
-                  }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar 
-                  dataKey="responseTime" 
-                  fill="rgba(59, 130, 246, 0.8)" 
-                  radius={[4, 4, 0, 0]} 
-                />
-              </BarChart>
-            )}
-          </ResponsiveContainer>
-        </div>
+      <CardContent className="p-2">
+        {chartData.length > 0 ? (
+            <div className="h-[240px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    {renderChart()}
+                </ResponsiveContainer>
+            </div>
+        ) : (
+            <div className="h-[240px] w-full flex items-center justify-center">
+                <p className="text-muted-foreground">No data to display chart.</p>
+            </div>
+        )}
       </CardContent>
     </Card>
   );

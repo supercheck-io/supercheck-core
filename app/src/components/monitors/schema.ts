@@ -5,7 +5,7 @@ export const monitorSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   url: z.string(),
-  method: z.enum(["ping", "get", "post", "tcp"]).default("ping"),
+  method: z.enum(["ping", "get", "post", "tcp", "udp", "dns", "ssl", "heartbeat", "http_request", "port_check", "dns_check", "playwright_script"]).default("http_request"),
   interval: z.number().default(60),
   timeout: z.number().optional(),
   expectedStatus: z.number().optional(),

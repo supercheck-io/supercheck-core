@@ -9,6 +9,7 @@ import {
   uuid,
   customType,
   uniqueIndex,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 import {
@@ -16,6 +17,7 @@ import {
   createSelectSchema,
   createUpdateSchema,
 } from "drizzle-zod";
+
 
 /* ================================
    TESTS TABLE
@@ -38,15 +40,6 @@ export const tests = pgTable("tests", {
   script: text("script").notNull().default(""), // Store Base64-encoded script content
   priority: varchar("priority", { length: 50 }).$type<TestPriority>().notNull().default("medium"),
   type: varchar("type", { length: 50 }).$type<TestType>().notNull().default("browser"),
-  // tags: jsonb("tags")
-  //   .$type<string[]>()
-  //   .default([]),
-  // createdBy: uuid("created_by")
-  //   .notNull()
-  //   .references(() => users.id),
-  // updatedBy: uuid("updated_by")
-  //   .notNull()
-  //   .references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -81,9 +74,6 @@ export const jobs = pgTable("jobs", {
   description: text("description"),
   cronSchedule: varchar("cron_schedule", { length: 100 }),
   status: varchar("status", { length: 50 }).$type<JobStatus>().notNull().default("pending"),
-  // config: jsonb("config").$type<JobConfig>(),
-  // retryCount: integer("retry_count").default(0),
-  // timeoutSeconds: integer("timeout_seconds").default(600),
   lastRunAt: timestamp("last_run_at"),
   nextRunAt: timestamp("next_run_at"),
   scheduledJobId: varchar("scheduled_job_id", { length: 255 }),
@@ -186,4 +176,142 @@ export const testsSelectSchema = createSelectSchema(tests);
 export const jobsInsertSchema = createInsertSchema(jobs);
 export const jobsUpdateSchema = createUpdateSchema(jobs);
 export const jobsSelectSchema = createSelectSchema(jobs);
+
+/* ================================
+   MONITORS TABLE
+   -------------------------------
+   Stores the configuration for different types of monitors (e.g., HTTP, Ping).
+   Includes details like name, type, target, frequency, current status,
+   and specific configuration options.
+=================================== */
+export type MonitorType =
+  | "http_request"    // Check HTTP/S endpoints (availability, status, response time)
+  | "ping_host"       // ICMP ping to a host
+  | "port_check"      // Check specific TCP or UDP port
+  | "dns_check"       // DNS record validation (A, CNAME, MX, TXT, etc.)
+  | "playwright_script"; // Execute an existing Playwright test script from the 'tests' table
+
+export type MonitorStatus =
+  | "up"
+  | "down"
+  | "paused"
+  | "pending"
+  | "maintenance"
+  | "error";
+
+export type MonitorConfig = {
+  // http_request specific
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
+  headers?: Record<string, string>; // This will be stored as a JSON string from the form
+  body?: string; // Can be JSON string or other content types
+  expectedStatusCode?: number; 
+  keywordInBody?: string; 
+  keywordInBodyShouldBePresent?: boolean; 
+  responseBodyJsonPath?: { path: string; expectedValue: any }; 
+
+  auth?: {
+    type: "none" | "basic" | "bearer"; // Add more types like "apiKey" later if needed
+    username?: string; // For basic auth
+    password?: string; // For basic auth - IMPORTANT: Consider secret management
+    token?: string;    // For bearer token - IMPORTANT: Consider secret management
+  };
+
+  // port_check specific
+  port?: number;
+  protocol?: "tcp" | "udp";
+
+  // ssl_check specific (target is domain name)
+  checkExpiration?: boolean;
+  daysUntilExpirationWarning?: number; // e.g., 30
+  checkRevocation?: boolean; // (Advanced, might require OCSP/CRL checks)
+
+  // dns_check specific (target is domain name)
+  recordType?: "A" | "AAAA" | "CNAME" | "MX" | "NS" | "PTR" | "SOA" | "SRV" | "TXT";
+  expectedValue?: string; // e.g., IP address for A record, server for MX, text for TXT
+
+  // playwright_script specific
+  testId?: string; // UUID of the test case from the 'tests' table
+  // Variables/Overrides for the script can be passed here if needed
+  scriptVariables?: Record<string, any>; 
+
+  // heartbeat specific (target is an expected unique identifier for the incoming ping)
+  expectedIntervalSeconds?: number; // e.g., 300 (5 minutes)
+  gracePeriodSeconds?: number; // e.g., 60
+
+  // Common configuration applicable to many types
+  timeoutSeconds?: number; // e.g., 10
+  regions?: string[]; // e.g., ["us-east-1", "eu-west-2"] (for distributed checks)
+  retryStrategy?: {
+    maxRetries: number; // e.g., 3
+    backoffFactor: number; // e.g., 2 for exponential backoff
+  };
+  alertChannels?: string[]; // e.g., ["email:admin@example.com", "slack:channel-id"]
+  
+  [key: string]: any; // For other type-specific or future settings
+};
+
+export const monitors = pgTable("monitors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // userId: uuid("user_id").references(() => users.id), // If monitors are user-specific
+  // projectId: uuid("project_id").references(() => projects.id), // If monitors are project-specific
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).$type<MonitorType>().notNull(),
+  target: varchar("target", { length: 2048 }).notNull(), // URL, IP, cron expression, domain
+  frequencyMinutes: integer("frequency_minutes").notNull().default(5), // Check interval in minutes
+  status: varchar("status", { length: 50 }).$type<MonitorStatus>().notNull().default("pending"),
+  config: jsonb("config").$type<MonitorConfig>(),
+  lastCheckAt: timestamp("last_check_at"),
+  lastStatusChangeAt: timestamp("last_status_change_at"),
+  mutedUntil: timestamp("muted_until"), // For temporary pausing of alerts
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/* ================================
+   MONITOR RESULTS TABLE
+   -------------------------------
+   Stores the results of each individual check performed on a monitor.
+   Includes status, response time, and any specific details or errors.
+=================================== */
+export type MonitorResultStatus = "up" | "down" | "error" | "timeout";
+export type MonitorResultDetails = {
+  statusCode?: number;
+  statusText?: string;
+  errorMessage?: string;
+  responseHeaders?: Record<string, string>;
+  responseBodySnippet?: string; // Store a small snippet for debugging
+  ipAddress?: string; // Resolved IP for ping/http checks
+  location?: string; // e.g., "us-east-1" if checked from a specific region
+  sslCertificate?: {
+    valid: boolean;
+    issuer?: string;
+    subject?: string;
+    validFrom?: string;
+    validTo?: string;
+    daysRemaining?: number;
+  };
+  [key: string]: any; // For other check-specific details
+};
+
+export const monitorResults = pgTable("monitor_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  monitorId: uuid("monitor_id")
+    .notNull()
+    .references(() => monitors.id, { onDelete: "cascade" }),
+  checkedAt: timestamp("checked_at").notNull().defaultNow(),
+  status: varchar("status", { length: 50 }).$type<MonitorResultStatus>().notNull(),
+  responseTimeMs: integer("response_time_ms"),
+  details: jsonb("details").$type<MonitorResultDetails>(),
+  isUp: boolean("is_up").notNull(), // Derived from status for easier querying/aggregation
+});
+
+// Zod schemas for monitors
+export const monitorsInsertSchema = createInsertSchema(monitors);
+export const monitorsUpdateSchema = createUpdateSchema(monitors);
+export const monitorsSelectSchema = createSelectSchema(monitors);
+
+// Zod schemas for monitor_results
+export const monitorResultsInsertSchema = createInsertSchema(monitorResults);
+export const monitorResultsSelectSchema = createSelectSchema(monitorResults);
 

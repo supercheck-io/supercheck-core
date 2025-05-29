@@ -8,7 +8,11 @@ import {
   Server,
   XCircle,
   Webhook,
+  Search,
+  ShieldAlert,
+  Network,
 } from "lucide-react";
+import { PlaywrightLogo } from "@/components/logo/playwright-logo";
 
 export const monitorStatuses = [
   {
@@ -33,32 +37,38 @@ export const monitorStatuses = [
 
 export const monitorTypes = [
   {
-    label: "Ping",
-    value: "ping",
-    icon: Globe,
-    color: "text-sky-500",
-    description: "Simple HTTP HEAD request to check if a site is available",
-  },
-  {
-    label: "GET",
-    value: "get",
+    label: "HTTP Request",
+    value: "http_request",
     icon: RefreshCw,
     color: "text-cyan-600",
-    description: "HTTP GET request with optional expected response",
+    description: "Check HTTP/S endpoints (availability, status, response time)",
   },
   {
-    label: "POST",
-    value: "post",
-    icon: Webhook,
-    color: "text-blue-700",
-    description: "HTTP POST request with expected status check",
+    label: "Ping Host",
+    value: "ping_host",
+    icon: Globe,
+    color: "text-sky-500",
+    description: "ICMP ping to a host",
   },
-
   {
-    label: "TCP",
-    value: "tcp",
-    icon: Server,
+    label: "Port Check",
+    value: "port_check",
+    icon: Network,
     color: "text-teal-600",
-    description: "Checks if a TCP port is accessible",
+    description: "Check specific TCP or UDP port",
+  },
+  {
+    label: "DNS Check",
+    value: "dns_check",
+    icon: ShieldAlert,
+    color: "text-purple-500",
+    description: "DNS record validation (A, CNAME, MX, TXT, etc.)",
+  },
+  {
+    label: "Playwright Script",
+    value: "playwright_script",
+    icon: PlaywrightLogo,
+    color: "text-orange-500",
+    description: "Execute an existing Playwright test script",
   },
 ]; 

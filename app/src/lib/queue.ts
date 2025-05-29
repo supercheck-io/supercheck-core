@@ -1,4 +1,4 @@
-import { Queue } from 'bullmq';
+import { Queue, Worker, Job, QueueEvents, FlowProducer } from 'bullmq';
 import Redis, { RedisOptions } from 'ioredis';
 
 // Interfaces matching those in the worker service
@@ -18,27 +18,41 @@ export interface JobExecutionTask {
   originalJobId?: string; // The original job ID from the 'jobs' table
 }
 
-// Health check task interface 
-export interface HealthCheckExecutionTask {
-  healthCheckId: string;
-  url: string;
-  method: 'ping' | 'get' | 'post' | 'tcp';
-  interval: number; // in seconds
-  timeout?: number; // in seconds
-  expectedStatus?: number;
-  expectedResponseBody?: string;
-  port?: number; // for TCP checks
+// Health check task interface - REMOVING
+// export interface HealthCheckExecutionTask { ... }
+
+// Interface for Monitor Job Data (mirroring DTO in runner)
+// Consider moving to a shared types location if used across app/runner extensively
+export interface MonitorJobData {
+  monitorId: string;
+  type: "http_request" | "ping_host" | "port_check" | "dns_check" | "playwright_script";
+  target: string;
+  config?: any; // Using any for config for now, can be refined with shared MonitorConfig type
+  frequencyMinutes?: number; 
+}
+
+// Interface for Monitor Execution Result (mirroring type in runner)
+// This is the data that will be sent TO this queue BY the runner
+export interface MonitorResultData {
+  monitorId: string;
+  status: "up" | "down" | "error" | "timeout"; // Corresponds to MonitorResultStatus
+  checkedAt: string; // ISO string date
+  responseTimeMs?: number;
+  details?: any; // Corresponds to MonitorResultDetails, using any for now
+  isUp: boolean;
+  error?: string; 
 }
 
 // Constants for queue names and Redis keys
 export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
-export const HEALTH_CHECK_QUEUE = 'health-check-execution';
+// export const HEALTH_CHECK_QUEUE = 'health-check'; // REMOVING
+export const MONITOR_EXECUTION_QUEUE = 'monitor-execution';
 
 // Redis capacity limit keys
 export const RUNNING_CAPACITY_LIMIT_KEY = 'supercheck:capacity:running';
 export const QUEUE_CAPACITY_LIMIT_KEY = 'supercheck:capacity:queued';
-export const HEALTH_CHECK_CAPACITY_LIMIT_KEY = 'supercheck:capacity:healthcheck';
+// export const HEALTH_CHECK_CAPACITY_LIMIT_KEY = 'supercheck:capacity:healthcheck'; // REMOVING
 
 // Redis key TTL values (in seconds) - applies to both job and test execution
 export const REDIS_JOB_KEY_TTL = 7 * 24 * 60 * 60;  // 7 days for job data (completed/failed jobs)
@@ -50,13 +64,15 @@ export const REDIS_CLEANUP_BATCH_SIZE = 100;        // Process keys in smaller b
 let redisClient: Redis | null = null;
 let testQueue: Queue | null = null;
 let jobQueue: Queue | null = null;
-let healthCheckQueue: Queue | null = null;
+// let healthCheckQueue: Queue | null = null; // REMOVING
+let monitorExecution: Queue | null = null;
+let monitorExecutionEvents: QueueEvents | null = null;
 
 // Store initialization promise to prevent race conditions
 let initPromise: Promise<void> | null = null;
 
 // Queue event subscription type
-export type JobType = 'test' | 'job' | 'healthCheck';
+export type JobType = 'test' | 'job'; // Removed 'healthCheck'
 
 /**
  * Get or create Redis connection using environment variables.
@@ -116,7 +132,7 @@ export async function getRedisConnection(): Promise<Redis> {
 /**
  * Get queue instances, initializing them if necessary.
  */
-async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue, healthCheckQueue: Queue }> {
+async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue, monitorExecutionQueue: Queue }> { // Removed healthCheckQueue
   if (!initPromise) {
     initPromise = (async () => {
       try {
@@ -130,12 +146,8 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue, healthC
           backoff: { type: 'exponential', delay: 1000 }
         };
 
-        // Health check job options (different from regular jobs)
-        const healthCheckJobOptions = {
-          removeOnComplete: { count: 100, age: 24 * 3600 }, // Keep fewer completed health checks
-          removeOnFail: { count: 500, age: 3 * 24 * 3600 }, // Keep failed health checks for 3 days (500 max)
-          attempts: 1, // No retries for health checks (they're scheduled)
-        };
+        // Health check job options (different from regular jobs) - REMOVING
+        // const healthCheckJobOptions = { ... };
 
         // Queue settings with Redis TTL and auto-cleanup options
         const queueSettings = {
@@ -149,24 +161,20 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue, healthC
           }
         };
 
-        // Health check queue settings
-        const healthCheckQueueSettings = {
-          connection,
-          defaultJobOptions: healthCheckJobOptions,
-          stalledInterval: 30000,
-          metrics: {
-            maxDataPoints: 60,
-            collectDurations: true
-          }
-        };
+        // Health check queue settings - REMOVING
+        // const healthCheckQueueSettings = { ... };
 
         testQueue = new Queue(TEST_EXECUTION_QUEUE, queueSettings);
         jobQueue = new Queue(JOB_EXECUTION_QUEUE, queueSettings);
-        healthCheckQueue = new Queue(HEALTH_CHECK_QUEUE, healthCheckQueueSettings);
+        // healthCheckQueue = new Queue(HEALTH_CHECK_QUEUE, healthCheckQueueSettings); // REMOVING
+        monitorExecution = new Queue(MONITOR_EXECUTION_QUEUE, queueSettings);
+        monitorExecutionEvents = new QueueEvents(MONITOR_EXECUTION_QUEUE, { connection: connection });
 
         testQueue.on('error', (error) => console.error(`[Queue Client] Test Queue Error:`, error));
         jobQueue.on('error', (error) => console.error(`[Queue Client] Job Queue Error:`, error));
-        healthCheckQueue.on('error', (error) => console.error(`[Queue Client] Health Check Queue Error:`, error));
+        // healthCheckQueue.on('error', (error) => console.error(`[Queue Client] Health Check Queue Error:`, error)); // REMOVING
+        monitorExecution.on('error', (error) => console.error(`[Queue Client] Monitor Execution Queue Error:`, error));
+        monitorExecutionEvents.on('error', (error) => console.error(`[Queue Client] Monitor Execution Queue Events Error:`, error));
 
         // Set up periodic cleanup for orphaned Redis keys
         await setupQueueCleanup(connection);
@@ -182,10 +190,10 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue, healthC
   }
   await initPromise;
 
-  if (!testQueue || !jobQueue || !healthCheckQueue) {
-    throw new Error('Queue initialization failed or did not complete.');
+  if (!testQueue || !jobQueue || !monitorExecution || !monitorExecutionEvents) { // Removed healthCheckQueue
+    throw new Error("One or more queues or event listeners could not be initialized.");
   }
-  return { testQueue, jobQueue, healthCheckQueue };
+  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution }; // Removed healthCheckQueue
 }
 
 /**
@@ -218,42 +226,28 @@ async function setupQueueCleanup(connection: Redis): Promise<void> {
  */
 async function performQueueCleanup(connection: Redis): Promise<void> {
   console.log('[Queue Client] Running queue cleanup for Redis keys');
-  
-  // 1. Clean up completed/failed jobs older than their TTL
-  if (testQueue) {
-    await testQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-    await testQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-  }
-  
-  if (jobQueue) {
-    await jobQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-    await jobQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-  }
+  const queuesToClean = [
+    { name: TEST_EXECUTION_QUEUE, queue: testQueue },
+    { name: JOB_EXECUTION_QUEUE, queue: jobQueue },
+    // { name: HEALTH_CHECK_QUEUE, queue: healthCheckQueue }, // REMOVING
+    { name: MONITOR_EXECUTION_QUEUE, queue: monitorExecution }
+  ];
 
-  if (healthCheckQueue) {
-    await healthCheckQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-    await healthCheckQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
+  for (const { name, queue } of queuesToClean) {
+    if (queue) {
+      console.log(`[Queue Client] Cleaning up queue: ${name}`);
+      await cleanupOrphanedKeys(connection, name); // Cleans up BullMQ internal keys
+      
+      // Clean completed and failed jobs older than REDIS_JOB_KEY_TTL from the queue itself
+      await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
+      await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
+      
+      // Trim events to prevent Redis memory issues
+      await queue.trimEvents(1000); // Keep last 1000 events
+      console.log(`[Queue Client] Finished cleaning queue: ${name}`);
+    }
   }
-
-  // 2. Trim event streams to reduce memory usage (keep last 1000 events)
-  if (testQueue) {
-    await testQueue.trimEvents(1000);
-  }
-  
-  if (jobQueue) {
-    await jobQueue.trimEvents(1000);
-  }
-
-  if (healthCheckQueue) {
-    await healthCheckQueue.trimEvents(1000);
-  }
-  
-  // 3. Process orphaned keys in smaller batches to reduce memory pressure
-  await cleanupOrphanedKeys(connection, TEST_EXECUTION_QUEUE);
-  await cleanupOrphanedKeys(connection, JOB_EXECUTION_QUEUE);
-  await cleanupOrphanedKeys(connection, HEALTH_CHECK_QUEUE);
-  
-  console.log('[Queue Client] Queue cleanup completed');
+  console.log('[Queue Client] Finished all queue cleanup tasks.');
 }
 
 /**
@@ -366,110 +360,6 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
 }
 
 /**
- * Add a health check task to the queue.
- * @param task The health check task to execute
- * @returns The health check ID
- */
-export async function addHealthCheckToQueue(task: HealthCheckExecutionTask): Promise<string> {
-  const { healthCheckQueue } = await getQueues();
-  const healthCheckId = task.healthCheckId;
-  console.log(`[Queue Client] Adding health check ${healthCheckId} to queue ${HEALTH_CHECK_QUEUE}`);
-
-  try {
-    // Health checks use their own capacity system, separate from test/job capacity
-    await verifyHealthCheckCapacityOrThrow();
-    
-    const jobOptions = {
-      jobId: healthCheckId,
-      // For repeatable health checks, set up the repeat options
-      repeat: {
-        every: task.interval * 1000, // Convert seconds to milliseconds
-      }
-    };
-    
-    await healthCheckQueue.add(HEALTH_CHECK_QUEUE, task, jobOptions);
-    console.log(`[Queue Client] Health check ${healthCheckId} added successfully.`);
-    return healthCheckId;
-  } catch (error) {
-    console.error(`[Queue Client] Error adding health check ${healthCheckId} to queue:`, error);
-    throw new Error(`Failed to add health check job: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-/**
- * Remove a health check from the queue (stop monitoring)
- * @param healthCheckId The ID of the health check to remove
- */
-export async function removeHealthCheckFromQueue(healthCheckId: string): Promise<void> {
-  const { healthCheckQueue } = await getQueues();
-  
-  try {
-    // Get the job to access its repeat options
-    const job = await healthCheckQueue.getJob(healthCheckId);
-    
-    if (job) {
-      // Remove the job itself
-      await job.remove();
-      
-      // If it's a repeatable job, remove the repeat pattern
-      // This is important or it will keep creating new jobs
-      const repeatableJobs = await healthCheckQueue.getRepeatableJobs();
-      const jobToRemove = repeatableJobs.find(
-        repeatableJob => repeatableJob.id === healthCheckId
-      );
-      
-      if (jobToRemove) {
-        await healthCheckQueue.removeRepeatableByKey(jobToRemove.key);
-      }
-      
-      console.log(`[Queue Client] Health check ${healthCheckId} removed from queue`);
-    } else {
-      console.log(`[Queue Client] Health check ${healthCheckId} not found in queue`);
-    }
-  } catch (error) {
-    console.error(`[Queue Client] Error removing health check ${healthCheckId}:`, error);
-    throw new Error(`Failed to remove health check: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-/**
- * Verify that health check capacity isn't exceeded
- * This ensures we don't overload the system with too many health checks
- */
-async function verifyHealthCheckCapacityOrThrow(): Promise<void> {
-  const redis = await getRedisConnection();
-  
-  try {
-    // Get the configured capacity limit
-    const capacityStr = await redis.get(HEALTH_CHECK_CAPACITY_LIMIT_KEY);
-    const capacity = capacityStr ? parseInt(capacityStr) : 100; // Default to 100 if not set
-    
-    // Count active health checks
-    const { healthCheckQueue } = await getQueues();
-    const activeCount = await healthCheckQueue.getActiveCount();
-    const waitingCount = await healthCheckQueue.getWaitingCount();
-    const delayedCount = await healthCheckQueue.getDelayedCount();
-    const totalCount = activeCount + waitingCount + delayedCount;
-    
-    if (totalCount >= capacity) {
-      throw new Error(`Health check capacity limit reached (${totalCount}/${capacity}). Please remove some existing health checks before adding more.`);
-    }
-    
-    return;
-  } catch (error) {
-    // Rethrow capacity errors
-    if (error instanceof Error && error.message.includes('capacity limit')) {
-      console.error(`[Queue Client] Health check capacity limit error: ${error.message}`);
-      throw error;
-    }
-    
-    // For connection errors, log but enforce a basic check
-    console.error('Error checking health check capacity:', error instanceof Error ? error.message : String(error));
-    throw new Error(`Unable to verify health check capacity due to an error. Please try again later.`);
-  }
-}
-
-/**
  * Verify that we haven't exceeded QUEUED_CAPACITY before adding a new job
  * Throws an error if the queue capacity is exceeded
  */
@@ -518,23 +408,29 @@ export async function verifyQueueCapacityOrThrow(): Promise<void> {
  * Close queue connections (useful for graceful shutdown).
  */
 export async function closeQueue(): Promise<void> {
-  console.log('[Queue Client] Closing queue connections...');
-  await initPromise; // Ensure initialization finished before closing
-  
   const promises = [];
   if (testQueue) promises.push(testQueue.close());
   if (jobQueue) promises.push(jobQueue.close());
-  if (healthCheckQueue) promises.push(healthCheckQueue.close());
+  // if (healthCheckQueue) promises.push(healthCheckQueue.close()); // REMOVING
+  if (monitorExecution) promises.push(monitorExecution.close());
   if (redisClient) promises.push(redisClient.quit());
-  
-  await Promise.all(promises).catch(err => console.error('[Queue Client] Error during queue closing:', err));
-  
-  testQueue = null;
-  jobQueue = null;
-  healthCheckQueue = null;
-  redisClient = null;
-  initPromise = null;
-  console.log('[Queue Client] Queue connections closed.');
+
+  if (monitorExecutionEvents) promises.push(monitorExecutionEvents.close());
+
+  try {
+    await Promise.all(promises);
+    console.log('[Queue Client] All queues and events closed successfully.');
+  } catch (error) {
+    console.error('[Queue Client] Error closing queues and events:', error);
+  } finally {
+    testQueue = null;
+    jobQueue = null;
+    // healthCheckQueue = null; // REMOVING
+    monitorExecution = null;
+    redisClient = null;
+    initPromise = null;
+    monitorExecutionEvents = null;
+  }
 }
 
 /**
@@ -564,14 +460,67 @@ export async function setQueueCapacityLimit(limit: number): Promise<void> {
 }
 
 /**
- * Set capacity limit for health checks through Redis
+ * Add a monitor execution task to the MONITOR_EXECUTION_QUEUE.
  */
-export async function setHealthCheckCapacityLimit(limit: number): Promise<void> {
-  const redis = await getRedisConnection();
+export async function addMonitorExecutionJobToQueue(task: MonitorJobData): Promise<string> {
+  const queues = await getQueues();
+  const currentMonitorExecution = queues.monitorExecutionQueue;
+  const jobId = task.monitorId; // Use monitorId for job tracking, or generate a new UUID if preferred
+  console.log(`[Queue Client] Adding monitor execution job ${jobId} for monitor ${task.monitorId} to queue ${MONITOR_EXECUTION_QUEUE}`);
+
   try {
-    await redis.set(HEALTH_CHECK_CAPACITY_LIMIT_KEY, String(limit));
-    console.log(`Set health check capacity limit to ${limit} in Redis`);
-  } finally {
-    await redis.quit();
+    // Optionally, add capacity checks if needed for monitor execution jobs
+    // await verifyQueueCapacityOrThrow(); 
+
+    const jobOptions = {
+      jobId: jobId, // Using monitorId as BullMQ job ID for this task
+      attempts: 3, // Default attempts, can be overridden from monitor config if needed
+      backoff: { type: 'exponential' as const, delay: 5000 },
+      removeOnComplete: true, // Keep default job options as in other queues
+      removeOnFail: { count: 1000, age: 7 * 24 * 3600 }, 
+    };
+
+    // The job name for the runner's processor is EXECUTE_MONITOR_JOB
+    // This constant should ideally be shared or reliably duplicated.
+    // For now, hardcoding based on runner's monitor.constants.ts
+    const EXECUTE_MONITOR_JOB_NAME = 'executeMonitorJob'; 
+
+    await currentMonitorExecution.add(EXECUTE_MONITOR_JOB_NAME, task, jobOptions);
+    console.log(`[Queue Client] Monitor execution job ${jobId} for ${task.monitorId} added successfully.`);
+    return jobId;
+  } catch (error) {
+    console.error(`[Queue Client] Error adding monitor execution job ${jobId} for ${task.monitorId}:`, error);
+    throw new Error(`Failed to add monitor execution job: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function cleanupOldJobs() {
+  try {
+    const queues = await getQueues();
+    const allQueues = [queues.testQueue, queues.jobQueue, queues.monitorExecutionQueue].filter(q => q !== null) as Queue[]; // Removed healthCheckQueue
+
+    // Clean completed and failed jobs older than REDIS_JOB_KEY_TTL
+    for (const queue of allQueues) {
+      if (queue) { // Ensure queue is not null
+        await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
+        await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
+      }
+    }
+
+    // Trim events to prevent Redis memory issues
+    if (queues.testQueue) {
+      await queues.testQueue.trimEvents(1000); // Keep last 1000 events
+    }
+    if (queues.jobQueue) {
+      await queues.jobQueue.trimEvents(1000);
+    }
+    if (queues.monitorExecutionQueue) {
+      await queues.monitorExecutionQueue.trimEvents(1000);
+    }
+    
+
+    console.log('[Queue Client] Old jobs and events cleanup successful.');
+  } catch (error) {
+    console.error('[Queue Client] Error during old jobs and events cleanup:', error);
   }
 }

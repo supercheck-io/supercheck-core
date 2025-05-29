@@ -43,9 +43,9 @@ export function DataTableToolbar<TData>({
             options={monitorStatuses}
           />
         )}
-        {table.getColumn("method") && (
+        {table.getColumn("type") && (
           <DataTableFacetedFilter
-            column={table.getColumn("method")}
+            column={table.getColumn("type")}
             title="Type"
             options={monitorTypes}
           />
