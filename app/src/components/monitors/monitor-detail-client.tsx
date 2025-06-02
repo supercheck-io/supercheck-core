@@ -74,6 +74,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ResponseTimeBarChart } from "@/components/monitors/response-time-bar-chart";
 import { MonitorChart, MonitorChartDataPoint } from "./monitor-chart";
+import { AvailabilityBarChart } from "./AvailabilityBarChart";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MonitorStatusIndicator } from "./monitor-status-indicator";
@@ -95,7 +96,6 @@ export interface MonitorResultItem {
 
 export type MonitorWithResults = MonitorSchemaType & {
   recentResults?: MonitorResultItem[];
-  type?: string;
 };
 
 interface MonitorDetailClientProps {
@@ -119,9 +119,19 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+  console.log("[MonitorDetailClient] Initial Monitor Prop:", initialMonitor);
+
   useEffect(() => {
-    setMonitor(initialMonitor);
+    console.log("[MonitorDetailClient] useEffect - initialMonitor changed:", initialMonitor);
+    if (initialMonitor && initialMonitor.recentResults && !Array.isArray(initialMonitor.recentResults)) {
+      console.warn("[MonitorDetailClient] initialMonitor.recentResults is not an array. Current value:", initialMonitor.recentResults);
+      setMonitor({ ...initialMonitor, recentResults: [] });
+    } else {
+      setMonitor(initialMonitor);
+    }
   }, [initialMonitor]);
+
+  console.log("[MonitorDetailClient] Current Monitor State:", monitor);
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -190,13 +200,32 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
     })).reverse(); 
   }, [monitor.recentResults]);
 
-  const statusInfo = monitorStatuses.find((s) => s.value === monitor.status);
-  const monitorTypeInfo = monitorTypes.find((t) => t.value === monitor.type);
+  const latestResult = monitor.recentResults && monitor.recentResults.length > 0 ? monitor.recentResults[0] : null;
+  const currentActualStatus = latestResult ? (latestResult.isUp ? 'up' : 'down') : monitor.status;
 
-  const avgResponse24h = "122 ms";
-  const uptime30d = "99.95%";
-  const currentResponseTime = monitor.responseTime !== undefined && monitor.responseTime !== null ? `${monitor.responseTime} ms` : (monitor.recentResults && monitor.recentResults.length > 0 && monitor.recentResults[0].responseTimeMs !== undefined && monitor.recentResults[0].responseTimeMs !== null ? `${monitor.recentResults[0].responseTimeMs} ms` : "N/A");
-  const uptime24h = monitor.uptime ? `${parseFloat(monitor.uptime as string).toFixed(2)}%` : "N/A";
+  console.log("[MonitorDetailClient] Latest Result:", latestResult);
+  console.log("[MonitorDetailClient] Current Actual Status:", currentActualStatus);
+
+  const statusInfo = monitorStatuses.find((s) => s.value === currentActualStatus);
+  const monitorTypeInfo = monitorTypes.find((t) => t.value === monitor.method);
+
+  console.log("[MonitorDetailClient] Status Info (for display):", statusInfo);
+  console.log("[MonitorDetailClient] Monitor Type Info (for icon):", monitorTypeInfo);
+
+  const avgResponse24h = "N/A";
+  const uptime30d = "N/A";
+  const currentResponseTime = latestResult && latestResult.responseTimeMs !== undefined && latestResult.responseTimeMs !== null ? `${latestResult.responseTimeMs} ms` : "N/A";
+  const uptime24h = "N/A";
+
+  // Prepare data for AvailabilityBarChart, same as statusHistoryData but ensure 0|1 status
+  const availabilityTimelineData = useMemo(() => {
+    if (!monitor.recentResults || monitor.recentResults.length === 0) return [];
+    return monitor.recentResults.map(r => ({
+        timestamp: (typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt).getTime(),
+        status: (r.isUp ? 1 : 0) as (0 | 1),
+        label: r.status
+    })).reverse(); 
+  }, [monitor.recentResults]);
 
   return (
     <div className="container py-6 px-4 md:px-6 h-full overflow-hidden">
@@ -255,12 +284,16 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-4">
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              {statusInfo && <statusInfo.icon className={cn("h-5 w-5", statusInfo.color)} />}
-              <CardTitle className="text-sm font-medium text-muted-foreground">Status</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Status</CardTitle>
             </CardHeader>
-            <CardContent className="pb-4 px-4">
-              <div className="text-2xl font-bold">{statusInfo?.label || 'Unknown'}</div>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <MonitorStatusIndicator status={currentActualStatus as DBMoniotorStatusType} monitorId={monitor.id} />
+                <div className="text-2xl font-bold">
+                  {statusInfo?.label ?? currentActualStatus?.charAt(0).toUpperCase() + currentActualStatus?.slice(1) ?? "Unknown"}
+                </div>
+              </div>
             </CardContent>
           </Card>
           
@@ -309,44 +342,11 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           {/* New Availability Chart Card */}
-          <Card className="shadow-sm mb-6">
-            <CardContent className="p-1 h-[80px]"> {/* Small height, minimal padding for the chart */}
-              {/*
-                This card is intended to show a bar chart for the availability of each check,
-                covering the full width of this card.
-                It is placed above the "Response Time Overview" chart within the same layout column.
-
-                To achieve true "full page width" as requested, this card and its content
-                would need to be moved outside of the current two-column grid structure
-                (i.e., outside the parent <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">).
-                The current placement is constrained by the selection edit rule.
-
-                A dedicated chart component (e.g., AvailabilityTimelineChart) would be suitable here,
-                taking `availabilityTimelineData` (an array of objects like 
-                { timestamp: number, status: 0|1, label?: string }) and rendering a series of bars
-                colored by status, without axes, to fit the small height.
-                The existing MonitorChart component might be too complex or have a fixed height
-                not suitable for this compact view unless modified.
-              */}
-              {/* Placeholder for the actual availability bar chart component */}
-              {/* Example: <AvailabilityTimelineChart data={availabilityTimelineData} /> */}
-              <div className="w-full h-full bg-muted/20 flex items-center justify-center text-xs text-muted-foreground p-2 text-center">
-                [Availability Timeline Chart: Shows individual check statuses (up/down) as a series of colored bars. Requires `availabilityTimelineData`.]
-              </div>
-            </CardContent>
-          </Card>
+          <AvailabilityBarChart data={availabilityTimelineData} />
 
           {/* Original Response Time Overview Card (now below the new availability chart) */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-xl flex items-center">
-                <BarChart2 className="mr-2 h-5 w-5" />
-                Response Time Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pl-2">
-              <ResponseTimeBarChart data={responseTimeData} />
-            </CardContent>
+          <Card>
+            <ResponseTimeBarChart data={responseTimeData} />
           </Card>
         </div>
 

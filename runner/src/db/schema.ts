@@ -9,7 +9,9 @@ import {
   uuid,
   customType,
   uniqueIndex,
+  boolean,
 } from "drizzle-orm/pg-core";
+import { z } from "zod";
 
 import {
   createInsertSchema,
@@ -125,23 +127,11 @@ export type TestPriority = "low" | "medium" | "high";
 export type TestType = "browser" | "api" | "multistep" | "database";
 export const tests = pgTable("tests", {
   id: uuid("id").primaryKey().defaultRandom(),
-  // projectId: uuid("project_id")
-  //   .notNull()
-  //   .references(() => projects.id),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   script: text("script").notNull().default(""), // Store Base64-encoded script content
   priority: varchar("priority", { length: 50 }).$type<TestPriority>().notNull().default("medium"),
   type: varchar("type", { length: 50 }).$type<TestType>().notNull().default("browser"),
-  // tags: jsonb("tags")
-  //   .$type<string[]>()
-  //   .default([]),
-  // createdBy: uuid("created_by")
-  //   .notNull()
-  //   .references(() => users.id),
-  // updatedBy: uuid("updated_by")
-  //   .notNull()
-  //   .references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -169,16 +159,10 @@ export type JobConfig = {
 };
 export const jobs = pgTable("jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  // projectId: uuid("project_id")
-  //   .notNull()
-  //   .references(() => projects.id),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   cronSchedule: varchar("cron_schedule", { length: 100 }),
   status: varchar("status", { length: 50 }).$type<JobStatus>().notNull().default("pending"),
-  // config: jsonb("config").$type<JobConfig>(),
-  // retryCount: integer("retry_count").default(0),
-  // timeoutSeconds: integer("timeout_seconds").default(600),
   lastRunAt: timestamp("last_run_at"),
   nextRunAt: timestamp("next_run_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -239,6 +223,134 @@ export const runs = pgTable("runs", {
   artifactPaths: jsonb("artifact_paths").$type<ArtifactPaths>(),
   logs: text("logs"),
   errorDetails: text("error_details"),
+});
+
+/* ================================
+   MONITORS TABLE
+   -------------------------------
+   Stores the configuration for different types of monitors (e.g., HTTP, Ping).
+   Includes details like name, type, target, frequency, current status,
+   and specific configuration options.
+=================================== */
+export type MonitorType =
+  | "http_request"    // Check HTTP/S endpoints (availability, status, response time)
+  | "ping_host"       // ICMP ping to a host
+  | "port_check"      // Check specific TCP or UDP port
+  | "dns_check"       // DNS record validation (A, CNAME, MX, TXT, etc.)
+  | "playwright_script"; // Execute an existing Playwright test script from the 'tests' table
+
+export type MonitorStatus =
+  | "up"
+  | "down"
+  | "paused"
+  | "pending"
+  | "maintenance"
+  | "error";
+
+export type MonitorConfig = {
+  // http_request specific
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
+  headers?: Record<string, string>; 
+  body?: string; 
+  expectedStatusCodes?: string;
+  keywordInBody?: string; 
+  keywordInBodyShouldBePresent?: boolean; 
+  responseBodyJsonPath?: { path: string; expectedValue: any }; 
+
+  auth?: {
+    type: "none" | "basic" | "bearer";
+    username?: string; 
+    password?: string; 
+    token?: string;    
+  };
+
+  // port_check specific
+  port?: number;
+  protocol?: "tcp" | "udp";
+
+  // ssl_check specific (target is domain name)
+  checkExpiration?: boolean;
+  daysUntilExpirationWarning?: number; 
+  checkRevocation?: boolean; 
+
+  // dns_check specific (target is domain name)
+  recordType?: "A" | "AAAA" | "CNAME" | "MX" | "NS" | "PTR" | "SOA" | "SRV" | "TXT";
+  expectedValue?: string; 
+
+  // playwright_script specific
+  testId?: string; 
+  scriptVariables?: Record<string, any>; 
+
+  // heartbeat specific (target is an expected unique identifier for the incoming ping)
+  expectedIntervalSeconds?: number; 
+  gracePeriodSeconds?: number; 
+
+  // Common configuration applicable to many types
+  timeoutSeconds?: number; 
+  regions?: string[]; 
+  retryStrategy?: {
+    maxRetries: number; 
+    backoffFactor: number; 
+  };
+  alertChannels?: string[]; 
+  
+  [key: string]: any; 
+};
+
+export const monitors = pgTable("monitors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).$type<MonitorType>().notNull(),
+  target: varchar("target", { length: 2048 }).notNull(), 
+  frequencyMinutes: integer("frequency_minutes").notNull().default(5), 
+  enabled: boolean("enabled").notNull().default(true),
+  status: varchar("status", { length: 50 }).$type<MonitorStatus>().notNull().default("pending"),
+  config: jsonb("config").$type<MonitorConfig>(),
+  lastCheckAt: timestamp("last_check_at"),
+  lastStatusChangeAt: timestamp("last_status_change_at"),
+  mutedUntil: timestamp("muted_until"), 
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/* ================================
+   MONITOR RESULTS TABLE
+   -------------------------------
+   Stores the results of each individual check performed on a monitor.
+   Includes status, response time, and any specific details or errors.
+=================================== */
+export type MonitorResultStatus = "up" | "down" | "error" | "timeout";
+export type MonitorResultDetails = {
+  statusCode?: number;
+  statusText?: string;
+  errorMessage?: string;
+  responseHeaders?: Record<string, string>;
+  responseBodySnippet?: string; 
+  ipAddress?: string; 
+  location?: string; 
+  sslCertificate?: {
+    valid: boolean;
+    issuer?: string;
+    subject?: string;
+    validFrom?: string;
+    validTo?: string;
+    daysRemaining?: number;
+  };
+  [key: string]: any; 
+};
+
+export const monitorResults = pgTable("monitor_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  monitorId: uuid("monitor_id")
+    .notNull()
+    .references(() => monitors.id, { onDelete: "cascade" }),
+  checkedAt: timestamp("checked_at").notNull().defaultNow(),
+  status: varchar("status", { length: 50 }).$type<MonitorResultStatus>().notNull(),
+  responseTimeMs: integer("response_time_ms"),
+  details: jsonb("details").$type<MonitorResultDetails>(),
+  isUp: boolean("is_up").notNull(), 
+  isStatusChange: boolean("is_status_change").notNull().default(false), 
 });
 
 /* ================================
@@ -368,4 +480,24 @@ export const integrations = pgTable("integrations", {
 export const testsInsertSchema = createInsertSchema(tests);
 export const testsUpdateSchema = createUpdateSchema(tests);
 export const testsSelectSchema = createSelectSchema(tests);
+
+// Zod Schemas for 'users' table
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+export const updateUserSchema = createUpdateSchema(users, {
+  // email is notNull in DB, make it optional for updates
+  email: (fieldSchema) => fieldSchema.optional(), 
+  // firstName and lastName are nullable in DB, so already optional in update schema
+  // no need to customize them here unless other changes are needed.
+});
+
+// Zod Schemas for 'organizations' table
+export const insertOrganizationSchema = createInsertSchema(organizations);
+export const selectOrganizationSchema = createSelectSchema(organizations);
+export const updateOrganizationSchema = createUpdateSchema(organizations, {
+  // name and ownerId are notNull in DB, make them optional for updates
+  name: (fieldSchema) => fieldSchema.optional(),
+  ownerId: (fieldSchema) => fieldSchema.optional(),
+  // Other fields are nullable or have defaults, so createUpdateSchema handles them
+});
 

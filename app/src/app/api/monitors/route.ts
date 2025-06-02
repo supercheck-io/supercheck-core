@@ -1,41 +1,78 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db as getDbInstance } from "@/lib/db";
-import { monitors, monitorsInsertSchema } from "@/db/schema/schema";
+import { monitors, monitorsInsertSchema, monitorResults, Monitor } from "@/db/schema/schema";
 import { scheduleMonitorCheck, removeScheduledMonitorCheck } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
+import { desc, eq } from "drizzle-orm";
 
 export async function GET() {
   try {
     const db = await getDbInstance();
-    const allMonitors = await db.query.monitors.findMany({
+
+    // 1. Fetch all monitors
+    const allMonitors: Array<typeof monitors.$inferSelect> = await db.query.monitors.findMany({
       orderBy: (monitors, { desc }) => [desc(monitors.createdAt)],
     });
 
-    // Map to a structure that the frontend table likely expects
-    const formattedMonitors = allMonitors.map(monitor => ({
-      id: monitor.id,
-      name: monitor.name,
-      description: monitor.description,
-      url: monitor.target, // Map target to url
-      type: monitor.type, // Keep type as is, frontend can format it
-      interval: monitor.frequencyMinutes, // Map frequencyMinutes to interval
-      status: monitor.status,
-      // config: monitor.config, // Usually not needed for overview table
-      lastCheckedAt: monitor.lastCheckAt?.toISOString(),
-      // lastStatusChangeAt: monitor.lastStatusChangeAt?.toISOString(),
-      // mutedUntil: monitor.mutedUntil?.toISOString(),
-      createdAt: monitor.createdAt?.toISOString(),
-      // updatedAt: monitor.updatedAt?.toISOString(),
-      // Health and detailed response time would typically come from aggregated results or latest result,
-      // which might be too heavy for a simple GET all.
-      // For now, these will be undefined or handled by client if it fetches individual results.
-      health: "loading", // Placeholder, actual health needs aggregation
-      responseTime: undefined, // Placeholder
-    }));
+    // 2. For each monitor, fetch its latest result (N+1 queries approach)
+    const formattedMonitors = await Promise.all(
+      allMonitors.map(async (monitor) => {
+        if (!monitor) {
+          console.warn("Encountered a null/undefined monitor object during mapping");
+          return null; 
+        }
 
-    return NextResponse.json(formattedMonitors);
+        // Find the latest result for this specific monitor
+        const latestResult = await db.query.monitorResults.findFirst({
+          where: eq(monitorResults.monitorId, monitor.id),
+          orderBy: (monitorResults, { desc }) => [desc(monitorResults.checkedAt)],
+        });
+
+        const monitorOwnStatus = monitor.status;
+        let healthStatus = monitorOwnStatus === 'paused' ? 'paused' : 'pending';
+        let resultStatus = null;
+        let resultIsUp = null;
+        let resultResponseTimeMs = null;
+        let resultCheckedAt = null;
+
+        if (latestResult) {
+          resultStatus = latestResult.status;
+          resultIsUp = latestResult.isUp;
+          resultResponseTimeMs = latestResult.responseTimeMs;
+          resultCheckedAt = latestResult.checkedAt;
+          if (resultIsUp === true) {
+            healthStatus = 'up';
+          } else if (resultIsUp === false) {
+            healthStatus = 'down';
+          }
+        }
+        
+        const effectiveLastCheckTime = resultCheckedAt ?? monitor.lastCheckAt;
+
+        return {
+          id: monitor.id,
+          name: monitor.name ?? 'Unnamed Monitor',
+          description: monitor.description,
+          url: monitor.target,
+          method: monitor.type,
+          interval: monitor.frequencyMinutes,
+          status: resultStatus ?? monitorOwnStatus, 
+          lastCheckedAt: effectiveLastCheckTime ? new Date(effectiveLastCheckTime).toISOString() : null,
+          createdAt: monitor.createdAt ? new Date(monitor.createdAt).toISOString() : null,
+          health: healthStatus,
+          responseTime: resultResponseTimeMs ?? null,
+        };
+      })
+    );
+
+    return NextResponse.json(formattedMonitors.filter(Boolean)); // Filter out any nulls from failed mappings
+
   } catch (error) {
-    console.error("Error fetching monitors:", error);
+    console.error("Error fetching monitors (N+1 approach):", error);
+    // Log the specific error if it's the same TypeError, though it shouldn't be with this approach
+    if (error instanceof TypeError && error.message.includes("Cannot convert undefined or null to object")) {
+        console.error("TypeError details (N+1 approach):", error.stack);
+    }
     return NextResponse.json(
       { error: "Failed to fetch monitors" },
       { status: 500 }
@@ -55,7 +92,6 @@ export async function POST(req: NextRequest) {
     const newMonitorData = validationResult.data;
     const db = await getDbInstance();
 
-    // Ensure target is not null or empty if it's required by the schema (it is notNull())
     if (!newMonitorData.target) {
         return NextResponse.json({ error: "Target is required" }, { status: 400 });
     }
@@ -78,14 +114,12 @@ export async function POST(req: NextRequest) {
         });
       } catch (scheduleError) {
         console.error(`Failed to schedule initial check for monitor ${insertedMonitor.id}:`, scheduleError);
-        // Log error but don't fail the monitor creation itself
       }
     }
 
     return NextResponse.json(insertedMonitor, { status: 201 });
   } catch (error) {
     console.error("Error creating monitor:", error);
-    // Check for unique constraint violation or other DB errors if necessary
     return NextResponse.json({ error: "Failed to create monitor" }, { status: 500 });
   }
 } 

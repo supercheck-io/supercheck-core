@@ -18,6 +18,7 @@ import {
   createUpdateSchema,
 } from "drizzle-zod";
 
+import { organization, user as authUser } from "./auth-schema"; // Import organization and user (aliased to authUser to avoid naming conflict if you have a local user concept)
 
 /* ================================
    TESTS TABLE
@@ -32,9 +33,10 @@ export type TestPriority = "low" | "medium" | "high";
 export type TestType = "browser" | "api" | "multistep" | "database";
 export const tests = pgTable("tests", {
   id: uuid("id").primaryKey().defaultRandom(),
-  // projectId: uuid("project_id")
-  //   .notNull()
-  //   .references(() => projects.id),
+  organizationId: text("organization_id")
+    // .notNull() // Ensured nullable for now
+    .references(() => organization.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   script: text("script").notNull().default(""), // Store Base64-encoded script content
@@ -67,9 +69,10 @@ export type JobConfig = {
 };
 export const jobs = pgTable("jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  // projectId: uuid("project_id")
-  //   .notNull()
-  //   .references(() => projects.id),
+  organizationId: text("organization_id")
+    // .notNull() // Ensured nullable for now
+    .references(() => organization.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   cronSchedule: varchar("cron_schedule", { length: 100 }),
@@ -151,8 +154,12 @@ export const reports = pgTable(
   "reports", 
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      // .notNull() // Ensured nullable for now
+      .references(() => organization.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
     entityType: varchar("entity_type", { length: 50 }).$type<ReportType>().notNull(),
-    entityId: uuid("entity_id").notNull(),
+    entityId: uuid("entity_id").notNull(), // This ID should belong to an entity (test/job) within the same organizationId
     reportPath: varchar("report_path", { length: 255 }).notNull(),
     status: varchar("status", { length: 50 }).notNull().default("passed"),
     s3Url: varchar("s3_url", { length: 1024 }),
@@ -252,13 +259,16 @@ export type MonitorConfig = {
 
 export const monitors = pgTable("monitors", {
   id: uuid("id").primaryKey().defaultRandom(),
-  // userId: uuid("user_id").references(() => users.id), // If monitors are user-specific
-  // projectId: uuid("project_id").references(() => projects.id), // If monitors are project-specific
+  organizationId: text("organization_id")
+    // .notNull() // Ensured nullable for now
+    .references(() => organization.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   type: varchar("type", { length: 50 }).$type<MonitorType>().notNull(),
   target: varchar("target", { length: 2048 }).notNull(), // URL, IP, cron expression, domain
   frequencyMinutes: integer("frequency_minutes").notNull().default(5), // Check interval in minutes
+  enabled: boolean("enabled").notNull().default(true), // NEW: To enable/disable checks
   status: varchar("status", { length: 50 }).$type<MonitorStatus>().notNull().default("pending"),
   config: jsonb("config").$type<MonitorConfig>(),
   lastCheckAt: timestamp("last_check_at"),
@@ -266,6 +276,7 @@ export const monitors = pgTable("monitors", {
   mutedUntil: timestamp("muted_until"), // For temporary pausing of alerts
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  // consecutiveFailures: integer("consecutive_failures").notNull().default(0), // Optional: for alerting
 });
 
 /* ================================
@@ -304,7 +315,239 @@ export const monitorResults = pgTable("monitor_results", {
   responseTimeMs: integer("response_time_ms"),
   details: jsonb("details").$type<MonitorResultDetails>(),
   isUp: boolean("is_up").notNull(), // Derived from status for easier querying/aggregation
+  isStatusChange: boolean("is_status_change").notNull().default(false), // NEW: Flag if this result changed the monitor's overall status
 });
+
+/* ================================
+   TAGS TABLE
+   -------------------------------
+   Stores tags that can be applied to monitors. Tags are now per-organization.
+=================================== */
+export const tags = pgTable("tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id")
+    // .notNull() // Ensured nullable for now
+    .references(() => organization.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+  name: varchar("name", { length: 100 }).notNull(), // Unique constraint should be per-organization now
+  color: varchar("color", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+},
+(table) => ({
+    organizationTagNameUnique: uniqueIndex("tags_organization_name_idx").on(
+      table.organizationId, 
+      table.name
+    ),
+  })
+);
+
+/* ================================
+   MONITOR TAGS TABLE (Join Table)
+   -------------------------------
+   Maps monitors to tags (many-to-many relationship).
+=================================== */
+export const monitorTags = pgTable(
+  "monitor_tags",
+  {
+    monitorId: uuid("monitor_id")
+      .notNull()
+      .references(() => monitors.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+    assignedAt: timestamp("assigned_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.monitorId, table.tagId] }),
+  })
+);
+
+/* ================================
+   NOTIFICATION PROVIDERS TABLE
+   -------------------------------
+   Notification providers are configured per-organization.
+=================================== */
+export type NotificationProviderType = "email" | "slack" | "webhook" | "telegram" | "discord"; // Add more as needed
+export type NotificationProviderConfig = {
+  // Common
+  name: string; // User-defined name for this specific notification setup
+  isDefault?: boolean; // If this is a default notification channel for new monitors
+
+  // email specific
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPassword?: string; // IMPORTANT: Manage secrets properly
+  smtpSecure?: boolean;
+  fromEmail?: string;
+  toEmail?: string; // Can be comma-separated for multiple recipients
+
+  // slack specific
+  webhookUrl?: string; // Slack incoming webhook URL
+  channel?: string; // e.g., #alerts
+
+  // webhook specific
+  url?: string;
+  method?: "GET" | "POST" | "PUT";
+  headers?: Record<string, string>;
+  bodyTemplate?: string; // JSON or text template for the webhook body
+
+  // telegram specific
+  botToken?: string;
+  chatId?: string;
+
+  // discord specific
+  discordWebhookUrl?: string;
+
+  [key: string]: any; // For other provider-specific settings
+};
+
+export const notificationProviders = pgTable("notification_providers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id")
+    // .notNull() // Ensured nullable for now
+    .references(() => organization.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+  type: varchar("type", { length: 50 }).$type<NotificationProviderType>().notNull(),
+  config: jsonb("config").$type<NotificationProviderConfig>().notNull(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/* ================================
+   MONITOR NOTIFICATIONS TABLE (Join Table)
+   -------------------------------
+   Links monitors to specific notification provider configurations.
+   A monitor can have multiple notification channels.
+=================================== */
+export const monitorNotificationSettings = pgTable(
+  "monitor_notification_settings",
+  {
+    monitorId: uuid("monitor_id")
+      .notNull()
+      .references(() => monitors.id, { onDelete: "cascade" }),
+    notificationProviderId: uuid("notification_provider_id")
+      .notNull()
+      .references(() => notificationProviders.id, { onDelete: "cascade" }),
+    // Additional settings for this specific monitor-notification link, if needed
+    // e.g., notifyOnUp: boolean("notify_on_up").default(true),
+    //       notifyOnDown: boolean("notify_on_down").default(true),
+    //       notifyOnReminders: boolean("notify_on_reminders").default(false),
+    //       reminderIntervalMinutes: integer("reminder_interval_minutes"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.monitorId, table.notificationProviderId] }),
+  })
+);
+
+/* ================================
+   STATUS PAGES TABLE
+   -------------------------------
+   Status pages are created per-organization.
+=================================== */
+export type StatusPageLayout = "list" | "grid"; // Example layouts
+export const statusPages = pgTable("status_pages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id")
+    // .notNull() // Ensured nullable for now
+    .references(() => organization.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+  slug: varchar("slug", { length: 100 }).notNull(), // Unique constraint should be per-organization now
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  customDomain: varchar("custom_domain", { length: 255 }),
+  logoUrl: varchar("logo_url", { length: 2048 }),
+  faviconUrl: varchar("favicon_url", { length: 2048 }),
+  customCss: text("custom_css"),
+  customHtmlHeader: text("custom_html_header"),
+  customHtmlFooter: text("custom_html_footer"),
+  isPublic: boolean("is_public").notNull().default(true),
+  showTags: boolean("show_tags").notNull().default(false),
+  layout: varchar("layout", { length: 50 }).$type<StatusPageLayout>().default("list"),
+  passwordProtected: boolean("password_protected").notNull().default(false),
+  passwordHash: varchar("password_hash", { length: 255 }), // Store hashed password if passwordProtected
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+},
+(table) => ({
+    organizationSlugUnique: uniqueIndex("status_page_organization_slug_idx").on(
+      table.organizationId, 
+      table.slug
+    ),
+  })
+);
+
+/* ================================
+   STATUS PAGE MONITORS TABLE (Join Table)
+   -------------------------------
+   Defines which monitors are displayed on which status page, with ordering.
+=================================== */
+export const statusPageMonitors = pgTable(
+  "status_page_monitors",
+  {
+    statusPageId: uuid("status_page_id")
+      .notNull()
+      .references(() => statusPages.id, { onDelete: "cascade" }),
+    monitorId: uuid("monitor_id")
+      .notNull()
+      .references(() => monitors.id, { onDelete: "cascade" }),
+    displayOrder: integer("display_order").notNull().default(0),
+    groupName: varchar("group_name", { length: 100 }), // Optional grouping on the status page
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.statusPageId, table.monitorId] }),
+  })
+);
+
+/* ================================
+   MAINTENANCE WINDOWS TABLE
+   -------------------------------
+   Maintenance windows are defined per-organization.
+=================================== */
+export const maintenanceWindows = pgTable("maintenance_windows", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id")
+    // .notNull() // Ensured nullable for now
+    .references(() => organization.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  // For recurring maintenance, you might add cron-like fields or iCalendar RRULE string
+  // rrule: varchar("rrule", { length: 255 }),
+  timezone: varchar("timezone", { length: 100 }), // e.g., "Europe/London"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/* ================================
+   MONITOR MAINTENANCE WINDOWS TABLE (Join Table)
+   -------------------------------
+   Links specific monitors to maintenance windows.
+   A monitor can be affected by multiple maintenance windows.
+   A maintenance window can affect all monitors (if monitorId is null) or specific ones.
+=================================== */
+export const monitorMaintenanceWindows = pgTable(
+  "monitor_maintenance_windows",
+  {
+    maintenanceWindowId: uuid("maintenance_window_id")
+      .notNull()
+      .references(() => maintenanceWindows.id, { onDelete: "cascade" }),
+    monitorId: uuid("monitor_id")
+      .notNull()
+      .references(() => monitors.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.maintenanceWindowId, table.monitorId] }), 
+  })
+);
+
 
 // Zod schemas for monitors
 export const monitorsInsertSchema = createInsertSchema(monitors);
@@ -314,4 +557,17 @@ export const monitorsSelectSchema = createSelectSchema(monitors);
 // Zod schemas for monitor_results
 export const monitorResultsInsertSchema = createInsertSchema(monitorResults);
 export const monitorResultsSelectSchema = createSelectSchema(monitorResults);
+
+// Zod schemas for new tables
+export const tagsInsertSchema = createInsertSchema(tags);
+export const tagsSelectSchema = createSelectSchema(tags);
+
+export const notificationProvidersInsertSchema = createInsertSchema(notificationProviders);
+export const notificationProvidersSelectSchema = createSelectSchema(notificationProviders);
+
+export const statusPagesInsertSchema = createInsertSchema(statusPages);
+export const statusPagesSelectSchema = createSelectSchema(statusPages);
+
+export const maintenanceWindowsInsertSchema = createInsertSchema(maintenanceWindows);
+export const maintenanceWindowsSelectSchema = createSelectSchema(maintenanceWindows);
 

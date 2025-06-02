@@ -81,5 +81,6 @@ const drizzleProvider: Provider = {
     TestExecutionProcessor,
     JobExecutionProcessor,
   ],
+  exports: [drizzleProvider, DbService]
 })
 export class ExecutionModule {}

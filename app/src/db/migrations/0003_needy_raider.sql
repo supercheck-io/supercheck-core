@@ -1,1 +1,0 @@
-ALTER TABLE "jobs" ADD COLUMN "scheduled_job_id" varchar(255);

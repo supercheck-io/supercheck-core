@@ -29,16 +29,19 @@ export class MonitorProcessor extends WorkerHost {
       result = await this.monitorService.executeMonitor(job.data);
       this.logger.log(`Monitor job ${job.id} completed. Result for monitor ${job.data.monitorId}: ${JSON.stringify(result)}`);
       
-      // TODO: Implement direct update to database or alternative to results queue
-      // For now, the result is just logged and returned to BullMQ.
+      // Save the result to the database
+      try {
+        await this.monitorService.saveMonitorResult(result);
+        this.logger.log(`Successfully saved result to DB for monitor ${job.data.monitorId}`);
+      } catch (dbError) {
+        this.logger.error(`Failed to save result to DB for monitor ${job.data.monitorId}: ${dbError.message}`, dbError.stack);
+        // Decide if this error should make the job fail or if we should still return the result
+        // For now, let's log and still consider the primary execution successful if it reached here
+      }
       
       return result; // Still return result for BullMQ job completion in this queue
     } catch (error) {
       this.logger.error(`Monitor job ${job.id} failed for monitor ${job.data.monitorId}: ${error.message}`, error.stack);
-      // If an error occurs before or during sending to results queue, it will be caught here.
-      // The job in MONITOR_QUEUE will be marked as failed.
-      // We might want to send a specific error object to the results queue if partial execution happened.
-      // For now, just rethrow.
       throw error; 
     }
   }

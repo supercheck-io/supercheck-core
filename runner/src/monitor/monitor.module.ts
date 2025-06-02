@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { HttpModule } from '@nestjs/axios';
 import { MonitorService } from './monitor.service';
 import { MonitorProcessor } from './monitor.processor';
 import { MONITOR_QUEUE } from './monitor.constants';
+import { ExecutionModule } from '../execution.module';
 
 @Module({
   imports: [
+    ExecutionModule,
+    HttpModule,
     BullModule.registerQueue(
       {
         name: MONITOR_QUEUE, // Worker queue for receiving execution jobs

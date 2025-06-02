@@ -64,6 +64,16 @@ const commonHttpStatusCodes = [
   { code: 504, label: "504 Gateway Timeout" },
 ];
 
+// Define presets for Expected Status Codes
+const statusCodePresets = [
+  { label: "Any 2xx (Success)", value: "200-299" },
+  { label: "Any 3xx (Redirection)", value: "300-399" },
+  { label: "Any 4xx (Client Error)", value: "400-499" },
+  { label: "Any 5xx (Server Error)", value: "500-599" },
+  { label: "Specific Code (e.g., 200)", value: "200" }, // User can modify after selection
+  { label: "Common Web (2xx, 3xx)", value: "200-399" },
+];
+
 const checkIntervalOptions = [
   { value: "30", label: "30 seconds" },
   { value: "60", label: "1 minute" },
@@ -90,7 +100,7 @@ const formSchema = z.object({
   httpConfig_method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]).optional(),
   httpConfig_headers: z.string().optional(),
   httpConfig_body: z.string().optional(),
-  httpConfig_expectedStatusCode: z.coerce.number().int().min(100).max(599).optional(),
+  httpConfig_expectedStatusCodes: z.string().optional(),
   httpConfig_keywordInBody: z.string().optional(),
   httpConfig_keywordShouldBePresent: z.boolean().optional(),
   // Auth fields for HTTP Request
@@ -122,7 +132,7 @@ const creationDefaultValues: FormValues = {
   httpConfig_method: "GET",
   httpConfig_headers: undefined,
   httpConfig_body: undefined,
-  httpConfig_expectedStatusCode: 200,
+  httpConfig_expectedStatusCodes: "200-299",
   httpConfig_keywordInBody: undefined,
   httpConfig_keywordShouldBePresent: undefined,
   httpConfig_authUsername: undefined,
@@ -467,31 +477,41 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                       )}
                     />
 
+                    {/* Expected Status Code */}
                     <FormField
                       control={form.control}
-                      name="httpConfig_expectedStatusCode" 
+                      name="httpConfig_expectedStatusCodes" 
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Expected Status Code</FormLabel>
-                          <FormControl>
+                          <FormLabel>Expected Status Codes</FormLabel>
+                          <div className="flex items-center space-x-2">
+                            <FormControl className="flex-grow">
+                              <Input 
+                                placeholder="e.g., 200-299, 404"
+                                {...field}
+                                value={field.value || ""} 
+                              />
+                            </FormControl>
                             <Select
-                              onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)}
-                              defaultValue={field.value?.toString()}
+                              onValueChange={(presetValue) => {
+                                form.setValue("httpConfig_expectedStatusCodes", presetValue, { shouldValidate: true, shouldDirty: true });
+                              }}
                             >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select an expected status code" />
-                                </SelectTrigger>
-                              </FormControl>
+                              <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Presets..." />
+                              </SelectTrigger>
                               <SelectContent>
-                                {commonHttpStatusCodes.map((status) => (
-                                  <SelectItem key={status.code} value={status.code.toString()}>
-                                    {status.label}
+                                {statusCodePresets.map((preset) => (
+                                  <SelectItem key={preset.label} value={preset.value}>
+                                    {preset.label}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                          </FormControl>
+                          </div>
+                          <FormDescription>
+                            Specify codes (e.g., 200, 200-299, 404). Default is "200-299".
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

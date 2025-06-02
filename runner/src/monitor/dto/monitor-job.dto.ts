@@ -9,11 +9,11 @@ export type MonitorType =
   | "dns_check"
   | "playwright_script";
 
-export type MonitorConfig = {
+export interface MonitorConfig {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
   headers?: Record<string, string>;
   body?: string; 
-  expectedStatusCode?: number; 
+  expectedStatusCodes?: string;
   keywordInBody?: string; 
   keywordInBodyShouldBePresent?: boolean; 
   responseBodyJsonPath?: { path: string; expectedValue: any }; 
@@ -42,7 +42,7 @@ export type MonitorConfig = {
   };
   alertChannels?: string[];
   [key: string]: any;
-};
+}
 
 export class MonitorJobDataDto {
   monitorId: string; // From monitors.id

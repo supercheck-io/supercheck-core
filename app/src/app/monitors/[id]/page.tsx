@@ -3,6 +3,7 @@ import { Metadata } from "next";
 // MonitorSchemaType is used by MonitorDetailClient, keep if that prop type remains
 // import { Monitor as MonitorSchemaType } from "@/components/monitors/schema"; 
 import { MonitorDetailClient, MonitorWithResults, MonitorResultItem } from "@/components/monitors/monitor-detail-client";
+import { Monitor as MonitorSchemaType } from "@/components/monitors/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { notFound } from "next/navigation";
@@ -59,16 +60,36 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
     const frequencyMinutes = monitorData.frequencyMinutes ?? 0;
     const intervalInSeconds = frequencyMinutes * 60;
 
-    // Helper to map DB MonitorType to the 'method' string expected by MonitorWithResults/MonitorSchemaType
-    // This is an assumption; the actual mapping might be different based on MonitorSchemaType definition.
-    // For now, we'll pass the DB type and let MonitorDetailClient handle it or adjust if MonitorSchemaType is known.
-    const methodValue = monitorData.type as DBMonitorType;
+    // Helper to map DB MonitorType to the 'method' string expected by MonitorSchemaType
+    let methodValue: MonitorSchemaType['method'];
+    switch (monitorData.type) {
+        case "http_request":
+            methodValue = "http_request";
+            break;
+        case "ping_host":
+            methodValue = "ping"; // Map ping_host to ping
+            break;
+        case "port_check":
+            methodValue = "port_check";
+            break;
+        case "dns_check":
+            methodValue = "dns_check";
+            break;
+        case "playwright_script":
+            methodValue = "playwright_script";
+            break;
+        // Add other cases as necessary or a default case
+        default:
+            // Attempt to cast directly, or use a default if appropriate
+            // For safety, let's default to http_request or handle as an error
+            // This depends on how strictly you want to enforce the mapping
+            methodValue = "http_request"; // Or throw new Error(`Unsupported monitor type: ${monitorData.type}`);
+    }
 
     const transformedMonitor: MonitorWithResults = {
       ...monitorData,
       id: monitorData.id,
       name: monitorData.name,
-      description: monitorData.description,
       url: monitorData.target, 
       method: methodValue, // Use the mapped/cast method value
       interval: intervalInSeconds, 
@@ -80,7 +101,7 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
       responseTime: mappedRecentResults[0]?.responseTimeMs ?? undefined,
       uptime: undefined, 
       recentResults: mappedRecentResults,
-      config: monitorData.config as MonitorConfig | undefined,
+     
     };
 
     return transformedMonitor;
@@ -92,7 +113,8 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
 }
 
 export async function generateMetadata({ params }: MonitorDetailsPageProps): Promise<Metadata> {
-  const monitor = await getMonitorDetailsDirectly(params.id); 
+  const { id } = await params; // Wait for params to resolve
+  const monitor = await getMonitorDetailsDirectly(id); 
   if (!monitor) {
     return {
       title: "Monitor Not Found | Supercheck",
@@ -118,7 +140,8 @@ function DetailSkeleton() {
 }
 
 export default async function MonitorDetailsPage({ params }: MonitorDetailsPageProps) {
-  const monitorWithData = await getMonitorDetailsDirectly(params.id);
+  const { id } = await params; // Wait for params to resolve
+  const monitorWithData = await getMonitorDetailsDirectly(id);
 
   if (!monitorWithData) {
     notFound();

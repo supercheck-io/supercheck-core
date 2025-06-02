@@ -33,21 +33,22 @@ export interface MonitorJobData {
 
 // Interface for Monitor Execution Result (mirroring type in runner)
 // This is the data that will be sent TO this queue BY the runner
-export interface MonitorResultData {
-  monitorId: string;
-  status: "up" | "down" | "error" | "timeout"; // Corresponds to MonitorResultStatus
-  checkedAt: string; // ISO string date
-  responseTimeMs?: number;
-  details?: any; // Corresponds to MonitorResultDetails, using any for now
-  isUp: boolean;
-  error?: string; 
-}
+// export interface MonitorResultData { // REMOVING
+//   monitorId: string;
+//   status: "up" | "down" | "error" | "timeout"; // Corresponds to MonitorResultStatus
+//   checkedAt: string; // ISO string date
+//   responseTimeMs?: number;
+//   details?: any; // Corresponds to MonitorResultDetails, using any for now
+//   isUp: boolean;
+//   error?: string; 
+// }
 
 // Constants for queue names and Redis keys
 export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
 // export const HEALTH_CHECK_QUEUE = 'health-check'; // REMOVING
 export const MONITOR_EXECUTION_QUEUE = 'monitor-execution';
+// export const MONITOR_RESULTS_QUEUE = 'monitor-results'; // REMOVING
 
 // Redis capacity limit keys
 export const RUNNING_CAPACITY_LIMIT_KEY = 'supercheck:capacity:running';
@@ -67,6 +68,7 @@ let jobQueue: Queue | null = null;
 // let healthCheckQueue: Queue | null = null; // REMOVING
 let monitorExecution: Queue | null = null;
 let monitorExecutionEvents: QueueEvents | null = null;
+// let monitorResultsQueue: Queue | null = null; // REMOVING
 
 // Store initialization promise to prevent race conditions
 let initPromise: Promise<void> | null = null;
@@ -132,7 +134,12 @@ export async function getRedisConnection(): Promise<Redis> {
 /**
  * Get queue instances, initializing them if necessary.
  */
-async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue, monitorExecutionQueue: Queue }> { // Removed healthCheckQueue
+async function getQueues(): Promise<{ 
+  testQueue: Queue, 
+  jobQueue: Queue, 
+  monitorExecutionQueue: Queue,
+  // monitorResultsQueue: Queue // REMOVING
+}> { 
   if (!initPromise) {
     initPromise = (async () => {
       try {
@@ -169,12 +176,22 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue, monitor
         // healthCheckQueue = new Queue(HEALTH_CHECK_QUEUE, healthCheckQueueSettings); // REMOVING
         monitorExecution = new Queue(MONITOR_EXECUTION_QUEUE, queueSettings);
         monitorExecutionEvents = new QueueEvents(MONITOR_EXECUTION_QUEUE, { connection: connection });
+        // monitorResultsQueue = new Queue(MONITOR_RESULTS_QUEUE, { // REMOVING
+        //   connection,
+        //   defaultJobOptions: {
+        //     removeOnComplete: true,
+        //     removeOnFail: 1000, // Keep failed result processing jobs for inspection
+        //     attempts: 5, // Retry processing a result if DB update fails, etc.
+        //     backoff: { type: 'exponential', delay: 5000 }
+        //   }
+        // });
 
         testQueue.on('error', (error) => console.error(`[Queue Client] Test Queue Error:`, error));
         jobQueue.on('error', (error) => console.error(`[Queue Client] Job Queue Error:`, error));
         // healthCheckQueue.on('error', (error) => console.error(`[Queue Client] Health Check Queue Error:`, error)); // REMOVING
         monitorExecution.on('error', (error) => console.error(`[Queue Client] Monitor Execution Queue Error:`, error));
         monitorExecutionEvents.on('error', (error) => console.error(`[Queue Client] Monitor Execution Queue Events Error:`, error));
+        // monitorResultsQueue.on('error', (error) => console.error(`[Queue Client] Monitor Results Queue Error:`, error)); // REMOVING
 
         // Set up periodic cleanup for orphaned Redis keys
         await setupQueueCleanup(connection);
@@ -190,10 +207,10 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue, monitor
   }
   await initPromise;
 
-  if (!testQueue || !jobQueue || !monitorExecution || !monitorExecutionEvents) { // Removed healthCheckQueue
+  if (!testQueue || !jobQueue || !monitorExecution || !monitorExecutionEvents /* || !monitorResultsQueue REMOVING */) { // Added monitorResultsQueue
     throw new Error("One or more queues or event listeners could not be initialized.");
   }
-  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution }; // Removed healthCheckQueue
+  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution /*, monitorResultsQueue REMOVING */ }; // Added monitorResultsQueue
 }
 
 /**
@@ -230,7 +247,8 @@ async function performQueueCleanup(connection: Redis): Promise<void> {
     { name: TEST_EXECUTION_QUEUE, queue: testQueue },
     { name: JOB_EXECUTION_QUEUE, queue: jobQueue },
     // { name: HEALTH_CHECK_QUEUE, queue: healthCheckQueue }, // REMOVING
-    { name: MONITOR_EXECUTION_QUEUE, queue: monitorExecution }
+    { name: MONITOR_EXECUTION_QUEUE, queue: monitorExecution },
+    // { name: MONITOR_RESULTS_QUEUE, queue: monitorResultsQueue } // REMOVING
   ];
 
   for (const { name, queue } of queuesToClean) {
@@ -416,6 +434,7 @@ export async function closeQueue(): Promise<void> {
   if (redisClient) promises.push(redisClient.quit());
 
   if (monitorExecutionEvents) promises.push(monitorExecutionEvents.close());
+  // if (monitorResultsQueue) promises.push(monitorResultsQueue.close()); // REMOVING
 
   try {
     await Promise.all(promises);
@@ -430,6 +449,7 @@ export async function closeQueue(): Promise<void> {
     redisClient = null;
     initPromise = null;
     monitorExecutionEvents = null;
+    // monitorResultsQueue = null; // REMOVING
   }
 }
 
@@ -497,7 +517,7 @@ export async function addMonitorExecutionJobToQueue(task: MonitorJobData): Promi
 async function cleanupOldJobs() {
   try {
     const queues = await getQueues();
-    const allQueues = [queues.testQueue, queues.jobQueue, queues.monitorExecutionQueue].filter(q => q !== null) as Queue[]; // Removed healthCheckQueue
+    const allQueues = [queues.testQueue, queues.jobQueue, queues.monitorExecutionQueue /*, queues.monitorResultsQueue REMOVING */].filter(q => q !== null) as Queue[]; // Removed healthCheckQueue
 
     // Clean completed and failed jobs older than REDIS_JOB_KEY_TTL
     for (const queue of allQueues) {
@@ -517,6 +537,9 @@ async function cleanupOldJobs() {
     if (queues.monitorExecutionQueue) {
       await queues.monitorExecutionQueue.trimEvents(1000);
     }
+    // if (queues.monitorResultsQueue) { // REMOVING
+    //   await queues.monitorResultsQueue.trimEvents(1000);
+    // }
     
 
     console.log('[Queue Client] Old jobs and events cleanup successful.');
@@ -524,3 +547,17 @@ async function cleanupOldJobs() {
     console.error('[Queue Client] Error during old jobs and events cleanup:', error);
   }
 }
+
+// Function for the runner to add results to the queue (conceptual, runner would call this or similar)
+// This function itself doesn't need to be in this app's queue.ts if the runner uses its own BullMQ instance to add to MONITOR_RESULTS_QUEUE
+// However, having the definition of MonitorResultData is important.
+
+/**
+ * Initialize and start the worker that processes monitor results.
+ * This should be called at application startup.
+ */
+// export async function initializeMonitorResultWorker() { // REMOVING
+//   // Dynamically import the worker to avoid circular dependencies if worker imports from queue.ts
+//   const { startMonitorResultWorker } = await import('./workers/monitor-result-worker');
+//   await startMonitorResultWorker();
+// }
