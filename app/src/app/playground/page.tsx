@@ -43,11 +43,11 @@ function PlaygroundSkeleton() {
   ];
 
   return (
-    <div className="h-full">
+    <div className="h-full flex flex-col">
       <PageBreadcrumbs items={skeletonBreadcrumbs} />
-      <div className="relative h-[calc(100vh-5rem)]">
-        <div className="absolute inset-0 bg-background z-10 p-4">
-          <div className="hidden h-full flex-col md:flex">
+      <div className="relative flex-1 overflow-hidden">
+        <div className="absolute inset-0 bg-background z-10 p-4 overflow-hidden">
+          <div className="hidden h-full flex-col md:flex overflow-hidden">
             <div className="flex h-full">
               <div className="w-[70%] h-full flex flex-col border rounded-tl-lg rounded-bl-lg">
                 <div className="flex items-center justify-between border-b bg-card px-4 py-2 rounded-tl-lg">
@@ -110,9 +110,9 @@ function PlaygroundClientBoundary() {
   }, []);
 
   return (
-    <div className="h-full">
+    <div className="h-full flex flex-col">
       <PageBreadcrumbs items={breadcrumbs} />
-      <div className="relative h-[calc(100vh-8rem)]">
+      <div className="relative flex-1 overflow-hidden">
         {/* Show skeleton only if isLoading is true */}
         {isLoading && <PlaygroundSkeleton />}
         {/* Actual Playground content with transition */}

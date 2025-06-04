@@ -10,7 +10,7 @@ export function PlaywrightLogo({ width = 24, height = 24, className = "" }: Play
   return (
     <svg 
       width={width} 
-      height={height} 
+      height={height}   
       viewBox="0 0 400 400" 
       fill="none" 
       xmlns="http://www.w3.org/2000/svg"
