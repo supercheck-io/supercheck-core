@@ -1,0 +1,332 @@
+erDiagram
+    %% Auth Schema
+    user {
+        text id PK
+        text name
+        text email UK
+        boolean email_verified
+        text image
+        timestamp created_at
+        timestamp updated_at
+        text role
+        boolean banned
+        text ban_reason
+        timestamp ban_expires
+    }
+    
+    organization {
+        text id PK
+        text name
+        text slug UK
+        text logo
+        timestamp created_at
+        text metadata
+    }
+    
+    team {
+        text id PK
+        text name
+        text organization_id FK
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    member {
+        text id PK
+        text organization_id FK
+        text user_id FK
+        text role
+        text team_id FK
+        timestamp created_at
+    }
+    
+    invitation {
+        text id PK
+        text organization_id FK
+        text email
+        text role
+        text team_id FK
+        text status
+        timestamp expires_at
+        text inviter_id FK
+    }
+    
+    session {
+        text id PK
+        timestamp expires_at
+        text token UK
+        timestamp created_at
+        timestamp updated_at
+        text ip_address
+        text user_agent
+        text user_id FK
+        text active_organization_id FK
+        text impersonated_by
+    }
+    
+    account {
+        text id PK
+        text account_id
+        text provider_id
+        text user_id FK
+        text access_token
+        text refresh_token
+        text id_token
+        timestamp access_token_expires_at
+        timestamp refresh_token_expires_at
+        text scope
+        text password
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    verification {
+        text id PK
+        text identifier
+        text value
+        timestamp expires_at
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    apikey {
+        text id PK
+        text name
+        text start
+        text prefix
+        text key
+        text user_id FK
+        text refill_interval
+        text refill_amount
+        timestamp last_refill_at
+        boolean enabled
+        boolean rate_limit_enabled
+        text rate_limit_time_window
+        text rate_limit_max
+        text request_count
+        text remaining
+        timestamp last_request
+        timestamp expires_at
+        timestamp created_at
+        timestamp updated_at
+        text permissions
+        text metadata
+    }
+    
+    %% Main Application Schema
+    tests {
+        uuid id PK
+        text organization_id FK
+        text created_by_user_id FK
+        varchar title
+        text description
+        text script
+        varchar priority
+        varchar type
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    jobs {
+        uuid id PK
+        text organization_id FK
+        text created_by_user_id FK
+        varchar name
+        text description
+        varchar cron_schedule
+        varchar status
+        timestamp last_run_at
+        timestamp next_run_at
+        varchar scheduled_job_id
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    jobTests {
+        uuid job_id PK,FK
+        uuid test_case_id PK,FK
+        integer order_position
+    }
+    
+    runs {
+        uuid id PK
+        uuid job_id FK
+        varchar status
+        varchar duration
+        timestamp started_at
+        timestamp completed_at
+        jsonb artifact_paths
+        text logs
+        text error_details
+    }
+    
+    reports {
+        uuid id PK
+        text organization_id FK
+        text created_by_user_id FK
+        varchar entity_type
+        uuid entity_id
+        varchar report_path
+        varchar status
+        varchar s3_url
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    monitors {
+        uuid id PK
+        text organization_id FK
+        text created_by_user_id FK
+        varchar name
+        text description
+        varchar type
+        varchar target
+        integer frequency_minutes
+        boolean enabled
+        varchar status
+        jsonb config
+        timestamp last_check_at
+        timestamp last_status_change_at
+        timestamp muted_until
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    monitorResults {
+        uuid id PK
+        uuid monitor_id FK
+        timestamp checked_at
+        varchar status
+        integer response_time_ms
+        jsonb details
+        boolean is_up
+        boolean is_status_change
+    }
+    
+    tags {
+        uuid id PK
+        text organization_id FK
+        text created_by_user_id FK
+        varchar name
+        varchar color
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    monitorTags {
+        uuid monitor_id PK,FK
+        uuid tag_id PK,FK
+        timestamp assigned_at
+    }
+    
+    notificationProviders {
+        uuid id PK
+        text organization_id FK
+        text created_by_user_id FK
+        varchar type
+        jsonb config
+        boolean is_enabled
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    monitorNotificationSettings {
+        uuid monitor_id PK,FK
+        uuid notification_provider_id PK,FK
+        timestamp created_at
+    }
+    
+    statusPages {
+        uuid id PK
+        text organization_id FK
+        text created_by_user_id FK
+        varchar slug
+        varchar title
+        text description
+        varchar custom_domain
+        varchar logo_url
+        varchar favicon_url
+        text custom_css
+        text custom_html_header
+        text custom_html_footer
+        boolean is_public
+        boolean show_tags
+        varchar layout
+        boolean password_protected
+        varchar password_hash
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    statusPageMonitors {
+        uuid status_page_id PK,FK
+        uuid monitor_id PK,FK
+        integer display_order
+        varchar group_name
+        timestamp created_at
+    }
+    
+    maintenanceWindows {
+        uuid id PK
+        text organization_id FK
+        text created_by_user_id FK
+        varchar name
+        text description
+        timestamp start_time
+        timestamp end_time
+        varchar timezone
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    monitorMaintenanceWindows {
+        uuid maintenance_window_id PK,FK
+        uuid monitor_id PK,FK
+        timestamp created_at
+    }
+    
+    %% Relationships
+    organization ||--o{ team : "has"
+    organization ||--o{ member : "has"
+    organization ||--o{ invitation : "has"
+    organization ||--o{ session : "active_in"
+    organization ||--o{ tests : "contains"
+    organization ||--o{ jobs : "contains"
+    organization ||--o{ reports : "contains"
+    organization ||--o{ monitors : "contains"
+    organization ||--o{ tags : "contains"
+    organization ||--o{ notificationProviders : "contains"
+    organization ||--o{ statusPages : "contains"
+    organization ||--o{ maintenanceWindows : "contains"
+    
+    user ||--o{ member : "member_of"
+    user ||--o{ invitation : "invited_by"
+    user ||--o{ session : "has"
+    user ||--o{ account : "has"
+    user ||--o{ apikey : "has"
+    user ||--o{ tests : "created_by"
+    user ||--o{ jobs : "created_by"
+    user ||--o{ reports : "created_by"
+    user ||--o{ monitors : "created_by"
+    user ||--o{ tags : "created_by"
+    user ||--o{ notificationProviders : "created_by"
+    user ||--o{ statusPages : "created_by"
+    user ||--o{ maintenanceWindows : "created_by"
+    
+    team ||--o{ member : "has"
+    team ||--o{ invitation : "for"
+    
+    tests ||--o{ jobTests : "used_in"
+    jobs ||--o{ jobTests : "includes"
+    jobs ||--o{ runs : "executes"
+    
+    monitors ||--o{ monitorResults : "generates"
+    monitors ||--o{ monitorTags : "tagged_with"
+    monitors ||--o{ monitorNotificationSettings : "notifies_via"
+    monitors ||--o{ statusPageMonitors : "displayed_on"
+    monitors ||--o{ monitorMaintenanceWindows : "maintained_during"
+    
+    tags ||--o{ monitorTags : "applied_to"
+    notificationProviders ||--o{ monitorNotificationSettings : "used_by"
+    statusPages ||--o{ statusPageMonitors : "displays"
+    maintenanceWindows ||--o{ monitorMaintenanceWindows : "affects"

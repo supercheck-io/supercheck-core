@@ -217,11 +217,11 @@ export function ReportViewer({
           <div className="absolute top-2 right-2 z-10">
             <Button 
               size="sm"
-              className="cursor-pointer flex items-center gap-1"
+              className="cursor-pointer flex items-center gap-1 bg-black/50 hover:bg-black/75"
               onClick={() => setShowFullscreen(true)}
             >
              
-              <Maximize2 className="h-4 w-4" />
+              <Maximize2 className="h-4 w-4 text-white" />
               
             </Button>
           </div>
@@ -343,7 +343,7 @@ export function ReportViewer({
                 onClick={() => setShowFullscreen(false)}
               >
                 <X className="h-4 w-4" />
-                Close
+                
               </Button>
             </div>
             <div className="flex-grow overflow-hidden">
