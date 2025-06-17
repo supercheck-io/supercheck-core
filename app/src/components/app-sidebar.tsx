@@ -55,7 +55,7 @@ const data = {
     {
       name: "Supercheck", 
       logo: CheckIcon,
-      plan: "Enterprise",
+      plan: "Automation & Monitoring",
     },
     {
       name: "Test Team 1",
@@ -207,7 +207,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // const activeTeam = data.teams[0]; // Assuming we want to display the first team
   const LogoToDisplay = CheckIcon;
   const teamName = "Supercheck";
-  const teamPlan = "Enterprise";
+  const teamPlan = "version 1.01";
 
   return (
     <Sidebar collapsible="icon" {...props}>
