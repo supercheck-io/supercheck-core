@@ -129,7 +129,7 @@ export class MonitorService {
 
   private async executeHttpRequest(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
     this.logger.debug(`HTTP Request: ${target}, Method: ${config?.method || 'GET'}, Config: ${JSON.stringify(config)}`);
-    const startTime = Date.now();
+    
     let responseTimeMs: number | undefined;
     let details: MonitorResultDetails = {};
     let status: MonitorResultStatus = 'error';
@@ -138,12 +138,19 @@ export class MonitorService {
     const timeout = config?.timeoutSeconds ? config.timeoutSeconds * 1000 : 10000; // Default 10s timeout
     const httpMethod = (config?.method || 'GET').toUpperCase() as Method;
 
+    // Use high-resolution timer for more accurate timing
+    const startTime = process.hrtime.bigint();
+
     try {
       const requestConfig: any = {
         method: httpMethod,
         url: target,
         timeout,
         headers: config?.headers,
+        // Disable automatic decompression to get more accurate timing
+        decompress: false,
+        // Follow redirects but track timing
+        maxRedirects: 5,
       };
 
       if (['POST', 'PUT', 'PATCH'].includes(httpMethod) && config?.body) {
@@ -153,17 +160,21 @@ export class MonitorService {
         } catch (e) {
           requestConfig.data = config.body;
         }
-      }
+              }
 
-      const response = await firstValueFrom(
+        const response = await firstValueFrom(
         this.httpService.request(requestConfig)
       );
 
-      responseTimeMs = Date.now() - startTime;
+      // Calculate response time in milliseconds with high precision
+      const endTime = process.hrtime.bigint();
+      responseTimeMs = Math.round(Number(endTime - startTime) / 1000000); // Convert nanoseconds to milliseconds
+
       details = {
         statusCode: response.status,
         statusText: response.statusText,
         responseHeaders: response.headers as Record<string, string>,
+        responseSize: response.data ? JSON.stringify(response.data).length : 0,
       };
 
       if (isExpectedStatus(response.status, config?.expectedStatusCodes)) {
@@ -190,17 +201,21 @@ export class MonitorService {
       }
 
     } catch (error) {
-      responseTimeMs = Date.now() - startTime;
+      // Calculate response time even for errors to track timeout scenarios
+      const errorTime = process.hrtime.bigint();
+      responseTimeMs = Math.round(Number(errorTime - startTime) / 1000000);
+      
       if (error instanceof AxiosError) {
         this.logger.warn(`HTTP Request to ${target} failed: ${error.message}`);
         details.errorMessage = error.message;
-        if (error.response) {
-          details.statusCode = error.response.status;
-          details.statusText = error.response.statusText;
-        }
+                  if (error.response) {
+            details.statusCode = error.response.status;
+            details.statusText = error.response.statusText;
+          }
         if (error.code === 'ECONNABORTED' || error.message.toLowerCase().includes('timeout')) {
           status = 'timeout';
           isUp = false;
+          responseTimeMs = timeout; // Set to timeout value for timeout errors
         } else {
           // Check if the received status is unexpected, even on an AxiosError path
           if (error.response && !isExpectedStatus(error.response.status, config?.expectedStatusCodes)) {
@@ -210,11 +225,6 @@ export class MonitorService {
           } else if (!error.response) { // Network error, no response from server
              status = 'down'; // Or 'error' as per preference
           }
-          // If it was an expected error status code (e.g. expecting 404 and got 404), it might have been caught by main `isExpectedStatus`
-          // but if isExpectedStatus makes it 'up' and axios throws for 4xx/5xx, we need to reconcile.
-          // However, httpService by default only throws for >=400 if validateStatus is not overridden.
-          // For now, if AxiosError is thrown, it's generally a 'down' or 'timeout' situation unless the error itself was expected.
-          // The current logic: if it's not timeout, it's 'down'. We added a check for unexpected status in the error response.
           isUp = false; 
         }
       } else {
@@ -222,8 +232,11 @@ export class MonitorService {
         details.errorMessage = error.message || 'An unexpected error occurred';
         status = 'error';
         isUp = false;
+        responseTimeMs = timeout; // Set to timeout for unexpected errors
       }
     }
+    
+    this.logger.debug(`HTTP Request completed: ${target}, Status: ${status}, Response Time: ${responseTimeMs}ms`);
     return { status, details, responseTimeMs, isUp }; 
   }
 
@@ -238,12 +251,145 @@ export class MonitorService {
   private async executePortCheck(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
     const port = config?.port;
     const protocol = config?.protocol || 'tcp';
-    this.logger.debug(`Port Check: ${target}, Port: ${port}, Protocol: ${protocol}, Config: ${JSON.stringify(config)}`);
-    if (!port) return { status: 'error', isUp: false, details: { errorMessage: 'Port not provided for port_check'}};
-    // TODO: Implement actual port check logic (e.g., using 'net' module for TCP)
-    // Consider: timeoutSeconds from config
-    await new Promise(resolve => setTimeout(resolve, 70)); // Simulate async work
-    return { status: 'up', isUp: true, details: { port, protocol } };
+    const timeout = (config?.timeoutSeconds || 10) * 1000; // Convert to milliseconds
+    
+    this.logger.debug(`Port Check: ${target}, Port: ${port}, Protocol: ${protocol}, Timeout: ${timeout}ms`);
+    
+    if (!port) {
+      return { 
+        status: 'error', 
+        isUp: false, 
+        details: { errorMessage: 'Port not provided for port_check'} 
+      };
+    }
+
+    const startTime = process.hrtime.bigint();
+    let status: MonitorResultStatus = 'error';
+    let details: MonitorResultDetails = {};
+    let isUp = false;
+    let responseTimeMs: number | undefined;
+
+    try {
+      if (protocol === 'tcp') {
+        // TCP port check using net module
+        const net = await import('net');
+        
+        await new Promise<void>((resolve, reject) => {
+          const socket = new net.Socket();
+          
+          const timeoutHandle = setTimeout(() => {
+            socket.destroy();
+            reject(new Error(`Connection timeout after ${timeout}ms`));
+          }, timeout);
+
+          socket.connect(port, target, () => {
+            clearTimeout(timeoutHandle);
+            socket.destroy();
+            resolve();
+          });
+
+          socket.on('error', (error) => {
+            clearTimeout(timeoutHandle);
+            socket.destroy();
+            reject(error);
+          });
+        });
+
+        // If we reach here, connection was successful
+        const endTime = process.hrtime.bigint();
+        responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
+        status = 'up';
+        isUp = true;
+        details = { 
+          port, 
+          protocol, 
+          connectionSuccessful: true,
+          responseTimeMs 
+        };
+
+      } else if (protocol === 'udp') {
+        // UDP port check using dgram module
+        const dgram = await import('dgram');
+        
+        await new Promise<void>((resolve, reject) => {
+          const client = dgram.createSocket('udp4');
+          
+          const timeoutHandle = setTimeout(() => {
+            client.close();
+            // For UDP, timeout doesn't necessarily mean the port is closed
+            // UDP is connectionless, so we assume it's open if no ICMP error
+            resolve();
+          }, timeout);
+
+          // Send a small test packet
+          const message = Buffer.from('ping');
+          
+          client.send(message, port, target, (error) => {
+            if (error) {
+              clearTimeout(timeoutHandle);
+              client.close();
+              reject(error);
+            } else {
+              // For UDP, successful send usually means the port is reachable
+              // (unless we get an ICMP port unreachable, which would trigger an error)
+              clearTimeout(timeoutHandle);
+              client.close();
+              resolve();
+            }
+          });
+
+          client.on('error', (error) => {
+            clearTimeout(timeoutHandle);
+            client.close();
+            reject(error);
+          });
+        });
+
+        // If we reach here, UDP send was successful
+        const endTime = process.hrtime.bigint();
+        responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
+        status = 'up';
+        isUp = true;
+        details = { 
+          port, 
+          protocol, 
+          packetSent: true,
+          responseTimeMs,
+          note: 'UDP port appears reachable (no ICMP error received)'
+        };
+      }
+
+    } catch (error) {
+      const endTime = process.hrtime.bigint();
+      responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
+      
+      this.logger.warn(`Port Check to ${target}:${port} (${protocol}) failed: ${error.message}`);
+      
+      if (error.message.includes('timeout')) {
+        status = 'timeout';
+        details.errorMessage = `Connection timeout after ${timeout}ms`;
+      } else if (error.code === 'ECONNREFUSED') {
+        status = 'down';
+        details.errorMessage = 'Connection refused - port is closed or service not running';
+      } else if (error.code === 'EHOSTUNREACH') {
+        status = 'down';
+        details.errorMessage = 'Host unreachable';
+      } else if (error.code === 'ENETUNREACH') {
+        status = 'down';
+        details.errorMessage = 'Network unreachable';
+      } else {
+        status = 'error';
+        details.errorMessage = error.message;
+      }
+      
+      isUp = false;
+      details.port = port;
+      details.protocol = protocol;
+      details.responseTimeMs = responseTimeMs;
+    }
+    
+    this.logger.debug(`Port Check completed: ${target}:${port} (${protocol}), Status: ${status}, Response Time: ${responseTimeMs}ms`);
+    return { status, details, responseTimeMs, isUp };
   }
 
   private async executeDnsCheck(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {

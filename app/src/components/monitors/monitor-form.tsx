@@ -75,7 +75,6 @@ const statusCodePresets = [
 ];
 
 const checkIntervalOptions = [
-  { value: "30", label: "30 seconds" },
   { value: "60", label: "1 minute" },
   { value: "300", label: "5 minutes" },
   { value: "600", label: "10 minutes" },
@@ -94,7 +93,7 @@ const formSchema = z.object({
   type: z.enum(["http_request", "ping_host", "port_check", "dns_check", "playwright_script"], {
     required_error: "Please select a check type",
   }),
-  interval: z.enum(["30", "60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"]).default("60"),
+  interval: z.enum(["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"]).default("60"),
   // Optional fields that may be required based on type
   // HTTP Request specific
   httpConfig_method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]).optional(),
@@ -200,11 +199,79 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
   async function onSubmit(data: FormValues) {
     setIsSubmitting(true);
 
-    // Prepare data for API, converting interval to number
+    // Convert form data to API format
     const apiData = {
-      ...data,
-      interval: parseInt(data.interval, 10),
+      name: data.name,
+      target: data.target,
+      type: data.type,
+      // Convert interval from seconds to minutes
+      frequencyMinutes: Math.round(parseInt(data.interval, 10) / 60),
+      config: {} as any,
     };
+
+    // Build config based on monitor type
+    if (data.type === "http_request") {
+      apiData.config = {
+        method: data.httpConfig_method || "GET",
+        expectedStatusCodes: data.httpConfig_expectedStatusCodes || "200-299",
+        timeoutSeconds: 30, // Default timeout
+      };
+
+      // Add headers if provided
+      if (data.httpConfig_headers) {
+        try {
+          apiData.config.headers = JSON.parse(data.httpConfig_headers);
+        } catch (e) {
+          // If parsing fails, treat as plain text (could be improved)
+          console.warn("Failed to parse headers as JSON:", e);
+        }
+      }
+
+      // Add body if provided
+      if (data.httpConfig_body) {
+        apiData.config.body = data.httpConfig_body;
+      }
+
+      // Add auth if configured
+      if (data.httpConfig_authType && data.httpConfig_authType !== "none") {
+        apiData.config.auth = {
+          type: data.httpConfig_authType,
+        };
+        if (data.httpConfig_authType === "basic") {
+          apiData.config.auth.username = data.httpConfig_authUsername;
+          apiData.config.auth.password = data.httpConfig_authPassword;
+        } else if (data.httpConfig_authType === "bearer") {
+          apiData.config.auth.token = data.httpConfig_authToken;
+        }
+      }
+
+      // Add keyword checking if configured
+      if (data.httpConfig_keywordInBody) {
+        apiData.config.keywordInBody = data.httpConfig_keywordInBody;
+        apiData.config.keywordInBodyShouldBePresent = data.httpConfig_keywordShouldBePresent !== false;
+      }
+    } else if (data.type === "port_check") {
+      apiData.config = {
+        port: data.portConfig_port,
+        protocol: data.portConfig_protocol || "tcp",
+        timeoutSeconds: 10, // Default timeout for port checks
+      };
+    } else if (data.type === "dns_check") {
+      apiData.config = {
+        recordType: data.dnsConfig_recordType || "A",
+        expectedValue: data.dnsConfig_expectedValue,
+        timeoutSeconds: 10, // Default timeout for DNS checks
+      };
+    } else if (data.type === "playwright_script") {
+      apiData.config = {
+        testId: data.playwrightConfig_testId,
+        timeoutSeconds: 60, // Default timeout for Playwright scripts
+      };
+    } else if (data.type === "ping_host") {
+      apiData.config = {
+        timeoutSeconds: 5, // Default timeout for ping
+      };
+    }
 
     try {
       const endpoint = editMode ? `/api/monitors/${id}` : "/api/monitors";
@@ -215,7 +282,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(apiData), // Use apiData here
+        body: JSON.stringify(apiData),
       });
 
       if (!response.ok) {

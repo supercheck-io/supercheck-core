@@ -11,20 +11,19 @@ export const metadata: Metadata = {
 
 async function fetchMonitor(id: string): Promise<Monitor | null> {
   try {
-    // Mock data should align with the 'Monitor' type from schema.ts
-    // And provide fields that will be transformed into 'FormValues' for the form.
-    return {
-      id,
-      name: "Example HTTP Monitor",
-      url: "https://example.com/api/status", // Used for 'target' in form
-      method: "http_request", // Valid 'Monitor' method, maps to 'type' in form
-      status: "up",
-      interval: 300, // number, will be converted to string for form
-      active: true,
-      // Mock other fields from 'Monitor' schema as needed or if they might be used
-      // e.g., expectedStatus for an http_request type monitor
-      expectedStatus: 200,
-    };
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/monitors/${id}`, {
+      cache: 'no-store'
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`Failed to fetch monitor: ${response.statusText}`);
+    }
+    
+    const monitor = await response.json();
+    return monitor;
   } catch (error) {
     console.error("Error fetching monitor:", error);
     return null;
@@ -46,68 +45,68 @@ export default async function EditMonitorPage({ params }: { params: { id: string
     { label: "Edit", isCurrentPage: true },
   ];
 
-  // Map Monitor.method to FormValues.type
+  // Map Monitor.type to FormValues.type
   let formType: FormValues["type"];
-  const currentMethod = monitor.method;
+  const currentType = monitor.type;
 
-  // Check if monitor.method is directly one of the FormValues types
+  // Check if monitor.type is directly one of the FormValues types
   const formValueTypes = ["http_request", "ping_host", "port_check", "dns_check", "playwright_script"] as const;
   
-  if ((formValueTypes as readonly string[]).includes(currentMethod)) {
-    formType = currentMethod as FormValues["type"];
+  if ((formValueTypes as readonly string[]).includes(currentType)) {
+    formType = currentType as FormValues["type"];
   } else {
-    // Handle cases where Monitor.method needs mapping (e.g., old "get"/"post" to "http_request")
-    // Or if it's an unmapped but valid Monitor.method
-    switch (currentMethod) {
+    // Handle cases where Monitor.type needs mapping (e.g., old "get"/"post" to "http_request")
+    // Or if it's an unmapped but valid Monitor.type
+    switch (currentType) {
       case "get": // Example if Monitor schema could have "get"
       case "post": // Example if Monitor schema could have "post"
         formType = "http_request";
-        console.warn(`Monitor method '${currentMethod}' mapped to form type 'http_request'.`);
+        console.warn(`Monitor type '${currentType}' mapped to form type 'http_request'.`);
         break;
       // Add other specific mappings here if necessary
       default:
-        // Fallback for valid Monitor methods not directly usable or mapped
-        const parseResult = monitorSchema.shape.method.safeParse(currentMethod);
-        if (!parseResult.success) {
-          console.error(`Invalid monitor method '${currentMethod}' found.`);
-          notFound(); 
-        }
-        console.warn(`Unmapped monitor method '${currentMethod}' for direct FormValues type. Defaulting to http_request.`);
+        // Fallback for valid Monitor types not directly usable or mapped
+        console.warn(`Unmapped monitor type '${currentType}' for direct FormValues type. Defaulting to http_request.`);
         formType = "http_request";
         break;
     }
   }
 
-  // Convert monitor.interval (number) to FormValues.interval (string enum)
-  const validFormIntervals = ["30", "60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"];
+  // Convert monitor.frequencyMinutes to FormValues.interval (seconds as string)
+  const validFormIntervals = ["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"];
   let formInterval: FormValues["interval"] = "60"; // Default interval
-  if (validFormIntervals.includes(monitor.interval.toString())) {
-    formInterval = monitor.interval.toString() as FormValues["interval"];
+  
+  // Convert frequencyMinutes to seconds
+  const intervalInSeconds = (monitor.frequencyMinutes || 1) * 60;
+  if (validFormIntervals.includes(intervalInSeconds.toString())) {
+    formInterval = intervalInSeconds.toString() as FormValues["interval"];
   } else {
-    console.warn(`Monitor interval '${monitor.interval}' not in form options. Defaulting to 60s.`);
+    console.warn(`Monitor frequency ${monitor.frequencyMinutes} minutes (${intervalInSeconds} seconds) not in form options. Defaulting to 60s.`);
   }
 
   // Prepare data for the form, ensuring all required fields for FormValues are present
   const formData: FormValues = {
     name: monitor.name,
-    target: monitor.url, 
+    target: monitor.target, 
     type: formType,
     interval: formInterval,
     httpConfig_authType: "none", // Default as per formSchema
 
     // Optional fields from Monitor that map to FormValues fields
     // HTTP specific (only if formType is http_request)
-    httpConfig_method: formType === "http_request" && (monitor.method === "http_request" || ["get", "post", "put", "delete", "patch", "head", "options"].includes(monitor.method)) 
-        ? (monitor.method === "http_request" ? "GET" : monitor.method.toUpperCase() as FormValues["httpConfig_method"]) 
-        : undefined, // Or a default like "GET"
-    httpConfig_expectedStatusCode: monitor.expectedStatus,
+    httpConfig_method: formType === "http_request" ? "GET" : undefined, // Default to GET for HTTP requests
+    httpConfig_expectedStatusCodes: monitor.config?.expectedStatusCodes || "200-299",
 
-    // Ensure other potentially required fields based on 'type' are considered
-    // e.g. portConfig_port if type is "port_check"
-    // For now, only populating based on the mock 'http_request' monitor
-    portConfig_port: formType === "port_check" && monitor.port ? monitor.port : undefined,
-    // dnsConfig_recordType: ..., (if type is dns_check)
-    // playwrightConfig_testId: ..., (if type is playwright_script)
+    // Port Check specific
+    portConfig_port: formType === "port_check" && monitor.config?.port ? monitor.config.port : undefined,
+    portConfig_protocol: formType === "port_check" && monitor.config?.protocol ? monitor.config.protocol : undefined,
+
+    // DNS Check specific
+    dnsConfig_recordType: formType === "dns_check" && monitor.config?.recordType ? monitor.config.recordType : undefined,
+    dnsConfig_expectedValue: formType === "dns_check" && monitor.config?.expectedValue ? monitor.config.expectedValue : undefined,
+
+    // Playwright Script specific
+    playwrightConfig_testId: formType === "playwright_script" && monitor.config?.testId ? monitor.config.testId : undefined,
   };
 
   return (

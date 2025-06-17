@@ -5,7 +5,7 @@ import { eq, desc } from "drizzle-orm";
 import { scheduleMonitorCheck, removeScheduledMonitorCheck } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
 
-const RECENT_RESULTS_LIMIT = 20; // Number of recent results to fetch
+const RECENT_RESULTS_LIMIT = 1000; // Number of recent results to fetch
 
 export async function GET(
   request: NextRequest,

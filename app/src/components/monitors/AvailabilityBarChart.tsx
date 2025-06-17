@@ -37,7 +37,7 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
           <CardTitle>Availability Overview</CardTitle>
           <CardDescription>Status of individual checks (each bar is one check run).</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-center h-[100px]">
+                    <CardContent className="flex items-center justify-center h-[100px]">
           <p className="text-muted-foreground">No availability data to display.</p>
         </CardContent>
       </Card>

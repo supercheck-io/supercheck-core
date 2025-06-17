@@ -74,7 +74,11 @@ export async function scheduleMonitorCheck(options: ScheduleMonitorOptions): Pro
 
   console.log(`[Monitor Scheduler] Scheduling monitor ${options.monitorId} to run every ${options.frequencyMinutes} minutes (${intervalMs}ms). Job name: ${jobName}`);
 
-  // Upsert a repeatable job. BullMQ handles removing old one if key matches.
+  // First, add an immediate execution job
+  console.log(`[Monitor Scheduler] Adding immediate execution for monitor ${options.monitorId}`);
+  await addMonitorExecutionJobToQueue(options.jobData);
+
+  // Then, schedule the repeatable job for future executions
   await schedulerQueue.add(jobName, options.jobData, {
     repeat: {
       every: intervalMs,
@@ -82,10 +86,12 @@ export async function scheduleMonitorCheck(options: ScheduleMonitorOptions): Pro
     jobId: jobName, // Explicitly set BullMQ job ID to our unique name
     removeOnComplete: true, // The trigger job itself can be removed once it fires & dispatches
     removeOnFail: 100,
+    // Add a delay to start the repeatable schedule after the immediate execution
+    delay: intervalMs,
   });
   
   await ensureMonitorSchedulerWorker();
-  console.log(`[Monitor Scheduler] Monitor ${options.monitorId} scheduled.`);
+  console.log(`[Monitor Scheduler] Monitor ${options.monitorId} scheduled with immediate execution and ${options.frequencyMinutes}min interval.`);
   return options.monitorId;
 }
 

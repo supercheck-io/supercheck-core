@@ -53,13 +53,12 @@ export const columns: ColumnDef<Monitor>[] = [
   {
     accessorKey: "url",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="URL" />
+      <DataTableColumnHeader column={column} title="Target" />
     ),
     cell: ({ row }) => {
+      const url = row.getValue("url") as string;
       return (
-        <div className="max-w-[200px] truncate text-muted-foreground">
-          {row.getValue("url")}
-        </div>
+        <span className="max-w-[200px] truncate">{url}</span>
       );
     },
   },
@@ -112,40 +111,17 @@ export const columns: ColumnDef<Monitor>[] = [
     },
   },
   {
-    id: "statusChart",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Health" />
-    ),
-    cell: ({ row }) => {
-      const monitorId = row.getValue("id") as string;
-      const monitorStatus = row.getValue("status") as string;
-      const uptime = typeof row.original.uptime === 'number' 
-        ? row.original.uptime 
-        : parseFloat(row.original.uptime || '95');
-
-      return (
-        <div className="w-[120px]">
-          <MonitorStatusIndicator 
-            monitorId={monitorId}
-            status={monitorStatus}
-            uptime={uptime}
-          />
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "interval",
+    accessorKey: "frequencyMinutes",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Interval" />
     ),
     cell: ({ row }) => {
-      const interval = row.getValue("interval") as number;
+      const frequencyMinutes = row.getValue("frequencyMinutes") as number;
       
-      // Format interval to be readable (i.e. 60 -> 1 min, 300 -> 5 min)
-      const formatted = interval < 60 
-        ? `${interval}s` 
-        : `${Math.floor(interval / 60)}m`;
+      // Format interval to be readable (i.e. 1 -> 1m, 60 -> 1h)
+      const formatted = frequencyMinutes < 60 
+        ? `${frequencyMinutes}m` 
+        : `${Math.floor(frequencyMinutes / 60)}h`;
 
       return (
         <div className="flex items-center w-[80px]">

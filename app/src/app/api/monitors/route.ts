@@ -55,7 +55,7 @@ export async function GET() {
           description: monitor.description,
           url: monitor.target,
           method: monitor.type,
-          interval: monitor.frequencyMinutes,
+          frequencyMinutes: monitor.frequencyMinutes,
           status: resultStatus ?? monitorOwnStatus, 
           lastCheckedAt: effectiveLastCheckTime ? new Date(effectiveLastCheckTime).toISOString() : null,
           createdAt: monitor.createdAt ? new Date(monitor.createdAt).toISOString() : null,

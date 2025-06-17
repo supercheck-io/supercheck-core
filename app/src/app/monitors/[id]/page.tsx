@@ -18,7 +18,7 @@ import {
 } from "@/db/schema/schema";
 import { eq, desc } from "drizzle-orm";
 
-const RECENT_RESULTS_LIMIT = 20;
+const RECENT_RESULTS_LIMIT = 1000;
 
 type MonitorDetailsPageProps = {
   params: {
@@ -92,7 +92,7 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
       name: monitorData.name,
       url: monitorData.target, 
       method: methodValue, // Use the mapped/cast method value
-      interval: intervalInSeconds, 
+      frequencyMinutes: frequencyMinutes, 
       status: monitorData.status as "up" | "down" | "paused", 
       active: monitorData.status !== 'paused',
       createdAt: monitorData.createdAt ? new Date(monitorData.createdAt).toISOString() : undefined,
