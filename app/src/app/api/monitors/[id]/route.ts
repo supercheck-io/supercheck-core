@@ -109,12 +109,15 @@ export async function PUT(
 
     // Handle frequency changes for non-paused monitors
     if (oldFrequency !== newFrequency && newStatus !== 'paused') {
+        // Always remove the old schedule first
+        console.log(`Removing old schedule for monitor ${id} (old frequency: ${oldFrequency})`);
+        await removeScheduledMonitorCheck(id);
+        
         if (newFrequency && newFrequency > 0) {
             console.log(`Rescheduling monitor ${id} from ${oldFrequency} to ${newFrequency} minutes.`);
             await scheduleMonitorCheck({ monitorId: id, frequencyMinutes: newFrequency, jobData });
-        } else if (oldFrequency && oldFrequency > 0) { // Was scheduled, now needs to be unscheduled
-            console.log(`Unscheduling monitor ${id} as frequency changed to ${newFrequency}.`);
-            await removeScheduledMonitorCheck(id);
+        } else {
+            console.log(`Monitor ${id} frequency set to ${newFrequency}, not scheduling.`);
         }
     }
 

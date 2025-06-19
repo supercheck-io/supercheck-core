@@ -67,12 +67,10 @@ const commonHttpStatusCodes = [
 // Define presets for Expected Status Codes
 const statusCodePresets = [
   { label: "Any 2xx (Success)", value: "2xx" },
-  { label: "200-299 Range", value: "200-299" },
   { label: "Any 3xx (Redirection)", value: "300-399" },
   { label: "Any 4xx (Client Error)", value: "400-499" },
   { label: "Any 5xx (Server Error)", value: "500-599" },
   { label: "Specific Code (e.g., 200)", value: "200" }, // User can modify after selection
-  { label: "Common Web (2xx, 3xx)", value: "200-399" },
 ];
 
 const checkIntervalOptions = [
@@ -552,9 +550,10 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                               onValueChange={(presetValue) => {
                                 form.setValue("httpConfig_expectedStatusCodes", presetValue, { shouldValidate: true, shouldDirty: true });
                               }}
+                              defaultValue="2xx"
                             >
                               <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Presets..." />
+                                <SelectValue placeholder="Any 2xx (Success)" />
                               </SelectTrigger>
                               <SelectContent>
                                 {statusCodePresets.map((preset) => (

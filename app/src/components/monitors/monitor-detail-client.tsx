@@ -416,7 +416,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 mt-4">
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
               <StatusHeaderIcon status={currentActualStatus} />
@@ -436,6 +436,16 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </CardHeader>
             <CardContent className="pb-4 px-4">
               <div className="text-2xl font-bold">{currentResponseTime}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Clock className="h-5 w-5 text-emerald-500" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Interval</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-2xl font-bold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
             </CardContent>
           </Card>
 
@@ -487,7 +497,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           <AvailabilityBarChart data={availabilityTimelineData} />
 
           {/* Response Time Chart */}
-          <div className="flex-1">
+          <div className="flex-1 max-h-[400px]">
             <ResponseTimeBarChart data={responseTimeData} />
           </div>
         </div>
@@ -547,19 +557,19 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                 <table className="min-w-full divide-y divide-border">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
-                      <th scope="col" className="px-4 py-1.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-4 py-1.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
-                      <th scope="col" className="px-4 py-1.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
                     </tr>
                   </thead>
                   <tbody className="bg-card divide-y divide-border">
                     {paginatedResults.map((result) => (
                       <tr key={result.id} className="hover:bg-muted/25">
-                        <td className="px-4 py-1.5 whitespace-nowrap text-sm">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm">
                           <SimpleStatusIcon isUp={result.isUp} />
                         </td>
-                        <td className="px-4 py-1.5 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
-                        <td className="px-4 py-1.5 whitespace-nowrap text-sm text-muted-foreground">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
                           {result.responseTimeMs !== null && result.responseTimeMs !== undefined ? result.responseTimeMs : 'N/A'}
                         </td>
                       </tr>
