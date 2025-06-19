@@ -344,18 +344,6 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
   return (
     <div className="container py-4 px-4 md:px-4 h-full">
-      {/* Paused Warning Banner */}
-      {monitor.status === 'paused' && (
-        <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2" />
-            <div>
-              <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Monitor is paused</h4>
-              <p className="text-sm text-yellow-700 dark:text-yellow-300">This monitor is not running checks. Click the Resume button to start monitoring again.</p>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* Status and Type Header */}
       <div className="border rounded-lg p-4 mb-6 shadow-sm bg-card">
@@ -380,36 +368,38 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             </div>
           </div>
+          
           <div className="flex items-center gap-2">
-            <Button 
-              variant={monitor.status === 'paused' ? "default" : "outline"} 
-              size="sm"
-              onClick={handleToggleStatus}
-              className={cn(
-                "flex items-center",
-                monitor.status === 'paused' 
-                  ? "bg-green-600 hover:bg-green-700 text-white" 
-                  : "bg-orange-500 hover:bg-orange-600 text-white border-orange-500"
-              )}
-            >
-              {monitor.status === 'paused' ? (
-                <>
-                  <Play className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">Resume</span>
-                </>
-              ) : (
-                <>
-                  <Pause className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">Pause</span>
-                </>
-              )}
-            </Button>
             {monitor.status === 'paused' && (
               <div className="flex items-center px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
                 <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mr-1" />
                 <span className="text-xs text-yellow-700 dark:text-yellow-300">Monitoring paused</span>
               </div>
             )}
+            <Button 
+              variant="default" 
+              size="sm"
+              onClick={handleToggleStatus}
+              className={cn(
+                "flex items-center text-white",
+                monitor.status === 'paused' 
+                  ? "bg-green-600 hover:bg-green-700" 
+                  : "bg-orange-500 hover:bg-orange-600"
+              )}
+            >
+              {monitor.status === 'paused' ? (
+                <>
+                  <Play className="h-4 w-4 mr-1 text-white" />
+                  <span className="hidden sm:inline">Resume</span>
+                </>
+              ) : (
+                <>
+                  <Pause className="h-4 w-4 mr-1 text-white" />
+                  <span className="hidden sm:inline">Pause</span>
+                </>
+              )}
+            </Button>
+           
             <Button 
               variant="outline" 
               size="sm"
@@ -659,7 +649,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the monitor
-              "{monitor.name}" and all its associated data.
+              &quot;{monitor.name}&quot; and all its associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

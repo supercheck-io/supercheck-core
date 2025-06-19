@@ -48,6 +48,42 @@ export class MonitorService {
   async executeMonitor(jobData: MonitorJobDataDto): Promise<MonitorExecutionResult> {
     this.logger.log(`Executing monitor ${jobData.monitorId} of type ${jobData.type} for target ${jobData.target}`);
 
+    // Check if monitor is paused before execution
+    try {
+      const monitor = await this.db.query.monitors.findFirst({
+        where: (monitors, { eq }) => eq(monitors.id, jobData.monitorId),
+      });
+
+      if (!monitor) {
+        this.logger.warn(`Monitor ${jobData.monitorId} not found in database, skipping execution`);
+        return {
+          monitorId: jobData.monitorId,
+          status: 'error',
+          checkedAt: new Date(),
+          responseTimeMs: undefined,
+          details: { errorMessage: 'Monitor not found' },
+          isUp: false,
+          error: 'Monitor not found',
+        };
+      }
+
+      if (monitor.status === 'paused') {
+        this.logger.log(`Monitor ${jobData.monitorId} is paused, skipping execution`);
+        return {
+          monitorId: jobData.monitorId,
+          status: 'error',
+          checkedAt: new Date(),
+          responseTimeMs: undefined,
+          details: { errorMessage: 'Monitor is paused' },
+          isUp: false,
+          error: 'Monitor is paused',
+        };
+      }
+    } catch (dbError) {
+      this.logger.error(`Failed to check monitor status for ${jobData.monitorId}: ${dbError.message}`);
+      // Continue with execution if we can't verify status
+    }
+
     let status: MonitorResultStatus = 'error';
     let details: MonitorResultDetails = {};
     let responseTimeMs: number | undefined;

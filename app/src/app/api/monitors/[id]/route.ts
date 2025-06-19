@@ -76,19 +76,39 @@ export async function PUT(
       return NextResponse.json({ error: "Failed to update monitor, monitor not found after update." }, { status: 404 });
     }
 
-    // Handle rescheduling if frequencyMinutes changed
+    // Handle scheduling changes for frequency updates
     const oldFrequency = currentMonitor.frequencyMinutes;
     const newFrequency = updatedMonitor.frequencyMinutes;
+    const oldStatus = currentMonitor.status;
+    const newStatus = updatedMonitor.status;
 
-    if (oldFrequency !== newFrequency) {
-        const jobData: MonitorJobData = {
-            monitorId: updatedMonitor.id,
-            type: updatedMonitor.type as MonitorJobData['type'],
-            target: updatedMonitor.target,
-            config: updatedMonitor.config as any,
-            frequencyMinutes: newFrequency ?? undefined, // Use undefined if null
-        };
+    const jobData: MonitorJobData = {
+        monitorId: updatedMonitor.id,
+        type: updatedMonitor.type as MonitorJobData['type'],
+        target: updatedMonitor.target,
+        config: updatedMonitor.config as Record<string, unknown>,
+        frequencyMinutes: newFrequency ?? undefined,
+    };
 
+    // Handle status changes (pause/resume)
+    if (oldStatus !== newStatus) {
+      console.log(`Monitor ${id} status changed from ${oldStatus} to ${newStatus}`);
+      
+      if (newStatus === 'paused') {
+        // Pause monitor - remove from scheduler
+        console.log(`Pausing monitor ${id} - removing from scheduler`);
+        await removeScheduledMonitorCheck(id);
+      } else if (oldStatus === 'paused' && (newStatus === 'up' || newStatus === 'down')) {
+        // Resume monitor - add to scheduler if it has valid frequency
+        if (newFrequency && newFrequency > 0) {
+          console.log(`Resuming monitor ${id} - adding to scheduler with ${newFrequency} minute frequency`);
+          await scheduleMonitorCheck({ monitorId: id, frequencyMinutes: newFrequency, jobData });
+        }
+      }
+    }
+
+    // Handle frequency changes for non-paused monitors
+    if (oldFrequency !== newFrequency && newStatus !== 'paused') {
         if (newFrequency && newFrequency > 0) {
             console.log(`Rescheduling monitor ${id} from ${oldFrequency} to ${newFrequency} minutes.`);
             await scheduleMonitorCheck({ monitorId: id, frequencyMinutes: newFrequency, jobData });
