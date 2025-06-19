@@ -85,11 +85,10 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
               <YAxis type="number" hide /> {/* Y-axis still hidden as values are constant for height */}
               <Tooltip
                 cursor={{ 
-                  fill: "hsl(var(--muted))", 
-                  fillOpacity: 0.2,
-                  stroke: "hsl(var(--border))",
+                  fill: "rgba(59, 130, 246, 0.1)", // Blue overlay
+                  stroke: "rgba(59, 130, 246, 0.8)", // Blue border
                   strokeWidth: 2,
-                  strokeOpacity: 0.8
+                  strokeDasharray: "none"
                 }}
                 offset={10}
                 content={({ active, payload }) => {
@@ -114,9 +113,22 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
                   return null;
                 }}
               />
-              <Bar dataKey="value" radius={1}> {/* Slight radius for modern look */}
+              <Bar 
+                dataKey="value" 
+                radius={1}
+                onMouseEnter={() => {
+                  // This will be handled by the cursor prop in Tooltip
+                }}
+              > 
                 {processedData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.fill}
+                    style={{ 
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer'
+                    }}
+                  />
                 ))}
               </Bar>
             </BarChart>

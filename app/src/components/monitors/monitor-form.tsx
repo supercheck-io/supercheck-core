@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { monitorTypes } from "./data";
-import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info, Globe, Wifi, Server, Play } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -41,11 +41,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 // Define common HTTP status codes for selection
 const commonHttpStatusCodes = [
@@ -397,38 +399,48 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                         <div className="flex items-center">
                           <FormLabel>Check Type</FormLabel>
                           <TooltipProvider>
-                            <Tooltip delayDuration={300}> 
-                              <TooltipTrigger asChild>
-                                <Info className="ml-2 h-4 w-4 text-muted-foreground cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent 
-                                side="right" 
-                                className="max-w-md bg-muted text-muted-foreground border-border" 
-                                sideOffset={16}
-                              >
-                                <div className="p-2 text-sm">
-                                  <p className="font-semibold mb-1">Monitor Types:</p>
-                                  <ul className="space-y-1 text-xs">
-                                    <li>
-                                      <strong>HTTP Request:</strong><br />
-                                      <span>Checks web pages or API endpoints for availability, status code, and optionally content or JSON values.</span>
-                                    </li>
-                                    <li>
-                                      <strong>Ping Host:</strong><br />
-                                      <span>Sends an ICMP ping to a server to verify basic network connectivity and reachability.</span>
-                                    </li>
-                                    <li>
-                                      <strong>Port Check:</strong><br />
-                                      <span>Tests if a specific TCP or UDP port is open and listening on a target server.</span>
-                                    </li>
-                                    <li>
-                                      <strong>Playwright Script:</strong><br />
-                                      <span>Runs a pre-defined Playwright browser automation script to simulate user flows and test complex interactions.</span>
-                                    </li>
-                                  </ul>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="ghost" size="sm" className="ml-2 h-6 w-6 p-0">
+                                  <Info className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-96 p-0" side="right" sideOffset={8}>
+                                <div className="p-4">
+                                  <h4 className="font-semibold text-sm mb-3 text-foreground">Monitor Types</h4>
+                                  <div className="space-y-3">
+                                    <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
+                                      <Globe className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-sm">HTTP Request</p>
+                                        <p className="text-xs text-muted-foreground">Monitors web pages and API endpoints for availability, status codes, and response content validation.</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
+                                      <Wifi className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-sm">Ping Host</p>
+                                        <p className="text-xs text-muted-foreground">Sends ICMP ping packets to verify basic network connectivity and measure response times.</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
+                                      <Server className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-sm">Port Check</p>
+                                        <p className="text-xs text-muted-foreground">Tests TCP/UDP port availability and connectivity to ensure services are accessible.</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
+                                      <Play className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-sm">Playwright Script</p>
+                                        <p className="text-xs text-muted-foreground">Executes browser automation scripts to simulate complex user interactions and workflows.</p>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                              </TooltipContent>
-                            </Tooltip>
+                              </PopoverContent>
+                            </Popover>
                           </TooltipProvider>
                         </div>
                         <Select
@@ -535,41 +547,55 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                     <FormField
                       control={form.control}
                       name="httpConfig_expectedStatusCodes" 
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Expected Status Codes</FormLabel>
-                          <div className="flex items-center space-x-2">
-                            <FormControl className="flex-grow">
-                              <Input 
-                                placeholder="e.g., 200-299, 404"
-                                {...field}
-                                value={field.value || ""} 
-                              />
-                            </FormControl>
-                            <Select
-                              onValueChange={(presetValue) => {
-                                form.setValue("httpConfig_expectedStatusCodes", presetValue, { shouldValidate: true, shouldDirty: true });
-                              }}
-                              defaultValue="2xx"
-                            >
-                              <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Any 2xx (Success)" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {statusCodePresets.map((preset) => (
-                                  <SelectItem key={preset.label} value={preset.value}>
-                                    {preset.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <FormDescription>
-                            Specify codes (e.g., 200, 200-299, 404). Default is "2xx".
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field }) => {
+                        const currentValue = field.value || "2xx";
+                        const isSpecificCode = !statusCodePresets.some(preset => preset.value === currentValue);
+                        
+                        return (
+                          <FormItem>
+                            <FormLabel>Expected Status Codes</FormLabel>
+                            <div className="flex items-center space-x-2">
+                              <FormControl className="flex-grow">
+                                <Input 
+                                  placeholder="e.g., 200-299, 404"
+                                  {...field}
+                                  value={field.value || ""} 
+                                  disabled={!isSpecificCode}
+                                  className={!isSpecificCode ? "bg-muted cursor-not-allowed" : ""}
+                                />
+                              </FormControl>
+                              <Select
+                                onValueChange={(presetValue) => {
+                                  if (presetValue === "custom") {
+                                    // Enable custom input
+                                    form.setValue("httpConfig_expectedStatusCodes", "", { shouldValidate: true, shouldDirty: true });
+                                  } else {
+                                    form.setValue("httpConfig_expectedStatusCodes", presetValue, { shouldValidate: true, shouldDirty: true });
+                                  }
+                                }}
+                                defaultValue="2xx"
+                                value={isSpecificCode ? "custom" : currentValue}
+                              >
+                                <SelectTrigger className="w-[180px]">
+                                  <SelectValue placeholder="Any 2xx (Success)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {statusCodePresets.map((preset) => (
+                                    <SelectItem key={preset.label} value={preset.value}>
+                                      {preset.label}
+                                    </SelectItem>
+                                  ))}
+                                  <SelectItem value="custom">Custom Code</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <FormDescription>
+                              {isSpecificCode ? "Enter custom status codes (e.g., 200, 404, 500-599)" : "Select a preset or choose 'Custom Code' to enter specific codes"}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
                   </div>
 
@@ -613,15 +639,23 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                     )}
                   </div>
 
-                  {/* Collapsible Authentication Section */}
-                  <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen} className="pt-4 border-t mt-4">
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center space-x-2 cursor-pointer py-2">
-                        {isAuthSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        <h4 className="text-md font-medium">Authentication (Optional)</h4>
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-2 space-y-3 pl-6">
+                  {/* Professional Authentication Section */}
+                  <Card className="mt-6">
+                    <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen}>
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+                          <div className="flex items-center space-x-2">
+                            {isAuthSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            <CardTitle className="text-base">Authentication</CardTitle>
+                            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                          </div>
+                          <CardDescription className="text-sm">
+                            Configure authentication credentials for protected endpoints
+                          </CardDescription>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0 space-y-4">
                       <FormField
                         control={form.control}
                         name="httpConfig_authType"
@@ -675,20 +709,28 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                         </div>
                       )}
 
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </Card>
 
-                    </CollapsibleContent>
-                  </Collapsible>
-                  {/* End Collapsible Authentication Section */}
-
-                  {/* Collapsible Keyword Check Section */}
-                  <Collapsible open={isKeywordSectionOpen} onOpenChange={setIsKeywordSectionOpen} className="pt-4 border-t mt-4">
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center space-x-2 cursor-pointer py-2">
-                        {isKeywordSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        <h4 className="text-md font-medium">Response Body Keyword Check (Optional)</h4>
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-2 space-y-3 pl-6">
+                  {/* Professional Keyword Check Section */}
+                  <Card className="mt-4">
+                    <Collapsible open={isKeywordSectionOpen} onOpenChange={setIsKeywordSectionOpen}>
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+                          <div className="flex items-center space-x-2">
+                            {isKeywordSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            <CardTitle className="text-base">Response Content Validation</CardTitle>
+                            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                          </div>
+                          <CardDescription className="text-sm">
+                            Validate response content by checking for specific keywords or text
+                          </CardDescription>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0 space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <FormField
                           control={form.control}
@@ -734,10 +776,11 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                             </FormItem>
                           )}
                         />
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                  {/* End Collapsible Keyword Check Section */}
+                        </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </Card>
                 </div>
               )}
 
