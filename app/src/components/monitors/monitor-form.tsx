@@ -27,7 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { monitorTypes } from "./data";
-import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info, Globe, Wifi, Server, Play } from "lucide-react";
+import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info, Globe, RefreshCw, Network } from "lucide-react";
+import { PlaywrightLogo } from "@/components/logo/playwright-logo";
 import {
   Card,
   CardContent,
@@ -72,7 +73,7 @@ const statusCodePresets = [
   { label: "Any 3xx (Redirection)", value: "300-399" },
   { label: "Any 4xx (Client Error)", value: "400-499" },
   { label: "Any 5xx (Server Error)", value: "500-599" },
-  { label: "Specific Code (e.g., 200)", value: "200" }, // User can modify after selection
+  { label: "Specific Code", value: "custom" }, // User can input custom code
 ];
 
 const checkIntervalOptions = [
@@ -408,36 +409,36 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                               <PopoverContent className="w-96 p-0" side="right" sideOffset={8}>
                                 <div className="p-4">
                                   <h4 className="font-semibold text-sm mb-3 text-foreground">Monitor Types</h4>
-                                  <div className="space-y-3">
-                                    <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                      <Globe className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <p className="font-medium text-sm">HTTP Request</p>
-                                        <p className="text-xs text-muted-foreground">Monitors web pages and API endpoints for availability, status codes, and response content validation.</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                      <Wifi className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <p className="font-medium text-sm">Ping Host</p>
-                                        <p className="text-xs text-muted-foreground">Sends ICMP ping packets to verify basic network connectivity and measure response times.</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                      <Server className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <p className="font-medium text-sm">Port Check</p>
-                                        <p className="text-xs text-muted-foreground">Tests TCP/UDP port availability and connectivity to ensure services are accessible.</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                      <Play className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <p className="font-medium text-sm">Playwright Script</p>
-                                        <p className="text-xs text-muted-foreground">Executes browser automation scripts to simulate complex user interactions and workflows.</p>
-                                      </div>
-                                    </div>
-                                  </div>
+                                                                     <div className="space-y-3">
+                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
+                                       <RefreshCw className="h-4 w-4 text-cyan-600 mt-0.5 flex-shrink-0" />
+                                       <div>
+                                         <p className="font-medium text-sm">HTTP Request</p>
+                                         <p className="text-xs text-muted-foreground">Monitors web pages and API endpoints for availability, status codes, and response content validation.</p>
+                                       </div>
+                                     </div>
+                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
+                                       <Globe className="h-4 w-4 text-sky-500 mt-0.5 flex-shrink-0" />
+                                       <div>
+                                         <p className="font-medium text-sm">Ping Host</p>
+                                         <p className="text-xs text-muted-foreground">Sends ICMP ping packets to verify basic network connectivity and measure response times.</p>
+                                       </div>
+                                     </div>
+                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
+                                       <Network className="h-4 w-4 text-teal-600 mt-0.5 flex-shrink-0" />
+                                       <div>
+                                         <p className="font-medium text-sm">Port Check</p>
+                                         <p className="text-xs text-muted-foreground">Tests TCP/UDP port availability and connectivity to ensure services are accessible.</p>
+                                       </div>
+                                     </div>
+                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
+                                       <PlaywrightLogo className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                                       <div>
+                                         <p className="font-medium text-sm">Playwright Script</p>
+                                         <p className="text-xs text-muted-foreground">Executes browser automation scripts to simulate complex user interactions and workflows.</p>
+                                       </div>
+                                     </div>
+                                   </div>
                                 </div>
                               </PopoverContent>
                             </Popover>
@@ -549,7 +550,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                       name="httpConfig_expectedStatusCodes" 
                       render={({ field }) => {
                         const currentValue = field.value || "2xx";
-                        const isSpecificCode = !statusCodePresets.some(preset => preset.value === currentValue);
+                        const isSpecificCode = !statusCodePresets.some(preset => preset.value === currentValue && preset.value !== "custom");
                         
                         return (
                           <FormItem>
@@ -557,7 +558,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                             <div className="flex items-center space-x-2">
                               <FormControl className="flex-grow">
                                 <Input 
-                                  placeholder="e.g., 200-299, 404"
+                                  placeholder="e.g., 200, 404, 500-599"
                                   {...field}
                                   value={field.value || ""} 
                                   disabled={!isSpecificCode}
@@ -567,7 +568,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                               <Select
                                 onValueChange={(presetValue) => {
                                   if (presetValue === "custom") {
-                                    // Enable custom input
+                                    // Enable custom input and clear field
                                     form.setValue("httpConfig_expectedStatusCodes", "", { shouldValidate: true, shouldDirty: true });
                                   } else {
                                     form.setValue("httpConfig_expectedStatusCodes", presetValue, { shouldValidate: true, shouldDirty: true });
@@ -585,12 +586,11 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                                       {preset.label}
                                     </SelectItem>
                                   ))}
-                                  <SelectItem value="custom">Custom Code</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
                             <FormDescription>
-                              {isSpecificCode ? "Enter custom status codes (e.g., 200, 404, 500-599)" : "Select a preset or choose 'Custom Code' to enter specific codes"}
+                              {isSpecificCode ? "Enter specific status codes (e.g., 200, 404, 500-599)" : "Select a preset or choose 'Specific Code' to enter custom codes"}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
