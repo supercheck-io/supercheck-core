@@ -85,9 +85,9 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
               <YAxis type="number" hide /> {/* Y-axis still hidden as values are constant for height */}
               <Tooltip
                 cursor={{ 
-                  fill: "rgba(59, 130, 246, 0.2)", // Blue overlay
-                  stroke: "rgba(59, 130, 246, 1)", // Blue border
-                  strokeWidth: 3,
+                  fill: "rgba(255, 255, 0, 0.1)", // Blue overlay
+                  stroke: "rgba(255, 255, 0, 1)", // Blue border
+                  strokeWidth: 2,
                   strokeDasharray: "none"
                 }}
                 offset={10}

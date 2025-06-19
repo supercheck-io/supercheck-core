@@ -59,7 +59,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { ResponseTimeBarChart } from "@/components/monitors/response-time-bar-chart";
+import { ResponseTimeBarChart } from "@/components/monitors/response-time-line-chart";
 import { AvailabilityBarChart } from "./AvailabilityBarChart";
 import { 
     MonitorStatus as DBMoniotorStatusType,
