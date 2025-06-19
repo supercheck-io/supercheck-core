@@ -441,7 +441,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <Clock className="h-5 w-5 text-emerald-500" />
+              <Clock className="h-5 w-5 text-purple-500" />
               <CardTitle className="text-sm font-medium text-muted-foreground">Interval</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
@@ -451,17 +451,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <Clock className="h-5 w-5 text-purple-500" />
-              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Response (30d)</CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4 px-4">
-              <div className="text-2xl font-bold">{calculatedMetrics.avgResponse30d}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <TrendingUp className="h-5 w-5 text-green-500" />
+              <TrendingUp className="h-5 w-5 text-green-400" />
               <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (24h)</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
@@ -471,8 +461,8 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <Zap className="h-5 w-5 text-orange-500" /> 
-              <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Response (24h)</CardTitle>
+              <Zap className="h-5 w-5 text-amber-400" /> 
+              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (24h)</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
               <div className="text-2xl font-bold">{calculatedMetrics.avgResponse24h}</div>
@@ -481,11 +471,21 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <ShieldCheck className="h-5 w-5 text-indigo-500" />
+              <TrendingUp className="h-5 w-5 text-green-400" />
               <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
               <div className="text-2xl font-bold">{calculatedMetrics.uptime30d}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Zap className="h-5 w-5 text-amber-400" /> 
+              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (30d)</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-2xl font-bold">{calculatedMetrics.avgResponse30d}</div>
             </CardContent>
           </Card>
         </div>

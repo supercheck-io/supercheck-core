@@ -94,25 +94,42 @@ export async function removeScheduledMonitorCheck(monitorId: string): Promise<bo
     const schedulerQueue = await getMonitorSchedulerQueue();
     const jobName = `${MONITOR_SCHEDULER_JOB_PREFIX}${monitorId}`;
     
-    // BullMQ's getRepeatableJobs returns jobs with a 'key' property.
-    // The key for a job added with a specific jobId and repeat pattern is usually `jobName::${jobId}:::${every|pattern}`
-    // However, removing by jobName and repeat pattern directly is safer.
-    // Or, more simply, as we use jobName as the jobId for the repeatable job, we can use removeRepeatable.
-
+    console.log(`[Monitor Scheduler] Attempting to remove scheduled check for monitor ${monitorId} (Job name: ${jobName})`);
+    
     const repeatableJobs = await schedulerQueue.getRepeatableJobs();
-    const jobToRemove = repeatableJobs.find(job => job.id === jobName || job.name === jobName);
+    console.log(`[Monitor Scheduler] Found ${repeatableJobs.length} repeatable jobs`);
+    
+    // Log all repeatable jobs for debugging
+    repeatableJobs.forEach(job => {
+      console.log(`[Monitor Scheduler] Repeatable job - ID: ${job.id}, Name: ${job.name}, Key: ${job.key}`);
+    });
+    
+    // Find jobs that match our monitor ID (more flexible matching)
+    const jobsToRemove = repeatableJobs.filter(job => 
+      job.id === jobName || 
+      job.name === jobName ||
+      job.key.includes(monitorId) ||
+      job.key.includes(jobName)
+    );
 
-    if (jobToRemove) {
-        console.log(`[Monitor Scheduler] Removing scheduled check for monitor ${monitorId} (Job key: ${jobToRemove.key})`);
-        const removed = await schedulerQueue.removeRepeatableByKey(jobToRemove.key);
-        if (removed) {
-            console.log(`[Monitor Scheduler] Successfully removed scheduled check for monitor ${monitorId}`);
-        } else {
-             console.warn(`[Monitor Scheduler] Could not remove scheduled check for monitor ${monitorId} by key ${jobToRemove.key}, though job was found.`);
+    if (jobsToRemove.length > 0) {
+        console.log(`[Monitor Scheduler] Found ${jobsToRemove.length} jobs to remove for monitor ${monitorId}`);
+        let removedCount = 0;
+        
+        for (const job of jobsToRemove) {
+            console.log(`[Monitor Scheduler] Removing job with key: ${job.key}`);
+            const removed = await schedulerQueue.removeRepeatableByKey(job.key);
+            if (removed) {
+                removedCount++;
+                console.log(`[Monitor Scheduler] Successfully removed job with key: ${job.key}`);
+            } else {
+                console.warn(`[Monitor Scheduler] Failed to remove job with key: ${job.key}`);
+            }
         }
-        return removed;
+        
+        return removedCount > 0;
     } else {
-        console.log(`[Monitor Scheduler] No scheduled check found for monitor ${monitorId} with name ${jobName} to remove.`);
+        console.log(`[Monitor Scheduler] No scheduled check found for monitor ${monitorId} to remove.`);
         return false;
     }
   } catch (error) {

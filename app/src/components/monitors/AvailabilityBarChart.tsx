@@ -47,7 +47,8 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
   const processedData = data.map((item, index) => ({
     name: `Run ${index + 1}`, 
     status: item.status === 1 ? "up" : "down",
-    fill: item.status === 1 ? chartConfig.up.color : chartConfig.down.color, 
+    fill: item.status === 1 ? chartConfig.up.color : chartConfig.down.color,
+    hoverFill: item.status === 1 ? "#16a34a" : "#dc2626", // Darker colors for hover
     value: 1, // All bars will have the same height conceptually
   }));
 
@@ -83,7 +84,13 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
               <XAxis dataKey="name" type="category" hide /> 
               <YAxis type="number" hide /> {/* Y-axis still hidden as values are constant for height */}
               <Tooltip
-                cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.1 }}
+                cursor={{ 
+                  fill: "hsl(var(--muted))", 
+                  fillOpacity: 0.2,
+                  stroke: "hsl(var(--border))",
+                  strokeWidth: 2,
+                  strokeOpacity: 0.8
+                }}
                 offset={10}
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
@@ -95,7 +102,7 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
                     const formattedDate = date ? date.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
 
                     return (
-                      <div className="bg-background border rounded-lg p-3 shadow-lg text-sm min-w-[140px]">
+                      <div className="bg-background border rounded-lg p-3 shadow-lg text-sm min-w-[140px] z-50">
                         <p className="font-medium mb-2 text-center">{formattedDate} {formattedTime}</p>
                         <div className="flex items-center justify-center">
                           <div className={`w-3 h-3 rounded-full mr-2`} style={{ backgroundColor: point.fill }}></div>
