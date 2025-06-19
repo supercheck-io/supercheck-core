@@ -66,7 +66,8 @@ const commonHttpStatusCodes = [
 
 // Define presets for Expected Status Codes
 const statusCodePresets = [
-  { label: "Any 2xx (Success)", value: "200-299" },
+  { label: "Any 2xx (Success)", value: "2xx" },
+  { label: "200-299 Range", value: "200-299" },
   { label: "Any 3xx (Redirection)", value: "300-399" },
   { label: "Any 4xx (Client Error)", value: "400-499" },
   { label: "Any 5xx (Server Error)", value: "500-599" },
@@ -128,7 +129,7 @@ const creationDefaultValues: FormValues = {
   httpConfig_method: "GET",
   httpConfig_headers: undefined,
   httpConfig_body: undefined,
-  httpConfig_expectedStatusCodes: "200-299",
+  httpConfig_expectedStatusCodes: "2xx",
   httpConfig_keywordInBody: undefined,
   httpConfig_keywordShouldBePresent: undefined,
   httpConfig_authUsername: undefined,
@@ -207,40 +208,44 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
     if (data.type === "http_request") {
       apiData.config = {
         method: data.httpConfig_method || "GET",
-        expectedStatusCodes: data.httpConfig_expectedStatusCodes || "200-299",
+        expectedStatusCodes: data.httpConfig_expectedStatusCodes || "2xx",
         timeoutSeconds: 30, // Default timeout
       };
 
       // Add headers if provided
-      if (data.httpConfig_headers) {
+      if (data.httpConfig_headers && data.httpConfig_headers.trim()) {
         try {
-          apiData.config.headers = JSON.parse(data.httpConfig_headers);
+          const parsedHeaders = JSON.parse(data.httpConfig_headers);
+          if (typeof parsedHeaders === 'object' && parsedHeaders !== null) {
+            apiData.config.headers = parsedHeaders;
+          }
         } catch (e) {
-          // If parsing fails, treat as plain text (could be improved)
           console.warn("Failed to parse headers as JSON:", e);
+          throw new Error("Headers must be valid JSON format, e.g., {\"Content-Type\": \"application/json\"}");
         }
       }
 
       // Add body if provided
-      if (data.httpConfig_body) {
+      if (data.httpConfig_body && data.httpConfig_body.trim()) {
         apiData.config.body = data.httpConfig_body;
       }
 
       // Add auth if configured
       if (data.httpConfig_authType && data.httpConfig_authType !== "none") {
-        apiData.config.auth = {
-          type: data.httpConfig_authType,
-        };
         if (data.httpConfig_authType === "basic") {
-          apiData.config.auth.username = data.httpConfig_authUsername;
-          apiData.config.auth.password = data.httpConfig_authPassword;
-        } else if (data.httpConfig_authType === "bearer") {
-          apiData.config.auth.token = data.httpConfig_authToken;
+          if (!data.httpConfig_authUsername || !data.httpConfig_authPassword) {
+            throw new Error("Username and password are required for Basic Auth");
+          }
+          apiData.config.auth = {
+            type: "basic",
+            username: data.httpConfig_authUsername,
+            password: data.httpConfig_authPassword,
+          };
         }
       }
 
       // Add keyword checking if configured
-      if (data.httpConfig_keywordInBody) {
+      if (data.httpConfig_keywordInBody && data.httpConfig_keywordInBody.trim()) {
         apiData.config.keywordInBody = data.httpConfig_keywordInBody;
         apiData.config.keywordInBodyShouldBePresent = data.httpConfig_keywordShouldBePresent !== false;
       }
@@ -561,7 +566,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                             </Select>
                           </div>
                           <FormDescription>
-                            Specify codes (e.g., 200, 200-299, 404). Default is "200-299".
+                            Specify codes (e.g., 200, 200-299, 404). Default is "2xx".
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -633,7 +638,6 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                               <SelectContent>
                                 <SelectItem value="none">None</SelectItem>
                                 <SelectItem value="basic">Basic Auth</SelectItem>
-                                <SelectItem value="bearer">Bearer Token</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -672,21 +676,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                         </div>
                       )}
 
-                      {authType === "bearer" && (
-                        <FormField
-                          control={form.control}
-                          name="httpConfig_authToken"
-                          render={({ field }) => (
-                            <FormItem className="mb-4">
-                              <FormLabel>Bearer Token</FormLabel>
-                              <FormControl>
-                                <Textarea placeholder="Enter Bearer Token" {...field} rows={3} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
+
                     </CollapsibleContent>
                   </Collapsible>
                   {/* End Collapsible Authentication Section */}

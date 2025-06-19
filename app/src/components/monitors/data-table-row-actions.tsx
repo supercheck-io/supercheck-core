@@ -70,8 +70,8 @@ export function DataTableRowActions<TData>({
 
     try {
       // Call the API to toggle monitor status
-      const response = await fetch(`/api/monitors/${monitor.id}/status`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/monitors/${monitor.id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -79,7 +79,8 @@ export function DataTableRowActions<TData>({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to ${action} monitor`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to ${action} monitor`);
       }
 
       toast.success(`Monitor ${action}d`, {

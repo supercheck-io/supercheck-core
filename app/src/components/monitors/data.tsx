@@ -28,6 +28,12 @@ export const monitorStatuses = [
     color: "text-red-500",
   },
   {
+    value: "pending",
+    label: "Pending",
+    icon: Clock,
+    color: "text-yellow-500",
+  },
+  {
     value: "paused",
     label: "Paused",
     icon: Pause,

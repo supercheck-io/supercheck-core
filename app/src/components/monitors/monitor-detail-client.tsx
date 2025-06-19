@@ -543,23 +543,23 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           </CardHeader>
           <CardContent className="p-0 flex-1 flex flex-col">
             {filteredResults && filteredResults.length > 0 ? (
-              <div className="flex-1 h-[400px]">
+              <div className="flex-1">
                 <table className="min-w-full divide-y divide-border">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
-                      <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
-                      <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
+                      <th scope="col" className="px-4 py-1.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                      <th scope="col" className="px-4 py-1.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
+                      <th scope="col" className="px-4 py-1.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
                     </tr>
                   </thead>
                   <tbody className="bg-card divide-y divide-border">
                     {paginatedResults.map((result) => (
                       <tr key={result.id} className="hover:bg-muted/25">
-                        <td className="px-4 py-2 whitespace-nowrap text-sm">
+                        <td className="px-4 py-1.5 whitespace-nowrap text-sm">
                           <SimpleStatusIcon isUp={result.isUp} />
                         </td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-muted-foreground">
+                        <td className="px-4 py-1.5 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
+                        <td className="px-4 py-1.5 whitespace-nowrap text-sm text-muted-foreground">
                           {result.responseTimeMs !== null && result.responseTimeMs !== undefined ? result.responseTimeMs : 'N/A'}
                         </td>
                       </tr>
@@ -568,14 +568,14 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                 </table>
               </div>
             ) : (
-              <div className="flex-1 flex items-center justify-center h-[400px]">
+              <div className="flex-1 flex items-center justify-center">
                 <p className="text-center text-sm text-muted-foreground">
                   {selectedDate ? `No check results found for ${format(selectedDate, 'MMMM dd, yyyy')}.` : "No recent check results found."}
                 </p>
               </div>
             )}
           </CardContent>
-          <CardFooter className="flex justify-center py-3 border-t">
+          <CardFooter className="flex justify-center py-2 border-t">
             <Pagination>
               <PaginationContent className="gap-1">
                 <PaginationItem>
