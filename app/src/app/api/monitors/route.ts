@@ -47,6 +47,9 @@ export async function GET() {
           }
         }
         
+        // If monitor is paused, always show paused status regardless of latest result
+        const finalStatus = monitorOwnStatus === 'paused' ? 'paused' : (resultStatus ?? monitorOwnStatus);
+        
         const effectiveLastCheckTime = resultCheckedAt ?? monitor.lastCheckAt;
 
         return {
@@ -56,7 +59,7 @@ export async function GET() {
           url: monitor.target,
           method: monitor.type,
           frequencyMinutes: monitor.frequencyMinutes,
-          status: resultStatus ?? monitorOwnStatus, 
+          status: finalStatus, 
           lastCheckedAt: effectiveLastCheckTime ? new Date(effectiveLastCheckTime).toISOString() : null,
           createdAt: monitor.createdAt ? new Date(monitor.createdAt).toISOString() : null,
           health: healthStatus,
