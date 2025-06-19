@@ -50,7 +50,7 @@ export default async function EditMonitorPage({ params }: { params: { id: string
   const currentType = monitor.type;
 
   // Check if monitor.type is directly one of the FormValues types
-  const formValueTypes = ["http_request", "ping_host", "port_check", "dns_check", "playwright_script"] as const;
+  const formValueTypes = ["http_request", "ping_host", "port_check", "playwright_script"] as const;
   
   if ((formValueTypes as readonly string[]).includes(currentType)) {
     formType = currentType as FormValues["type"];
@@ -100,10 +100,6 @@ export default async function EditMonitorPage({ params }: { params: { id: string
     // Port Check specific
     portConfig_port: formType === "port_check" && monitor.config?.port ? monitor.config.port : undefined,
     portConfig_protocol: formType === "port_check" && monitor.config?.protocol ? monitor.config.protocol : undefined,
-
-    // DNS Check specific
-    dnsConfig_recordType: formType === "dns_check" && monitor.config?.recordType ? monitor.config.recordType : undefined,
-    dnsConfig_expectedValue: formType === "dns_check" && monitor.config?.expectedValue ? monitor.config.expectedValue : undefined,
 
     // Playwright Script specific
     playwrightConfig_testId: formType === "playwright_script" && monitor.config?.testId ? monitor.config.testId : undefined,

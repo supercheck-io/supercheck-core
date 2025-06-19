@@ -1,0 +1,1 @@
+ALTER TABLE "monitor_maintenance_windows" ALTER COLUMN "monitor_id" SET NOT NULL;

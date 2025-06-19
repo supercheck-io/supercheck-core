@@ -6,7 +6,6 @@ export type MonitorType =
   | "http_request"
   | "ping_host"
   | "port_check"
-  | "dns_check"
   | "playwright_script";
 
 export interface MonitorConfig {
@@ -28,8 +27,6 @@ export interface MonitorConfig {
   checkExpiration?: boolean;
   daysUntilExpirationWarning?: number;
   checkRevocation?: boolean;
-  recordType?: "A" | "AAAA" | "CNAME" | "MX" | "NS" | "PTR" | "SOA" | "SRV" | "TXT";
-  expectedValue?: string;
   testId?: string;
   scriptVariables?: Record<string, any>; 
   expectedIntervalSeconds?: number;

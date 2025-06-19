@@ -58,13 +58,6 @@ export const monitorTypes = [
     description: "Check specific TCP or UDP port",
   },
   {
-    label: "DNS Check",
-    value: "dns_check",
-    icon: ShieldAlert,
-    color: "text-purple-500",
-    description: "DNS record validation (A, CNAME, MX, TXT, etc.)",
-  },
-  {
     label: "Playwright Script",
     value: "playwright_script",
     icon: PlaywrightLogo,

@@ -32,12 +32,12 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
   if (!data || data.length === 0) {
     // console.log("[AvailabilityBarChart] No data or empty data array."); // Keep for now
     return (
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Availability Overview</CardTitle>
+          <CardTitle className="text-2xl">Availability Overview</CardTitle>
           <CardDescription>Status of individual checks (each bar is one check run).</CardDescription>
         </CardHeader>
-                    <CardContent className="flex items-center justify-center h-[100px]">
+        <CardContent className="flex items-center justify-center h-[120px]">
           <p className="text-muted-foreground">No availability data to display.</p>
         </CardContent>
       </Card>
@@ -53,13 +53,19 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
 
   // console.log("[AvailabilityBarChart] Processed data:", JSON.stringify(processedData, null, 2)); // Keep for now
 
+  const upCount = data.filter(d => d.status === 1).length;
+  const downCount = data.length - upCount;
+  const uptimePercentage = data.length > 0 ? ((upCount / data.length) * 100).toFixed(1) : '0.0';
+
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>Availability Overview</CardTitle>
-        <CardDescription>Status of individual checks (each bar is one check run).</CardDescription>
+        <CardTitle className="text-2xl">Availability Overview</CardTitle>
+        <CardDescription>
+          Status of individual checks ({data.length} data points) - {uptimePercentage}% uptime
+        </CardDescription>
       </CardHeader>
-      <CardContent className="p-1 pt-0 h-[100px]"> {/* Adjusted height, remove padding top from content if header has enough */}
+      <CardContent className="p-1 pt-0 h-[120px]"> {/* Adjusted height, remove padding top from content if header has enough */}
         <ChartContainer config={chartConfig} className="w-full h-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -70,8 +76,8 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
                 left: 10,
                 bottom: 5,
               }}
-              barSize={15} // Increase bar width significantly
-              barCategoryGap="5%" // Decrease gap between bars for a denser look
+              barSize={Math.max(8, Math.min(20, Math.floor(800 / data.length)))} // Dynamic bar size based on data count
+              barCategoryGap="2%" // Tighter spacing for better density
             >
               <CartesianGrid vertical={false} horizontal={false} strokeDasharray="3 3" /> {/* Grid lines are already hidden */}
               <XAxis dataKey="name" type="category" hide /> 
@@ -89,11 +95,11 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
                     const formattedDate = date ? date.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
 
                     return (
-                      <div className="bg-background border rounded-md p-2 shadow-lg text-xs min-w-[120px]">
-                        <p className="font-medium mb-1 text-center">{formattedDate} {formattedTime}</p>
+                      <div className="bg-background border rounded-lg p-3 shadow-lg text-sm min-w-[140px]">
+                        <p className="font-medium mb-2 text-center">{formattedDate} {formattedTime}</p>
                         <div className="flex items-center justify-center">
-                          <div className={`w-2 h-2 rounded-full mr-1.5`} style={{ backgroundColor: point.fill }}></div>
-                          <span>{point.status === "up" ? "Up" : "Down"}</span>
+                          <div className={`w-3 h-3 rounded-full mr-2`} style={{ backgroundColor: point.fill }}></div>
+                          <span className="font-medium">{point.status === "up" ? "Up" : "Down"}</span>
                         </div>
                       </div>
                     );
@@ -101,7 +107,7 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
                   return null;
                 }}
               />
-              <Bar dataKey="value" radius={0}> {/* No radius for sharp-edged bars */}
+              <Bar dataKey="value" radius={1}> {/* Slight radius for modern look */}
                 {processedData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.fill} />
                 ))}

@@ -90,7 +90,7 @@ const checkIntervalOptions = [
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   target: z.string().min(1, "Target is required"),
-  type: z.enum(["http_request", "ping_host", "port_check", "dns_check", "playwright_script"], {
+  type: z.enum(["http_request", "ping_host", "port_check", "playwright_script"], {
     required_error: "Please select a check type",
   }),
   interval: z.enum(["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"]).default("60"),
@@ -110,9 +110,6 @@ const formSchema = z.object({
   // Port Check specific
   portConfig_port: z.coerce.number().int().min(1).max(65535).optional(),
   portConfig_protocol: z.enum(["tcp", "udp"]).optional(),
-  // DNS Check specific
-  dnsConfig_recordType: z.enum(["A", "AAAA", "CNAME", "MX", "NS", "PTR", "SOA", "SRV", "TXT"]).optional(),
-  dnsConfig_expectedValue: z.string().optional(),
   // Playwright Script specific
   playwrightConfig_testId: z.string().uuid().optional(),
 });
@@ -139,8 +136,6 @@ const creationDefaultValues: FormValues = {
   httpConfig_authToken: undefined,
   portConfig_port: undefined,
   portConfig_protocol: undefined,
-  dnsConfig_recordType: undefined,
-  dnsConfig_expectedValue: undefined,
   playwrightConfig_testId: undefined,
 };
 
@@ -167,11 +162,10 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
   const authType = form.watch("httpConfig_authType");
   
   const targetPlaceholders: Record<FormValues["type"], string> = {
-    http_request: "e.g., https://your.site/api",
-    ping_host: "e.g., server.com or 8.8.8.8",
-    port_check: "e.g., db.server.com (port in settings)",
-    dns_check: "e.g., yourdomain.com (record type in settings)",
-    playwright_script: "Uses Test ID (not this field)",
+    http_request: "e.g., https://example.com or https://api.example.com/health",
+    ping_host: "e.g., example.com or 8.8.8.8 (IP address or hostname)",
+    port_check: "e.g., example.com or 192.168.1.1 (hostname or IP address)",
+    playwright_script: "Optional - leave blank if test configuration handles target",
   };
   
   const watchedValues = form.watch();
@@ -255,12 +249,6 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
         port: data.portConfig_port,
         protocol: data.portConfig_protocol || "tcp",
         timeoutSeconds: 10, // Default timeout for port checks
-      };
-    } else if (data.type === "dns_check") {
-      apiData.config = {
-        recordType: data.dnsConfig_recordType || "A",
-        expectedValue: data.dnsConfig_expectedValue,
-        timeoutSeconds: 10, // Default timeout for DNS checks
       };
     } else if (data.type === "playwright_script") {
       apiData.config = {
@@ -429,10 +417,6 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                                     <li>
                                       <strong>Port Check:</strong><br />
                                       <span>Tests if a specific TCP or UDP port is open and listening on a target server.</span>
-                                    </li>
-                                    <li>
-                                      <strong>DNS Check:</strong><br />
-                                      <span>Verifies domain name resolution and checks specific DNS record types (A, MX, TXT, etc.) against expected values.</span>
                                     </li>
                                     <li>
                                       <strong>Playwright Script:</strong><br />
@@ -826,63 +810,6 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                                 ))}
                               </SelectContent>
                             </Select>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {type === "dns_check" && (
-                <div className="space-y-4 border-t pt-6">
-                  <h3 className="text-lg font-medium">DNS Check Settings</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="dnsConfig_recordType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Record Type</FormLabel>
-                          <FormControl>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select a record type" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {["A", "AAAA", "CNAME", "MX", "NS", "PTR", "SOA", "SRV", "TXT"].map((type) => (
-                                  <SelectItem key={type} value={type}>
-                                    <div className="flex items-center">
-                                      <span>{type}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="dnsConfig_expectedValue"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Expected Value</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter the expected value"
-                              {...field}
-                              value={field.value || ""}
-                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

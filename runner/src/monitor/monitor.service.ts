@@ -65,9 +65,6 @@ export class MonitorService {
         case 'port_check':
           ({ status, details, responseTimeMs, isUp } = await this.executePortCheck(jobData.target, jobData.config));
           break;
-        case 'dns_check':
-          ({ status, details, responseTimeMs, isUp } = await this.executeDnsCheck(jobData.target, jobData.config));
-          break;
         case 'playwright_script':
           // For Playwright, target might be irrelevant if testId in config is primary identifier
           ({ status, details, responseTimeMs, isUp } = await this.executePlaywrightScript(jobData.config)); 
@@ -241,11 +238,119 @@ export class MonitorService {
   }
 
   private async executePingHost(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
-    this.logger.debug(`Ping Host: ${target}, Config: ${JSON.stringify(config)}`);
-    // TODO: Implement actual ping logic (e.g., using a library like 'ping' or child_process)
-    // Consider: timeoutSeconds from config
-    await new Promise(resolve => setTimeout(resolve, 50)); // Simulate async work
-    return { status: 'up', responseTimeMs: 50, isUp: true, details: { ipAddress: '1.1.1.1'} };
+    const timeout = (config?.timeoutSeconds || 5) * 1000; // Default 5s timeout for ping
+    this.logger.debug(`Ping Host: ${target}, Timeout: ${timeout}ms`);
+    
+    const startTime = process.hrtime.bigint();
+    let status: MonitorResultStatus = 'error';
+    let details: MonitorResultDetails = {};
+    let isUp = false;
+    let responseTimeMs: number | undefined;
+
+    try {
+      const { spawn } = await import('child_process');
+      const isWindows = process.platform === 'win32';
+      
+      // Use appropriate ping command based on OS
+      const pingCommand = isWindows ? 'ping' : 'ping';
+      const pingArgs = isWindows 
+        ? ['-n', '1', '-w', timeout.toString(), target]  // Windows: -n count, -w timeout in ms
+        : ['-c', '1', '-W', Math.ceil(timeout / 1000).toString(), target]; // Linux/Mac: -c count, -W timeout in seconds
+
+      const pingResult = await new Promise<{stdout: string, stderr: string, code: number}>((resolve, reject) => {
+        const process = spawn(pingCommand, pingArgs);
+        let stdout = '';
+        let stderr = '';
+
+        const timeoutHandle = setTimeout(() => {
+          process.kill();
+          reject(new Error('Ping timeout'));
+        }, timeout + 1000); // Add 1s buffer to the timeout
+
+        process.stdout.on('data', (data) => {
+          stdout += data.toString();
+        });
+
+        process.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+
+        process.on('close', (code) => {
+          clearTimeout(timeoutHandle);
+          resolve({ stdout, stderr, code: code || 0 });
+        });
+
+        process.on('error', (error) => {
+          clearTimeout(timeoutHandle);
+          reject(error);
+        });
+      });
+
+      const endTime = process.hrtime.bigint();
+      responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
+
+      if (pingResult.code === 0) {
+        // Parse response time from ping output
+        const output = pingResult.stdout;
+        let parsedResponseTime: number | undefined;
+
+        if (isWindows) {
+          // Windows ping output: "time=XXXms" or "time<1ms"
+          const timeMatch = output.match(/time[<=](\d+)ms/i);
+          if (timeMatch) {
+            parsedResponseTime = parseInt(timeMatch[1]);
+          }
+        } else {
+          // Linux/Mac ping output: "time=XXX.XXX ms"
+          const timeMatch = output.match(/time=(\d+(?:\.\d+)?) ms/i);
+          if (timeMatch) {
+            parsedResponseTime = Math.round(parseFloat(timeMatch[1]));
+          }
+        }
+
+        status = 'up';
+        isUp = true;
+        details = {
+          responseTimeMs: parsedResponseTime || responseTimeMs,
+          packetsSent: 1,
+          packetsReceived: 1,
+          packetLoss: 0,
+          output: output.trim()
+        };
+        
+        // Use parsed response time if available, otherwise use our measured time
+        responseTimeMs = parsedResponseTime || responseTimeMs;
+      } else {
+        status = 'down';
+        isUp = false;
+        details = {
+          errorMessage: `Ping failed with exit code ${pingResult.code}`,
+          stderr: pingResult.stderr,
+          stdout: pingResult.stdout,
+          responseTimeMs
+        };
+      }
+
+    } catch (error) {
+      const errorTime = process.hrtime.bigint();
+      responseTimeMs = Math.round(Number(errorTime - startTime) / 1000000);
+      
+      this.logger.warn(`Ping to ${target} failed: ${error.message}`);
+      
+      if (error.message.includes('timeout')) {
+        status = 'timeout';
+        details.errorMessage = `Ping timeout after ${timeout}ms`;
+      } else {
+        status = 'error';
+        details.errorMessage = error.message;
+      }
+      
+      isUp = false;
+      details.responseTimeMs = responseTimeMs;
+    }
+    
+    this.logger.debug(`Ping completed: ${target}, Status: ${status}, Response Time: ${responseTimeMs}ms`);
+    return { status, details, responseTimeMs, isUp };
   }
 
   private async executePortCheck(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
@@ -390,16 +495,6 @@ export class MonitorService {
     
     this.logger.debug(`Port Check completed: ${target}:${port} (${protocol}), Status: ${status}, Response Time: ${responseTimeMs}ms`);
     return { status, details, responseTimeMs, isUp };
-  }
-
-  private async executeDnsCheck(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
-    const recordType = config?.recordType;
-    this.logger.debug(`DNS Check: ${target}, Record Type: ${recordType}, Expected: ${config?.expectedValue}, Config: ${JSON.stringify(config)}`);
-    if (!recordType) return { status: 'error', isUp: false, details: {errorMessage: 'DNS Record Type not provided'}};
-    // TODO: Implement actual DNS check logic (e.g., using 'dns/promises')
-    // Consider: timeoutSeconds, expectedValue from config
-    await new Promise(resolve => setTimeout(resolve, 120)); // Simulate async work
-    return { status: 'up', isUp: true, details: { recordType, resolvedValues: ['some.ip.address'] } };
   }
 
   private async executePlaywrightScript(config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {

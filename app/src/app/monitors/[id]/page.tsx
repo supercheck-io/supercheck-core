@@ -72,9 +72,6 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
         case "port_check":
             methodValue = "port_check";
             break;
-        case "dns_check":
-            methodValue = "dns_check";
-            break;
         case "playwright_script":
             methodValue = "playwright_script";
             break;

@@ -195,7 +195,6 @@ export type MonitorType =
   | "http_request"    // Check HTTP/S endpoints (availability, status, response time)
   | "ping_host"       // ICMP ping to a host
   | "port_check"      // Check specific TCP or UDP port
-  | "dns_check"       // DNS record validation (A, CNAME, MX, TXT, etc.)
   | "playwright_script"; // Execute an existing Playwright test script from the 'tests' table
 
 export type MonitorStatus =
@@ -232,14 +231,10 @@ export type MonitorConfig = {
   daysUntilExpirationWarning?: number; // e.g., 30
   checkRevocation?: boolean; // (Advanced, might require OCSP/CRL checks)
 
-  // dns_check specific (target is domain name)
-  recordType?: "A" | "AAAA" | "CNAME" | "MX" | "NS" | "PTR" | "SOA" | "SRV" | "TXT";
-  expectedValue?: string; // e.g., IP address for A record, server for MX, text for TXT
-
   // playwright_script specific
   testId?: string; // UUID of the test case from the 'tests' table
   // Variables/Overrides for the script can be passed here if needed
-  scriptVariables?: Record<string, any>; 
+  scriptVariables?: Record<string, any>;
 
   // heartbeat specific (target is an expected unique identifier for the incoming ping)
   expectedIntervalSeconds?: number; // e.g., 300 (5 minutes)

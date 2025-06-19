@@ -151,7 +151,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const resultsPerPage = 10;
+  const resultsPerPage = 8;
 
   console.log("[MonitorDetailClient] Initial Monitor Prop:", initialMonitor);
   console.log("[MonitorDetailClient] Monitor Results:", monitor.recentResults);
@@ -237,28 +237,18 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
       return [];
     }
     
-    // Get the most recent 30 results with valid response times for the chart
-    const recentResults = monitor.recentResults.slice(0, 30);
-    const validResults = recentResults.filter(r => {
-      const hasValidResponseTime = r.responseTimeMs !== null && r.responseTimeMs !== undefined && r.responseTimeMs > 0;
-      console.log(`[ResponseTimeData] Result ${r.id}: responseTime=${r.responseTimeMs}, isValid=${hasValidResponseTime}, isUp=${r.isUp}`);
-      return hasValidResponseTime;
-    });
+    // Use the same dataset as availability chart - first 50 results
+    const recentResults = monitor.recentResults.slice(0, 50);
     
-    console.log(`[ResponseTimeData] Found ${validResults.length} valid results out of ${recentResults.length} recent results`);
-    
-    if (validResults.length === 0) {
-      console.log("[ResponseTimeData] No valid response times found");
-      return [];
-    }
-    
-    const chartData = validResults
+    const chartData = recentResults
       .map(r => {
         const date = typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt;
         return {
           name: format(date, 'HH:mm'), // Show only time (HH:MM) for cleaner x-axis
           time: r.responseTimeMs || 0,
-          fullDate: format(date, 'MMM dd, HH:mm') // Keep full date for tooltips
+          fullDate: format(date, 'MMM dd, HH:mm'), // Keep full date for tooltips
+          isUp: r.isUp, // Keep status for conditional styling
+          status: r.status
         };
       })
       .reverse(); // Show chronologically (oldest first)
