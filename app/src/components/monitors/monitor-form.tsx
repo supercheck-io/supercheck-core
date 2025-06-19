@@ -709,7 +709,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                               <FormLabel>Keyword</FormLabel>
                               <FormControl>
                                 <Input
-                                  placeholder="Text in response"
+                                  placeholder="success"
                                   {...field}
                                   value={field.value || ""}
                                 />

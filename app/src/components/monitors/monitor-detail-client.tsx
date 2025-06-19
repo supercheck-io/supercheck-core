@@ -127,7 +127,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const resultsPerPage = 8;
+  const resultsPerPage = 10;
 
   console.log("[MonitorDetailClient] Initial Monitor Prop:", initialMonitor);
   console.log("[MonitorDetailClient] Monitor Results:", monitor.recentResults);
@@ -377,24 +377,19 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             )}
             <Button 
-              variant="default" 
+              variant="outline" 
               size="sm"
               onClick={handleToggleStatus}
-              className={cn(
-                "flex items-center text-white",
-                monitor.status === 'paused' 
-                  ? "bg-green-600 hover:bg-green-700" 
-                  : "bg-orange-500 hover:bg-orange-600"
-              )}
+              className="flex items-center"
             >
               {monitor.status === 'paused' ? (
                 <>
-                  <Play className="h-4 w-4 mr-1 text-white" />
+                  <Play className="h-4 w-4 mr-1 text-green-600" />
                   <span className="hidden sm:inline">Resume</span>
                 </>
               ) : (
                 <>
-                  <Pause className="h-4 w-4 mr-1 text-white" />
+                  <Pause className="h-4 w-4 mr-1 text-orange-500" />
                   <span className="hidden sm:inline">Pause</span>
                 </>
               )}
@@ -548,23 +543,23 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           </CardHeader>
           <CardContent className="p-0 flex-1 flex flex-col">
             {filteredResults && filteredResults.length > 0 ? (
-              <div className="flex-1 overflow-y-auto min-h-[400px]">
+              <div className="flex-1 h-[400px]">
                 <table className="min-w-full divide-y divide-border">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
+                      <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                      <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
+                      <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
                     </tr>
                   </thead>
                   <tbody className="bg-card divide-y divide-border">
                     {paginatedResults.map((result) => (
                       <tr key={result.id} className="hover:bg-muted/25">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <td className="px-4 py-2 whitespace-nowrap text-sm">
                           <SimpleStatusIcon isUp={result.isUp} />
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        <td className="px-4 py-2 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
+                        <td className="px-4 py-2 whitespace-nowrap text-sm text-muted-foreground">
                           {result.responseTimeMs !== null && result.responseTimeMs !== undefined ? result.responseTimeMs : 'N/A'}
                         </td>
                       </tr>
@@ -573,7 +568,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                 </table>
               </div>
             ) : (
-              <div className="flex-1 flex items-center justify-center min-h-[400px]">
+              <div className="flex-1 flex items-center justify-center h-[400px]">
                 <p className="text-center text-sm text-muted-foreground">
                   {selectedDate ? `No check results found for ${format(selectedDate, 'MMMM dd, yyyy')}.` : "No recent check results found."}
                 </p>
