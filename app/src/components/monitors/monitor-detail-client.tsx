@@ -1,36 +1,24 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   ChevronLeft, 
-  Edit, 
-  Globe, 
-  ArrowUpRight, 
   Activity,
-  CheckCircle2,
   CheckCircle,
   Clock,
   CalendarIcon,
-  Calendar as CalendarIcon2,
   Trash2,
-  MoreHorizontal,
   Edit3,
   Play,
   Pause,
-  BarChart2,
-  ListChecks,
   Zap,
   TrendingUp,
   ShieldCheck,
   XCircle,
   AlertCircle,
-  Filter,
   X,
-  Calendar,
-  Timer,
 } from "lucide-react";
-import Link from "next/link";
 import { 
   Card, 
   CardContent, 
@@ -41,8 +29,7 @@ import {
 } from "@/components/ui/card";
 import { monitorStatuses, monitorTypes } from "@/components/monitors/data";
 import { Monitor as MonitorSchemaType } from "./schema";
-import { formatDistanceToNow, format, addDays, startOfDay, endOfDay, parseISO, subHours, subDays, isWithinInterval } from "date-fns";
-import { Badge } from "@/components/ui/badge";
+import { formatDistanceToNow, format, startOfDay, endOfDay, parseISO, subHours, subDays, isWithinInterval } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
   Pagination,
@@ -59,13 +46,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import {
   AlertDialog,
   AlertDialogContent,
@@ -79,17 +60,12 @@ import {
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ResponseTimeBarChart } from "@/components/monitors/response-time-bar-chart";
-import { MonitorChart, MonitorChartDataPoint } from "./monitor-chart";
 import { AvailabilityBarChart } from "./AvailabilityBarChart";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MonitorStatusIndicator } from "./monitor-status-indicator";
 import { 
     MonitorStatus as DBMoniotorStatusType,
     MonitorResultStatus as DBMonitorResultStatusType, 
     MonitorResultDetails as DBMonitorResultDetailsType 
 } from "@/db/schema/schema";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export interface MonitorResultItem {
   id: string;
@@ -192,6 +168,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   
   const handleToggleStatus = async () => {
     let newStatus: DBMoniotorStatusType = monitor.status === 'paused' ? 'up' : 'paused';
+    
     if (monitor.status === 'paused' && monitor.recentResults && monitor.recentResults.length > 0) {
         newStatus = monitor.recentResults[0].isUp ? 'up' : 'down';
     }
@@ -208,7 +185,12 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
       }
       const updatedMonitorData: MonitorWithResults = await response.json();
       setMonitor(prev => ({...prev, ...updatedMonitorData}));
-      toast.success(`Monitor "${monitor.name}" status updated to ${newStatus}.`);
+      
+      if (newStatus === 'paused') {
+        toast.success(`Monitor "${monitor.name}" has been paused. Checks will stop running.`);
+      } else {
+        toast.success(`Monitor "${monitor.name}" has been resumed. Checks will start running again.`);
+      }
     } catch (error) {
       console.error("Error toggling monitor status:", error);
       toast.error((error as Error).message || "Could not update monitor status.");
@@ -257,15 +239,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
     return chartData;
   }, [monitor.recentResults]);
   
-  const statusHistoryData: MonitorChartDataPoint[] = useMemo(() => {
-    if (!monitor.recentResults || monitor.recentResults.length === 0) return [];
-    return monitor.recentResults.map(r => ({
-        timestamp: (typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt).getTime(),
-        status: r.isUp ? 1 : 0, 
-        label: r.status,
-        responseTime: r.responseTimeMs
-    })).reverse(); 
-  }, [monitor.recentResults]);
+
 
   // Calculate uptime and average response time from recent results
   const calculatedMetrics = useMemo(() => {
@@ -393,35 +367,44 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="ml-auto">
-                <MoreHorizontal className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Actions</span>
-                <span className="sr-only sm:hidden">Actions</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Monitor Actions</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push(`/monitors/${monitor.id}/edit`)}>
-                <Edit3 className="mr-2 h-4 w-4" />
-                <span>Edit Monitor</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleToggleStatus}>
-                {monitor.status === 'paused' ? (
-                    <><Play className="mr-2 h-4 w-4" /><span>Resume Checks</span></>
-                ) : (
-                    <><Pause className="mr-2 h-4 w-4" /><span>Pause Checks</span></>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-red-600 focus:text-red-700 focus:bg-red-50 dark:focus:bg-red-900/50">
-                <Trash2 className="mr-2 h-4 w-4" />
-                <span>Delete Monitor</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => router.push(`/monitors/${monitor.id}/edit`)}
+              className="flex items-center"
+            >
+              <Edit3 className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Edit</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleToggleStatus}
+              className="flex items-center"
+            >
+              {monitor.status === 'paused' ? (
+                <>
+                  <Play className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Resume</span>
+                </>
+              ) : (
+                <>
+                  <Pause className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Pause</span>
+                </>
+              )}
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Delete</span>
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">

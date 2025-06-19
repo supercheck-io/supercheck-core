@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db/client";
-import { runs, reports, ReportType } from "@/db/schema";
+import { db as getDbInstance } from "@/lib/db";
+import { runs, reports, ReportType } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function GET(
@@ -14,7 +14,7 @@ export async function GET(
   }
 
   try {
-    const dbInstance = await db();
+    const dbInstance = await getDbInstance();
     const runResult = await dbInstance.query.runs.findFirst({
       where: eq(runs.id, runId),
     });
