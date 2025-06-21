@@ -294,17 +294,19 @@ export type MonitorConfig = {
 
 export const monitors = pgTable("monitors", {
   id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id"),
+  createdByUserId: text("created_by_user_id"),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   type: varchar("type", { length: 50 }).$type<MonitorType>().notNull(),
-  target: varchar("target", { length: 2048 }).notNull(), 
-  frequencyMinutes: integer("frequency_minutes").notNull().default(5), 
+  target: varchar("target", { length: 2048 }).notNull(),
+  frequencyMinutes: integer("frequency_minutes").notNull().default(5),
   enabled: boolean("enabled").notNull().default(true),
   status: varchar("status", { length: 50 }).$type<MonitorStatus>().notNull().default("pending"),
   config: jsonb("config").$type<MonitorConfig>(),
   lastCheckAt: timestamp("last_check_at"),
   lastStatusChangeAt: timestamp("last_status_change_at"),
-  mutedUntil: timestamp("muted_until"), 
+  mutedUntil: timestamp("muted_until"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db as getDbInstance } from "@/lib/db";
-import { monitors, monitorsInsertSchema, monitorResults, Monitor } from "@/db/schema/schema";
+import { monitors, monitorsInsertSchema, monitorResults } from "@/db/schema/schema";
 import { scheduleMonitorCheck, removeScheduledMonitorCheck } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
 import { desc, eq } from "drizzle-orm";
@@ -57,7 +57,7 @@ export async function GET() {
           name: monitor.name ?? 'Unnamed Monitor',
           description: monitor.description,
           url: monitor.target,
-          method: monitor.type,
+          type: monitor.type,
           frequencyMinutes: monitor.frequencyMinutes,
           status: finalStatus, 
           lastCheckedAt: effectiveLastCheckTime ? new Date(effectiveLastCheckTime).toISOString() : null,
@@ -95,8 +95,14 @@ export async function POST(req: NextRequest) {
     const newMonitorData = validationResult.data;
     const db = await getDbInstance();
 
-    if (!newMonitorData.target) {
-        return NextResponse.json({ error: "Target is required" }, { status: 400 });
+    // Validate target based on monitor type
+    if (newMonitorData.type !== "playwright_script" && !newMonitorData.target) {
+      return NextResponse.json({ error: "Target is required for this monitor type" }, { status: 400 });
+    }
+
+    // For Playwright monitors, ensure target is set to empty string if not provided
+    if (newMonitorData.type === "playwright_script" && !newMonitorData.target) {
+      newMonitorData.target = "";
     }
 
     const [insertedMonitor] = await db.insert(monitors).values(newMonitorData).returning();

@@ -8,6 +8,7 @@ import { DB_PROVIDER_TOKEN } from '../execution/services/db.service'; // Import 
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js'; // Import specific Drizzle type
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
 
+
 // Placeholder for actual execution libraries (axios, ping, net, dns, playwright-runner)
 
 // Replace generic DrizzleInstance with the specific type from Drizzle
@@ -23,16 +24,29 @@ function isExpectedStatus(actualStatus: number, expectedCodesString?: string): b
   }
 
   const parts = expectedCodesString.split(',').map(part => part.trim());
+  
   for (const part of parts) {
-    if (part.includes('-')) {
+    // Handle patterns like "2xx", "3xx", "4xx", "5xx"
+    if (part.endsWith('xx')) {
+      const prefix = parseInt(part.charAt(0));
+      const actualPrefix = Math.floor(actualStatus / 100);
+      if (actualPrefix === prefix) {
+        return true;
+      }
+    }
+    // Handle ranges like "200-299"
+    else if (part.includes('-')) {
       const [min, max] = part.split('-').map(Number);
       if (actualStatus >= min && actualStatus <= max) {
         return true;
       }
-    } else if (Number(part) === actualStatus) {
+    }
+    // Handle specific status codes like "200", "404"
+    else if (Number(part) === actualStatus) {
       return true;
     }
   }
+  
   return false;
 }
 
@@ -101,12 +115,7 @@ export class MonitorService {
         case 'port_check':
           ({ status, details, responseTimeMs, isUp } = await this.executePortCheck(jobData.target, jobData.config));
           break;
-        case 'playwright_script':
-          // For Playwright, target might be irrelevant if testId in config is primary identifier
-          ({ status, details, responseTimeMs, isUp } = await this.executePlaywrightScript(jobData.config)); 
-          break;
         default:
-          // This will cause a compile-time error if any MonitorType is not handled
           const _exhaustiveCheck: never = jobData.type;
           this.logger.warn(`Unsupported monitor type: ${jobData.type}`);
           executionError = `Unsupported monitor type: ${jobData.type}`;
@@ -143,20 +152,88 @@ export class MonitorService {
 
   async saveMonitorResult(resultData: MonitorExecutionResult): Promise<void> {
     this.logger.log(`Attempting to save result for monitor ${resultData.monitorId}`);
+    
+    // Don't try to save results for monitors that don't exist or have errors
+    if (resultData.error === 'Monitor not found' || resultData.error === 'Monitor is paused') {
+      this.logger.log(`Skipping save for monitor ${resultData.monitorId}: ${resultData.error}`);
+      return;
+    }
+    
     try {
-      // This now assumes that runner/src/db/schema.ts WILL have 'monitorResults' exported
-      await this.db.insert(schema.monitorResults).values({
-        monitorId: resultData.monitorId,
-        checkedAt: resultData.checkedAt, 
-        status: resultData.status,
-        responseTimeMs: resultData.responseTimeMs,
-        details: resultData.details as any, // Ensure 'error' is part of details.errorMessage if needed
-        isUp: resultData.isUp,
+      // Get the monitor details and previous status for alert processing
+      const monitor = await this.db.query.monitors.findFirst({
+        where: (monitors, { eq }) => eq(monitors.id, resultData.monitorId),
       });
-      this.logger.log(`Successfully saved result for monitor ${resultData.monitorId}`);
+
+      let previousStatus: string | undefined;
+      let isStatusChange = false;
+
+      if (monitor) {
+        // Get the last result to determine if status changed
+        const lastResult = await this.db.query.monitorResults.findFirst({
+          where: (monitorResults, { eq }) => eq(monitorResults.monitorId, resultData.monitorId),
+          orderBy: (monitorResults, { desc }) => [desc(monitorResults.checkedAt)],
+        });
+
+        if (lastResult) {
+          previousStatus = lastResult.status;
+          isStatusChange = lastResult.status !== resultData.status;
+        }
+
+        // Save the result with status change flag
+        await this.db.insert(schema.monitorResults).values({
+          monitorId: resultData.monitorId,
+          checkedAt: resultData.checkedAt, 
+          status: resultData.status,
+          responseTimeMs: resultData.responseTimeMs,
+          details: resultData.details as any,
+          isUp: resultData.isUp,
+          isStatusChange,
+        });
+
+        this.logger.log(`Successfully saved result for monitor ${resultData.monitorId}`);
+
+        // Trigger alert if status changed or it's a critical error
+        if (isStatusChange || resultData.status === 'error') {
+          try {
+            // Call the app's alert API
+            const alertContext = {
+              monitorId: resultData.monitorId,
+              monitorName: monitor.name,
+              monitorTarget: monitor.target,
+              monitorType: monitor.type,
+              status: resultData.status,
+              previousStatus,
+              errorMessage: resultData.details?.errorMessage || resultData.error,
+              responseTime: resultData.responseTimeMs,
+              checkedAt: resultData.checkedAt,
+              isStatusChange,
+            };
+
+            const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+            const response = await fetch(`${appBaseUrl}/api/alerts/process`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(alertContext),
+            });
+
+            if (!response.ok) {
+              this.logger.error(`Failed to trigger alert for monitor ${resultData.monitorId}: ${response.statusText}`);
+            } else {
+              this.logger.log(`Successfully triggered alert for monitor ${resultData.monitorId}`);
+            }
+          } catch (alertError) {
+            this.logger.error(`Error triggering alert for monitor ${resultData.monitorId}:`, alertError);
+          }
+        }
+      } else {
+        this.logger.warn(`Monitor ${resultData.monitorId} not found when saving result`);
+      }
     } catch (error) {
       this.logger.error(`Failed to save result for monitor ${resultData.monitorId}: ${error.message}`, error.stack);
-      throw error; 
+      // Don't throw error to prevent job failure
     }
   }
 
@@ -179,23 +256,61 @@ export class MonitorService {
         method: httpMethod,
         url: target,
         timeout,
-        headers: config?.headers,
+        // Default headers
+        headers: {
+          'User-Agent': 'SuperTest-Monitor/1.0',
+          ...config?.headers
+        },
         // Disable automatic decompression to get more accurate timing
         decompress: false,
         // Follow redirects but track timing
         maxRedirects: 5,
+        // Handle various response types
+        responseType: 'text', // Always get text to check for keywords
+        // Validate status codes
+        validateStatus: () => true, // Accept all status codes, we'll handle validation
       };
 
-      if (['POST', 'PUT', 'PATCH'].includes(httpMethod) && config?.body) {
-        // Attempt to parse body as JSON if it looks like it, otherwise send as is.
-        try {
-          requestConfig.data = JSON.parse(config.body);
-        } catch (e) {
+      // Handle authentication
+      if (config?.auth) {
+        if (config.auth.type === 'basic' && config.auth.username && config.auth.password) {
+          requestConfig.auth = {
+            username: config.auth.username,
+            password: config.auth.password
+          };
+        } else if (config.auth.type === 'bearer' && config.auth.token) {
+          requestConfig.headers['Authorization'] = `Bearer ${config.auth.token}`;
+        }
+      }
+
+      // Handle request body for methods that support it
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(httpMethod) && config?.body) {
+        // Set content type if not already set
+        if (!requestConfig.headers['Content-Type'] && !requestConfig.headers['content-type']) {
+          // Try to detect content type
+          try {
+            JSON.parse(config.body);
+            requestConfig.headers['Content-Type'] = 'application/json';
+          } catch (e) {
+            requestConfig.headers['Content-Type'] = 'text/plain';
+          }
+        }
+
+        // Attempt to parse body as JSON if content type suggests it, otherwise send as is
+        const contentType = requestConfig.headers['Content-Type'] || requestConfig.headers['content-type'] || '';
+        if (contentType.includes('application/json')) {
+          try {
+            requestConfig.data = JSON.parse(config.body);
+          } catch (e) {
+            // If JSON parsing fails but content type is JSON, still send as string
+            requestConfig.data = config.body;
+          }
+        } else {
           requestConfig.data = config.body;
         }
-              }
+      }
 
-        const response = await firstValueFrom(
+      const response = await firstValueFrom(
         this.httpService.request(requestConfig)
       );
 
@@ -241,10 +356,10 @@ export class MonitorService {
       if (error instanceof AxiosError) {
         this.logger.warn(`HTTP Request to ${target} failed: ${error.message}`);
         details.errorMessage = error.message;
-                  if (error.response) {
-            details.statusCode = error.response.status;
-            details.statusText = error.response.statusText;
-          }
+        if (error.response) {
+          details.statusCode = error.response.status;
+          details.statusText = error.response.statusText;
+        }
         if (error.code === 'ECONNABORTED' || error.message.toLowerCase().includes('timeout')) {
           status = 'timeout';
           isUp = false;
@@ -533,16 +648,5 @@ export class MonitorService {
     return { status, details, responseTimeMs, isUp };
   }
 
-  private async executePlaywrightScript(config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
-    const testId = config?.testId;
-    this.logger.debug(`Playwright Script: TestID ${testId}, Variables: ${JSON.stringify(config?.scriptVariables)}`);
-    if (!testId) {
-      return { status: 'error', isUp: false, details: { errorMessage: 'Playwright Test ID not provided in config.' } };
-    }
-    // TODO: Implement logic to fetch test script (if not in config) and execute using Playwright.
-    // This will be a more complex integration, potentially involving a separate Playwright execution service.
-    // Consider: scriptVariables, timeoutSeconds from config
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate async work
-    return { status: 'up', isUp: true, details: { message: `Simulated run of Playwright test ${testId}`, logs: "some logs..." } };
-  }
+
 } 

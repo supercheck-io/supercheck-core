@@ -107,14 +107,18 @@ export async function PUT(
       }
     }
 
-    // Handle frequency changes for non-paused monitors
-    if (oldFrequency !== newFrequency && newStatus !== 'paused') {
+    // Handle frequency changes for non-paused monitors OR config changes
+    const configChanged = JSON.stringify(currentMonitor.config) !== JSON.stringify(updatedMonitor.config);
+    const targetChanged = currentMonitor.target !== updatedMonitor.target;
+    const typeChanged = currentMonitor.type !== updatedMonitor.type;
+    
+    if ((oldFrequency !== newFrequency || configChanged || targetChanged || typeChanged) && newStatus !== 'paused') {
         // Always remove the old schedule first
-        console.log(`Removing old schedule for monitor ${id} (old frequency: ${oldFrequency})`);
+        console.log(`Rescheduling monitor ${id} due to changes - frequency: ${oldFrequency} -> ${newFrequency}, config: ${configChanged}, target: ${targetChanged}, type: ${typeChanged}`);
         await removeScheduledMonitorCheck(id);
         
         if (newFrequency && newFrequency > 0) {
-            console.log(`Rescheduling monitor ${id} from ${oldFrequency} to ${newFrequency} minutes.`);
+            console.log(`Scheduling monitor ${id} with updated configuration`);
             await scheduleMonitorCheck({ monitorId: id, frequencyMinutes: newFrequency, jobData });
         } else {
             console.log(`Monitor ${id} frequency set to ${newFrequency}, not scheduling.`);

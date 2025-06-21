@@ -305,7 +305,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   console.log("[MonitorDetailClient] Current Actual Status:", currentActualStatus);
 
   const statusInfo = monitorStatuses.find((s) => s.value === currentActualStatus);
-  const monitorTypeInfo = monitorTypes.find((t) => t.value === monitor.method);
+  const monitorTypeInfo = monitorTypes.find((t) => t.value === monitor.type);
 
   console.log("[MonitorDetailClient] Status Info (for display):", statusInfo);
   console.log("[MonitorDetailClient] Monitor Type Info (for icon):", monitorTypeInfo);
@@ -502,8 +502,8 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           </div>
         </div>
 
-        <Card className="shadow-sm h-full flex flex-col">
-          <CardHeader>
+                 <Card className="shadow-sm h-full flex flex-col max-h-[650px]">
+          <CardHeader className="flex-shrink-0">
             <div className="flex items-center justify-between">
               <CardTitle className="text-2xl flex items-center">
                 Recent Check Results
@@ -551,15 +551,16 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               }
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-0 flex-1 flex flex-col">
+          <CardContent className="p-0 flex-1 flex flex-col min-h-0">
             {filteredResults && filteredResults.length > 0 ? (
-              <div className="flex-1">
+              <div className="flex-1 overflow-auto">
                 <table className="min-w-full divide-y divide-border">
-                  <thead className="bg-muted/50 sticky top-0">
+                  <thead className="bg-background sticky top-0 z-10 border-b">
                     <tr>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Error</th>
                     </tr>
                   </thead>
                   <tbody className="bg-card divide-y divide-border">
@@ -571,6 +572,19 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
                           {result.responseTimeMs !== null && result.responseTimeMs !== undefined ? result.responseTimeMs : 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs">
+                          {result.isUp ? (
+                            <span className="text-muted-foreground text-xs">N/A</span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs" title={result.details?.errorMessage || 'Unknown error'}>
+                              {result.details?.errorMessage 
+                                ? (result.details.errorMessage.length > 60 
+                                   ? result.details.errorMessage.substring(0, 60) + '...'
+                                   : result.details.errorMessage)
+                                : 'Unknown error'}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}

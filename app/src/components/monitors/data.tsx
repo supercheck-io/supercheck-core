@@ -12,7 +12,7 @@ import {
   ShieldAlert,
   Network,
 } from "lucide-react";
-import { PlaywrightLogo } from "@/components/logo/playwright-logo";
+
 
 export const monitorStatuses = [
   {
@@ -62,12 +62,5 @@ export const monitorTypes = [
     icon: Network,
     color: "text-teal-600",
     description: "Check specific TCP or UDP port",
-  },
-  {
-    label: "Playwright Script",
-    value: "playwright_script",
-    icon: PlaywrightLogo,
-    color: "text-orange-500",
-    description: "Execute an existing Playwright test script",
   },
 ]; 

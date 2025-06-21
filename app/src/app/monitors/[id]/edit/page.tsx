@@ -50,7 +50,7 @@ export default async function EditMonitorPage({ params }: { params: { id: string
   const currentType = monitor.type;
 
   // Check if monitor.type is directly one of the FormValues types
-  const formValueTypes = ["http_request", "ping_host", "port_check", "playwright_script"] as const;
+  const formValueTypes = ["http_request", "ping_host", "port_check"] as const;
   
   if ((formValueTypes as readonly string[]).includes(currentType)) {
     formType = currentType as FormValues["type"];
@@ -87,22 +87,27 @@ export default async function EditMonitorPage({ params }: { params: { id: string
   // Prepare data for the form, ensuring all required fields for FormValues are present
   const formData: FormValues = {
     name: monitor.name,
-    target: monitor.target, 
+    target: monitor.target || "", 
     type: formType,
     interval: formInterval,
-    httpConfig_authType: "none", // Default as per formSchema
+    httpConfig_authType: monitor.config?.auth?.type || "none",
 
-    // Optional fields from Monitor that map to FormValues fields
-    // HTTP specific (only if formType is http_request)
-    httpConfig_method: formType === "http_request" ? "GET" : undefined, // Default to GET for HTTP requests
-    httpConfig_expectedStatusCodes: monitor.config?.expectedStatusCodes || "200-299",
+    // HTTP specific fields
+    httpConfig_method: formType === "http_request" ? (monitor.config?.method || "GET") : undefined,
+    httpConfig_expectedStatusCodes: formType === "http_request" ? (monitor.config?.expectedStatusCodes || "2xx") : undefined,
+    httpConfig_headers: formType === "http_request" && monitor.config?.headers ? JSON.stringify(monitor.config.headers, null, 2) : undefined,
+    httpConfig_body: formType === "http_request" ? monitor.config?.body : undefined,
+    httpConfig_keywordInBody: formType === "http_request" ? monitor.config?.keywordInBody : undefined,
+    httpConfig_keywordShouldBePresent: formType === "http_request" ? monitor.config?.keywordInBodyShouldBePresent : undefined,
+    
+    // Auth fields
+    httpConfig_authUsername: monitor.config?.auth?.username,
+    httpConfig_authPassword: monitor.config?.auth?.password,
+    httpConfig_authToken: monitor.config?.auth?.token,
 
     // Port Check specific
     portConfig_port: formType === "port_check" && monitor.config?.port ? monitor.config.port : undefined,
     portConfig_protocol: formType === "port_check" && monitor.config?.protocol ? monitor.config.protocol : undefined,
-
-    // Playwright Script specific
-    playwrightConfig_testId: formType === "playwright_script" && monitor.config?.testId ? monitor.config.testId : undefined,
   };
 
   return (

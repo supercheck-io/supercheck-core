@@ -194,8 +194,7 @@ export const jobsSelectSchema = createSelectSchema(jobs);
 export type MonitorType =
   | "http_request"    // Check HTTP/S endpoints (availability, status, response time)
   | "ping_host"       // ICMP ping to a host
-  | "port_check"      // Check specific TCP or UDP port
-  | "playwright_script"; // Execute an existing Playwright test script from the 'tests' table
+  | "port_check";     // Check specific TCP or UDP port
 
 export type MonitorStatus =
   | "up"
@@ -210,13 +209,13 @@ export type MonitorConfig = {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
   headers?: Record<string, string>; // This will be stored as a JSON string from the form
   body?: string; // Can be JSON string or other content types
-  expectedStatusCode?: number; 
+  expectedStatusCodes?: string; // Changed from expectedStatusCode?: number to match runner and form
   keywordInBody?: string; 
   keywordInBodyShouldBePresent?: boolean; 
-  responseBodyJsonPath?: { path: string; expectedValue: any }; 
+  responseBodyJsonPath?: { path: string; expectedValue: any };
 
   auth?: {
-    type: "none" | "basic" | "bearer"; // Add more types like "apiKey" later if needed
+    type: "none" | "basic" | "bearer";
     username?: string; // For basic auth
     password?: string; // For basic auth - IMPORTANT: Consider secret management
     token?: string;    // For bearer token - IMPORTANT: Consider secret management
@@ -230,11 +229,6 @@ export type MonitorConfig = {
   checkExpiration?: boolean;
   daysUntilExpirationWarning?: number; // e.g., 30
   checkRevocation?: boolean; // (Advanced, might require OCSP/CRL checks)
-
-  // playwright_script specific
-  testId?: string; // UUID of the test case from the 'tests' table
-  // Variables/Overrides for the script can be passed here if needed
-  scriptVariables?: Record<string, any>;
 
   // heartbeat specific (target is an expected unique identifier for the incoming ping)
   expectedIntervalSeconds?: number; // e.g., 300 (5 minutes)

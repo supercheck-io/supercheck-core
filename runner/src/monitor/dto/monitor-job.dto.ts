@@ -5,8 +5,7 @@
 export type MonitorType =
   | "http_request"
   | "ping_host"
-  | "port_check"
-  | "playwright_script";
+  | "port_check";
 
 export interface MonitorConfig {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
@@ -27,8 +26,6 @@ export interface MonitorConfig {
   checkExpiration?: boolean;
   daysUntilExpirationWarning?: number;
   checkRevocation?: boolean;
-  testId?: string;
-  scriptVariables?: Record<string, any>; 
   expectedIntervalSeconds?: number;
   gracePeriodSeconds?: number;
   timeoutSeconds?: number;

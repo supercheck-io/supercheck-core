@@ -57,18 +57,20 @@ export const columns: ColumnDef<Monitor>[] = [
     ),
     cell: ({ row }) => {
       const url = row.getValue("url") as string;
+      
       return (
-        <span className="max-w-[200px] truncate">{url}</span>
+        <span className="max-w-[200px] truncate font-mono text-sm">{url || "—"}</span>
       );
     },
   },
   {
-    accessorKey: "method",
+    accessorKey: "type",
+    id: "type",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Type" />
     ),
     cell: ({ row }) => {
-      const type = monitorTypes.find((type) => type.value === row.getValue("method"));
+      const type = monitorTypes.find((type) => type.value === row.getValue("type"));
 
       if (!type) {
         return null;

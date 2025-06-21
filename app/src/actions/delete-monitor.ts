@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "../lib/db";
-import { tests, runs } from "@/db/schema/schema";
+import { getDb } from "../lib/db";
+import { monitors, monitorResults } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -16,13 +16,15 @@ export async function deleteMonitor(monitorId: string) {
       };
     }
 
-    const dbInstance = await db();
+    const db = await getDb();
 
-    // For now, we'll mock this since the monitors tables don't exist yet
-    // Later, replace this with actual table operations when the schema is updated
+    // Delete related monitor results first (due to foreign key constraint)
+    await db.delete(monitorResults).where(eq(monitorResults.monitorId, monitorId));
     
-    // Simulate successful deletion
-    console.log(`Successfully deleted monitor ${monitorId} (mocked)`);
+    // Delete the monitor
+    const result = await db.delete(monitors).where(eq(monitors.id, monitorId));
+    
+    console.log(`Successfully deleted monitor ${monitorId}`);
     
     // Revalidate the monitors page
     revalidatePath("/monitors");

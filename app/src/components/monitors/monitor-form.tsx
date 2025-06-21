@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useForm, Resolver } from "react-hook-form";
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { monitorTypes } from "./data";
 import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info, Globe, RefreshCw, Network } from "lucide-react";
-import { PlaywrightLogo } from "@/components/logo/playwright-logo";
+
 import {
   Card,
   CardContent,
@@ -88,11 +88,11 @@ const checkIntervalOptions = [
   { value: "86400", label: "24 hours" },
 ];
 
-// Create schema for the form
+// Create schema for the form with conditional validation
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
-  target: z.string().min(1, "Target is required"),
-  type: z.enum(["http_request", "ping_host", "port_check", "playwright_script"], {
+  target: z.string().optional(),
+  type: z.enum(["http_request", "ping_host", "port_check"], {
     required_error: "Please select a check type",
   }),
   interval: z.enum(["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"]).default("60"),
@@ -112,8 +112,26 @@ const formSchema = z.object({
   // Port Check specific
   portConfig_port: z.coerce.number().int().min(1).max(65535).optional(),
   portConfig_protocol: z.enum(["tcp", "udp"]).optional(),
-  // Playwright Script specific
-  playwrightConfig_testId: z.string().uuid().optional(),
+}).superRefine((data, ctx) => {
+  // Target is required for all monitor types
+  if (!data.target || data.target.trim() === "") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Target is required for this monitor type",
+      path: ["target"],
+    });
+  }
+
+  // Port is required for port_check
+  if (data.type === "port_check") {
+    if (!data.portConfig_port) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Port is required for port check monitors",
+        path: ["portConfig_port"],
+      });
+    }
+  }
 });
 
 // Define the form values type
@@ -138,7 +156,6 @@ const creationDefaultValues: FormValues = {
   httpConfig_authToken: undefined,
   portConfig_port: undefined,
   portConfig_protocol: undefined,
-  playwrightConfig_testId: undefined,
 };
 
 interface MonitorFormProps {
@@ -153,6 +170,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
   const [formChanged, setFormChanged] = useState(false);
   const [isAuthSectionOpen, setIsAuthSectionOpen] = useState(false);
   const [isKeywordSectionOpen, setIsKeywordSectionOpen] = useState(false);
+  const [isCustomStatusCode, setIsCustomStatusCode] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as Resolver<FormValues>,
@@ -167,7 +185,6 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
     http_request: "e.g., https://example.com or https://api.example.com/health",
     ping_host: "e.g., example.com or 8.8.8.8 (IP address or hostname)",
     port_check: "e.g., example.com or 192.168.1.1 (hostname or IP address)",
-    playwright_script: "Optional - leave blank if test configuration handles target",
   };
   
   const watchedValues = form.watch();
@@ -178,7 +195,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
     const hasChanged = Object.keys(watchedValues).some(key => {
       // Ensure the key exists on both objects before comparison
       if (!(key in watchedValues) || !(key in defaultForComparison)) {
-        return false; // Or handle as per your logic if a key might be missing
+        return false;
       }
       const currentVal = watchedValues[key as keyof FormValues];
       const defaultVal = defaultForComparison[key as keyof FormValues];
@@ -189,8 +206,15 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
 
       return currentVal !== defaultVal;
     });
-    setFormChanged(hasChanged);
-  }, [watchedValues, initialData, creationDefaultValues]); // Add creationDefaultValues to dependency array
+    
+    // For new monitors (not edit mode), consider the form changed if required fields are filled
+    const isNewMonitor = !editMode && !initialData;
+    const hasRequiredFields = watchedValues.name && watchedValues.name.trim() !== "" && watchedValues.target && watchedValues.target.trim() !== "";
+    
+    const isFormReady = isNewMonitor ? hasRequiredFields : hasChanged;
+    
+    setFormChanged(Boolean(isFormReady));
+  }, [watchedValues, initialData, editMode]);
 
   async function onSubmit(data: FormValues) {
     setIsSubmitting(true);
@@ -198,7 +222,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
     // Convert form data to API format
     const apiData = {
       name: data.name,
-      target: data.target,
+      target: data.target || "",
       type: data.type,
       // Convert interval from seconds to minutes
       frequencyMinutes: Math.round(parseInt(data.interval, 10) / 60),
@@ -242,24 +266,31 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
             username: data.httpConfig_authUsername,
             password: data.httpConfig_authPassword,
           };
+        } else if (data.httpConfig_authType === "bearer") {
+          if (!data.httpConfig_authToken) {
+            throw new Error("Token is required for Bearer Auth");
+          }
+          apiData.config.auth = {
+            type: "bearer",
+            token: data.httpConfig_authToken,
+          };
         }
       }
 
-      // Add keyword checking if configured
+      // Add keyword checking if configured, or explicitly remove if empty
       if (data.httpConfig_keywordInBody && data.httpConfig_keywordInBody.trim()) {
         apiData.config.keywordInBody = data.httpConfig_keywordInBody;
         apiData.config.keywordInBodyShouldBePresent = data.httpConfig_keywordShouldBePresent !== false;
+      } else {
+        // Explicitly remove keyword validation if field is empty
+        delete apiData.config.keywordInBody;
+        delete apiData.config.keywordInBodyShouldBePresent;
       }
     } else if (data.type === "port_check") {
       apiData.config = {
         port: data.portConfig_port,
         protocol: data.portConfig_protocol || "tcp",
         timeoutSeconds: 10, // Default timeout for port checks
-      };
-    } else if (data.type === "playwright_script") {
-      apiData.config = {
-        testId: data.playwrightConfig_testId,
-        timeoutSeconds: 60, // Default timeout for Playwright scripts
       };
     } else if (data.type === "ping_host") {
       apiData.config = {
@@ -344,50 +375,23 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                     )}
                   />
 
-                  {/* Conditionally render Test ID field for Playwright Script BELOW Name */}
-                  {type === "playwright_script" && (
-                    <FormField
-                      control={form.control}
-                      name="playwrightConfig_testId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Test ID</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter the test ID"
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormDescription className="text-xs">
-                            ID of the Playwright test to run
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-
-                  {/* Conditionally render Target field */}
-                  {type !== "playwright_script" && (
-                    <FormField
-                      control={form.control}
-                      name="target"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Target</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder={type ? targetPlaceholders[type] : "Select Check Type for target hint"}
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                  {/* End Conditional Target Field */}
+                  {/* Target field - always visible now */}
+                  <FormField
+                    control={form.control}
+                    name="target"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Target</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder={type ? targetPlaceholders[type] : "Select Check Type for target hint"}
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 {/* Right column */}
@@ -429,13 +433,6 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                                        <div>
                                          <p className="font-medium text-sm">Port Check</p>
                                          <p className="text-xs text-muted-foreground">Tests TCP/UDP port availability and connectivity to ensure services are accessible.</p>
-                                       </div>
-                                     </div>
-                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                       <PlaywrightLogo className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                                       <div>
-                                         <p className="font-medium text-sm">Playwright Script</p>
-                                         <p className="text-xs text-muted-foreground">Executes browser automation scripts to simulate complex user interactions and workflows.</p>
                                        </div>
                                      </div>
                                    </div>
@@ -549,8 +546,31 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                       control={form.control}
                       name="httpConfig_expectedStatusCodes" 
                       render={({ field }) => {
+                        const presetValues = ["2xx", "300-399", "400-499", "500-599"];
                         const currentValue = field.value || "2xx";
-                        const isSpecificCode = !statusCodePresets.some(preset => preset.value === currentValue && preset.value !== "custom");
+                        
+                        // Determine if current value is a preset or custom
+                        const isCurrentValuePreset = presetValues.includes(currentValue);
+                        
+                        const handleDropdownChange = (value: string) => {
+                          if (value === "custom") {
+                            setIsCustomStatusCode(true);
+                            field.onChange("");
+                          } else {
+                            setIsCustomStatusCode(false);
+                            field.onChange(value);
+                          }
+                        };
+
+                        const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                          field.onChange(e.target.value);
+                          if (e.target.value && !isCustomStatusCode) {
+                            setIsCustomStatusCode(true);
+                          }
+                        };
+
+                        // Determine dropdown value - sync with actual field value
+                        const dropdownValue = isCustomStatusCode ? "custom" : (isCurrentValuePreset ? currentValue : "2xx");
                         
                         return (
                           <FormItem>
@@ -559,30 +579,22 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                               <FormControl className="flex-grow">
                                 <Input 
                                   placeholder="e.g., 200, 404, 500-599"
-                                  {...field}
-                                  value={field.value || ""} 
-                                  disabled={!isSpecificCode}
-                                  className={!isSpecificCode ? "bg-muted cursor-not-allowed" : ""}
+                                  value={isCustomStatusCode ? currentValue : (isCurrentValuePreset ? currentValue : "")} 
+                                  onChange={handleInputChange}
+                                  disabled={!isCustomStatusCode}
+                                  className={!isCustomStatusCode ? "bg-muted cursor-not-allowed" : ""}
                                 />
                               </FormControl>
                               <Select
-                                onValueChange={(presetValue) => {
-                                  if (presetValue === "custom") {
-                                    // Enable custom input and clear field
-                                    form.setValue("httpConfig_expectedStatusCodes", "", { shouldValidate: true, shouldDirty: true });
-                                  } else {
-                                    form.setValue("httpConfig_expectedStatusCodes", presetValue, { shouldValidate: true, shouldDirty: true });
-                                  }
-                                }}
-                                defaultValue="2xx"
-                                value={isSpecificCode ? "custom" : currentValue}
+                                value={dropdownValue}
+                                onValueChange={handleDropdownChange}
                               >
                                 <SelectTrigger className="w-[180px]">
-                                  <SelectValue placeholder="Any 2xx (Success)" />
+                                  <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {statusCodePresets.map((preset) => (
-                                    <SelectItem key={preset.label} value={preset.value}>
+                                    <SelectItem key={preset.value} value={preset.value}>
                                       {preset.label}
                                     </SelectItem>
                                   ))}
@@ -590,7 +602,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                               </Select>
                             </div>
                             <FormDescription>
-                              {isSpecificCode ? "Enter specific status codes (e.g., 200, 404, 500-599)" : "Select a preset or choose 'Specific Code' to enter custom codes"}
+                              {isCustomStatusCode ? "Enter specific status codes (e.g., 200, 404, 500-599)" : "Select 'Specific Code' to enter custom codes"}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -671,6 +683,7 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                               <SelectContent>
                                 <SelectItem value="none">None</SelectItem>
                                 <SelectItem value="basic">Basic Auth</SelectItem>
+                                <SelectItem value="bearer">Bearer Token</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -701,6 +714,24 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                                 <FormLabel>Password</FormLabel>
                                 <FormControl>
                                   <Input type="password" placeholder="Enter password" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {authType === "bearer" && (
+                        <div className="mb-4">
+                          <FormField
+                            control={form.control}
+                            name="httpConfig_authToken"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Bearer Token</FormLabel>
+                                <FormControl>
+                                  <Input type="password" placeholder="Enter bearer token" {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -783,6 +814,8 @@ export function MonitorForm({ initialData, editMode = false, id }: MonitorFormPr
                   </Card>
                 </div>
               )}
+
+
 
               {type === "port_check" && (
                 <div className="space-y-4 border-t pt-6">

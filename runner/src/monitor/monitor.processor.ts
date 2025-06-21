@@ -35,8 +35,7 @@ export class MonitorProcessor extends WorkerHost {
         this.logger.log(`Successfully saved result to DB for monitor ${job.data.monitorId}`);
       } catch (dbError) {
         this.logger.error(`Failed to save result to DB for monitor ${job.data.monitorId}: ${dbError.message}`, dbError.stack);
-        // Decide if this error should make the job fail or if we should still return the result
-        // For now, let's log and still consider the primary execution successful if it reached here
+        // Continue with execution - the result will still be returned to BullMQ
       }
       
       return result; // Still return result for BullMQ job completion in this queue
