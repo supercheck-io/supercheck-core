@@ -48,7 +48,8 @@ export async function GET() {
         }
         
         // If monitor is paused, always show paused status regardless of latest result
-        const finalStatus = monitorOwnStatus === 'paused' ? 'paused' : (resultStatus ?? monitorOwnStatus);
+        // Otherwise, use the health status derived from the latest result
+        const finalStatus = monitorOwnStatus === 'paused' ? 'paused' : healthStatus;
         
         const effectiveLastCheckTime = resultCheckedAt ?? monitor.lastCheckAt;
 
@@ -56,7 +57,8 @@ export async function GET() {
           id: monitor.id,
           name: monitor.name ?? 'Unnamed Monitor',
           description: monitor.description,
-          url: monitor.target,
+          target: monitor.target,
+          url: monitor.target, // Keep for backward compatibility
           type: monitor.type,
           frequencyMinutes: monitor.frequencyMinutes,
           status: finalStatus, 
@@ -92,20 +94,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid input", details: validationResult.error.format() }, { status: 400 });
     }
 
-    const newMonitorData = validationResult.data;
+    let newMonitorData = validationResult.data;
     const db = await getDbInstance();
 
-    // Validate target based on monitor type
-    if (newMonitorData.type !== "playwright_script" && !newMonitorData.target) {
+    // Validate target - all monitor types require a target
+    if (!newMonitorData.target) {
       return NextResponse.json({ error: "Target is required for this monitor type" }, { status: 400 });
     }
 
-    // For Playwright monitors, ensure target is set to empty string if not provided
-    if (newMonitorData.type === "playwright_script" && !newMonitorData.target) {
-      newMonitorData.target = "";
-    }
-
-    const [insertedMonitor] = await db.insert(monitors).values(newMonitorData).returning();
+    const [insertedMonitor] = await db.insert(monitors).values({
+      name: newMonitorData.name!,
+      type: newMonitorData.type!,
+      target: newMonitorData.target!,
+      description: newMonitorData.description,
+      frequencyMinutes: newMonitorData.frequencyMinutes,
+      enabled: newMonitorData.enabled,
+      status: newMonitorData.status,
+      config: newMonitorData.config,
+      organizationId: newMonitorData.organizationId,
+      createdByUserId: newMonitorData.createdByUserId,
+    }).returning();
 
     if (insertedMonitor && insertedMonitor.frequencyMinutes && insertedMonitor.frequencyMinutes > 0) {
       const jobData: MonitorJobData = {

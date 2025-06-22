@@ -21,9 +21,9 @@ import { eq, desc } from "drizzle-orm";
 const RECENT_RESULTS_LIMIT = 1000;
 
 type MonitorDetailsPageProps = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 // Direct server-side data fetching function (replaces the old fetchMonitorWithResults that used HTTP fetch)
@@ -72,9 +72,7 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
         case "port_check":
             methodValue = "port_check";
             break;
-        case "playwright_script":
-            methodValue = "playwright_script";
-            break;
+
         // Add other cases as necessary or a default case
         default:
             // Attempt to cast directly, or use a default if appropriate

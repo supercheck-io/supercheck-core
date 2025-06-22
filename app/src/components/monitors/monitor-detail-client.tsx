@@ -96,6 +96,28 @@ const formatDateTime = (dateTimeInput?: string | Date): string => {
     }
 };
 
+// Custom short format for last ping
+const formatShortDateTime = (dateTimeInput?: string | Date): string => {
+    if (!dateTimeInput) return "Never";
+    try {
+        const date = typeof dateTimeInput === 'string' ? parseISO(dateTimeInput) : dateTimeInput;
+        const now = new Date();
+        const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+        
+        if (diffInMinutes < 1) return "Now";
+        if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+        
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        if (diffInHours < 24) return `${diffInHours}h ago`;
+        
+        const diffInDays = Math.floor(diffInHours / 24);
+        return `${diffInDays}d ago`;
+    } catch (error) {
+        console.warn("Failed to format date:", dateTimeInput, error);
+        return "Invalid date";
+    }
+};
+
 // Simple status icon component to replace the bar chart
 const SimpleStatusIcon = ({ isUp }: { isUp: boolean }) => {
   return isUp ? (
@@ -416,7 +438,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 mt-4">
+        <div className={`grid gap-4 mt-4 ${monitor.type === "heartbeat" ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-5" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7"}`}>
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
               <StatusHeaderIcon status={currentActualStatus} />
@@ -429,25 +451,63 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <Activity className="h-5 w-5 text-blue-500" />
-              <CardTitle className="text-sm font-medium text-muted-foreground">Response</CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4 px-4">
-              <div className="text-2xl font-bold">{currentResponseTime}</div>
-            </CardContent>
-          </Card>
+          {monitor.type === "heartbeat" ? (
+            <>
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+                  <Clock className="h-5 w-5 text-purple-500" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Expected Interval</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 px-4">
+                  <div className="text-2xl font-bold">{(monitor as any).config?.expectedIntervalMinutes ? `${(monitor as any).config.expectedIntervalMinutes}m` : "60m"}</div>
+                </CardContent>
+              </Card>
 
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <Clock className="h-5 w-5 text-purple-500" />
-              <CardTitle className="text-sm font-medium text-muted-foreground">Interval</CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4 px-4">
-              <div className="text-2xl font-bold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
-            </CardContent>
-          </Card>
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+                  <ShieldCheck className="h-5 w-5 text-blue-500" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Grace Period</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 px-4">
+                  <div className="text-2xl font-bold">{(monitor as any).config?.gracePeriodMinutes ? `${(monitor as any).config.gracePeriodMinutes}m` : "10m"}</div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+                  <Activity className="h-5 w-5 text-green-500" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Last Ping</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 px-4">
+                  <div className="text-2xl font-bold">
+                    {formatShortDateTime((monitor as any).config?.lastPingAt)}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <>
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+                  <Activity className="h-5 w-5 text-blue-500" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Response</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 px-4">
+                  <div className="text-2xl font-bold">{currentResponseTime}</div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+                  <Clock className="h-5 w-5 text-purple-500" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Interval</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 px-4">
+                  <div className="text-2xl font-bold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
+                </CardContent>
+              </Card>
+            </>
+          )}
 
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
@@ -459,207 +519,385 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <Zap className="h-5 w-5 text-amber-400" /> 
-              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (24h)</CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4 px-4">
-              <div className="text-2xl font-bold">{calculatedMetrics.avgResponse24h}</div>
-            </CardContent>
-          </Card>
+          {monitor.type !== "heartbeat" && (
+            <>
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+                  <Zap className="h-5 w-5 text-amber-400" /> 
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (24h)</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 px-4">
+                  <div className="text-2xl font-bold">{calculatedMetrics.avgResponse24h}</div>
+                </CardContent>
+              </Card>
 
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <TrendingUp className="h-5 w-5 text-green-400" />
-              <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4 px-4">
-              <div className="text-2xl font-bold">{calculatedMetrics.uptime30d}</div>
-            </CardContent>
-          </Card>
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+                  <TrendingUp className="h-5 w-5 text-green-400" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 px-4">
+                  <div className="text-2xl font-bold">{calculatedMetrics.uptime30d}</div>
+                </CardContent>
+              </Card>
 
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
-              <Zap className="h-5 w-5 text-amber-400" /> 
-              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (30d)</CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4 px-4">
-              <div className="text-2xl font-bold">{calculatedMetrics.avgResponse30d}</div>
-            </CardContent>
-          </Card>
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+                  <Zap className="h-5 w-5 text-amber-400" /> 
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (30d)</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 px-4">
+                  <div className="text-2xl font-bold">{calculatedMetrics.avgResponse30d}</div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="h-full flex flex-col space-y-6">
-          {/* Availability Chart */}
-          <AvailabilityBarChart data={availabilityTimelineData} />
+        {monitor.type === "heartbeat" ? (
+          <>
+            {/* Left column - Availability Chart */}
+            <div className="h-full flex flex-col space-y-6">
+              <AvailabilityBarChart data={availabilityTimelineData} />
+              
+              {/* Heartbeat Configuration */}
+              <Card className="shadow-sm flex-1">
+                <CardHeader>
+                  <CardTitle className="text-2xl">Heartbeat Configuration</CardTitle>
+                  <CardDescription>
+                    Passive monitoring expecting regular pings from your services
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+    
 
-          {/* Response Time Chart */}
-          <div className="flex-1 max-h-[400px]">
-            <ResponseTimeBarChart data={responseTimeData} />
-          </div>
-        </div>
+                  {/* Heartbeat URLs */}
+                  <div className="space-y-4 pt-4 border-t">
+               
+                    <p className="text-sm text-muted-foreground">
+                      Use these URLs to send pings from your services, scripts, or cron jobs
+                    </p>
 
-                 <Card className="shadow-sm h-full flex flex-col max-h-[650px]">
-          <CardHeader className="flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-2xl flex items-center">
-                Recent Check Results
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {selectedDate && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={clearDateFilter}
-                    className="h-8"
-                  >
-                    <X className="h-3 w-3 mr-1" />
-                    Clear
-                  </Button>
+                    {/* Success URL */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Success URL</label>
+                      <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group">
+                        <code className="flex-1 text-sm font-mono break-all">
+                          {(monitor as any).config?.heartbeatUrl || `${typeof window !== 'undefined' ? window.location.origin : ''}/api/heartbeat/${monitor.id}`}
+                        </code>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const url = (monitor as any).config?.heartbeatUrl || `${typeof window !== 'undefined' ? window.location.origin : ''}/api/heartbeat/${monitor.id}`;
+                            navigator.clipboard.writeText(url);
+                            toast.success("URL copied to clipboard");
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Failure URL */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Failure URL</label>
+                      <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group">
+                        <code className="flex-1 text-sm font-mono break-all">
+                          {(monitor as any).config?.heartbeatUrl || `${typeof window !== 'undefined' ? window.location.origin : ''}/api/heartbeat/${monitor.id}`}/fail
+                        </code>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const url = `${(monitor as any).config?.heartbeatUrl || `${typeof window !== 'undefined' ? window.location.origin : ''}/api/heartbeat/${monitor.id}`}/fail`;
+                            navigator.clipboard.writeText(url);
+                            toast.success("URL copied to clipboard");
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right column - Recent Check Results */}
+            <Card className="shadow-sm h-fit">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-2xl flex items-center">
+                    Recent Check Results
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    {selectedDate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={clearDateFilter}
+                        className="h-8"
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Clear
+                      </Button>
+                    )}
+                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8">
+                          <CalendarIcon className="h-3 w-3 mr-1" />
+                          {selectedDate ? format(selectedDate, 'MMM dd') : 'Filter by date'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <CalendarComponent
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(date: Date | undefined) => {
+                            setSelectedDate(date);
+                            setIsCalendarOpen(false);
+                          }}
+                          disabled={(date: Date) =>
+                            date > new Date() || date < new Date("2020-01-01")
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+                <CardDescription>
+                  {selectedDate 
+                    ? `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} checks for ${format(selectedDate, 'MMMM dd, yyyy')}`
+                    : `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} recent checks.`
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                {filteredResults && filteredResults.length > 0 ? (
+                  <div className="max-h-[500px] overflow-hidden">
+                    <table className="min-w-full divide-y divide-border">
+                      <thead className="bg-background sticky top-0 z-10 border-b">
+                        <tr>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Details</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-card divide-y divide-border">
+                        {paginatedResults.map((result) => (
+                          <tr key={result.id} className="hover:bg-muted/25">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                              <SimpleStatusIcon isUp={result.isUp} />
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
+                            <td className="px-4 py-3 text-sm text-muted-foreground">
+                              {result.isUp ? (
+                                <span className="text-muted-foreground text-xs">
+                                  {result.details?.message || "Ping received"}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs truncate max-w-[200px]" title={result.details?.errorMessage || "No ping within expected interval"}>
+                                  {result.details?.errorMessage || "No ping within expected interval"}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-12">
+                    <div className="text-center">
+                      <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">No check results available</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Heartbeat monitors use passive monitoring. Send a ping to the URL above to generate results.
+                      </p>
+                    </div>
+                  </div>
                 )}
-                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8">
-                      <CalendarIcon className="h-3 w-3 mr-1" />
-                      {selectedDate ? format(selectedDate, 'MMM dd') : 'Filter by date'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
-                    <CalendarComponent
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(date: Date | undefined) => {
-                        setSelectedDate(date);
-                        setIsCalendarOpen(false);
-                      }}
-                      disabled={(date: Date) =>
-                        date > new Date() || date < new Date("2020-01-01")
-                      }
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                {filteredResults && filteredResults.length > 0 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Page {currentPage} of {totalPages}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          // For other monitors, show charts and results in two columns
+          <>
+            <div className="h-full flex flex-col space-y-6">
+              {/* Availability Chart */}
+              <AvailabilityBarChart data={availabilityTimelineData} />
+
+              {/* Response Time Chart */}
+              <div className="flex-1 max-h-[400px]">
+                <ResponseTimeBarChart data={responseTimeData} />
               </div>
             </div>
-            <CardDescription>
-              {selectedDate 
-                ? `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} checks for ${format(selectedDate, 'MMMM dd, yyyy')}`
-                : `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} recent checks.`
-              }
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0 flex-1 flex flex-col min-h-0">
-            {filteredResults && filteredResults.length > 0 ? (
-              <div className="flex-1 overflow-auto">
-                <table className="min-w-full divide-y divide-border">
-                  <thead className="bg-background sticky top-0 z-10 border-b">
-                    <tr>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Error</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-card divide-y divide-border">
-                    {paginatedResults.map((result) => (
-                      <tr key={result.id} className="hover:bg-muted/25">
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          <SimpleStatusIcon isUp={result.isUp} />
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
-                          {result.responseTimeMs !== null && result.responseTimeMs !== undefined ? result.responseTimeMs : 'N/A'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs">
-                          {result.isUp ? (
-                            <span className="text-muted-foreground text-xs">N/A</span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs" title={result.details?.errorMessage || 'Unknown error'}>
-                              {result.details?.errorMessage 
-                                ? (result.details.errorMessage.length > 60 
-                                   ? result.details.errorMessage.substring(0, 60) + '...'
-                                   : result.details.errorMessage)
-                                : 'Unknown error'}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <p className="text-center text-sm text-muted-foreground">
-                  {selectedDate ? `No check results found for ${format(selectedDate, 'MMMM dd, yyyy')}.` : "No recent check results found."}
-                </p>
-              </div>
-            )}
-          </CardContent>
-          <CardFooter className="flex justify-center py-2 border-t">
-            <Pagination>
-              <PaginationContent className="gap-1">
-                <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    className={cn(
-                      "h-8 px-3 text-sm",
-                      currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"
-                    )}
-                  />
-                </PaginationItem>
-                
-                {/* Show page numbers */}
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else {
-                    // Show current page in the middle when possible
-                    if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                  }
-                  
-                  return (
-                    <PaginationItem key={pageNum}>
-                      <PaginationLink
-                        onClick={() => setCurrentPage(pageNum)}
-                        isActive={currentPage === pageNum}
-                        className="cursor-pointer h-8 w-8 text-sm"
+
+            <Card className="shadow-sm h-fit">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-2xl flex items-center">
+                    Recent Check Results
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    {selectedDate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={clearDateFilter}
+                        className="h-8"
                       >
-                        {pageNum}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                })}
-                
-                {totalPages > 5 && currentPage < totalPages - 2 && (
-                  <PaginationItem>
-                    <PaginationEllipsis className="h-8 w-8" />
-                  </PaginationItem>
-                )}
-                
-                <PaginationItem>
-                  <PaginationNext 
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    className={cn(
-                      "h-8 px-3 text-sm",
-                      currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"
+                        <X className="h-3 w-3 mr-1" />
+                        Clear
+                      </Button>
                     )}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </CardFooter>
-        </Card>
+                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8">
+                          <CalendarIcon className="h-3 w-3 mr-1" />
+                          {selectedDate ? format(selectedDate, 'MMM dd') : 'Filter by date'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <CalendarComponent
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(date: Date | undefined) => {
+                            setSelectedDate(date);
+                            setIsCalendarOpen(false);
+                          }}
+                          disabled={(date: Date) =>
+                            date > new Date() || date < new Date("2020-01-01")
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+                <CardDescription>
+                  {selectedDate 
+                    ? `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} checks for ${format(selectedDate, 'MMMM dd, yyyy')}`
+                    : `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} recent checks.`
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                {filteredResults && filteredResults.length > 0 ? (
+                  <div className="max-h-[500px] overflow-hidden">
+                    <table className="min-w-full divide-y divide-border">
+                      <thead className="bg-background sticky top-0 z-10 border-b">
+                        <tr>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Error</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-card divide-y divide-border">
+                        {paginatedResults.map((result) => (
+                          <tr key={result.id} className="hover:bg-muted/25">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                              <SimpleStatusIcon isUp={result.isUp} />
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                              {result.responseTimeMs !== null && result.responseTimeMs !== undefined ? result.responseTimeMs : 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-muted-foreground">
+                              {result.isUp ? (
+                                <span className="text-muted-foreground text-xs">N/A</span>
+                              ) : (
+                                <span 
+                                  className="text-muted-foreground text-xs cursor-help block truncate max-w-[200px]" 
+                                  title={result.details?.errorMessage || 'Check failed'}
+                                >
+                                  {(() => {
+                                    const errorMsg = result.details?.errorMessage || 'Check failed';
+                                    // Improve heartbeat error messages
+                                    if (errorMsg.includes('No ping received within expected interval')) {
+                                      return 'No ping received';
+                                    }
+                                    if (errorMsg.includes('Heartbeat monitors use passive monitoring')) {
+                                      return 'No ping received';
+                                    }
+                                    // Truncate long messages
+                                    return errorMsg.length > 40 ? errorMsg.substring(0, 37) + '...' : errorMsg;
+                                  })()}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-12">
+                    <div className="text-center">
+                      <p className="text-muted-foreground">No check results available</p>
+                      <p className="text-sm text-muted-foreground mt-1">Check results will appear here once monitoring begins.</p>
+                    </div>
+                  </div>
+                )}
+                {filteredResults && filteredResults.length > 0 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Page {currentPage} of {totalPages}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import {
-  AudioWaveform,
+  // AudioWaveform,
   // BellRing,
   Code,
-  Command,
+  // Command,
   CalendarClock,
   Frame,
   ChartColumn,
-  Activity,
+  // Activity,
   Map,
   PieChart,
   // ChartBar,
@@ -17,12 +17,14 @@ import {
   Settings2,
   SquareTerminal,
   // PlusIcon,
-  Shield,
+  // Shield,
   PlusCircleIcon,
   Globe,
-  Globe2,
+  // Globe2,
   ChartBar,
   BellRing,
+  SquarePlus,
+  SquareActivity
   // MailIcon,
 } from "lucide-react";
 
@@ -90,29 +92,29 @@ const data = {
 
   ],
 
-  Detect: [
+  Automate: [
 
     {
-      title: "Playground",
+      title: "Create",
       url: "#",
-      icon: SquareTerminal,
+      icon: SquarePlus,
 
       items: [
         {
-          title: "Browser test",
+          title: "Browser Test",
           url: "/playground?scriptType=browser",
         },
         {
-          title: "API test",
+          title: "API Test",
           url: "/playground?scriptType=api",
         },
         {
-          title: "Multistep test",
+          title: "Multistep Test",
           url: "/playground?scriptType=multistep",
         },
  
         {
-          title: "Database test",
+          title: "Database Test",
           url: "/playground?scriptType=database",
         },
       ],
@@ -149,16 +151,42 @@ const data = {
   Monitor: [
     
     {
+      title: "Create",
+      url: "#",
+      icon: SquarePlus,
+      items: [
+        {
+          title: "HTTP Monitor",
+          url: "/monitors/create/http-request",
+        },
+        {
+          title: "Website Monitor",
+          url: "/monitors/create/website",
+        },
+        {
+          title: "Ping Monitor",
+          url: "/monitors/create/ping-host",
+        },
+        {
+          title: "Port Monitor",
+          url: "/monitors/create/port-check",
+        },
+        {
+          title: "Heartbeat Monitor",
+          url: "/monitors/create/heartbeat",
+        },
+      ],
+      
+    },
+    {
       title: "Monitors",
       url: "/monitors",
       icon: Globe,
     },
-    {
-      title: "Heartbeats",
-      url: "/heartbeats",
-      icon: Activity,
-    },
+  
+  ],
 
+  Settings: [
     {
       title: "Settings",
       url: "#",
@@ -172,10 +200,6 @@ const data = {
           title: "Team",
           url: "#",
         },
-        // {
-        //   title: "Billing",
-        //   url: "#",
-        // },
         {
           title: "Limits",
           url: "#",
@@ -207,7 +231,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // const activeTeam = data.teams[0]; // Assuming we want to display the first team
   const LogoToDisplay = CheckIcon;
   const teamName = "Supercheck";
-  const teamPlan = "version 1.01";
+  const teamPlan = "American Bank";
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -238,10 +262,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarGroup>
         <NavMain groupLabel="Communicate" items={data.Communicate} />
-        <NavMain groupLabel="Detect" items={data.Detect} />
+        <NavMain groupLabel="Automate" items={data.Automate} />
         <NavMain groupLabel="Monitor" items={data.Monitor} />
+        <NavMain groupLabel="Settings" items={data.Settings} />
       </SidebarContent>
       <SidebarFooter>
+
         <NavUser user={data.user} />
       </SidebarFooter>
       <SidebarRail />

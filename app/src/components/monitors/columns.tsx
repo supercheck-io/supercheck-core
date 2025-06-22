@@ -51,15 +51,17 @@ export const columns: ColumnDef<Monitor>[] = [
     },
   },
   {
-    accessorKey: "url",
+    accessorKey: "target",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Target" />
     ),
     cell: ({ row }) => {
-      const url = row.getValue("url") as string;
+      const target = row.getValue("target") as string;
+      const legacyUrl = row.original.url as string; // Fallback for legacy data
+      const displayValue = target || legacyUrl || "—";
       
       return (
-        <span className="max-w-[200px] truncate font-mono text-sm">{url || "—"}</span>
+        <span className="max-w-[200px] truncate font-mono text-sm">{displayValue}</span>
       );
     },
   },
@@ -77,8 +79,8 @@ export const columns: ColumnDef<Monitor>[] = [
       }
 
       return (
-        <div className="flex items-center w-[120px]">
-          {type.icon && <type.icon className={`mr-2 h-4 w-4 ${type.color}`} />}
+        <div className="flex items-center w-[150px]">
+          {type.icon && <type.icon className={`mr-2 h-5 w-5 ${type.color}`} />}
           <span>{type.label}</span>
         </div>
       );
@@ -103,7 +105,7 @@ export const columns: ColumnDef<Monitor>[] = [
 
       return (
         <div className="flex items-center w-[100px]">
-          <status.icon className={`mr-2 h-4 w-4 ${status.color}`} />
+          <status.icon className={`mr-2 h-5 w-5 ${status.color}`} />
           <span>{status.label}</span>
         </div>
       );

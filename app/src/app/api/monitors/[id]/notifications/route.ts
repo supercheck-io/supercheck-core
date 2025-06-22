@@ -5,8 +5,9 @@ import { eq, and } from "drizzle-orm";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   const { id } = params;
   if (!id) {
     return NextResponse.json({ error: "Monitor ID is required" }, { status: 400 });
@@ -43,8 +44,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   const { id } = params;
   if (!id) {
     return NextResponse.json({ error: "Monitor ID is required" }, { status: 400 });
@@ -98,8 +100,9 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   const { id } = params;
   if (!id) {
     return NextResponse.json({ error: "Monitor ID is required" }, { status: 400 });

@@ -109,11 +109,58 @@ export class MonitorService {
         case 'http_request':
           ({ status, details, responseTimeMs, isUp } = await this.executeHttpRequest(jobData.target, jobData.config));
           break;
+        case 'website':
+          // Website monitoring is essentially HTTP GET with simplified config
+          const websiteConfig = {
+            ...jobData.config,
+            method: 'GET' as const,
+            expectedStatusCodes: jobData.config?.expectedStatusCodes || '2xx',
+          };
+          ({ status, details, responseTimeMs, isUp } = await this.executeHttpRequest(jobData.target, websiteConfig));
+          
+          // If SSL checking is enabled and the website check was successful, also check SSL
+          if (jobData.config?.enableSslCheck && isUp && jobData.target.startsWith('https://')) {
+            try {
+              const sslResult = await this.executeSslCheck(jobData.target, {
+                daysUntilExpirationWarning: jobData.config.sslDaysUntilExpirationWarning || 30,
+                timeoutSeconds: jobData.config.timeoutSeconds || 10,
+              });
+              
+              // Merge SSL certificate info into the website check details
+              if (sslResult.details?.sslCertificate) {
+                details.sslCertificate = sslResult.details.sslCertificate;
+              }
+              
+              // If SSL check failed but website was up, show warning
+              if (!sslResult.isUp && sslResult.details?.warningMessage) {
+                details.sslWarning = sslResult.details.warningMessage;
+              } else if (!sslResult.isUp) {
+                // If SSL check completely failed, mark the overall check as down
+                status = sslResult.status;
+                isUp = false;
+                details.errorMessage = sslResult.details?.errorMessage || 'SSL certificate check failed';
+              }
+            } catch (sslError) {
+              this.logger.warn(`SSL check failed for website monitor ${jobData.monitorId}: ${sslError.message}`);
+              details.sslWarning = `SSL check failed: ${sslError.message}`;
+            }
+          }
+          break;
         case 'ping_host':
           ({ status, details, responseTimeMs, isUp } = await this.executePingHost(jobData.target, jobData.config));
           break;
         case 'port_check':
           ({ status, details, responseTimeMs, isUp } = await this.executePortCheck(jobData.target, jobData.config));
+          break;
+
+        case 'heartbeat':
+          // Heartbeat monitors are passive - they don't run active checks
+          // Return a proper status indicating no ping received
+          status = 'down';
+          isUp = false;
+          details = {
+            errorMessage: 'No ping received within expected interval'
+          };
           break;
         default:
           const _exhaustiveCheck: never = jobData.type;
@@ -181,17 +228,17 @@ export class MonitorService {
         }
 
         // Save the result with status change flag
-        await this.db.insert(schema.monitorResults).values({
-          monitorId: resultData.monitorId,
-          checkedAt: resultData.checkedAt, 
-          status: resultData.status,
-          responseTimeMs: resultData.responseTimeMs,
-          details: resultData.details as any,
-          isUp: resultData.isUp,
+      await this.db.insert(schema.monitorResults).values({
+        monitorId: resultData.monitorId,
+        checkedAt: resultData.checkedAt, 
+        status: resultData.status,
+        responseTimeMs: resultData.responseTimeMs,
+        details: resultData.details as any,
+        isUp: resultData.isUp,
           isStatusChange,
-        });
+      });
 
-        this.logger.log(`Successfully saved result for monitor ${resultData.monitorId}`);
+      this.logger.log(`Successfully saved result for monitor ${resultData.monitorId}`);
 
         // Trigger alert if status changed or it's a critical error
         if (isStatusChange || resultData.status === 'error') {
@@ -299,9 +346,9 @@ export class MonitorService {
         // Attempt to parse body as JSON if content type suggests it, otherwise send as is
         const contentType = requestConfig.headers['Content-Type'] || requestConfig.headers['content-type'] || '';
         if (contentType.includes('application/json')) {
-          try {
-            requestConfig.data = JSON.parse(config.body);
-          } catch (e) {
+        try {
+          requestConfig.data = JSON.parse(config.body);
+        } catch (e) {
             // If JSON parsing fails but content type is JSON, still send as string
             requestConfig.data = config.body;
           }
@@ -645,6 +692,174 @@ export class MonitorService {
     }
     
     this.logger.debug(`Port Check completed: ${target}:${port} (${protocol}), Status: ${status}, Response Time: ${responseTimeMs}ms`);
+    return { status, details, responseTimeMs, isUp };
+  }
+
+  private async executeSslCheck(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
+    const timeout = (config?.timeoutSeconds || 10) * 1000; // Convert to milliseconds
+    const daysUntilExpirationWarning = config?.daysUntilExpirationWarning || 30;
+    
+    this.logger.debug(`SSL Check: ${target}, Timeout: ${timeout}ms, Warning threshold: ${daysUntilExpirationWarning} days`);
+    
+    const startTime = process.hrtime.bigint();
+    let status: MonitorResultStatus = 'error';
+    let details: MonitorResultDetails = {};
+    let isUp = false;
+    let responseTimeMs: number | undefined;
+
+    try {
+      const tls = await import('tls');
+      const { URL } = await import('url');
+      
+      // Parse target to extract hostname and port
+      let hostname = target;
+      let port = 443; // Default HTTPS port
+      
+      try {
+        // Try to parse as URL first
+        const url = new URL(target.startsWith('http') ? target : `https://${target}`);
+        hostname = url.hostname;
+        port = parseInt(url.port) || 443;
+      } catch {
+        // If URL parsing fails, treat as hostname:port format
+        const parts = target.split(':');
+        hostname = parts[0];
+        if (parts[1]) {
+          port = parseInt(parts[1]);
+        }
+      }
+
+      const certificateInfo = await new Promise<{
+        certificate: any;
+        authorized: boolean;
+        authorizationError?: Error;
+      }>((resolve, reject) => {
+        const socket = tls.connect({
+          host: hostname,
+          port: port,
+          timeout: timeout,
+          rejectUnauthorized: false, // We want to check the cert even if it's invalid
+        }, () => {
+          const cert = socket.getPeerCertificate(true);
+          const authorized = socket.authorized;
+          const authorizationError = socket.authorizationError;
+          
+          socket.destroy();
+          resolve({
+            certificate: cert,
+            authorized,
+            authorizationError
+          });
+        });
+
+        socket.on('error', (error) => {
+          socket.destroy();
+          reject(error);
+        });
+
+        socket.on('timeout', () => {
+          socket.destroy();
+          reject(new Error(`SSL connection timeout after ${timeout}ms`));
+        });
+      });
+
+      const endTime = process.hrtime.bigint();
+      responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
+
+      const cert = certificateInfo.certificate;
+      
+      if (!cert || !cert.valid_from || !cert.valid_to) {
+        status = 'error';
+        isUp = false;
+        details = {
+          errorMessage: 'No valid certificate found',
+          responseTimeMs
+        };
+      } else {
+        const validFrom = new Date(cert.valid_from);
+        const validTo = new Date(cert.valid_to);
+        const now = new Date();
+        const daysRemaining = Math.ceil((validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        
+        const sslCertificate = {
+          valid: certificateInfo.authorized,
+          issuer: cert.issuer?.CN || 'Unknown',
+          subject: cert.subject?.CN || 'Unknown',
+          validFrom: validFrom.toISOString(),
+          validTo: validTo.toISOString(),
+          daysRemaining: daysRemaining,
+          serialNumber: cert.serialNumber,
+          fingerprint: cert.fingerprint,
+        };
+
+        // Determine status based on certificate validity
+        if (now < validFrom) {
+          status = 'error';
+          isUp = false;
+          details = {
+            errorMessage: 'Certificate is not yet valid',
+            sslCertificate,
+            responseTimeMs
+          };
+        } else if (now > validTo) {
+          status = 'down';
+          isUp = false;
+          details = {
+            errorMessage: 'Certificate has expired',
+            sslCertificate,
+            responseTimeMs
+          };
+        } else if (daysRemaining <= daysUntilExpirationWarning) {
+          status = 'up'; // Still up but warning
+          isUp = true;
+          details = {
+            warningMessage: `Certificate expires in ${daysRemaining} days`,
+            sslCertificate,
+            responseTimeMs
+          };
+        } else {
+          status = 'up';
+          isUp = true;
+          details = {
+            sslCertificate,
+            responseTimeMs
+          };
+        }
+
+        // Add authorization details
+        if (!certificateInfo.authorized && certificateInfo.authorizationError) {
+          details.authorizationError = certificateInfo.authorizationError.message;
+        }
+      }
+
+    } catch (error) {
+      const endTime = process.hrtime.bigint();
+      responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
+      
+      this.logger.warn(`SSL Check to ${target} failed: ${error.message}`);
+      
+      if (error.message.includes('timeout')) {
+        status = 'timeout';
+        details.errorMessage = `SSL connection timeout after ${timeout}ms`;
+      } else if (error.code === 'ECONNREFUSED') {
+        status = 'down';
+        details.errorMessage = 'Connection refused - SSL service not available';
+      } else if (error.code === 'EHOSTUNREACH') {
+        status = 'down';
+        details.errorMessage = 'Host unreachable';
+      } else if (error.code === 'ENOTFOUND') {
+        status = 'down';
+        details.errorMessage = 'Host not found';
+      } else {
+        status = 'error';
+        details.errorMessage = error.message;
+      }
+      
+      isUp = false;
+      details.responseTimeMs = responseTimeMs;
+    }
+    
+    this.logger.debug(`SSL Check completed: ${target}, Status: ${status}, Response Time: ${responseTimeMs}ms`);
     return { status, details, responseTimeMs, isUp };
   }
 

@@ -3,8 +3,9 @@ import { mockMonitors } from "../../mock-data";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   const { id } = params;
 
   try {

@@ -5,8 +5,9 @@ import { eq, and } from "drizzle-orm";
 
 export async function GET(
   request: Request, 
-  { params }: { params: { runId: string } }
+  context: { params: Promise<{ runId: string }> }
 ) {
+  const params = await context.params;
   const runId = params.runId;
 
   if (!runId) {

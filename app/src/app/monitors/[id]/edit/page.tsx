@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { MonitorForm, type FormValues } from "@/components/monitors/monitor-form";
-import { Monitor, monitorSchema } from "@/components/monitors/schema";
+import { Monitor } from "@/components/monitors/schema";
 import { notFound } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 
@@ -30,8 +30,8 @@ async function fetchMonitor(id: string): Promise<Monitor | null> {
   }
 }
 
-export default async function EditMonitorPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function EditMonitorPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const monitor = await fetchMonitor(id);
 
   if (!monitor) {
@@ -50,7 +50,7 @@ export default async function EditMonitorPage({ params }: { params: { id: string
   const currentType = monitor.type;
 
   // Check if monitor.type is directly one of the FormValues types
-  const formValueTypes = ["http_request", "ping_host", "port_check"] as const;
+  const formValueTypes = ["http_request", "website", "ping_host", "port_check", "heartbeat"] as const;
   
   if ((formValueTypes as readonly string[]).includes(currentType)) {
     formType = currentType as FormValues["type"];
@@ -87,18 +87,18 @@ export default async function EditMonitorPage({ params }: { params: { id: string
   // Prepare data for the form, ensuring all required fields for FormValues are present
   const formData: FormValues = {
     name: monitor.name,
-    target: monitor.target || "", 
+    target: monitor.url || "", 
     type: formType,
     interval: formInterval,
     httpConfig_authType: monitor.config?.auth?.type || "none",
 
     // HTTP specific fields
     httpConfig_method: formType === "http_request" ? (monitor.config?.method || "GET") : undefined,
-    httpConfig_expectedStatusCodes: formType === "http_request" ? (monitor.config?.expectedStatusCodes || "2xx") : undefined,
+    httpConfig_expectedStatusCodes: (formType === "http_request" || formType === "website") ? (monitor.config?.expectedStatusCodes || "2xx") : undefined,
     httpConfig_headers: formType === "http_request" && monitor.config?.headers ? JSON.stringify(monitor.config.headers, null, 2) : undefined,
     httpConfig_body: formType === "http_request" ? monitor.config?.body : undefined,
-    httpConfig_keywordInBody: formType === "http_request" ? monitor.config?.keywordInBody : undefined,
-    httpConfig_keywordShouldBePresent: formType === "http_request" ? monitor.config?.keywordInBodyShouldBePresent : undefined,
+    httpConfig_keywordInBody: (formType === "http_request" || formType === "website") ? monitor.config?.keywordInBody : undefined,
+    httpConfig_keywordShouldBePresent: (formType === "http_request" || formType === "website") ? monitor.config?.keywordInBodyShouldBePresent : undefined,
     
     // Auth fields
     httpConfig_authUsername: monitor.config?.auth?.username,
@@ -108,6 +108,14 @@ export default async function EditMonitorPage({ params }: { params: { id: string
     // Port Check specific
     portConfig_port: formType === "port_check" && monitor.config?.port ? monitor.config.port : undefined,
     portConfig_protocol: formType === "port_check" && monitor.config?.protocol ? monitor.config.protocol : undefined,
+
+    // Heartbeat specific
+    heartbeatConfig_expectedInterval: formType === "heartbeat" && monitor.config?.expectedIntervalMinutes ? monitor.config.expectedIntervalMinutes : undefined,
+    heartbeatConfig_gracePeriod: formType === "heartbeat" && monitor.config?.gracePeriodMinutes ? monitor.config.gracePeriodMinutes : undefined,
+
+    // Website SSL specific
+    websiteConfig_enableSslCheck: formType === "website" && monitor.config?.enableSslCheck ? monitor.config.enableSslCheck : undefined,
+    websiteConfig_sslDaysUntilExpirationWarning: formType === "website" && monitor.config?.sslDaysUntilExpirationWarning ? monitor.config.sslDaysUntilExpirationWarning : undefined,
   };
 
   return (

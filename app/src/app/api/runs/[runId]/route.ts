@@ -19,8 +19,9 @@ export async function OPTIONS() {
 // Delete run handler
 export async function DELETE(
   request: Request,
-  { params }: { params: { runId: string } }
+  context: { params: Promise<{ runId: string }> }
 ) {
+  const params = await context.params;
   try {
     const runId = params.runId;
     console.log(`Attempting to delete run with ID: ${runId}`);

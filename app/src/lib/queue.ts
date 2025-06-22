@@ -25,7 +25,7 @@ export interface JobExecutionTask {
 // Consider moving to a shared types location if used across app/runner extensively
 export interface MonitorJobData {
   monitorId: string;
-  type: "http_request" | "ping_host" | "port_check" | "playwright_script";
+  type: "http_request" | "website" | "ping_host" | "port_check" | "heartbeat" | "ssl";
   target: string;
   config?: any; // Using any for config for now, can be refined with shared MonitorConfig type
   frequencyMinutes?: number; 

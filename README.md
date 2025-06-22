@@ -350,6 +350,54 @@ The system implements several error handling mechanisms:
    - ReportViewer shows user-friendly error messages
    - Provides retry options and troubleshooting information
 
+## Monitoring System
+
+The application includes a comprehensive monitoring system that supports multiple monitor types:
+
+### Monitor Types
+
+1. **HTTP Monitor**: Check HTTP/S endpoints for availability, response time, and status codes
+2. **Website Monitor**: Monitor website availability and performance with optional SSL certificate monitoring
+3. **Ping Monitor**: ICMP ping to check host availability
+4. **Port Monitor**: Check specific TCP or UDP port availability
+5. **Heartbeat Monitor**: Passive monitoring expecting regular pings from services
+
+### Monitoring Features
+
+- **Real-time Status Tracking**: Live status updates with detailed metrics
+- **Configurable Check Intervals**: From 1 minute to several hours
+- **Alert System**: Notification providers for email, Slack, webhooks
+- **Status Pages**: Public status pages for service transparency
+- **Maintenance Windows**: Schedule maintenance periods to suppress alerts
+- **Response Time Tracking**: Historical performance data
+- **Availability Charts**: Visual uptime/downtime representation
+
+### Heartbeat Monitoring
+
+Heartbeat monitors provide passive monitoring for:
+- Cron jobs and scheduled tasks
+- Backup scripts and data pipelines
+- Background services and workers
+- CI/CD pipeline stages
+
+**Usage**:
+```bash
+# Send success ping
+curl "https://your-app.com/api/heartbeat/your-token"
+
+# Send failure ping with message
+curl -d "Backup failed: disk full" "https://your-app.com/api/heartbeat/your-token/fail"
+```
+
+### SSL Certificate Monitoring
+
+Website monitors can optionally include SSL certificate monitoring by enabling the SSL check option. This provides:
+- Certificate validity and expiration monitoring
+- Certificate chain validation
+- Configurable warning thresholds (default: 30 days before expiration)
+- Issuer and subject information
+- Integration with website availability checks
+
 ## Configuration Options
 
 The test execution system can be configured via environment variables:
@@ -374,6 +422,11 @@ MAX_CONCURRENT_TESTS=2             # Maximum number of BullMQ worker processes
 RUNNING_CAPACITY=5                 # Maximum concurrent executions allowed to run
 QUEUED_CAPACITY=50                  # Maximum executions allowed in queued state
 TEST_EXECUTION_TIMEOUT_MS=900000   # 15 minutes default
+
+# Monitoring Parameters
+MONITOR_CHECK_INTERVAL=5           # Minutes between monitor checks
+HEARTBEAT_CHECK_INTERVAL=5         # Minutes between heartbeat validations
+MONITOR_TIMEOUT_SECONDS=30         # Default timeout for monitor checks
 ```
 
 ## Start Services Quick Reference

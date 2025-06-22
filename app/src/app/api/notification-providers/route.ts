@@ -38,7 +38,13 @@ export async function POST(req: NextRequest) {
 
     const [insertedProvider] = await db
       .insert(notificationProviders)
-      .values(newProviderData)
+      .values({
+        type: newProviderData.type!,
+        config: newProviderData.config!,
+        isEnabled: newProviderData.isEnabled,
+        organizationId: newProviderData.organizationId,
+        createdByUserId: newProviderData.createdByUserId,
+      })
       .returning();
 
     return NextResponse.json(insertedProvider, { status: 201 });

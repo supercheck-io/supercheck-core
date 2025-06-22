@@ -4,8 +4,10 @@
 // Based on app/src/db/schema/schema.ts
 export type MonitorType =
   | "http_request"
+  | "website"
   | "ping_host"
-  | "port_check";
+  | "port_check"
+  | "heartbeat";
 
 export interface MonitorConfig {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
@@ -23,11 +25,13 @@ export interface MonitorConfig {
   };
   port?: number;
   protocol?: "tcp" | "udp";
+  expectedIntervalMinutes?: number;
+  gracePeriodMinutes?: number;
+  heartbeatUrl?: string;
+  lastPingAt?: string;
   checkExpiration?: boolean;
   daysUntilExpirationWarning?: number;
   checkRevocation?: boolean;
-  expectedIntervalSeconds?: number;
-  gracePeriodSeconds?: number;
   timeoutSeconds?: number;
   regions?: string[];
   retryStrategy?: {

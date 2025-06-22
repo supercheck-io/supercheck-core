@@ -6,9 +6,9 @@ import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 function DetailSkeleton() {
@@ -25,7 +25,7 @@ function DetailSkeleton() {
 }
 
 export default async function RunPage({ params }: Params) {
-  const { id } = params;
+  const { id } = await params;
   const run = await getRun(id);
   
   if (!run) {

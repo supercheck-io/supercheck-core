@@ -234,9 +234,11 @@ export const runs = pgTable("runs", {
 =================================== */
 export type MonitorType =
   | "http_request"    // Check HTTP/S endpoints (availability, status, response time)
+  | "website"         // Monitor website availability and performance (HTTP GET) with optional SSL checking
   | "ping_host"       // ICMP ping to a host
   | "port_check"      // Check specific TCP or UDP port
-  | "playwright_script"; // Execute an existing Playwright test script from the 'tests' table
+  | "heartbeat"       // Passive monitoring expecting regular pings
+
 
 export type MonitorStatus =
   | "up"
@@ -267,18 +269,16 @@ export type MonitorConfig = {
   port?: number;
   protocol?: "tcp" | "udp";
 
-  // ssl_check specific (target is domain name)
+  // heartbeat specific
+  expectedIntervalMinutes?: number; // e.g., 5 (5 minutes)
+  gracePeriodMinutes?: number; // e.g., 2 (2 minutes grace period)
+  heartbeatUrl?: string; // Auto-generated unique URL for receiving pings
+  lastPingAt?: string; // ISO string of last received ping
+
+  // ssl_check specific (target is domain name) - for future use
   checkExpiration?: boolean;
   daysUntilExpirationWarning?: number; 
   checkRevocation?: boolean; 
-
-  // playwright_script specific
-  testId?: string; 
-  scriptVariables?: Record<string, any>;
-
-  // heartbeat specific (target is an expected unique identifier for the incoming ping)
-  expectedIntervalSeconds?: number; 
-  gracePeriodSeconds?: number; 
 
   // Common configuration applicable to many types
   timeoutSeconds?: number; 

@@ -4,10 +4,13 @@ import { monitors as monitorSchemaDb } from "@/db/schema/schema"; // Monitor sch
 import { eq, isNotNull, and } from "drizzle-orm";
 import { getRedisConnection } from "./queue";
 import { MONITOR_EXECUTION_QUEUE, MonitorJobData, addMonitorExecutionJobToQueue } from "./queue";
+import { HeartbeatService } from "./heartbeat-service";
 
 // --- Constants ---
 export const MONITOR_SCHEDULER_QUEUE = "monitor-scheduler";
+export const HEARTBEAT_CHECKER_QUEUE = "heartbeat-checker";
 const MONITOR_SCHEDULER_JOB_PREFIX = "scheduled-monitor-";
+const HEARTBEAT_CHECKER_JOB_NAME = "check-missed-heartbeats";
 
 // --- Queue and Worker Management (similar to job-scheduler.ts) ---
 const schedulerQueueMap = new Map<string, Queue>();
@@ -63,7 +66,7 @@ interface ScheduleMonitorOptions {
 export async function scheduleMonitorCheck(options: ScheduleMonitorOptions): Promise<string> {
   if (options.frequencyMinutes <= 0) {
     console.warn(`[Monitor Scheduler] Invalid frequencyMinutes (${options.frequencyMinutes}) for monitor ${options.monitorId}. Skipping scheduling.`);
-    // Optionally, remove any existing schedule if frequency is set to 0 or less
+    // Remove any existing schedule if frequency is set to 0 or less
     await removeScheduledMonitorCheck(options.monitorId);
     return options.monitorId;
   }
@@ -74,7 +77,10 @@ export async function scheduleMonitorCheck(options: ScheduleMonitorOptions): Pro
 
   console.log(`[Monitor Scheduler] Scheduling monitor ${options.monitorId} to run every ${options.frequencyMinutes} minutes (${intervalMs}ms). Job name: ${jobName}`);
 
-  // Schedule the repeatable job without immediate execution
+  // Remove any existing schedule first to prevent duplicates
+  await removeScheduledMonitorCheck(options.monitorId);
+
+  // Schedule the repeatable job
   await schedulerQueue.add(jobName, options.jobData, {
     repeat: {
       every: intervalMs,
@@ -85,7 +91,7 @@ export async function scheduleMonitorCheck(options: ScheduleMonitorOptions): Pro
   });
   
   await ensureMonitorSchedulerWorker();
-  console.log(`[Monitor Scheduler] Monitor ${options.monitorId} scheduled with immediate execution and ${options.frequencyMinutes}min interval.`);
+  console.log(`[Monitor Scheduler] Monitor ${options.monitorId} scheduled successfully with ${options.frequencyMinutes}min interval.`);
   return options.monitorId;
 }
 
@@ -150,12 +156,20 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
     const activeMonitors = await dbInstance
       .select()
       .from(monitorSchemaDb)
-      .where(and(isNotNull(monitorSchemaDb.frequencyMinutes), eq(monitorSchemaDb.status, 'up'))); // Example: only schedule active, 'up' monitors
-      // Or, you might want to schedule 'pending' monitors as well to let them run first time.
+      .where(and(
+        isNotNull(monitorSchemaDb.frequencyMinutes), 
+        eq(monitorSchemaDb.enabled, true)
+      )); // Schedule all enabled monitors regardless of current status
 
     console.log(`[Monitor Scheduler] Found ${activeMonitors.length} active monitors with frequency to schedule.`);
 
     for (const monitor of activeMonitors) {
+      // Skip heartbeat monitors for regular scheduling (they don't need active monitoring)
+      if (monitor.type === "heartbeat") {
+        console.log(`[Monitor Scheduler] Skipping heartbeat monitor ${monitor.id} - uses passive monitoring`);
+        continue;
+      }
+
       if (monitor.frequencyMinutes && monitor.frequencyMinutes > 0) {
         try {
           // Prepare the MonitorJobData payload
@@ -179,12 +193,83 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
         }
       }
     }
+
+    // Initialize heartbeat checker for passive monitoring
+    await initializeHeartbeatChecker();
+
     console.log(`[Monitor Scheduler] Initialization complete: ${scheduledCount} succeeded, ${failedCount} failed.`);
     return { success: true, scheduled: scheduledCount, failed: failedCount };
   } catch (error) {
     console.error("[Monitor Scheduler] Error during initialization:", error);
     return { success: false, scheduled: 0, failed: 0, error };
   }
+}
+
+// --- Heartbeat Checker Functions ---
+
+async function getHeartbeatCheckerQueue(): Promise<Queue> {
+  if (!schedulerQueueMap.has(HEARTBEAT_CHECKER_QUEUE)) {
+    const connection = await getRedisConnection();
+    const queue = new Queue(HEARTBEAT_CHECKER_QUEUE, { 
+      connection,
+      defaultJobOptions: {
+        removeOnComplete: true,
+        removeOnFail: 100,
+      }
+    });
+    schedulerQueueMap.set(HEARTBEAT_CHECKER_QUEUE, queue);
+  }
+  return schedulerQueueMap.get(HEARTBEAT_CHECKER_QUEUE)!;
+}
+
+async function ensureHeartbeatCheckerWorker(): Promise<void> {
+  if (!schedulerWorkerMap.has(HEARTBEAT_CHECKER_QUEUE)) {
+    console.log(`[Heartbeat Checker] Creating worker for ${HEARTBEAT_CHECKER_QUEUE}`);
+    const connection = await getRedisConnection();
+    const worker = new Worker(
+      HEARTBEAT_CHECKER_QUEUE,
+      async (job: Job) => {
+        console.log(`[Heartbeat Checker] Running heartbeat check: ${job.name}`);
+        const checkIntervalMinutes = job.data?.checkIntervalMinutes || 5;
+        const result = await HeartbeatService.checkMissedHeartbeats(checkIntervalMinutes);
+        console.log(`[Heartbeat Checker] Check completed: ${result.checked} checked, ${result.missedCount} missed, ${result.skipped} skipped, ${result.errors.length} errors`);
+        if (result.errors.length > 0) {
+          console.error(`[Heartbeat Checker] Errors:`, result.errors);
+        }
+        return result;
+      },
+      { connection, concurrency: 1 } // Only one heartbeat checker should run at a time
+    );
+
+    worker.on('completed', (job, result) => {
+      console.log(`[Heartbeat Checker] Heartbeat check completed: ${result.checked} checked, ${result.missedCount} missed, ${result.skipped} skipped`);
+    });
+    worker.on('failed', (job, error) => {
+      console.error(`[Heartbeat Checker] Heartbeat check failed:`, error);
+    });
+    schedulerWorkerMap.set(HEARTBEAT_CHECKER_QUEUE, worker);
+  }
+}
+
+export async function initializeHeartbeatChecker(): Promise<void> {
+  console.log("[Heartbeat Checker] Initializing heartbeat checker...");
+  
+  const heartbeatQueue = await getHeartbeatCheckerQueue();
+  await ensureHeartbeatCheckerWorker();
+
+  // Schedule heartbeat checker to run every 5 minutes (more scalable and efficient)
+  // This interval balances responsiveness with system load
+  const checkInterval = 5 * 60 * 1000; // 5 minutes
+  await heartbeatQueue.add(HEARTBEAT_CHECKER_JOB_NAME, { checkIntervalMinutes: 5 }, {
+    repeat: {
+      every: checkInterval,
+    },
+    jobId: HEARTBEAT_CHECKER_JOB_NAME,
+    removeOnComplete: true,
+    removeOnFail: 100,
+  });
+
+  console.log("[Heartbeat Checker] Heartbeat checker scheduled to run every 5 minutes");
 }
 
 /**

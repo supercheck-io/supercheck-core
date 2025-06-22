@@ -1,16 +1,16 @@
 import {
   CheckCircle,
-  Activity,
   Clock,
-  Globe,
   Pause,
   RefreshCw,
-  Server,
   XCircle,
-  Webhook,
-  Search,
-  ShieldAlert,
   Network,
+  Globe,
+  Heart,
+  PanelTop,
+  Shield,
+  Monitor,
+  SquareActivity,
 } from "lucide-react";
 
 
@@ -39,28 +39,54 @@ export const monitorStatuses = [
     icon: Pause,
     color: "text-gray-500",
   },
+  {
+    value: "maintenance",
+    label: "Maintenance",
+    icon: RefreshCw,
+    color: "text-blue-500",
+  },
+  {
+    value: "error",
+    label: "Error",
+    icon: XCircle,
+    color: "text-orange-500",
+  },
 ];
 
 export const monitorTypes = [
   {
-    label: "HTTP Request",
+    label: "HTTP Monitor",
     value: "http_request",
-    icon: RefreshCw,
-    color: "text-cyan-600",
+    icon: Globe,
+    color: "text-cyan-500", 
     description: "Check HTTP/S endpoints (availability, status, response time)",
   },
   {
-    label: "Ping Host",
+    label: "Website Monitor",
+    value: "website",
+    icon: Monitor,
+    color: "text-blue-500", 
+    description: "Monitor website availability and performance with optional SSL certificate checking",
+  },
+  {
+    label: "Ping Monitor",
     value: "ping_host",
-    icon: Globe,
-    color: "text-sky-500",
+    icon: RefreshCw,
+    color: "text-sky-500", 
     description: "ICMP ping to a host",
   },
   {
-    label: "Port Check",
+    label: "Port Monitor",
     value: "port_check",
     icon: Network,
-    color: "text-teal-600",
+    color: "text-indigo-500", 
     description: "Check specific TCP or UDP port",
   },
-]; 
+  {
+    label: "Heartbeat Monitor",
+    value: "heartbeat",
+    icon: SquareActivity,
+    color: "text-blue-300", 
+    description: "Passive monitoring expecting regular pings from your services",
+  },
+];

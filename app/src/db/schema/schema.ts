@@ -193,8 +193,10 @@ export const jobsSelectSchema = createSelectSchema(jobs);
 =================================== */
 export type MonitorType =
   | "http_request"    // Check HTTP/S endpoints (availability, status, response time)
+  | "website"         // Monitor website availability and performance (HTTP GET) with optional SSL checking
   | "ping_host"       // ICMP ping to a host
-  | "port_check";     // Check specific TCP or UDP port
+  | "port_check"      // Check specific TCP or UDP port
+  | "heartbeat"       // Passive monitoring expecting regular pings
 
 export type MonitorStatus =
   | "up"
@@ -225,14 +227,16 @@ export type MonitorConfig = {
   port?: number;
   protocol?: "tcp" | "udp";
 
-  // ssl_check specific (target is domain name)
+  // heartbeat specific
+  expectedIntervalMinutes?: number; // e.g., 5 (5 minutes)
+  gracePeriodMinutes?: number; // e.g., 2 (2 minutes grace period)
+  heartbeatUrl?: string; // Auto-generated unique URL for receiving pings
+  lastPingAt?: string; // ISO string of last received ping
+
+  // ssl_check specific (target is domain name) - for future use
   checkExpiration?: boolean;
   daysUntilExpirationWarning?: number; // e.g., 30
   checkRevocation?: boolean; // (Advanced, might require OCSP/CRL checks)
-
-  // heartbeat specific (target is an expected unique identifier for the incoming ping)
-  expectedIntervalSeconds?: number; // e.g., 300 (5 minutes)
-  gracePeriodSeconds?: number; // e.g., 60
 
   // Common configuration applicable to many types
   timeoutSeconds?: number; // e.g., 10

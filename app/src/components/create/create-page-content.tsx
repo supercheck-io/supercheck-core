@@ -10,6 +10,14 @@ import {
   Clock,
   Zap,
   Video,
+  Globe,
+  PanelTop,
+  RefreshCw,
+  Network,
+  Heart,
+  Shield,
+  SquareActivity,
+  Monitor,
 } from "lucide-react";
 
 type ScriptType = "browser" | "api" | "multistep" | "database" | "record";
@@ -115,6 +123,52 @@ export function CreatePageContent() {
           onClick={() => router.push("/jobs/create")}
         />
       </div>
+
+      <div className="mt-8 mb-3 pl-1">
+        <h2 className="text-xl font-bold">Create New Monitor</h2>
+        <p className="text-muted-foreground text-sm mt-1">Select the type of monitor you want to create</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        <CreateCard
+          key="http-monitor"
+          icon={<Globe size={24} />}
+          title="HTTP Monitor"
+          description="HTTP/S API availability and performance"
+          onClick={() => router.push("/monitors/create/http-request")}
+        />
+        <CreateCard
+          key="website-monitor"
+          icon={<Monitor size={24} />}
+          title="Website Monitor"
+          description="Monitor website availability and performance"
+          onClick={() => router.push("/monitors/create/website")}
+        />
+        <CreateCard
+          key="ping-monitor"
+          icon={<RefreshCw size={24} />}
+          title="Ping Monitor"
+          description="ICMP ping to check host availability"
+          onClick={() => router.push("/monitors/create/ping-host")}
+        />
+        <CreateCard
+          key="port-monitor"
+          icon={<Network size={24} />}
+          title="Port Monitor"
+          description="Check specific TCP or UDP port availability"
+          onClick={() => router.push("/monitors/create/port-check")}
+        />
+        <CreateCard
+          key="heartbeat-monitor"
+          icon={<SquareActivity size={24} />}
+          title="Heartbeat Monitor"
+          description="Passive monitoring expecting regular pings"
+          onClick={() => router.push("/monitors/create/heartbeat")}
+        />
+
+      </div>
+
+
     </div>
   );
 }
