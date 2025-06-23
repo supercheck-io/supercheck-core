@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
-import { Heart, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Activity, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Monitor } from "./schema";
 import { MonitorConfig } from "@/db/schema/schema";
 import { formatDistanceToNow, parseISO } from "date-fns";
@@ -50,7 +50,7 @@ export function HeartbeatDisplay({ monitor }: HeartbeatDisplayProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Heart className="h-5 w-5 text-pink-600" />
+            <Activity className="h-5 w-5 text-pink-600" />
             Heartbeat Configuration
           </CardTitle>
           <CardDescription>

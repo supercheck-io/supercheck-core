@@ -18,6 +18,8 @@ import {
   XCircle,
   AlertCircle,
   X,
+  Copy,
+  Shield,
 } from "lucide-react";
 import { 
   Card, 
@@ -75,6 +77,7 @@ export interface MonitorResultItem {
   responseTimeMs?: number | null;
   details?: DBMonitorResultDetailsType | null;
   isUp: boolean;
+  isStatusChange: boolean;
 }
 
 export type MonitorWithResults = MonitorSchemaType & {
@@ -334,15 +337,69 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
   const currentResponseTime = latestResult && latestResult.responseTimeMs !== undefined && latestResult.responseTimeMs !== null ? `${latestResult.responseTimeMs} ms` : "N/A";
 
-  // Prepare data for AvailabilityBarChart, same as statusHistoryData but ensure 0|1 status
+  // Prepare data for AvailabilityBarChart
   const availabilityTimelineData = useMemo(() => {
     if (!monitor.recentResults || monitor.recentResults.length === 0) return [];
-    return monitor.recentResults.slice(0, 50).map(r => ({
+    
+    if (monitor.type === "heartbeat") {
+      // For heartbeat monitors: show each ping received + only one entry per missed ping period
+      const processedResults = [];
+      const recentResults = monitor.recentResults.slice(0, 50);
+      
+      for (let i = 0; i < recentResults.length; i++) {
+        const current = recentResults[i];
+        
+        if (current.isUp) {
+          // Always show successful pings
+          processedResults.push(current);
+        } else {
+          // For failures, only show if it's a status change (first failure in a sequence)
+          if (current.isStatusChange) {
+            processedResults.push(current);
+          }
+        }
+      }
+      
+      return processedResults.map(r => ({
         timestamp: (typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt).getTime(),
         status: (r.isUp ? 1 : 0) as (0 | 1),
         label: r.status
-    })).reverse(); 
-  }, [monitor.recentResults]);
+      })).reverse();
+    } else {
+      // For other monitors: show all checks (original behavior)
+      return monitor.recentResults.slice(0, 50).map(r => ({
+        timestamp: (typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt).getTime(),
+        status: (r.isUp ? 1 : 0) as (0 | 1),
+        label: r.status
+      })).reverse();
+    }
+  }, [monitor.recentResults, monitor.type]);
+
+  // Extract SSL certificate info for website monitors
+  const sslCertificateInfo = useMemo(() => {
+    if (monitor.type !== 'website' || !monitor.recentResults || monitor.recentResults.length === 0) {
+      return null;
+    }
+    
+    // Find the most recent result with SSL certificate data
+    const resultWithSsl = monitor.recentResults.find(r => 
+      r.details && 
+      typeof r.details === 'object' && 
+      'sslCertificate' in r.details &&
+      r.details.sslCertificate
+    );
+    
+    if (!resultWithSsl || !resultWithSsl.details || !('sslCertificate' in resultWithSsl.details)) {
+      return null;
+    }
+    
+    const sslCert = resultWithSsl.details.sslCertificate as any;
+    return {
+      validTo: sslCert.validTo,
+      daysRemaining: sslCert.daysRemaining,
+      valid: sslCert.valid
+    };
+  }, [monitor.type, monitor.recentResults]);
 
   // Pagination logic for recent results (use filtered results)
   const paginatedResults = useMemo(() => {
@@ -398,6 +455,35 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                 <span className="text-xs text-yellow-700 dark:text-yellow-300">Monitoring paused</span>
               </div>
             )}
+            
+            {/* SSL Certificate Expiry for Website Monitors */}
+            {monitor.type === 'website' && sslCertificateInfo && (
+              <div className={`flex items-center px-2 py-1 rounded-md border ${
+                sslCertificateInfo.daysRemaining <= 7 
+                  ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
+                  : sslCertificateInfo.daysRemaining <= 30
+                  ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+                  : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+              }`}>
+                <Shield className={`h-4 w-4 mr-1 ${
+                  sslCertificateInfo.daysRemaining <= 7 
+                    ? 'text-red-600 dark:text-red-400' 
+                    : sslCertificateInfo.daysRemaining <= 30
+                    ? 'text-yellow-600 dark:text-yellow-400'
+                    : 'text-green-600 dark:text-green-400'
+                }`} />
+                <span className={`text-xs ${
+                  sslCertificateInfo.daysRemaining <= 7 
+                    ? 'text-red-700 dark:text-red-300' 
+                    : sslCertificateInfo.daysRemaining <= 30
+                    ? 'text-yellow-700 dark:text-yellow-300'
+                    : 'text-green-700 dark:text-green-300'
+                }`}>
+                  SSL: {sslCertificateInfo.daysRemaining}d remaining
+                </span>
+              </div>
+            )}
+            
             <Button 
               variant="outline" 
               size="sm"
@@ -559,8 +645,8 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
         {monitor.type === "heartbeat" ? (
           <>
             {/* Left column - Availability Chart */}
-            <div className="h-full flex flex-col space-y-6">
-              <AvailabilityBarChart data={availabilityTimelineData} />
+            <div className="h-[650px] flex flex-col space-y-6">
+              <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
               
               {/* Heartbeat Configuration */}
               <Card className="shadow-sm flex-1">
@@ -596,7 +682,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                             toast.success("URL copied to clipboard");
                           }}
                         >
-                          Copy
+                          <Copy className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -617,7 +703,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                             toast.success("URL copied to clipboard");
                           }}
                         >
-                          Copy
+                          <Copy className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -627,8 +713,8 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </div>
 
             {/* Right column - Recent Check Results */}
-            <Card className="shadow-sm h-fit">
-              <CardHeader>
+            <Card className="shadow-sm h-[600px] flex flex-col">
+              <CardHeader className="flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-2xl flex items-center">
                     Recent Check Results
@@ -676,13 +762,13 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   }
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 flex-1 flex flex-col">
                 {filteredResults && filteredResults.length > 0 ? (
-                  <div className="max-h-[500px] overflow-hidden">
+                  <div className="flex-1 overflow-y-auto">
                     <table className="min-w-full divide-y divide-border">
                       <thead className="bg-background sticky top-0 z-10 border-b">
                         <tr>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Result</th>
                           <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
                           <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Details</th>
                         </tr>
@@ -691,7 +777,14 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                         {paginatedResults.map((result) => (
                           <tr key={result.id} className="hover:bg-muted/25">
                             <td className="px-4 py-3 whitespace-nowrap text-sm">
-                              <SimpleStatusIcon isUp={result.isUp} />
+                              <div className="flex items-center gap-2">
+                                <SimpleStatusIcon isUp={result.isUp} />
+                                {monitor.type === "heartbeat" && result.isStatusChange && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    Status Change
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
                             <td className="px-4 py-3 text-sm text-muted-foreground">
@@ -701,7 +794,20 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground text-xs truncate max-w-[200px]" title={result.details?.errorMessage || "No ping within expected interval"}>
-                                  {result.details?.errorMessage || "No ping within expected interval"}
+                                  {(() => {
+                                    const errorMsg = result.details?.errorMessage || "No ping within expected interval";
+                                    // Simplify heartbeat error messages for better UX
+                                    if (errorMsg.includes('Waiting for initial heartbeat ping')) {
+                                      return 'Waiting for first ping';
+                                    }
+                                    if (errorMsg.includes('No ping received within expected interval')) {
+                                      return 'Ping overdue';
+                                    }
+                                    if (errorMsg.includes('No initial ping received')) {
+                                      return 'No initial ping';
+                                    }
+                                    return errorMsg;
+                                  })()}
                                 </span>
                               )}
                             </td>
@@ -711,7 +817,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                     </table>
                   </div>
                 ) : (
-                  <div className="py-12">
+                  <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
                       <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <p className="text-muted-foreground">No check results available</p>
@@ -722,7 +828,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   </div>
                 )}
                 {filteredResults && filteredResults.length > 0 && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <div className="flex items-center justify-between px-4 py-3 border-t flex-shrink-0 bg-card rounded-b-lg">
                     <div className="text-sm text-muted-foreground">
                       Page {currentPage} of {totalPages}
                     </div>
@@ -754,7 +860,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           <>
             <div className="h-full flex flex-col space-y-6">
               {/* Availability Chart */}
-              <AvailabilityBarChart data={availabilityTimelineData} />
+              <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
 
               {/* Response Time Chart */}
               <div className="flex-1 max-h-[400px]">
@@ -762,8 +868,8 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             </div>
 
-            <Card className="shadow-sm h-fit">
-              <CardHeader>
+            <Card className="shadow-sm h-[600px] flex flex-col">
+              <CardHeader className="flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-2xl flex items-center">
                     Recent Check Results
@@ -811,15 +917,15 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   }
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 flex-1 flex flex-col">
                 {filteredResults && filteredResults.length > 0 ? (
-                  <div className="max-h-[500px] overflow-hidden">
+                  <div className="flex-1 overflow-y-auto">
                     <table className="min-w-full divide-y divide-border">
                       <thead className="bg-background sticky top-0 z-10 border-b">
                         <tr>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Result</th>
                           <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Time (ms)</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[100px]">Response Time (ms)</th>
                           <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Error</th>
                         </tr>
                       </thead>
@@ -862,7 +968,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                     </table>
                   </div>
                 ) : (
-                  <div className="py-12">
+                  <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
                       <p className="text-muted-foreground">No check results available</p>
                       <p className="text-sm text-muted-foreground mt-1">Check results will appear here once monitoring begins.</p>
@@ -870,7 +976,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   </div>
                 )}
                 {filteredResults && filteredResults.length > 0 && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <div className="flex items-center justify-between px-4 py-3 border-t flex-shrink-0 bg-card rounded-b-lg">
                     <div className="text-sm text-muted-foreground">
                       Page {currentPage} of {totalPages}
                     </div>

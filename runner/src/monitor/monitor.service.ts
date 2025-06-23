@@ -59,7 +59,7 @@ export class MonitorService {
     private readonly httpService: HttpService // Inject HttpService
   ) {}
 
-  async executeMonitor(jobData: MonitorJobDataDto): Promise<MonitorExecutionResult> {
+  async executeMonitor(jobData: MonitorJobDataDto): Promise<MonitorExecutionResult | null> {
     this.logger.log(`Executing monitor ${jobData.monitorId} of type ${jobData.type} for target ${jobData.target}`);
 
     // Check if monitor is paused before execution
@@ -154,13 +154,14 @@ export class MonitorService {
           break;
 
         case 'heartbeat':
-          // Heartbeat monitors are passive - they don't run active checks
-          // Return a proper status indicating no ping received
-          status = 'down';
-          isUp = false;
-          details = {
-            errorMessage: 'No ping received within expected interval'
-          };
+          // Heartbeat monitors check for missed pings rather than actively pinging
+          const heartbeatResult = await this.checkHeartbeatMissedPing(jobData.monitorId, jobData.config);
+          if (heartbeatResult === null) {
+            // No result to record - heartbeat is still within acceptable range
+            this.logger.log(`Heartbeat monitor ${jobData.monitorId} is within acceptable range, skipping result recording`);
+            return null; // Signal to skip result recording
+          }
+          ({ status, details, responseTimeMs, isUp } = heartbeatResult);
           break;
         default:
           const _exhaustiveCheck: never = jobData.type;
@@ -695,6 +696,108 @@ export class MonitorService {
     return { status, details, responseTimeMs, isUp };
   }
 
+  private async checkHeartbeatMissedPing(monitorId: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean} | null> {
+    this.logger.debug(`Checking heartbeat missed ping for monitor ${monitorId}`);
+    
+    let details: MonitorResultDetails = {};
+    let status: MonitorResultStatus = 'down'; // Default to down for heartbeat checks
+    let isUp = false; // Default to false - we only create entries for failures
+    const responseTimeMs = 0; // Heartbeat checks don't have response times
+
+    try {
+      const expectedIntervalMinutes = config?.expectedIntervalMinutes || 60;
+      const gracePeriodMinutes = config?.gracePeriodMinutes || 10;
+      const lastPingAt = config?.lastPingAt;
+      
+      const now = new Date();
+      const totalWaitMinutes = expectedIntervalMinutes + gracePeriodMinutes;
+      
+      // Get monitor from database to check creation time and get latest ping info
+      const monitor = await this.db.query.monitors.findFirst({
+        where: (monitors, { eq }) => eq(monitors.id, monitorId),
+      });
+
+      if (!monitor) {
+        throw new Error(`Monitor ${monitorId} not found`);
+      }
+
+      const createdAt = new Date(monitor.createdAt!);
+      const minutesSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+      
+      let isOverdue = false;
+      let overdueMessage = "";
+      let currentLastPingAt = lastPingAt;
+
+      // Check if there's a more recent ping in the monitor config
+      if (monitor.config && typeof monitor.config === 'object' && 'lastPingAt' in monitor.config) {
+        const configLastPing = (monitor.config as any).lastPingAt;
+        if (configLastPing) {
+          currentLastPingAt = configLastPing;
+        }
+      }
+
+      if (!currentLastPingAt) {
+        // No ping received yet - check grace period from creation
+        if (minutesSinceCreation > totalWaitMinutes) {
+          isOverdue = true;
+          overdueMessage = `No initial ping received within ${totalWaitMinutes} minutes of creation (${Math.round(minutesSinceCreation)} minutes ago)`;
+        } else {
+          // Still within grace period for initial ping - don't create a result entry
+          // The heartbeat service should not have queued this check yet
+          this.logger.debug(`Monitor ${monitorId} still within grace period, skipping result creation`);
+          return null; // Signal to not create a result entry
+        }
+      } else {
+        // Check if last ping is too old
+        const lastPing = new Date(currentLastPingAt);
+        const minutesSinceLastPing = (now.getTime() - lastPing.getTime()) / (1000 * 60);
+        
+        if (minutesSinceLastPing > totalWaitMinutes) {
+          isOverdue = true;
+          overdueMessage = `Last ping was ${Math.round(minutesSinceLastPing)} minutes ago, expected every ${expectedIntervalMinutes} minutes (grace period: ${gracePeriodMinutes} minutes)`;
+        } else {
+          // Ping is recent enough - don't create a result entry
+          // Success entries are only created when actual pings are received
+          this.logger.debug(`Monitor ${monitorId} ping is recent enough, skipping result creation`);
+          return null; // Signal to not create a result entry
+        }
+      }
+
+      if (isOverdue) {
+        status = 'down';
+        isUp = false;
+        details = {
+          errorMessage: 'No ping received within expected interval',
+          detailedMessage: overdueMessage,
+          expectedInterval: expectedIntervalMinutes,
+          gracePeriod: gracePeriodMinutes,
+          lastPingAt: currentLastPingAt || null,
+          checkType: 'missed_heartbeat',
+          totalWaitMinutes,
+          ...(currentLastPingAt ? {
+            minutesSinceLastPing: Math.round((now.getTime() - new Date(currentLastPingAt).getTime()) / (1000 * 60))
+          } : {
+            minutesSinceCreation: Math.round(minutesSinceCreation)
+          }),
+        };
+      } else {
+        // Should not reach here based on logic above, but safety fallback
+        return null;
+      }
+
+    } catch (error) {
+      this.logger.error(`Error checking heartbeat for monitor ${monitorId}:`, error);
+      status = 'error';
+      isUp = false;
+      details = {
+        errorMessage: `Failed to check heartbeat: ${error.message}`,
+        checkType: 'heartbeat_error',
+      };
+    }
+
+    return { status, details, responseTimeMs, isUp };
+  }
+
   private async executeSslCheck(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
     const timeout = (config?.timeoutSeconds || 10) * 1000; // Convert to milliseconds
     const daysUntilExpirationWarning = config?.daysUntilExpirationWarning || 30;
@@ -739,6 +842,8 @@ export class MonitorService {
           port: port,
           timeout: timeout,
           rejectUnauthorized: false, // We want to check the cert even if it's invalid
+          servername: hostname, // SNI support for proper certificate validation
+          secureProtocol: 'TLS_method', // Use modern TLS
         }, () => {
           const cert = socket.getPeerCertificate(true);
           const authorized = socket.authorized;
@@ -761,6 +866,14 @@ export class MonitorService {
           socket.destroy();
           reject(new Error(`SSL connection timeout after ${timeout}ms`));
         });
+
+        // Set timeout manually as well
+        setTimeout(() => {
+          if (!socket.destroyed) {
+            socket.destroy();
+            reject(new Error(`SSL connection timeout after ${timeout}ms`));
+          }
+        }, timeout);
       });
 
       const endTime = process.hrtime.bigint();
@@ -850,9 +963,24 @@ export class MonitorService {
       } else if (error.code === 'ENOTFOUND') {
         status = 'down';
         details.errorMessage = 'Host not found';
+      } else if (error.message.includes('handshake')) {
+        status = 'down';
+        details.errorMessage = 'SSL handshake failed - certificate or TLS configuration issue';
+      } else if (error.message.includes('alert')) {
+        status = 'down';
+        details.errorMessage = 'SSL/TLS protocol error - server rejected connection';
+      } else if (error.code === 'DEPTH_ZERO_SELF_SIGNED_CERT') {
+        status = 'down';
+        details.errorMessage = 'Self-signed certificate';
+      } else if (error.code === 'CERT_HAS_EXPIRED') {
+        status = 'down';
+        details.errorMessage = 'Certificate has expired';
+      } else if (error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
+        status = 'down';
+        details.errorMessage = 'Unable to verify certificate signature';
       } else {
         status = 'error';
-        details.errorMessage = error.message;
+        details.errorMessage = `SSL check failed: ${error.message}`;
       }
       
       isUp = false;

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { monitors, monitorResults } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
+import { addMonitorExecutionJobToQueue } from "./queue";
 
 export class HeartbeatService {
   /**
@@ -95,41 +96,19 @@ export class HeartbeatService {
             }
           }
 
-          if (isOverdue && monitor.status !== "down") {
-            // Mark as down and record the missed heartbeat
-            await dbInstance
-              .update(monitors)
-              .set({
-                status: "down",
-                lastCheckAt: now,
-                lastStatusChangeAt: now,
-              })
-              .where(eq(monitors.id, monitor.id));
-
-            // Record the missed heartbeat with specific error message
-            const specificErrorMessage = !lastPingAt 
-              ? "No ping within expected interval"
-              : "No ping within expected interval";
-              
-            await dbInstance.insert(monitorResults).values({
+          if (isOverdue) {
+            // Queue the heartbeat check for execution by the runner service
+            // This ensures consistent processing and proper result recording
+            await addMonitorExecutionJobToQueue({
               monitorId: monitor.id,
-              checkedAt: now,
-              status: "timeout",
-              responseTimeMs: 0,
-              details: {
-                errorMessage: specificErrorMessage,
-                detailedMessage: overdueMessage,
-                expectedInterval: expectedIntervalMinutes,
-                gracePeriod: gracePeriodMinutes,
-                lastPingAt: lastPingAt || null,
-                checkType: "missed_heartbeat",
-              },
-              isUp: false,
-              isStatusChange: true,
+              type: "heartbeat",
+              target: monitor.target,
+              config: monitor.config as any,
+              frequencyMinutes: monitor.frequencyMinutes || 1, // Frequency doesn't matter for heartbeat checks
             });
 
             missedCount++;
-            console.log(`[Heartbeat Service] Monitor ${monitor.name} (${monitor.id}) marked as down: ${overdueMessage}`);
+            console.log(`[Heartbeat Service] Monitor ${monitor.name} (${monitor.id}) queued for heartbeat check: ${overdueMessage}`);
           }
         } catch (error) {
           const errorMsg = `Failed to check heartbeat monitor ${monitor.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;

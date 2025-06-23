@@ -15,7 +15,6 @@ import {
   // ChartBar,
   NotepadText,
   Settings2,
-  SquareTerminal,
   // PlusIcon,
   // Shield,
   PlusCircleIcon,
@@ -23,8 +22,7 @@ import {
   // Globe2,
   ChartBar,
   BellRing,
-  SquarePlus,
-  SquareActivity
+  SquarePlus
   // MailIcon,
 } from "lucide-react";
 
@@ -79,11 +77,11 @@ const data = {
       isActive: true,
     },
     
-      {
-        title: "Status",
-        url: "/status",
-        icon: ChartBar,
-      },
+      // {
+      //   title: "Status",
+      //   url: "/status",
+      //   icon: ChartBar,
+      // },
       {
         title: "Alerts",
         url: "/alerts",
@@ -157,23 +155,23 @@ const data = {
       items: [
         {
           title: "HTTP Monitor",
-          url: "/monitors/create/http-request",
+          url: "/monitors/create?type=http_request",
         },
         {
           title: "Website Monitor",
-          url: "/monitors/create/website",
+          url: "/monitors/create?type=website",
         },
         {
           title: "Ping Monitor",
-          url: "/monitors/create/ping-host",
+          url: "/monitors/create?type=ping_host",
         },
         {
           title: "Port Monitor",
-          url: "/monitors/create/port-check",
+          url: "/monitors/create?type=port_check",
         },
         {
           title: "Heartbeat Monitor",
-          url: "/monitors/create/heartbeat",
+          url: "/monitors/create?type=heartbeat",
         },
       ],
       

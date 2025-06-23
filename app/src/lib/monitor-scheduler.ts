@@ -164,14 +164,14 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
     console.log(`[Monitor Scheduler] Found ${activeMonitors.length} active monitors with frequency to schedule.`);
 
     for (const monitor of activeMonitors) {
-      // Skip heartbeat monitors for regular scheduling (they don't need active monitoring)
-      if (monitor.type === "heartbeat") {
-        console.log(`[Monitor Scheduler] Skipping heartbeat monitor ${monitor.id} - uses passive monitoring`);
-        continue;
-      }
-
       if (monitor.frequencyMinutes && monitor.frequencyMinutes > 0) {
         try {
+          // Skip heartbeat monitors - they are handled by the separate heartbeat checker
+          if (monitor.type === 'heartbeat') {
+            console.log(`[Monitor Scheduler] Skipping heartbeat monitor ${monitor.id} - handled by heartbeat checker`);
+            continue;
+          }
+
           // Prepare the MonitorJobData payload
           const jobDataPayload: MonitorJobData = {
             monitorId: monitor.id,

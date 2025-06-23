@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm, Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { monitorTypes } from "./data";
-import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info, RefreshCw, Network, Globe, Activity, Heart, SquareActivity, Shield } from "lucide-react";
+import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info, RefreshCw, Network, Globe, Activity, Shield, LaptopMinimal } from "lucide-react";
 
 
 
@@ -52,23 +52,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-
-// Define common HTTP status codes for selection
-const commonHttpStatusCodes = [
-  { code: 200, label: "200 OK" },
-  { code: 201, label: "201 Created" },
-  { code: 204, label: "204 No Content" },
-  { code: 301, label: "301 Moved Permanently" },
-  { code: 302, label: "302 Found" },
-  { code: 400, label: "400 Bad Request" },
-  { code: 401, label: "401 Unauthorized" },
-  { code: 403, label: "403 Forbidden" },
-  { code: 404, label: "404 Not Found" },
-  { code: 500, label: "500 Internal Server Error" },
-  { code: 502, label: "502 Bad Gateway" },
-  { code: 503, label: "503 Service Unavailable" },
-  { code: 504, label: "504 Gateway Timeout" },
-];
 
 // Define presets for Expected Status Codes
 const statusCodePresets = [
@@ -187,24 +170,86 @@ interface MonitorFormProps {
   editMode?: boolean;
   id?: string;
   hideTypeSelector?: boolean;
+  monitorType?: FormValues["type"];
+  title?: string;
+  description?: string;
 }
 
-export function MonitorForm({ initialData, editMode = false, id, hideTypeSelector = false }: MonitorFormProps) {
+export function MonitorForm({ 
+  initialData, 
+  editMode = false, 
+  id, 
+  hideTypeSelector = false,
+  monitorType,
+  title,
+  description
+}: MonitorFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formChanged, setFormChanged] = useState(false);
   const [isAuthSectionOpen, setIsAuthSectionOpen] = useState(false);
   const [isKeywordSectionOpen, setIsKeywordSectionOpen] = useState(false);
   const [isCustomStatusCode, setIsCustomStatusCode] = useState(false);
 
+  // Get current monitor type from URL params if not provided as prop
+  const currentMonitorType = monitorType || (searchParams.get('type') as FormValues["type"]) || 'http_request';
+
+  // Create default values based on monitor type if provided
+  const getDefaultValues = useCallback((): FormValues => {
+    // If we have initialData (edit mode), use it
+    if (initialData) {
+      return initialData;
+    }
+    
+    // Otherwise, create defaults based on current monitor type
+    const typeToUse = currentMonitorType;
+    if (typeToUse) {
+      return {
+        name: "",
+        target: "",
+        type: typeToUse,
+        interval: "60",
+        httpConfig_authType: "none",
+        httpConfig_method: "GET",
+        httpConfig_headers: undefined,
+        httpConfig_body: undefined,
+        httpConfig_expectedStatusCodes: "2xx",
+        httpConfig_keywordInBody: undefined,
+        httpConfig_keywordShouldBePresent: undefined,
+        httpConfig_authUsername: undefined,
+        httpConfig_authPassword: undefined,
+        httpConfig_authToken: undefined,
+        portConfig_port: undefined,
+        portConfig_protocol: undefined,
+        heartbeatConfig_expectedInterval: typeToUse === "heartbeat" ? 60 : undefined,
+        heartbeatConfig_gracePeriod: typeToUse === "heartbeat" ? 10 : undefined,
+        websiteConfig_enableSslCheck: typeToUse === "website" ? false : undefined,
+        websiteConfig_sslDaysUntilExpirationWarning: typeToUse === "website" ? 30 : undefined,
+      };
+    }
+    return creationDefaultValues;
+  }, [currentMonitorType, initialData]);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as Resolver<FormValues>,
-    defaultValues: initialData || creationDefaultValues,
+    defaultValues: getDefaultValues(),
   });
 
   const type = form.watch("type");
   const httpMethod = form.watch("httpConfig_method");
   const authType = form.watch("httpConfig_authType");
+
+  // Reset form when URL params change (for monitor type)
+  useEffect(() => {
+    if (!editMode && !initialData) {
+      const urlType = searchParams.get('type') as FormValues["type"];
+      if (urlType && urlType !== type) {
+        const newDefaults = getDefaultValues();
+        form.reset(newDefaults);
+      }
+    }
+  }, [searchParams, editMode, initialData, type, form, getDefaultValues]);
   
   const targetPlaceholders: Record<FormValues["type"], string> = {
     http_request: "e.g., https://example.com or https://api.example.com/health",
@@ -369,16 +414,23 @@ export function MonitorForm({ initialData, editMode = false, id, hideTypeSelecto
         timeoutSeconds: 5, // Default timeout for ping
       };
     } else if (data.type === "heartbeat") {
-      // Generate unique heartbeat token for new monitors
-      const heartbeatToken = editMode ? data.target : crypto.randomUUID();
+      // Generate unique heartbeat token for new monitors, keep existing for edits
+      const heartbeatToken = editMode && data.target ? data.target : crypto.randomUUID();
       
       // For heartbeat monitors, target is the unique token
-      apiData.target = heartbeatToken || "";
+      apiData.target = heartbeatToken;
+      
+      // Heartbeat monitors use check interval to detect missed pings
+      // This should be more frequent than the expected ping interval
+      apiData.frequencyMinutes = Math.round(parseInt(data.interval, 10) / 60);
+      
       apiData.config = {
         expectedIntervalMinutes: data.heartbeatConfig_expectedInterval || 60,
         gracePeriodMinutes: data.heartbeatConfig_gracePeriod || 10,
         heartbeatUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${heartbeatToken}`,
-              };
+        // Add check type to distinguish heartbeat checking logic
+        checkType: 'heartbeat_missed_ping',
+      };
     }
 
     try {
@@ -432,9 +484,9 @@ export function MonitorForm({ initialData, editMode = false, id, hideTypeSelecto
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
-            <CardTitle>{editMode ? "Edit Monitor" : "Create New Monitor"}</CardTitle>
+            <CardTitle>{title || (editMode ? "Edit Monitor" : "Create New Monitor")}</CardTitle>
             <CardDescription className="mt-1">
-              {editMode ? "Update monitor configuration" : "Configure a new uptime monitor"}
+              {description || (editMode ? "Update monitor configuration" : "Configure a new uptime monitor")}
             </CardDescription>
           </div>
         </CardHeader>
@@ -485,14 +537,15 @@ export function MonitorForm({ initialData, editMode = false, id, hideTypeSelecto
 
                 {/* Right column */}
                 <div className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="type"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center">
-                          <FormLabel>Check Type</FormLabel>
-                          <TooltipProvider>
+                  {!hideTypeSelector && (
+                    <FormField
+                      control={form.control}
+                      name="type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center">
+                            <FormLabel>Check Type</FormLabel>
+                            <TooltipProvider>
                             <Popover>
                               <PopoverTrigger asChild>
                                 <Button variant="ghost" size="sm" className="ml-2 h-6 w-6 p-0">
@@ -504,14 +557,14 @@ export function MonitorForm({ initialData, editMode = false, id, hideTypeSelecto
                                   <h4 className="font-semibold text-sm mb-3 text-foreground">Monitor Types</h4>
                                                                      <div className="space-y-3">
                                      <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                       <Activity className="h-4 w-4 text-cyan-600 mt-0.5 flex-shrink-0" />
+                                       <Globe className="h-4 w-4 text-cyan-600 mt-0.5 flex-shrink-0" />
                                        <div>
                                          <p className="font-medium text-sm">HTTP Monitor</p>
                                          <p className="text-xs text-muted-foreground">Monitors web pages and API endpoints for availability, status codes, and response content validation.</p>
                                        </div>
                                      </div>
                                      <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                       <Globe className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                                       <LaptopMinimal className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                                        <div>
                                          <p className="font-medium text-sm">Website Monitor</p>
                                          <p className="text-xs text-muted-foreground">Simple website monitoring with GET requests to check availability and response times.</p>
@@ -532,7 +585,7 @@ export function MonitorForm({ initialData, editMode = false, id, hideTypeSelecto
                                        </div>
                                      </div>
                                      <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                       <SquareActivity className="h-4 w-4 text-pink-600 mt-0.5 flex-shrink-0" />
+                                       <Activity className="h-4 w-4 text-blue-300 mt-0.5 flex-shrink-0" />
                                        <div>
                                          <p className="font-medium text-sm">Heartbeat Monitor</p>
                                          <p className="text-xs text-muted-foreground">Passive monitoring that expects regular pings from your services, scripts, or cron jobs.</p>
@@ -572,15 +625,18 @@ export function MonitorForm({ initialData, editMode = false, id, hideTypeSelecto
                       </FormItem>
                     )}
                   />
+                  )}
 
-                  {/* Interval field back to its original position */}
+                  {/* Interval field - heartbeat monitors use this for checking missed pings */}
                   <FormField
                     control={form.control}
                     name="interval"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Check Interval</FormLabel>
-                        <div className="md:w-40"> {/* Adjusted width for Select */}
+                        <FormLabel>
+                          {type === "heartbeat" ? "Check for Missed Pings" : "Check Interval"}
+                        </FormLabel>
+                        <div className="md:w-40">
                           <Select
                             onValueChange={field.onChange}
                             defaultValue={field.value}
@@ -599,10 +655,29 @@ export function MonitorForm({ initialData, editMode = false, id, hideTypeSelecto
                             </SelectContent>
                           </Select>
                         </div>
+                        <FormDescription>
+                          {type === "heartbeat" 
+                            ? "How often to check for missed pings (should be more frequent than expected interval)"
+                            : "How often to run the check"
+                          }
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  
+                  {/* Show note for heartbeat monitors */}
+                  {type === "heartbeat" && (
+                    <div className="border border-light-200 rounded-lg p-3">
+                      <div className="flex items-center space-x-2">
+                        <Activity className="h-4 w-4 text-blue-300" />
+                        <span className="text-sm font-medium">Heartbeat Monitoring</span>
+                      </div>
+                      <p className="text-xs">
+                        Heartbeat monitors check for missed pings from your services. Set check interval shorter than expected ping interval.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

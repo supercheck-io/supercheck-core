@@ -7,18 +7,11 @@ import {
   Webhook,
   ListOrdered,
   DatabaseZap,
+  Video,
   Clock,
   Zap,
-  Video,
-  Globe,
-  PanelTop,
-  RefreshCw,
-  Network,
-  Heart,
-  Shield,
-  SquareActivity,
-  Monitor,
 } from "lucide-react";
+import { monitorTypes } from "@/components/monitors/data";
 
 type ScriptType = "browser" | "api" | "multistep" | "database" | "record";
 
@@ -32,14 +25,14 @@ export function CreatePageContent() {
 
   const testTypes = [
     {
-      icon: <Chrome size={24} />,
+      icon: <Chrome size={24} className="text-green-500" />,
       title: "Browser check",
       description: "Check your crucial browser click flows.",
       path: "/create/browser",
       scriptType: "browser" as ScriptType,
     },
     {
-      icon: <Webhook size={24} />,
+      icon: <Webhook size={24} className="text-purple-500" />,
       title: "API check",
       description: "Check speed and validity of API endpoints.",
       path: "/create/api",
@@ -47,7 +40,7 @@ export function CreatePageContent() {
     },
 
     {
-      icon: <ListOrdered size={24} />,
+      icon: <ListOrdered size={24} className="text-orange-500" />,
       title: "Multistep check",
       description: "Chained API calls, requests in sequence.",
       path: "/create/multistep",
@@ -56,7 +49,7 @@ export function CreatePageContent() {
 
 
     {
-      icon: <DatabaseZap size={24} />,
+      icon: <DatabaseZap size={24} className="text-yellow-500" />,
       title: "Database check",
       description: "Test database query execution.",
       path: "/create/database",
@@ -64,7 +57,7 @@ export function CreatePageContent() {
     },
 
     {
-      icon: <Video size={24} />,
+      icon: <Video size={24} className="text-red-500" />,
       title: "Record",
       description: "Record a script via browser extension.",
       path: "https://chromewebstore.google.com/detail/playwright-crx/jambeljnbnfbkcpnoiaedcabbgmnnlcd",
@@ -110,14 +103,14 @@ export function CreatePageContent() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
         <CreateCard
           key="scheduled-job"
-          icon={<Clock size={24} />}
+          icon={<Clock size={24} className="text-blue-500" />}
           title="Scheduled Job"
           description="Create a job that runs on a schedule"
           onClick={() => router.push("/jobs/create")}
         />
         <CreateCard
           key="immediate-job"
-          icon={<Zap size={24} />}
+          icon={<Zap size={24} className="text-amber-500" />}
           title="Immediate Job"
           description="Run a job immediately"
           onClick={() => router.push("/jobs/create")}
@@ -130,42 +123,18 @@ export function CreatePageContent() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-        <CreateCard
-          key="http-monitor"
-          icon={<Globe size={24} />}
-          title="HTTP Monitor"
-          description="HTTP/S API availability and performance"
-          onClick={() => router.push("/monitors/create/http-request")}
-        />
-        <CreateCard
-          key="website-monitor"
-          icon={<Monitor size={24} />}
-          title="Website Monitor"
-          description="Monitor website availability and performance"
-          onClick={() => router.push("/monitors/create/website")}
-        />
-        <CreateCard
-          key="ping-monitor"
-          icon={<RefreshCw size={24} />}
-          title="Ping Monitor"
-          description="ICMP ping to check host availability"
-          onClick={() => router.push("/monitors/create/ping-host")}
-        />
-        <CreateCard
-          key="port-monitor"
-          icon={<Network size={24} />}
-          title="Port Monitor"
-          description="Check specific TCP or UDP port availability"
-          onClick={() => router.push("/monitors/create/port-check")}
-        />
-        <CreateCard
-          key="heartbeat-monitor"
-          icon={<SquareActivity size={24} />}
-          title="Heartbeat Monitor"
-          description="Passive monitoring expecting regular pings"
-          onClick={() => router.push("/monitors/create/heartbeat")}
-        />
-
+        {monitorTypes.map((monitorType) => {
+          const IconComponent = monitorType.icon;
+          return (
+            <CreateCard
+              key={monitorType.value}
+              icon={<IconComponent size={24} className={monitorType.color} />}
+              title={monitorType.label}
+              description={monitorType.description}
+              onClick={() => router.push(`/monitors/create?type=${monitorType.value}`)}
+            />
+          );
+        })}
       </div>
 
 

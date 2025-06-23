@@ -24,9 +24,22 @@ export class MonitorProcessor extends WorkerHost {
         throw new Error(`Unknown job name: ${job.name}`);
     }
 
-    let result: MonitorExecutionResult;
     try {
-      result = await this.monitorService.executeMonitor(job.data);
+      const result = await this.monitorService.executeMonitor(job.data);
+      
+      if (result === null) {
+        // No result to record - heartbeat is still within acceptable range
+        this.logger.log(`Monitor job ${job.id} completed with no result to record for monitor ${job.data.monitorId}`);
+        // Return a placeholder result for BullMQ completion
+        return {
+          monitorId: job.data.monitorId,
+          status: 'up',
+          checkedAt: new Date(),
+          details: { message: 'No result recorded - within acceptable range' },
+          isUp: true,
+        } as MonitorExecutionResult;
+      }
+      
       this.logger.log(`Monitor job ${job.id} completed. Result for monitor ${job.data.monitorId}: ${JSON.stringify(result)}`);
       
       // Save the result to the database

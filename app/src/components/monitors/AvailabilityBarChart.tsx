@@ -13,6 +13,7 @@ interface AvailabilityDataPoint {
 
 interface AvailabilityBarChartProps {
   data: AvailabilityDataPoint[];
+  monitorType?: string;
 }
 
 const chartConfig = {
@@ -26,8 +27,16 @@ const chartConfig = {
   },
 };
 
-export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
+export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChartProps) {
   // console.log("[AvailabilityBarChart] Received data:", JSON.stringify(data, null, 2)); // Keep for now if user still has issues
+
+  const getEmptyMessage = () => {
+    if (monitorType === "heartbeat") {
+      return "No heartbeat events to display - waiting for pings.";
+    } else {
+      return "No availability data to display.";
+    }
+  };
 
   if (!data || data.length === 0) {
     // console.log("[AvailabilityBarChart] No data or empty data array."); // Keep for now
@@ -35,10 +44,10 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-2xl">Availability Overview</CardTitle>
-          <CardDescription>Status of individual checks (each bar is one check run).</CardDescription>
+          <CardDescription>Availability status for monitor checks.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center h-[120px]">
-          <p className="text-muted-foreground">No availability data to display.</p>
+          <p className="text-muted-foreground">{getEmptyMessage()}</p>
         </CardContent>
       </Card>
     );
@@ -58,12 +67,21 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
   const downCount = data.length - upCount;
   const uptimePercentage = data.length > 0 ? ((upCount / data.length) * 100).toFixed(1) : '0.0';
 
+  // Different descriptions based on monitor type
+  const getDescription = () => {
+    if (monitorType === "heartbeat") {
+      return `Heartbeat events (${data.length} pings/failures) - ${uptimePercentage}% success rate`;
+    } else {
+      return `Status of individual checks (${data.length} data points) - ${uptimePercentage}% uptime`;
+    }
+  };
+
   return (
     <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-2xl">Availability Overview</CardTitle>
         <CardDescription>
-          Status of individual checks ({data.length} data points) - {uptimePercentage}% uptime
+          {getDescription()}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-1 pt-0 h-[120px]"> {/* Adjusted height, remove padding top from content if header has enough */}

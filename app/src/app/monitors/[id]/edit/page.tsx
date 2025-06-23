@@ -3,6 +3,7 @@ import { MonitorForm, type FormValues } from "@/components/monitors/monitor-form
 import { Monitor } from "@/components/monitors/schema";
 import { notFound } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
+import { monitorTypes } from "@/components/monitors/data";
 
 export const metadata: Metadata = {
   title: "Edit Monitor | Supercheck",
@@ -38,14 +39,7 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
     notFound();
   }
 
-  const breadcrumbs = [
-    { label: "Home", href: "/" },
-    { label: "Monitors", href: "/monitors" },
-    { label: monitor.name, href: `/monitors/${id}` },
-    { label: "Edit", isCurrentPage: true },
-  ];
-
-  // Map Monitor.type to FormValues.type
+  // Map Monitor.type to FormValues.type first
   let formType: FormValues["type"];
   const currentType = monitor.type;
 
@@ -72,6 +66,16 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
     }
   }
 
+  const breadcrumbs = [
+    { label: "Home", href: "/" },
+    { label: "Monitors", href: "/monitors" },
+    { label: monitor.name, href: `/monitors/${id}` },
+    { label: "Edit", isCurrentPage: true },
+  ];
+
+  // Get monitor type info for the title
+  const monitorTypeInfo = monitorTypes.find(t => t.value === formType);
+
   // Convert monitor.frequencyMinutes to FormValues.interval (seconds as string)
   const validFormIntervals = ["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"];
   let formInterval: FormValues["interval"] = "60"; // Default interval
@@ -87,13 +91,13 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
   // Prepare data for the form, ensuring all required fields for FormValues are present
   const formData: FormValues = {
     name: monitor.name,
-    target: monitor.url || "", 
+    target: monitor.target || monitor.url || "", 
     type: formType,
     interval: formInterval,
-    httpConfig_authType: monitor.config?.auth?.type || "none",
+    httpConfig_authType: (monitor.config?.auth?.type as "none" | "basic" | "bearer") || "none",
 
     // HTTP specific fields
-    httpConfig_method: formType === "http_request" ? (monitor.config?.method || "GET") : undefined,
+    httpConfig_method: formType === "http_request" ? (monitor.config?.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" || "GET") : undefined,
     httpConfig_expectedStatusCodes: (formType === "http_request" || formType === "website") ? (monitor.config?.expectedStatusCodes || "2xx") : undefined,
     httpConfig_headers: formType === "http_request" && monitor.config?.headers ? JSON.stringify(monitor.config.headers, null, 2) : undefined,
     httpConfig_body: formType === "http_request" ? monitor.config?.body : undefined,
@@ -107,7 +111,7 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
 
     // Port Check specific
     portConfig_port: formType === "port_check" && monitor.config?.port ? monitor.config.port : undefined,
-    portConfig_protocol: formType === "port_check" && monitor.config?.protocol ? monitor.config.protocol : undefined,
+    portConfig_protocol: formType === "port_check" && monitor.config?.protocol ? (monitor.config.protocol as "tcp" | "udp") : undefined,
 
     // Heartbeat specific
     heartbeatConfig_expectedInterval: formType === "heartbeat" && monitor.config?.expectedIntervalMinutes ? monitor.config.expectedIntervalMinutes : undefined,
@@ -124,7 +128,11 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
       <MonitorForm 
         initialData={formData} 
         editMode={true} 
-        id={id} 
+        id={id}
+        hideTypeSelector={true}
+        monitorType={formType}
+        title={`Edit ${monitorTypeInfo?.label || 'Monitor'}`}
+        description={`Update ${monitor.name} configuration`}
       />
     </div>
   );

@@ -6,11 +6,8 @@ import {
   XCircle,
   Network,
   Globe,
-  Heart,
-  PanelTop,
-  Shield,
-  Monitor,
-  SquareActivity,
+  Activity,
+  LaptopMinimal,
 } from "lucide-react";
 
 
@@ -64,7 +61,7 @@ export const monitorTypes = [
   {
     label: "Website Monitor",
     value: "website",
-    icon: Monitor,
+    icon: LaptopMinimal,
     color: "text-blue-500", 
     description: "Monitor website availability and performance with optional SSL certificate checking",
   },
@@ -85,7 +82,7 @@ export const monitorTypes = [
   {
     label: "Heartbeat Monitor",
     value: "heartbeat",
-    icon: SquareActivity,
+    icon: Activity,
     color: "text-blue-300", 
     description: "Passive monitoring expecting regular pings from your services",
   },
