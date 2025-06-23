@@ -114,7 +114,7 @@ export class MonitorService {
           const websiteConfig = {
             ...jobData.config,
             method: 'GET' as const,
-            expectedStatusCodes: jobData.config?.expectedStatusCodes || '2xx',
+            expectedStatusCodes: jobData.config?.expectedStatusCodes || '200-299',
           };
           ({ status, details, responseTimeMs, isUp } = await this.executeHttpRequest(jobData.target, websiteConfig));
           
@@ -393,7 +393,7 @@ export class MonitorService {
       } else {
         status = 'down';
         isUp = false;
-        details.errorMessage = `Received status code: ${response.status}, expected: ${config?.expectedStatusCodes || '2xx'}`;
+        details.errorMessage = `Received status code: ${response.status}, expected: ${config?.expectedStatusCodes || '200-299'}`;
       }
 
     } catch (error) {
@@ -417,7 +417,7 @@ export class MonitorService {
           if (error.response && !isExpectedStatus(error.response.status, config?.expectedStatusCodes)) {
             status = 'down';
             details.errorMessage = details.errorMessage ? `${details.errorMessage}. ` : '';
-            details.errorMessage += `Received status code: ${error.response.status}, expected: ${config?.expectedStatusCodes || '2xx'}`;
+            details.errorMessage += `Received status code: ${error.response.status}, expected: ${config?.expectedStatusCodes || '200-299'}`;
           } else if (!error.response) { // Network error, no response from server
              status = 'down'; // Or 'error' as per preference
           }

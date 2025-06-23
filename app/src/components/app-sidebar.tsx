@@ -22,7 +22,14 @@ import {
   // Globe2,
   ChartBar,
   BellRing,
-  SquarePlus
+  SquarePlus,
+  Settings,
+  SearchIcon,
+  HelpCircle,
+  Search,
+  DatabaseIcon,
+  ClipboardListIcon,
+  FileIcon
   // MailIcon,
 } from "lucide-react";
 
@@ -184,43 +191,39 @@ const data = {
   
   ],
 
-  Settings: [
+
+  navSecondary: [
     {
       title: "Settings",
-      url: "#",
-      icon: Settings2,
-      items: [
-        {
-          title: "General",
-          url: "#",
-        },
-        {
-          title: "Team",
-          url: "#",
-        },
-        {
-          title: "Limits",
-          url: "#",
-        },
-      ],
+      url: "/settings",
+      icon: Settings,
     },
+    {
+      title: "Get Help",
+      url: "#",
+      icon: HelpCircle,
+    },
+    // {
+    //   title: "Search",
+    //   url: "#",
+    //   icon: SearchIcon,
+    // },
   ],
-
-  projects: [
+  documents: [
     {
-      name: "Design Engineering",
+      name: "Data Library",
       url: "#",
-      icon: Frame,
+      icon: DatabaseIcon,
     },
     {
-      name: "Sales & Marketing",
+      name: "Reports",
       url: "#",
-      icon: PieChart,
+      icon: ClipboardListIcon,
     },
     {
-      name: "Travel",
+      name: "Word Assistant",
       url: "#",
-      icon: Map,
+      icon: FileIcon,
     },
   ],
 };
@@ -262,8 +265,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain groupLabel="Communicate" items={data.Communicate} />
         <NavMain groupLabel="Automate" items={data.Automate} />
         <NavMain groupLabel="Monitor" items={data.Monitor} />
-        <NavMain groupLabel="Settings" items={data.Settings} />
+    
+   
+
       </SidebarContent>
+      <NavMain groupLabel="" items={data.navSecondary} />
       <SidebarFooter>
 
         <NavUser user={data.user} />

@@ -422,10 +422,10 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   };
 
   return (
-    <div className="container py-4 px-4 md:px-4 h-full">
+    <div className="container py-4 px-4 md:px-4 ">
       
       {/* Status and Type Header */}
-      <div className="border rounded-lg p-4 mb-6 shadow-sm bg-card">
+      <div className="border rounded-lg p-2 mb-6 shadow-sm bg-card">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <Button 
@@ -525,13 +525,13 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
         </div>
 
         <div className={`grid gap-4 mt-4 ${monitor.type === "heartbeat" ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-5" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7"}`}>
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
               <StatusHeaderIcon status={currentActualStatus} />
               <CardTitle className="text-sm font-medium text-muted-foreground">Status</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
-              <div className="text-2xl font-bold">
+              <div className="text-xl font-bold">
                 {statusInfo?.label ?? currentActualStatus?.charAt(0).toUpperCase() + currentActualStatus?.slice(1) ?? "Unknown"}
               </div>
             </CardContent>
@@ -539,33 +539,33 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
           {monitor.type === "heartbeat" ? (
             <>
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
                   <Clock className="h-5 w-5 text-purple-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Expected Interval</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-2xl font-bold">{(monitor as any).config?.expectedIntervalMinutes ? `${(monitor as any).config.expectedIntervalMinutes}m` : "60m"}</div>
+                  <div className="text-xl font-bold">{(monitor as any).config?.expectedIntervalMinutes ? `${(monitor as any).config.expectedIntervalMinutes}m` : "60m"}</div>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
                   <ShieldCheck className="h-5 w-5 text-blue-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Grace Period</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-2xl font-bold">{(monitor as any).config?.gracePeriodMinutes ? `${(monitor as any).config.gracePeriodMinutes}m` : "10m"}</div>
+                  <div className="text-xl font-bold">{(monitor as any).config?.gracePeriodMinutes ? `${(monitor as any).config.gracePeriodMinutes}m` : "10m"}</div>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
                   <Activity className="h-5 w-5 text-green-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Last Ping</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-2xl font-bold">
+                  <div className="text-xl font-bold">
                     {formatShortDateTime((monitor as any).config?.lastPingAt)}
                   </div>
                 </CardContent>
@@ -573,67 +573,67 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </>
           ) : (
             <>
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
                   <Activity className="h-5 w-5 text-blue-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Response</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-2xl font-bold">{currentResponseTime}</div>
+                  <div className="text-xl font-bold">{currentResponseTime}</div>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
                   <Clock className="h-5 w-5 text-purple-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Interval</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-2xl font-bold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
+                  <div className="text-xl font-bold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
                 </CardContent>
               </Card>
             </>
           )}
 
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
               <TrendingUp className="h-5 w-5 text-green-400" />
               <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (24h)</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
-              <div className="text-2xl font-bold">{calculatedMetrics.uptime24h}</div>
+              <div className="text-xl font-bold">{calculatedMetrics.uptime24h}</div>
             </CardContent>
           </Card>
 
           {monitor.type !== "heartbeat" && (
             <>
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
                   <Zap className="h-5 w-5 text-amber-400" /> 
                   <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (24h)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-2xl font-bold">{calculatedMetrics.avgResponse24h}</div>
+                  <div className="text-xl font-bold">{calculatedMetrics.avgResponse24h}</div>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
                   <TrendingUp className="h-5 w-5 text-green-400" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-2xl font-bold">{calculatedMetrics.uptime30d}</div>
+                  <div className="text-xl font-bold">{calculatedMetrics.uptime30d}</div>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
                   <Zap className="h-5 w-5 text-amber-400" /> 
                   <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (30d)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-2xl font-bold">{calculatedMetrics.avgResponse30d}</div>
+                  <div className="text-xl font-bold">{calculatedMetrics.avgResponse30d}</div>
                 </CardContent>
               </Card>
             </>
@@ -641,12 +641,14 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" >
         {monitor.type === "heartbeat" ? (
           <>
             {/* Left column - Availability Chart */}
-            <div className="h-[650px] flex flex-col space-y-6">
-              <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
+            <div className="flex flex-col space-y-6 h-full">
+              <div className="flex-1">
+                <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
+              </div>
               
               {/* Heartbeat Configuration */}
               <Card className="shadow-sm flex-1">
@@ -657,12 +659,9 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-    
-
                   {/* Heartbeat URLs */}
                   <div className="space-y-4 pt-4 border-t">
-               
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mt-5">
                       Use these URLs to send pings from your services, scripts, or cron jobs
                     </p>
 
@@ -690,7 +689,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                     {/* Failure URL */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-muted-foreground">Failure URL</label>
-                      <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group">
+                      <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group mb-5" >
                         <code className="flex-1 text-sm font-mono break-all">
                           {(monitor as any).config?.heartbeatUrl || `${typeof window !== 'undefined' ? window.location.origin : ''}/api/heartbeat/${monitor.id}`}/fail
                         </code>
@@ -713,7 +712,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </div>
 
             {/* Right column - Recent Check Results */}
-            <Card className="shadow-sm h-[600px] flex flex-col">
+            <Card className="shadow-sm flex flex-col">
               <CardHeader className="flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-2xl flex items-center">
@@ -765,56 +764,58 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               <CardContent className="p-0 flex-1 flex flex-col">
                 {filteredResults && filteredResults.length > 0 ? (
                   <div className="flex-1 overflow-y-auto">
-                    <table className="min-w-full divide-y divide-border">
-                      <thead className="bg-background sticky top-0 z-10 border-b">
-                        <tr>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Result</th>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Details</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-card divide-y divide-border">
-                        {paginatedResults.map((result) => (
-                          <tr key={result.id} className="hover:bg-muted/25">
-                            <td className="px-4 py-3 whitespace-nowrap text-sm">
-                              <div className="flex items-center gap-2">
-                                <SimpleStatusIcon isUp={result.isUp} />
-                                {monitor.type === "heartbeat" && result.isStatusChange && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                    Status Change
+                    <div className="w-full">
+                      <table className="w-full divide-y divide-border">
+                        <thead className="bg-background sticky top-0 z-10 border-b">
+                          <tr>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-20">Result</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Details</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-card divide-y divide-border">
+                          {paginatedResults.map((result) => (
+                            <tr key={result.id} className="hover:bg-muted/25">
+                              <td className="px-4 py-3 whitespace-nowrap text-sm w-20">
+                                <div className="flex items-center gap-2">
+                                  <SimpleStatusIcon isUp={result.isUp} />
+                                  {monitor.type === "heartbeat" && result.isStatusChange && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                      Status Change
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
+                              <td className="px-4 py-3 text-sm text-muted-foreground">
+                                {result.isUp ? (
+                                  <span className="text-muted-foreground text-xs">
+                                    {result.details?.message || "Ping received"}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs truncate max-w-[150px]" title={result.details?.errorMessage || "No ping within expected interval"}>
+                                    {(() => {
+                                      const errorMsg = result.details?.errorMessage || "No ping within expected interval";
+                                      // Simplify heartbeat error messages for better UX
+                                      if (errorMsg.includes('Waiting for initial heartbeat ping')) {
+                                        return 'Waiting for first ping';
+                                      }
+                                      if (errorMsg.includes('No ping received within expected interval')) {
+                                        return 'Ping overdue';
+                                      }
+                                      if (errorMsg.includes('No initial ping received')) {
+                                        return 'No initial ping';
+                                      }
+                                      return errorMsg;
+                                    })()}
                                   </span>
                                 )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
-                            <td className="px-4 py-3 text-sm text-muted-foreground">
-                              {result.isUp ? (
-                                <span className="text-muted-foreground text-xs">
-                                  {result.details?.message || "Ping received"}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs truncate max-w-[200px]" title={result.details?.errorMessage || "No ping within expected interval"}>
-                                  {(() => {
-                                    const errorMsg = result.details?.errorMessage || "No ping within expected interval";
-                                    // Simplify heartbeat error messages for better UX
-                                    if (errorMsg.includes('Waiting for initial heartbeat ping')) {
-                                      return 'Waiting for first ping';
-                                    }
-                                    if (errorMsg.includes('No ping received within expected interval')) {
-                                      return 'Ping overdue';
-                                    }
-                                    if (errorMsg.includes('No initial ping received')) {
-                                      return 'No initial ping';
-                                    }
-                                    return errorMsg;
-                                  })()}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center justify-center">
@@ -858,17 +859,19 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
         ) : (
           // For other monitors, show charts and results in two columns
           <>
-            <div className="h-full flex flex-col space-y-6">
+            <div className="flex flex-col space-y-6 ">
               {/* Availability Chart */}
-              <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
+              <div className="flex-1">
+                <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
+              </div>
 
               {/* Response Time Chart */}
-              <div className="flex-1 max-h-[400px]">
+              <div className="flex-1">
                 <ResponseTimeBarChart data={responseTimeData} />
               </div>
             </div>
 
-            <Card className="shadow-sm h-[600px] flex flex-col">
+            <Card className="shadow-sm flex flex-col">
               <CardHeader className="flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-2xl flex items-center">
@@ -917,55 +920,50 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   }
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0 flex-1 flex flex-col">
+              <CardContent className="p-0 flex-1 flex flex-col ">
                 {filteredResults && filteredResults.length > 0 ? (
                   <div className="flex-1 overflow-y-auto">
-                    <table className="min-w-full divide-y divide-border">
-                      <thead className="bg-background sticky top-0 z-10 border-b">
-                        <tr>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Result</th>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[100px]">Response Time (ms)</th>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Error</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-card divide-y divide-border">
-                        {paginatedResults.map((result) => (
-                          <tr key={result.id} className="hover:bg-muted/25">
-                            <td className="px-4 py-3 whitespace-nowrap text-sm">
-                              <SimpleStatusIcon isUp={result.isUp} />
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
-                              {result.responseTimeMs !== null && result.responseTimeMs !== undefined ? result.responseTimeMs : 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-muted-foreground">
-                              {result.isUp ? (
-                                <span className="text-muted-foreground text-xs">N/A</span>
-                              ) : (
-                                <span 
-                                  className="text-muted-foreground text-xs cursor-help block truncate max-w-[200px]" 
-                                  title={result.details?.errorMessage || 'Check failed'}
-                                >
-                                  {(() => {
-                                    const errorMsg = result.details?.errorMessage || 'Check failed';
-                                    // Improve heartbeat error messages
-                                    if (errorMsg.includes('No ping received within expected interval')) {
-                                      return 'No ping received';
-                                    }
-                                    if (errorMsg.includes('Heartbeat monitors use passive monitoring')) {
-                                      return 'No ping received';
-                                    }
-                                    // Truncate long messages
-                                    return errorMsg.length > 40 ? errorMsg.substring(0, 37) + '...' : errorMsg;
-                                  })()}
-                                </span>
-                              )}
-                            </td>
+                    <div className="w-full">
+                      <table className="w-full divide-y divide-border">
+                        <thead className="bg-background sticky top-0 z-10 border-b">
+                          <tr>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-20">Result</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-46">Response Time (ms)</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Error</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="bg-card divide-y divide-border">
+                          {paginatedResults.map((result) => (
+                            <tr key={result.id} className="hover:bg-muted/25">
+                              <td className="px-4 py-3 whitespace-nowrap text-sm w-20">
+                                <SimpleStatusIcon isUp={result.isUp} />
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground w-32">
+                                {result.responseTimeMs !== null && result.responseTimeMs !== undefined ? result.responseTimeMs : 'N/A'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-muted-foreground">
+                                {result.isUp ? (
+                                  <span className="text-muted-foreground text-xs">N/A</span>
+                                ) : (
+                                  <span 
+                                    className="text-muted-foreground text-xs cursor-help block truncate max-w-[150px]" 
+                                    title={result.details?.errorMessage || 'Check failed'}
+                                  >
+                                    {(() => {
+                                      const errorMsg = result.details?.errorMessage || 'Check failed';
+                                      // Truncate long messages
+                                      return errorMsg.length > 30 ? errorMsg.substring(0, 27) + '...' : errorMsg;
+                                    })()}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center justify-center">

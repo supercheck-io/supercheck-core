@@ -72,13 +72,23 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
   if (!data || data.length === 0) {
     console.log('[ResponseTimeBarChart] No data available');
     return (
-        <Card className="h-full flex flex-col">
+        <Card className="h-full flex flex-col min-h-[400px]">
             <CardHeader className="pb-4">
                 <CardTitle className="text-2xl">Response Time</CardTitle>
-                <CardDescription>No response time data available to display.</CardDescription>
+                <CardDescription>Performance metrics will appear here once monitoring begins.</CardDescription>
             </CardHeader>
             <CardContent className="flex items-center justify-center flex-1 min-h-[300px]">
-                <p className="text-muted-foreground">No data</p>
+                <div className="text-center space-y-3">
+                    <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center">
+                        <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-muted-foreground font-medium">No Response Data</p>
+                        <p className="text-sm text-muted-foreground mt-1">Response time data will be displayed here after the first successful check.</p>
+                    </div>
+                </div>
             </CardContent>
         </Card>
     );
@@ -97,13 +107,23 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
   if (values.length === 0) {
     // If no valid response times, show a flat line at 0
     return (
-      <Card className="h-full flex flex-col">
+      <Card className="h-full flex flex-col min-h-[400px]">
         <CardHeader className="pb-3">
           <CardTitle className="text-2xl">Response Time</CardTitle>
           <CardDescription className="text-sm">No successful responses recorded</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-center flex-1 min-h-[300px]">
-          <p className="text-muted-foreground">All requests failed or timed out</p>
+        <CardContent className="flex items-center justify-center flex-1 min-h-[280px]">
+            <div className="text-center space-y-3">
+                <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center">
+                    <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.732 12.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                </div>
+                <div>
+                    <p className="text-muted-foreground font-medium">All Requests Failed</p>
+                    <p className="text-sm text-muted-foreground mt-1">No successful responses were recorded during monitoring attempts.</p>
+                </div>
+            </div>
         </CardContent>
       </Card>
     );
@@ -118,23 +138,23 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
   ];
 
   return (
-    <Card className="h-full flex flex-col shadow-sm">
+    <Card className="h-full flex flex-col shadow-sm min-h-[400px]">
       <CardHeader className="pb-3">
         <CardTitle className="text-2xl">Response Time</CardTitle>
         <CardDescription className="text-sm">
           Recent response times in milliseconds ({data.length} data points)
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-2 pb-3 flex-1">
+      <CardContent className="pl-1 pr-2 pb-3 flex-1">
         <ChartContainer
           config={chartConfig}
-          className="h-full w-full min-h-[300px]"
+          className="h-full w-full"
         >
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={sortedData}
               margin={{
-                left: 4,
+                left: -1,
                 right: 12,
                 top: 12,
                 bottom: 8

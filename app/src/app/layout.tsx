@@ -9,13 +9,13 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { ParallelThreads } from "@/components/parallel-threads";
 import { Toaster } from "@/components/ui/sonner";
 import { BreadcrumbProvider } from "@/components/breadcrumb-context";
 import { BreadcrumbDisplay } from "@/components/breadcrumb-display";
 import { JobProvider } from "@/components/jobs/job-context";
 import { SchedulerInitializer } from "@/components/scheduler-initializer";
+import { CommandSearch } from "@/components/ui/command-search";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,7 +67,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <ThemeProvider defaultTheme="system" storageKey="app-theme">
+        <ThemeProvider
+          defaultTheme="system" storageKey="app-theme"
+        >
           <BreadcrumbProvider>
             <SidebarProvider>
               <JobProvider>
@@ -79,7 +81,7 @@ export default function RootLayout({
                 {/* <CustomToaster /> */}
                 <AppSidebar />
                 <SidebarInset>
-                  <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+                  <header className="sticky top-0 flex h-16 shrink-0 items-center justify-between gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
                     <div className="flex items-center gap-2 px-4">
                       <SidebarTrigger className="-ml-1" />
                       <Separator
@@ -88,18 +90,20 @@ export default function RootLayout({
                       />
                       <BreadcrumbDisplay />
                     </div>
-                    <div className="ml-auto mr-4 flex items-center gap-4">
+                    <div className="flex items-center gap-2 px-4">
+                   
                       <ParallelThreads />
-                      <ThemeToggle />
+                      <CommandSearch />
                     </div>
                   </header>
-                  <div className="flex flex-1 flex-col gap-4 p-4 pt-0 -mt-2">
+                  <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
                     {children}
                   </div>
                 </SidebarInset>
               </JobProvider>
             </SidebarProvider>
           </BreadcrumbProvider>
+
         </ThemeProvider>
       </body>
     </html>

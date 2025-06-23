@@ -55,7 +55,7 @@ import { Switch } from "@/components/ui/switch";
 
 // Define presets for Expected Status Codes
 const statusCodePresets = [
-  { label: "Any 2xx (Success)", value: "2xx" },
+  { label: "Any 2xx (Success)", value: "200-299" },
   { label: "Any 3xx (Redirection)", value: "300-399" },
   { label: "Any 4xx (Client Error)", value: "400-499" },
   { label: "Any 5xx (Server Error)", value: "500-599" },
@@ -81,7 +81,7 @@ const formSchema = z.object({
   type: z.enum(["http_request", "website", "ping_host", "port_check", "heartbeat"], {
     required_error: "Please select a check type",
   }),
-  interval: z.enum(["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"]).default("60"),
+  interval: z.enum(["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"]).default("1800"),
   // Optional fields that may be required based on type
   // HTTP Request specific
   httpConfig_method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]).optional(),
@@ -145,13 +145,13 @@ const creationDefaultValues: FormValues = {
   name: "",
   target: "", // Or a more sensible default like "https://"
   type: "http_request", // Default to the first option or a common one
-  interval: "60", // Default to 1 minute (string value for enum)
+  interval: "1800", // Default to 30 minutes (string value for enum)
   httpConfig_authType: "none",
   // Initialize other optional fields to undefined or their sensible defaults if necessary
   httpConfig_method: "GET",
   httpConfig_headers: undefined,
   httpConfig_body: undefined,
-  httpConfig_expectedStatusCodes: "2xx",
+  httpConfig_expectedStatusCodes: "200-299",
   httpConfig_keywordInBody: undefined,
   httpConfig_keywordShouldBePresent: undefined,
   httpConfig_authUsername: undefined,
@@ -209,12 +209,12 @@ export function MonitorForm({
         name: "",
         target: "",
         type: typeToUse,
-        interval: "60",
+        interval: "1800",
         httpConfig_authType: "none",
         httpConfig_method: "GET",
         httpConfig_headers: undefined,
         httpConfig_body: undefined,
-        httpConfig_expectedStatusCodes: "2xx",
+        httpConfig_expectedStatusCodes: "200-299",
         httpConfig_keywordInBody: undefined,
         httpConfig_keywordShouldBePresent: undefined,
         httpConfig_authUsername: undefined,
@@ -305,7 +305,7 @@ export function MonitorForm({
     if (data.type === "http_request") {
       apiData.config = {
         method: data.httpConfig_method || "GET",
-        expectedStatusCodes: data.httpConfig_expectedStatusCodes || "2xx",
+        expectedStatusCodes: data.httpConfig_expectedStatusCodes || "200-299",
         timeoutSeconds: 30, // Default timeout
       };
 
@@ -362,7 +362,7 @@ export function MonitorForm({
       // Website monitoring is essentially HTTP GET with simplified config
       apiData.config = {
         method: "GET",
-        expectedStatusCodes: data.httpConfig_expectedStatusCodes || "2xx",
+        expectedStatusCodes: data.httpConfig_expectedStatusCodes || "200-299",
         timeoutSeconds: 30, // Default timeout
       };
 
@@ -724,8 +724,8 @@ export function MonitorForm({
                       control={form.control}
                       name="httpConfig_expectedStatusCodes" 
                       render={({ field }) => {
-                        const presetValues = ["2xx", "300-399", "400-499", "500-599"];
-                        const currentValue = field.value || "2xx";
+                        const presetValues = ["200-299", "300-399", "400-499", "500-599"];
+                        const currentValue = field.value || "200-299";
                         
                         // Determine if current value is a preset or custom
                         const isCurrentValuePreset = presetValues.includes(currentValue);
@@ -748,7 +748,7 @@ export function MonitorForm({
                         };
 
                         // Determine dropdown value - sync with actual field value
-                        const dropdownValue = isCustomStatusCode ? "custom" : (isCurrentValuePreset ? currentValue : "2xx");
+                        const dropdownValue = isCustomStatusCode ? "custom" : (isCurrentValuePreset ? currentValue : "200-299");
                         
                         return (
                           <FormItem>
@@ -1003,8 +1003,8 @@ export function MonitorForm({
                       control={form.control}
                       name="httpConfig_expectedStatusCodes" 
                       render={({ field }) => {
-                        const presetValues = ["2xx", "300-399", "400-499", "500-599"];
-                        const currentValue = field.value || "2xx";
+                        const presetValues = ["200-299", "300-399", "400-499", "500-599"];
+                        const currentValue = field.value || "200-299";
                         
                         // Determine if current value is a preset or custom
                         const isCurrentValuePreset = presetValues.includes(currentValue);
@@ -1027,7 +1027,7 @@ export function MonitorForm({
                         };
 
                         // Determine dropdown value - sync with actual field value
-                        const dropdownValue = isCustomStatusCode ? "custom" : (isCurrentValuePreset ? currentValue : "2xx");
+                        const dropdownValue = isCustomStatusCode ? "custom" : (isCurrentValuePreset ? currentValue : "200-299");
                         
                         return (
                           <FormItem>

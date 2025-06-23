@@ -52,8 +52,8 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
     // Handle cases where Monitor.type needs mapping (e.g., old "get"/"post" to "http_request")
     // Or if it's an unmapped but valid Monitor.type
     switch (currentType) {
-      case "get": // Example if Monitor schema could have "get"
-      case "post": // Example if Monitor schema could have "post"
+      case "get" as any: // Legacy type mapping
+      case "post" as any: // Legacy type mapping
         formType = "http_request";
         console.warn(`Monitor type '${currentType}' mapped to form type 'http_request'.`);
         break;
@@ -98,7 +98,7 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
 
     // HTTP specific fields
     httpConfig_method: formType === "http_request" ? (monitor.config?.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" || "GET") : undefined,
-    httpConfig_expectedStatusCodes: (formType === "http_request" || formType === "website") ? (monitor.config?.expectedStatusCodes || "2xx") : undefined,
+    httpConfig_expectedStatusCodes: (formType === "http_request" || formType === "website") ? (monitor.config?.expectedStatusCodes || "200-299") : undefined,
     httpConfig_headers: formType === "http_request" && monitor.config?.headers ? JSON.stringify(monitor.config.headers, null, 2) : undefined,
     httpConfig_body: formType === "http_request" ? monitor.config?.body : undefined,
     httpConfig_keywordInBody: (formType === "http_request" || formType === "website") ? monitor.config?.keywordInBody : undefined,
