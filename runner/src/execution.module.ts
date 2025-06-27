@@ -11,6 +11,7 @@ import { ValidationService } from './execution/services/validation.service';
 import { RedisService } from './execution/services/redis.service';
 import { TestExecutionProcessor } from './execution/processors/test-execution.processor';
 import { JobExecutionProcessor } from './execution/processors/job-execution.processor';
+import { NotificationModule } from './notification/notification.module';
 import * as schema from './db/schema';
 
 // Import constants from constants file
@@ -54,6 +55,7 @@ const drizzleProvider: Provider = {
 
 @Module({
   imports: [
+    NotificationModule,
     BullModule.registerQueue(
       {
         name: TEST_EXECUTION_QUEUE,

@@ -171,4 +171,45 @@ export class DbService implements OnModuleInit {
       throw error;
     }
   }
+
+  /**
+   * Gets a job by ID including alert configuration
+   * @param jobId The ID of the job to retrieve
+   */
+  async getJobById(jobId: string): Promise<any> {
+    try {
+      const job = await this.db.query.jobs.findFirst({
+        where: (jobs, { eq }) => eq(jobs.id, jobId),
+      });
+      return job;
+    } catch (error) {
+      this.logger.error(`Failed to get job ${jobId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Gets notification providers by IDs
+   * @param providerIds Array of provider IDs
+   */
+  async getNotificationProviders(providerIds: string[]): Promise<any[]> {
+    try {
+      if (!providerIds || providerIds.length === 0) {
+        return [];
+      }
+
+      const providers = await this.db.query.notificationProviders.findMany({
+        where: (notificationProviders, { inArray, and, eq }) => 
+          and(
+            inArray(notificationProviders.id, providerIds),
+            eq(notificationProviders.isEnabled, true)
+          ),
+      });
+      
+      return providers || [];
+    } catch (error) {
+      this.logger.error(`Failed to get notification providers: ${error.message}`);
+      return [];
+    }
+  }
 }

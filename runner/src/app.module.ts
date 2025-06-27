@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ExecutionModule } from './execution.module';
 import { MonitorModule } from './monitor/monitor.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { MonitorModule } from './monitor/monitor.module';
     }),
     ExecutionModule,
     MonitorModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

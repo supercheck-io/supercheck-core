@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -70,65 +70,120 @@ const notificationProviderSchema = z.object({
 type FormValues = z.infer<typeof notificationProviderSchema>;
 
 interface NotificationProviderFormProps {
-  onSuccess?: () => void;
+  onSuccess?: (data: FormValues) => void;
   onCancel?: () => void;
+  initialData?: any;
 }
 
-export function NotificationProviderForm({ onSuccess, onCancel }: NotificationProviderFormProps) {
+export function NotificationProviderForm({ onSuccess, onCancel, initialData }: NotificationProviderFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(notificationProviderSchema),
-    defaultValues: {
+    defaultValues: initialData ? {
+      type: initialData.type,
+      config: {
+        name: initialData.config.name || "",
+        isDefault: initialData.config.isDefault || false,
+        smtpHost: initialData.config.smtpHost || "",
+        smtpPort: initialData.config.smtpPort || 587,
+        smtpUser: initialData.config.smtpUser || "",
+        smtpPassword: initialData.config.smtpPassword || "",
+        smtpSecure: initialData.config.smtpSecure || false,
+        fromEmail: initialData.config.fromEmail || "",
+        toEmail: initialData.config.toEmail || "",
+        webhookUrl: initialData.config.webhookUrl || "",
+        channel: initialData.config.channel || "",
+        url: initialData.config.url || "",
+        method: initialData.config.method || "POST",
+        headers: initialData.config.headers || {},
+        bodyTemplate: initialData.config.bodyTemplate || "",
+        botToken: initialData.config.botToken || "",
+        chatId: initialData.config.chatId || "",
+        discordWebhookUrl: initialData.config.discordWebhookUrl || "",
+      },
+    } : {
       type: "email",
       config: {
         name: "",
         isDefault: false,
+        smtpHost: "",
+        smtpPort: 587,
+        smtpUser: "",
+        smtpPassword: "",
         smtpSecure: false,
+        fromEmail: "",
+        toEmail: "",
+        webhookUrl: "",
+        channel: "",
+        url: "",
         method: "POST",
+        headers: {},
+        bodyTemplate: "",
+        botToken: "",
+        chatId: "",
+        discordWebhookUrl: "",
       },
     },
   });
 
   const selectedType = form.watch("type");
 
+  const testConnection = async () => {
+    setIsTesting(true);
+    try {
+      const data = form.getValues();
+      
+      const response = await fetch('/api/notification-providers/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: data.type,
+          config: data.config,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast.success(result.message || "Connection test successful!");
+      } else {
+        toast.error(result.error || "Connection test failed. Please check your configuration.");
+      }
+    } catch (error) {
+      console.error("Error testing connection:", error);
+      toast.error("Failed to test connection");
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/notification-providers", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create notification provider");
+      // Pass the data to the parent component
+      onSuccess?.(data);
+      
+      // Reset form only if not in edit mode
+      if (!initialData) {
+        form.reset();
       }
-
-      toast.success("Notification provider created successfully");
-      form.reset();
-      onSuccess?.();
+      
+      toast.success(initialData ? "Notification provider updated successfully" : "Notification provider created successfully");
     } catch (error) {
-      console.error("Error creating notification provider:", error);
-      toast.error("Failed to create notification provider");
+      console.error("Error saving notification provider:", error);
+      toast.error("Failed to save notification provider");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <Card className="w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Add Notification Provider</CardTitle>
-        <CardDescription>
-          Configure how you want to receive monitor alerts
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -220,7 +275,8 @@ export function NotificationProviderForm({ onSuccess, onCancel }: NotificationPr
                             type="number" 
                             placeholder="587" 
                             {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 587)}
                           />
                         </FormControl>
                         <FormMessage />
@@ -251,6 +307,11 @@ export function NotificationProviderForm({ onSuccess, onCancel }: NotificationPr
                         <FormControl>
                           <Input type="password" placeholder="your-app-password" {...field} />
                         </FormControl>
+                        <div className="text-xs text-muted-foreground">
+                          For Gmail, use an App Password instead of your regular password. 
+                          <br />
+                          Generate one at: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google App Passwords</a>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -455,12 +516,25 @@ export function NotificationProviderForm({ onSuccess, onCancel }: NotificationPr
               </div>
             )}
 
-            <Button type="submit" disabled={isSubmitting} className="w-full">
-              {isSubmitting ? "Creating..." : "Create Notification Provider"}
-            </Button>
+            <div className="flex justify-between">
+              <Button 
+                type="button" 
+                variant="secondary" 
+                onClick={testConnection}
+                disabled={isTesting || isSubmitting}
+              >
+                {isTesting ? "Testing..." : "Test Connection"}
+              </Button>
+              <div className="space-x-2">
+                <Button type="button" variant="outline" onClick={onCancel}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting || isTesting}>
+                  {isSubmitting ? (initialData ? "Updating..." : "Creating...") : (initialData ? "Update Provider" : "Create Provider")}
+                </Button>
+              </div>
+            </div>
           </form>
         </Form>
-      </CardContent>
-    </Card>
   );
 } 

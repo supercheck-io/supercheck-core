@@ -6,6 +6,7 @@ import { ExecutionService } from '../services/execution.service';
 import { DbService } from '../services/db.service';
 import { TestScript, JobExecutionTask, TestExecutionResult } from '../interfaces'; // Use updated interfaces
 import { Redis } from 'ioredis';
+import { NotificationService, NotificationPayload } from '../../notification/notification.service';
 
 // Define the expected structure of the job data
 // Match this with TestScript and JobExecutionTask from original project
@@ -27,7 +28,8 @@ export class JobExecutionProcessor extends WorkerHost {
 
   constructor(
     private readonly executionService: ExecutionService,
-    private readonly dbService: DbService
+    private readonly dbService: DbService,
+    private readonly notificationService: NotificationService,
   ) {
     super();
     this.logger.log(`[Constructor] JobExecutionProcessor instantiated.`);
@@ -147,6 +149,9 @@ export class JobExecutionProcessor extends WorkerHost {
       // Status updates via Redis are now handled by QueueStatusService
       // through the Bull queue event listeners
 
+      // Send notifications for job completion
+      await this.handleJobNotifications(job.data, result, finalStatus, durationSeconds);
+
       // The result object (TestExecutionResult) from the service is returned.
       // BullMQ will store this in Redis and trigger the 'completed' event.
       return result; 
@@ -181,6 +186,86 @@ export class JobExecutionProcessor extends WorkerHost {
   onReady() {
     // This indicates the underlying BullMQ worker is connected and ready
     this.logger.log('[Event:ready] Worker is connected to Redis and ready to process jobs.');
+  }
+
+  private async handleJobNotifications(jobData: JobExecutionTask, result: TestExecutionResult, finalStatus: string, durationSeconds: number) {
+    try {
+      // Get job configuration including alert settings
+      const job = await this.dbService.getJobById(jobData.jobId);
+      if (!job || !job.alerts?.enabled) {
+        return; // No alerts configured
+      }
+
+      // Get notification providers
+      const providers = await this.dbService.getNotificationProviders(job.alerts.notificationProviders);
+      if (!providers || providers.length === 0) {
+        return; // No providers configured
+      }
+
+      // Determine if we should send notifications
+      const shouldNotifyFailure = job.alerts.alertOnFailure && finalStatus === 'failed';
+      const shouldNotifySuccess = job.alerts.alertOnSuccess && finalStatus === 'passed';
+      const shouldNotifyTimeout = job.alerts.alertOnTimeout && finalStatus === 'timeout';
+
+      if (!shouldNotifyFailure && !shouldNotifySuccess && !shouldNotifyTimeout) {
+        return; // No notification conditions met
+      }
+
+      // Calculate test counts from results
+      const totalTests = result.results?.length || 0;
+      const passedTests = result.results?.filter(r => r.success).length || 0;
+      const failedTests = totalTests - passedTests;
+
+      // Create notification payload
+      let notificationType: NotificationPayload['type'];
+      let severity: NotificationPayload['severity'];
+      let title: string;
+      let message: string;
+
+      if (shouldNotifyTimeout) {
+        notificationType = 'job_timeout';
+        severity = 'warning';
+        title = `Job Timeout - ${job.name}`;
+        message = `Job ${job.name} timed out after ${durationSeconds} seconds`;
+      } else if (shouldNotifyFailure) {
+        notificationType = 'job_failed';
+        severity = 'error';
+        title = `Job Failed - ${job.name}`;
+        message = `Job ${job.name} failed with ${failedTests} test failures`;
+      } else if (shouldNotifySuccess) {
+        notificationType = 'job_success';
+        severity = 'success';
+        title = `Job Completed - ${job.name}`;
+        message = `Job ${job.name} completed successfully with ${passedTests} tests passed`;
+      } else {
+        // This shouldn't happen since we return early if no conditions are met
+        return;
+      }
+
+      const payload: NotificationPayload = {
+        type: notificationType,
+        title,
+        message: job.alerts.customMessage || message,
+        targetName: job.name,
+        targetId: job.id,
+        severity,
+        timestamp: new Date(),
+        metadata: {
+          duration: durationSeconds,
+          status: finalStatus,
+          totalTests,
+          passedTests,
+          failedTests,
+          runId: jobData.runId,
+        },
+      };
+
+      // Send notifications
+      const notificationResult = await this.notificationService.sendNotificationToMultipleProviders(providers, payload);
+      this.logger.log(`Sent notifications for job ${job.id}: ${notificationResult.success} success, ${notificationResult.failed} failed`);
+    } catch (error) {
+      this.logger.error(`Failed to send notifications for job ${jobData.jobId}: ${error.message}`, error.stack);
+    }
   }
 
   /**

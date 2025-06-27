@@ -41,7 +41,13 @@ const jobFormSchema = z.object({
 
 type FormData = z.infer<typeof jobFormSchema>;
 
-export default function CreateJob() {
+interface CreateJobProps {
+  hideAlerts?: boolean;
+  onSave?: (data: any) => void;
+  onCancel?: () => void;
+}
+
+export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobProps) {
   const router = useRouter();
   const [selectedTests, setSelectedTests] = useState<Test[]>([]);
   const [submissionAttempted, setSubmissionAttempted] = useState(false);
@@ -87,6 +93,12 @@ export default function CreateJob() {
       };
 
       console.log("Submitting job data:", jobData);
+
+      // If onSave callback is provided (wizard mode), use it instead of API call
+      if (onSave) {
+        onSave(jobData);
+        return;
+      }
 
       // Save the job to the database
       const response = await createJob(jobData);
@@ -228,7 +240,7 @@ export default function CreateJob() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => router.push("/jobs")}
+                  onClick={onCancel || (() => router.push("/jobs"))}
                 >
                   Cancel
                 </Button>
@@ -238,7 +250,7 @@ export default function CreateJob() {
                   disabled={!formChanged}
                 >
                   <SaveIcon className="h-4 w-4 mr-2" />
-                  Create
+                  {hideAlerts ? "Next: Alerts" : "Create"}
                 </Button>
               </div>
             </form>
@@ -248,3 +260,6 @@ export default function CreateJob() {
     </div>
   );
 }
+
+// Default export for backward compatibility
+export default CreateJob;

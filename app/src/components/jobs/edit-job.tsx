@@ -44,6 +44,7 @@ import TestSelector from "./test-selector";
 import CronScheduler from "./cron-scheduler";
 import { Info } from "lucide-react";
 import NextRunDisplay from "./next-run-display";
+import { AlertSettings } from "@/components/alerts/alert-settings";
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
@@ -72,6 +73,18 @@ export default function EditJob({ jobId }: EditJobProps) {
     description: "",
     cronSchedule: ""
   });
+  const [alertConfig, setAlertConfig] = useState({
+    enabled: false,
+    notificationProviders: [],
+    alertOnFailure: true,
+    alertOnSuccess: false,
+    alertOnTimeout: true,
+    failureThreshold: 1,
+    recoveryThreshold: 1,
+    customMessage: "",
+  });
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [jobData, setJobData] = useState<any>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
@@ -130,6 +143,11 @@ export default function EditJob({ jobId }: EditJobProps) {
 
       setSelectedTests(tests);
       setOriginalSelectedTests(tests);
+
+      // Load alert configuration if it exists
+      if (jobData.alertConfig) {
+        setAlertConfig(jobData.alertConfig);
+      }
     } catch (error) {
       console.error("Error loading job:", error);
       toast.error("Error", {
@@ -145,8 +163,8 @@ export default function EditJob({ jobId }: EditJobProps) {
     loadJob();
   }, [loadJob]);
 
-  // Handle form submission
-  const onSubmit = form.handleSubmit(async (values: FormData) => {
+  // Handle form submission for job details
+  const handleJobNext = form.handleSubmit(async (values: FormData) => {
     setSubmissionAttempted(true);
     
     try {
@@ -158,10 +176,8 @@ export default function EditJob({ jobId }: EditJobProps) {
         return;
       }
 
-      setIsSubmitting(true);
-
-      // Prepare job data for submission
-      const jobData = {
+      // Prepare job data for next step
+      const preparedJobData = {
         jobId: jobId,
         name: values.name.trim(),
         description: values.description.trim(),
@@ -169,8 +185,28 @@ export default function EditJob({ jobId }: EditJobProps) {
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
 
+      setJobData(preparedJobData);
+      setShowAlerts(true);
+    } catch (error) {
+      console.error("Error preparing job data:", error);
+      toast.error("Error", {
+        description: "Failed to prepare job data. Please try again.",
+      });
+    }
+  });
+
+  // Handle final submission with alerts
+  const handleFinalSubmit = async () => {
+    try {
+      setIsSubmitting(true);
+
+      const finalJobData = {
+        ...jobData,
+        alertConfig: alertConfig,
+      };
+
       // Submit the job data
-      const response = await updateJob(jobData);
+      const response = await updateJob(finalJobData);
 
       if (!response.success) {
         throw new Error(typeof response.error === 'string' ? response.error : "Failed to update job");
@@ -192,7 +228,7 @@ export default function EditJob({ jobId }: EditJobProps) {
     } finally {
       setIsSubmitting(false);
     }
-  });
+  };
 
   // Handle the selection of tests from the TestSelector component
   const handleTestsSelected = (tests: Test[]) => {
@@ -270,6 +306,55 @@ export default function EditJob({ jobId }: EditJobProps) {
     );
   }
 
+  if (showAlerts) {
+    return (
+      <div className="space-y-4 p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Alert Settings</CardTitle>
+            <CardDescription>
+              Configure alert notifications for this job
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <AlertSettings
+              value={alertConfig}
+              onChange={(config) => setAlertConfig({
+                enabled: config.enabled,
+                notificationProviders: config.notificationProviders,
+                alertOnFailure: config.alertOnFailure,
+                alertOnSuccess: config.alertOnSuccess || false,
+                alertOnTimeout: config.alertOnTimeout || false,
+                failureThreshold: config.failureThreshold,
+                recoveryThreshold: config.recoveryThreshold,
+                customMessage: config.customMessage || "",
+              })}
+              context="job"
+            />
+            <div className="flex justify-end space-x-4 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAlerts(false)}
+                disabled={isSubmitting}
+              >
+                Back
+              </Button>
+              <Button 
+                onClick={handleFinalSubmit}
+                disabled={isSubmitting}
+                className="flex items-center"
+              >
+                <SaveIcon className="h-4 w-4 mr-2" />
+                {isSubmitting ? "Updating..." : "Update Job"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 p-4">
       <Card>
@@ -295,7 +380,7 @@ export default function EditJob({ jobId }: EditJobProps) {
         </CardHeader>
         <CardContent className="space-y-6">
           <Form {...form}>
-            <form onSubmit={onSubmit} className="space-y-6">
+            <form onSubmit={handleJobNext} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <FormField
@@ -393,7 +478,7 @@ export default function EditJob({ jobId }: EditJobProps) {
                   disabled={isSubmitting || !formChanged}
                 >
                   <SaveIcon className="h-4 w-4 mr-2" />
-                  {isSubmitting ? "Updating..." : "Update"}
+                  {isSubmitting ? "Loading..." : "Next: Alerts"}
                 </Button>
               </div>
             </form>

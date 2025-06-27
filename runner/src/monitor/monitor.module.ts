@@ -5,12 +5,14 @@ import { MonitorService } from './monitor.service';
 import { MonitorProcessor } from './monitor.processor';
 import { MONITOR_QUEUE } from './monitor.constants';
 import { ExecutionModule } from '../execution.module';
+import { NotificationModule } from '../notification/notification.module';
 
 
 @Module({
   imports: [
     ExecutionModule,
     HttpModule,
+    NotificationModule,
     BullModule.registerQueue(
       {
         name: MONITOR_QUEUE, // Worker queue for receiving execution jobs

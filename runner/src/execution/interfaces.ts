@@ -34,6 +34,10 @@ export interface TestExecutionResult {
   duration?: string;
   stdout?: string;
   stderr?: string;
+  // Additional properties for notifications
+  totalTests?: number;
+  passedTests?: number;
+  failedTests?: number;
 }
 
 // Task data for the test execution queue

@@ -1,4 +1,4 @@
-import CreateJob from "@/components/jobs/create-job";
+import { JobCreationWizard } from "@/components/jobs/job-creation-wizard";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 
 const breadcrumbs = [
@@ -11,7 +11,7 @@ export default function CreateJobPage() {
   return (
     <div>
       <PageBreadcrumbs items={breadcrumbs} />
-      <CreateJob />
+      <JobCreationWizard />
     </div>
   );
 }

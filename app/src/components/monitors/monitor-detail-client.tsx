@@ -20,6 +20,8 @@ import {
   X,
   Copy,
   Shield,
+  Bell,
+  BellOff,
 } from "lucide-react";
 import { 
   Card, 
@@ -483,6 +485,19 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                 </span>
               </div>
             )}
+            
+            {/* Alert Status Indicator */}
+            <div className={`flex items-center justify-center h-8 w-8 rounded-full ${
+              (monitor as any).alertConfig?.enabled 
+                ? 'bg-green-100 dark:bg-green-900/30' 
+                : 'bg-orange-100 dark:bg-orange-900/30'
+            }`}>
+              {(monitor as any).alertConfig?.enabled ? (
+                <Bell className="h-4 w-4 text-green-600 dark:text-green-400" />
+              ) : (
+                <BellOff className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              )}
+            </div>
             
             <Button 
               variant="outline" 

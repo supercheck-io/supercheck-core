@@ -67,6 +67,19 @@ export type JobConfig = {
     backoffFactor: number;
   };
 };
+
+export type AlertConfig = {
+  enabled: boolean;
+  notificationProviders: string[];
+  alertOnFailure: boolean;
+  alertOnRecovery?: boolean;
+  alertOnSslExpiration?: boolean;
+  alertOnSuccess?: boolean;
+  alertOnTimeout?: boolean;
+  failureThreshold: number;
+  recoveryThreshold: number;
+  customMessage?: string;
+};
 export const jobs = pgTable("jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: text("organization_id")
@@ -77,6 +90,7 @@ export const jobs = pgTable("jobs", {
   description: text("description"),
   cronSchedule: varchar("cron_schedule", { length: 100 }),
   status: varchar("status", { length: 50 }).$type<JobStatus>().notNull().default("pending"),
+  alertConfig: jsonb("alert_config").$type<AlertConfig>(),
   lastRunAt: timestamp("last_run_at"),
   nextRunAt: timestamp("next_run_at"),
   scheduledJobId: varchar("scheduled_job_id", { length: 255 }),
@@ -264,6 +278,7 @@ export const monitors = pgTable("monitors", {
   enabled: boolean("enabled").notNull().default(true), // NEW: To enable/disable checks
   status: varchar("status", { length: 50 }).$type<MonitorStatus>().notNull().default("pending"),
   config: jsonb("config").$type<MonitorConfig>(),
+  alertConfig: jsonb("alert_config").$type<AlertConfig>(),
   lastCheckAt: timestamp("last_check_at"),
   lastStatusChangeAt: timestamp("last_status_change_at"),
   mutedUntil: timestamp("muted_until"), // For temporary pausing of alerts
@@ -407,6 +422,31 @@ export const notificationProviders = pgTable("notification_providers", {
   isEnabled: boolean("is_enabled").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/* ================================
+   ALERT HISTORY TABLE
+   -------------------------------
+   Stores the history of all alert notifications sent
+=================================== */
+export type AlertType = "failure" | "recovery" | "ssl_expiration" | "success" | "timeout";
+export type AlertStatus = "sent" | "failed" | "pending";
+
+export const alertHistory = pgTable("alert_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id")
+    .references(() => organization.id, { onDelete: "cascade" }),
+  message: text("message").notNull(),
+  type: varchar("type", { length: 50 }).$type<AlertType>().notNull(),
+  target: varchar("target", { length: 255 }).notNull(), // Monitor or job name
+  targetType: varchar("target_type", { length: 50 }).notNull(), // "monitor" or "job"
+  monitorId: uuid("monitor_id").references(() => monitors.id, { onDelete: "cascade" }),
+  jobId: uuid("job_id").references(() => jobs.id, { onDelete: "cascade" }),
+  providerId: uuid("provider_id").references(() => notificationProviders.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 100 }).notNull(), // Provider name for display
+  status: varchar("status", { length: 50 }).$type<AlertStatus>().notNull().default("pending"),
+  sentAt: timestamp("sent_at").defaultNow(),
+  errorMessage: text("error_message"), // If status is "failed"
 });
 
 /* ================================

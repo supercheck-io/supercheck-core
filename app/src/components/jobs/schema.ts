@@ -25,6 +25,20 @@ export const jobConfigSchema = z.object({
 
 export type JobConfig = z.infer<typeof jobConfigSchema>;
 
+// Alert configuration schema
+export const alertConfigSchema = z.object({
+  enabled: z.boolean(),
+  notificationProviders: z.array(z.string()),
+  alertOnFailure: z.boolean(),
+  alertOnSuccess: z.boolean().optional(),
+  alertOnTimeout: z.boolean().optional(),
+  failureThreshold: z.number(),
+  recoveryThreshold: z.number(),
+  customMessage: z.string().optional(),
+});
+
+export type AlertConfig = z.infer<typeof alertConfigSchema>;
+
 // Test schema for tests associated with a job
 export const testSchema = z.object({
   id: z.string(),
@@ -53,6 +67,7 @@ export const jobSchema = z.object({
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   tests: z.array(testSchema).optional(),
+  alertConfig: alertConfigSchema.optional(),
 });
 
 export type Job = z.infer<typeof jobSchema>;

@@ -9,16 +9,14 @@ import {
   Play,
   Activity,
   Globe,
-  Zap,
   Clock,
   Code,
   Terminal,
-  Search,
+  SearchIcon,
   Home,
   BellRing,
   TestTube,
   Network,
-  Shield,
   LaptopMinimal,
   RefreshCw,
 } from "lucide-react"
@@ -192,7 +190,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
         className="h-8 px-2 min-w-[96px] justify-between mr-2 hover:bg-accent/50 transition-colors"
       >
         <div className="flex items-center space-x-1">
-          <Search className="h-3.5 w-3.5 text-muted-foreground" />
+          <SearchIcon className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-[10px] text-muted-foreground">CMD</span>
         </div>
         <kbd className="inline-flex h-4 items-center rounded border bg-muted px-1 text-[9px] font-mono text-muted-foreground">
@@ -200,9 +198,8 @@ export function CommandSearch({ className }: CommandSearchProps) {
         </kbd>
       </Button>
 
-
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="p-0.5 max-w-[500px] top-[35%] translate-y-[-35%]">
+        <DialogContent className="p-0 max-w-[500px] top-[35%] translate-y-[-35%] [&>button]:hidden">
           <Command className="rounded-lg border-0 shadow-md">
             <CommandInput placeholder="Type a command or search..." />
             <CommandList>

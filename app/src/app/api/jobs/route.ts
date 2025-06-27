@@ -185,6 +185,7 @@ export async function POST(request: Request) {
       description: jobData.description || "",
       cronSchedule: jobData.cronSchedule,
       status: "pending", // Always set to pending for new jobs
+      alertConfig: (jobData as any).alertConfig || null,
     });
 
     // If tests are provided, create job-test associations
@@ -248,6 +249,7 @@ export async function PUT(request: Request) {
         description: jobData.description || "",
         cronSchedule: jobData.cronSchedule,
         status: jobData.status as JobStatus,
+        alertConfig: (jobData as any).alertConfig || null,
         updatedAt: new Date(),
       })
       .where(eq(jobs.id, jobData.id));

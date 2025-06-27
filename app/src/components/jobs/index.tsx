@@ -48,6 +48,7 @@ import { useJobContext } from "./job-context";
 import { formatDistanceToNow } from "date-fns";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { cn } from "@/lib/utils";
+import { Bell, BellOff, Shield, CheckCircle, XCircle, Clock } from "lucide-react";
 
 // Helper function to map incoming types to the valid Test["type"]
 function mapToTestType(type: string | undefined): Test["type"] {
@@ -422,6 +423,38 @@ export default function Jobs() {
                             {formatRelativeDate(getTrueUpdateTime(selectedJob))}
                           </p>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Alert Settings */}
+                    <div className="space-y-2 bg-card p-4 rounded-lg border border-border/40">
+                      <h3 className="text-xs font-medium text-muted-foreground">Alert Settings</h3>
+                      <div className="flex items-center space-x-3">
+                        {/* Alert Status Icon */}
+                        <div className={`flex items-center justify-center h-8 w-8 rounded-full ${
+                          selectedJob.alertConfig?.enabled 
+                            ? 'bg-green-100 dark:bg-green-900/30' 
+                            : 'bg-orange-100 dark:bg-orange-900/30'
+                        }`}>
+                          {selectedJob.alertConfig?.enabled ? (
+                            <Bell className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          ) : (
+                            <BellOff className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                          )}
+                        </div>
+                        {selectedJob.alertConfig?.enabled && (
+                          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                            {selectedJob.alertConfig.alertOnSuccess && (
+                              <CheckCircle className="h-3 w-3 text-green-600" />
+                            )}
+                            {selectedJob.alertConfig.alertOnFailure && (
+                              <XCircle className="h-3 w-3 text-red-600" />
+                            )}
+                            {selectedJob.alertConfig.alertOnTimeout && (
+                              <Clock className="h-3 w-3 text-orange-600" />
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </TabsContent>

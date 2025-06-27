@@ -352,7 +352,7 @@ The system implements several error handling mechanisms:
 
 ## Monitoring System
 
-The application includes a comprehensive monitoring system that supports multiple monitor types:
+The application includes a comprehensive monitoring system that supports multiple monitor types with intelligent alerting capabilities:
 
 ### Monitor Types
 
@@ -366,11 +366,12 @@ The application includes a comprehensive monitoring system that supports multipl
 
 - **Real-time Status Tracking**: Live status updates with detailed metrics
 - **Configurable Check Intervals**: From 1 minute to several hours
-- **Alert System**: Notification providers for email, Slack, webhooks
+- **Alert System**: Multi-provider notification system with context-aware alerting
 - **Status Pages**: Public status pages for service transparency
 - **Maintenance Windows**: Schedule maintenance periods to suppress alerts
-- **Response Time Tracking**: Historical performance data
+- **Response Time Tracking**: Historical performance data and trends
 - **Availability Charts**: Visual uptime/downtime representation
+- **SSL Certificate Monitoring**: Automated certificate expiration tracking
 
 ### Heartbeat Monitoring
 
@@ -397,6 +398,60 @@ Website monitors can optionally include SSL certificate monitoring by enabling t
 - Configurable warning thresholds (default: 30 days before expiration)
 - Issuer and subject information
 - Integration with website availability checks
+
+## Alerting System
+
+The application features a sophisticated alerting system that integrates seamlessly with both monitoring and job execution:
+
+### Notification Providers
+
+The system supports multiple notification channels:
+
+1. **Email (SMTP)**: Full SMTP configuration with TLS support and connection testing
+2. **Slack**: Webhook integration with rich message formatting
+3. **Discord**: Webhook notifications with embed support
+4. **Telegram**: Bot API integration for instant messaging
+5. **Generic Webhooks**: Custom HTTP endpoints with configurable payloads
+
+### Alert Configuration
+
+**Monitor Alerts**:
+- **Failure Alerts**: Triggered when monitors go down or fail checks
+- **Recovery Alerts**: Sent when monitors recover from failure state
+- **SSL Expiration Alerts**: Automated certificate expiration warnings
+- **Configurable Thresholds**: Set failure/recovery thresholds to prevent alert spam
+
+**Job Alerts**:
+- **Success Alerts**: Notifications for successful job completion
+- **Failure Alerts**: Immediate alerts for failed test executions
+- **Timeout Alerts**: Notifications when jobs exceed time limits
+- **Custom Messages**: Personalized alert content for different scenarios
+
+### Alert Features
+
+- **Context-Aware Alerting**: Different alert types for monitors vs. jobs
+- **Threshold-Based Triggering**: Prevent false positives with configurable failure counts
+- **Real-Time Delivery**: Immediate notifications via multiple channels
+- **Rich Content**: Detailed alert information including timestamps, error details, and recovery instructions
+- **Provider Testing**: Built-in connection testing for all notification providers
+- **Escalation Support**: Multiple notification providers per alert for redundancy
+
+### Alert Integration
+
+The alerting system is deeply integrated into the execution flow:
+
+- **Monitor Processor**: Automatic alert generation based on monitor status changes
+- **Job Processor**: Alert triggering on job completion, failure, or timeout
+- **NestJS Service**: Centralized notification service with proper error handling
+- **Database Integration**: Alert configuration stored with monitors and jobs
+- **UI Integration**: Visual alert status indicators throughout the interface
+
+### Alert Management
+
+- **Provider Management**: Create, edit, and test notification providers through the UI
+- **Alert History**: Complete log of all sent notifications with delivery status
+- **Configuration UI**: Easy-to-use alert setup integrated into monitor and job forms
+- **Status Indicators**: Visual feedback showing alert enabled/disabled state with color-coded icons
 
 ## Configuration Options
 

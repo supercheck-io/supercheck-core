@@ -390,6 +390,55 @@ export const reports = pgTable(
 );
 
 /* ================================
+   NOTIFICATION PROVIDERS TABLE
+   -------------------------------
+   Stores configuration for notification providers (email, Slack, etc.)
+   that can be used to send alerts for monitors and jobs.
+=================================== */
+export type NotificationProviderType = "email" | "slack" | "webhook" | "telegram" | "discord";
+export type NotificationProviderConfig = {
+  // Email configuration
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSecure?: boolean;
+  smtpUser?: string;
+  smtpPassword?: string;
+  fromEmail?: string;
+  toEmail?: string;
+
+  // Slack configuration
+  webhookUrl?: string;
+  channel?: string;
+
+  // Webhook configuration
+  url?: string;
+  method?: string;
+  headers?: Record<string, string>;
+  bodyTemplate?: string;
+
+  // Telegram configuration
+  botToken?: string;
+  chatId?: string;
+
+  // Discord configuration
+  discordWebhookUrl?: string;
+
+  [key: string]: any;
+};
+
+export const notificationProviders = pgTable("notification_providers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 50 }).$type<NotificationProviderType>().notNull(),
+  config: jsonb("config").$type<NotificationProviderConfig>().notNull(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  organizationId: uuid("organization_id").references(() => organizations.id),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/* ================================
    AUDIT LOGS TABLE
    -------------------------------
    Records audit logs for critical system actions performed by users.

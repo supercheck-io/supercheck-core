@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/select";
 import { monitorTypes } from "./data";
 import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info, RefreshCw, Network, Globe, Activity, Shield, LaptopMinimal } from "lucide-react";
+import { AlertSettings } from "@/components/alerts/alert-settings";
+
 
 
 
@@ -143,20 +145,19 @@ export type FormValues = z.infer<typeof formSchema>;
 // Default values for creating a new monitor
 const creationDefaultValues: FormValues = {
   name: "",
-  target: "", // Or a more sensible default like "https://"
-  type: "http_request", // Default to the first option or a common one
-  interval: "1800", // Default to 30 minutes (string value for enum)
+  target: "",
+  type: "http_request",
+  interval: "1800", // Default to 30 minutes
   httpConfig_authType: "none",
-  // Initialize other optional fields to undefined or their sensible defaults if necessary
   httpConfig_method: "GET",
-  httpConfig_headers: undefined,
-  httpConfig_body: undefined,
+  httpConfig_headers: "",
+  httpConfig_body: "",
   httpConfig_expectedStatusCodes: "200-299",
-  httpConfig_keywordInBody: undefined,
-  httpConfig_keywordShouldBePresent: undefined,
-  httpConfig_authUsername: undefined,
-  httpConfig_authPassword: undefined,
-  httpConfig_authToken: undefined,
+  httpConfig_keywordInBody: "",
+  httpConfig_keywordShouldBePresent: false,
+  httpConfig_authUsername: "",
+  httpConfig_authPassword: "",
+  httpConfig_authToken: "",
   portConfig_port: undefined,
   portConfig_protocol: undefined,
   heartbeatConfig_expectedInterval: undefined,
@@ -173,6 +174,9 @@ interface MonitorFormProps {
   monitorType?: FormValues["type"];
   title?: string;
   description?: string;
+  hideAlerts?: boolean;
+  onSave?: (data: any) => void;
+  onCancel?: () => void;
 }
 
 export function MonitorForm({ 
@@ -182,7 +186,10 @@ export function MonitorForm({
   hideTypeSelector = false,
   monitorType,
   title,
-  description
+  description,
+  hideAlerts = false,
+  onSave,
+  onCancel
 }: MonitorFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -191,9 +198,22 @@ export function MonitorForm({
   const [isAuthSectionOpen, setIsAuthSectionOpen] = useState(false);
   const [isKeywordSectionOpen, setIsKeywordSectionOpen] = useState(false);
   const [isCustomStatusCode, setIsCustomStatusCode] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    enabled: false,
+    notificationProviders: [] as string[],
+    alertOnFailure: true,
+    alertOnRecovery: true,
+    alertOnSslExpiration: false,
+    failureThreshold: 1,
+    recoveryThreshold: 1,
+    customMessage: "" as string,
+  });
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [monitorData, setMonitorData] = useState<any>(null);
 
   // Get current monitor type from URL params if not provided as prop
-  const currentMonitorType = monitorType || (searchParams.get('type') as FormValues["type"]) || 'http_request';
+  const urlType = searchParams.get('type') as FormValues["type"];
+  const currentMonitorType = monitorType || urlType || 'http_request';
 
   // Create default values based on monitor type if provided
   const getDefaultValues = useCallback((): FormValues => {
@@ -212,16 +232,16 @@ export function MonitorForm({
         interval: "1800",
         httpConfig_authType: "none",
         httpConfig_method: "GET",
-        httpConfig_headers: undefined,
-        httpConfig_body: undefined,
+        httpConfig_headers: "",
+        httpConfig_body: "",
         httpConfig_expectedStatusCodes: "200-299",
-        httpConfig_keywordInBody: undefined,
-        httpConfig_keywordShouldBePresent: undefined,
-        httpConfig_authUsername: undefined,
-        httpConfig_authPassword: undefined,
-        httpConfig_authToken: undefined,
-        portConfig_port: undefined,
-        portConfig_protocol: undefined,
+        httpConfig_keywordInBody: "",
+        httpConfig_keywordShouldBePresent: false,
+        httpConfig_authUsername: "",
+        httpConfig_authPassword: "",
+        httpConfig_authToken: "",
+        portConfig_port: typeToUse === "port_check" ? 80 : undefined,
+        portConfig_protocol: typeToUse === "port_check" ? "tcp" : undefined,
         heartbeatConfig_expectedInterval: typeToUse === "heartbeat" ? 60 : undefined,
         heartbeatConfig_gracePeriod: typeToUse === "heartbeat" ? 10 : undefined,
         websiteConfig_enableSslCheck: typeToUse === "website" ? false : undefined,
@@ -242,14 +262,21 @@ export function MonitorForm({
 
   // Reset form when URL params change (for monitor type)
   useEffect(() => {
-    if (!editMode && !initialData) {
-      const urlType = searchParams.get('type') as FormValues["type"];
-      if (urlType && urlType !== type) {
-        const newDefaults = getDefaultValues();
-        form.reset(newDefaults);
-      }
+    if (!editMode && !initialData && urlType && urlType !== type) {
+      console.log("URL type changed from", type, "to", urlType);
+      const newDefaults = getDefaultValues();
+      
+      // Reset form with new defaults
+      form.reset(newDefaults);
+      
+      // Force update the type field
+      setTimeout(() => {
+        form.setValue('type', urlType, { shouldValidate: true });
+      }, 0);
+      
+      setFormChanged(false);
     }
-  }, [searchParams, editMode, initialData, type, form, getDefaultValues]);
+  }, [urlType, editMode, initialData, type, form, getDefaultValues]);
   
   const targetPlaceholders: Record<FormValues["type"], string> = {
     http_request: "e.g., https://example.com or https://api.example.com/health",
@@ -434,6 +461,40 @@ export function MonitorForm({
     }
 
     try {
+      // If onSave callback is provided (wizard mode), use it instead of API call
+      if (onSave) {
+        onSave(apiData);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // If edit mode and alerts not hidden, show alerts step
+      if (editMode && !hideAlerts) {
+        setMonitorData(apiData);
+        setShowAlerts(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Direct save mode (creation or edit without alerts)
+      await handleDirectSave(apiData);
+    } catch (error) {
+      console.error("Error processing monitor:", error);
+      toast.error(
+        editMode ? "Failed to update monitor" : "Failed to create monitor",
+        {
+          description: error instanceof Error ? error.message : "An unknown error occurred",
+        }
+      );
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDirectSave(apiData: any, includeAlerts = false) {
+    setIsSubmitting(true);
+    
+    try {
+      const saveData = includeAlerts ? { ...apiData, alertConfig } : apiData;
       const endpoint = editMode ? `/api/monitors/${id}` : "/api/monitors";
       const method = editMode ? "PUT" : "POST";
 
@@ -442,7 +503,7 @@ export function MonitorForm({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(apiData),
+        body: JSON.stringify(saveData),
       });
 
       if (!response.ok) {
@@ -456,8 +517,8 @@ export function MonitorForm({
         editMode ? "Monitor updated" : "Monitor created",
         {
           description: editMode 
-            ? `Monitor "${data.name}" has been updated.`
-            : `Monitor "${data.name}" has been created.`,
+            ? `Monitor "${apiData.name}" has been updated.`
+            : `Monitor "${apiData.name}" has been created.`,
         }
       );
 
@@ -479,12 +540,97 @@ export function MonitorForm({
     }
   }
 
+  async function handleFinalSubmit() {
+    if (monitorData) {
+      await handleDirectSave(monitorData, true);
+    }
+  }
+
+  if (showAlerts) {
+    return (
+      <div className="space-y-4 p-4 max-h-[calc(100vh-10rem)] overflow-y-auto">
+        <Card>
+          <CardHeader>
+            <CardTitle>Alert Settings</CardTitle>
+            <CardDescription>
+              Configure alert notifications for this monitor
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <AlertSettings
+              value={alertConfig}
+              onChange={(config) => setAlertConfig({
+                enabled: config.enabled,
+                notificationProviders: config.notificationProviders,
+                alertOnFailure: config.alertOnFailure,
+                alertOnRecovery: config.alertOnRecovery || false,
+                alertOnSslExpiration: config.alertOnSslExpiration || false,
+                failureThreshold: config.failureThreshold,
+                recoveryThreshold: config.recoveryThreshold,
+                customMessage: config.customMessage || "",
+              })}
+              context="monitor"
+              monitorType={type}
+            />
+            <div className="flex justify-end space-x-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAlerts(false)}
+                disabled={isSubmitting}
+              >
+                Back
+              </Button>
+              <Button 
+                onClick={handleFinalSubmit}
+                disabled={isSubmitting}
+                className="flex items-center"
+              >
+                <SaveIcon className="mr-2 h-4 w-4" />
+                {isSubmitting ? "Updating..." : "Update Monitor"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4 p-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+    <div className="space-y-4 p-4 max-h-[calc(100vh-10rem)] overflow-y-auto">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
-            <CardTitle>{title || (editMode ? "Edit Monitor" : "Create New Monitor")}</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle>{title || (editMode ? "Edit Monitor" : "Create New Monitor")}</CardTitle>
+              {hideTypeSelector && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-96 mt-2" side="right" sideOffset={8}>
+                    <div>
+                      <h4 className="font-semibold text-sm mb-3 text-foreground">Monitor Types</h4>
+                      <div className="space-y-3">
+                        {monitorTypes.map((type) => (
+                          <div key={type.value} className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
+                            {type.icon && (
+                              <type.icon className={`h-4 w-4 ${type.color} mt-0.5 flex-shrink-0`} />
+                            )}
+                            <div>
+                              <p className="font-medium text-sm">{type.label}</p>
+                              <p className="text-xs text-muted-foreground">{type.description}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
             <CardDescription className="mt-1">
               {description || (editMode ? "Update monitor configuration" : "Configure a new uptime monitor")}
             </CardDescription>
@@ -1438,13 +1584,11 @@ export function MonitorForm({
                 </div>
               )}
 
-
-
               <div className="flex justify-end space-x-4">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => router.push("/monitors")}
+                  onClick={onCancel || (() => router.push("/monitors"))}
                   disabled={isSubmitting}
                 >
                   Cancel
@@ -1459,7 +1603,7 @@ export function MonitorForm({
                   ) : (
                     <SaveIcon className="mr-2 h-4 w-4" />
                   )}
-                  {editMode ? "Update" : "Create"}
+                  {hideAlerts ? "Next: Alerts" : (editMode ? "Next: Alerts" : "Create")}
                 </Button>
               </div>
             </form>

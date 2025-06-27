@@ -111,6 +111,7 @@ export async function POST(req: NextRequest) {
       enabled: newMonitorData.enabled,
       status: newMonitorData.status,
       config: newMonitorData.config,
+      alertConfig: (rawData as any).alertConfig || null,
       organizationId: newMonitorData.organizationId,
       createdByUserId: newMonitorData.createdByUserId,
     }).returning();
@@ -138,5 +139,51 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Error creating monitor:", error);
     return NextResponse.json({ error: "Failed to create monitor" }, { status: 500 });
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const rawData = await req.json();
+    const { id, ...updateData } = rawData;
+    
+    if (!id) {
+      return NextResponse.json({ error: "Monitor ID is required" }, { status: 400 });
+    }
+
+    const validationResult = monitorsInsertSchema.safeParse(updateData);
+
+    if (!validationResult.success) {
+      return NextResponse.json({ error: "Invalid input", details: validationResult.error.format() }, { status: 400 });
+    }
+
+    const monitorData = validationResult.data;
+    const db = await getDbInstance();
+
+    const [updatedMonitor] = await db
+      .update(monitors)
+      .set({
+        name: monitorData.name!,
+        type: monitorData.type!,
+        target: monitorData.target!,
+        description: monitorData.description,
+        frequencyMinutes: monitorData.frequencyMinutes,
+        enabled: monitorData.enabled,
+        status: monitorData.status,
+        config: monitorData.config,
+        alertConfig: rawData.alertConfig || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(monitors.id, id))
+      .returning();
+
+    if (!updatedMonitor) {
+      return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(updatedMonitor);
+  } catch (error) {
+    console.error("Error updating monitor:", error);
+    return NextResponse.json({ error: "Failed to update monitor" }, { status: 500 });
   }
 } 

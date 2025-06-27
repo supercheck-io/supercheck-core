@@ -991,5 +991,36 @@ export class MonitorService {
     return { status, details, responseTimeMs, isUp };
   }
 
+  async getMonitorById(monitorId: string): Promise<any> {
+    try {
+      const monitor = await this.db.query.monitors.findFirst({
+        where: (monitors, { eq }) => eq(monitors.id, monitorId),
+      });
+      return monitor;
+    } catch (error) {
+      this.logger.error(`Failed to get monitor ${monitorId}: ${error.message}`);
+      throw error;
+    }
+  }
 
+  async getNotificationProviders(providerIds: string[]): Promise<any[]> {
+    try {
+      if (!providerIds || providerIds.length === 0) {
+        return [];
+      }
+
+      const providers = await this.db.query.notificationProviders.findMany({
+        where: (notificationProviders, { inArray, and, eq }) => 
+          and(
+            inArray(notificationProviders.id, providerIds),
+            eq(notificationProviders.isEnabled, true)
+          ),
+      });
+      
+      return providers || [];
+    } catch (error) {
+      this.logger.error(`Failed to get notification providers: ${error.message}`);
+      return [];
+    }
+  }
 } 

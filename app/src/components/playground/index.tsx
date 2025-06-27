@@ -526,8 +526,8 @@ const Playground: React.FC<PlaygroundProps> = ({
         }
       >
         <div className="md:hidden">{/* Mobile view */}</div>
-        <div className="hidden h-full flex-col flex-1 md:flex p-4">
-          <ResizablePanelGroup direction="horizontal" className="h-screen">
+        <div className="hidden flex-col flex-1 md:flex p-4  h-[calc(100vh-5rem)]">
+          <ResizablePanelGroup direction="horizontal" >
             <ResizablePanel defaultSize={70} minSize={30}>
               <div className="flex h-full flex-col">
                 <div className="flex items-center justify-between border-b bg-card p-4 py-2 rounded-tl-lg">
@@ -596,13 +596,13 @@ const Playground: React.FC<PlaygroundProps> = ({
                     </TabsContent>
                     <TabsContent
                       value="report"
-                      className="h-screen border-0 p-0 mt-0"
+                      className="h-full border-0 p-0 mt-0"
                     >
                       <ReportViewer
                         reportUrl={reportUrl}
                         isRunning={isRunning || isReportLoading}
-                        containerClassName="h-[calc(100vh-10rem)] w-full relative bg-[#191919] border-1 rounded-bl-lg "
-                        iframeClassName="h-[calc(100vh-10rem)] w-full rounded-bl-lg"
+                        containerClassName="h-full w-full relative bg-[#191919] border-1 rounded-bl-lg"
+                        iframeClassName="h-full w-full rounded-bl-lg"
                         darkMode={true}
                       />
                     </TabsContent>
