@@ -192,24 +192,62 @@ export class JobExecutionProcessor extends WorkerHost {
     try {
       // Get job configuration including alert settings
       const job = await this.dbService.getJobById(jobData.jobId);
-      if (!job || !job.alerts?.enabled) {
+      if (!job || !job.alertConfig?.enabled) {
+        this.logger.debug(`No alerts configured for job ${jobData.jobId} - alertConfig: ${JSON.stringify(job?.alertConfig)}`);
         return; // No alerts configured
       }
 
       // Get notification providers
-      const providers = await this.dbService.getNotificationProviders(job.alerts.notificationProviders);
+      const providers = await this.dbService.getNotificationProviders(job.alertConfig.notificationProviders);
       if (!providers || providers.length === 0) {
+        this.logger.debug(`No notification providers configured for job ${jobData.jobId}`);
         return; // No providers configured
       }
 
-      // Determine if we should send notifications
-      const shouldNotifyFailure = job.alerts.alertOnFailure && finalStatus === 'failed';
-      const shouldNotifySuccess = job.alerts.alertOnSuccess && finalStatus === 'passed';
-      const shouldNotifyTimeout = job.alerts.alertOnTimeout && finalStatus === 'timeout';
+      // Get recent runs to check thresholds
+      const recentRuns = await this.dbService.getRecentRunsForJob(jobData.jobId, Math.max(job.alertConfig.failureThreshold, job.alertConfig.recoveryThreshold));
+      
+      // Calculate consecutive statuses
+      let consecutiveFailures = 0;
+      let consecutiveSuccesses = 0;
+      
+      // Count current run
+      if (finalStatus === 'failed') {
+        consecutiveFailures = 1;
+      } else if (finalStatus === 'passed') {
+        consecutiveSuccesses = 1;
+      }
+      
+      // Count previous runs until we hit a different status
+      for (const run of recentRuns) {
+        if (finalStatus === 'failed' && run.status === 'failed') {
+          consecutiveFailures++;
+        } else if (finalStatus === 'failed') {
+          break;
+        } else if (finalStatus === 'passed' && run.status === 'passed') {
+          consecutiveSuccesses++;
+        } else if (finalStatus === 'passed') {
+          break;
+        }
+      }
+
+      // Determine if we should send notifications based on thresholds
+      const shouldNotifyFailure = job.alertConfig.alertOnFailure && 
+                                finalStatus === 'failed' && 
+                                consecutiveFailures >= job.alertConfig.failureThreshold;
+      
+      const shouldNotifySuccess = job.alertConfig.alertOnSuccess && 
+                                finalStatus === 'passed' && 
+                                consecutiveSuccesses >= job.alertConfig.recoveryThreshold;
+      
+      const shouldNotifyTimeout = job.alertConfig.alertOnTimeout && finalStatus === 'timeout';
 
       if (!shouldNotifyFailure && !shouldNotifySuccess && !shouldNotifyTimeout) {
+        this.logger.debug(`No notification conditions met for job ${jobData.jobId} - status: ${finalStatus}, consecutive failures: ${consecutiveFailures}, consecutive successes: ${consecutiveSuccesses}`);
         return; // No notification conditions met
       }
+
+      this.logger.log(`Sending notifications for job ${jobData.jobId} with status ${finalStatus}`);
 
       // Calculate test counts from results
       const totalTests = result.results?.length || 0;
@@ -218,25 +256,29 @@ export class JobExecutionProcessor extends WorkerHost {
 
       // Create notification payload
       let notificationType: NotificationPayload['type'];
+      let alertType: string; // For database storage
       let severity: NotificationPayload['severity'];
       let title: string;
       let message: string;
 
       if (shouldNotifyTimeout) {
         notificationType = 'job_timeout';
+        alertType = 'job_timeout';
         severity = 'warning';
         title = `Job Timeout - ${job.name}`;
         message = `Job ${job.name} timed out after ${durationSeconds} seconds`;
       } else if (shouldNotifyFailure) {
         notificationType = 'job_failed';
+        alertType = 'job_failed';
         severity = 'error';
         title = `Job Failed - ${job.name}`;
-        message = `Job ${job.name} failed with ${failedTests} test failures`;
+        message = `Job ${job.name} has failed ${consecutiveFailures} time${consecutiveFailures > 1 ? 's' : ''} in a row. Latest run had ${failedTests} test failures.`;
       } else if (shouldNotifySuccess) {
         notificationType = 'job_success';
+        alertType = 'job_success';
         severity = 'success';
         title = `Job Completed - ${job.name}`;
-        message = `Job ${job.name} completed successfully with ${passedTests} tests passed`;
+        message = `Job ${job.name} has completed successfully ${consecutiveSuccesses} time${consecutiveSuccesses > 1 ? 's' : ''} in a row. Latest run had ${passedTests} tests passed.`;
       } else {
         // This shouldn't happen since we return early if no conditions are met
         return;
@@ -245,7 +287,7 @@ export class JobExecutionProcessor extends WorkerHost {
       const payload: NotificationPayload = {
         type: notificationType,
         title,
-        message: job.alerts.customMessage || message,
+        message: job.alertConfig.customMessage || message,
         targetName: job.name,
         targetId: job.id,
         severity,
@@ -257,12 +299,45 @@ export class JobExecutionProcessor extends WorkerHost {
           passedTests,
           failedTests,
           runId: jobData.runId,
+          consecutiveFailures,
+          consecutiveSuccesses,
         },
       };
 
       // Send notifications
       const notificationResult = await this.notificationService.sendNotificationToMultipleProviders(providers, payload);
       this.logger.log(`Sent notifications for job ${job.id}: ${notificationResult.success} success, ${notificationResult.failed} failed`);
+      
+      // Save alert history
+      try {
+        const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+        const alertHistoryData = {
+          type: alertType,
+          message: payload.message,
+          target: job.name,
+          targetType: 'job' as const,
+          jobId: job.id,
+          provider: providers.map(p => p.type).join(', '),
+          status: notificationResult.success > 0 ? 'sent' as const : 'failed' as const,
+          errorMessage: notificationResult.failed > 0 ? `${notificationResult.failed} notifications failed` : undefined,
+        };
+
+        const response = await fetch(`${appBaseUrl}/api/alerts/history`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(alertHistoryData),
+        });
+
+        if (!response.ok) {
+          this.logger.error(`Failed to save alert history: ${response.statusText}`);
+        } else {
+          this.logger.log(`Alert history saved for job ${job.id}`);
+        }
+      } catch (error) {
+        this.logger.error(`Error saving alert history: ${error.message}`);
+      }
     } catch (error) {
       this.logger.error(`Failed to send notifications for job ${jobData.jobId}: ${error.message}`, error.stack);
     }

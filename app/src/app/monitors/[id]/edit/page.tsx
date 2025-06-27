@@ -133,6 +133,7 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
         monitorType={formType}
         title={`Edit ${monitorTypeInfo?.label || 'Monitor'}`}
         description={`Update ${monitor.name} configuration`}
+        alertConfig={monitor.alertConfig}
       />
     </div>
   );

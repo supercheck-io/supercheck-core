@@ -7,6 +7,8 @@ import { MonitorExecutionResult, MonitorResultStatus, MonitorResultDetails } fro
 import { DB_PROVIDER_TOKEN } from '../execution/services/db.service'; // Import DB_PROVIDER_TOKEN
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js'; // Import specific Drizzle type
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
+import { eq, inArray } from 'drizzle-orm';
+import { NotificationService, NotificationPayload } from '../notification/notification.service';
 
 
 // Placeholder for actual execution libraries (axios, ping, net, dns, playwright-runner)
@@ -55,8 +57,9 @@ export class MonitorService {
   private readonly logger = new Logger(MonitorService.name);
 
   constructor(
-    @Inject(DB_PROVIDER_TOKEN) private db: PostgresJsDatabase<typeof schema>, // Use specific type and @Inject
-    private readonly httpService: HttpService // Inject HttpService
+    @Inject(DB_PROVIDER_TOKEN) private db: PostgresJsDatabase<typeof schema>,
+    private readonly httpService: HttpService,
+    private readonly notificationService: NotificationService
   ) {}
 
   async executeMonitor(jobData: MonitorJobDataDto): Promise<MonitorExecutionResult | null> {
@@ -199,81 +202,59 @@ export class MonitorService {
   }
 
   async saveMonitorResult(resultData: MonitorExecutionResult): Promise<void> {
-    this.logger.log(`Attempting to save result for monitor ${resultData.monitorId}`);
-    
-    // Don't try to save results for monitors that don't exist or have errors
-    if (resultData.error === 'Monitor not found' || resultData.error === 'Monitor is paused') {
-      this.logger.log(`Skipping save for monitor ${resultData.monitorId}: ${resultData.error}`);
-      return;
-    }
-    
     try {
-      // Get the monitor details and previous status for alert processing
-      const monitor = await this.db.query.monitors.findFirst({
-        where: (monitors, { eq }) => eq(monitors.id, resultData.monitorId),
-      });
-
-      let previousStatus: string | undefined;
-      let isStatusChange = false;
-
+      const monitor = await this.getMonitorById(resultData.monitorId);
+      
       if (monitor) {
-        // Get the last result to determine if status changed
-        const lastResult = await this.db.query.monitorResults.findFirst({
-          where: (monitorResults, { eq }) => eq(monitorResults.monitorId, resultData.monitorId),
-          orderBy: (monitorResults, { desc }) => [desc(monitorResults.checkedAt)],
-        });
+        // Get previous status
+        const previousStatus = monitor.status;
+        const isStatusChange = previousStatus !== resultData.status;
+        
+        // Save result to database
+        await this.saveMonitorResultToDb(resultData);
+        
+        // Update monitor status
+        await this.updateMonitorStatus(resultData.monitorId, resultData.status, resultData.checkedAt);
+        
+        this.logger.log(`Saved result for monitor ${resultData.monitorId}: ${resultData.status}`);
 
-        if (lastResult) {
-          previousStatus = lastResult.status;
-          isStatusChange = lastResult.status !== resultData.status;
-        }
+        // Handle alerts if there's a status change and alertConfig is enabled
+        if (isStatusChange && monitor.alertConfig?.enabled) {
+          const shouldSendAlert = (
+            (resultData.status === 'down' && monitor.alertConfig.alertOnFailure) ||
+            (resultData.status === 'up' && previousStatus === 'down' && monitor.alertConfig.alertOnRecovery) ||
+            (resultData.status === 'timeout' && monitor.alertConfig.alertOnTimeout)
+          );
 
-        // Save the result with status change flag
-      await this.db.insert(schema.monitorResults).values({
-        monitorId: resultData.monitorId,
-        checkedAt: resultData.checkedAt, 
-        status: resultData.status,
-        responseTimeMs: resultData.responseTimeMs,
-        details: resultData.details as any,
-        isUp: resultData.isUp,
-          isStatusChange,
-      });
+          if (shouldSendAlert) {
+            const providers = await this.getNotificationProviders(resultData.monitorId);
+            
+            if (providers.length > 0) {
+              const notificationPayload: NotificationPayload = {
+                type: resultData.status === 'up' && previousStatus === 'down' ? 'monitor_recovery' : 'monitor_failure',
+                title: `Monitor ${resultData.status === 'up' ? 'Recovery' : 'Alert'}: ${monitor.name}`,
+                message: monitor.alertConfig.customMessage || 
+                  `Monitor "${monitor.name}" is ${resultData.status}. ${resultData.details?.errorMessage || ''}`,
+                targetName: monitor.name,
+                targetId: monitor.id,
+                severity: resultData.status === 'up' ? 'success' : 'error',
+                timestamp: resultData.checkedAt,
+                metadata: {
+                  status: resultData.status,
+                  responseTime: resultData.responseTimeMs,
+                  details: resultData.details
+                }
+              };
 
-      this.logger.log(`Successfully saved result for monitor ${resultData.monitorId}`);
+              const { success, failed } = await this.notificationService.sendNotificationToMultipleProviders(
+                providers,
+                notificationPayload
+              );
 
-        // Trigger alert if status changed or it's a critical error
-        if (isStatusChange || resultData.status === 'error') {
-          try {
-            // Call the app's alert API
-            const alertContext = {
-              monitorId: resultData.monitorId,
-              monitorName: monitor.name,
-              monitorTarget: monitor.target,
-              monitorType: monitor.type,
-              status: resultData.status,
-              previousStatus,
-              errorMessage: resultData.details?.errorMessage || resultData.error,
-              responseTime: resultData.responseTimeMs,
-              checkedAt: resultData.checkedAt,
-              isStatusChange,
-            };
-
-            const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-            const response = await fetch(`${appBaseUrl}/api/alerts/process`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(alertContext),
-            });
-
-            if (!response.ok) {
-              this.logger.error(`Failed to trigger alert for monitor ${resultData.monitorId}: ${response.statusText}`);
+              this.logger.log(`Sent alerts: ${success} successful, ${failed} failed`);
             } else {
-              this.logger.log(`Successfully triggered alert for monitor ${resultData.monitorId}`);
+              this.logger.warn(`No valid notification providers found for monitor ${resultData.monitorId}`);
             }
-          } catch (alertError) {
-            this.logger.error(`Error triggering alert for monitor ${resultData.monitorId}:`, alertError);
           }
         }
       } else {
@@ -994,33 +975,65 @@ export class MonitorService {
   async getMonitorById(monitorId: string): Promise<any> {
     try {
       const monitor = await this.db.query.monitors.findFirst({
-        where: (monitors, { eq }) => eq(monitors.id, monitorId),
+        where: eq(schema.monitors.id, monitorId),
       });
+
+      if (!monitor) {
+        this.logger.warn(`Monitor ${monitorId} not found`);
+        return null;
+      }
+
       return monitor;
     } catch (error) {
       this.logger.error(`Failed to get monitor ${monitorId}: ${error.message}`);
-      throw error;
+      return null;
     }
   }
 
-  async getNotificationProviders(providerIds: string[]): Promise<any[]> {
+  async getNotificationProviders(monitorId: string): Promise<any[]> {
     try {
-      if (!providerIds || providerIds.length === 0) {
-        return [];
-      }
-
-      const providers = await this.db.query.notificationProviders.findMany({
-        where: (notificationProviders, { inArray, and, eq }) => 
-          and(
-            inArray(notificationProviders.id, providerIds),
-            eq(notificationProviders.isEnabled, true)
-          ),
-      });
+      const providers = await this.db
+        .select({
+          id: schema.notificationProviders.id,
+          type: schema.notificationProviders.type,
+          config: schema.notificationProviders.config,
+        })
+        .from(schema.notificationProviders)
+        .innerJoin(
+          schema.monitorNotificationSettings,
+          eq(schema.monitorNotificationSettings.notificationProviderId, schema.notificationProviders.id)
+        )
+        .where(eq(schema.monitorNotificationSettings.monitorId, monitorId));
       
-      return providers || [];
+      return providers.map(provider => ({
+        id: provider.id,
+        type: provider.type,
+        config: provider.config,
+      })) || [];
     } catch (error) {
-      this.logger.error(`Failed to get notification providers: ${error.message}`);
+      this.logger.error(`Failed to get notification providers for monitor ${monitorId}: ${error.message}`);
       return [];
     }
+  }
+
+  private async saveMonitorResultToDb(resultData: MonitorExecutionResult): Promise<void> {
+    await this.db.insert(schema.monitorResults).values({
+      monitorId: resultData.monitorId,
+      status: resultData.status,
+      responseTimeMs: resultData.responseTimeMs,
+      details: resultData.details as any,
+      checkedAt: resultData.checkedAt,
+      isUp: resultData.isUp,
+      isStatusChange: resultData.isStatusChange || false,
+    });
+  }
+
+  private async updateMonitorStatus(monitorId: string, status: MonitorResultStatus, checkedAt: Date): Promise<void> {
+    await this.db.update(schema.monitors)
+      .set({
+        status: status as any, // Type assertion needed due to schema mismatch
+        lastCheckAt: checkedAt,
+      })
+      .where(eq(schema.monitors.id, monitorId));
   }
 } 

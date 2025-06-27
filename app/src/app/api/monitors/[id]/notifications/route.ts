@@ -22,7 +22,6 @@ export async function GET(
         providerId: monitorNotificationSettings.notificationProviderId,
         providerType: notificationProviders.type,
         providerConfig: notificationProviders.config,
-        isEnabled: notificationProviders.isEnabled,
         createdAt: monitorNotificationSettings.createdAt,
       })
       .from(monitorNotificationSettings)

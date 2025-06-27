@@ -119,8 +119,9 @@ export default function Jobs() {
               lastRunAt: test.lastRunAt || null,
               duration: test.duration || null,
             })),
+            alertConfig: job.alertConfig as any,
           }));
-          setJobs(typedJobs);
+          setJobs(typedJobs as any);
         } else {
           console.error("Failed to fetch jobs:", response.error);
           toast.error("Failed to fetch jobs", {

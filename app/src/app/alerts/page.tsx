@@ -21,7 +21,6 @@ interface NotificationProvider {
   id: string;
   type: 'email' | 'slack' | 'webhook' | 'telegram' | 'discord';
   config: Record<string, unknown>;
-  isEnabled: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -108,7 +107,6 @@ export default function AlertsPage() {
         body: JSON.stringify({
           type: newProvider.type,
           config: newProvider.config,
-          isEnabled: true,
         }),
       });
 
@@ -143,7 +141,6 @@ export default function AlertsPage() {
           body: JSON.stringify({
             type: updatedProvider.type,
             config: updatedProvider.config,
-            isEnabled: true,
           }),
         });
 
@@ -170,10 +167,13 @@ export default function AlertsPage() {
       if (response.ok) {
         setProviders(prev => prev.filter(p => p.id !== providerId));
       } else {
-        console.error('Failed to delete notification provider');
+        const errorData = await response.json();
+        console.error('Failed to delete notification provider:', errorData.error || response.statusText);
+        // You could show a toast notification here
       }
     } catch (error) {
       console.error('Error deleting notification provider:', error);
+      // You could show a toast notification here
     }
   };
 
@@ -223,7 +223,7 @@ export default function AlertsPage() {
           </div>
 
           <Card>
-            <Tabs defaultValue="providers" className="w-full">
+            <Tabs defaultValue="history" className="w-full">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -304,7 +304,6 @@ export default function AlertsPage() {
                           <TableRow>
                             <TableHead>Provider</TableHead>
                             <TableHead>Type</TableHead>
-                            <TableHead>Status</TableHead>
                             <TableHead>Created</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
@@ -321,11 +320,6 @@ export default function AlertsPage() {
                               <TableCell>
                                 <Badge variant="outline" className="capitalize">
                                   {provider.type}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={provider.isEnabled ? "default" : "secondary"}>
-                                  {provider.isEnabled ? "Active" : "Inactive"}
                                 </Badge>
                               </TableCell>
                               <TableCell>

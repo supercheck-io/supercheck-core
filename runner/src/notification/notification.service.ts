@@ -5,11 +5,10 @@ export interface NotificationProvider {
   id: string;
   type: 'email' | 'slack' | 'webhook' | 'telegram' | 'discord';
   config: Record<string, any>;
-  isEnabled: boolean;
 }
 
 export interface NotificationPayload {
-  type: 'monitor_down' | 'monitor_up' | 'job_failed' | 'job_success' | 'job_timeout' | 'ssl_expiring';
+  type: 'monitor_failure' | 'monitor_recovery' | 'job_failed' | 'job_success' | 'job_timeout' | 'ssl_expiring';
   title: string;
   message: string;
   targetName: string;
@@ -23,35 +22,94 @@ export interface NotificationPayload {
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
+  constructor() {
+    this.logger.log('NotificationService initialized');
+  }
+
   async sendNotification(provider: NotificationProvider, payload: NotificationPayload): Promise<boolean> {
-    if (!provider.isEnabled) {
-      this.logger.warn(`Provider ${provider.id} is disabled, skipping notification`);
-      return false;
+    this.logger.log(`Sending notification via ${provider.type} for ${payload.type}: ${payload.title}`);
+
+    let success = false;
+
+    try {
+      // Validate provider configuration
+      if (!this.validateProviderConfig(provider)) {
+        this.logger.error(`Invalid configuration for provider ${provider.id} (${provider.type})`);
+        return false;
+      }
+
+      // Send the actual notification
+      switch (provider.type) {
+        case 'email':
+          success = await this.sendEmailNotification(provider.config, payload);
+          break;
+        case 'slack':
+          success = await this.sendSlackNotification(provider.config, payload);
+          break;
+        case 'webhook':
+          success = await this.sendWebhookNotification(provider.config, payload);
+          break;
+        case 'telegram':
+          success = await this.sendTelegramNotification(provider.config, payload);
+          break;
+        case 'discord':
+          success = await this.sendDiscordNotification(provider.config, payload);
+          break;
+        default:
+          this.logger.error(`Unsupported notification provider type: ${provider.type}`);
+          success = false;
+      }
+
+      if (success) {
+        this.logger.log(`Successfully sent notification via ${provider.type} for ${payload.type}`);
+      } else {
+        this.logger.error(`Failed to send notification via ${provider.type} for ${payload.type}`);
+      }
+
+    } catch (error) {
+      this.logger.error(`Failed to send notification via ${provider.type}:`, error);
+      success = false;
     }
 
+    return success;
+  }
+
+  private validateProviderConfig(provider: NotificationProvider): boolean {
     try {
       switch (provider.type) {
         case 'email':
-          return await this.sendEmailNotification(provider.config, payload);
+          return !!(
+            provider.config.smtpHost &&
+            provider.config.smtpUser &&
+            provider.config.smtpPassword &&
+            provider.config.fromEmail &&
+            provider.config.toEmail
+          );
         case 'slack':
-          return await this.sendSlackNotification(provider.config, payload);
+          return !!provider.config.webhookUrl;
         case 'webhook':
-          return await this.sendWebhookNotification(provider.config, payload);
+          return !!provider.config.url;
         case 'telegram':
-          return await this.sendTelegramNotification(provider.config, payload);
+          return !!(provider.config.botToken && provider.config.chatId);
         case 'discord':
-          return await this.sendDiscordNotification(provider.config, payload);
+          return !!provider.config.discordWebhookUrl;
         default:
-          this.logger.error(`Unsupported notification provider type: ${provider.type}`);
           return false;
       }
     } catch (error) {
-      this.logger.error(`Failed to send notification via ${provider.type}:`, error);
+      this.logger.error(`Error validating provider config: ${error.message}`);
       return false;
     }
   }
 
   async sendNotificationToMultipleProviders(providers: NotificationProvider[], payload: NotificationPayload): Promise<{ success: number; failed: number }> {
+    if (!providers || providers.length === 0) {
+      this.logger.warn('No providers to send notifications to');
+      return { success: 0, failed: 0 };
+    }
+
+    this.logger.log(`Sending notifications to ${providers.length} providers`);
+
     const results = await Promise.allSettled(
       providers.map(provider => this.sendNotification(provider, payload))
     );
@@ -60,217 +118,270 @@ export class NotificationService {
     const failed = results.length - success;
 
     this.logger.log(`Notification sent: ${success} success, ${failed} failed`);
+
+    // Log detailed results for debugging
+    results.forEach((result, index) => {
+      const provider = providers[index];
+      if (result.status === 'fulfilled') {
+        if (result.value) {
+          this.logger.debug(`Provider ${provider.id} (${provider.type}): Success`);
+        } else {
+          this.logger.warn(`Provider ${provider.id} (${provider.type}): Failed to send`);
+        }
+      } else {
+        this.logger.error(`Provider ${provider.id} (${provider.type}): Error - ${result.reason}`);
+      }
+    });
+
     return { success, failed };
   }
 
   private async sendEmailNotification(config: any, payload: NotificationPayload): Promise<boolean> {
-    const transporter = nodemailer.createTransport({
-      host: config.smtpHost,
-      port: config.smtpPort || 587,
-      secure: config.smtpSecure || false,
-      auth: {
-        user: config.smtpUser,
-        pass: config.smtpPassword,
-      },
-    });
+    try {
+      const transporter = nodemailer.createTransport({
+        host: config.smtpHost,
+        port: config.smtpPort || 587,
+        secure: config.smtpSecure || false,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPassword,
+        },
+      });
 
-    const emailContent = this.formatEmailContent(payload);
-    
-    await transporter.sendMail({
-      from: config.fromEmail,
-      to: config.toEmail,
-      subject: emailContent.subject,
-      html: emailContent.html,
-      text: emailContent.text,
-    });
+      const emailContent = this.formatEmailContent(payload);
+      
+      await transporter.sendMail({
+        from: config.fromEmail,
+        to: config.toEmail,
+        subject: emailContent.subject,
+        html: emailContent.html,
+        text: emailContent.text,
+      });
 
-    return true;
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send email notification: ${error.message}`, error.stack);
+      return false;
+    }
   }
 
   private async sendSlackNotification(config: any, payload: NotificationPayload): Promise<boolean> {
-    const slackMessage = this.formatSlackMessage(payload);
-    
-    const response = await fetch(config.webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: slackMessage.text,
-        channel: config.channel,
-        attachments: slackMessage.attachments,
-      }),
-    });
+    try {
+      const webhookUrl = config.webhookUrl;
+      if (!webhookUrl) {
+        throw new Error('Slack webhook URL is required');
+      }
 
-    return response.ok;
-  }
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: `${payload.title}\n${payload.message}`,
+          attachments: [
+            {
+              color: this.getColorForSeverity(payload.severity),
+              fields: [
+                {
+                  title: 'Type',
+                  value: payload.type,
+                  short: true,
+                },
+                {
+                  title: 'Target',
+                  value: payload.targetName,
+                  short: true,
+                },
+                {
+                  title: 'Status',
+                  value: payload.metadata?.status || 'N/A',
+                  short: true,
+                },
+                {
+                  title: 'Time',
+                  value: new Date(payload.timestamp).toLocaleString(),
+                  short: true,
+                },
+              ],
+            },
+          ],
+        }),
+      });
 
-  private async sendWebhookNotification(config: any, payload: NotificationPayload): Promise<boolean> {
-    const method = config.method || 'POST';
-    const headers = {
-      'Content-Type': 'application/json',
-      ...config.headers,
-    };
+      if (!response.ok) {
+        throw new Error(`Slack API responded with status ${response.status}`);
+      }
 
-    let body = JSON.stringify(payload);
-    if (config.bodyTemplate) {
-      body = this.replaceTemplateVariables(config.bodyTemplate, payload);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send Slack notification: ${error.message}`, error.stack);
+      return false;
     }
-
-    const response = await fetch(config.url, {
-      method,
-      headers,
-      body: method !== 'GET' ? body : undefined,
-    });
-
-    return response.ok;
-  }
-
-  private async sendTelegramNotification(config: any, payload: NotificationPayload): Promise<boolean> {
-    const message = this.formatTelegramMessage(payload);
-    const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chat_id: config.chatId,
-        text: message,
-        parse_mode: 'HTML',
-      }),
-    });
-
-    return response.ok;
   }
 
   private async sendDiscordNotification(config: any, payload: NotificationPayload): Promise<boolean> {
-    const embed = this.formatDiscordEmbed(payload);
+    try {
+      const webhookUrl = config.discordWebhookUrl;
+      if (!webhookUrl) {
+        throw new Error('Discord webhook URL is required');
+      }
 
-    const response = await fetch(config.discordWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        embeds: [embed],
-      }),
-    });
-
-    return response.ok;
-  }
-
-  private formatEmailContent(payload: NotificationPayload) {
-    const severityEmoji = {
-      info: 'ℹ️',
-      warning: '⚠️',
-      error: '🚨',
-      success: '✅',
-    };
-
-    const subject = `${severityEmoji[payload.severity]} ${payload.title}`;
-    const text = `${payload.message}\n\nTarget: ${payload.targetName}\nTime: ${payload.timestamp.toISOString()}`;
-    
-    const html = `
-      <h2>${severityEmoji[payload.severity]} ${payload.title}</h2>
-      <p><strong>Message:</strong> ${payload.message}</p>
-      <p><strong>Target:</strong> ${payload.targetName}</p>
-      <p><strong>Time:</strong> ${payload.timestamp.toISOString()}</p>
-      ${payload.metadata ? `<p><strong>Details:</strong> ${JSON.stringify(payload.metadata, null, 2)}</p>` : ''}
-    `;
-
-    return { subject, text, html };
-  }
-
-  private formatSlackMessage(payload: NotificationPayload) {
-    const colorMap = {
-      info: '#36a64f',
-      warning: '#ff9500',
-      error: '#ff0000',
-      success: '#36a64f',
-    };
-
-    return {
-      text: payload.title,
-      attachments: [
-        {
-          color: colorMap[payload.severity],
-          fields: [
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          embeds: [
             {
-              title: 'Message',
-              value: payload.message,
-              short: false,
-            },
-            {
-              title: 'Target',
-              value: payload.targetName,
-              short: true,
-            },
-            {
-              title: 'Time',
-              value: payload.timestamp.toISOString(),
-              short: true,
+              title: payload.title,
+              description: payload.message,
+              color: this.getDiscordColorForSeverity(payload.severity),
+              fields: [
+                {
+                  name: 'Type',
+                  value: payload.type,
+                  inline: true,
+                },
+                {
+                  name: 'Target',
+                  value: payload.targetName,
+                  inline: true,
+                },
+                {
+                  name: 'Status',
+                  value: payload.metadata?.status || 'N/A',
+                  inline: true,
+                },
+              ],
+              timestamp: new Date(payload.timestamp).toISOString(),
             },
           ],
-        },
-      ],
-    };
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Discord API responded with status ${response.status}`);
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send Discord notification: ${error.message}`, error.stack);
+      return false;
+    }
   }
 
-  private formatTelegramMessage(payload: NotificationPayload): string {
-    const severityEmoji = {
-      info: 'ℹ️',
-      warning: '⚠️',
-      error: '🚨',
-      success: '✅',
-    };
+  private async sendTelegramNotification(config: any, payload: NotificationPayload): Promise<boolean> {
+    try {
+      const { botToken, chatId } = config;
+      if (!botToken || !chatId) {
+        throw new Error('Telegram bot token and chat ID are required');
+      }
 
-    return `
-<b>${severityEmoji[payload.severity]} ${payload.title}</b>
+      const message = `*${payload.title}*\n\n${payload.message}\n\nType: ${payload.type}\nTarget: ${payload.targetName}\nStatus: ${payload.metadata?.status || 'N/A'}\nTime: ${new Date(payload.timestamp).toLocaleString()}`;
 
-<b>Message:</b> ${payload.message}
-<b>Target:</b> ${payload.targetName}
-<b>Time:</b> ${payload.timestamp.toISOString()}
-    `.trim();
+      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'Markdown',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Telegram API responded with status ${response.status}`);
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send Telegram notification: ${error.message}`, error.stack);
+      return false;
+    }
   }
 
-  private formatDiscordEmbed(payload: NotificationPayload) {
-    const colorMap = {
-      info: 0x0099ff,
-      warning: 0xff9500,
-      error: 0xff0000,
-      success: 0x00ff00,
-    };
+  private async sendWebhookNotification(config: any, payload: NotificationPayload): Promise<boolean> {
+    try {
+      const response = await fetch(config.url, {
+        method: config.method || 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...config.headers,
+        },
+        body: config.bodyTemplate ? 
+          this.formatWebhookBody(config.bodyTemplate, payload) :
+          JSON.stringify(payload),
+      });
 
-    return {
-      title: payload.title,
-      description: payload.message,
-      color: colorMap[payload.severity],
-      fields: [
-        {
-          name: 'Target',
-          value: payload.targetName,
-          inline: true,
-        },
-        {
-          name: 'Time',
-          value: payload.timestamp.toISOString(),
-          inline: true,
-        },
-      ],
-      timestamp: payload.timestamp.toISOString(),
-    };
+      if (!response.ok) {
+        this.logger.error(`Webhook request failed with status ${response.status}: ${response.statusText}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send webhook notification: ${error.message}`, error.stack);
+      return false;
+    }
   }
 
-  private replaceTemplateVariables(template: string, payload: NotificationPayload): string {
-    return template
-      .replace(/\{\{title\}\}/g, payload.title)
-      .replace(/\{\{message\}\}/g, payload.message)
-      .replace(/\{\{targetName\}\}/g, payload.targetName)
-      .replace(/\{\{targetId\}\}/g, payload.targetId)
-      .replace(/\{\{severity\}\}/g, payload.severity)
-      .replace(/\{\{timestamp\}\}/g, payload.timestamp.toISOString())
-      .replace(/\{\{type\}\}/g, payload.type);
+  private formatWebhookBody(template: string, payload: NotificationPayload): string {
+    try {
+      // Replace template variables with actual values
+      return template.replace(/\${(.*?)}/g, (match, key) => {
+        const value = key.split('.').reduce((obj: any, k: string) => obj?.[k], payload);
+        return value !== undefined ? String(value) : match;
+      });
+    } catch (error) {
+      this.logger.error(`Failed to format webhook body: ${error.message}`);
+      return JSON.stringify(payload);
+    }
+  }
+
+  private formatEmailContent(payload: NotificationPayload): { subject: string; html: string; text: string } {
+    const subject = payload.title;
+    const text = `${payload.message}\n\nType: ${payload.type}\nTarget: ${payload.targetName}\nStatus: ${payload.metadata?.status || 'N/A'}\nTime: ${new Date(payload.timestamp).toLocaleString()}`;
+    const html = `
+      <h2>${payload.title}</h2>
+      <p>${payload.message}</p>
+      <table>
+        <tr><td><strong>Type:</strong></td><td>${payload.type}</td></tr>
+        <tr><td><strong>Target:</strong></td><td>${payload.targetName}</td></tr>
+        <tr><td><strong>Status:</strong></td><td>${payload.metadata?.status || 'N/A'}</td></tr>
+        <tr><td><strong>Time:</strong></td><td>${new Date(payload.timestamp).toLocaleString()}</td></tr>
+      </table>
+    `;
+
+    return { subject, html, text };
+  }
+
+  private getColorForSeverity(severity: NotificationPayload['severity']): string {
+    switch (severity) {
+      case 'error':
+        return '#ff0000';
+      case 'warning':
+        return '#ffa500';
+      case 'success':
+        return '#00ff00';
+      default:
+        return '#808080';
+    }
+  }
+
+  private getDiscordColorForSeverity(severity: NotificationPayload['severity']): number {
+    switch (severity) {
+      case 'error':
+        return 0xff0000;
+      case 'warning':
+        return 0xffa500;
+      case 'success':
+        return 0x00ff00;
+      default:
+        return 0x808080;
+    }
   }
 } 

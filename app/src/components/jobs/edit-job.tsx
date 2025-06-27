@@ -73,7 +73,16 @@ export default function EditJob({ jobId }: EditJobProps) {
     description: "",
     cronSchedule: ""
   });
-  const [alertConfig, setAlertConfig] = useState({
+  const [alertConfig, setAlertConfig] = useState<{
+    enabled: boolean;
+    notificationProviders: string[];
+    alertOnFailure: boolean;
+    alertOnSuccess: boolean;
+    alertOnTimeout: boolean;
+    failureThreshold: number;
+    recoveryThreshold: number;
+    customMessage: string;
+  }>({
     enabled: false,
     notificationProviders: [],
     alertOnFailure: true,
@@ -145,9 +154,33 @@ export default function EditJob({ jobId }: EditJobProps) {
       setOriginalSelectedTests(tests);
 
       // Load alert configuration if it exists
-      if (jobData.alertConfig) {
-        setAlertConfig(jobData.alertConfig);
+      if (jobData.alertConfig && typeof jobData.alertConfig === 'object') {
+        const alertConfig = jobData.alertConfig as any; // Safe cast since we checked it's an object
+        setAlertConfig({
+          enabled: Boolean(alertConfig.enabled),
+          notificationProviders: Array.isArray(alertConfig.notificationProviders) ? alertConfig.notificationProviders : [],
+          alertOnFailure: alertConfig.alertOnFailure !== undefined ? Boolean(alertConfig.alertOnFailure) : true,
+          alertOnSuccess: Boolean(alertConfig.alertOnSuccess),
+          alertOnTimeout: alertConfig.alertOnTimeout !== undefined ? Boolean(alertConfig.alertOnTimeout) : true,
+          failureThreshold: typeof alertConfig.failureThreshold === 'number' ? alertConfig.failureThreshold : 1,
+          recoveryThreshold: typeof alertConfig.recoveryThreshold === 'number' ? alertConfig.recoveryThreshold : 1,
+          customMessage: typeof alertConfig.customMessage === 'string' ? alertConfig.customMessage : "",
+        });
+      } else {
+        // Set default alert config if none exists
+        setAlertConfig({
+          enabled: false,
+          notificationProviders: [],
+          alertOnFailure: true,
+          alertOnSuccess: false,
+          alertOnTimeout: true,
+          failureThreshold: 1,
+          recoveryThreshold: 1,
+          customMessage: "",
+        });
       }
+
+      setJobData(jobData); // Store job data for later use
     } catch (error) {
       console.error("Error loading job:", error);
       toast.error("Error", {

@@ -39,7 +39,6 @@ interface NotificationProvider {
   id: string;
   type: 'email' | 'slack' | 'webhook' | 'telegram' | 'discord';
   config: Record<string, unknown>;
-  isEnabled: boolean;
 }
 
 const mockProviders: NotificationProvider[] = [];
@@ -232,46 +231,50 @@ export function AlertSettings({
             {/* Thresholds */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="failure-threshold">Failure Threshold</Label>
-                <Select 
+                <Label htmlFor="failure-threshold" className="text-sm font-medium">
+                  Failure Threshold
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Alert after this many consecutive failures
+                </p>
+                <Select
                   value={config.failureThreshold.toString()}
                   onValueChange={(value) => updateConfig({ failureThreshold: parseInt(value) })}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger id="failure-threshold">
+                    <SelectValue placeholder="Select threshold" />
                   </SelectTrigger>
                   <SelectContent>
-                    {[1, 2, 3, 4, 5].map(num => (
-                      <SelectItem key={num} value={num.toString()}>
-                        {num} failure{num > 1 ? 's' : ''}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="1">1 failure</SelectItem>
+                    <SelectItem value="2">2 failures</SelectItem>
+                    <SelectItem value="3">3 failures</SelectItem>
+                    <SelectItem value="4">4 failures</SelectItem>
+                    <SelectItem value="5">5 failures</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Alert after this many consecutive failures
-                </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="recovery-threshold">Recovery Threshold</Label>
-                <Select 
+                <Label htmlFor="recovery-threshold" className="text-sm font-medium">
+                  Recovery Threshold
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Alert after this many consecutive successes
+                </p>
+                <Select
                   value={config.recoveryThreshold.toString()}
                   onValueChange={(value) => updateConfig({ recoveryThreshold: parseInt(value) })}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger id="recovery-threshold">
+                    <SelectValue placeholder="Select threshold" />
                   </SelectTrigger>
                   <SelectContent>
-                    {[1, 2, 3, 4, 5].map(num => (
-                      <SelectItem key={num} value={num.toString()}>
-                        {num} success{num > 1 ? 'es' : ''}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="1">1 success</SelectItem>
+                    <SelectItem value="2">2 successes</SelectItem>
+                    <SelectItem value="3">3 successes</SelectItem>
+                    <SelectItem value="4">4 successes</SelectItem>
+                    <SelectItem value="5">5 successes</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Alert after this many consecutive successes
-                </p>
               </div>
             </div>
 
@@ -304,7 +307,6 @@ export function AlertSettings({
                             body: JSON.stringify({
                               type: newProvider.type,
                               config: newProvider.config,
-                              isEnabled: true,
                             }),
                           });
 
@@ -367,7 +369,6 @@ export function AlertSettings({
                                     body: JSON.stringify({
                                       type: newProvider.type,
                                       config: newProvider.config,
-                                      isEnabled: true,
                                     }),
                                   });
 
@@ -410,13 +411,9 @@ export function AlertSettings({
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Badge variant={provider.isEnabled ? "default" : "secondary"} className="text-xs">
-                            {provider.isEnabled ? "Active" : "Inactive"}
-                          </Badge>
                           <Checkbox
                             checked={config.notificationProviders.includes(provider.id)}
                             onCheckedChange={() => toggleProvider(provider.id)}
-                            disabled={!provider.isEnabled}
                           />
                         </div>
                       </div>

@@ -30,9 +30,6 @@ import { monitorTypes } from "./data";
 import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info, RefreshCw, Network, Globe, Activity, Shield, LaptopMinimal } from "lucide-react";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 
-
-
-
 import {
   Card,
   CardContent,
@@ -166,6 +163,20 @@ const creationDefaultValues: FormValues = {
   websiteConfig_sslDaysUntilExpirationWarning: undefined,
 };
 
+// Add AlertConfiguration type
+interface AlertConfiguration {
+  enabled: boolean;
+  notificationProviders: string[];
+  alertOnFailure: boolean;
+  alertOnRecovery?: boolean;
+  alertOnSslExpiration?: boolean;
+  alertOnSuccess?: boolean;
+  alertOnTimeout?: boolean;
+  failureThreshold: number;
+  recoveryThreshold: number;
+  customMessage?: string;
+}
+
 interface MonitorFormProps {
   initialData?: FormValues;
   editMode?: boolean;
@@ -177,6 +188,7 @@ interface MonitorFormProps {
   hideAlerts?: boolean;
   onSave?: (data: any) => void;
   onCancel?: () => void;
+  alertConfig?: AlertConfiguration | null; // Use proper type
 }
 
 export function MonitorForm({ 
@@ -189,7 +201,8 @@ export function MonitorForm({
   description,
   hideAlerts = false,
   onSave,
-  onCancel
+  onCancel,
+  alertConfig: initialAlertConfig
 }: MonitorFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -198,7 +211,7 @@ export function MonitorForm({
   const [isAuthSectionOpen, setIsAuthSectionOpen] = useState(false);
   const [isKeywordSectionOpen, setIsKeywordSectionOpen] = useState(false);
   const [isCustomStatusCode, setIsCustomStatusCode] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({
+  const [alertConfig, setAlertConfig] = useState(initialAlertConfig || {
     enabled: false,
     notificationProviders: [] as string[],
     alertOnFailure: true,

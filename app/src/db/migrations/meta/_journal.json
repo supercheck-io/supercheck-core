@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1748604823648,
-      "tag": "0000_slow_mojo",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1750336516914,
-      "tag": "0001_last_maelstrom",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1750971641662,
-      "tag": "0002_thick_lizard",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1751011501656,
-      "tag": "0003_faithful_eddie_brock",
+      "when": 1751057697370,
+      "tag": "0000_mixed_orphan",
       "breakpoints": true
     }
   ]

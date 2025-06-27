@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db as getDbInstance } from "@/lib/db";
-import { monitors, monitorResults, monitorsUpdateSchema } from "@/db/schema/schema";
+import { monitors, monitorResults, monitorsUpdateSchema, monitorNotificationSettings } from "@/db/schema/schema";
 import { eq, desc } from "drizzle-orm";
 import { scheduleMonitorCheck, removeScheduledMonitorCheck } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
@@ -69,13 +69,42 @@ export async function PUT(
 
     const [updatedMonitor] = await db
       .update(monitors)
-      .set({...updateData, updatedAt: new Date()})
+      .set({
+        ...updateData,
+        alertConfig: rawData.alertConfig ? {
+          enabled: Boolean(rawData.alertConfig.enabled),
+          notificationProviders: Array.isArray(rawData.alertConfig.notificationProviders) ? rawData.alertConfig.notificationProviders : [],
+          alertOnFailure: rawData.alertConfig.alertOnFailure !== undefined ? Boolean(rawData.alertConfig.alertOnFailure) : true,
+          alertOnRecovery: Boolean(rawData.alertConfig.alertOnRecovery),
+          alertOnSslExpiration: Boolean(rawData.alertConfig.alertOnSslExpiration),
+          failureThreshold: typeof rawData.alertConfig.failureThreshold === 'number' ? rawData.alertConfig.failureThreshold : 1,
+          recoveryThreshold: typeof rawData.alertConfig.recoveryThreshold === 'number' ? rawData.alertConfig.recoveryThreshold : 1,
+          customMessage: typeof rawData.alertConfig.customMessage === 'string' ? rawData.alertConfig.customMessage : "",
+        } : null,
+        updatedAt: new Date(),
+      })
       .where(eq(monitors.id, id))
       .returning();
 
     if (!updatedMonitor) {
       // Should not happen if currentMonitor was found, but as a safeguard
       return NextResponse.json({ error: "Failed to update monitor, monitor not found after update." }, { status: 404 });
+    }
+
+    // Update notification provider links if alert config is enabled
+    if (rawData.alertConfig?.enabled && Array.isArray(rawData.alertConfig.notificationProviders)) {
+      // First, delete existing links
+      await db.delete(monitorNotificationSettings).where(eq(monitorNotificationSettings.monitorId, id));
+      
+      // Then, create new links
+      await Promise.all(
+        rawData.alertConfig.notificationProviders.map(providerId =>
+          db.insert(monitorNotificationSettings).values({
+            monitorId: id,
+            notificationProviderId: providerId,
+          })
+        )
+      );
     }
 
     // Handle scheduling changes for frequency updates

@@ -7,6 +7,7 @@ import {
   runs,
   JobStatus,
   TestRunStatus,
+  jobNotificationSettings,
 } from "@/db/schema/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 
@@ -62,6 +63,18 @@ interface JobData {
   retryCount: number;
   config: Record<string, unknown>;
   tests: Test[];
+  alertConfig?: {
+    enabled: boolean;
+    notificationProviders: string[];
+    alertOnFailure: boolean;
+    alertOnSuccess: boolean;
+    alertOnTimeout: boolean;
+    failureThreshold: number;
+    recoveryThreshold: number;
+    customMessage: string;
+  };
+  organizationId?: string;
+  createdByUserId?: string;
 }
 
 // Define the TestResult interface to match what's returned by executeMultipleTests
@@ -179,14 +192,40 @@ export async function POST(request: Request) {
     const jobId = randomUUID();
 
     // Insert the job into the database with default values for nullable fields
-    await dbInstance.insert(jobs).values({
+    const [insertedJob] = await dbInstance.insert(jobs).values({
       id: jobId,
       name: jobData.name,
-      description: jobData.description || "",
-      cronSchedule: jobData.cronSchedule,
-      status: "pending", // Always set to pending for new jobs
-      alertConfig: (jobData as any).alertConfig || null,
-    });
+      description: jobData.description || null,
+      cronSchedule: jobData.cronSchedule || null,
+      status: jobData.status || 'pending',
+      config: jobData.config || {},
+      retryCount: jobData.retryCount || 0,
+      timeoutSeconds: jobData.timeoutSeconds || 300,
+      alertConfig: jobData.alertConfig ? {
+        enabled: Boolean(jobData.alertConfig.enabled),
+        notificationProviders: Array.isArray(jobData.alertConfig.notificationProviders) ? jobData.alertConfig.notificationProviders : [],
+        alertOnFailure: jobData.alertConfig.alertOnFailure !== undefined ? Boolean(jobData.alertConfig.alertOnFailure) : true,
+        alertOnSuccess: Boolean(jobData.alertConfig.alertOnSuccess),
+        alertOnTimeout: Boolean(jobData.alertConfig.alertOnTimeout),
+        failureThreshold: typeof jobData.alertConfig.failureThreshold === 'number' ? jobData.alertConfig.failureThreshold : 1,
+        recoveryThreshold: typeof jobData.alertConfig.recoveryThreshold === 'number' ? jobData.alertConfig.recoveryThreshold : 1,
+        customMessage: typeof jobData.alertConfig.customMessage === 'string' ? jobData.alertConfig.customMessage : "",
+      } : null,
+      organizationId: jobData.organizationId || null,
+      createdByUserId: jobData.createdByUserId || null,
+    }).returning();
+
+    // Link notification providers if alert config is enabled
+    if (insertedJob && jobData.alertConfig?.enabled && Array.isArray(jobData.alertConfig.notificationProviders)) {
+      await Promise.all(
+        jobData.alertConfig.notificationProviders.map(providerId =>
+          dbInstance.insert(jobNotificationSettings).values({
+            jobId: insertedJob.id,
+            notificationProviderId: providerId,
+          })
+        )
+      );
+    }
 
     // If tests are provided, create job-test associations
     if (jobData.tests && jobData.tests.length > 0) {

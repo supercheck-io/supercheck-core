@@ -419,7 +419,6 @@ export const notificationProviders = pgTable("notification_providers", {
   createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
   type: varchar("type", { length: 50 }).$type<NotificationProviderType>().notNull(),
   config: jsonb("config").$type<NotificationProviderConfig>().notNull(),
-  isEnabled: boolean("is_enabled").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -429,20 +428,17 @@ export const notificationProviders = pgTable("notification_providers", {
    -------------------------------
    Stores the history of all alert notifications sent
 =================================== */
-export type AlertType = "failure" | "recovery" | "ssl_expiration" | "success" | "timeout";
+export type AlertType = "monitor_failure" | "monitor_recovery" | "job_failed" | "job_success" | "job_timeout" | "ssl_expiring";
 export type AlertStatus = "sent" | "failed" | "pending";
 
 export const alertHistory = pgTable("alert_history", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
-    .references(() => organization.id, { onDelete: "cascade" }),
   message: text("message").notNull(),
   type: varchar("type", { length: 50 }).$type<AlertType>().notNull(),
   target: varchar("target", { length: 255 }).notNull(), // Monitor or job name
   targetType: varchar("target_type", { length: 50 }).notNull(), // "monitor" or "job"
   monitorId: uuid("monitor_id").references(() => monitors.id, { onDelete: "cascade" }),
   jobId: uuid("job_id").references(() => jobs.id, { onDelete: "cascade" }),
-  providerId: uuid("provider_id").references(() => notificationProviders.id, { onDelete: "cascade" }),
   provider: varchar("provider", { length: 100 }).notNull(), // Provider name for display
   status: varchar("status", { length: 50 }).$type<AlertStatus>().notNull().default("pending"),
   sentAt: timestamp("sent_at").defaultNow(),
@@ -473,6 +469,32 @@ export const monitorNotificationSettings = pgTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.monitorId, table.notificationProviderId] }),
+  })
+);
+
+/* ================================
+   JOB NOTIFICATIONS TABLE (Join Table)
+   -------------------------------
+   Links jobs to specific notification provider configurations.
+   A job can have multiple notification channels.
+=================================== */
+export const jobNotificationSettings = pgTable(
+  "job_notification_settings",
+  {
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    notificationProviderId: uuid("notification_provider_id")
+      .notNull()
+      .references(() => notificationProviders.id, { onDelete: "cascade" }),
+    // Additional settings for this specific job-notification link, if needed
+    // e.g., notifyOnSuccess: boolean("notify_on_success").default(true),
+    //       notifyOnFailure: boolean("notify_on_failure").default(true),
+    //       notifyOnTimeout: boolean("notify_on_timeout").default(false),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.jobId, table.notificationProviderId] }),
   })
 );
 

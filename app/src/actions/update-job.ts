@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { jobs, jobTests } from "@/db/schema/schema";
+import { jobs, jobTests, jobNotificationSettings } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -17,6 +17,16 @@ const updateJobSchema = z.object({
   tests: z.array(z.object({
     id: z.string().uuid(),
   })),
+  alertConfig: z.object({
+    enabled: z.boolean(),
+    notificationProviders: z.array(z.string()),
+    alertOnFailure: z.boolean(),
+    alertOnSuccess: z.boolean().optional(),
+    alertOnTimeout: z.boolean().optional(),
+    failureThreshold: z.number(),
+    recoveryThreshold: z.number(),
+    customMessage: z.string().optional(),
+  }).optional(),
 });
 
 export type UpdateJobData = z.infer<typeof updateJobSchema>;
@@ -64,9 +74,27 @@ export async function updateJob(data: UpdateJobData) {
           description: validatedData.description || "",
           cronSchedule: validatedData.cronSchedule || null,
           nextRunAt: nextRunAt,
+          alertConfig: validatedData.alertConfig || null,
           updatedAt: new Date(),
         })
         .where(eq(jobs.id, validatedData.jobId));
+      
+      // Update notification provider links if alert config is enabled
+      if (validatedData.alertConfig?.enabled && Array.isArray(validatedData.alertConfig.notificationProviders)) {
+        // First, delete existing links
+        await dbInstance.delete(jobNotificationSettings)
+          .where(eq(jobNotificationSettings.jobId, validatedData.jobId));
+        
+        // Then, create new links
+        await Promise.all(
+          validatedData.alertConfig.notificationProviders.map(providerId =>
+            dbInstance.insert(jobNotificationSettings).values({
+              jobId: validatedData.jobId,
+              notificationProviderId: providerId,
+            })
+          )
+        );
+      }
       
       // Delete all existing test associations
       await dbInstance.delete(jobTests)

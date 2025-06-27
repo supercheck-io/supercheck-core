@@ -73,7 +73,7 @@ async function testEmailConnection(config: any) {
     return NextResponse.json({ success: true, message: "Email connection successful" });
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: `Email connection failed: ${error.message}` },
+      { success: false, error: `Email connection failed: ${error instanceof Error ? error.message : String(error)}` },
       { status: 400 }
     );
   }
@@ -103,7 +103,7 @@ async function testSlackConnection(config: any) {
     return NextResponse.json({ success: true, message: "Slack connection successful" });
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: `Slack connection failed: ${error.message}` },
+      { success: false, error: `Slack connection failed: ${error instanceof Error ? error.message : String(error)}` },
       { status: 400 }
     );
   }
@@ -138,7 +138,7 @@ async function testWebhookConnection(config: any) {
     return NextResponse.json({ success: true, message: "Webhook connection successful" });
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: `Webhook connection failed: ${error.message}` },
+      { success: false, error: `Webhook connection failed: ${error instanceof Error ? error.message : String(error)}` },
       { status: 400 }
     );
   }
@@ -170,7 +170,7 @@ async function testTelegramConnection(config: any) {
     return NextResponse.json({ success: true, message: "Telegram connection successful" });
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: `Telegram connection failed: ${error.message}` },
+      { success: false, error: `Telegram connection failed: ${error instanceof Error ? error.message : String(error)}` },
       { status: 400 }
     );
   }
@@ -199,7 +199,7 @@ async function testDiscordConnection(config: any) {
     return NextResponse.json({ success: true, message: "Discord connection successful" });
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: `Discord connection failed: ${error.message}` },
+      { success: false, error: `Discord connection failed: ${error instanceof Error ? error.message : String(error)}` },
       { status: 400 }
     );
   }

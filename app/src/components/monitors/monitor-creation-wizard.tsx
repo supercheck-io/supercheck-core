@@ -40,7 +40,7 @@ export function MonitorCreationWizard() {
     try {
       const finalData = {
         ...monitorData,
-        alerts: alertConfig,
+        alertConfig: alertConfig,
       };
       
       console.log("Creating monitor with alerts:", finalData);

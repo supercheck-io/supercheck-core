@@ -51,11 +51,9 @@ export async function SchedulerInitializer() {
         .then((result) => {
           if (result.success) {
             console.log('✅ Monitor scheduler initialized successfully');
-            if (result.scheduled !== undefined && result.failed !== undefined) {
-              console.log(`Initialized ${result.scheduled} monitors, ${result.failed} failed`);
-            }
+            console.log(`Initialized ${result.scheduled} monitors, ${result.failed} failed`);
           } else {
-            console.error('❌ Monitor scheduler initialization failed', result.error);
+            console.error('❌ Monitor scheduler initialization failed');
           }
         })
         .catch((error: unknown) => {

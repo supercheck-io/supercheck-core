@@ -41,7 +41,6 @@ export async function POST(req: NextRequest) {
       .values({
         type: newProviderData.type!,
         config: newProviderData.config!,
-        isEnabled: newProviderData.isEnabled,
         organizationId: newProviderData.organizationId,
         createdByUserId: newProviderData.createdByUserId,
       })

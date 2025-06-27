@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from 'src/db/schema'; // Import the schema we copied
 import { reports, jobs, runs } from 'src/db/schema'; // Specifically import reports table
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { ReportMetadata } from '../interfaces'; // Import our interface
 
 // Define a token for the Drizzle provider
@@ -189,6 +189,23 @@ export class DbService implements OnModuleInit {
   }
 
   /**
+   * Gets the last run for a job
+   * @param jobId The ID of the job to get the last run for
+   */
+  async getLastRunForJob(jobId: string): Promise<any> {
+    try {
+      const lastRun = await this.db.query.runs.findFirst({
+        where: eq(schema.runs.jobId, jobId),
+        orderBy: [desc(schema.runs.completedAt)],
+      });
+      return lastRun;
+    } catch (error) {
+      this.logger.error(`Failed to get last run for job ${jobId}: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Gets notification providers by IDs
    * @param providerIds Array of provider IDs
    */
@@ -199,16 +216,36 @@ export class DbService implements OnModuleInit {
       }
 
       const providers = await this.db.query.notificationProviders.findMany({
-        where: (notificationProviders, { inArray, and, eq }) => 
-          and(
-            inArray(notificationProviders.id, providerIds),
-            eq(notificationProviders.isEnabled, true)
-          ),
+        where: (notificationProviders, { inArray }) => 
+          inArray(notificationProviders.id, providerIds),
       });
       
       return providers || [];
     } catch (error) {
       this.logger.error(`Failed to get notification providers: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Get recent runs for a job to check alert thresholds
+   */
+  async getRecentRunsForJob(jobId: string, limit: number = 5) {
+    try {
+      const runs = await this.db
+        .select({
+          id: schema.runs.id,
+          status: schema.runs.status,
+          createdAt: schema.runs.createdAt,
+        })
+        .from(schema.runs)
+        .where(eq(schema.runs.jobId, jobId))
+        .orderBy(desc(schema.runs.createdAt))
+        .limit(limit);
+
+      return runs;
+    } catch (error) {
+      this.logger.error(`Failed to get recent runs for job ${jobId}: ${error.message}`);
       return [];
     }
   }

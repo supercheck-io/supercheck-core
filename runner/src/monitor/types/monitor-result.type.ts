@@ -30,5 +30,6 @@ export type MonitorExecutionResult = {
   responseTimeMs?: number;
   details?: MonitorResultDetails;
   isUp: boolean;
+  isStatusChange?: boolean;
   error?: string; // For capturing execution errors not part of 'details'
 }; 

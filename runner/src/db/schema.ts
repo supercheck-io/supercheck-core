@@ -237,8 +237,7 @@ export type MonitorType =
   | "website"         // Monitor website availability and performance (HTTP GET) with optional SSL checking
   | "ping_host"       // ICMP ping to a host
   | "port_check"      // Check specific TCP or UDP port
-  | "heartbeat"       // Passive monitoring expecting regular pings
-
+  | "heartbeat";      // Passive monitoring expecting regular pings
 
 export type MonitorStatus =
   | "up"
@@ -270,26 +269,39 @@ export type MonitorConfig = {
   protocol?: "tcp" | "udp";
 
   // heartbeat specific
-  expectedIntervalMinutes?: number; // e.g., 5 (5 minutes)
-  gracePeriodMinutes?: number; // e.g., 2 (2 minutes grace period)
-  heartbeatUrl?: string; // Auto-generated unique URL for receiving pings
-  lastPingAt?: string; // ISO string of last received ping
+  expectedIntervalMinutes?: number;
+  gracePeriodMinutes?: number;
+  heartbeatUrl?: string;
+  lastPingAt?: string;
 
-  // ssl_check specific (target is domain name) - for future use
+  // ssl_check specific
   checkExpiration?: boolean;
-  daysUntilExpirationWarning?: number; 
-  checkRevocation?: boolean; 
+  daysUntilExpirationWarning?: number;
+  checkRevocation?: boolean;
 
-  // Common configuration applicable to many types
-  timeoutSeconds?: number; 
-  regions?: string[]; 
+  // Common configuration
+  timeoutSeconds?: number;
+  regions?: string[];
   retryStrategy?: {
-    maxRetries: number; 
-    backoffFactor: number; 
+    maxRetries: number;
+    backoffFactor: number;
   };
-  alertChannels?: string[]; 
+  alertChannels?: string[];
   
-  [key: string]: any; 
+  [key: string]: any;
+};
+
+export type AlertConfig = {
+  enabled: boolean;
+  notificationProviders: string[];
+  alertOnFailure: boolean;
+  alertOnRecovery?: boolean;
+  alertOnSslExpiration?: boolean;
+  alertOnSuccess?: boolean;
+  alertOnTimeout?: boolean;
+  failureThreshold: number;
+  recoveryThreshold: number;
+  customMessage?: string;
 };
 
 export const monitors = pgTable("monitors", {
@@ -304,6 +316,7 @@ export const monitors = pgTable("monitors", {
   enabled: boolean("enabled").notNull().default(true),
   status: varchar("status", { length: 50 }).$type<MonitorStatus>().notNull().default("pending"),
   config: jsonb("config").$type<MonitorConfig>(),
+  alertConfig: jsonb("alert_config").$type<AlertConfig>(),
   lastCheckAt: timestamp("last_check_at"),
   lastStatusChangeAt: timestamp("last_status_change_at"),
   mutedUntil: timestamp("muted_until"),
@@ -323,9 +336,9 @@ export type MonitorResultDetails = {
   statusText?: string;
   errorMessage?: string;
   responseHeaders?: Record<string, string>;
-  responseBodySnippet?: string; 
-  ipAddress?: string; 
-  location?: string; 
+  responseBodySnippet?: string;
+  ipAddress?: string;
+  location?: string;
   sslCertificate?: {
     valid: boolean;
     issuer?: string;
@@ -334,7 +347,7 @@ export type MonitorResultDetails = {
     validTo?: string;
     daysRemaining?: number;
   };
-  [key: string]: any; 
+  [key: string]: any;
 };
 
 export const monitorResults = pgTable("monitor_results", {
@@ -346,8 +359,8 @@ export const monitorResults = pgTable("monitor_results", {
   status: varchar("status", { length: 50 }).$type<MonitorResultStatus>().notNull(),
   responseTimeMs: integer("response_time_ms"),
   details: jsonb("details").$type<MonitorResultDetails>(),
-  isUp: boolean("is_up").notNull(), 
-  isStatusChange: boolean("is_status_change").notNull().default(false), 
+  isUp: boolean("is_up").notNull(),
+  isStatusChange: boolean("is_status_change").notNull().default(false),
 });
 
 /* ================================
@@ -432,8 +445,8 @@ export const notificationProviders = pgTable("notification_providers", {
   type: varchar("type", { length: 50 }).$type<NotificationProviderType>().notNull(),
   config: jsonb("config").$type<NotificationProviderConfig>().notNull(),
   isEnabled: boolean("is_enabled").notNull().default(true),
-  organizationId: uuid("organization_id").references(() => organizations.id),
-  createdByUserId: uuid("created_by_user_id").references(() => users.id),
+  organizationId: text("organization_id"),
+  createdByUserId: text("created_by_user_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -546,4 +559,93 @@ export const updateOrganizationSchema = createUpdateSchema(organizations, {
   ownerId: (fieldSchema) => fieldSchema.optional(),
   // Other fields are nullable or have defaults, so createUpdateSchema handles them
 });
+
+/* ================================
+   ALERT HISTORY TABLE
+   -------------------------------
+   Stores the history of all alert notifications sent
+=================================== */
+export type AlertType = "monitor_failure" | "monitor_recovery" | "job_failed" | "job_success" | "job_timeout" | "ssl_expiring";
+export type AlertStatus = "sent" | "failed" | "pending";
+
+export const alertHistory = pgTable("alert_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  message: text("message").notNull(),
+  type: varchar("type", { length: 50 }).$type<AlertType>().notNull(),
+  target: varchar("target", { length: 255 }).notNull(),
+  targetType: varchar("target_type", { length: 50 }).notNull(),
+  monitorId: uuid("monitor_id").references(() => monitors.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 100 }).notNull(),
+  status: varchar("status", { length: 50 }).$type<AlertStatus>().notNull().default("pending"),
+  sentAt: timestamp("sent_at").defaultNow(),
+  errorMessage: text("error_message"),
+});
+
+/* ================================
+   TAGS TABLE
+   -------------------------------
+   Stores tags that can be applied to monitors. Tags are now per-organization.
+=================================== */
+export const tags = pgTable("tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id"),
+  createdByUserId: text("created_by_user_id"),
+  name: varchar("name", { length: 100 }).notNull(),
+  color: varchar("color", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+},
+(table) => ({
+    organizationTagNameUnique: uniqueIndex("tags_organization_name_idx").on(
+      table.organizationId, 
+      table.name
+    ),
+  })
+);
+
+/* ================================
+   MONITOR TAGS TABLE (Join Table)
+   -------------------------------
+   Maps monitors to tags (many-to-many relationship).
+=================================== */
+export const monitorTags = pgTable(
+  "monitor_tags",
+  {
+    monitorId: uuid("monitor_id")
+      .notNull()
+      .references(() => monitors.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+    assignedAt: timestamp("assigned_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.monitorId, table.tagId] }),
+  })
+);
+
+/* ================================
+   MONITOR NOTIFICATION SETTINGS TABLE
+   -------------------------------
+   Links monitors to notification providers. Each row represents a notification
+   provider that should be notified when a monitor's status changes.
+=================================== */
+export const monitorNotificationSettings = pgTable(
+  "monitor_notification_settings",
+  {
+    monitorId: uuid("monitor_id")
+      .notNull()
+      .references(() => monitors.id),
+    notificationProviderId: uuid("notification_provider_id")
+      .notNull()
+      .references(() => notificationProviders.id),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: "monitor_notification_settings_pk",
+      columns: [table.monitorId, table.notificationProviderId],
+    }),
+  })
+);
 

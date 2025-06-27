@@ -13,4 +13,5 @@ data:
   QUEUED_CAPACITY: "50"
   REDIS_URL: "redis://redis:6379"
   S3_ENDPOINT: "http://minio:9000"
-  TEST_EXECUTION_TIMEOUT_MS: "900000" 
+  TEST_EXECUTION_TIMEOUT_MS: "900000"
+  APP_BASE_URL: "http://supercheck-frontend:3000" 

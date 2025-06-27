@@ -114,6 +114,27 @@ CREATE TABLE "verification" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
+CREATE TABLE "alert_history" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"message" text NOT NULL,
+	"type" varchar(50) NOT NULL,
+	"target" varchar(255) NOT NULL,
+	"target_type" varchar(50) NOT NULL,
+	"monitor_id" uuid,
+	"job_id" uuid,
+	"provider" varchar(100) NOT NULL,
+	"status" varchar(50) DEFAULT 'pending' NOT NULL,
+	"sent_at" timestamp DEFAULT now(),
+	"error_message" text
+);
+--> statement-breakpoint
+CREATE TABLE "job_notification_settings" (
+	"job_id" uuid NOT NULL,
+	"notification_provider_id" uuid NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	CONSTRAINT "job_notification_settings_job_id_notification_provider_id_pk" PRIMARY KEY("job_id","notification_provider_id")
+);
+--> statement-breakpoint
 CREATE TABLE "job_tests" (
 	"job_id" uuid NOT NULL,
 	"test_case_id" uuid NOT NULL,
@@ -129,6 +150,7 @@ CREATE TABLE "jobs" (
 	"description" text,
 	"cron_schedule" varchar(100),
 	"status" varchar(50) DEFAULT 'pending' NOT NULL,
+	"alert_config" jsonb,
 	"last_run_at" timestamp,
 	"next_run_at" timestamp,
 	"scheduled_job_id" varchar(255),
@@ -151,7 +173,7 @@ CREATE TABLE "maintenance_windows" (
 --> statement-breakpoint
 CREATE TABLE "monitor_maintenance_windows" (
 	"maintenance_window_id" uuid NOT NULL,
-	"monitor_id" uuid,
+	"monitor_id" uuid NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	CONSTRAINT "monitor_maintenance_windows_maintenance_window_id_monitor_id_pk" PRIMARY KEY("maintenance_window_id","monitor_id")
 );
@@ -193,6 +215,7 @@ CREATE TABLE "monitors" (
 	"enabled" boolean DEFAULT true NOT NULL,
 	"status" varchar(50) DEFAULT 'pending' NOT NULL,
 	"config" jsonb,
+	"alert_config" jsonb,
 	"last_check_at" timestamp,
 	"last_status_change_at" timestamp,
 	"muted_until" timestamp,
@@ -206,7 +229,6 @@ CREATE TABLE "notification_providers" (
 	"created_by_user_id" text,
 	"type" varchar(50) NOT NULL,
 	"config" jsonb NOT NULL,
-	"is_enabled" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now()
 );
@@ -301,6 +323,10 @@ ALTER TABLE "member" ADD CONSTRAINT "member_team_id_team_id_fk" FOREIGN KEY ("te
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_active_organization_id_organization_id_fk" FOREIGN KEY ("active_organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team" ADD CONSTRAINT "team_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "alert_history" ADD CONSTRAINT "alert_history_monitor_id_monitors_id_fk" FOREIGN KEY ("monitor_id") REFERENCES "public"."monitors"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "alert_history" ADD CONSTRAINT "alert_history_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "job_notification_settings" ADD CONSTRAINT "job_notification_settings_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "job_notification_settings" ADD CONSTRAINT "job_notification_settings_notification_provider_id_notification_providers_id_fk" FOREIGN KEY ("notification_provider_id") REFERENCES "public"."notification_providers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "job_tests" ADD CONSTRAINT "job_tests_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "job_tests" ADD CONSTRAINT "job_tests_test_case_id_tests_id_fk" FOREIGN KEY ("test_case_id") REFERENCES "public"."tests"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "jobs" ADD CONSTRAINT "jobs_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

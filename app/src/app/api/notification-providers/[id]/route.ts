@@ -58,7 +58,6 @@ export async function PUT(
       .set({
         type: updateData.type,
         config: updateData.config,
-        isEnabled: updateData.isEnabled,
         updatedAt: new Date(),
       })
       .where(eq(notificationProviders.id, id))

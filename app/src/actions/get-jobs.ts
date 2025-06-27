@@ -31,6 +31,7 @@ interface JobFromAction {
   nextRunAt: string;
   scheduledJobId?: string;
   tests: TestFromAction[];
+  alertConfig?: Record<string, unknown> | null; // Add alert config to interface
 }
 
 interface JobsResponse {
@@ -57,6 +58,7 @@ interface JobWithTests {
   nextRunAt: string;
   scheduledJobId?: string;
   tests: { testId: string }[];
+  alertConfig?: Record<string, unknown> | null; // Add alert config
 }
 
 export async function getJobs(): Promise<JobsResponse> {
@@ -78,6 +80,7 @@ export async function getJobs(): Promise<JobsResponse> {
           lastRunAt: jobs.lastRunAt,
           nextRunAt: jobs.nextRunAt,
           scheduledJobId: jobs.scheduledJobId,
+          alertConfig: jobs.alertConfig, // Add alert config to query
         },
         jobTests: {
           testId: jobTests.testId,
@@ -110,6 +113,7 @@ export async function getJobs(): Promise<JobsResponse> {
           nextRunAt: job.nextRunAt ? new Date(job.nextRunAt).toISOString() : "",
           scheduledJobId: job.scheduledJobId || undefined,
           tests: testId ? [{ testId }] : [],
+          alertConfig: job.alertConfig || null, // Add alert config
         });
       } else if (testId) {
         const existingJob = jobMap.get(job.id)!;
@@ -171,6 +175,7 @@ export async function getJobs(): Promise<JobsResponse> {
         nextRunAt: job.nextRunAt,
         scheduledJobId: job.scheduledJobId,
         tests: testDetails,
+        alertConfig: job.alertConfig, // Add alert config
       };
     });
 
@@ -198,6 +203,7 @@ export async function getJob(id: string): Promise<JobResponse> {
         lastRunAt: jobs.lastRunAt,
         nextRunAt: jobs.nextRunAt,
         scheduledJobId: jobs.scheduledJobId,
+        alertConfig: jobs.alertConfig, // Add alert config to query
       })
       .from(jobs)
       .where(eq(jobs.id, id));
@@ -256,6 +262,7 @@ export async function getJob(id: string): Promise<JobResponse> {
         : "",
       scheduledJobId: jobRow.scheduledJobId || undefined,
       tests: uiTests,
+      alertConfig: jobRow.alertConfig || null, // Add alert config to return data
     };
 
     return { success: true, job: jobData as JobFromAction, error: undefined };

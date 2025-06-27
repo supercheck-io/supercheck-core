@@ -39,7 +39,7 @@ export function JobCreationWizard() {
     try {
       const finalData = {
         ...jobData,
-        alerts: alertConfig,
+        alertConfig: alertConfig,
       };
       
       console.log("Creating job with alerts:", finalData);

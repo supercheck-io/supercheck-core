@@ -200,8 +200,8 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
     console.log(`[Monitor Scheduler] Initialization complete: ${scheduledCount} succeeded, ${failedCount} failed.`);
     return { success: true, scheduled: scheduledCount, failed: failedCount };
   } catch (error) {
-    console.error("[Monitor Scheduler] Error during initialization:", error);
-    return { success: false, scheduled: 0, failed: 0, error };
+    console.error("[Monitor Scheduler] Failed to initialize monitor schedulers:", error);
+    return { success: false, scheduled: 0, failed: 0 };
   }
 }
 
