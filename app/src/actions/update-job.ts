@@ -38,7 +38,7 @@ export async function updateJob(data: UpdateJobData) {
     // Validate the data
     const validatedData = updateJobSchema.parse(data);
     
-    const dbInstance = await db();
+    const dbInstance = db;
     
     // Check if the job exists
     const existingJob = await dbInstance

@@ -596,7 +596,7 @@ export function MonitorForm({
               </Button>
               <Button 
                 onClick={handleFinalSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !formChanged}
                 className="flex items-center"
               >
                 <SaveIcon className="mr-2 h-4 w-4" />
@@ -1608,7 +1608,7 @@ export function MonitorForm({
                 </Button>
                 <Button 
                   type="submit" 
-                  disabled={isSubmitting || !formChanged}
+                  disabled={isSubmitting}
                   className="flex items-center"
                 >
                   {isSubmitting ? (

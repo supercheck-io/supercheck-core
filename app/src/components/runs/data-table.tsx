@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { DataTablePagination } from "@/components/jobs/data-table-pagination";
+import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
 import { cn } from "@/lib/utils";
 
@@ -106,6 +106,11 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
+    initialState: {
+      pagination: {
+        pageSize: 15,
+      },
+    },
     state: {
       sorting,
       columnVisibility,
@@ -204,16 +209,15 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className={cn(
-                    onRowClick ? "hover:bg-muted cursor-pointer" : "",
-                    "h-16"
+                    onRowClick ? "hover:bg-muted cursor-pointer" : ""
                   )}
                   onClick={(e) => handleRowClick(e, row)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell 
+                    <TableCell
                       key={cell.id}
                       className={cn(
-                        "py-4",
+                        "py-2",
                         cell.column.id === "actions" ? "actions-column" : ""
                       )}
                     >

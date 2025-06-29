@@ -106,6 +106,11 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
+    initialState: {
+      pagination: {
+        pageSize: 15,
+      },
+    },
     state: {
       sorting,
       columnVisibility,
@@ -213,7 +218,7 @@ export function DataTable<TData, TValue>({
                     <TableCell 
                       key={cell.id}
                       className={cn(
-                        "py-4",
+                        "py-2",
                         cell.column.id === "actions" ? "actions-column" : ""
                       )}
                     >

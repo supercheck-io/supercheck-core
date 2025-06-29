@@ -13,7 +13,8 @@ import {
   Copy,
   FileText,
   Calendar,
-  Trash2
+  Trash2,
+  Code2
 } from "lucide-react";
 import { RunStatusListener } from "./run-status-listener";
 import { TestRunStatus } from "@/db/schema/schema";
@@ -207,11 +208,11 @@ export function RunDetails({ run }: RunDetailsProps) {
               <h1 className="text-xl font-bold flex items-center gap-2">
                 {run.jobName || "Unknown Job"}
               </h1>
-              {run.testCount !== undefined && (
-                <div className="text-sm text-muted-foreground">
-                  {run.testCount} {run.testCount === 1 ? 'test' : 'tests'}
+              {/* {run.testCount !== undefined && (
+                <div className="text-sm text-muted-foreground flex items-center" >
+                 <Code className="h-4 w-4 mr-1 text-blue-500" /> {run.testCount} {run.testCount === 1 ? 'test' : 'tests'} executed
                 </div>
-              )}
+              )} */}
             </div>
           </div>
           <Button 
@@ -226,7 +227,7 @@ export function RunDetails({ run }: RunDetailsProps) {
         </div>
 
         {/* Status cards - similar to monitor details but with appropriate content */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mt-2">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-2 mt-2">
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
             {statusInfo && (
               <statusInfo.icon className={`h-6 w-6 min-w-6 mr-2 ${statusInfo.color}`} />
@@ -234,6 +235,16 @@ export function RunDetails({ run }: RunDetailsProps) {
             <div className="min-w-0 w-full">
               <div className="text-xs font-medium text-muted-foreground">Status</div>
               <div className="text-sm font-semibold truncate">{statusInfo?.label || 'Unknown'}</div>
+            </div>
+          </div>
+
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
+            <Code2 className="h-6 w-6 min-w-6 mr-2 text-blue-400" />
+            <div className="min-w-0 w-full">
+              <div className="text-xs font-medium text-muted-foreground">Tests Executed</div>
+              <div className="text-sm font-semibold truncate">
+                {run.testCount}
+              </div>
             </div>
           </div>
           
@@ -244,9 +255,7 @@ export function RunDetails({ run }: RunDetailsProps) {
               <div className="text-sm font-semibold truncate">{formatDuration(duration)}</div>
             </div>
           </div>
-          
    
-          
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
             <CalendarClock className="h-6 w-6 min-w-6 mr-2 text-purple-500" />
             <div className="min-w-0 w-full">
@@ -308,7 +317,7 @@ export function RunDetails({ run }: RunDetailsProps) {
             isRunning={currentStatus === "running"}
             backToLabel="Back to Runs"
             backToUrl="/runs"
-            containerClassName="w-full h-[calc(100vh-280px)] relative"
+            containerClassName="w-full h-[calc(100vh-260px)] relative"
             iframeClassName="w-full h-full border-0 rounded-lg"
             darkMode={false}
             hideEmptyMessage={true}

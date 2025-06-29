@@ -42,7 +42,12 @@ async function ensureMonitorSchedulerWorker(): Promise<void> {
         // Data from the repeatable job is the MonitorJobData needed for execution
         await addMonitorExecutionJobToQueue(job.data);
       },
-      { connection, concurrency: 10 } // Adjust concurrency as needed
+      {
+        connection,
+        concurrency: 10,
+        lockDuration: 300000, // 5 minutes
+        lockRenewTime: 150000, // 2.5 minutes
+      } // Adjust concurrency as needed
     );
 
     worker.on('completed', (job) => {
@@ -237,7 +242,12 @@ async function ensureHeartbeatCheckerWorker(): Promise<void> {
         }
         return result;
       },
-      { connection, concurrency: 1 } // Only one heartbeat checker should run at a time
+      {
+        connection,
+        concurrency: 1,
+        lockDuration: 300000, // 5 minutes
+        lockRenewTime: 150000, // 2.5 minutes
+      } // Only one heartbeat checker should run at a time
     );
 
     worker.on('completed', (job, result) => {

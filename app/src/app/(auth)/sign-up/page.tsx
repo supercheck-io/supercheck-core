@@ -14,14 +14,17 @@ import { signUp } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 
 export default function SignUpPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setIsLoading(true);
     const formData = new FormData(event.currentTarget);
     const name = formData.get("name") as string;
     const email = formData.get("email") as string;
@@ -30,10 +33,11 @@ export default function SignUpPage() {
     const { error } = await signUp.email({ name, email, password });
 
     if (error) {
-      setError(error.message);
+      setError(error.message || "An error occurred");
     } else {
       router.push("/");
     }
+    setIsLoading(false);
   };
 
   return (
@@ -67,7 +71,8 @@ export default function SignUpPage() {
           {error && <p className="text-red-500 text-sm">{error}</p>}
         </CardContent>
         <CardFooter className="flex flex-col">
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create account
           </Button>
           <div className="mt-4 text-center text-sm">

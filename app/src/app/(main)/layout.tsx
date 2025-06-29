@@ -14,6 +14,7 @@ import { CommandSearch } from "@/components/ui/command-search";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { NavUser } from "@/components/nav-user";
 
 export default async function MainLayout({
   children,
@@ -45,13 +46,14 @@ export default async function MainLayout({
                 />
                 <BreadcrumbDisplay />
               </div>
-              <div className="flex items-center gap-8 px-8">
+              <div className="flex items-center gap-8 px-4">
                 <CommandSearch />
                 <ParallelThreads />
+                <NavUser />
            
               </div>
             </header>
-            <main className="flex-1 flex-col gap-4 p-1 overflow-y-auto">
+            <main className="flex-1 flex-col gap-4 p-2 overflow-y-auto">
               {children}
             </main>
           </SidebarInset>

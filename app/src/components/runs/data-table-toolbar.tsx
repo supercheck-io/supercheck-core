@@ -19,19 +19,23 @@ export function DataTableToolbar<TData>({
   const isFiltered = table.getState().columnFilters.length > 0 || !!table.getState().globalFilter;
 
   return (
-    <div className="flex items-center justify-between mb-4">
+    <div className="flex items-center justify-between mb-4 -mt-2">
       <div className="flex items-center justify-between space-y-2">
-        <div>
-          <Input
-            placeholder="Filter by Run ID, Job ID, or Job Name..."
-            value={(table.getState().globalFilter as string) ?? ""}
-            onChange={(event) => table.setGlobalFilter(event.target.value)}
-            className="h-8 w-[200px] lg:w-[350px]"
-          />
+        <div className="flex flex-col">
+          <h2 className="text-lg font-medium">Runs</h2>
+          <p className="text-muted-foreground text-sm">
+            View Job runs and their results
+          </p>
         </div>
+     
       </div>
       <div className="flex items-center space-x-2">
-       
+        <Input
+          placeholder="Filter by Run ID, Job ID, or Job Name..."
+          value={(table.getState().globalFilter as string) ?? ""}
+          onChange={(event) => table.setGlobalFilter(event.target.value)}
+          className="h-8 w-[200px] lg:w-[350px]"
+        />
         {table.getColumn("status") && (
           <DataTableFacetedFilter
             column={table.getColumn("status")}

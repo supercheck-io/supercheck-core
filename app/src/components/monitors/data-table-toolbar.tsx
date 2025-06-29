@@ -21,20 +21,23 @@ export function DataTableToolbar<TData>({
   const router = useRouter();
 
   return (
-    <div className="flex items-center justify-between mb-4">
+    <div className="flex items-center justify-between mb-4 -mt-2">
       <div className="flex items-center justify-between space-y-2">
-        <div>
-          <Input
-            placeholder="Filter by ID or Name..."
-            value={(table.getState().globalFilter as string) ?? ""}
-            onChange={(event) => table.setGlobalFilter(event.target.value)}
-            className="h-8 w-[200px] lg:w-[250px]"
-          />
+        <div className="flex flex-col">
+          <h2 className="text-lg font-medium">Monitors</h2>
+          <p className="text-muted-foreground text-sm">
+            Manage your monitors and their configurations
+          </p>
         </div>
       </div>
 
       <div className="flex items-center space-x-2">
-
+        <Input
+          placeholder="Filter by ID or Name..."
+          value={(table.getState().globalFilter as string) ?? ""}
+          onChange={(event) => table.setGlobalFilter(event.target.value)}
+          className="h-8 w-[200px] lg:w-[250px]"
+        />
         {table.getColumn("status") && (
           <DataTableFacetedFilter
             column={table.getColumn("status")}

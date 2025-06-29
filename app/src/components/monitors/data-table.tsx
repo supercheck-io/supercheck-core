@@ -105,6 +105,11 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
+    initialState: {
+      pagination: {
+        pageSize: 15,
+      },
+    },
     state: {
       sorting,
       columnVisibility,
@@ -244,20 +249,11 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={cn(
-                    onRowClick ? "hover:bg-muted cursor-pointer" : "",
-                    "h-16"
-                  )}
-                  onClick={(e) => handleRowClick(e, row)}
+                  className={cn(onRowClick && "cursor-pointer")}
+                  onClick={() => onRowClick?.(row)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell 
-                      key={cell.id}
-                      className={cn(
-                        "py-4",
-                        cell.column.id === "actions" ? "actions-column" : ""
-                      )}
-                    >
+                    <TableCell key={cell.id} className="py-2">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

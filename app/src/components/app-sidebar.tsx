@@ -29,7 +29,11 @@ import {
   Search,
   DatabaseIcon,
   ClipboardListIcon,
-  FileIcon
+  FileIcon,
+  Code2,
+  BookOpen,
+  BookOpenText,
+  History
   // MailIcon,
 } from "lucide-react";
 
@@ -58,7 +62,7 @@ const data = {
     email: "m@example.com",
     avatar: "https://ui-avatars.com/api/?name=Test+User&background=random",
   },
-  /* teams: [
+  teams: [
     {
       name: "Supercheck", 
       logo: CheckIcon,
@@ -66,15 +70,15 @@ const data = {
     },
     {
       name: "Test Team 1",
-      logo: AudioWaveform,
+      logo: CheckIcon,
       plan: "Startup",
     },
     {
       name: "Test Team 2",
-      logo: Command,
+      logo: CheckIcon,
       plan: "Enterprise",
     },
-  ], */
+  ], 
 
   Communicate: [
     {
@@ -127,7 +131,7 @@ const data = {
     {
       title: "Tests",
       url: "/tests",
-      icon: Code,
+      icon: Code2,
     },
     {
       title: "Jobs",
@@ -191,23 +195,31 @@ const data = {
   
   ],
 
-
-  navSecondary: [
+  Settings: [
     {
       title: "Settings",
       url: "/settings",
       icon: Settings,
     },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: HelpCircle,
-    },
+  ],
+
+
+  navSecondary: [
     // {
-    //   title: "Search",
-    //   url: "#",
-    //   icon: SearchIcon,
+    //   title: "Settings",
+    //   url: "/settings",
+    //   icon: Settings,
     // },
+    {
+      title: "Docs",
+      url: "#",
+      icon: BookOpenText,
+    },
+    {
+      title: "Changelog",
+      url: "#",
+      icon: History,
+    },
   ],
   documents: [
     {
@@ -232,14 +244,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // const activeTeam = data.teams[0]; // Assuming we want to display the first team
   const LogoToDisplay = CheckIcon;
   const teamName = "Supercheck";
-  const teamPlan = "American Bank";
+  const teamPlan = "MPT";
 
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="group-data-[collapsible=icon]:px-0">
         {/* <TeamSwitcher teams={data.teams} /> */}
         <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
-          <LogoToDisplay className="h-8 w-8 flex-shrink-0" /> 
+          <LogoToDisplay className="h-7 w-7 flex-shrink-0" /> 
           <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
             <span className="truncate font-medium">{teamName}</span>
             <span className="truncate text-xs">{teamPlan}</span>
@@ -265,14 +277,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain groupLabel="Communicate" items={data.Communicate} />
         <NavMain groupLabel="Automate" items={data.Automate} />
         <NavMain groupLabel="Monitor" items={data.Monitor} />
-    
-   
+        <NavMain groupLabel="Settings" items={data.Settings} />
 
       </SidebarContent>
       <NavMain groupLabel="" items={data.navSecondary} />
       <SidebarFooter>
-
-        <NavUser user={data.user} />
+        {/* <NavUser /> */}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

@@ -152,7 +152,11 @@ async function ensureSchedulerWorker() {
         await handleScheduledJobTrigger(job);
         return { success: true };
       },
-      { connection }
+      {
+        connection,
+        lockDuration: 300000, // 5 minutes
+        lockRenewTime: 150000, // 2.5 minutes
+      }
     );
 
     worker.on('completed', (job) => {

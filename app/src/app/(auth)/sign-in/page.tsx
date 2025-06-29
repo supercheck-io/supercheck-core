@@ -14,14 +14,17 @@ import { signIn } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 
 export default function SignInPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setIsLoading(true);
     const formData = new FormData(event.currentTarget);
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
@@ -29,10 +32,11 @@ export default function SignInPage() {
     const { error } = await signIn.email({ email, password });
 
     if (error) {
-      setError(error.message);
+      setError(error.message || "An error occurred");
     } else {
       router.push("/");
     }
+    setIsLoading(false);
   };
 
   return (
@@ -69,7 +73,10 @@ export default function SignInPage() {
           {error && <p className="text-red-500 text-sm">{error}</p>}
         </CardContent>
         <CardFooter className="flex flex-col">
-          <Button className="w-full">Sign in</Button>
+          <Button className="w-full" disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Sign in
+          </Button>
           <div className="mt-4 text-center text-sm">
             Don&apos;t have an account?{" "}
             <Link href="/sign-up" className="underline">

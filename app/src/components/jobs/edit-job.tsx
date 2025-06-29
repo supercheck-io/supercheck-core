@@ -94,6 +94,25 @@ export default function EditJob({ jobId }: EditJobProps) {
   });
   const [showAlerts, setShowAlerts] = useState(false);
   const [jobData, setJobData] = useState<any>(null);
+  const [initialAlertConfig, setInitialAlertConfig] = useState<{
+    enabled: boolean;
+    notificationProviders: string[];
+    alertOnFailure: boolean;
+    alertOnSuccess: boolean;
+    alertOnTimeout: boolean;
+    failureThreshold: number;
+    recoveryThreshold: number;
+    customMessage: string;
+  }>({
+    enabled: false,
+    notificationProviders: [],
+    alertOnFailure: true,
+    alertOnSuccess: false,
+    alertOnTimeout: true,
+    failureThreshold: 1,
+    recoveryThreshold: 1,
+    customMessage: "",
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
@@ -292,8 +311,26 @@ export default function EditJob({ jobId }: EditJobProps) {
       )
     );
     
-    setFormChanged(formFieldsChanged || testsChanged);
-  }, [watchedValues, initialValues, selectedTests, originalSelectedTests]);
+    // Check if alert config has changed
+    const checkForChanges = () => {
+      if (
+        initialAlertConfig.enabled !== alertConfig.enabled ||
+        JSON.stringify(initialAlertConfig.notificationProviders) !== JSON.stringify(alertConfig.notificationProviders) ||
+        initialAlertConfig.alertOnFailure !== alertConfig.alertOnFailure ||
+        initialAlertConfig.alertOnSuccess !== alertConfig.alertOnSuccess ||
+        initialAlertConfig.alertOnTimeout !== alertConfig.alertOnTimeout ||
+        initialAlertConfig.failureThreshold !== alertConfig.failureThreshold ||
+        initialAlertConfig.recoveryThreshold !== alertConfig.recoveryThreshold ||
+        initialAlertConfig.customMessage !== alertConfig.customMessage
+      ) {
+        return true;
+      }
+
+      return false;
+    };
+
+    setFormChanged(formFieldsChanged || testsChanged || checkForChanges());
+  }, [watchedValues, selectedTests, originalSelectedTests, alertConfig, initialAlertConfig, initialValues]);
 
   // Handle job deletion
   const handleDeleteJob = async () => {
@@ -366,19 +403,16 @@ export default function EditJob({ jobId }: EditJobProps) {
             />
             <div className="flex justify-end space-x-4 mt-6">
               <Button
-                type="button"
                 variant="outline"
                 onClick={() => setShowAlerts(false)}
-                disabled={isSubmitting}
+                type="button"
               >
                 Back
               </Button>
-              <Button 
+              <Button
                 onClick={handleFinalSubmit}
-                disabled={isSubmitting}
-                className="flex items-center"
+                disabled={isSubmitting || !formChanged}
               >
-                <SaveIcon className="h-4 w-4 mr-2" />
                 {isSubmitting ? "Updating..." : "Update Job"}
               </Button>
             </div>
@@ -498,20 +532,17 @@ export default function EditJob({ jobId }: EditJobProps) {
 
               <div className="flex justify-end space-x-4 mt-6">
                 <Button
-                  type="button"
                   variant="outline"
                   onClick={() => router.push("/jobs")}
-                  disabled={isSubmitting}
+                  type="button"
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="submit" 
-                  className="flex items-center"
-                  disabled={isSubmitting || !formChanged}
+                <Button
+                  type="submit"
+                  onClick={handleJobNext}
                 >
-                  <SaveIcon className="h-4 w-4 mr-2" />
-                  {isSubmitting ? "Loading..." : "Next: Alerts"}
+                  Next: Alerts
                 </Button>
               </div>
             </form>

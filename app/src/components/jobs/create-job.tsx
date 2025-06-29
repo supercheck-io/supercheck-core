@@ -247,7 +247,7 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobPro
                 <Button 
                   type="submit" 
                   className="flex items-center"
-                  disabled={!formChanged}
+                 
                 >
                   <SaveIcon className="h-4 w-4 mr-2" />
                   {hideAlerts ? "Next: Alerts" : "Create"}

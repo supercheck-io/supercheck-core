@@ -124,16 +124,16 @@ export function ParallelThreads() {
   return (
     <div className="flex items-center mr-2">
       <div className="flex items-center text-[11px]">
-        <div className="font-medium text-gray-500 mr-3 text-xs">Parallel
-          <div className="font-medium text-gray-500 mr-3 text-xs">Executions:</div>
+        <div className="font-medium text-gray-500 mr-2 text-xs">Parallel
+          <div className="font-medium text-gray-500 mr-2 text-xs">Executions:</div>
         </div>
         
-        <div className="flex flex-col mr-6">
+        <div className="flex flex-col mr-4">
           <div className="flex items-center justify-between mb-0.5">
             <span className={`font-medium ${stats.running > 0 ? 'text-blue-600 dark:text-blue-500' : 'text-gray-500'}`}>RUNNING</span>
             <span className="text-gray-700 dark:text-gray-300">{stats.running}/{stats.runningCapacity}</span>
           </div>
-          <div className="w-32 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div className="w-28 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
             <div 
               className="h-full bg-blue-500 rounded-full" 
               style={{ width: `${runningProgress}%` }}
@@ -146,7 +146,7 @@ export function ParallelThreads() {
             <span className={`font-medium ${stats.queued > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-gray-500'}`}>QUEUED</span>
             <span className="text-gray-700 dark:text-gray-300">{stats.queued}/{stats.queuedCapacity}</span>
           </div>
-          <div className="w-32 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div className="w-28 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
             <div 
               className="h-full bg-amber-600 rounded-full" 
               style={{ width: `${queuedProgress}%` }}
@@ -163,16 +163,16 @@ function LoadingSkeleton() {
   return (
     <div className="flex items-center mr-2">
       <div className="flex items-center text-[11px]">
-        <div className="font-medium text-gray-500 mr-3 text-xs">Parallel
-          <div className="font-medium text-gray-500 mr-3 text-xs">Executions:</div>
+        <div className="font-medium text-gray-500 mr-2 text-xs">Parallel
+          <div className="font-medium text-gray-500 mr-2 text-xs">Executions:</div>
         </div>
      
-        <div className="flex flex-col mr-6">
+        <div className="flex flex-col mr-4">
           <div className="flex items-center justify-between mb-1">
             <Skeleton className="h-3 w-14" />
             <Skeleton className="h-3 w-8" />
           </div>
-          <Skeleton className="w-32 h-1.5 rounded-full" />
+          <Skeleton className="w-28 h-1.5 rounded-full" />
         </div>
         
         <div className="flex flex-col">
@@ -180,7 +180,7 @@ function LoadingSkeleton() {
             <Skeleton className="h-3 w-14" />
             <Skeleton className="h-3 w-8" />
           </div>
-          <Skeleton className="w-32 h-1.5 rounded-full" />
+          <Skeleton className="w-28 h-1.5 rounded-full" />
         </div>
       </div>
     </div>

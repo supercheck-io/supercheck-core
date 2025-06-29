@@ -3,22 +3,21 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
-  Calendar,
   Settings,
-  Monitor,
-  Play,
   Activity,
   Globe,
-  Clock,
   Code,
   Terminal,
   SearchIcon,
-  Home,
   BellRing,
-  TestTube,
   Network,
   LaptopMinimal,
   RefreshCw,
+  ChartColumn,
+  CalendarClock,
+  NotepadText,
+  FileCode,
+  Calendar as CalendarIcon,
 } from "lucide-react"
 
 import {
@@ -34,6 +33,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
@@ -106,7 +107,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
       }
       
       // Individual shortcuts - only when command palette is closed
-      if (!open && metaKey && !e.shiftKey) {
+      if (!open && metaKey && e.altKey && !e.shiftKey) {
         switch (e.key.toLowerCase()) {
           case "d":
             e.preventDefault()
@@ -140,7 +141,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
       }
       
       // Shift + Cmd shortcuts for creation - only when command palette is closed
-      if (!open && metaKey && e.shiftKey) {
+      if (!open && metaKey && e.altKey && e.shiftKey) {
         switch (e.key.toLowerCase()) {
           case "h":
             e.preventDefault()
@@ -200,6 +201,11 @@ export function CommandSearch({ className }: CommandSearchProps) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="p-0 max-w-[500px] top-[35%] translate-y-[-35%] [&>button]:hidden">
+          <DialogTitle className="sr-only">Command Menu</DialogTitle>
+          <DialogDescription className="sr-only">
+            Use the command menu to navigate to different parts of the
+            application, or use the shortcuts.
+          </DialogDescription>
           <Command className="rounded-lg border-0 shadow-md">
             <CommandInput placeholder="Type a command or search..." />
             <CommandList>
@@ -207,34 +213,34 @@ export function CommandSearch({ className }: CommandSearchProps) {
               
               <CommandGroup heading="Navigation">
                 <CommandItem onSelect={() => handleCommand("home")}>
-                  <Home className="mr-2 h-4 w-4 text-slate-500" />
+                  <ChartColumn className="mr-2 h-4 w-4 text-slate-500" />
                   <span>Dashboard</span>
-                  <CommandShortcut>⌘D</CommandShortcut>
+                  <CommandShortcut>⌘⌥D</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("monitors")}>
-                  <Monitor className="mr-2 h-4 w-4 text-blue-500" />
+                  <Globe className="mr-2 h-4 w-4 text-blue-500" />
                   <span>Monitors</span>
-                  <CommandShortcut>⌘M</CommandShortcut>
+                  <CommandShortcut>⌘⌥M</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("tests")}>
-                  <TestTube className="mr-2 h-4 w-4 text-green-500" />
+                  <Code className="mr-2 h-4 w-4 text-green-500" />
                   <span>Tests</span>
-                  <CommandShortcut>⌘T</CommandShortcut>
+                  <CommandShortcut>⌘⌥T</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("jobs")}>
-                  <Clock className="mr-2 h-4 w-4 text-orange-500" />
+                  <CalendarClock className="mr-2 h-4 w-4 text-orange-500" />
                   <span>Jobs</span>
-                  <CommandShortcut>⌘J</CommandShortcut>
+                  <CommandShortcut>⌘⌥J</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("runs")}>
-                  <Play className="mr-2 h-4 w-4 text-purple-500" />
+                  <NotepadText className="mr-2 h-4 w-4 text-purple-500" />
                   <span>Runs</span>
-                  <CommandShortcut>⌘R</CommandShortcut>
+                  <CommandShortcut>⌘⌥R</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("alerts")}>
                   <BellRing className="mr-2 h-4 w-4 text-red-500" />
                   <span>Alerts</span>
-                  <CommandShortcut>⌘A</CommandShortcut>
+                  <CommandShortcut>⌘⌥A</CommandShortcut>
                 </CommandItem>
               </CommandGroup>
 
@@ -244,57 +250,65 @@ export function CommandSearch({ className }: CommandSearchProps) {
                 <CommandItem onSelect={() => handleCommand("create-monitor-http")}>
                   <Globe className="mr-2 h-4 w-4 text-cyan-500" />
                   <span>HTTP Monitor</span>
-                  <CommandShortcut>⌘⇧H</CommandShortcut>
+                  <CommandShortcut>⌘⇧⌥H</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-website")}>
                   <LaptopMinimal className="mr-2 h-4 w-4 text-blue-500" />
                   <span>Website Monitor</span>
-                  <CommandShortcut>⌘⇧W</CommandShortcut>
+                  <CommandShortcut>⌘⇧⌥W</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-ping")}>
-                  <RefreshCw className="mr-2 h-4 w-4 text-sky-500" />
+                  <Network className="mr-2 h-4 w-4 text-orange-500" />
                   <span>Ping Monitor</span>
-                  <CommandShortcut>⌘⇧P</CommandShortcut>
+                  <CommandShortcut>⌘⇧⌥P</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-port")}>
-                  <Network className="mr-2 h-4 w-4 text-indigo-500" />
+                  <Terminal className="mr-2 h-4 w-4 text-gray-500" />
                   <span>Port Monitor</span>
-                  <CommandShortcut>⌘⇧O</CommandShortcut>
+                  <CommandShortcut>⌘⇧⌥O</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-heartbeat")}>
-                  <Activity className="mr-2 h-4 w-4 text-blue-300" />
+                  <Activity className="mr-2 h-4 w-4 text-red-500" />
                   <span>Heartbeat Monitor</span>
-                  <CommandShortcut>⌘⇧B</CommandShortcut>
+                  <CommandShortcut>⌘⇧⌥B</CommandShortcut>
                 </CommandItem>
               </CommandGroup>
 
               <CommandSeparator />
 
-              <CommandGroup heading="Create Tests & Jobs">
+              <CommandGroup heading="Create Tests">
                 <CommandItem onSelect={() => handleCommand("create-test-browser")}>
-                  <Code className="mr-2 h-4 w-4 text-emerald-500" />
+                  <LaptopMinimal className="mr-2 h-4 w-4 text-blue-500" />
                   <span>Browser Test</span>
-                  <CommandShortcut>⌘⇧T</CommandShortcut>
+                  <CommandShortcut>⌘⇧⌥T</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-test-api")}>
-                  <Terminal className="mr-2 h-4 w-4 text-teal-500" />
+                  <FileCode className="mr-2 h-4 w-4 text-green-500" />
                   <span>API Test</span>
-                  <CommandShortcut>⌘⇧A</CommandShortcut>
+                  <CommandShortcut>⌘⇧⌥A</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-job")}>
-                  <Calendar className="mr-2 h-4 w-4 text-amber-500" />
-                  <span>Scheduled Job</span>
-                  <CommandShortcut>⌘⇧J</CommandShortcut>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  <span>Automation Job</span>
+                  <CommandShortcut>⌘⇧⌥J</CommandShortcut>
                 </CommandItem>
               </CommandGroup>
 
               <CommandSeparator />
 
-              <CommandGroup heading="Settings">
+              <CommandGroup heading="System">
                 <CommandItem onSelect={() => handleCommand("settings")}>
-                  <Settings className="mr-2 h-4 w-4 text-gray-500" />
+                  <Settings className="mr-2 h-4 w-4" />
                   <span>Settings</span>
-                  <CommandShortcut>⌘S</CommandShortcut>
+                  <CommandShortcut>⌘⌥S</CommandShortcut>
+                </CommandItem>
+                <CommandItem onSelect={() => handleCommand("queue-stats")}>
+                  <Activity className="mr-2 h-4 w-4" />
+                  <span>Queue Stats</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleCommand("system-health")}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  <span>System Health</span>
                 </CommandItem>
               </CommandGroup>
             </CommandList>
