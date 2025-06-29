@@ -20,11 +20,10 @@ export class HeartbeatService {
     let skipped = 0;
 
     try {
-      const dbInstance = await db();
       const now = new Date();
       
       // Get all enabled heartbeat monitors
-      const heartbeatMonitors = await dbInstance
+      const heartbeatMonitors = await db
         .select()
         .from(monitors)
         .where(and(

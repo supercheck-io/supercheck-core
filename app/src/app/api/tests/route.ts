@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { tests } from "@/db/schema/schema";
 
 export async function GET(request: NextRequest) {
   try {
-    // Get the database instance
-    const db = await getDb();
-    
     // In a real app, you'd get the organization ID from the user's session
     // For now, we'll fetch all tests
     const allTests = await db

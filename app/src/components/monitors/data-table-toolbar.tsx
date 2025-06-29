@@ -3,10 +3,10 @@ import { PlusCircle, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DataTableViewOptions } from "./data-table-view-options";
+import { DataTableViewOptions } from "@/components/monitors/data-table-view-options";
 import { useRouter } from "next/navigation";
 
-import { monitorTypes, monitorStatuses } from "./data";
+import { monitorStatuses, monitorTypes } from "@/components/monitors/data";
 
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 
@@ -24,18 +24,17 @@ export function DataTableToolbar<TData>({
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center justify-between space-y-2">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Monitors</h2>
-          <p className="text-muted-foreground">View and manage all monitors</p>
+          <Input
+            placeholder="Filter by ID or Name..."
+            value={(table.getState().globalFilter as string) ?? ""}
+            onChange={(event) => table.setGlobalFilter(event.target.value)}
+            className="h-8 w-[200px] lg:w-[250px]"
+          />
         </div>
       </div>
 
       <div className="flex items-center space-x-2">
-        <Input
-          placeholder="Filter by ID or name..."
-          value={(table.getState().globalFilter as string) ?? ""}
-          onChange={(event) => table.setGlobalFilter(event.target.value)}
-          className="h-8 w-[200px] lg:w-[350px]"
-        />
+
         {table.getColumn("status") && (
           <DataTableFacetedFilter
             column={table.getColumn("status")}

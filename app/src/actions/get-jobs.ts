@@ -63,11 +63,8 @@ interface JobWithTests {
 
 export async function getJobs(): Promise<JobsResponse> {
   try {
-    // Get the database instance
-    const dbInstance = await db();
-
     // Fetch all jobs with their associated tests
-    const allJobs = await dbInstance
+    const allJobs = await db
       .select({
         jobs: {
           id: jobs.id,
@@ -135,7 +132,7 @@ export async function getJobs(): Promise<JobsResponse> {
     // Fetch all tests at once instead of in a loop
     let testDetailsMap: Record<string, TestFromAction> = {};
     if (allTestIds.size > 0) {
-      const testResults = await dbInstance
+      const testResults = await db
         .select()
         .from(tests)
         .where(inArray(tests.id, Array.from(allTestIds)));
@@ -188,10 +185,8 @@ export async function getJobs(): Promise<JobsResponse> {
 
 export async function getJob(id: string): Promise<JobResponse> {
   try {
-    const dbInstance = await db();
-
     // First get the job details
-    const [jobRow] = await dbInstance
+    const [jobRow] = await db
       .select({
         id: jobs.id,
         name: jobs.name,
@@ -213,14 +208,14 @@ export async function getJob(id: string): Promise<JobResponse> {
     }
 
     // Get all test IDs associated with this job
-    const jobTestsRow = await dbInstance
+    const jobTestsRow = await db
       .select()
       .from(jobTests)
       .where(eq(jobTests.jobId, id));
 
     // Get all tests at once
     const testIds = jobTestsRow.map((row) => row.testId);
-    const testsRow = await dbInstance
+    const testsRow = await db
       .select()
       .from(tests)
       .where(inArray(tests.id, testIds));

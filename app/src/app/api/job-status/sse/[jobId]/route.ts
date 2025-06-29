@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { db } from '@/lib/db';
 import { runs } from '@/db/schema/schema';
 import { eq } from 'drizzle-orm';
 import { Queue } from 'bullmq';
@@ -45,7 +45,6 @@ export async function GET(request: Request) {
     async start(controller) {
       try {
         // Check if we already have a result for this job's latest run
-        const db = await getDb();
         const runId = jobId; // In our system, the SSE endpoint is now called with runId
         
         // Get the specific run by ID

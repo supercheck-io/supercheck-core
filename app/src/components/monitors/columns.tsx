@@ -7,6 +7,7 @@ import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "@/lib/date-utils";
 import { MonitorStatusIndicator } from "./monitor-status-indicator";
+import { monitorTypes } from "./data";
 
 // Type definition for the extended meta object used in this table
 interface MonitorTableMeta {
@@ -14,8 +15,6 @@ interface MonitorTableMeta {
   globalFilterColumns?: string[];
   // Include other potential properties from the base TableMeta if needed
 }
-
-import { monitorTypes, monitorStatuses } from "./data";
 
 export const columns: ColumnDef<Monitor>[] = [
   {
@@ -95,20 +94,8 @@ export const columns: ColumnDef<Monitor>[] = [
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
-      const status = monitorStatuses.find(
-        (status) => status.value === row.getValue("status")
-      );
-
-      if (!status) {
-        return null;
-      }
-
-      return (
-        <div className="flex items-center w-[100px]">
-          <status.icon className={`mr-2 h-5 w-5 ${status.color}`} />
-          <span>{status.label}</span>
-        </div>
-      );
+      const statusValue = row.getValue("status") as "up" | "down" | "paused" | "pending" | "maintenance";
+      return <MonitorStatusIndicator status={statusValue} monitorId={row.original.id} />;
     },
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));

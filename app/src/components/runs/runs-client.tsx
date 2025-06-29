@@ -71,7 +71,7 @@ export function RunsClient() {
   const columns = createColumns(handleDeleteRun);
 
   return (
-    <div className="flex h-full flex-col space-y-4 p-4">
+    <div className="flex h-full flex-col p-4">
       <DataTable
         key={tableKey}
         columns={columns}

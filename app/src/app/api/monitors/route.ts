@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db as getDbInstance } from "@/lib/db";
+import { db } from "@/lib/db";
 import { monitors, monitorsInsertSchema, monitorResults, monitorNotificationSettings } from "@/db/schema/schema";
 import { scheduleMonitorCheck, removeScheduledMonitorCheck } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
@@ -7,8 +7,6 @@ import { desc, eq } from "drizzle-orm";
 
 export async function GET() {
   try {
-    const db = await getDbInstance();
-
     // 1. Fetch all monitors
     const allMonitors: Array<typeof monitors.$inferSelect> = await db.query.monitors.findMany({
       orderBy: (monitors, { desc }) => [desc(monitors.createdAt)],
@@ -95,7 +93,6 @@ export async function POST(req: NextRequest) {
     }
 
     let newMonitorData = validationResult.data;
-    const db = await getDbInstance();
 
     // Validate target - all monitor types require a target
     if (!newMonitorData.target) {
@@ -179,7 +176,6 @@ export async function PUT(req: NextRequest) {
     }
 
     const monitorData = validationResult.data;
-    const db = await getDbInstance();
 
     const [updatedMonitor] = await db
       .update(monitors)

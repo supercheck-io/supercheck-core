@@ -11,9 +11,9 @@ export function PlaygroundSkeleton() {
   ];
 
   return (
-    <div className="h-full flex flex-col">
-      {/* <PageBreadcrumbs items={skeletonBreadcrumbs} /> */} {/* Commented out as PageBreadcrumbs is not available here */}
-      <div className="relative flex-1 overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
+
+      <div className="relative max-h-[calc(100vh-5rem)] flex-1 overflow-hidden">
         <div className="absolute inset-0 bg-background z-10 p-4 overflow-hidden">
           <div className="hidden h-full flex-col md:flex overflow-hidden">
             <div className="flex h-full">

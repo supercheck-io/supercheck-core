@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db as getDbInstance } from "@/lib/db";
+import { db } from "@/lib/db";
 import { monitorNotificationSettings, notificationProviders } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -14,8 +14,6 @@ export async function GET(
   }
 
   try {
-    const db = await getDbInstance();
-    
     // Get all notification providers linked to this monitor
     const linkedProviders = await db
       .select({
@@ -60,8 +58,6 @@ export async function POST(
         { status: 400 }
       );
     }
-
-    const db = await getDbInstance();
 
     // Check if the link already exists
     const existingLink = await db.query.monitorNotificationSettings.findFirst({
@@ -116,8 +112,6 @@ export async function DELETE(
         { status: 400 }
       );
     }
-
-    const db = await getDbInstance();
 
     // Remove the link
     const [deletedLink] = await db

@@ -22,17 +22,16 @@ export function DataTableToolbar<TData>({
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center justify-between space-y-2">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Runs</h2>
-          <p className="text-muted-foreground">View all job runs</p>
+          <Input
+            placeholder="Filter by Run ID, Job ID, or Job Name..."
+            value={(table.getState().globalFilter as string) ?? ""}
+            onChange={(event) => table.setGlobalFilter(event.target.value)}
+            className="h-8 w-[200px] lg:w-[350px]"
+          />
         </div>
       </div>
       <div className="flex items-center space-x-2">
-        <Input
-          placeholder="Filter by Run ID, Job ID, or Job Name..."
-          value={(table.getState().globalFilter as string) ?? ""}
-          onChange={(event) => table.setGlobalFilter(event.target.value)}
-          className="h-8 w-[200px] lg:w-[350px]"
-        />
+       
         {table.getColumn("status") && (
           <DataTableFacetedFilter
             column={table.getColumn("status")}

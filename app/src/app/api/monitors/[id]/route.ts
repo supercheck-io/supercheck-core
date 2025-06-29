@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db as getDbInstance } from "@/lib/db";
+import { db } from "@/lib/db";
 import { monitors, monitorResults, monitorsUpdateSchema, monitorNotificationSettings } from "@/db/schema/schema";
 import { eq, desc } from "drizzle-orm";
 import { scheduleMonitorCheck, removeScheduledMonitorCheck } from "@/lib/monitor-scheduler";
@@ -18,7 +18,6 @@ export async function GET(
   }
 
   try {
-    const db = await getDbInstance();
     const monitor = await db.query.monitors.findFirst({
       where: eq(monitors.id, id),
     });
@@ -60,7 +59,6 @@ export async function PUT(
     }
 
     const updateData = validationResult.data;
-    const db = await getDbInstance();
 
     const currentMonitor = await db.query.monitors.findFirst({ where: eq(monitors.id, id) });
     if (!currentMonitor) {
@@ -174,8 +172,6 @@ export async function DELETE(
   }
 
   try {
-    const db = await getDbInstance();
-    
     // First, unschedule the monitor
     try {
         await removeScheduledMonitorCheck(id);

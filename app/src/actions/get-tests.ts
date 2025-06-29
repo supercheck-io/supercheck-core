@@ -11,10 +11,8 @@ import { decodeTestScript } from "./get-test";
  */
 export async function getTests() {
   try {
-    const dbInstance = await db();
-    
     // Fetch all tests from the database
-    const result = await dbInstance.select().from(tests)
+    const result = await db.select().from(tests)
       .orderBy(desc(tests.createdAt));
     
     // Map the database results to the expected format

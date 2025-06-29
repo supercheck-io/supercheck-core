@@ -12,9 +12,7 @@ export type RunResponse = z.infer<typeof runSchema>;
 // Function to get test count for a job
 export async function getJobTestCount(jobId: string): Promise<number> {
   try {
-    const dbInstance = await db();
-    
-    const result = await dbInstance
+    const result = await db
       .select({ count: count() })
       .from(jobTests)
       .where(eq(jobTests.jobId, jobId));
@@ -28,10 +26,8 @@ export async function getJobTestCount(jobId: string): Promise<number> {
 
 export async function getRuns(): Promise<RunResponse[]> {
   try {
-    const dbInstance = await db();
-    
     // Get all runs with job name and report urls in a single query with a left join
-    const result = await dbInstance
+    const result = await db
       .select({
         id: runs.id,
         jobId: runs.jobId,
@@ -77,9 +73,7 @@ export async function getRuns(): Promise<RunResponse[]> {
 
 export async function getRun(id: string): Promise<RunResponse | null> {
   try {
-    const dbInstance = await db();
-    
-    const result = await dbInstance
+    const result = await db
       .select({
         id: runs.id,
         jobId: runs.jobId,

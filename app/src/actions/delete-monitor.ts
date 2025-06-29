@@ -1,6 +1,6 @@
 "use server";
 
-import { getDb } from "../lib/db";
+import { db } from "@/lib/db";
 import { monitors, monitorResults } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -16,13 +16,13 @@ export async function deleteMonitor(monitorId: string) {
       };
     }
 
-    const db = await getDb();
+    const dbInstance = db;
 
     // Delete related monitor results first (due to foreign key constraint)
-    await db.delete(monitorResults).where(eq(monitorResults.monitorId, monitorId));
+    await dbInstance.delete(monitorResults).where(eq(monitorResults.monitorId, monitorId));
     
     // Delete the monitor
-    const result = await db.delete(monitors).where(eq(monitors.id, monitorId));
+    const result = await dbInstance.delete(monitors).where(eq(monitors.id, monitorId));
     
     console.log(`Successfully deleted monitor ${monitorId}`);
     

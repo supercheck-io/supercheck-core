@@ -308,7 +308,7 @@ export function RunDetails({ run }: RunDetailsProps) {
             isRunning={currentStatus === "running"}
             backToLabel="Back to Runs"
             backToUrl="/runs"
-            containerClassName="w-full h-[calc(100vh-270px)] relative"
+            containerClassName="w-full h-[calc(100vh-280px)] relative"
             iframeClassName="w-full h-full border-0 rounded-lg"
             darkMode={false}
             hideEmptyMessage={true}

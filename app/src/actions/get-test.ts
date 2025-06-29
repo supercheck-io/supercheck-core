@@ -6,7 +6,7 @@ declare const Buffer: {
 
 import { tests } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 
 /**
  * Helper function to decode base64-encoded test scripts
@@ -45,8 +45,6 @@ export async function decodeTestScript(base64Script: string): Promise<string> {
  */
 export async function getTest(id: string) {
   try {
-    const db = await getDb();
-
     // Query the database for the test with the given ID
     const result = await db
       .select()

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db as getDbInstance } from "@/lib/db";
+import { db } from "@/lib/db";
 import { monitors, monitorResults, jobs, runs, tests } from "@/db/schema/schema";
 import { eq, desc, gte, and, count, sql } from "drizzle-orm";
 import { subDays, subHours } from "date-fns";
@@ -7,7 +7,7 @@ import { getQueueStats } from "@/lib/queue-stats";
 
 export async function GET() {
   try {
-    const dbInstance = await getDbInstance();
+    const dbInstance = db;
     const now = new Date();
     const last24Hours = subHours(now, 24);
     const last7Days = subDays(now, 7);

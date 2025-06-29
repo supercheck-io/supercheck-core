@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { jobs, runs } from "@/db/schema/schema";
 
 /**
@@ -9,8 +9,6 @@ import { jobs, runs } from "@/db/schema/schema";
  */
 export async function GET(): Promise<NextResponse> {
   try {
-    const db = await getDb();
-    
     // Find all active runs first - only those with running status
     const activeRuns = await db.query.runs.findMany({
       where: eq(runs.status, "running"),

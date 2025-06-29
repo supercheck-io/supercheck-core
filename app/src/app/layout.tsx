@@ -1,21 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { AppSidebar } from "@/components/app-sidebar";
-import { Separator } from "@/components/ui/separator";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ParallelThreads } from "@/components/parallel-threads";
 import { Toaster } from "@/components/ui/sonner";
-import { BreadcrumbProvider } from "@/components/breadcrumb-context";
-import { BreadcrumbDisplay } from "@/components/breadcrumb-display";
-import { JobProvider } from "@/components/jobs/job-context";
-import { SchedulerInitializer } from "@/components/scheduler-initializer";
-import { CommandSearch } from "@/components/ui/command-search";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Supercheck | Dashboard",
+  title: "Supercheck",
   description: "Monitor and manage your tests, jobs, and runs",
 };
 
@@ -39,73 +26,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  const storageKey = 'app-theme';
-                  const theme = localStorage.getItem(storageKey) || 'system';
-                  const root = document.documentElement;
-                  
-                  if (theme === 'system') {
-                    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                    root.classList.add(systemTheme);
-                  } else {
-                    root.classList.add(theme);
-                  }
-                } catch (e) {
-                  console.error('Theme initialization failed:', e);
-                }
-              })();
-            `,
-          }}
-        />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
         <ThemeProvider
-          defaultTheme="system" storageKey="app-theme"
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
         >
-          <BreadcrumbProvider>
-            <SidebarProvider>
-              <JobProvider>
-                {/* Initialize job scheduler */}
-                <SchedulerInitializer />
-                {/* Toaster for system notifications */}
-                <Toaster position="bottom-right" richColors />
-                {/* Custom Toaster for our application notifications */}
-                {/* <CustomToaster /> */}
-                <AppSidebar />
-                <SidebarInset>
-                  <header className="sticky top-0 flex h-16 shrink-0 items-center justify-between gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-                    <div className="flex items-center gap-2 px-4">
-                      <SidebarTrigger className="-ml-1" />
-                      <Separator
-                        orientation="vertical"
-                        className="mr-2 data-[orientation=vertical]:h-4"
-                      />
-                      <BreadcrumbDisplay />
-                    </div>
-                    <div className="flex items-center gap-2 px-4">
-                   
-                      <ParallelThreads />
-                      <CommandSearch />
-                    </div>
-                  </header>
-                  <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-                    {children}
-                  </div>
-                </SidebarInset>
-              </JobProvider>
-            </SidebarProvider>
-          </BreadcrumbProvider>
-
+          {children}
+          <Toaster position="bottom-right" richColors />
         </ThemeProvider>
       </body>
     </html>
   );
-}
+} 

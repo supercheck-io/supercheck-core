@@ -152,8 +152,7 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
   let failedCount = 0;
 
   try {
-    const dbInstance = await db();
-    const activeMonitors = await dbInstance
+    const activeMonitors = await db
       .select()
       .from(monitorSchemaDb)
       .where(and(

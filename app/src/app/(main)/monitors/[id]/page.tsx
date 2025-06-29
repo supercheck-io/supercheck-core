@@ -7,7 +7,7 @@ import { Monitor as MonitorSchemaType } from "@/components/monitors/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { notFound } from "next/navigation";
-import { db as getDbInstance } from "@/lib/db";
+import { db } from "@/lib/db";
 import { 
     monitors, 
     monitorResults, 
@@ -29,7 +29,6 @@ type MonitorDetailsPageProps = {
 // Direct server-side data fetching function (replaces the old fetchMonitorWithResults that used HTTP fetch)
 async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults | null> {
   try {
-    const db = await getDbInstance();
     const monitorData = await db.query.monitors.findFirst({
       where: eq(monitors.id, id),
     });

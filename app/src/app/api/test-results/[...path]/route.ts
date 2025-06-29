@@ -161,13 +161,12 @@ export async function GET(request: Request) {
   }
   
   try {
-    const dbInstance = await db();
     
     // Add debugging log to show full path information
     console.log(`[TEST-RESULTS API] Processing request for path: ${path.join('/')} (entityId: ${entityId})`);
     
     // Query the reports table to get the s3Url for this entity
-    const reportResult = await dbInstance.query.reports.findFirst({
+    const reportResult = await db.query.reports.findFirst({
       where: eq(reports.entityId, entityId),
       columns: {
         s3Url: true,

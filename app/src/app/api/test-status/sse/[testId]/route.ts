@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { db } from '@/lib/db';
 import { reports } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
 import { Queue } from 'bullmq';
@@ -45,7 +45,6 @@ export async function GET(request: Request) {
     async start(controller) {
       try {
         // Check if we already have a result for this test
-        const db = await getDb();
         
         // Get the specific report by test ID
         const report = await db.query.reports.findFirst({

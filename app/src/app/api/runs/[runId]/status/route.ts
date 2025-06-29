@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db as getDbInstance } from "@/lib/db";
+import { db } from "@/lib/db";
 import { runs, reports, ReportType } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -15,8 +15,7 @@ export async function GET(
   }
 
   try {
-    const dbInstance = await getDbInstance();
-    const runResult = await dbInstance.query.runs.findFirst({
+    const runResult = await db.query.runs.findFirst({
       where: eq(runs.id, runId),
     });
 
@@ -25,7 +24,7 @@ export async function GET(
     }
 
     // Fetch report details for this run
-    const reportResult = await dbInstance.query.reports.findFirst({
+    const reportResult = await db.query.reports.findFirst({
       where: and(
         eq(reports.entityId, runId),
         eq(reports.entityType, 'job' as ReportType)

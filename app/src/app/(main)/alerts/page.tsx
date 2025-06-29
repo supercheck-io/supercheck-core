@@ -215,12 +215,7 @@ export default function AlertsPage() {
       <PageBreadcrumbs items={breadcrumbs} />
       <div className="container mx-auto p-4">
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold">Alerts</h1>
-            <p className="text-muted-foreground">
-              Manage notification providers and view alert history
-            </p>
-          </div>
+   
 
           <Card>
             <Tabs defaultValue="history" className="w-full">

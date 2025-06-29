@@ -58,8 +58,7 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     const schedulerJobName = `scheduled-job-${options.jobId}`;
 
     // Fetch all tests associated with the job
-    const dbInstance = await db();
-    const jobTestsList = await dbInstance
+    const jobTestsList = await db
       .select({ testId: jobTests.testId, orderPosition: jobTests.orderPosition })
       .from(jobTests)
       .where(eq(jobTests.jobId, options.jobId))
@@ -122,8 +121,7 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     }
     
     if (nextRunAt) {
-      const dbInstance = await db();
-      await dbInstance.update(jobs)
+      await db.update(jobs)
         .set({ nextRunAt })
         .where(eq(jobs.id, options.jobId));
     }
@@ -180,8 +178,7 @@ async function handleScheduledJobTrigger(job: Job) {
     console.log(`Handling scheduled job trigger for job ${jobId}`);
     
     // Check if there's already a run in progress for this job
-    const dbInstance = await db();
-    const runningRuns = await dbInstance
+    const runningRuns = await db
       .select()
       .from(runs)
       .where(and(
@@ -198,7 +195,7 @@ async function handleScheduledJobTrigger(job: Job) {
     const runId = crypto.randomUUID();
     
     // Insert with known fields from the schema
-    await dbInstance
+    await db
       .insert(runs)
       .values({
         id: runId,
@@ -211,7 +208,7 @@ async function handleScheduledJobTrigger(job: Job) {
     
     // Update job's lastRunAt field and calculate nextRunAt
     const now = new Date();
-    const jobData = await dbInstance
+    const jobData = await db
       .select()
       .from(jobs)
       .where(eq(jobs.id, jobId))
@@ -229,7 +226,7 @@ async function handleScheduledJobTrigger(job: Job) {
         console.error(`Failed to calculate next run date: ${error}`);
       }
       
-      await dbInstance
+      await db
         .update(jobs)
         .set({
           lastRunAt: now,
@@ -283,10 +280,7 @@ async function handleScheduledJobTrigger(job: Job) {
     
     // Update job status to error
     try {
-      const dbInstance = await db();
-      const jobId = job.data.jobId;
-      
-      await dbInstance
+      await db
         .update(jobs)
         .set({
           status: "error", // Using direct value matching JobStatus from schema
@@ -294,7 +288,7 @@ async function handleScheduledJobTrigger(job: Job) {
         .where(eq(jobs.id, jobId));
       
       // Update any "running" runs to "error" status
-      await dbInstance
+      await db
         .update(runs)
         .set({
           status: "error", // Using direct value matching TestRunStatus from schema
@@ -378,9 +372,7 @@ export async function initializeJobSchedulers() {
     // Ensure the scheduler worker is created
     await ensureSchedulerWorker();
     
-    const dbInstance = await db();
-    
-    const jobsWithSchedules = await dbInstance
+    const jobsWithSchedules = await db
       .select()
       .from(jobs)
       .where(isNotNull(jobs.cronSchedule));
@@ -414,7 +406,7 @@ export async function initializeJobSchedulers() {
             console.error(`Failed to calculate next run date: ${error}`);
           }
           
-          await dbInstance
+          await db
             .update(jobs)
             .set({ 
               scheduledJobId: schedulerId,
@@ -472,8 +464,7 @@ export async function cleanupJobScheduler() {
       console.log(`Found ${repeatableJobs.length} repeatable jobs in Redis`);
       
       // Get all jobs with schedules from the database
-      const dbInstance = await db();
-      const jobsWithSchedules = await dbInstance
+      const jobsWithSchedules = await db
         .select({ id: jobs.id, scheduledJobId: jobs.scheduledJobId })
         .from(jobs)
         .where(isNotNull(jobs.scheduledJobId));

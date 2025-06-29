@@ -1,46 +1,10 @@
-"use server";
-
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from '@/db/schema/schema';
 
-/**
- * Creates a database client using PostgreSQL
- */
-export async function createDbClient() {
-  const connectionString = process.env.DATABASE_URL || 
-    `postgres://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "postgres"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "supercheck"}`;
-  
-  // For query building with connection pool limits to prevent "too many clients" error
-  return postgres(connectionString, { 
-    ssl: false,
-    max: 10, // Limit max connections in the pool
-    idle_timeout: 20, // Close idle connections after 20 seconds
-    connect_timeout: 10 // Connection timeout in seconds
-  });
-}
+const connectionString = process.env.DATABASE_URL || 
+  `postgres://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "postgres"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "supercheck"}`;
 
-/**
- * Creates a drizzle ORM instance with the database client
- */
-export async function createDb() {
-  const client = await createDbClient();
-  return drizzle(client, { schema, logger: true });
-}
+const client = postgres(connectionString, { max: 1 });
 
-// Create a singleton instance
-let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
-
-/**
- * Get the database instance (singleton pattern)
- */
-export async function getDb() {
-  if (!_db) {
-    const client = await createDbClient();
-    _db = drizzle(client, { schema, logger: true });
-  }
-  return _db;
-}
-
-// For compatibility with existing code
-export { getDb as db };
+export const db = drizzle(client, { schema, logger: true });

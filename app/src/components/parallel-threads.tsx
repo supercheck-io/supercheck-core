@@ -122,10 +122,10 @@ export function ParallelThreads() {
 
   // Just show the data even if we're reconnecting - the user doesn't need to know about temporary connectivity issues
   return (
-    <div className="flex items-center mr-4">
+    <div className="flex items-center mr-2">
       <div className="flex items-center text-[11px]">
-        <div className="font-medium text-gray-500 mr-3 ">PARALLEL 
-          <div className="font-medium text-gray-500 mr-3 ">EXECUTIONS:</div>
+        <div className="font-medium text-gray-500 mr-3 text-xs">Parallel
+          <div className="font-medium text-gray-500 mr-3 text-xs">Executions:</div>
         </div>
         
         <div className="flex flex-col mr-6">
@@ -161,10 +161,10 @@ export function ParallelThreads() {
 // Loading skeleton for parallel executions component
 function LoadingSkeleton() {
   return (
-    <div className="flex items-center mr-4">
+    <div className="flex items-center mr-2">
       <div className="flex items-center text-[11px]">
-        <div className="font-medium text-gray-500 mr-3 ">PARALLEL
-          <div className="font-medium text-gray-500 mr-3 ">EXECUTIONS:</div>
+        <div className="font-medium text-gray-500 mr-3 text-xs">Parallel
+          <div className="font-medium text-gray-500 mr-3 text-xs">Executions:</div>
         </div>
      
         <div className="flex flex-col mr-6">

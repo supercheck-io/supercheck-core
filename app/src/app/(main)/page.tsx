@@ -201,23 +201,8 @@ export default function Home() {
       <PageBreadcrumbs items={breadcrumbs} />
       
       <div className="flex-1 p-4 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">
-              Monitoring and automation overview
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={dashboardData.system.healthy ? "default" : "destructive"}>
-              {dashboardData.system.healthy ? "Healthy" : "Issues"}
-            </Badge>
-            <p className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(dashboardData.system.timestamp), { addSuffix: true })}
-            </p>
-          </div>
-        </div>
+      
+       
 
         {/* Key Metrics */}
         <div className="grid gap-3 md:grid-cols-4 mb-4">

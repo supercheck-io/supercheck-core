@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db as getDbInstance } from "@/lib/db";
+import { db } from "@/lib/db";
 import { notificationProviders, notificationProvidersInsertSchema } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 
@@ -9,7 +9,6 @@ export async function GET(
 ) {
   try {
     const { id } = params;
-    const db = await getDbInstance();
 
     const [provider] = await db
       .select()
@@ -51,7 +50,6 @@ export async function PUT(
     }
 
     const updateData = validationResult.data;
-    const db = await getDbInstance();
 
     const [updatedProvider] = await db
       .update(notificationProviders)
@@ -86,7 +84,6 @@ export async function DELETE(
 ) {
   try {
     const { id } = params;
-    const db = await getDbInstance();
 
     const [deletedProvider] = await db
       .delete(notificationProviders)

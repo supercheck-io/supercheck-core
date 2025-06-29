@@ -17,6 +17,7 @@ import {
   createSelectSchema,
   createUpdateSchema,
 } from "drizzle-zod";
+import { z } from "zod";
 
 import { organization, user as authUser } from "./auth-schema"; // Import organization and user (aliased to authUser to avoid naming conflict if you have a local user concept)
 
@@ -152,6 +153,8 @@ export const runs = pgTable("runs", {
   artifactPaths: jsonb("artifact_paths").$type<ArtifactPaths>(),
   logs: text("logs"),
   errorDetails: text("error_details"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 /* ================================
@@ -603,6 +606,33 @@ export const monitorMaintenanceWindows = pgTable(
   })
 );
 
+/* ================================
+   ALERTS TABLE
+   -------------------------------
+   Stores alert configurations for monitors.
+=================================== */
+export const alerts = pgTable("alerts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id")
+    .references(() => organization.id, { onDelete: "cascade" }),
+  monitorId: uuid("monitor_id").references(() => monitors.id, { onDelete: 'cascade' }),
+  enabled: boolean("enabled").default(true).notNull(),
+  notificationProviders: jsonb("notification_providers").$type<string[]>(),
+  alertOnFailure: boolean("alert_on_failure").default(true).notNull(),
+  alertOnRecovery: boolean("alert_on_recovery").default(true),
+  alertOnSslExpiration: boolean("alert_on_ssl_expiration").default(false),
+  alertOnSuccess: boolean("alert_on_success").default(false),
+  alertOnTimeout: boolean("alert_on_timeout").default(false),
+  failureThreshold: integer("failure_threshold").default(1).notNull(),
+  recoveryThreshold: integer("recovery_threshold").default(1).notNull(),
+  customMessage: text("custom_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const alertSchema = createSelectSchema(alerts);
+export type Alert = z.infer<typeof alertSchema>
+export const insertAlertSchema = createInsertSchema(alerts);
 
 // Zod schemas for monitors
 export const monitorsInsertSchema = createInsertSchema(monitors);

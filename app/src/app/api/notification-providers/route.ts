@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db as getDbInstance } from "@/lib/db";
+import { db } from "@/lib/db";
 import { notificationProviders, notificationProvidersInsertSchema } from "@/db/schema/schema";
 import { desc } from "drizzle-orm";
 
 export async function GET() {
   try {
-    const db = await getDbInstance();
-
     const providers = await db.query.notificationProviders.findMany({
       orderBy: [desc(notificationProviders.createdAt)],
     });
@@ -34,7 +32,6 @@ export async function POST(req: NextRequest) {
     }
 
     const newProviderData = validationResult.data;
-    const db = await getDbInstance();
 
     const [insertedProvider] = await db
       .insert(notificationProviders)

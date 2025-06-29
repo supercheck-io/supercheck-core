@@ -14,7 +14,6 @@ export const auth = betterAuth({
         schema: authSchema
     }),
     plugins: [ 
-        nextCookies(),
         admin(),
         organization({
             // Enable organization features
@@ -31,10 +30,11 @@ export const auth = betterAuth({
             // Custom invitation email
             sendInvitationEmail: async ({ invitation, organization, inviter }) => {
                 console.log(`Invitation sent to ${invitation.email} for ${organization.name}`);
-                // Implement your email sending logic here
-            }
+                // Implement your email sending logic here            
+            },    
         }),
         apiKey(),
+        nextCookies()
        
     ],
     session: {
