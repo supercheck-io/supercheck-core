@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db } from "@/utils/db";
 import {
   jobs,
   jobTests,
@@ -22,10 +22,9 @@ async function executeJob(jobId: string, tests: { id: string; script: string }[]
   console.log(`Received job execution request: { jobId: ${jobId}, testCount: ${tests.length} }`);
   
   const runId = randomUUID();
-  const dbInstance = await db();
   
   // Create a run record
-  await dbInstance.insert(runs).values({
+  await db.insert(runs).values({
     id: runId,
     jobId: jobId,
     status: 'running' as TestRunStatus,
@@ -89,10 +88,8 @@ interface TestResult {
 // GET all jobs
 export async function GET() {
   try {
-    const dbInstance = await db();
-
     // Get all jobs from the database
-    const allJobs = await dbInstance
+    const allJobs = await db
       .select()
       .from(jobs)
       .leftJoin(jobTests, eq(jobs.id, jobTests.jobId))
@@ -130,7 +127,7 @@ export async function GET() {
         let testDetails: Test[] = [];
         if (testIds.length > 0) {
           // Fetch test details for each test ID
-          const testResults = await dbInstance
+          const testResults = await db
             .select()
             .from(testsTable)
             .where(inArray(testsTable.id, testIds));
@@ -174,7 +171,6 @@ export async function POST(request: Request) {
 
     // Regular job creation
     const jobData: JobData = await request.json();
-    const dbInstance = await db();
 
     // Validate required fields
     if (!jobData.name || !jobData.cronSchedule) {
@@ -192,7 +188,7 @@ export async function POST(request: Request) {
     const jobId = randomUUID();
 
     // Insert the job into the database with default values for nullable fields
-    const [insertedJob] = await dbInstance.insert(jobs).values({
+    const [insertedJob] = await db.insert(jobs).values({
       id: jobId,
       name: jobData.name,
       description: jobData.description || null,
@@ -219,7 +215,7 @@ export async function POST(request: Request) {
     if (insertedJob && jobData.alertConfig?.enabled && Array.isArray(jobData.alertConfig.notificationProviders)) {
       await Promise.all(
         jobData.alertConfig.notificationProviders.map(providerId =>
-          dbInstance.insert(jobNotificationSettings).values({
+          db.insert(jobNotificationSettings).values({
             jobId: insertedJob.id,
             notificationProviderId: providerId,
           })
@@ -234,7 +230,7 @@ export async function POST(request: Request) {
         testId: test.id,
       }));
 
-      await dbInstance.insert(jobTests).values(jobTestValues);
+      await db.insert(jobTests).values(jobTestValues);
     }
 
     return NextResponse.json({
@@ -259,7 +255,6 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const jobData: JobData = await request.json();
-    const dbInstance = await db();
 
     if (!jobData.id) {
       return NextResponse.json(
@@ -281,7 +276,7 @@ export async function PUT(request: Request) {
     }
 
     // Update the job in the database
-    await dbInstance
+    await db
       .update(jobs)
       .set({
         name: jobData.name,
@@ -294,7 +289,7 @@ export async function PUT(request: Request) {
       .where(eq(jobs.id, jobData.id));
 
     // Delete existing job-test associations
-    await dbInstance.delete(jobTests).where(eq(jobTests.jobId, jobData.id));
+    await db.delete(jobTests).where(eq(jobTests.jobId, jobData.id));
 
     // If tests are provided, create new job-test associations
     if (jobData.tests && jobData.tests.length > 0) {
@@ -303,7 +298,7 @@ export async function PUT(request: Request) {
         testId: test.id,
       }));
 
-      await dbInstance.insert(jobTests).values(jobTestValues);
+      await db.insert(jobTests).values(jobTestValues);
     }
 
     return NextResponse.json({
@@ -339,12 +334,11 @@ async function runJob(request: Request) {
     }
 
     // Create a new test run record in the database
-    const dbInstance = await db();
     const runId = crypto.randomUUID();
     const startTime = new Date();
 
     // Insert a new test run record
-    await dbInstance.insert(runs).values({
+    await db.insert(runs).values({
       id: runId,
       jobId,
       status: "running",
@@ -412,7 +406,7 @@ async function runJob(request: Request) {
     const durationFormatted = `${Math.floor(durationMs / 1000)}s`;
 
     // Update the job status in the database
-    await dbInstance
+    await db
       .update(jobs)
       .set({
         status: result.success
@@ -456,7 +450,7 @@ async function runJob(request: Request) {
       : false;
 
     // Update the test run record with results
-    await dbInstance
+    await db
       .update(runs)
       .set({
         status: hasFailedTests
