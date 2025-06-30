@@ -2,7 +2,7 @@
 
 import { tests } from "@/db/schema/schema";
 import { desc } from "drizzle-orm";
-import { db } from "../lib/db";
+import { db } from "../utils/db";
 import { decodeTestScript } from "./get-test";
 
 /**

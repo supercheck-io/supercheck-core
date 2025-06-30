@@ -43,7 +43,7 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
     return (
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Availability Overview</CardTitle>
+          <CardTitle className="text-xl">Availability Overview</CardTitle>
           <CardDescription>Availability status for monitor checks.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center h-[120px]">
@@ -79,7 +79,7 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle className="text-2xl">Availability Overview</CardTitle>
+        <CardTitle className="text-xl">Availability Overview</CardTitle>
         <CardDescription>
           {getDescription()}
         </CardDescription>

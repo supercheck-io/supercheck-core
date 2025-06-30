@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { db } from "@/utils/db";
 import { monitors, monitorResults } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { addMonitorExecutionJobToQueue } from "./queue";

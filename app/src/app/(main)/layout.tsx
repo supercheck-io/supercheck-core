@@ -11,7 +11,7 @@ import { BreadcrumbDisplay } from "@/components/breadcrumb-display";
 import { JobProvider } from "@/components/jobs/job-context";
 import { SchedulerInitializer } from "@/components/scheduler-initializer";
 import { CommandSearch } from "@/components/ui/command-search";
-import { auth } from "@/lib/auth";
+import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NavUser } from "@/components/nav-user";

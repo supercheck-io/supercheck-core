@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { db } from "@/lib/db";
+import { db } from "@/utils/db";
 import { alertHistory } from "@/db/schema/schema";
 import { desc } from "drizzle-orm";
 

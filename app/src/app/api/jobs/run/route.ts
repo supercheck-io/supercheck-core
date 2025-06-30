@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTest } from "@/actions/get-test";
-import { db } from "@/lib/db";
+import { db } from "@/utils/db";
 import { jobs, runs, JobStatus } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";

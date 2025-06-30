@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db } from '@/utils/db';
 import { monitors as monitorTable, monitorsInsertSchema, MonitorConfig, MonitorType as DBMoniotorType, MonitorStatus as DBMonitorStatus } from '@/db/schema/schema';
 import { MonitorJobData } from '@/lib/queue'; // Assuming MonitorJobData is suitable
 import { scheduleMonitorCheck, removeScheduledMonitorCheck } from '@/lib/monitor-scheduler';

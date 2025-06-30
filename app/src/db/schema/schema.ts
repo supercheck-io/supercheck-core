@@ -19,25 +19,186 @@ import {
 } from "drizzle-zod";
 import { z } from "zod";
 
-import { organization, user as authUser } from "./auth-schema"; // Import organization and user (aliased to authUser to avoid naming conflict if you have a local user concept)
+/* ================================
+   AUTH SCHEMA
+   -------------------------------
+   Tables required by better-auth, modified to use UUIDs.
+=================================== */
+
+/**
+ * Stores user information for authentication and identification.
+ */
+export const user = pgTable("user", {
+	id: uuid('id').primaryKey().defaultRandom(),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique(),
+	emailVerified: boolean('email_verified').default(false).notNull(),
+	image: text('image'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull(),
+	role: text('role'),
+	banned: boolean('banned'),
+	banReason: text('ban_reason'),
+	banExpires: timestamp('ban_expires')
+});
+
+/**
+ * Represents an organization or a company account.
+ */
+export const organization = pgTable("organization", {
+	id: uuid('id').primaryKey().defaultRandom(),
+	name: text('name').notNull(),
+	slug: text('slug').unique(),
+	logo: text('logo'),
+	createdAt: timestamp('created_at').notNull(),
+	metadata: text('metadata')
+});
+
+/**
+ * Represents a team within an organization.
+ */
+export const team = pgTable("team", {
+	id: uuid('id').primaryKey().defaultRandom(),
+	name: text('name').notNull(),
+	organizationId: uuid('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at').notNull(),
+	updatedAt: timestamp('updated_at')
+});
+
+/**
+ * Maps users to organizations and teams, defining their roles.
+ */
+export const member = pgTable("member", {
+	id: uuid('id').primaryKey().defaultRandom(),
+	organizationId: uuid('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	role: text('role').default('member').notNull(),
+	teamId: uuid('team_id').references(() => team.id),
+	createdAt: timestamp('created_at').notNull()
+});
+
+/**
+ * Stores pending invitations for users to join an organization.
+ */
+export const invitation = pgTable("invitation", {
+	id: uuid('id').primaryKey().defaultRandom(),
+	organizationId: uuid('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+	email: text('email').notNull(),
+	role: text('role'),
+	teamId: uuid('team_id').references(() => team.id),
+	status: text('status').default('pending').notNull(),
+	expiresAt: timestamp('expires_at').notNull(),
+	inviterId: uuid('inviter_id').notNull().references(() => user.id, { onDelete: 'cascade' })
+});
+
+/**
+ * Manages user sessions for authentication.
+ */
+export const session = pgTable("session", {
+	id: uuid('id').primaryKey().defaultRandom(),
+	expiresAt: timestamp('expires_at').notNull(),
+	token: text('token').notNull().unique(),
+	createdAt: timestamp('created_at').notNull(),
+	updatedAt: timestamp('updated_at').notNull(),
+	ipAddress: text('ip_address'),
+	userAgent: text('user_agent'),
+	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	activeOrganizationId: uuid('active_organization_id').references(() => organization.id),
+	impersonatedBy: text('impersonated_by')
+});
+
+/**
+ * Stores provider-specific account information for OAuth.
+ */
+export const account = pgTable("account", {
+	id: uuid('id').primaryKey().defaultRandom(),
+	accountId: text('account_id'),
+	providerId: text('provider_id').notNull(),
+	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	accessToken: text('access_token'),
+	refreshToken: text('refresh_token'),
+	idToken: text('id_token'),
+	accessTokenExpiresAt: timestamp('access_token_expires_at'),
+	refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+	scope: text('scope'),
+	password: text('password'),
+	createdAt: timestamp('created_at').notNull(),
+	updatedAt: timestamp('updated_at').notNull()
+});
+
+/**
+ * Stores tokens for email verification or password resets.
+ */
+export const verification = pgTable("verification", {
+	id: uuid('id').primaryKey().defaultRandom(),
+	identifier: text('identifier').notNull(),
+	value: text('value').notNull(),
+	expiresAt: timestamp('expires_at').notNull(),
+	createdAt: timestamp('created_at').defaultNow(),
+	updatedAt: timestamp('updated_at').defaultNow()
+});
+
+/**
+ * Manages API keys for programmatic access.
+ */
+export const apikey = pgTable("apikey", {
+	id: uuid('id').primaryKey().defaultRandom(),
+	name: text('name'),
+	start: text('start'),
+	prefix: text('prefix'),
+	key: text('key').notNull(),
+	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	refillInterval: text('refill_interval'),
+	refillAmount: text('refill_amount'),
+	lastRefillAt: timestamp('last_refill_at'),
+	enabled: boolean('enabled').default(true),
+	rateLimitEnabled: boolean('rate_limit_enabled').default(true),
+	rateLimitTimeWindow: text('rate_limit_time_window').default('60'),
+	rateLimitMax: text('rate_limit_max').default('100'),
+	requestCount: text('request_count'),
+	remaining: text('remaining'),
+	lastRequest: timestamp('last_request'),
+	expiresAt: timestamp('expires_at'),
+	createdAt: timestamp('created_at').notNull(),
+	updatedAt: timestamp('updated_at').notNull(),
+	permissions: text('permissions'),
+	metadata: text('metadata')
+});
 
 /* ================================
-   TESTS TABLE
+   APPLICATION SCHEMA
    -------------------------------
-   Stores automated test cases associated with projects.
-   Includes details such as the test title, description, automation script,
-   priority level, test type, tags (stored as JSON), and audit fields for
-   who created and last updated the test case.
+   Application-specific tables.
 =================================== */
+
+/**
+ * Represents a project within an organization.
+ */
+export const projects = pgTable("projects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organization.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  status: varchar("status", { length: 50 })
+    .$type<"active" | "archived" | "deleted">()
+    .notNull()
+    .default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 export type TestPriority = "low" | "medium" | "high";
 export type TestType = "browser" | "api" | "multistep" | "database";
+/**
+ * Stores test definitions and scripts.
+ */
 export const tests = pgTable("tests", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
-    // .notNull() // Ensured nullable for now
+  organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
-  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+  createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   script: text("script").notNull().default(""), // Store Base64-encoded script content
@@ -47,13 +208,6 @@ export const tests = pgTable("tests", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-/* ================================
-   JOBS TABLE
-   -------------------------------
-   Defines scheduled jobs for executing tests. Each job is linked to a project
-   and includes details such as a cron schedule, current status, configuration
-   (stored as JSON), retry count, timeout settings, and timestamps.
-=================================== */
 export type JobStatus =
   | "pending"
   | "running"
@@ -69,6 +223,9 @@ export type JobConfig = {
   };
 };
 
+/**
+ * Defines alert configurations for jobs and monitors.
+ */
 export type AlertConfig = {
   enabled: boolean;
   notificationProviders: string[];
@@ -81,12 +238,14 @@ export type AlertConfig = {
   recoveryThreshold: number;
   customMessage?: string;
 };
+/**
+ * Defines scheduled or on-demand jobs that run a collection of tests.
+ */
 export const jobs = pgTable("jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
-    // .notNull() // Ensured nullable for now
+  organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
-  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+  createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   cronSchedule: varchar("cron_schedule", { length: 100 }),
@@ -99,12 +258,9 @@ export const jobs = pgTable("jobs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-/* ================================
-   JOB TEST CASES TABLE
-   -------------------------------
-   Maps test cases to jobs (many‑to‑many relationship) with an optional order
-   field to define the sequence in which test cases should be executed.
-=================================== */
+/**
+ * A join table linking jobs to the tests they include.
+ */
 export const jobTests = pgTable(
   "job_tests",
   {
@@ -124,13 +280,6 @@ export const jobTests = pgTable(
   })
 );
 
-/* ================================
-   TEST RUNS TABLE
-   -------------------------------
-   Stores execution records for each test run linked to a job and a test case.
-   Captures run status, duration, start/completion times, artifact paths, logs,
-   error details, video URL, and screenshot URLs.
-=================================== */
 export type TestRunStatus =
   | "running"
   | "passed"
@@ -141,6 +290,9 @@ export type ArtifactPaths = {
   video?: string;
   screenshots?: string[];
 };
+/**
+ * Records the execution history and results of a job run.
+ */
 export const runs = pgTable("runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   jobId: uuid("job_id")
@@ -157,26 +309,19 @@ export const runs = pgTable("runs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-/* ================================
-   REPORTS TABLE
-   -------------------------------
-   Provides a summary report of test job outcomes including counts of total,
-   passed, failed, skipped, and flaky tests, duration, and browser performance
-   metrics (stored as JSON). Tracks the report creation timestamp.
-=================================== */
-
-// Export ReportType before using it in the reports table definition
 export type ReportType = "test" | "job";
+/**
+ * Stores information about generated reports for tests or jobs.
+ */
 export const reports = pgTable(
-  "reports", 
+  "reports",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    organizationId: text("organization_id")
-      // .notNull() // Ensured nullable for now
+    organizationId: uuid("organization_id")
       .references(() => organization.id, { onDelete: "cascade" }),
-    createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+    createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
     entityType: varchar("entity_type", { length: 50 }).$type<ReportType>().notNull(),
-    entityId: uuid("entity_id").notNull(), // This ID should belong to an entity (test/job) within the same organizationId
+    entityId: uuid("entity_id").notNull(),
     reportPath: varchar("report_path", { length: 255 }).notNull(),
     status: varchar("status", { length: 50 }).notNull().default("passed"),
     s3Url: varchar("s3_url", { length: 1024 }),
@@ -184,37 +329,23 @@ export const reports = pgTable(
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
-    // Add a unique constraint on entityType and entityId to prevent duplicates
     typeIdUnique: uniqueIndex("reports_entity_type_id_idx").on(
-      table.entityType, 
+      table.entityType,
       table.entityId
     ),
   })
 );
 
-
-export const testsInsertSchema = createInsertSchema(tests);
-export const testsUpdateSchema = createUpdateSchema(tests);
-export const testsSelectSchema = createSelectSchema(tests);
-
-export const jobsInsertSchema = createInsertSchema(jobs);
-export const jobsUpdateSchema = createUpdateSchema(jobs);
-export const jobsSelectSchema = createSelectSchema(jobs);
-
-/* ================================
-   MONITORS TABLE
-   -------------------------------
-   Stores the configuration for different types of monitors (e.g., HTTP, Ping).
-   Includes details like name, type, target, frequency, current status,
-   and specific configuration options.
-=================================== */
 export type MonitorType =
-  | "http_request"    // Check HTTP/S endpoints (availability, status, response time)
-  | "website"         // Monitor website availability and performance (HTTP GET) with optional SSL checking
-  | "ping_host"       // ICMP ping to a host
-  | "port_check"      // Check specific TCP or UDP port
-  | "heartbeat"       // Passive monitoring expecting regular pings
+  | "http_request"
+  | "website"
+  | "ping_host"
+  | "port_check"
+  | "heartbeat";
 
+/**
+ * Represents the current status of a monitor.
+ */
 export type MonitorStatus =
   | "up"
   | "down"
@@ -223,88 +354,78 @@ export type MonitorStatus =
   | "maintenance"
   | "error";
 
+/**
+ * Defines the configuration for a monitor, with settings specific to its type.
+ */
 export type MonitorConfig = {
-  // http_request specific
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
-  headers?: Record<string, string>; // This will be stored as a JSON string from the form
-  body?: string; // Can be JSON string or other content types
-  expectedStatusCodes?: string; // Changed from expectedStatusCode?: number to match runner and form
-  keywordInBody?: string; 
-  keywordInBodyShouldBePresent?: boolean; 
+  headers?: Record<string, string>;
+  body?: string;
+  expectedStatusCodes?: string;
+  keywordInBody?: string;
+  keywordInBodyShouldBePresent?: boolean;
   responseBodyJsonPath?: { path: string; expectedValue: any };
-
   auth?: {
     type: "none" | "basic" | "bearer";
-    username?: string; // For basic auth
-    password?: string; // For basic auth - IMPORTANT: Consider secret management
-    token?: string;    // For bearer token - IMPORTANT: Consider secret management
+    username?: string;
+    password?: string;
+    token?: string;
   };
-
-  // port_check specific
   port?: number;
   protocol?: "tcp" | "udp";
-
-  // heartbeat specific
-  expectedIntervalMinutes?: number; // e.g., 5 (5 minutes)
-  gracePeriodMinutes?: number; // e.g., 2 (2 minutes grace period)
-  heartbeatUrl?: string; // Auto-generated unique URL for receiving pings
-  lastPingAt?: string; // ISO string of last received ping
-
-  // ssl_check specific (target is domain name) - for future use
+  expectedIntervalMinutes?: number;
+  gracePeriodMinutes?: number;
+  heartbeatUrl?: string;
+  lastPingAt?: string;
   checkExpiration?: boolean;
-  daysUntilExpirationWarning?: number; // e.g., 30
-  checkRevocation?: boolean; // (Advanced, might require OCSP/CRL checks)
-
-  // Common configuration applicable to many types
-  timeoutSeconds?: number; // e.g., 10
-  regions?: string[]; // e.g., ["us-east-1", "eu-west-2"] (for distributed checks)
+  daysUntilExpirationWarning?: number;
+  checkRevocation?: boolean;
+  timeoutSeconds?: number;
+  regions?: string[];
   retryStrategy?: {
-    maxRetries: number; // e.g., 3
-    backoffFactor: number; // e.g., 2 for exponential backoff
+    maxRetries: number;
+    backoffFactor: number;
   };
-  alertChannels?: string[]; // e.g., ["email:admin@example.com", "slack:channel-id"]
-  
-  [key: string]: any; // For other type-specific or future settings
+  alertChannels?: string[];
+  [key: string]: any;
 };
 
+/**
+ * Defines monitoring configurations for services or endpoints.
+ */
 export const monitors = pgTable("monitors", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
-    // .notNull() // Ensured nullable for now
+  organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
-  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+  createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   type: varchar("type", { length: 50 }).$type<MonitorType>().notNull(),
-  target: varchar("target", { length: 2048 }).notNull(), // URL, IP, cron expression, domain
-  frequencyMinutes: integer("frequency_minutes").notNull().default(5), // Check interval in minutes
-  enabled: boolean("enabled").notNull().default(true), // NEW: To enable/disable checks
+  target: varchar("target", { length: 2048 }).notNull(),
+  frequencyMinutes: integer("frequency_minutes").notNull().default(5),
+  enabled: boolean("enabled").notNull().default(true),
   status: varchar("status", { length: 50 }).$type<MonitorStatus>().notNull().default("pending"),
   config: jsonb("config").$type<MonitorConfig>(),
   alertConfig: jsonb("alert_config").$type<AlertConfig>(),
   lastCheckAt: timestamp("last_check_at"),
   lastStatusChangeAt: timestamp("last_status_change_at"),
-  mutedUntil: timestamp("muted_until"), // For temporary pausing of alerts
+  mutedUntil: timestamp("muted_until"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-  // consecutiveFailures: integer("consecutive_failures").notNull().default(0), // Optional: for alerting
 });
 
-/* ================================
-   MONITOR RESULTS TABLE
-   -------------------------------
-   Stores the results of each individual check performed on a monitor.
-   Includes status, response time, and any specific details or errors.
-=================================== */
 export type MonitorResultStatus = "up" | "down" | "error" | "timeout";
+/**
+ * Contains detailed information about the result of a single monitor check.
+ */
 export type MonitorResultDetails = {
   statusCode?: number;
   statusText?: string;
   errorMessage?: string;
   responseHeaders?: Record<string, string>;
-  responseBodySnippet?: string; // Store a small snippet for debugging
-  ipAddress?: string; // Resolved IP for ping/http checks
-  location?: string; // e.g., "us-east-1" if checked from a specific region
+  responseBodySnippet?: string;
+  ipAddress?: string;
+  location?: string;
   sslCertificate?: {
     valid: boolean;
     issuer?: string;
@@ -313,9 +434,12 @@ export type MonitorResultDetails = {
     validTo?: string;
     daysRemaining?: number;
   };
-  [key: string]: any; // For other check-specific details
+  [key: string]: any;
 };
 
+/**
+ * Stores the results of each monitor check.
+ */
 export const monitorResults = pgTable("monitor_results", {
   id: uuid("id").primaryKey().defaultRandom(),
   monitorId: uuid("monitor_id")
@@ -325,39 +449,34 @@ export const monitorResults = pgTable("monitor_results", {
   status: varchar("status", { length: 50 }).$type<MonitorResultStatus>().notNull(),
   responseTimeMs: integer("response_time_ms"),
   details: jsonb("details").$type<MonitorResultDetails>(),
-  isUp: boolean("is_up").notNull(), // Derived from status for easier querying/aggregation
-  isStatusChange: boolean("is_status_change").notNull().default(false), // NEW: Flag if this result changed the monitor's overall status
+  isUp: boolean("is_up").notNull(),
+  isStatusChange: boolean("is_status_change").notNull().default(false),
 });
 
-/* ================================
-   TAGS TABLE
-   -------------------------------
-   Stores tags that can be applied to monitors. Tags are now per-organization.
-=================================== */
+/**
+ * A table for tags that can be applied to monitors for organization and filtering.
+ */
 export const tags = pgTable("tags", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
-    // .notNull() // Ensured nullable for now
+  organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
-  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
-  name: varchar("name", { length: 100 }).notNull(), // Unique constraint should be per-organization now
+  createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
+  name: varchar("name", { length: 100 }).notNull(),
   color: varchar("color", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 },
 (table) => ({
     organizationTagNameUnique: uniqueIndex("tags_organization_name_idx").on(
-      table.organizationId, 
+      table.organizationId,
       table.name
     ),
   })
 );
 
-/* ================================
-   MONITOR TAGS TABLE (Join Table)
-   -------------------------------
-   Maps monitors to tags (many-to-many relationship).
-=================================== */
+/**
+ * A join table linking monitors to tags.
+ */
 export const monitorTags = pgTable(
   "monitor_tags",
   {
@@ -374,86 +493,70 @@ export const monitorTags = pgTable(
   })
 );
 
-/* ================================
-   NOTIFICATION PROVIDERS TABLE
-   -------------------------------
-   Notification providers are configured per-organization.
-=================================== */
-export type NotificationProviderType = "email" | "slack" | "webhook" | "telegram" | "discord"; // Add more as needed
+export type NotificationProviderType = "email" | "slack" | "webhook" | "telegram" | "discord";
+/**
+ * Holds the configuration details for different notification provider types.
+ */
 export type NotificationProviderConfig = {
-  // Common
-  name: string; // User-defined name for this specific notification setup
-  isDefault?: boolean; // If this is a default notification channel for new monitors
-
-  // email specific
+  isDefault?: boolean;
   smtpHost?: string;
   smtpPort?: number;
   smtpUser?: string;
-  smtpPassword?: string; // IMPORTANT: Manage secrets properly
+  smtpPassword?: string;
   smtpSecure?: boolean;
   fromEmail?: string;
-  toEmail?: string; // Can be comma-separated for multiple recipients
-
-  // slack specific
-  webhookUrl?: string; // Slack incoming webhook URL
-  channel?: string; // e.g., #alerts
-
-  // webhook specific
+  toEmail?: string;
+  webhookUrl?: string;
+  channel?: string;
   url?: string;
   method?: "GET" | "POST" | "PUT";
   headers?: Record<string, string>;
-  bodyTemplate?: string; // JSON or text template for the webhook body
-
-  // telegram specific
+  bodyTemplate?: string;
   botToken?: string;
   chatId?: string;
-
-  // discord specific
   discordWebhookUrl?: string;
-
-  [key: string]: any; // For other provider-specific settings
+  [key: string]: any;
 };
 
+/**
+ * Configures different channels for sending alerts (e.g., email, Slack).
+ */
 export const notificationProviders = pgTable("notification_providers", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
-    // .notNull() // Ensured nullable for now
+  organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
-  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+  createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
+  name: varchar("name", { length: 255 }).notNull().default("Default Provider"),
   type: varchar("type", { length: 50 }).$type<NotificationProviderType>().notNull(),
   config: jsonb("config").$type<NotificationProviderConfig>().notNull(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-/* ================================
-   ALERT HISTORY TABLE
-   -------------------------------
-   Stores the history of all alert notifications sent
-=================================== */
 export type AlertType = "monitor_failure" | "monitor_recovery" | "job_failed" | "job_success" | "job_timeout" | "ssl_expiring";
 export type AlertStatus = "sent" | "failed" | "pending";
 
+/**
+ * Logs the history of alerts that have been sent.
+ */
 export const alertHistory = pgTable("alert_history", {
   id: uuid("id").primaryKey().defaultRandom(),
   message: text("message").notNull(),
   type: varchar("type", { length: 50 }).$type<AlertType>().notNull(),
-  target: varchar("target", { length: 255 }).notNull(), // Monitor or job name
-  targetType: varchar("target_type", { length: 50 }).notNull(), // "monitor" or "job"
+  target: varchar("target", { length: 255 }).notNull(),
+  targetType: varchar("target_type", { length: 50 }).notNull(),
   monitorId: uuid("monitor_id").references(() => monitors.id, { onDelete: "cascade" }),
   jobId: uuid("job_id").references(() => jobs.id, { onDelete: "cascade" }),
-  provider: varchar("provider", { length: 100 }).notNull(), // Provider name for display
+  provider: varchar("provider", { length: 100 }).notNull(),
   status: varchar("status", { length: 50 }).$type<AlertStatus>().notNull().default("pending"),
   sentAt: timestamp("sent_at").defaultNow(),
-  errorMessage: text("error_message"), // If status is "failed"
+  errorMessage: text("error_message"),
 });
 
-/* ================================
-   MONITOR NOTIFICATIONS TABLE (Join Table)
-   -------------------------------
-   Links monitors to specific notification provider configurations.
-   A monitor can have multiple notification channels.
-=================================== */
+/**
+ * Join table to link monitors with specific notification providers.
+ */
 export const monitorNotificationSettings = pgTable(
   "monitor_notification_settings",
   {
@@ -463,24 +566,16 @@ export const monitorNotificationSettings = pgTable(
     notificationProviderId: uuid("notification_provider_id")
       .notNull()
       .references(() => notificationProviders.id, { onDelete: "cascade" }),
-    // Additional settings for this specific monitor-notification link, if needed
-    // e.g., notifyOnUp: boolean("notify_on_up").default(true),
-    //       notifyOnDown: boolean("notify_on_down").default(true),
-    //       notifyOnReminders: boolean("notify_on_reminders").default(false),
-    //       reminderIntervalMinutes: integer("reminder_interval_minutes"),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.monitorId, table.notificationProviderId] }),
+    pk: primaryKey({ name: "monitor_notification_settings_pk", columns: [table.monitorId, table.notificationProviderId] }),
   })
 );
 
-/* ================================
-   JOB NOTIFICATIONS TABLE (Join Table)
-   -------------------------------
-   Links jobs to specific notification provider configurations.
-   A job can have multiple notification channels.
-=================================== */
+/**
+ * Join table to link jobs with specific notification providers.
+ */
 export const jobNotificationSettings = pgTable(
   "job_notification_settings",
   {
@@ -490,10 +585,6 @@ export const jobNotificationSettings = pgTable(
     notificationProviderId: uuid("notification_provider_id")
       .notNull()
       .references(() => notificationProviders.id, { onDelete: "cascade" }),
-    // Additional settings for this specific job-notification link, if needed
-    // e.g., notifyOnSuccess: boolean("notify_on_success").default(true),
-    //       notifyOnFailure: boolean("notify_on_failure").default(true),
-    //       notifyOnTimeout: boolean("notify_on_timeout").default(false),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
@@ -501,19 +592,96 @@ export const jobNotificationSettings = pgTable(
   })
 );
 
-/* ================================
-   STATUS PAGES TABLE
-   -------------------------------
-   Status pages are created per-organization.
-=================================== */
-export type StatusPageLayout = "list" | "grid"; // Example layouts
+/**
+ * Holds the detailed information for an audit log entry.
+ */
+export type AuditDetails = {
+  resource?: string;
+  resourceId?: string;
+  changes?: Record<string, { before: unknown; after: unknown }>;
+  metadata?: Record<string, unknown>;
+};
+/**
+ * Records a log of all significant actions performed by users.
+ */
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => user.id),
+  organizationId: uuid("organization_id").references(() => organization.id),
+  action: varchar("action", { length: 255 }).notNull(),
+  details: jsonb("details").$type<AuditDetails>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type NotificationType = "email" | "slack" | "webhook" | "in-app";
+export type NotificationStatus = "pending" | "sent" | "failed" | "cancelled";
+/**
+ * Defines the content of a notification.
+ */
+export type NotificationContent = {
+  subject?: string;
+  body: string;
+  data?: Record<string, unknown>;
+};
+/**
+ * A generic table for storing user-facing notifications.
+ */
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => user.id),
+  type: varchar("type", { length: 50 }).$type<NotificationType>().notNull().default("email"),
+  content: jsonb("content").$type<NotificationContent>().notNull(),
+  status: varchar("status", { length: 50 })
+    .$type<NotificationStatus>()
+    .notNull()
+    .default("pending"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+/**
+ * Defines the configuration for a third-party integration.
+ */
+export type IntegrationConfig = {
+  webhookUrl?: string;
+  apiEndpoint?: string;
+  settings?: Record<string, unknown>;
+};
+
+const bytea = customType<{ data: Buffer; notNull: false; default: false }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+/**
+ * Stores configuration for third-party integrations.
+ */
+export const integrations = pgTable("integrations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id),
+  serviceName: varchar("service_name", { length: 255 }).notNull(),
+  config: jsonb("config").$type<IntegrationConfig>().notNull(),
+  encryptedApiToken: bytea("encrypted_api_token"),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type StatusPageLayout = "list" | "grid";
+/**
+ * Manages public or private status pages for displaying monitor statuses.
+ */
 export const statusPages = pgTable("status_pages", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
-    // .notNull() // Ensured nullable for now
+  organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
-  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
-  slug: varchar("slug", { length: 100 }).notNull(), // Unique constraint should be per-organization now
+  createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
+  slug: varchar("slug", { length: 100 }).notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   customDomain: varchar("custom_domain", { length: 255 }),
@@ -526,23 +694,21 @@ export const statusPages = pgTable("status_pages", {
   showTags: boolean("show_tags").notNull().default(false),
   layout: varchar("layout", { length: 50 }).$type<StatusPageLayout>().default("list"),
   passwordProtected: boolean("password_protected").notNull().default(false),
-  passwordHash: varchar("password_hash", { length: 255 }), // Store hashed password if passwordProtected
+  passwordHash: varchar("password_hash", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 },
 (table) => ({
     organizationSlugUnique: uniqueIndex("status_page_organization_slug_idx").on(
-      table.organizationId, 
+      table.organizationId,
       table.slug
     ),
   })
 );
 
-/* ================================
-   STATUS PAGE MONITORS TABLE (Join Table)
-   -------------------------------
-   Defines which monitors are displayed on which status page, with ordering.
-=================================== */
+/**
+ * Links monitors to be displayed on a specific status page.
+ */
 export const statusPageMonitors = pgTable(
   "status_page_monitors",
   {
@@ -553,7 +719,7 @@ export const statusPageMonitors = pgTable(
       .notNull()
       .references(() => monitors.id, { onDelete: "cascade" }),
     displayOrder: integer("display_order").notNull().default(0),
-    groupName: varchar("group_name", { length: 100 }), // Optional grouping on the status page
+    groupName: varchar("group_name", { length: 100 }),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
@@ -561,35 +727,26 @@ export const statusPageMonitors = pgTable(
   })
 );
 
-/* ================================
-   MAINTENANCE WINDOWS TABLE
-   -------------------------------
-   Maintenance windows are defined per-organization.
-=================================== */
+/**
+ * Defines periods of scheduled maintenance during which monitoring alerts can be suppressed.
+ */
 export const maintenanceWindows = pgTable("maintenance_windows", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
-    // .notNull() // Ensured nullable for now
+  organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
-  createdByUserId: text("created_by_user_id").references(() => authUser.id, { onDelete: "no action" }),
+  createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
-  // For recurring maintenance, you might add cron-like fields or iCalendar RRULE string
-  // rrule: varchar("rrule", { length: 255 }),
-  timezone: varchar("timezone", { length: 100 }), // e.g., "Europe/London"
+  timezone: varchar("timezone", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-/* ================================
-   MONITOR MAINTENANCE WINDOWS TABLE (Join Table)
-   -------------------------------
-   Links specific monitors to maintenance windows.
-   A monitor can be affected by multiple maintenance windows.
-   A maintenance window can affect all monitors (if monitorId is null) or specific ones.
-=================================== */
+/**
+ * Links monitors to maintenance windows.
+ */
 export const monitorMaintenanceWindows = pgTable(
   "monitor_maintenance_windows",
   {
@@ -602,18 +759,16 @@ export const monitorMaintenanceWindows = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.maintenanceWindowId, table.monitorId] }), 
+    pk: primaryKey({ columns: [table.maintenanceWindowId, table.monitorId] }),
   })
 );
 
-/* ================================
-   ALERTS TABLE
-   -------------------------------
-   Stores alert configurations for monitors.
-=================================== */
+/**
+ * Configures alert settings for monitors.
+ */
 export const alerts = pgTable("alerts", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
+  organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
   monitorId: uuid("monitor_id").references(() => monitors.id, { onDelete: 'cascade' }),
   enabled: boolean("enabled").default(true).notNull(),
@@ -630,20 +785,31 @@ export const alerts = pgTable("alerts", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+/* ================================
+   ZOD SCHEMAS
+   -------------------------------
+   Export Zod schemas for validation and type inference.
+=================================== */
+
+export const testsInsertSchema = createInsertSchema(tests);
+export const testsUpdateSchema = createUpdateSchema(tests);
+export const testsSelectSchema = createSelectSchema(tests);
+
+export const jobsInsertSchema = createInsertSchema(jobs);
+export const jobsUpdateSchema = createUpdateSchema(jobs);
+export const jobsSelectSchema = createSelectSchema(jobs);
+
 export const alertSchema = createSelectSchema(alerts);
 export type Alert = z.infer<typeof alertSchema>
 export const insertAlertSchema = createInsertSchema(alerts);
 
-// Zod schemas for monitors
 export const monitorsInsertSchema = createInsertSchema(monitors);
 export const monitorsUpdateSchema = createUpdateSchema(monitors);
 export const monitorsSelectSchema = createSelectSchema(monitors);
 
-// Zod schemas for monitor_results
 export const monitorResultsInsertSchema = createInsertSchema(monitorResults);
 export const monitorResultsSelectSchema = createSelectSchema(monitorResults);
 
-// Zod schemas for new tables
 export const tagsInsertSchema = createInsertSchema(tags);
 export const tagsSelectSchema = createSelectSchema(tags);
 
@@ -655,4 +821,24 @@ export const statusPagesSelectSchema = createSelectSchema(statusPages);
 
 export const maintenanceWindowsInsertSchema = createInsertSchema(maintenanceWindows);
 export const maintenanceWindowsSelectSchema = createSelectSchema(maintenanceWindows);
+
+export const projectsInsertSchema = createInsertSchema(projects);
+export const projectsSelectSchema = createSelectSchema(projects);
+export const projectsUpdateSchema = createUpdateSchema(projects);
+
+export const auditLogsInsertSchema = createInsertSchema(auditLogs);
+export const auditLogsSelectSchema = createSelectSchema(auditLogs);
+
+export const notificationsInsertSchema = createInsertSchema(notifications);
+export const notificationsSelectSchema = createSelectSchema(notifications);
+
+export const integrationsInsertSchema = createInsertSchema(integrations);
+export const integrationsSelectSchema = createSelectSchema(integrations);
+
+/* ================================
+   AUTH SCHEMA EXPORT
+   -------------------------------
+   Object containing all tables required by the better-auth drizzle adapter.
+=================================== */
+export const authSchema = { user, organization, team, member, invitation, session, account, verification, apikey };
 

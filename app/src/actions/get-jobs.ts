@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "../lib/db";
+import { db } from "../utils/db";
 import { jobs, tests, jobTests } from "../db/schema/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 

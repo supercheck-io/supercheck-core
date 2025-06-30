@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signOut } from "@/lib/auth-client";
+import { useSession, signOut } from "@/utils/auth-client";
 import {
   DropdownMenu,
   DropdownMenuContent,

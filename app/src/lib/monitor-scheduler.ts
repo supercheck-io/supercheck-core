@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from 'bullmq';
-import { db } from "@/lib/db"; // Your DB instance
+import { db } from "@/utils/db"; // Your DB instance
 import { monitors as monitorSchemaDb } from "@/db/schema/schema"; // Monitor schema from your app
 import { eq, isNotNull, and } from "drizzle-orm";
 import { getRedisConnection } from "./queue";

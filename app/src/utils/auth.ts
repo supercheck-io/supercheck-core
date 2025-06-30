@@ -1,8 +1,9 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "@/lib/db"; 
+import { db } from "@/utils/db";
+import { authSchema } from "../db/schema/schema";
 import { apiKey, organization, admin } from "better-auth/plugins";
-import {authSchema} from "@/db/schema/auth-schema";
+
 import { nextCookies } from "better-auth/next-js";
 
 export const auth = betterAuth({
@@ -37,8 +38,13 @@ export const auth = betterAuth({
         nextCookies()
        
     ],
+    advanced: {
+        generateId: false
+    },
     session: {
-        expiresIn: 30 * 24 * 60 * 60, // 30 days in seconds
-    }
+        expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
+        updateAge: 60 * 60 * 24,
+    },
+ 
 });
 

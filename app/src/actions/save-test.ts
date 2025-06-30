@@ -11,7 +11,7 @@ import {
   type TestPriority,
   type TestType,
 } from "@/db/schema/schema";
-import { db } from "@/lib/db";
+import { db } from "@/utils/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import crypto from "crypto";

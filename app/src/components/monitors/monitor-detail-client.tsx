@@ -546,7 +546,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               <CardTitle className="text-sm font-medium text-muted-foreground">Status</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
-              <div className="text-xl font-bold">
+              <div className="text-lg font-semibold">
                 {statusInfo?.label ?? currentActualStatus?.charAt(0).toUpperCase() + currentActualStatus?.slice(1) ?? "Unknown"}
               </div>
             </CardContent>
@@ -560,7 +560,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   <CardTitle className="text-sm font-medium text-muted-foreground">Expected Interval</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-bold">{(monitor as any).config?.expectedIntervalMinutes ? `${(monitor as any).config.expectedIntervalMinutes}m` : "60m"}</div>
+                  <div className="text-lg font-semibold">{(monitor as any).config?.expectedIntervalMinutes ? `${(monitor as any).config.expectedIntervalMinutes}m` : "60m"}</div>
                 </CardContent>
               </Card>
 
@@ -580,7 +580,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   <CardTitle className="text-sm font-medium text-muted-foreground">Last Ping</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-bold">
+                  <div className="text-lg font-semibold">
                     {formatShortDateTime((monitor as any).config?.lastPingAt)}
                   </div>
                 </CardContent>
@@ -591,10 +591,10 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
                   <Activity className="h-5 w-5 text-blue-500" />
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Response</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Response Time</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-bold">{currentResponseTime}</div>
+                  <div className="text-lg font-semibold">{currentResponseTime}</div>
                 </CardContent>
               </Card>
 
@@ -604,7 +604,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   <CardTitle className="text-sm font-medium text-muted-foreground">Interval</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-bold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
+                    <div className="text-lg font-semibold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
                 </CardContent>
               </Card>
             </>
@@ -616,7 +616,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (24h)</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
-              <div className="text-xl font-bold">{calculatedMetrics.uptime24h}</div>
+              <div className="text-lg font-semibold">{calculatedMetrics.uptime24h}</div>
             </CardContent>
           </Card>
 
@@ -628,7 +628,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (24h)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-bold">{calculatedMetrics.avgResponse24h}</div>
+                  <div className="text-lg font-semibold">{calculatedMetrics.avgResponse24h}</div>
                 </CardContent>
               </Card>
 
@@ -638,7 +638,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-bold">{calculatedMetrics.uptime30d}</div>
+                  <div className="text-lg font-semibold">{calculatedMetrics.uptime30d}</div>
                 </CardContent>
               </Card>
 
@@ -648,7 +648,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (30d)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-bold">{calculatedMetrics.avgResponse30d}</div>
+                  <div className="text-lg font-semibold">{calculatedMetrics.avgResponse30d}</div>
                 </CardContent>
               </Card>
             </>
@@ -730,7 +730,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             <Card className="shadow-sm flex flex-col">
               <CardHeader className="flex-shrink-0">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-2xl flex items-center">
+                  <CardTitle className="text-xl flex items-center">
                     Recent Check Results
                   </CardTitle>
                   <div className="flex items-center gap-2">
@@ -889,7 +889,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             <Card className="shadow-sm flex flex-col">
               <CardHeader className="flex-shrink-0">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-2xl flex items-center">
+                  <CardTitle className="text-xl flex items-center">
                     Recent Check Results
                   </CardTitle>
                   <div className="flex items-center gap-2">

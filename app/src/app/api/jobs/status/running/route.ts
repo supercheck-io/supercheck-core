@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db } from "@/utils/db";
 import { jobs, runs } from "@/db/schema/schema";
 
 /**

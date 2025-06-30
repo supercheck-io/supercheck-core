@@ -6,7 +6,7 @@ declare const Buffer: {
 
 import { tests } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db } from "@/utils/db";
 
 /**
  * Helper function to decode base64-encoded test scripts

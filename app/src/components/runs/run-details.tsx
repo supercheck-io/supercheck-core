@@ -11,10 +11,10 @@ import {
   ChevronLeft,
   CalendarClock,
   Copy,
-  FileText,
   Calendar,
   Trash2,
-  Code2
+  Code2,
+  CalendarDays
 } from "lucide-react";
 import { RunStatusListener } from "./run-status-listener";
 import { TestRunStatus } from "@/db/schema/schema";
@@ -239,7 +239,7 @@ export function RunDetails({ run }: RunDetailsProps) {
           </div>
 
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
-            <Code2 className="h-6 w-6 min-w-6 mr-2 text-blue-400" />
+            <Code2 className="h-6 w-6 min-w-6 mr-2 text-blue-500" />
             <div className="min-w-0 w-full">
               <div className="text-xs font-medium text-muted-foreground">Tests Executed</div>
               <div className="text-sm font-semibold truncate">
@@ -249,7 +249,7 @@ export function RunDetails({ run }: RunDetailsProps) {
           </div>
           
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
-            <ClockIcon className="h-6 w-6 min-w-6 mr-2 text-blue-500" />
+            <ClockIcon className="h-6 w-6 min-w-6 mr-2 text-orange-400" />
             <div className="min-w-0 w-full">
               <div className="text-xs font-medium text-muted-foreground">Duration</div>
               <div className="text-sm font-semibold truncate">{formatDuration(duration)}</div>
@@ -257,7 +257,7 @@ export function RunDetails({ run }: RunDetailsProps) {
           </div>
    
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
-            <CalendarClock className="h-6 w-6 min-w-6 mr-2 text-purple-500" />
+            <CalendarDays className="h-6 w-6 min-w-6 mr-2 text-purple-500" />
             <div className="min-w-0 w-full">
               <div className="text-xs font-medium text-muted-foreground">Completed</div>
               <div className="text-sm font-semibold truncate">
@@ -269,17 +269,16 @@ export function RunDetails({ run }: RunDetailsProps) {
           </div>
 
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
-            <Calendar className="h-6 w-6 min-w-6 mr-2 text-amber-500" />
+            <Calendar className="h-6 w-6 min-w-6 mr-2 text-amber-400" />
             <div className="min-w-0 w-full">
               <div className="text-xs font-medium text-muted-foreground">Run Date</div>
               <div className="text-sm font-semibold truncate">
-                {run.startedAt ? new Date(run.startedAt).toLocaleString('en-US', {
-                  year: 'numeric',
-                  month: 'numeric',
-                  day: 'numeric',
-                  hour: 'numeric',
+                {run.startedAt ? new Date(run.startedAt).toLocaleString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: '2-digit',
+                  hour: '2-digit',
                   minute: '2-digit',
-                  second: '2-digit',
                   hour12: true,
                 }) : "Unknown"}
               </div>
@@ -287,7 +286,7 @@ export function RunDetails({ run }: RunDetailsProps) {
           </div>
           
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
-            <FileText className="h-6 w-6 min-w-6 mr-2 text-orange-500" />
+            <CalendarClock className="h-6 w-6 min-w-6 mr-2 text-sky-400" />
             <div className="min-w-0 w-full">
               <div className="flex justify-between items-center">
                 <div className="text-xs font-medium text-muted-foreground">Job ID</div>
@@ -303,7 +302,7 @@ export function RunDetails({ run }: RunDetailsProps) {
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
-              <div className="text-xs font-mono truncate">{run.jobId}</div>
+              <div className="text-sm font-semibold truncate">{run.jobId}</div>
             </div>
           </div>
         </div>

@@ -7,7 +7,7 @@ import { Monitor as MonitorSchemaType } from "@/components/monitors/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
+import { db } from "@/utils/db";
 import { 
     monitors, 
     monitorResults, 

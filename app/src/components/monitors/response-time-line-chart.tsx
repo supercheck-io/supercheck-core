@@ -140,7 +140,7 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
   return (
     <Card className="h-full flex flex-col shadow-sm min-h-[400px]">
       <CardHeader className="pb-3">
-        <CardTitle className="text-2xl">Response Time</CardTitle>
+        <CardTitle className="text-xl">Response Time</CardTitle>
         <CardDescription className="text-sm">
           Recent response times in milliseconds ({data.length} data points)
         </CardDescription>

@@ -1,12 +1,13 @@
 import { Queue, Job, Worker } from 'bullmq';
-import { db } from "@/lib/db";
-import { jobs, jobTests, runs } from "@/db/schema/schema";
+import { db } from "@/utils/db";
+import { jobs, jobTests, runs, testsSelectSchema, type jobsSelectSchema } from "@/db/schema/schema";
 import { eq, isNotNull, and } from "drizzle-orm";
 import { getRedisConnection } from "./queue";
 import { JobExecutionTask, JOB_EXECUTION_QUEUE } from "./queue";
 import crypto from "crypto";
 import { getTest } from "@/actions/get-test";
 import { getNextRunDate } from "@/lib/cron-utils";
+import { z } from 'zod';
 
 // Map to store the created queues
 const queueMap = new Map<string, Queue>();
@@ -67,7 +68,7 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     console.log(`Job has ${jobTestsList.length} tests. Setting up repeatable job...`);
 
     // Fetch all test scripts upfront
-    const testCasePromises = jobTestsList.map(async (jobTest) => {
+    const testCasePromises = jobTestsList.map(async (jobTest: { testId: string; orderPosition: number | null }) => {
       const test = await getTest(jobTest.testId);
       return {
         ...test.test,
@@ -175,9 +176,9 @@ async function ensureSchedulerWorker() {
  * Handles a scheduled job trigger by creating a run record and adding an execution task
  */
 async function handleScheduledJobTrigger(job: Job) {
+  const jobId = job.data.jobId;
   try {
     const data = job.data;
-    const jobId = data.jobId;
     
     console.log(`Handling scheduled job trigger for job ${jobId}`);
     
@@ -255,7 +256,7 @@ async function handleScheduledJobTrigger(job: Job) {
     const task: JobExecutionTask = {
       runId,
       jobId,
-      testScripts: data.testCases.map((test: { id: string; script: string; title: string }) => ({
+      testScripts: data.testCases.map((test: z.infer<typeof testsSelectSchema>) => ({
         id: test.id,
         script: test.script,
         name: test.title
@@ -473,8 +474,8 @@ export async function cleanupJobScheduler() {
         .from(jobs)
         .where(isNotNull(jobs.scheduledJobId));
       
-      const validJobIds = new Set(jobsWithSchedules.map(job => job.id));
-      const validSchedulerIds = new Set(jobsWithSchedules.map(job => job.scheduledJobId).filter(Boolean));
+      const validJobIds = new Set(jobsWithSchedules.map((job: { id: string; scheduledJobId: string | null; }) => job.id));
+      const validSchedulerIds = new Set(jobsWithSchedules.map((job: { id: string; scheduledJobId: string | null; }) => job.scheduledJobId).filter(Boolean));
       
       // Find orphaned jobs (jobs in Redis that don't have a valid jobId or schedulerId in the database)
       const orphanedJobs = repeatableJobs.filter(job => {
@@ -483,7 +484,7 @@ export async function cleanupJobScheduler() {
         const jobId = jobIdMatch ? jobIdMatch[1] : null;
         
         return (!jobId || !validJobIds.has(jobId)) && 
-               (!job.id || !validSchedulerIds.has(job.id));
+               (!job.id || !validSchedulerIds.has(job.id as string));
       });
       
       if (orphanedJobs.length > 0) {
