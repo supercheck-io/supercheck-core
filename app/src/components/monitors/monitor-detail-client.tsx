@@ -443,29 +443,51 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
   // Extract SSL certificate info for website monitors
   const sslCertificateInfo = useMemo(() => {
-    if (monitor.type !== 'website' || !monitor.recentResults || monitor.recentResults.length === 0) {
+    console.log("[SSL Debug] Monitor type:", monitor.type);
+    console.log("[SSL Debug] Monitor config:", monitor.config);
+    console.log("[SSL Debug] Recent results:", monitor.recentResults);
+    
+    if (monitor.type !== 'website') {
+      console.log("[SSL Debug] Not a website monitor, skipping SSL check");
+      return null;
+    }
+    
+    if (!monitor.recentResults || monitor.recentResults.length === 0) {
+      console.log("[SSL Debug] No recent results available");
       return null;
     }
     
     // Find the most recent result with SSL certificate data
-    const resultWithSsl = monitor.recentResults.find(r => 
-      r.details && 
-      typeof r.details === 'object' && 
-      'sslCertificate' in r.details &&
-      r.details.sslCertificate
-    );
+    const resultWithSsl = monitor.recentResults.find(r => {
+      console.log("[SSL Debug] Checking result:", r.id, "Details:", r.details);
+      return r.details && 
+        typeof r.details === 'object' && 
+        'sslCertificate' in r.details &&
+        r.details.sslCertificate;
+    });
+    
+    console.log("[SSL Debug] Result with SSL:", resultWithSsl);
     
     if (!resultWithSsl || !resultWithSsl.details || !('sslCertificate' in resultWithSsl.details)) {
+      console.log("[SSL Debug] No SSL certificate data found");
       return null;
     }
     
     const sslCert = resultWithSsl.details.sslCertificate as any;
+    console.log("[SSL Debug] SSL Certificate data:", sslCert);
+    
     return {
       validTo: sslCert.validTo,
       daysRemaining: sslCert.daysRemaining,
-      valid: sslCert.valid
+      valid: sslCert.valid,
+      issuer: sslCert.issuer,
+      subject: sslCert.subject
     };
-  }, [monitor.type, monitor.recentResults]);
+  }, [monitor.type, monitor.recentResults, monitor.config]);
+
+  // Debug alert configuration
+  console.log("[Alert Debug] Monitor alertConfig:", monitor.alertConfig);
+  console.log("[Alert Debug] Alert enabled:", monitor.alertConfig?.enabled);
 
   // Pagination logic for recent results (use filtered results)
   const paginatedResults = useMemo(() => {
@@ -550,12 +572,24 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             )}
             
-            {/* Alert Status Indicator */}
+            {/* Debug info for SSL when not showing */}
+            {monitor.type === 'website' && !sslCertificateInfo && (
+              <div className="flex items-center px-2 py-1 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                <Shield className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs text-blue-700 dark:text-blue-300">
+                  SSL: No certificate data yet
+                </span>
+              </div>
+            )}
+            
+            {/* Alert Status Indicator with debug info */}
             <div className={`flex items-center justify-center h-8 w-8 rounded-full ${
               monitor.alertConfig?.enabled 
                 ? 'bg-green-100 dark:bg-green-900/30' 
                 : 'bg-gray-100 dark:bg-gray-900/30'
-            }`}>
+            }`}
+              title={`Alerts: ${monitor.alertConfig?.enabled ? 'Enabled' : 'Disabled'} - Config: ${JSON.stringify(monitor.alertConfig)}`}
+            >
               {monitor.alertConfig?.enabled ? (
                 <Bell className="h-4 w-4 text-green-600 dark:text-green-400" />
               ) : (

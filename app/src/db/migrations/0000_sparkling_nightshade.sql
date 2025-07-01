@@ -288,37 +288,6 @@ CREATE TABLE "session" (
 	CONSTRAINT "session_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
-CREATE TABLE "status_page_monitors" (
-	"status_page_id" uuid NOT NULL,
-	"monitor_id" uuid NOT NULL,
-	"display_order" integer DEFAULT 0 NOT NULL,
-	"group_name" varchar(100),
-	"created_at" timestamp DEFAULT now(),
-	CONSTRAINT "status_page_monitors_status_page_id_monitor_id_pk" PRIMARY KEY("status_page_id","monitor_id")
-);
---> statement-breakpoint
-CREATE TABLE "status_pages" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" uuid,
-	"created_by_user_id" uuid,
-	"slug" varchar(100) NOT NULL,
-	"title" varchar(255) NOT NULL,
-	"description" text,
-	"custom_domain" varchar(255),
-	"logo_url" varchar(2048),
-	"favicon_url" varchar(2048),
-	"custom_css" text,
-	"custom_html_header" text,
-	"custom_html_footer" text,
-	"is_public" boolean DEFAULT true NOT NULL,
-	"show_tags" boolean DEFAULT false NOT NULL,
-	"layout" varchar(50) DEFAULT 'list',
-	"password_protected" boolean DEFAULT false NOT NULL,
-	"password_hash" varchar(255),
-	"created_at" timestamp DEFAULT now(),
-	"updated_at" timestamp DEFAULT now()
-);
---> statement-breakpoint
 CREATE TABLE "tags" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid,
@@ -415,15 +384,10 @@ ALTER TABLE "reports" ADD CONSTRAINT "reports_created_by_user_id_user_id_fk" FOR
 ALTER TABLE "runs" ADD CONSTRAINT "runs_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_active_organization_id_organization_id_fk" FOREIGN KEY ("active_organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "status_page_monitors" ADD CONSTRAINT "status_page_monitors_status_page_id_status_pages_id_fk" FOREIGN KEY ("status_page_id") REFERENCES "public"."status_pages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "status_page_monitors" ADD CONSTRAINT "status_page_monitors_monitor_id_monitors_id_fk" FOREIGN KEY ("monitor_id") REFERENCES "public"."monitors"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "status_pages" ADD CONSTRAINT "status_pages_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "status_pages" ADD CONSTRAINT "status_pages_created_by_user_id_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tags" ADD CONSTRAINT "tags_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tags" ADD CONSTRAINT "tags_created_by_user_id_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team" ADD CONSTRAINT "team_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tests" ADD CONSTRAINT "tests_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tests" ADD CONSTRAINT "tests_created_by_user_id_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "reports_entity_type_id_idx" ON "reports" USING btree ("entity_type","entity_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "status_page_organization_slug_idx" ON "status_pages" USING btree ("organization_id","slug");--> statement-breakpoint
 CREATE UNIQUE INDEX "tags_organization_name_idx" ON "tags" USING btree ("organization_id","name");

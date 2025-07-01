@@ -3,8 +3,9 @@ import { updateJob } from "@/actions/update-job";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const body = await request.json();
     const result = await updateJob({

@@ -144,7 +144,6 @@ export async function updateJob(data: UpdateJobData) {
             name: validatedData.name,
             cron: newSchedule,
             jobId: validatedData.jobId,
-            queue: JOB_EXECUTION_QUEUE,
             retryLimit: 3
           });
           

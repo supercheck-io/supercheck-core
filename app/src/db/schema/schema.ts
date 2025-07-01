@@ -672,60 +672,7 @@ export const integrations = pgTable("integrations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export type StatusPageLayout = "list" | "grid";
-/**
- * Manages public or private status pages for displaying monitor statuses.
- */
-export const statusPages = pgTable("status_pages", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id")
-    .references(() => organization.id, { onDelete: "cascade" }),
-  createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
-  slug: varchar("slug", { length: 100 }).notNull(),
-  title: varchar("title", { length: 255 }).notNull(),
-  description: text("description"),
-  customDomain: varchar("custom_domain", { length: 255 }),
-  logoUrl: varchar("logo_url", { length: 2048 }),
-  faviconUrl: varchar("favicon_url", { length: 2048 }),
-  customCss: text("custom_css"),
-  customHtmlHeader: text("custom_html_header"),
-  customHtmlFooter: text("custom_html_footer"),
-  isPublic: boolean("is_public").notNull().default(true),
-  showTags: boolean("show_tags").notNull().default(false),
-  layout: varchar("layout", { length: 50 }).$type<StatusPageLayout>().default("list"),
-  passwordProtected: boolean("password_protected").notNull().default(false),
-  passwordHash: varchar("password_hash", { length: 255 }),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-},
-(table) => ({
-    organizationSlugUnique: uniqueIndex("status_page_organization_slug_idx").on(
-      table.organizationId,
-      table.slug
-    ),
-  })
-);
 
-/**
- * Links monitors to be displayed on a specific status page.
- */
-export const statusPageMonitors = pgTable(
-  "status_page_monitors",
-  {
-    statusPageId: uuid("status_page_id")
-      .notNull()
-      .references(() => statusPages.id, { onDelete: "cascade" }),
-    monitorId: uuid("monitor_id")
-      .notNull()
-      .references(() => monitors.id, { onDelete: "cascade" }),
-    displayOrder: integer("display_order").notNull().default(0),
-    groupName: varchar("group_name", { length: 100 }),
-    createdAt: timestamp("created_at").defaultNow(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.statusPageId, table.monitorId] }),
-  })
-);
 
 /**
  * Defines periods of scheduled maintenance during which monitoring alerts can be suppressed.
@@ -816,8 +763,7 @@ export const tagsSelectSchema = createSelectSchema(tags);
 export const notificationProvidersInsertSchema = createInsertSchema(notificationProviders);
 export const notificationProvidersSelectSchema = createSelectSchema(notificationProviders);
 
-export const statusPagesInsertSchema = createInsertSchema(statusPages);
-export const statusPagesSelectSchema = createSelectSchema(statusPages);
+
 
 export const maintenanceWindowsInsertSchema = createInsertSchema(maintenanceWindows);
 export const maintenanceWindowsSelectSchema = createSelectSchema(maintenanceWindows);

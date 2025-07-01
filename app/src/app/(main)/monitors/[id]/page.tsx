@@ -60,31 +60,33 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
     const intervalInSeconds = frequencyMinutes * 60;
 
     // Helper to map DB MonitorType to the 'method' string expected by MonitorSchemaType
-    let methodValue: MonitorSchemaType['method'];
-    switch (monitorData.type) {
-        case "http_request":
-            methodValue = "http_request";
-            break;
-        case "ping_host":
-            methodValue = "ping"; // Map ping_host to ping
-            break;
-        case "port_check":
-            methodValue = "port_check";
-            break;
+    // let methodValue: MonitorSchemaType['method'];
+    // switch (monitorData.type) {
+    //     case "http_request":
+    //         methodValue = "http_request";
+    //         break;
+    //     case "ping_host":
+    //         methodValue = "ping"; // Map ping_host to ping
+    //         break;
+    //     case "port_check":
+    //         methodValue = "port_check";
+    //         break;
 
-        // Add other cases as necessary or a default case
-        default:
-            // Attempt to cast directly, or use a default if appropriate
-            // For safety, let's default to http_request or handle as an error
-            // This depends on how strictly you want to enforce the mapping
-            methodValue = "http_request"; // Or throw new Error(`Unsupported monitor type: ${monitorData.type}`);
-    }
+    //     // Add other cases as necessary or a default case
+    //     default:
+    //         // Attempt to cast directly, or use a default if appropriate
+    //         // For safety, let's default to http_request or handle as an error
+    //         // This depends on how strictly you want to enforce the mapping
+    //         methodValue = "http_request"; // Or throw new Error(`Unsupported monitor type: ${monitorData.type}`);
+    // }
 
     const transformedMonitor: MonitorWithResults = {
       id: monitorData.id,
       name: monitorData.name,
       url: monitorData.target,
-      method: monitorData.type as DBMonitorType,
+      target: monitorData.target,
+      type: monitorData.type as DBMonitorType,
+      enabled: monitorData.enabled,
       frequencyMinutes,
       status: monitorData.status as DBMoniotorStatusType,
       active: monitorData.status !== 'paused',
@@ -95,6 +97,7 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
       uptime: undefined, 
       recentResults: mappedRecentResults,
       config: monitorData.config as MonitorConfig,
+      alertConfig: monitorData.alertConfig || undefined,
     };
 
     return transformedMonitor;

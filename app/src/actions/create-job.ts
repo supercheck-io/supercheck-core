@@ -41,12 +41,9 @@ export async function createJob(data: CreateJobData) {
       console.error(`Failed to calculate next run date: ${error}`);
     }
     
-    // Start a database transaction
-    const dbInstance = await db();
-    
     try {
       // Create the job
-      await dbInstance.insert(jobs).values({
+      await db.insert(jobs).values({
         id: jobId,
         name: validatedData.name,
         description: validatedData.description || "",
@@ -65,7 +62,7 @@ export async function createJob(data: CreateJobData) {
       }));
       
       if (testRelations.length > 0) {
-        await dbInstance.insert(jobTests).values(testRelations);
+        await db.insert(jobTests).values(testRelations);
       }
       
       // If a cronSchedule is provided, set up the schedule
@@ -76,12 +73,11 @@ export async function createJob(data: CreateJobData) {
             name: validatedData.name,
             cron: validatedData.cronSchedule,
             jobId,
-            queue: JOB_EXECUTION_QUEUE,
             retryLimit: 3
           });
           
           // Update the job with the scheduler ID
-          await dbInstance.update(jobs)
+          await db.update(jobs)
             .set({ scheduledJobId })
             .where(eq(jobs.id, jobId));
             

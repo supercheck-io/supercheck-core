@@ -6,16 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { NotificationProviderForm } from "@/components/alerts/notification-provider-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Mail, MessageSquare, Webhook, Plus, Edit, Trash2, SearchIcon, AlertTriangle, Bell, Loader2 } from "lucide-react";
+import { Mail, MessageSquare, Webhook, Plus, Edit, Trash2, SearchIcon, AlertTriangle, Bell } from "lucide-react";
 import { formatDistance } from "date-fns";
 import { DataTable } from "@/components/alerts/data-table";
 import { columns, type AlertHistory } from "@/components/alerts/columns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { alertStatuses } from "@/components/alerts/data";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
+import { toast } from "sonner";
 
 interface NotificationProvider {
   id: string;
@@ -23,6 +25,8 @@ interface NotificationProvider {
   config: Record<string, unknown>;
   createdAt: string;
   updatedAt?: string;
+  lastUsed?: string;
+  isInUse?: boolean;
 }
 
 export default function AlertsPage() {
@@ -30,7 +34,9 @@ export default function AlertsPage() {
   const [alertHistory, setAlertHistory] = useState<AlertHistory[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<NotificationProvider | null>(null);
+  const [deletingProvider, setDeletingProvider] = useState<NotificationProvider | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -166,6 +172,8 @@ export default function AlertsPage() {
 
       if (response.ok) {
         setProviders(prev => prev.filter(p => p.id !== providerId));
+        setIsDeleteDialogOpen(false);
+        setDeletingProvider(null);
       } else {
         const errorData = await response.json();
         console.error('Failed to delete notification provider:', errorData.error || response.statusText);
@@ -174,6 +182,42 @@ export default function AlertsPage() {
     } catch (error) {
       console.error('Error deleting notification provider:', error);
       // You could show a toast notification here
+    }
+  };
+
+  const handleDeleteProviderWithConfirmation = (provider: NotificationProvider) => {
+    setDeletingProvider(provider);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteProvider = async () => {
+    if (deletingProvider) {
+      // Check if provider is in use before deleting
+      try {
+        const response = await fetch(`/api/notification-providers/${deletingProvider.id}/usage`);
+        if (response.ok) {
+          const usageData = await response.json();
+          if (usageData.isInUse) {
+            // Close the dialog first
+            setIsDeleteDialogOpen(false);
+            setDeletingProvider(null);
+            
+            // Show error toast - provider is in use
+            toast.error("Cannot delete provider", {
+              description: "This provider is currently being used by monitors or jobs. Remove it from all configurations first.",
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking provider usage:', error);
+        toast.error("Error checking provider usage", {
+          description: "Unable to verify if provider is in use. Please try again.",
+        });
+        return;
+      }
+
+      await handleDeleteProvider(deletingProvider.id);
     }
   };
 
@@ -252,6 +296,32 @@ export default function AlertsPage() {
                         )}
                       </DialogContent>
                     </Dialog>
+
+                    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Notification Provider</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete &quot;{(deletingProvider?.config.name as string) || deletingProvider?.type}&quot;? 
+                            This action cannot be undone. Make sure this provider is not being used by any monitors or jobs.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel onClick={() => {
+                            setIsDeleteDialogOpen(false);
+                            setDeletingProvider(null);
+                          }}>
+                            Cancel
+                          </AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={confirmDeleteProvider}
+                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardHeader>
@@ -282,9 +352,10 @@ export default function AlertsPage() {
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead>Name</TableHead>
                             <TableHead>Provider</TableHead>
-                            <TableHead>Type</TableHead>
                             <TableHead>Created</TableHead>
+                            <TableHead>Last Used</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -305,6 +376,12 @@ export default function AlertsPage() {
                               <TableCell>
                                 {formatDistance(new Date(provider.createdAt), new Date(), { addSuffix: true })}
                               </TableCell>
+                              <TableCell>
+                                {provider.lastUsed 
+                                  ? formatDistance(new Date(provider.lastUsed), new Date(), { addSuffix: true })
+                                  : <span className="text-muted-foreground">Never</span>
+                                }
+                              </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end space-x-2">
                                   <Button
@@ -317,7 +394,8 @@ export default function AlertsPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleDeleteProvider(provider.id)}
+                                    onClick={() => handleDeleteProviderWithConfirmation(provider)}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>

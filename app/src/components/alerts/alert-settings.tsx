@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Mail, MessageSquare, Webhook, Plus, Settings, Bell } from "lucide-react";
+import { Mail, MessageSquare, Webhook, Plus, Bell } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { NotificationProviderForm } from "@/components/alerts/notification-provider-form";
@@ -41,7 +40,7 @@ interface NotificationProvider {
   config: Record<string, unknown>;
 }
 
-const mockProviders: NotificationProvider[] = [];
+
 
 const defaultConfig: AlertConfiguration = {
   enabled: false,
@@ -341,12 +340,12 @@ export function AlertSettings({
               </div>
 
               {loading ? (
-                <div className="space-y-2">
-                  <div className="h-10 bg-muted rounded animate-pulse" />
-                  <div className="h-10 bg-muted rounded animate-pulse" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="h-16 bg-muted rounded-lg animate-pulse" />
+                  <div className="h-16 bg-muted rounded-lg animate-pulse" />
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div>
                   {providers.length === 0 ? (
                     <div className="text-center py-6 border-2 border-dashed border-muted-foreground/25 rounded-lg">
                       <div className="flex flex-col items-center space-y-3">
@@ -403,55 +402,39 @@ export function AlertSettings({
                       </div>
                     </div>
                   ) : (
-                    providers.map((provider) => (
-                      <div 
-                        key={provider.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                          (config.notificationProviders || []).includes(provider.id) 
-                            ? 'border-primary bg-primary/5' 
-                            : 'border-border hover:bg-muted/50'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {providers.map((provider) => (
+                        <div 
+                          key={provider.id}
+                          onClick={() => toggleProvider(provider.id)}
+                          className={`flex items-center p-3 rounded-lg border transition-all duration-200 cursor-pointer hover:shadow-sm ${
+                            (config.notificationProviders || []).includes(provider.id) 
+                              ? 'border-primary bg-primary/5 shadow-sm' 
+                              : 'border-border hover:bg-muted/50 hover:border-primary/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted mr-3 shrink-0">
                             {getProviderIcon(provider.type)}
                           </div>
-                          <div>
-                            <p className="font-medium text-sm">{provider.config.name as string}</p>
-                            <p className="text-xs text-muted-foreground capitalize">
-                              {provider.type} notifications
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{provider.config.name as string}</p>
+                            <p className="text-xs text-muted-foreground capitalize truncate">
+                              {provider.type}
                             </p>
                           </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
                           <Checkbox
                             checked={(config.notificationProviders || []).includes(provider.id)}
-                            onCheckedChange={() => toggleProvider(provider.id)}
+                            onChange={() => {}} // Handled by parent onClick
+                            className="ml-2 shrink-0"
+                            onClick={(e) => e.stopPropagation()} // Prevent double toggle
                           />
                         </div>
-                      </div>
-                    ))
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
             </div>
-
-            {/* Selected Providers Summary */}
-            {(config.notificationProviders || []).length > 0 && (
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium mb-2">Selected Channels</p>
-                <div className="flex flex-wrap gap-2">
-                  {(config.notificationProviders || []).map(providerId => {
-                    const provider = providers.find(p => p.id === providerId);
-                    return provider ? (
-                      <Badge key={providerId} variant="secondary" className="text-xs">
-                        {provider.config.name as string}
-                      </Badge>
-                    ) : null;
-                  })}
-                </div>
-              </div>
-            )}
           </>
         )}
       </CardContent>

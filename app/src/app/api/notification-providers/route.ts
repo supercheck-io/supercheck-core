@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { notificationProviders, notificationProvidersInsertSchema } from "@/db/schema/schema";
-import { desc } from "drizzle-orm";
+import { notificationProviders, notificationProvidersInsertSchema, alertHistory } from "@/db/schema/schema";
+import { desc, sql } from "drizzle-orm";
 
 export async function GET() {
   try {
@@ -9,7 +9,28 @@ export async function GET() {
       orderBy: [desc(notificationProviders.createdAt)],
     });
 
-    return NextResponse.json(providers);
+    // Enhance providers with last used information
+    const enhancedProviders = await Promise.all(
+      providers.map(async (provider) => {
+        // Check for both exact match and partial match since alert history stores joined provider types
+        const lastAlert = await db
+          .select({ sentAt: alertHistory.sentAt })
+          .from(alertHistory)
+          .where(
+            // Use LIKE to find provider type within comma-separated list
+            sql`${alertHistory.provider} LIKE ${'%' + provider.type + '%'}`
+          )
+          .orderBy(desc(alertHistory.sentAt))
+          .limit(1);
+
+        return {
+          ...provider,
+          lastUsed: lastAlert[0]?.sentAt || null,
+        };
+      })
+    );
+
+    return NextResponse.json(enhancedProviders);
   } catch (error) {
     console.error("Error fetching notification providers:", error);
     return NextResponse.json(

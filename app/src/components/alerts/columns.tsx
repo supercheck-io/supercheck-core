@@ -14,6 +14,15 @@ const statusColors = {
   pending: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200",
 } as const;
 
+const typeColors = {
+  job_failed: "bg-red-100 text-red-800 hover:bg-red-200",
+  job_success: "bg-green-100 text-green-800 hover:bg-green-200",
+  job_timeout: "bg-orange-100 text-orange-800 hover:bg-orange-200",
+  monitor_failure: "bg-red-100 text-red-800 hover:bg-red-200",
+  monitor_recovery: "bg-green-100 text-green-800 hover:bg-green-200",
+  ssl_expiring: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200",
+} as const;
+
 export const columns: ColumnDef<AlertHistory>[] = [
   {
     accessorKey: "id",
@@ -54,11 +63,15 @@ export const columns: ColumnDef<AlertHistory>[] = [
     ),
     cell: ({ row }) => {
       const type = row.getValue("type") as string;
+      const colorClass = typeColors[type as keyof typeof typeColors] || "bg-gray-100 text-gray-800 hover:bg-gray-200";
       return (
-        <Badge variant="outline" className="capitalize">
+        <Badge className={`capitalize ${colorClass}`}>
           {type.replace(/_/g, " ")}
         </Badge>
       );
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id));
     },
   },
   {

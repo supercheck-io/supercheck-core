@@ -42,13 +42,11 @@ export async function scheduleCronJob(jobId: string, cronExpression: string): Pr
       cron: cronExpression,
       timezone: "UTC", // Could make this configurable in the future
       jobId: jobId,
-      queue: "job-execution",
       retryLimit: 1
     });
 
     // Update job in the database with next run details
-    const dbInstance = await db();
-    await dbInstance
+    await db
       .update(jobsTable)
       .set({
         scheduledJobId: scheduleName,
@@ -110,8 +108,7 @@ export async function cancelScheduledJob(jobId: string): Promise<ScheduleJobResp
 
     // Update the job in the database to remove the scheduledJobId
     try {
-      const dbInstance = await db();
-      await dbInstance
+      await db
         .update(jobsTable)
         .set({
           scheduledJobId: null,

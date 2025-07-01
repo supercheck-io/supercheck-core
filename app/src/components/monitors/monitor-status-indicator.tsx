@@ -1,14 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart } from "recharts";
-import { Info } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+
+import { 
+  CheckCircle, 
+  XCircle, 
+  Pause, 
+  Clock, 
+  AlertCircle,
+  PlayCircle 
+} from "lucide-react";
 
 interface MonitorStatusIndicatorProps {
   monitorId: string;
@@ -16,77 +17,68 @@ interface MonitorStatusIndicatorProps {
   uptime?: number;
 }
 
-// Generate sample data with uptime percentage determining the ratio of passes
-const generateStatusData = (uptime = 95) => {
-  // Create an array of 7 days with status checks
-  const data = [];
-  
-  for (let i = 0; i < 7; i++) {
-    const passed = uptime;
-    const failed = 100 - passed;
-    
-    data.push({
-      day: i,
-      passed,
-      failed,
-    });
+const getStatusConfig = (status: string) => {
+  switch (status.toLowerCase()) {
+    case "up":
+      return {
+        label: "Up",
+        variant: "default" as const,
+        icon: CheckCircle,
+        color: "text-green-500",
+      };
+    case "down":
+      return {
+        label: "Down",
+        variant: "destructive" as const,
+        icon: XCircle,
+        color: "text-red-500",
+      };
+    case "paused":
+      return {
+        label: "Paused",
+        variant: "secondary" as const,
+        icon: Pause,
+        color: "text-gray-500",
+      };
+    case "pending":
+      return {
+        label: "Pending",
+        variant: "outline" as const,
+        icon: Clock,
+        color: "text-gray-500",
+      };
+    case "running":
+      return {
+        label: "Running",
+        variant: "outline" as const,
+        icon: PlayCircle,
+        color: "text-blue-500",
+      };
+    case "error":
+      return {
+        label: "Error",
+        variant: "destructive" as const,
+        icon: AlertCircle,
+        color: "text-orange-500",
+      };
+    default:
+      return {
+        label: "Unknown",
+        variant: "outline" as const,
+        icon: Clock,
+        color: "text-gray-500",
+      };
   }
-  
-  return data;
 };
 
-export function MonitorStatusIndicator({ monitorId, status, uptime = 95 }: MonitorStatusIndicatorProps) {
-  // Generate random data for demonstration
-  const data = React.useMemo(() => generateStatusData(uptime), [uptime]);
-  
+export function MonitorStatusIndicator({ status }: MonitorStatusIndicatorProps) {
+  const statusConfig = getStatusConfig(status);
+  const StatusIcon = statusConfig.icon;
+
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="w-full h-8 flex items-center gap-1">
-            <BarChart
-              width={100}
-              height={24}
-              data={data}
-              barGap={0}
-              barCategoryGap={1}
-              margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
-            >
-              <Bar
-                dataKey="passed"
-                stackId="status"
-                fill="var(--color-passed)"
-                radius={0}
-              />
-              <Bar
-                dataKey="failed"
-                stackId="status"
-                fill="var(--color-failed)"
-                radius={0}
-              />
-            </BarChart>
-            <Info className="h-3 w-3 text-muted-foreground" />
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <div className="space-y-1">
-            <p className="font-medium">Monitor Health</p>
-            <p className="text-xs text-muted-foreground">
-              {uptime.toFixed(1)}% uptime over the last 7 days
-            </p>
-            <div className="flex items-center gap-2 text-xs pt-1">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-[var(--color-passed)]"></div>
-                <span>Passed</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-[var(--color-failed)]"></div>
-                <span>Failed</span>
-              </div>
-            </div>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <div className="flex items-center">
+      <StatusIcon className={`h-4 w-4 mr-2 ${statusConfig.color}`} />
+      <span>{statusConfig.label}</span>
+    </div>
   );
 } 

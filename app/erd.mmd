@@ -236,35 +236,7 @@ erDiagram
         timestamp created_at
     }
     
-    statusPages {
-        uuid id PK
-        text organization_id FK
-        text created_by_user_id FK
-        varchar slug
-        varchar title
-        text description
-        varchar custom_domain
-        varchar logo_url
-        varchar favicon_url
-        text custom_css
-        text custom_html_header
-        text custom_html_footer
-        boolean is_public
-        boolean show_tags
-        varchar layout
-        boolean password_protected
-        varchar password_hash
-        timestamp created_at
-        timestamp updated_at
-    }
-    
-    statusPageMonitors {
-        uuid status_page_id PK,FK
-        uuid monitor_id PK,FK
-        integer display_order
-        varchar group_name
-        timestamp created_at
-    }
+
     
     maintenanceWindows {
         uuid id PK
@@ -296,7 +268,7 @@ erDiagram
     organization ||--o{ monitors : "contains"
     organization ||--o{ tags : "contains"
     organization ||--o{ notificationProviders : "contains"
-    organization ||--o{ statusPages : "contains"
+
     organization ||--o{ maintenanceWindows : "contains"
     
     user ||--o{ member : "member_of"
@@ -310,7 +282,7 @@ erDiagram
     user ||--o{ monitors : "created_by"
     user ||--o{ tags : "created_by"
     user ||--o{ notificationProviders : "created_by"
-    user ||--o{ statusPages : "created_by"
+
     user ||--o{ maintenanceWindows : "created_by"
     
     team ||--o{ member : "has"
@@ -323,10 +295,10 @@ erDiagram
     monitors ||--o{ monitorResults : "generates"
     monitors ||--o{ monitorTags : "tagged_with"
     monitors ||--o{ monitorNotificationSettings : "notifies_via"
-    monitors ||--o{ statusPageMonitors : "displayed_on"
+
     monitors ||--o{ monitorMaintenanceWindows : "maintained_during"
     
     tags ||--o{ monitorTags : "applied_to"
     notificationProviders ||--o{ monitorNotificationSettings : "used_by"
-    statusPages ||--o{ statusPageMonitors : "displays"
+
     maintenanceWindows ||--o{ monitorMaintenanceWindows : "affects"
