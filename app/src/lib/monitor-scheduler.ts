@@ -1,64 +1,13 @@
-import { Queue, Worker, Job } from 'bullmq';
+import { Job } from 'bullmq';
 import { db } from "@/utils/db"; // Your DB instance
 import { monitors as monitorSchemaDb } from "@/db/schema/schema"; // Monitor schema from your app
 import { eq, isNotNull, and } from "drizzle-orm";
-import { getRedisConnection } from "./queue";
-import { MONITOR_EXECUTION_QUEUE, MonitorJobData, addMonitorExecutionJobToQueue } from "./queue";
+import { getQueues, MonitorJobData, MONITOR_SCHEDULER_QUEUE, HEARTBEAT_CHECKER_QUEUE } from "./queue";
 import { HeartbeatService } from "./heartbeat-service";
 
 // --- Constants ---
-export const MONITOR_SCHEDULER_QUEUE = "monitor-scheduler";
-export const HEARTBEAT_CHECKER_QUEUE = "heartbeat-checker";
 const MONITOR_SCHEDULER_JOB_PREFIX = "scheduled-monitor-";
 const HEARTBEAT_CHECKER_JOB_NAME = "check-missed-heartbeats";
-
-// --- Queue and Worker Management (similar to job-scheduler.ts) ---
-const schedulerQueueMap = new Map<string, Queue>();
-const schedulerWorkerMap = new Map<string, Worker>();
-
-async function getMonitorSchedulerQueue(): Promise<Queue> {
-  if (!schedulerQueueMap.has(MONITOR_SCHEDULER_QUEUE)) {
-    const connection = await getRedisConnection();
-    const queue = new Queue(MONITOR_SCHEDULER_QUEUE, { 
-      connection,
-      defaultJobOptions: {
-        removeOnComplete: true, // Scheduler jobs are just triggers
-        removeOnFail: 100, // Keep a few failed scheduler jobs for inspection
-      }
-    });
-    schedulerQueueMap.set(MONITOR_SCHEDULER_QUEUE, queue);
-  }
-  return schedulerQueueMap.get(MONITOR_SCHEDULER_QUEUE)!;
-}
-
-async function ensureMonitorSchedulerWorker(): Promise<void> {
-  if (!schedulerWorkerMap.has(MONITOR_SCHEDULER_QUEUE)) {
-    console.log(`[Monitor Scheduler] Creating worker for ${MONITOR_SCHEDULER_QUEUE}`);
-    const connection = await getRedisConnection();
-    const worker = new Worker(
-      MONITOR_SCHEDULER_QUEUE,
-      async (job: Job<MonitorJobData, void, string>) => {
-        console.log(`[Monitor Scheduler] Triggered monitor: ${job.name} (Monitor ID: ${job.data.monitorId})`);
-        // Data from the repeatable job is the MonitorJobData needed for execution
-        await addMonitorExecutionJobToQueue(job.data);
-      },
-      {
-        connection,
-        concurrency: 10,
-        lockDuration: 300000, // 5 minutes
-        lockRenewTime: 150000, // 2.5 minutes
-      } // Adjust concurrency as needed
-    );
-
-    worker.on('completed', (job) => {
-      console.log(`[Monitor Scheduler] Scheduler job for monitor ${job.data.monitorId} completed, execution job dispatched.`);
-    });
-    worker.on('failed', (job, error) => {
-      console.error(`[Monitor Scheduler] Scheduler job for monitor ${job?.data?.monitorId} failed:`, error);
-    });
-    schedulerWorkerMap.set(MONITOR_SCHEDULER_QUEUE, worker);
-  }
-}
 
 // --- Scheduling Functions ---
 
@@ -76,7 +25,7 @@ export async function scheduleMonitorCheck(options: ScheduleMonitorOptions): Pro
     return options.monitorId;
   }
 
-  const schedulerQueue = await getMonitorSchedulerQueue();
+  const { monitorSchedulerQueue } = await getQueues();
   const jobName = `${MONITOR_SCHEDULER_JOB_PREFIX}${options.monitorId}`;
   const intervalMs = options.frequencyMinutes * 60 * 1000;
 
@@ -86,7 +35,7 @@ export async function scheduleMonitorCheck(options: ScheduleMonitorOptions): Pro
   await removeScheduledMonitorCheck(options.monitorId);
 
   // Schedule the repeatable job
-  await schedulerQueue.add(jobName, options.jobData, {
+  await monitorSchedulerQueue.add(jobName, options.jobData, {
     repeat: {
       every: intervalMs,
     },
@@ -95,19 +44,18 @@ export async function scheduleMonitorCheck(options: ScheduleMonitorOptions): Pro
     removeOnFail: 100,
   });
   
-  await ensureMonitorSchedulerWorker();
   console.log(`[Monitor Scheduler] Monitor ${options.monitorId} scheduled successfully with ${options.frequencyMinutes}min interval.`);
   return options.monitorId;
 }
 
 export async function removeScheduledMonitorCheck(monitorId: string): Promise<boolean> {
   try {
-    const schedulerQueue = await getMonitorSchedulerQueue();
+    const { monitorSchedulerQueue } = await getQueues();
     const jobName = `${MONITOR_SCHEDULER_JOB_PREFIX}${monitorId}`;
     
     console.log(`[Monitor Scheduler] Attempting to remove scheduled check for monitor ${monitorId} (Job name: ${jobName})`);
     
-    const repeatableJobs = await schedulerQueue.getRepeatableJobs();
+    const repeatableJobs = await monitorSchedulerQueue.getRepeatableJobs();
     console.log(`[Monitor Scheduler] Found ${repeatableJobs.length} repeatable jobs`);
     
     // Log all repeatable jobs for debugging
@@ -129,7 +77,7 @@ export async function removeScheduledMonitorCheck(monitorId: string): Promise<bo
         
         for (const job of jobsToRemove) {
             console.log(`[Monitor Scheduler] Removing job with key: ${job.key}`);
-            const removed = await schedulerQueue.removeRepeatableByKey(job.key);
+            const removed = await monitorSchedulerQueue.removeRepeatableByKey(job.key);
             if (removed) {
                 removedCount++;
                 console.log(`[Monitor Scheduler] Successfully removed job with key: ${job.key}`);
@@ -151,7 +99,6 @@ export async function removeScheduledMonitorCheck(monitorId: string): Promise<bo
 
 export async function initializeMonitorSchedulers(): Promise<{ success: boolean; scheduled: number; failed: number }> {
   console.log("[Monitor Scheduler] Initializing monitor schedulers...");
-  await ensureMonitorSchedulerWorker(); // Ensure worker is ready before scheduling
 
   let scheduledCount = 0;
   let failedCount = 0;
@@ -211,65 +158,15 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
 
 // --- Heartbeat Checker Functions ---
 
-async function getHeartbeatCheckerQueue(): Promise<Queue> {
-  if (!schedulerQueueMap.has(HEARTBEAT_CHECKER_QUEUE)) {
-    const connection = await getRedisConnection();
-    const queue = new Queue(HEARTBEAT_CHECKER_QUEUE, { 
-      connection,
-      defaultJobOptions: {
-        removeOnComplete: true,
-        removeOnFail: 100,
-      }
-    });
-    schedulerQueueMap.set(HEARTBEAT_CHECKER_QUEUE, queue);
-  }
-  return schedulerQueueMap.get(HEARTBEAT_CHECKER_QUEUE)!;
-}
-
-async function ensureHeartbeatCheckerWorker(): Promise<void> {
-  if (!schedulerWorkerMap.has(HEARTBEAT_CHECKER_QUEUE)) {
-    console.log(`[Heartbeat Checker] Creating worker for ${HEARTBEAT_CHECKER_QUEUE}`);
-    const connection = await getRedisConnection();
-    const worker = new Worker(
-      HEARTBEAT_CHECKER_QUEUE,
-      async (job: Job) => {
-        console.log(`[Heartbeat Checker] Running heartbeat check: ${job.name}`);
-        const checkIntervalMinutes = job.data?.checkIntervalMinutes || 5;
-        const result = await HeartbeatService.checkMissedHeartbeats(checkIntervalMinutes);
-        console.log(`[Heartbeat Checker] Check completed: ${result.checked} checked, ${result.missedCount} missed, ${result.skipped} skipped, ${result.errors.length} errors`);
-        if (result.errors.length > 0) {
-          console.error(`[Heartbeat Checker] Errors:`, result.errors);
-        }
-        return result;
-      },
-      {
-        connection,
-        concurrency: 1,
-        lockDuration: 300000, // 5 minutes
-        lockRenewTime: 150000, // 2.5 minutes
-      } // Only one heartbeat checker should run at a time
-    );
-
-    worker.on('completed', (job, result) => {
-      console.log(`[Heartbeat Checker] Heartbeat check completed: ${result.checked} checked, ${result.missedCount} missed, ${result.skipped} skipped`);
-    });
-    worker.on('failed', (job, error) => {
-      console.error(`[Heartbeat Checker] Heartbeat check failed:`, error);
-    });
-    schedulerWorkerMap.set(HEARTBEAT_CHECKER_QUEUE, worker);
-  }
-}
-
 export async function initializeHeartbeatChecker(): Promise<void> {
   console.log("[Heartbeat Checker] Initializing heartbeat checker...");
   
-  const heartbeatQueue = await getHeartbeatCheckerQueue();
-  await ensureHeartbeatCheckerWorker();
+  const { heartbeatCheckerQueue } = await getQueues();
 
   // Schedule heartbeat checker to run every 5 minutes (more scalable and efficient)
   // This interval balances responsiveness with system load
   const checkInterval = 5 * 60 * 1000; // 5 minutes
-  await heartbeatQueue.add(HEARTBEAT_CHECKER_JOB_NAME, { checkIntervalMinutes: 5 }, {
+  await heartbeatCheckerQueue.add(HEARTBEAT_CHECKER_JOB_NAME, { checkIntervalMinutes: 5 }, {
     repeat: {
       every: checkInterval,
     },
@@ -286,16 +183,5 @@ export async function initializeHeartbeatChecker(): Promise<void> {
  */
 export async function cleanupMonitorScheduler(): Promise<void> {
   console.log("[Monitor Scheduler] Cleaning up...");
-  for (const [name, worker] of schedulerWorkerMap.entries()) {
-    console.log(`[Monitor Scheduler] Closing worker: ${name}`);
-    await worker.close();
-  }
-  schedulerWorkerMap.clear();
-
-  for (const [name, queue] of schedulerQueueMap.entries()) {
-    console.log(`[Monitor Scheduler] Closing queue: ${name}`);
-    await queue.close();
-  }
-  schedulerQueueMap.clear();
   console.log("[Monitor Scheduler] Cleanup complete.");
-} 
+}

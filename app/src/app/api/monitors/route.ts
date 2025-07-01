@@ -99,6 +99,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Target is required for this monitor type" }, { status: 400 });
     }
 
+    // Manually construct the config object to include alert settings
+    const finalConfig = {
+      ...(newMonitorData.config || {}), // Existing config from the form (e.g., http settings)
+      alerts: rawData.alertConfig || {}, // Alert settings from the wizard
+    };
+
     const [insertedMonitor] = await db.insert(monitors).values({
       name: newMonitorData.name!,
       type: newMonitorData.type!,
@@ -107,17 +113,7 @@ export async function POST(req: NextRequest) {
       frequencyMinutes: newMonitorData.frequencyMinutes,
       enabled: newMonitorData.enabled,
       status: newMonitorData.status,
-      config: newMonitorData.config,
-      alertConfig: rawData.alertConfig ? {
-        enabled: Boolean(rawData.alertConfig.enabled),
-        notificationProviders: Array.isArray(rawData.alertConfig.notificationProviders) ? rawData.alertConfig.notificationProviders : [],
-        alertOnFailure: rawData.alertConfig.alertOnFailure !== undefined ? Boolean(rawData.alertConfig.alertOnFailure) : true,
-        alertOnRecovery: Boolean(rawData.alertConfig.alertOnRecovery),
-        alertOnSslExpiration: Boolean(rawData.alertConfig.alertOnSslExpiration),
-        failureThreshold: typeof rawData.alertConfig.failureThreshold === 'number' ? rawData.alertConfig.failureThreshold : 1,
-        recoveryThreshold: typeof rawData.alertConfig.recoveryThreshold === 'number' ? rawData.alertConfig.recoveryThreshold : 1,
-        customMessage: typeof rawData.alertConfig.customMessage === 'string' ? rawData.alertConfig.customMessage : "",
-      } : null,
+      config: finalConfig, // Use the merged config object
       organizationId: newMonitorData.organizationId,
       createdByUserId: newMonitorData.createdByUserId,
     }).returning();

@@ -4,7 +4,7 @@ import { AxiosError, Method } from 'axios'; // Import Method from axios
 import { firstValueFrom } from 'rxjs'; // To convert Observable to Promise
 import { MonitorJobDataDto, MonitorConfig, MonitorType } from './dto/monitor-job.dto';
 import { MonitorExecutionResult, MonitorResultStatus, MonitorResultDetails } from './types/monitor-result.type';
-import { DB_PROVIDER_TOKEN } from '../execution/services/db.service'; // Import DB_PROVIDER_TOKEN
+import { DbService } from '../db/db.service';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js'; // Import specific Drizzle type
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
 import { eq, inArray } from 'drizzle-orm';
@@ -57,7 +57,7 @@ export class MonitorService {
   private readonly logger = new Logger(MonitorService.name);
 
   constructor(
-    @Inject(DB_PROVIDER_TOKEN) private db: PostgresJsDatabase<typeof schema>,
+    private readonly dbService: DbService,
     private readonly httpService: HttpService,
     private readonly notificationService: NotificationService
   ) {}
@@ -67,7 +67,7 @@ export class MonitorService {
 
     // Check if monitor is paused before execution
     try {
-      const monitor = await this.db.query.monitors.findFirst({
+      const monitor = await this.dbService.db.query.monitors.findFirst({
         where: (monitors, { eq }) => eq(monitors.id, jobData.monitorId),
       });
 
@@ -109,10 +109,10 @@ export class MonitorService {
 
     try {
       switch (jobData.type) {
-        case 'http_request':
+        case MonitorType.HTTP_REQUEST:
           ({ status, details, responseTimeMs, isUp } = await this.executeHttpRequest(jobData.target, jobData.config));
           break;
-        case 'website':
+        case MonitorType.WEBSITE:
           // Website monitoring is essentially HTTP GET with simplified config
           const websiteConfig = {
             ...jobData.config,
@@ -149,14 +149,14 @@ export class MonitorService {
             }
           }
           break;
-        case 'ping_host':
+        case MonitorType.PING_HOST:
           ({ status, details, responseTimeMs, isUp } = await this.executePingHost(jobData.target, jobData.config));
           break;
-        case 'port_check':
+        case MonitorType.PORT_CHECK:
           ({ status, details, responseTimeMs, isUp } = await this.executePortCheck(jobData.target, jobData.config));
           break;
 
-        case 'heartbeat':
+        case MonitorType.HEARTBEAT:
           // Heartbeat monitors check for missed pings rather than actively pinging
           const heartbeatResult = await this.checkHeartbeatMissedPing(jobData.monitorId, jobData.config);
           if (heartbeatResult === null) {
@@ -165,6 +165,9 @@ export class MonitorService {
             return null; // Signal to skip result recording
           }
           ({ status, details, responseTimeMs, isUp } = heartbeatResult);
+          break;
+        case MonitorType.SSL:
+          ({ status, details, responseTimeMs, isUp } = await this.executeSslCheck(jobData.target, jobData.config));
           break;
         default:
           const _exhaustiveCheck: never = jobData.type;
@@ -206,17 +209,19 @@ export class MonitorService {
       const monitor = await this.getMonitorById(resultData.monitorId);
       
       if (monitor) {
-        // Get previous status
+        // Get previous status *before* saving the new one
         const previousStatus = monitor.status;
-        const isStatusChange = previousStatus !== resultData.status;
         
-        // Save result to database
+        // Save result to database first
         await this.saveMonitorResultToDb(resultData);
         
-        // Update monitor status
+        // Then update the main monitor status
         await this.updateMonitorStatus(resultData.monitorId, resultData.status, resultData.checkedAt);
         
-        this.logger.log(`Saved result for monitor ${resultData.monitorId}: ${resultData.status}`);
+        // Now check for status change
+        const isStatusChange = previousStatus !== resultData.status;
+        
+        this.logger.log(`Saved result for monitor ${resultData.monitorId}: ${resultData.status}. Status changed: ${isStatusChange}`);
 
         // Handle alerts if there's a status change and alertConfig is enabled
         if (isStatusChange && monitor.alertConfig?.enabled) {
@@ -694,7 +699,7 @@ export class MonitorService {
       const totalWaitMinutes = expectedIntervalMinutes + gracePeriodMinutes;
       
       // Get monitor from database to check creation time and get latest ping info
-      const monitor = await this.db.query.monitors.findFirst({
+      const monitor = await this.dbService.db.query.monitors.findFirst({
         where: (monitors, { eq }) => eq(monitors.id, monitorId),
       });
 
@@ -974,25 +979,19 @@ export class MonitorService {
 
   async getMonitorById(monitorId: string): Promise<any> {
     try {
-      const monitor = await this.db.query.monitors.findFirst({
+      const monitor = await this.dbService.db.query.monitors.findFirst({
         where: eq(schema.monitors.id, monitorId),
       });
-
-      if (!monitor) {
-        this.logger.warn(`Monitor ${monitorId} not found`);
-        return null;
-      }
-
       return monitor;
     } catch (error) {
       this.logger.error(`Failed to get monitor ${monitorId}: ${error.message}`);
-      return null;
+      throw error;
     }
   }
 
   async getNotificationProviders(monitorId: string): Promise<any[]> {
     try {
-      const providers = await this.db
+      const providers = await this.dbService.db
         .select({
           id: schema.notificationProviders.id,
           type: schema.notificationProviders.type,
@@ -1011,29 +1010,40 @@ export class MonitorService {
         config: provider.config,
       })) || [];
     } catch (error) {
-      this.logger.error(`Failed to get notification providers for monitor ${monitorId}: ${error.message}`);
+      this.logger.error(
+        `Failed to get notification providers for monitor ${monitorId}: ${error.message}`
+      );
       return [];
     }
   }
 
   private async saveMonitorResultToDb(resultData: MonitorExecutionResult): Promise<void> {
-    await this.db.insert(schema.monitorResults).values({
-      monitorId: resultData.monitorId,
-      status: resultData.status,
-      responseTimeMs: resultData.responseTimeMs,
-      details: resultData.details as any,
-      checkedAt: resultData.checkedAt,
-      isUp: resultData.isUp,
-      isStatusChange: resultData.isStatusChange || false,
-    });
+    try {
+      await this.dbService.db.insert(schema.monitorResults).values({
+        monitorId: resultData.monitorId,
+        checkedAt: resultData.checkedAt,
+        status: resultData.status,
+        responseTimeMs: resultData.responseTimeMs,
+        details: resultData.details,
+        isUp: resultData.isUp,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to save monitor result for ${resultData.monitorId}: ${error.message}`);
+    }
   }
 
   private async updateMonitorStatus(monitorId: string, status: MonitorResultStatus, checkedAt: Date): Promise<void> {
-    await this.db.update(schema.monitors)
-      .set({
-        status: status as any, // Type assertion needed due to schema mismatch
-        lastCheckAt: checkedAt,
-      })
-      .where(eq(schema.monitors.id, monitorId));
+    try {
+      const monitorStatus: schema.MonitorStatus = status === 'timeout' ? 'down' : status;
+      await this.dbService.db
+        .update(schema.monitors)
+        .set({ 
+          status: monitorStatus,
+          lastCheckAt: checkedAt,
+        })
+        .where(eq(schema.monitors.id, monitorId));
+    } catch (error) {
+      this.logger.error(`Failed to update monitor status for ${monitorId}: ${error.message}`);
+    }
   }
 } 

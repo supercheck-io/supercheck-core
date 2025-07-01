@@ -7,6 +7,7 @@ import { DbService } from '../services/db.service';
 import { TestScript, JobExecutionTask, TestExecutionResult } from '../interfaces'; // Use updated interfaces
 import { Redis } from 'ioredis';
 import { NotificationService, NotificationPayload } from '../../notification/notification.service';
+import { AlertStatus, AlertType } from '../../db/schema';
 
 // Define the expected structure of the job data
 // Match this with TestScript and JobExecutionTask from original project
@@ -138,7 +139,7 @@ export class JobExecutionProcessor extends WorkerHost {
       
       // Update database directly
       if (originalJobId) {
-        await this.dbService.updateJobStatus(originalJobId, finalStatus)
+        await this.dbService.updateJobStatus(originalJobId, [finalStatus])
           .catch(err => this.logger.error(`[${runId}] Failed to update job status to ${finalStatus}: ${err.message}`));
       }
       
@@ -163,7 +164,7 @@ export class JobExecutionProcessor extends WorkerHost {
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       if (originalJobId) {
-        await this.dbService.updateJobStatus(originalJobId, errorStatus)
+        await this.dbService.updateJobStatus(originalJobId, [errorStatus])
           .catch(err => this.logger.error(`[${runId}] Failed to update job error status: ${err.message}`));
       }
       
@@ -305,41 +306,37 @@ export class JobExecutionProcessor extends WorkerHost {
       };
 
       // Send notifications
-      const notificationResult = await this.notificationService.sendNotificationToMultipleProviders(providers, payload);
-      this.logger.log(`Sent notifications for job ${job.id}: ${notificationResult.success} success, ${notificationResult.failed} failed`);
-      
-      // Save alert history
+      const notificationResults = await this.notificationService.sendNotificationToMultipleProviders(
+        providers,
+        payload
+      );
+
+      this.logger.log(`Sent notifications for job ${jobData.jobId}: ${notificationResults.success} success, ${notificationResults.failed} failed`);
+
+      // Save alert history with proper status handling
       try {
-        const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-        const alertHistoryData = {
-          type: alertType,
-          message: payload.message,
-          target: job.name,
-          targetType: 'job' as const,
-          jobId: job.id,
-          provider: providers.map(p => p.type).join(', '),
-          status: notificationResult.success > 0 ? 'sent' as const : 'failed' as const,
-          errorMessage: notificationResult.failed > 0 ? `${notificationResult.failed} notifications failed` : undefined,
-        };
+        // Determine the correct status for each provider
+        const alertStatus: AlertStatus = notificationResults.success > 0 ? 'sent' : 'failed';
+        const alertErrorMessage = notificationResults.failed > 0 
+          ? `${notificationResults.failed} of ${providers.length} notifications failed`
+          : undefined;
 
-        const response = await fetch(`${appBaseUrl}/api/alerts/history`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(alertHistoryData),
-        });
+        // Save alert history for this notification batch
+        await this.dbService.saveAlertHistory(
+          jobData.jobId,
+          alertType as AlertType,
+          providers.map(p => p.type).join(', '),
+          alertStatus,
+          payload.message,
+          alertErrorMessage
+        );
 
-        if (!response.ok) {
-          this.logger.error(`Failed to save alert history: ${response.statusText}`);
-        } else {
-          this.logger.log(`Alert history saved for job ${job.id}`);
-        }
+        this.logger.log(`Alert history saved for job ${jobData.jobId} with status: ${alertStatus}`);
       } catch (error) {
-        this.logger.error(`Error saving alert history: ${error.message}`);
+        this.logger.error(`Failed to save alert history: ${error.message}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to send notifications for job ${jobData.jobId}: ${error.message}`, error.stack);
+      this.logger.error(`Error in handleJobNotifications for job ${jobData.jobId}: ${error.message}`, error.stack);
     }
   }
 

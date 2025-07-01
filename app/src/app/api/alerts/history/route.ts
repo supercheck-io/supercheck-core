@@ -1,28 +1,32 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/utils/db";
-import { alertHistory } from "@/db/schema/schema";
-import { desc } from "drizzle-orm";
+import { alertHistory, jobs, monitors } from "@/db/schema/schema";
+import { desc, eq } from "drizzle-orm";
 
 export async function GET() {
   try {
-    const dbInstance = await db();
+    const dbInstance = db;
     
-    // Fetch real alert history from database
+    // Fetch real alert history from database with job and monitor names
     const history = await dbInstance
       .select({
         id: alertHistory.id,
         targetType: alertHistory.targetType,
         monitorId: alertHistory.monitorId,
         jobId: alertHistory.jobId,
-        targetName: alertHistory.target,
+        target: alertHistory.target,
         type: alertHistory.type,
         message: alertHistory.message,
         status: alertHistory.status,
         timestamp: alertHistory.sentAt,
         notificationProvider: alertHistory.provider,
         errorMessage: alertHistory.errorMessage,
+        jobName: jobs.name,
+        monitorName: monitors.name,
       })
       .from(alertHistory)
+      .leftJoin(jobs, eq(alertHistory.jobId, jobs.id))
+      .leftJoin(monitors, eq(alertHistory.monitorId, monitors.id))
       .orderBy(desc(alertHistory.sentAt))
       .limit(100);
 
@@ -31,14 +35,10 @@ export async function GET() {
       id: item.id,
       targetType: item.targetType,
       targetId: item.monitorId || item.jobId || '',
-      targetName: item.targetName || 'Unknown',
+      targetName: item.jobName || item.monitorName || item.target || 'Unknown',
       type: item.type,
-      title: item.message,
       message: item.message,
       status: item.status,
-      severity: item.type?.includes('failure') || item.type?.includes('failed') ? 'error' : 
-               item.type?.includes('recovery') || item.type?.includes('success') ? 'success' : 
-               item.type?.includes('timeout') || item.type?.includes('ssl_expiring') ? 'warning' : 'info',
       timestamp: item.timestamp,
       notificationProvider: item.notificationProvider,
       metadata: {
@@ -59,7 +59,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const dbInstance = await db();
+    const dbInstance = db;
     
     // Validate required fields
     if (!body.type || !body.message || !body.target || !body.targetType || !body.provider) {

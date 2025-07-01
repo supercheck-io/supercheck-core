@@ -32,7 +32,8 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { monitorStatuses, monitorTypes } from "@/components/monitors/data";
-import { Monitor as MonitorSchemaType } from "./schema";
+import { Monitor, monitorSchema } from "./schema";
+import { AlertConfig } from "@/db/schema/schema";
 import { formatDistanceToNow, format, startOfDay, endOfDay, parseISO, subHours, subDays, isWithinInterval } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
@@ -82,7 +83,7 @@ export interface MonitorResultItem {
   isStatusChange: boolean;
 }
 
-export type MonitorWithResults = MonitorSchemaType & {
+export type MonitorWithResults = Monitor & {
   recentResults?: MonitorResultItem[];
 };
 
@@ -201,26 +202,89 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
     }
 
     try {
-      const response = await fetch(`/api/monitors/${monitor.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to update monitor status");
-      }
-      const updatedMonitorData: MonitorWithResults = await response.json();
-      setMonitor(prev => ({...prev, ...updatedMonitorData}));
-      
-      if (newStatus === 'paused') {
-        toast.success(`Monitor "${monitor.name}" has been paused. Checks will stop running.`);
-      } else {
-        toast.success(`Monitor "${monitor.name}" has been resumed. Checks will start running again.`);
-      }
+        const response = await fetch(`/api/monitors/${monitor.id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status: newStatus }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to update monitor status.`);
+        }
+        
+        const updatedMonitor = await response.json();
+        
+        // Update local state immediately for a responsive UI
+        setMonitor(prev => ({ ...prev, ...updatedMonitor, status: newStatus }));
+        toast.success(`Monitor successfully ${newStatus === 'paused' ? 'paused' : 'resumed'}.`);
+        
+        // Refresh server-side props to get the latest data
+        router.refresh();
+
     } catch (error) {
-      console.error("Error toggling monitor status:", error);
-      toast.error((error as Error).message || "Could not update monitor status.");
+        console.error("Error toggling monitor status:", error);
+        toast.error((error as Error).message || "Could not update monitor status.");
+    }
+  };
+
+  const handleToggleAlerts = async () => {
+    // 1. Save original monitor for potential rollback
+    const originalMonitor = monitor;
+
+    // 2. Determine the new state and create a fully-formed alertConfig
+    const newAlertsEnabled = !(originalMonitor.alertConfig?.enabled ?? false);
+    
+    const updatedAlertConfig = {
+        enabled: newAlertsEnabled,
+        notificationProviders: originalMonitor.alertConfig?.notificationProviders ?? [],
+        alertOnFailure: originalMonitor.alertConfig?.alertOnFailure ?? true,
+        alertOnRecovery: originalMonitor.alertConfig?.alertOnRecovery ?? true,
+        alertOnSslExpiration: originalMonitor.alertConfig?.alertOnSslExpiration ?? true,
+        alertOnSuccess: originalMonitor.alertConfig?.alertOnSuccess ?? false,
+        alertOnTimeout: originalMonitor.alertConfig?.alertOnTimeout ?? true,
+        failureThreshold: originalMonitor.alertConfig?.failureThreshold ?? 1,
+        recoveryThreshold: originalMonitor.alertConfig?.recoveryThreshold ?? 1,
+        customMessage: originalMonitor.alertConfig?.customMessage ?? "",
+    };
+
+    // 3. Optimistically update the UI. The new monitor state is guaranteed to be valid.
+    setMonitor({ ...originalMonitor, alertConfig: updatedAlertConfig });
+
+    // 4. Make the API call
+    try {
+        const response = await fetch(`/api/monitors/${originalMonitor.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                alertConfig: { // Only send the changed value
+                    enabled: newAlertsEnabled
+                }
+            })
+        });
+
+        if (!response.ok) {
+            // If API fails, it will be caught and we'll roll back.
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Failed to update alert settings.");
+        }
+        
+        const updatedMonitorFromServer = await response.json();
+
+        // 5. Sync with the authoritative state from the server.
+        setMonitor(updatedMonitorFromServer);
+        toast.success(`Alerts ${newAlertsEnabled ? 'enabled' : 'disabled'} successfully.`);
+        
+        router.refresh();
+
+    } catch (error) {
+        console.error("Error toggling alert settings:", error);
+        toast.error((error as Error).message || "Could not update alert settings.");
+        
+        // 6. Rollback on error
+        setMonitor(originalMonitor);
     }
   };
 
@@ -488,34 +552,20 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             
             {/* Alert Status Indicator */}
             <div className={`flex items-center justify-center h-8 w-8 rounded-full ${
-              (monitor as any).alertConfig?.enabled 
+              monitor.alertConfig?.enabled 
                 ? 'bg-green-100 dark:bg-green-900/30' 
-                : 'bg-orange-100 dark:bg-orange-900/30'
+                : 'bg-gray-100 dark:bg-gray-900/30'
             }`}>
-              {(monitor as any).alertConfig?.enabled ? (
+              {monitor.alertConfig?.enabled ? (
                 <Bell className="h-4 w-4 text-green-600 dark:text-green-400" />
               ) : (
-                <BellOff className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                <BellOff className="h-4 w-4 text-gray-600 dark:text-gray-400" />
               )}
             </div>
             
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleToggleStatus}
-              className="flex items-center"
-            >
-              {monitor.status === 'paused' ? (
-                <>
-                  <Play className="h-4 w-4 mr-1 text-green-600" />
-                  <span className="hidden sm:inline">Resume</span>
-                </>
-              ) : (
-                <>
-                  <Pause className="h-4 w-4 mr-1 text-orange-500" />
-                  <span className="hidden sm:inline">Pause</span>
-                </>
-              )}
+            <Button variant="outline" size="sm" onClick={handleToggleStatus}>
+              {monitor.status === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
+              {monitor.status === 'paused' ? 'Resume' : 'Pause'}
             </Button>
            
             <Button 

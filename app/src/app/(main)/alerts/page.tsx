@@ -185,8 +185,7 @@ export default function AlertsPage() {
   }));
 
   const filteredAlertHistory = alertHistory.filter(alert => {
-    const matchesSearch = (alert.title?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                         (alert.message?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (alert.message?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
                          (alert.targetName?.toLowerCase() || "").includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || alert.status === statusFilter;
     const matchesType = typeFilter === "all" || alert.type === typeFilter;
@@ -194,21 +193,7 @@ export default function AlertsPage() {
     return matchesSearch && matchesStatus && matchesType;
   });
 
-  if (loading) {
-    return (
-      <div>
-        <PageBreadcrumbs items={breadcrumbs} />
-        <div className="container mx-auto py-6">
-          <div className="flex items-center justify-center py-12">
-            <div className="flex items-center space-x-2">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="text-muted-foreground">Loading alerts...</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div>
@@ -219,7 +204,7 @@ export default function AlertsPage() {
 
           <Card>
             <Tabs defaultValue="history" className="w-full">
-              <CardHeader className="pb-3">
+              <CardHeader>
                 <div className="flex items-center justify-between">
                   <TabsList className="grid w-full max-w-md grid-cols-2">
                     <TabsTrigger value="providers">Notification Providers</TabsTrigger>
@@ -409,7 +394,7 @@ export default function AlertsPage() {
                           </p>
                         </div>
                       ) : (
-                        <DataTable columns={columns} data={filteredAlertHistory} />
+                        <DataTable columns={columns} data={filteredAlertHistory} isLoading={loading} />
                       )}
                     </div>
                   </div>

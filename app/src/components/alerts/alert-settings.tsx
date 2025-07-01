@@ -49,6 +49,8 @@ const defaultConfig: AlertConfiguration = {
   alertOnFailure: true,
   alertOnRecovery: true,
   alertOnSslExpiration: false,
+  alertOnSuccess: false,
+  alertOnTimeout: false,
   failureThreshold: 1,
   recoveryThreshold: 1,
   customMessage: "",
@@ -66,7 +68,11 @@ export function AlertSettings({
   const [providers, setProviders] = useState<NotificationProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
-  const [config, setConfig] = useState<AlertConfiguration>(value);
+  const [config, setConfig] = useState<AlertConfiguration>({
+    ...defaultConfig,
+    ...value,
+    notificationProviders: value?.notificationProviders || [],
+  });
 
   useEffect(() => {
     // Load providers from API
@@ -92,7 +98,13 @@ export function AlertSettings({
   }, []);
 
   useEffect(() => {
-    setConfig(value);
+    // Ensure the config always has required properties with defaults
+    const safeConfig = {
+      ...defaultConfig,
+      ...value,
+      notificationProviders: value?.notificationProviders || [],
+    };
+    setConfig(safeConfig);
   }, [value]);
 
   const updateConfig = (updates: Partial<AlertConfiguration>) => {
@@ -119,9 +131,10 @@ export function AlertSettings({
   };
 
   const toggleProvider = (providerId: string) => {
-    const newProviders = config.notificationProviders.includes(providerId)
-      ? config.notificationProviders.filter(id => id !== providerId)
-      : [...config.notificationProviders, providerId];
+    const currentProviders = config.notificationProviders || [];
+    const newProviders = currentProviders.includes(providerId)
+      ? currentProviders.filter(id => id !== providerId)
+      : [...currentProviders, providerId];
     
     updateConfig({ notificationProviders: newProviders });
   };
@@ -238,7 +251,7 @@ export function AlertSettings({
                   Alert after this many consecutive failures
                 </p>
                 <Select
-                  value={config.failureThreshold.toString()}
+                  value={(config.failureThreshold || 1).toString()}
                   onValueChange={(value) => updateConfig({ failureThreshold: parseInt(value) })}
                 >
                   <SelectTrigger id="failure-threshold">
@@ -261,7 +274,7 @@ export function AlertSettings({
                   Alert after this many consecutive successes
                 </p>
                 <Select
-                  value={config.recoveryThreshold.toString()}
+                  value={(config.recoveryThreshold || 1).toString()}
                   onValueChange={(value) => updateConfig({ recoveryThreshold: parseInt(value) })}
                 >
                   <SelectTrigger id="recovery-threshold">
@@ -394,7 +407,7 @@ export function AlertSettings({
                       <div 
                         key={provider.id}
                         className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                          config.notificationProviders.includes(provider.id) 
+                          (config.notificationProviders || []).includes(provider.id) 
                             ? 'border-primary bg-primary/5' 
                             : 'border-border hover:bg-muted/50'
                         }`}
@@ -412,7 +425,7 @@ export function AlertSettings({
                         </div>
                         <div className="flex items-center space-x-2">
                           <Checkbox
-                            checked={config.notificationProviders.includes(provider.id)}
+                            checked={(config.notificationProviders || []).includes(provider.id)}
                             onCheckedChange={() => toggleProvider(provider.id)}
                           />
                         </div>
@@ -424,11 +437,11 @@ export function AlertSettings({
             </div>
 
             {/* Selected Providers Summary */}
-            {config.notificationProviders.length > 0 && (
+            {(config.notificationProviders || []).length > 0 && (
               <div className="p-3 bg-muted/50 rounded-lg">
                 <p className="text-sm font-medium mb-2">Selected Channels</p>
                 <div className="flex flex-wrap gap-2">
-                  {config.notificationProviders.map(providerId => {
+                  {(config.notificationProviders || []).map(providerId => {
                     const provider = providers.find(p => p.id === providerId);
                     return provider ? (
                       <Badge key={providerId} variant="secondary" className="text-xs">

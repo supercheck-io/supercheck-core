@@ -1,7 +1,7 @@
 "use client";
 
 import type { Row } from "@tanstack/react-table";
-import { MoreHorizontal, ExternalLink, Copy, RefreshCw } from "lucide-react";
+import { MoreHorizontal, ExternalLink, Copy } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -39,12 +39,6 @@ export function DataTableRowActions<TData>({
     toast.success("Alert message copied to clipboard");
   };
 
-  const handleRetryAlert = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    // TODO: Implement retry functionality
-    toast.info("Retry functionality coming soon");
-  };
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -67,12 +61,6 @@ export function DataTableRowActions<TData>({
           <Copy className="mr-2 h-4 w-4" />
           <span>Copy Message</span>
         </DropdownMenuItem>
-        {alert.status === "failed" && (
-          <DropdownMenuItem onClick={handleRetryAlert}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            <span>Retry Alert</span>
-          </DropdownMenuItem>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

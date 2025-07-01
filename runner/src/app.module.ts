@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { ExecutionModule } from './execution.module';
 import { MonitorModule } from './monitor/monitor.module';
 import { NotificationModule } from './notification/notification.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { NotificationModule } from './notification/notification.module';
     ExecutionModule,
     MonitorModule,
     NotificationModule,
+    SchedulerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -3,23 +3,21 @@ import { BullModule } from '@nestjs/bullmq';
 import { HttpModule } from '@nestjs/axios';
 import { MonitorService } from './monitor.service';
 import { MonitorProcessor } from './monitor.processor';
-import { MONITOR_QUEUE } from './monitor.constants';
-import { ExecutionModule } from '../execution.module';
+import { MONITOR_EXECUTION_QUEUE } from './monitor.constants';
+import { DbModule } from '../db/db.module';
+import { HeartbeatService } from './services/heartbeat.service';
 import { NotificationModule } from '../notification/notification.module';
-
 
 @Module({
   imports: [
-    ExecutionModule,
+    BullModule.registerQueue({
+      name: MONITOR_EXECUTION_QUEUE,
+    }),
     HttpModule,
+    DbModule,
     NotificationModule,
-    BullModule.registerQueue(
-      {
-        name: MONITOR_QUEUE, // Worker queue for receiving execution jobs
-      },
-    ),
   ],
-  providers: [MonitorService, MonitorProcessor],
-  exports: [MonitorService, BullModule], // Export BullModule if injecting queue in service/processor
+  providers: [MonitorService, MonitorProcessor, HeartbeatService],
+  exports: [MonitorService, HeartbeatService],
 })
 export class MonitorModule {} 

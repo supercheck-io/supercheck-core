@@ -3,74 +3,46 @@ import { Job } from 'bullmq';
 import { Logger, Inject } from '@nestjs/common';
 import { MonitorService } from './monitor.service';
 import { MonitorJobDataDto } from './dto/monitor-job.dto';
-import { MONITOR_QUEUE, EXECUTE_MONITOR_JOB } from './monitor.constants';
+import { MONITOR_EXECUTION_QUEUE, EXECUTE_MONITOR_JOB_NAME } from './monitor.constants';
 import { MonitorExecutionResult } from './types/monitor-result.type';
 import { NotificationService, NotificationPayload } from '../notification/notification.service';
-import { DB_PROVIDER_TOKEN } from '../execution/services/db.service';
+import { DbService } from '../db/db.service';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { MonitorJobData } from '../execution/interfaces';
 
-@Processor(MONITOR_QUEUE)
+@Processor(MONITOR_EXECUTION_QUEUE)
 export class MonitorProcessor extends WorkerHost {
   private readonly logger = new Logger(MonitorProcessor.name);
 
   constructor(
     private readonly monitorService: MonitorService,
     private readonly notificationService: NotificationService,
-    @Inject(DB_PROVIDER_TOKEN) private readonly db: PostgresJsDatabase<typeof schema>,
+    private readonly dbService: DbService,
   ) {
     super();
   }
 
-  async process(job: Job<MonitorJobDataDto, MonitorExecutionResult, string>): Promise<MonitorExecutionResult> {
-    this.logger.log(`Processing monitor job ${job.id} of type ${job.data.type} for monitor ${job.data.monitorId}`);
-    
-    if (job.name !== EXECUTE_MONITOR_JOB) {
-        this.logger.warn(`Unknown job name: ${job.name}`);
-        throw new Error(`Unknown job name: ${job.name}`);
+  async process(job: Job<MonitorJobDataDto, MonitorExecutionResult | null, string>): Promise<MonitorExecutionResult | null> {
+    if (job.name === EXECUTE_MONITOR_JOB_NAME) {
+      this.logger.log(
+        `Executing monitor check for ${job.data.type} on target: ${job.data.target} (Job ID: ${job.id})`,
+      );
+      return this.monitorService.executeMonitor(job.data);
     }
 
-    try {
-      const result = await this.monitorService.executeMonitor(job.data);
-      
-      if (result === null) {
-        // No result to record - heartbeat is still within acceptable range
-        this.logger.log(`Monitor job ${job.id} completed with no result to record for monitor ${job.data.monitorId}`);
-        // Return a placeholder result for BullMQ completion
-        return {
-          monitorId: job.data.monitorId,
-          status: 'up',
-          checkedAt: new Date(),
-          details: { message: 'No result recorded - within acceptable range' },
-          isUp: true,
-        } as MonitorExecutionResult;
-      }
-      
-      this.logger.log(`Monitor job ${job.id} completed. Result for monitor ${job.data.monitorId}: ${JSON.stringify(result)}`);
-      
-      // Save the result to the database
-      try {
-        await this.monitorService.saveMonitorResult(result);
-        this.logger.log(`Successfully saved result to DB for monitor ${job.data.monitorId}`);
-      } catch (dbError) {
-        this.logger.error(`Failed to save result to DB for monitor ${job.data.monitorId}: ${dbError.message}`, dbError.stack);
-        // Continue with execution - the result will still be returned to BullMQ
-      }
-
-      // Send notifications based on monitor status changes
-      await this.handleNotifications(job.data, result);
-      
-      return result; // Still return result for BullMQ job completion in this queue
-    } catch (error) {
-      this.logger.error(`Monitor job ${job.id} failed for monitor ${job.data.monitorId}: ${error.message}`, error.stack);
-      throw error; 
-    }
+    this.logger.warn(`Unknown job name: ${job.name} for job ID: ${job.id}. Throwing error.`);
+    throw new Error(`Unknown job name: ${job.name}`);
   }
 
   @OnWorkerEvent('completed')
-  onCompleted(job: Job<MonitorJobDataDto, MonitorExecutionResult, string>) {
+  onCompleted(job: Job, result: MonitorExecutionResult) {
     this.logger.log(`Job ${job.id} (monitor ${job.data.monitorId}) has completed processing in runner.`);
+    if (result) {
+      this.monitorService.saveMonitorResult(result);
+      this.handleNotifications(job.data, result);
+    }
   }
 
   @OnWorkerEvent('failed')
@@ -101,7 +73,7 @@ export class MonitorProcessor extends WorkerHost {
       }
 
       // Get the previous result to check if status has changed
-      const previousResult = await this.db.query.monitorResults.findFirst({
+      const previousResult = await this.dbService.db.query.monitorResults.findFirst({
         where: eq(schema.monitorResults.monitorId, jobData.monitorId),
         orderBy: [desc(schema.monitorResults.checkedAt)],
       });
@@ -176,19 +148,33 @@ export class MonitorProcessor extends WorkerHost {
       
       // Save alert history directly to the database
       try {
-        await this.db.insert(schema.alertHistory).values({
+        // Determine the correct status based on notification results
+        let alertStatus: 'sent' | 'failed' | 'pending' = 'pending';
+        let errorMessage: string | undefined;
+
+        if (notificationResult.success > 0 && notificationResult.failed === 0) {
+          alertStatus = 'sent';
+        } else if (notificationResult.success === 0 && notificationResult.failed > 0) {
+          alertStatus = 'failed';
+          errorMessage = `All ${notificationResult.failed} notifications failed`;
+        } else if (notificationResult.success > 0 && notificationResult.failed > 0) {
+          alertStatus = 'sent'; // Some succeeded, consider it sent
+          errorMessage = `${notificationResult.failed} of ${providers.length} notifications failed`;
+        }
+
+        await this.dbService.db.insert(schema.alertHistory).values({
           type: notificationType,
           message: payload.message,
           target: monitor.name,
           targetType: 'monitor',
           monitorId: monitor.id,
           provider: providers.map(p => p.type).join(', '),
-          status: notificationResult.success > 0 ? 'sent' : 'failed',
-          errorMessage: notificationResult.failed > 0 ? `${notificationResult.failed} notifications failed` : undefined,
+          status: alertStatus,
+          errorMessage,
           sentAt: new Date(),
         });
 
-        this.logger.log(`Alert history saved for monitor ${monitor.id}`);
+        this.logger.log(`Alert history saved for monitor ${monitor.id} with status: ${alertStatus}`);
       } catch (error) {
         this.logger.error(`Error saving alert history: ${error.message}`);
       }

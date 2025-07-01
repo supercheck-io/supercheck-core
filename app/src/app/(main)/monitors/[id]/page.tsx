@@ -46,14 +46,14 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
 
     // Map DB results to MonitorResultItem structure
     const mappedRecentResults: MonitorResultItem[] = recentResultsData.map((r) => ({
-      ...r,
       id: r.id,
       monitorId: r.monitorId,
       checkedAt: r.checkedAt ? new Date(r.checkedAt).toISOString() : new Date().toISOString(),
-      status: r.status as DBMonitorResultStatusType, // This should now align if MonitorResultItem expects DBMonitorResultStatusType
+      status: r.status as DBMonitorResultStatusType,
       responseTimeMs: r.responseTimeMs,
       details: r.details,
       isUp: r.isUp,
+      isStatusChange: r.isStatusChange,
     }));
     
     const frequencyMinutes = monitorData.frequencyMinutes ?? 0;
@@ -81,13 +81,12 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
     }
 
     const transformedMonitor: MonitorWithResults = {
-      ...monitorData,
       id: monitorData.id,
       name: monitorData.name,
-      url: monitorData.target, 
-      method: methodValue, // Use the mapped/cast method value
-      frequencyMinutes: frequencyMinutes, 
-      status: monitorData.status as "up" | "down" | "paused", 
+      url: monitorData.target,
+      method: monitorData.type as DBMonitorType,
+      frequencyMinutes,
+      status: monitorData.status as DBMoniotorStatusType,
       active: monitorData.status !== 'paused',
       createdAt: monitorData.createdAt ? new Date(monitorData.createdAt).toISOString() : undefined,
       updatedAt: monitorData.updatedAt ? new Date(monitorData.updatedAt).toISOString() : undefined,
@@ -95,7 +94,7 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
       responseTime: mappedRecentResults[0]?.responseTimeMs ?? undefined,
       uptime: undefined, 
       recentResults: mappedRecentResults,
-     
+      config: monitorData.config as MonitorConfig,
     };
 
     return transformedMonitor;

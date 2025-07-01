@@ -8,13 +8,6 @@ import { AlertHistory } from "./schema";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
 
-const severityColors = {
-  info: "bg-blue-100 text-blue-800 hover:bg-blue-200",
-  warning: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200",
-  error: "bg-red-100 text-red-800 hover:bg-red-200",
-  success: "bg-green-100 text-green-800 hover:bg-green-200",
-} as const;
-
 const statusColors = {
   sent: "bg-green-100 text-green-800 hover:bg-green-200",
   failed: "bg-red-100 text-red-800 hover:bg-red-200",
@@ -45,16 +38,12 @@ export const columns: ColumnDef<AlertHistory>[] = [
   {
     accessorKey: "targetType",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Target" />
+      <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => {
-      const targetType = row.getValue("targetType") as string;
       const targetName = row.original.targetName;
       return (
-        <div>
-          <div className="font-medium">{targetName}</div>
-          <div className="text-sm text-muted-foreground capitalize">{targetType}</div>
-        </div>
+        <div className="font-medium max-w-[200px] truncate">{targetName}</div>
       );
     },
   },
@@ -70,33 +59,6 @@ export const columns: ColumnDef<AlertHistory>[] = [
           {type.replace(/_/g, " ")}
         </Badge>
       );
-    },
-  },
-  {
-    accessorKey: "title",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Title" />
-    ),
-    cell: ({ row }) => {
-      const title = row.getValue("title") as string;
-      return <div className="font-medium max-w-[200px] truncate">{title}</div>;
-    },
-  },
-  {
-    accessorKey: "severity",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Severity" />
-    ),
-    cell: ({ row }) => {
-      const severity = row.getValue("severity") as keyof typeof severityColors;
-      return (
-        <Badge className={`capitalize ${severityColors[severity]}`}>
-          {severity}
-        </Badge>
-      );
-    },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
     },
   },
   {

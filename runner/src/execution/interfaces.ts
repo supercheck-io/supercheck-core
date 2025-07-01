@@ -66,4 +66,18 @@ export interface ReportMetadata {
   s3Url?: string; // Explicitly store the final S3 URL
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+// Interface for Monitor Job Data (mirroring DTO in runner)
+export interface MonitorJobData {
+  monitorId: string;
+  type: "http_request" | "website" | "ping_host" | "port_check" | "heartbeat" | "ssl";
+  target: string;
+  config?: any;
+  frequencyMinutes?: number; 
+}
+
+export enum TestRunStatus {
+  RUNNING = 'running',
+  // ... existing code ...
 } 

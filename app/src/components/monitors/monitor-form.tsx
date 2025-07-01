@@ -318,15 +318,38 @@ export function MonitorForm({
 
       return currentVal !== defaultVal;
     });
+
+    // Check if alert configuration has changed
+    const initialAlert = initialAlertConfig || {
+      enabled: false,
+      notificationProviders: [],
+      alertOnFailure: true,
+      alertOnRecovery: true,
+      alertOnSslExpiration: false,
+      failureThreshold: 1,
+      recoveryThreshold: 1,
+      customMessage: "",
+    };
+
+    const alertChanged = (
+      alertConfig.enabled !== initialAlert.enabled ||
+      JSON.stringify(alertConfig.notificationProviders?.sort()) !== JSON.stringify(initialAlert.notificationProviders?.sort()) ||
+      alertConfig.alertOnFailure !== initialAlert.alertOnFailure ||
+      alertConfig.alertOnRecovery !== initialAlert.alertOnRecovery ||
+      alertConfig.alertOnSslExpiration !== initialAlert.alertOnSslExpiration ||
+      alertConfig.failureThreshold !== initialAlert.failureThreshold ||
+      alertConfig.recoveryThreshold !== initialAlert.recoveryThreshold ||
+      alertConfig.customMessage !== initialAlert.customMessage
+    );
     
     // For new monitors (not edit mode), consider the form changed if required fields are filled
     const isNewMonitor = !editMode && !initialData;
     const hasRequiredFields = watchedValues.name && watchedValues.name.trim() !== "" && (watchedValues.type === "heartbeat" || (watchedValues.target && watchedValues.target.trim() !== ""));
     
-    const isFormReady = isNewMonitor ? hasRequiredFields : hasChanged;
+    const isFormReady = isNewMonitor ? hasRequiredFields : (hasChanged || alertChanged);
     
     setFormChanged(Boolean(isFormReady));
-  }, [watchedValues, initialData, editMode]);
+  }, [watchedValues, initialData, editMode, alertConfig, initialAlertConfig]);
 
   async function onSubmit(data: FormValues) {
     setIsSubmitting(true);

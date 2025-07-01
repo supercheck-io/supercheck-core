@@ -111,7 +111,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       if (job) {
         const { runId, originalJobId } = job.data;
         if (originalJobId) {
-          await this.dbService.updateJobStatus(originalJobId, 'running')
+          await this.dbService.updateJobStatus(originalJobId, ['running'])
             .catch(err => this.logger.error(`[${runId}] Failed to update job status to running: ${err.message}`));
         }
         
@@ -134,7 +134,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         const finalStatus = result.success === true ? 'passed' : 'failed';
         
         if (originalJobId) {
-          await this.dbService.updateJobStatus(originalJobId, finalStatus)
+          const finalRunStatuses = await this.dbService.getRunStatusesForJob(originalJobId);
+          await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
             .catch(err => this.logger.error(`[${runId}] Failed to update job status to ${finalStatus}: ${err.message}`));
         }
         
@@ -156,7 +157,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         const { runId, originalJobId } = job.data;
         
         if (originalJobId) {
-          await this.dbService.updateJobStatus(originalJobId, 'failed')
+          await this.dbService.updateJobStatus(originalJobId, ['failed'])
             .catch(err => this.logger.error(`[${runId}] Failed to update job status on error: ${err.message}`));
         }
         

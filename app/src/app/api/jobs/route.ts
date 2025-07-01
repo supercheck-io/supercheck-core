@@ -13,6 +13,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 
 import { getTest } from "@/actions/get-test";
 import { randomUUID } from "crypto";
+import { getRunsForJob } from '@/actions/get-runs';
 
 // Create a simple implementation here
 async function executeJob(jobId: string, tests: { id: string; script: string }[]) {
@@ -86,75 +87,30 @@ interface TestResult {
 }
 
 // GET all jobs
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Get all jobs from the database
-    const allJobs = await db
-      .select()
-      .from(jobs)
-      .leftJoin(jobTests, eq(jobs.id, jobTests.jobId))
-      .orderBy(desc(jobs.createdAt));
-
-    // Group jobs by ID and collect test IDs
-    const jobMap = new Map<string, unknown>();
-    for (const row of allJobs) {
-      const job = row.jobs;
-      const testId = row.job_tests?.testId;
-
-      if (!jobMap.has(job.id)) {
-        jobMap.set(job.id, {
-          ...job,
-          tests: testId ? [{ testId }] : [],
+    const jobs = await getJobs();
+    const jobsWithLastRunStatus = await Promise.all(
+      jobs.map(async (job) => {
+        const runs = await db.query.runs.findMany({
+          where: eq(runs.jobId, job.id),
+          orderBy: desc(runs.createdAt),
+          limit: 1,
         });
-      } else if (testId) {
-        const existingJob = jobMap.get(job.id);
-        (existingJob as { tests: { testId: string }[] }).tests.push({ testId });
-      }
-    }
-
-    // Convert map to array
-    const jobsArray = Array.from(jobMap.values());
-
-    // Map the jobs to include full test information
-    const jobsWithTests = await Promise.all(
-      jobsArray.map(async (job) => {
-        // Get the test IDs associated with this job
-        const testIds = (job as { tests: { testId: string }[] }).tests.map(
-          (test: { testId: string }) => test.testId
-        );
-
-        // If there are test IDs, fetch the full test information
-        let testDetails: Test[] = [];
-        if (testIds.length > 0) {
-          // Fetch test details for each test ID
-          const testResults = await db
-            .select()
-            .from(testsTable)
-            .where(inArray(testsTable.id, testIds));
-
-          // Convert test results to match our Test interface
-          testDetails = testResults.map((test) => ({
-            id: test.id,
-            name: test.title,
-            type: test.type,
-          }));
-        }
-
-        // Return the job with its associated tests
+        const lastRun = runs[0];
         return {
-          ...(job as object),
-          tests: testDetails,
+          ...job,
+          status: lastRun ? lastRun.status : job.status,
         };
       })
     );
-
-    return NextResponse.json({ success: true, jobs: jobsWithTests });
+    return Response.json(jobsWithLastRunStatus);
   } catch (error) {
-    console.error("Error fetching jobs:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch jobs" },
-      { status: 500 }
-    );
+    console.error('Failed to fetch jobs with last run status:', error);
+    return new Response(JSON.stringify({ error: 'Failed to fetch jobs' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
 

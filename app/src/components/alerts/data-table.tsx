@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { DataTablePagination } from "@/components/jobs/data-table-pagination";
+import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
 import { cn } from "@/lib/utils";
 
@@ -108,7 +108,7 @@ export function DataTable<TData, TValue>({
     columns,
     initialState: {
       pagination: {
-        pageSize: 15,
+        pageSize: 12,
       },
     },
     state: {
@@ -132,7 +132,7 @@ export function DataTable<TData, TValue>({
     getFacetedUniqueValues: getFacetedUniqueValues(),
     globalFilterFn: "auto",
     meta: {
-      globalFilterColumns: ["id", "jobName", "jobId"],
+      globalFilterColumns: ["id", "targetName", "message"],
       ...meta,
     } as TableMeta,
   });
@@ -209,8 +209,7 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className={cn(
-                    onRowClick ? "hover:bg-muted cursor-pointer" : "",
-                    "h-16"
+                    onRowClick ? "hover:bg-muted cursor-pointer" : ""
                   )}
                   onClick={(e) => handleRowClick(e, row)}
                 >

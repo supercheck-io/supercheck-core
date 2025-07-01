@@ -33,7 +33,23 @@ export async function GET(
       .orderBy(desc(monitorResults.checkedAt))
       .limit(RECENT_RESULTS_LIMIT);
 
-    return NextResponse.json({ ...monitor, recentResults });
+    // Ensure alertConfig has proper defaults if it's null or undefined
+    const responseMonitor = {
+      ...monitor,
+      recentResults,
+      alertConfig: monitor.alertConfig || {
+        enabled: false,
+        notificationProviders: [],
+        alertOnFailure: true,
+        alertOnRecovery: true,
+        alertOnSslExpiration: false,
+        failureThreshold: 1,
+        recoveryThreshold: 1,
+        customMessage: "",
+      },
+    };
+
+    return NextResponse.json(responseMonitor);
   } catch (error) {
     console.error(`Error fetching monitor ${id}:`, error);
     return NextResponse.json({ error: "Failed to fetch monitor data" }, { status: 500 });
@@ -198,5 +214,87 @@ export async function DELETE(
   }
 }
 
-// PATCH handler can be removed if PUT handles all updates, or implement specific partial updates.
-// For now, removing the mock PATCH. 
+function isObject(item: any): item is Record<string, any> {
+  return (item && typeof item === 'object' && !Array.isArray(item));
+}
+
+function deepMerge<T extends object, U extends object>(target: T, source: U): T & U {
+  const output = { ...target } as T & U;
+
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach(key => {
+      if (isObject(source[key])) {
+        if (!(key in target)) {
+          Object.assign(output, { [key]: source[key] });
+        } else {
+          (output as any)[key] = deepMerge(target[key as keyof T] as any, source[key]);
+        }
+      } else {
+        Object.assign(output, { [key]: source[key] });
+      }
+    });
+  }
+
+  return output;
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const params = await context.params;
+  const { id } = params;
+  if (!id) {
+    return NextResponse.json({ error: "Monitor ID is required" }, { status: 400 });
+  }
+
+  try {
+    const rawData = await request.json();
+
+    // Fetch the current monitor to merge the config
+    const currentMonitor = await db.query.monitors.findFirst({ where: eq(monitors.id, id) });
+    if (!currentMonitor) {
+      return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+    
+    const updatePayload: Partial<{
+      config: typeof currentMonitor.config;
+      alertConfig: typeof currentMonitor.alertConfig;
+      status: typeof currentMonitor.status;
+      updatedAt: Date;
+    }> = {
+      updatedAt: new Date(),
+    };
+
+    // Handle partial update for 'config'
+    if (rawData.config) {
+      const newConfig = deepMerge(currentMonitor.config ?? {}, rawData.config);
+      updatePayload.config = newConfig;
+    }
+
+    // Handle partial update for 'alertConfig'
+    if (rawData.alertConfig) {
+      const newAlertConfig = deepMerge(currentMonitor.alertConfig ?? {}, rawData.alertConfig);
+      updatePayload.alertConfig = newAlertConfig;
+    }
+
+    if (rawData.status) {
+      updatePayload.status = rawData.status;
+    }
+
+    const [updatedMonitor] = await db
+      .update(monitors)
+      .set(updatePayload)
+      .where(eq(monitors.id, id))
+      .returning();
+
+    if (!updatedMonitor) {
+      return NextResponse.json({ error: "Failed to update monitor" }, { status: 404 });
+    }
+
+    return NextResponse.json(updatedMonitor);
+  } catch (error) {
+    console.error(`Error partially updating monitor ${id}:`, error);
+    return NextResponse.json({ error: "Failed to update monitor" }, { status: 500 });
+  }
+} 

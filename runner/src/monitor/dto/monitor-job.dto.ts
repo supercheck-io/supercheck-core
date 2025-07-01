@@ -2,12 +2,14 @@
 // This should reflect the data needed from the 'monitors' table in schema.ts
 
 // Based on app/src/db/schema/schema.ts
-export type MonitorType =
-  | "http_request"
-  | "website"
-  | "ping_host"
-  | "port_check"
-  | "heartbeat";
+export enum MonitorType {
+  HTTP_REQUEST = 'http_request',
+  WEBSITE = 'website',
+  PING_HOST = 'ping_host',
+  PORT_CHECK = 'port_check',
+  HEARTBEAT = 'heartbeat',
+  SSL = 'ssl',
+}
 
 export interface MonitorConfig {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";

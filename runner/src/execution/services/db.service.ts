@@ -2,8 +2,8 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from 'src/db/schema'; // Import the schema we copied
-import { reports, jobs, runs } from 'src/db/schema'; // Specifically import reports table
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { reports, jobs, runs, JobStatus, TestRunStatus, alertHistory, AlertType, AlertStatus } from 'src/db/schema'; // Specifically import reports table
+import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 import { ReportMetadata } from '../interfaces'; // Import our interface
 
 // Define a token for the Drizzle provider
@@ -90,27 +90,35 @@ export class DbService implements OnModuleInit {
   /**
    * Updates the status of a job in the jobs table
    * @param jobId The ID of the job to update
-   * @param status The new status to set
+   * @param runStatuses Array of run statuses for the job
    */
   async updateJobStatus(
-    jobId: string, 
-    status: 'pending' | 'running' | 'passed' | 'failed' | 'error'
+    jobId: string,
+    runStatuses: ('pending' | 'running' | 'passed' | 'failed' | 'error')[]
   ): Promise<void> {
-    this.logger.debug(`Updating job status for job ${jobId} to ${status}`);
-    
     try {
-      await this.db.update(jobs)
-        .set({
-          status,
-          updatedAt: new Date(),
-          ...(status === 'passed' || status === 'failed' || status === 'error' ? { lastRunAt: new Date() } : {})
-        })
-        .where(eq(jobs.id, jobId))
-        .execute();
-        
-      this.logger.log(`Successfully updated job status for job ${jobId} to ${status}`);
+      // Determine the aggregate job status
+      let jobStatus: JobStatus;
+      if (runStatuses.some((s) => s === 'error')) {
+        jobStatus = 'error';
+      } else if (runStatuses.some((s) => s === 'failed')) {
+        jobStatus = 'failed';
+      } else if (runStatuses.some((s) => s === 'running' || s === 'pending')) {
+        jobStatus = 'running';
+      } else if (runStatuses.every((s) => s === 'passed')) {
+        jobStatus = 'passed';
+      } else {
+        jobStatus = 'passed'; // Default to completed if all runs are done (and not failed)
+      }
+
+      this.logger.log(
+        `Updating job ${jobId} status based on ${runStatuses.length} runs. Final status: ${jobStatus}`
+      );
+      await this.db.update(jobs).set({
+        status: jobStatus,
+      }).where(eq(jobs.id, jobId));
     } catch (error) {
-      this.logger.error(`Error updating job status for job ${jobId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update job status for ${jobId}:`, error);
     }
   }
 
@@ -122,7 +130,7 @@ export class DbService implements OnModuleInit {
    */
   async updateRunStatus(
     runId: string,
-    status: string,
+    status: TestRunStatus,
     duration?: string
   ): Promise<void> {
     this.logger.debug(`Updating run ${runId} with status ${status} and duration ${duration}`);
@@ -155,7 +163,7 @@ export class DbService implements OnModuleInit {
       }
       
       // Add completedAt timestamp for terminal statuses
-      if (['completed', 'failed', 'passed', 'error'].includes(status)) {
+      if (['failed', 'passed', 'error'].includes(status)) {
         updateData.completedAt = now;
       }
       
@@ -228,6 +236,41 @@ export class DbService implements OnModuleInit {
   }
 
   /**
+   * Saves an alert history record to the database
+   */
+  async saveAlertHistory(
+    jobId: string,
+    type: AlertType,
+    provider: string,
+    status: AlertStatus,
+    message: string,
+    errorMessage?: string,
+  ): Promise<void> {
+    try {
+      // Get the actual job name
+      const job = await this.getJobById(jobId);
+      const jobName = job?.name || `Job ${jobId}`;
+
+      await this.db.insert(alertHistory).values({
+        jobId,
+        type,
+        provider,
+        status,
+        message,
+        sentAt: new Date(),
+        errorMessage,
+        target: jobName,
+        targetType: 'job',
+      });
+      
+      this.logger.log(`Successfully saved alert history for job ${jobId} with status: ${status}`);
+    } catch (error) {
+      this.logger.error(`Failed to save alert history for job ${jobId}:`, error);
+      throw new Error('Internal Server Error');
+    }
+  }
+
+  /**
    * Get recent runs for a job to check alert thresholds
    */
   async getRecentRunsForJob(jobId: string, limit: number = 5) {
@@ -246,6 +289,20 @@ export class DbService implements OnModuleInit {
       return runs;
     } catch (error) {
       this.logger.error(`Failed to get recent runs for job ${jobId}: ${error.message}`);
+      return [];
+    }
+  }
+
+  async getRunStatusesForJob(jobId: string): Promise<('pending' | 'running' | 'passed' | 'failed' | 'error')[]> {
+    try {
+      const result = await this.db
+        .select({ status: runs.status })
+        .from(runs)
+        .where(eq(runs.jobId, jobId));
+      
+      return result.map(r => r.status).filter(s => s !== null) as ('pending' | 'running' | 'passed' | 'failed' | 'error')[];
+    } catch (error) {
+      this.logger.error(`Failed to get run statuses for job ${jobId}:`, error);
       return [];
     }
   }
