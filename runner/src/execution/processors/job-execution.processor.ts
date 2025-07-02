@@ -273,13 +273,13 @@ export class JobExecutionProcessor extends WorkerHost {
         alertType = 'job_failed';
         severity = 'error';
         title = `Job Failed - ${job.name}`;
-        message = `Job ${job.name} has failed ${consecutiveFailures} time${consecutiveFailures > 1 ? 's' : ''} in a row. Latest run had ${failedTests} test failures.`;
+        message = `Job ${job.name} has failed.`;
       } else if (shouldNotifySuccess) {
         notificationType = 'job_success';
         alertType = 'job_success';
         severity = 'success';
         title = `Job Completed - ${job.name}`;
-        message = `Job ${job.name} has completed successfully ${consecutiveSuccesses} time${consecutiveSuccesses > 1 ? 's' : ''} in a row. Latest run had ${passedTests} tests passed.`;
+        message = `Job ${job.name} has completed successfully.`;
       } else {
         // This shouldn't happen since we return early if no conditions are met
         return;

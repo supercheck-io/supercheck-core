@@ -5,7 +5,7 @@ import type { Monitor } from "./schema";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "@/lib/date-utils";
+
 import { MonitorStatusIndicator } from "./monitor-status-indicator";
 import { monitorTypes } from "./data";
 
@@ -56,7 +56,35 @@ export const columns: ColumnDef<Monitor>[] = [
     ),
     cell: ({ row }) => {
       const target = row.getValue("target") as string;
+      const monitorType = row.original.type as string;
       const legacyUrl = row.original.url as string; // Fallback for legacy data
+      
+      // For heartbeat monitors, show truncated URL without hyperlink styling
+      if (monitorType === "heartbeat") {
+        const config = row.original.config as Record<string, unknown>;
+        const heartbeatUrl = config?.heartbeatUrl as string;
+        
+        let displayUrl = "";
+        if (heartbeatUrl) {
+          displayUrl = heartbeatUrl;
+        } else {
+          // Fallback: construct URL from target token
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+          displayUrl = `${baseUrl}/api/heartbeat/${target}`;
+        }
+        
+        // Truncate URL to keep it professional and not break UI
+        const truncatedUrl = displayUrl.length > 40 
+          ? `${displayUrl.substring(0, 37)}...` 
+          : displayUrl;
+        
+        return (
+          <span className="max-w-[200px] truncate font-mono text-sm text-muted-foreground">
+            {truncatedUrl}
+          </span>
+        );
+      }
+      
       const displayValue = target || legacyUrl || "—";
       
       return (

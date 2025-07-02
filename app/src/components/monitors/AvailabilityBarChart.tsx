@@ -64,7 +64,6 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
   // console.log("[AvailabilityBarChart] Processed data:", JSON.stringify(processedData, null, 2)); // Keep for now
 
   const upCount = data.filter(d => d.status === 1).length;
-  const downCount = data.length - upCount;
   const uptimePercentage = data.length > 0 ? ((upCount / data.length) * 100).toFixed(1) : '0.0';
 
   // Different descriptions based on monitor type

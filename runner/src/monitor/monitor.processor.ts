@@ -9,7 +9,7 @@ import { NotificationService, NotificationPayload } from '../notification/notifi
 import { DbService } from '../db/db.service';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, gte } from 'drizzle-orm';
 import { MonitorJobData } from '../execution/interfaces';
 
 @Processor(MONITOR_EXECUTION_QUEUE)
@@ -58,44 +58,80 @@ export class MonitorProcessor extends WorkerHost {
 
   private async handleNotifications(jobData: MonitorJobDataDto, result: MonitorExecutionResult) {
     try {
+      this.logger.debug(`[NOTIFICATION] Processing notifications for monitor ${jobData.monitorId}, result: ${result.status}, isUp: ${result.isUp}`);
+      
       // Get monitor configuration including alert settings
       const monitor = await this.monitorService.getMonitorById(jobData.monitorId);
-      if (!monitor || !monitor.alertConfig?.enabled) {
-        this.logger.debug(`No alerts configured for monitor ${jobData.monitorId}`);
-        return; // No alerts configured
+      if (!monitor) {
+        this.logger.warn(`[NOTIFICATION] Monitor ${jobData.monitorId} not found`);
+        return;
+      }
+
+      // Check if alerts are enabled
+      if (!monitor.alertConfig?.enabled) {
+        this.logger.debug(`[NOTIFICATION] No alerts configured for monitor ${jobData.monitorId}`);
+        return;
       }
 
       // Get notification providers
       const providers = await this.monitorService.getNotificationProviders(jobData.monitorId);
       if (!providers || providers.length === 0) {
-        this.logger.debug(`No notification providers configured for monitor ${jobData.monitorId}`);
-        return; // No providers configured
+        this.logger.debug(`[NOTIFICATION] No notification providers configured for monitor ${jobData.monitorId}`);
+        return;
       }
 
-      // Get the previous result to check if status has changed
-      const previousResult = await this.dbService.db.query.monitorResults.findFirst({
+      // Get recent results to check for status changes and prevent duplicates
+      const recentResults = await this.dbService.db.query.monitorResults.findMany({
         where: eq(schema.monitorResults.monitorId, jobData.monitorId),
         orderBy: [desc(schema.monitorResults.checkedAt)],
+        limit: 10, // Get more results to better understand the pattern
       });
 
-      // Only send notifications if:
-      // 1. This is the first check (no previous result)
-      // 2. The status has changed from the previous check
-      // 3. SSL expiration warning needs to be sent
+      // Current result is the most recent one (just saved)
+      const currentResult = recentResults[0];
+      const previousResult = recentResults[1]; // Second most recent
+
+      this.logger.debug(`[NOTIFICATION] Current result: ${currentResult?.status}/${currentResult?.isUp}, Previous result: ${previousResult?.status}/${previousResult?.isUp}`);
+
+      // Determine if we should send notifications
       const isFirstCheck = !previousResult;
-      const hasStatusChanged = previousResult && previousResult.isUp !== result.isUp;
-      const shouldNotifyFailure = monitor.alertConfig.alertOnFailure && !result.isUp && (isFirstCheck || hasStatusChanged);
-      const shouldNotifyRecovery = monitor.alertConfig.alertOnRecovery && result.isUp && hasStatusChanged;
+      const hasStatusChanged = previousResult && previousResult.isUp !== currentResult.isUp;
+      
+      // Check for recent duplicate alerts to prevent spam
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const recentAlerts = await this.dbService.db.query.alertHistory.findMany({
+        where: and(
+          eq(schema.alertHistory.monitorId, jobData.monitorId),
+          gte(schema.alertHistory.sentAt, oneHourAgo)
+        ),
+        orderBy: [desc(schema.alertHistory.sentAt)],
+        limit: 5,
+      });
+
+      // Determine notification conditions
+      const shouldNotifyFailure = monitor.alertConfig.alertOnFailure && 
+                                !currentResult.isUp && 
+                                (isFirstCheck || hasStatusChanged) &&
+                                !this.hasRecentAlertOfType(recentAlerts, 'monitor_failure');
+
+      const shouldNotifyRecovery = monitor.alertConfig.alertOnRecovery && 
+                                 currentResult.isUp && 
+                                 hasStatusChanged &&
+                                 !this.hasRecentAlertOfType(recentAlerts, 'monitor_recovery');
+
       const shouldNotifySSL = monitor.alertConfig.alertOnSslExpiration && 
                             result.details?.sslCertificate?.daysRemaining !== undefined &&
-                            result.details.sslCertificate.daysRemaining <= (monitor.config?.sslDaysUntilExpirationWarning || 30);
+                            result.details.sslCertificate.daysRemaining <= (monitor.config?.sslDaysUntilExpirationWarning || 30) &&
+                            !this.hasRecentAlertOfType(recentAlerts, 'ssl_expiring');
+
+      this.logger.debug(`[NOTIFICATION] Notification conditions - Failure: ${shouldNotifyFailure}, Recovery: ${shouldNotifyRecovery}, SSL: ${shouldNotifySSL}`);
 
       if (!shouldNotifyFailure && !shouldNotifyRecovery && !shouldNotifySSL) {
-        this.logger.debug(`No notification conditions met for monitor ${jobData.monitorId}. Status: ${result.status}, IsUp: ${result.isUp}`);
-        return; // No notification conditions met
+        this.logger.debug(`[NOTIFICATION] No notification conditions met for monitor ${jobData.monitorId}`);
+        return;
       }
 
-      // Create notification payload
+      // Create notification payload with enhanced context
       let notificationType: NotificationPayload['type'];
       let severity: NotificationPayload['severity'];
       let title: string;
@@ -104,26 +140,27 @@ export class MonitorProcessor extends WorkerHost {
       if (shouldNotifySSL) {
         notificationType = 'ssl_expiring';
         severity = 'warning';
-        title = `SSL Certificate Expiring - ${monitor.name}`;
-        message = `SSL certificate for ${monitor.name} (${monitor.target}) will expire in ${result.details?.sslCertificate?.daysRemaining} days`;
+        title = `🔒 SSL Certificate Expiring - ${monitor.name}`;
+        message = `SSL certificate for ${monitor.name} will expire in ${result.details?.sslCertificate?.daysRemaining} days. Please renew it to avoid service interruption.`;
       } else if (shouldNotifyFailure) {
         notificationType = 'monitor_failure';
         severity = 'error';
-        title = `Monitor Down - ${monitor.name}`;
-        message = result.details?.errorMessage || `Monitor ${monitor.name} is down`;
+        title = `🚨 Monitor Down - ${monitor.name}`;
+        message = `Monitor "${monitor.name}" is currently down. ${result.details?.errorMessage || 'No additional details available.'}`;
       } else if (shouldNotifyRecovery) {
         notificationType = 'monitor_recovery';
         severity = 'success';
-        title = `Monitor Recovered - ${monitor.name}`;
-        message = `Monitor ${monitor.name} is back online`;
+        title = `✅ Monitor Recovered - ${monitor.name}`;
+        message = `Monitor "${monitor.name}" is back online and functioning normally.`;
       } else {
         // Fallback case - should never reach here due to the conditions above
         notificationType = 'monitor_failure';
         severity = 'error';
-        title = `Monitor Alert - ${monitor.name}`;
-        message = `Alert for monitor ${monitor.name}`;
+        title = `⚠️ Monitor Alert - ${monitor.name}`;
+        message = `Alert for monitor "${monitor.name}".`;
       }
 
+      // Create enhanced payload with more context
       const payload: NotificationPayload = {
         type: notificationType,
         title,
@@ -138,17 +175,20 @@ export class MonitorProcessor extends WorkerHost {
           target: monitor.target,
           type: monitor.type,
           sslCertificate: result.details?.sslCertificate,
+          errorMessage: result.details?.errorMessage,
+          monitorType: monitor.type,
+          checkFrequency: `${monitor.frequencyMinutes || 'N/A'} minutes`,
+          lastCheckTime: result.checkedAt.toISOString(),
         },
       };
 
       // Send notifications
-      this.logger.log(`Sending notifications for monitor ${monitor.id}: ${notificationType} to ${providers.length} providers`);
+      this.logger.log(`[NOTIFICATION] Sending ${notificationType} notifications for monitor ${monitor.id} to ${providers.length} providers`);
       const notificationResult = await this.notificationService.sendNotificationToMultipleProviders(providers, payload);
-      this.logger.log(`Sent notifications for monitor ${monitor.id}: ${notificationResult.success} success, ${notificationResult.failed} failed`);
+      this.logger.log(`[NOTIFICATION] Notification results for monitor ${monitor.id}: ${notificationResult.success} success, ${notificationResult.failed} failed`);
       
-      // Save alert history directly to the database
+      // Save alert history to prevent duplicates and for audit trail
       try {
-        // Determine the correct status based on notification results
         let alertStatus: 'sent' | 'failed' | 'pending' = 'pending';
         let errorMessage: string | undefined;
 
@@ -174,12 +214,23 @@ export class MonitorProcessor extends WorkerHost {
           sentAt: new Date(),
         });
 
-        this.logger.log(`Alert history saved for monitor ${monitor.id} with status: ${alertStatus}`);
+        this.logger.log(`[NOTIFICATION] Alert history saved for monitor ${monitor.id} with status: ${alertStatus}`);
       } catch (error) {
-        this.logger.error(`Error saving alert history: ${error.message}`);
+        this.logger.error(`[NOTIFICATION] Error saving alert history: ${error.message}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to send notifications for monitor ${jobData.monitorId}: ${error.message}`, error.stack);
+      this.logger.error(`[NOTIFICATION] Failed to process notifications for monitor ${jobData.monitorId}: ${error.message}`, error.stack);
     }
+  }
+
+  private hasRecentAlertOfType(recentAlerts: any[], alertType: string): boolean {
+    // Check if we have sent this type of alert in the last 30 minutes
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    
+    return recentAlerts.some(alert => 
+      alert.type === alertType && 
+      alert.status === 'sent' && 
+      new Date(alert.sentAt) > thirtyMinutesAgo
+    );
   }
 } 

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors, monitorsInsertSchema, monitorResults, monitorNotificationSettings } from "@/db/schema/schema";
-import { scheduleMonitorCheck, removeScheduledMonitorCheck } from "@/lib/monitor-scheduler";
+import { scheduleMonitorCheck } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export async function GET() {
   try {
@@ -28,13 +28,11 @@ export async function GET() {
 
         const monitorOwnStatus = monitor.status;
         let healthStatus = monitorOwnStatus === 'paused' ? 'paused' : 'pending';
-        let resultStatus = null;
         let resultIsUp = null;
         let resultResponseTimeMs = null;
         let resultCheckedAt = null;
 
         if (latestResult) {
-          resultStatus = latestResult.status;
           resultIsUp = latestResult.isUp;
           resultResponseTimeMs = latestResult.responseTimeMs;
           resultCheckedAt = latestResult.checkedAt;
@@ -86,24 +84,55 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const rawData = await req.json();
+    console.log("[MONITOR_CREATE] Incoming data:", JSON.stringify(rawData, null, 2));
+    
     const validationResult = monitorsInsertSchema.safeParse(rawData);
 
     if (!validationResult.success) {
+      console.error("[MONITOR_CREATE] Validation failed:", validationResult.error.format());
       return NextResponse.json({ error: "Invalid input", details: validationResult.error.format() }, { status: 400 });
     }
 
-    let newMonitorData = validationResult.data;
+    const newMonitorData = validationResult.data;
 
     // Validate target - all monitor types require a target
     if (!newMonitorData.target) {
       return NextResponse.json({ error: "Target is required for this monitor type" }, { status: 400 });
     }
 
-    // Manually construct the config object to include alert settings
-    const finalConfig = {
-      ...(newMonitorData.config || {}), // Existing config from the form (e.g., http settings)
-      alerts: rawData.alertConfig || {}, // Alert settings from the wizard
-    };
+    // Prepare alert configuration - ensure it's properly structured and saved to alertConfig column
+    let alertConfig = null;
+    if (rawData.alertConfig) {
+      alertConfig = {
+        enabled: Boolean(rawData.alertConfig.enabled),
+        notificationProviders: Array.isArray(rawData.alertConfig.notificationProviders) 
+          ? rawData.alertConfig.notificationProviders 
+          : [],
+        alertOnFailure: rawData.alertConfig.alertOnFailure !== undefined 
+          ? Boolean(rawData.alertConfig.alertOnFailure) 
+          : true,
+        alertOnRecovery: rawData.alertConfig.alertOnRecovery !== undefined 
+          ? Boolean(rawData.alertConfig.alertOnRecovery) 
+          : true,
+        alertOnSslExpiration: rawData.alertConfig.alertOnSslExpiration !== undefined 
+          ? Boolean(rawData.alertConfig.alertOnSslExpiration) 
+          : false,
+        failureThreshold: typeof rawData.alertConfig.failureThreshold === 'number' 
+          ? rawData.alertConfig.failureThreshold 
+          : 1,
+        recoveryThreshold: typeof rawData.alertConfig.recoveryThreshold === 'number' 
+          ? rawData.alertConfig.recoveryThreshold 
+          : 1,
+        customMessage: typeof rawData.alertConfig.customMessage === 'string' 
+          ? rawData.alertConfig.customMessage 
+          : "",
+      };
+      console.log("[MONITOR_CREATE] Processed alert config:", alertConfig);
+    }
+
+    // Construct the config object (for monitor-specific settings, not alerts)
+    const finalConfig = newMonitorData.config || {};
+    console.log("[MONITOR_CREATE] Final config:", finalConfig);
 
     const [insertedMonitor] = await db.insert(monitors).values({
       name: newMonitorData.name!,
@@ -113,29 +142,46 @@ export async function POST(req: NextRequest) {
       frequencyMinutes: newMonitorData.frequencyMinutes,
       enabled: newMonitorData.enabled,
       status: newMonitorData.status,
-      config: finalConfig, // Use the merged config object
+      config: finalConfig, // Monitor-specific config (http settings, etc.)
+      alertConfig: alertConfig, // Alert settings go into separate alertConfig column
       organizationId: newMonitorData.organizationId,
       createdByUserId: newMonitorData.createdByUserId,
     }).returning();
 
+    console.log("[MONITOR_CREATE] Inserted monitor:", insertedMonitor);
+
     // Link notification providers if alert config is enabled
-    if (insertedMonitor && rawData.alertConfig?.enabled && Array.isArray(rawData.alertConfig.notificationProviders)) {
-      await Promise.all(
-        rawData.alertConfig.notificationProviders.map(providerId =>
+    if (insertedMonitor && alertConfig?.enabled && Array.isArray(alertConfig.notificationProviders)) {
+      console.log("[MONITOR_CREATE] Linking notification providers:", alertConfig.notificationProviders);
+      
+      const providerLinks = await Promise.allSettled(
+        alertConfig.notificationProviders.map(providerId =>
           db.insert(monitorNotificationSettings).values({
             monitorId: insertedMonitor.id,
             notificationProviderId: providerId,
           })
         )
       );
+
+      const successfulLinks = providerLinks.filter(result => result.status === 'fulfilled').length;
+      const failedLinks = providerLinks.filter(result => result.status === 'rejected').length;
+      
+      console.log(`[MONITOR_CREATE] Notification provider links: ${successfulLinks} successful, ${failedLinks} failed`);
+      
+      if (failedLinks > 0) {
+        console.warn("[MONITOR_CREATE] Some notification provider links failed:", 
+          providerLinks.filter(result => result.status === 'rejected')
+        );
+      }
     }
 
+    // Schedule the monitor for regular checks
     if (insertedMonitor && insertedMonitor.frequencyMinutes && insertedMonitor.frequencyMinutes > 0) {
       const jobData: MonitorJobData = {
         monitorId: insertedMonitor.id,
         type: insertedMonitor.type as MonitorJobData['type'], 
         target: insertedMonitor.target, 
-        config: insertedMonitor.config as any,
+        config: insertedMonitor.config as Record<string, unknown>,
         frequencyMinutes: insertedMonitor.frequencyMinutes,
       };
       try {
@@ -144,14 +190,16 @@ export async function POST(req: NextRequest) {
             frequencyMinutes: insertedMonitor.frequencyMinutes, 
             jobData 
         });
+        console.log(`[MONITOR_CREATE] Scheduled monitor ${insertedMonitor.id} for ${insertedMonitor.frequencyMinutes} minute intervals`);
       } catch (scheduleError) {
-        console.error(`Failed to schedule initial check for monitor ${insertedMonitor.id}:`, scheduleError);
+        console.error(`[MONITOR_CREATE] Failed to schedule initial check for monitor ${insertedMonitor.id}:`, scheduleError);
       }
     }
 
+    console.log("[MONITOR_CREATE] Successfully created monitor:", insertedMonitor.id);
     return NextResponse.json(insertedMonitor, { status: 201 });
   } catch (error) {
-    console.error("Error creating monitor:", error);
+    console.error("[MONITOR_CREATE] Error creating monitor:", error);
     return NextResponse.json({ error: "Failed to create monitor" }, { status: 500 });
   }
 }
@@ -173,6 +221,35 @@ export async function PUT(req: NextRequest) {
 
     const monitorData = validationResult.data;
 
+    // Prepare alert configuration - ensure it's properly structured
+    let alertConfig = null;
+    if (rawData.alertConfig) {
+      alertConfig = {
+        enabled: Boolean(rawData.alertConfig.enabled),
+        notificationProviders: Array.isArray(rawData.alertConfig.notificationProviders) 
+          ? rawData.alertConfig.notificationProviders 
+          : [],
+        alertOnFailure: rawData.alertConfig.alertOnFailure !== undefined 
+          ? Boolean(rawData.alertConfig.alertOnFailure) 
+          : true,
+        alertOnRecovery: rawData.alertConfig.alertOnRecovery !== undefined 
+          ? Boolean(rawData.alertConfig.alertOnRecovery) 
+          : true,
+        alertOnSslExpiration: rawData.alertConfig.alertOnSslExpiration !== undefined 
+          ? Boolean(rawData.alertConfig.alertOnSslExpiration) 
+          : false,
+        failureThreshold: typeof rawData.alertConfig.failureThreshold === 'number' 
+          ? rawData.alertConfig.failureThreshold 
+          : 1,
+        recoveryThreshold: typeof rawData.alertConfig.recoveryThreshold === 'number' 
+          ? rawData.alertConfig.recoveryThreshold 
+          : 1,
+        customMessage: typeof rawData.alertConfig.customMessage === 'string' 
+          ? rawData.alertConfig.customMessage 
+          : "",
+      };
+    }
+
     const [updatedMonitor] = await db
       .update(monitors)
       .set({
@@ -184,20 +261,20 @@ export async function PUT(req: NextRequest) {
         enabled: monitorData.enabled,
         status: monitorData.status,
         config: monitorData.config,
-        alertConfig: rawData.alertConfig || null,
+        alertConfig: alertConfig,
         updatedAt: new Date(),
       })
       .where(eq(monitors.id, id))
       .returning();
 
     // Update notification provider links if alert config is enabled
-    if (updatedMonitor && rawData.alertConfig?.enabled && Array.isArray(rawData.alertConfig.notificationProviders)) {
+    if (updatedMonitor && alertConfig?.enabled && Array.isArray(alertConfig.notificationProviders)) {
       // First, delete existing links
       await db.delete(monitorNotificationSettings).where(eq(monitorNotificationSettings.monitorId, id));
       
       // Then, create new links
       await Promise.all(
-        rawData.alertConfig.notificationProviders.map(providerId =>
+        alertConfig.notificationProviders.map(providerId =>
           db.insert(monitorNotificationSettings).values({
             monitorId: id,
             notificationProviderId: providerId,

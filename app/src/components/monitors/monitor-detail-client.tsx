@@ -408,7 +408,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
     if (!monitor.recentResults || monitor.recentResults.length === 0) return [];
     
     if (monitor.type === "heartbeat") {
-      // For heartbeat monitors: show each ping received + only one entry per missed ping period
+      // For heartbeat monitors: show all ping events and failures
       const processedResults = [];
       const recentResults = monitor.recentResults.slice(0, 50);
       
@@ -416,13 +416,15 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
         const current = recentResults[i];
         
         if (current.isUp) {
-          // Always show successful pings
+          // Always show successful pings as green bars
           processedResults.push(current);
         } else {
-          // For failures, only show if it's a status change (first failure in a sequence)
-          if (current.isStatusChange) {
-            processedResults.push(current);
-          }
+          // Show all failures as red bars (both explicit failures and ping overdue)
+          // This includes:
+          // - Explicit failures reported via /fail endpoint
+          // - Ping overdue events detected by scheduler
+          // - Any other failure conditions
+          processedResults.push(current);
         }
       }
       
@@ -703,6 +705,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               <div className="text-lg font-semibold">{calculatedMetrics.uptime24h}</div>
             </CardContent>
           </Card>
+          
 
           {monitor.type !== "heartbeat" && (
             <>
@@ -735,6 +738,9 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   <div className="text-lg font-semibold">{calculatedMetrics.avgResponse30d}</div>
                 </CardContent>
               </Card>
+
+       
+              
             </>
           )}
         </div>
