@@ -78,20 +78,22 @@ export class QueueStatusService {
           
         const finalStatus = result.success === true ? 'passed' : 'failed';
         
-        if (originalJobId) {
-          const finalRunStatuses = await this.dbService.getRunStatusesForJob(originalJobId);
-          await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
-            .catch(err => this.logger.error(`[${runId}] Failed to update job status to ${finalStatus}: ${err.message}`));
-        }
-        
         // Calculate duration if available in the result
         let durationStr = '';
         if (result.duration !== undefined) {
           durationStr = String(result.duration);
         }
         
+        // Update run status first
         await this.dbService.updateRunStatus(runId, finalStatus, durationStr)
           .catch(err => this.logger.error(`[${runId}] Failed to update run status to ${finalStatus}: ${err.message}`));
+        
+        // Then update job status based on all current run statuses (including the one we just updated)
+        if (originalJobId) {
+          const finalRunStatuses = await this.dbService.getRunStatusesForJob(originalJobId);
+          await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
+            .catch(err => this.logger.error(`[${runId}] Failed to update job status: ${err.message}`));
+        }
       }
     });
 

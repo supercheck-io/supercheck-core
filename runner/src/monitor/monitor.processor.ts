@@ -140,23 +140,23 @@ export class MonitorProcessor extends WorkerHost {
       if (shouldNotifySSL) {
         notificationType = 'ssl_expiring';
         severity = 'warning';
-        title = `🔒 SSL Certificate Expiring - ${monitor.name}`;
-        message = `SSL certificate for ${monitor.name} will expire in ${result.details?.sslCertificate?.daysRemaining} days. Please renew it to avoid service interruption.`;
+        title = `SSL Certificate Expiring - ${monitor.name}`;
+        message = `SSL certificate for monitor "${monitor.name}" will expire in ${result.details?.sslCertificate?.daysRemaining} days. Please renew it to avoid service interruption.`;
       } else if (shouldNotifyFailure) {
         notificationType = 'monitor_failure';
         severity = 'error';
-        title = `🚨 Monitor Down - ${monitor.name}`;
-        message = `Monitor "${monitor.name}" is currently down. ${result.details?.errorMessage || 'No additional details available.'}`;
+        title = `Monitor Alert - ${monitor.name}`;
+        message = `Monitor "${monitor.name}" is down. ${result.details?.errorMessage || 'No ping received within expected interval'}`;
       } else if (shouldNotifyRecovery) {
         notificationType = 'monitor_recovery';
         severity = 'success';
-        title = `✅ Monitor Recovered - ${monitor.name}`;
-        message = `Monitor "${monitor.name}" is back online and functioning normally.`;
+        title = `Monitor Recovered - ${monitor.name}`;
+        message = `Monitor "${monitor.name}" has recovered and is now operational.`;
       } else {
         // Fallback case - should never reach here due to the conditions above
         notificationType = 'monitor_failure';
         severity = 'error';
-        title = `⚠️ Monitor Alert - ${monitor.name}`;
+        title = `Monitor Alert - ${monitor.name}`;
         message = `Alert for monitor "${monitor.name}".`;
       }
 

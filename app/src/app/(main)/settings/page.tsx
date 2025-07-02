@@ -1,25 +1,31 @@
-import { Metadata } from "next";
+
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Palette, 
-  Bell, 
-  Shield, 
-  Database, 
-  Globe, 
+import {
+  Palette,
+  Bell,
+  Shield,
+  Database,
+  Globe,
   User,
   Key,
   Mail,
   Server,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Monitor,
+  Clock,
+  Eye,
+  Zap,
+  Download,
+
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -27,11 +33,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 
-export const metadata: Metadata = {
-  title: "Settings | Supercheck",
-  description: "Configure your monitoring settings and preferences",
-};
+
 
 export default function SettingsPage() {
   const breadcrumbs = [
@@ -40,455 +44,451 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className=" flex flex-col">
+    <div className="">
       <PageBreadcrumbs items={breadcrumbs} />
-      
-      <div className="flex-1 p-4 overflow-hidden">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage your account and monitoring preferences
-            </p>
-          </div>
-        </div>
+      <div className="mx-auto p-4 pt-0 -mt-2">
+        <Card>
+          <Tabs defaultValue="appearance" className="w-full">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <TabsList className="grid w-full max-w-[800px] grid-cols-5">
+                  <TabsTrigger value="appearance" className="flex items-center gap-2">
+                    <Palette className="h-4 w-4" />
+                    <span className="hidden sm:inline">Appearance</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="notifications" className="flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    <span className="hidden sm:inline">Notifications</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="monitoring" className="flex items-center gap-2">
+                    <Monitor className="h-4 w-4" />
+                    <span className="hidden sm:inline">Monitoring</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="security" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    <span className="hidden sm:inline">Security</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="system" className="flex items-center gap-2">
+                    <Server className="h-4 w-4" />
+                    <span className="hidden sm:inline">System</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+            </CardHeader>
 
-        <Tabs defaultValue="appearance" className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="appearance">Appearance</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
-            <TabsTrigger value="system">System</TabsTrigger>
-          </TabsList>
+            <CardContent className="pt-0 -mt-2">
+              <TabsContent value="appearance" className="p-4">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-2xl font-semibold mb-2 flex items-center">
+                      <Palette className="h-6 w-6 mr-2 " />
+                      Theme Settings
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Customize the appearance of your dashboard
+                    </p>
+                  </div>
+                  
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <Card className="bg-background">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center">
+                          <Eye className="h-4 w-4 mr-2" />
+                          Theme Settings
+                        </CardTitle>
+                        <CardDescription>
+                          Customize the appearance of your dashboard
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-sm font-medium">Theme</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Choose your preferred theme
+                            </p>
+                          </div>
+                          <ThemeToggle />
+                        </div>
+                        <Separator />
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-sm font-medium">Compact View</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Use a more compact layout
+                            </p>
+                          </div>
+                          <Switch />
+                        </div>
+                        <Separator />
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-sm font-medium">High Contrast</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Increase contrast for better visibility
+                            </p>
+                          </div>
+                          <Switch />
+                        </div>
+                      </CardContent>
+                    </Card>
 
-          <TabsContent value="appearance" className="flex-1 mt-4">
-            <div className="grid gap-4 md:grid-cols-2 h-full">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <Palette className="h-5 w-5" />
-                    <CardTitle>Theme Settings</CardTitle>
+                    <Card className="bg-background">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center">
+                          <User className="h-4 w-4 mr-2" />
+                          Display Preferences
+                        </CardTitle>
+                        <CardDescription>
+                          Configure how information is displayed
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Date Format</Label>
+                          <Select defaultValue="relative">
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="relative">Relative (2 hours ago)</SelectItem>
+                              <SelectItem value="absolute">Absolute (Dec 25, 2024)</SelectItem>
+                              <SelectItem value="iso">ISO Format</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Timezone</Label>
+                          <Select defaultValue="auto">
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">Auto-detect</SelectItem>
+                              <SelectItem value="utc">UTC</SelectItem>
+                              <SelectItem value="est">EST</SelectItem>
+                              <SelectItem value="pst">PST</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                  <CardDescription>
-                    Customize the appearance of your dashboard
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Theme</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Choose your preferred theme
-                      </p>
-                    </div>
-                    <ThemeToggle />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Compact View</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Use a more compact layout
-                      </p>
-                    </div>
-                    <Switch />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">High Contrast</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Increase contrast for better visibility
-                      </p>
-                    </div>
-                    <Switch />
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </TabsContent>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <User className="h-5 w-5" />
-                    <CardTitle>Display Preferences</CardTitle>
-                  </div>
-                  <CardDescription>
-                    Configure how information is displayed
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Date Format</Label>
-                    <Select defaultValue="relative">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="relative">Relative (2 hours ago)</SelectItem>
-                        <SelectItem value="absolute">Absolute (Dec 25, 2024)</SelectItem>
-                        <SelectItem value="iso">ISO Format</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Timezone</Label>
-                    <Select defaultValue="auto">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auto">Auto-detect</SelectItem>
-                        <SelectItem value="utc">UTC</SelectItem>
-                        <SelectItem value="est">EST</SelectItem>
-                        <SelectItem value="pst">PST</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="notifications" className="flex-1 mt-4">
-            <div className="grid gap-4 md:grid-cols-2 h-full">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <Bell className="h-5 w-5" />
-                    <CardTitle>Alert Settings</CardTitle>
-                  </div>
-                  <CardDescription>
+              <TabsContent value="notifications" className="p-4">
+                <div>
+                  <h3 className="text-2xl font-semibold mb-2 flex items-center">
+                    <Bell className="h-6 w-6 mr-2" />
+                    Notification Settings
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
                     Configure when and how you receive alerts
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Email Notifications</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Receive email alerts for monitor failures
-                      </p>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Desktop Notifications</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Show browser notifications
-                      </p>
-                    </div>
-                    <Switch />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Slack Integration</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Send alerts to Slack channels
-                      </p>
-                    </div>
-                    <Switch />
-                  </div>
-                </CardContent>
-              </Card>
+                  </p>
+                </div>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <Mail className="h-5 w-5" />
-                    <CardTitle>Email Configuration</CardTitle>
-                  </div>
-                  <CardDescription>
-                    Setup email addresses and preferences
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Primary Alert Email</Label>
-                    <div className="flex space-x-2">
-                      <Input placeholder="alerts@yourcompany.com" className="flex-1" />
-                      <Button variant="outline" size="sm">Verify</Button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Alert Frequency</Label>
-                    <Select defaultValue="immediate">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="immediate">Immediate</SelectItem>
-                        <SelectItem value="digest">Daily Digest</SelectItem>
-                        <SelectItem value="weekly">Weekly Summary</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card className="bg-background">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <Bell className="h-4 w-4 mr-2" />
+                        Alert Settings
+                      </CardTitle>
+                      <CardDescription>
+                        Configure when and how you receive alerts
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-medium">Email Notifications</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Receive email alerts for monitor failures
+                          </p>
+                        </div>
+                        <Switch defaultChecked />
+                      </div>
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-medium">Desktop Notifications</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Show browser notifications
+                          </p>
+                        </div>
+                        <Switch />
+                      </div>
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-medium">Slack Integration</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Send alerts to Slack channels
+                          </p>
+                        </div>
+                        <Switch />
+                      </div>
+                    </CardContent>
+                  </Card>
 
-          <TabsContent value="monitoring" className="flex-1 mt-4">
-            <div className="grid gap-4 md:grid-cols-2 h-full">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <Globe className="h-5 w-5" />
-                    <CardTitle>Default Monitor Settings</CardTitle>
-                  </div>
-                  <CardDescription>
-                    Configure default settings for new monitors
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Check Interval</Label>
-                      <Select defaultValue="300">
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="60">1 minute</SelectItem>
-                          <SelectItem value="300">5 minutes</SelectItem>
-                          <SelectItem value="600">10 minutes</SelectItem>
-                          <SelectItem value="1800">30 minutes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Timeout</Label>
-                      <Select defaultValue="30">
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10">10 seconds</SelectItem>
-                          <SelectItem value="30">30 seconds</SelectItem>
-                          <SelectItem value="60">1 minute</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Auto-pause Failed Monitors</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Pause after consecutive failures
-                      </p>
-                    </div>
-                    <Switch />
-                  </div>
-                </CardContent>
-              </Card>
+                  <Card className="bg-background">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <Mail className="h-4 w-4 mr-2" />
+                        Email Settings
+                      </CardTitle>
+                      <CardDescription>
+                        Configure email notification preferences
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Email Address</Label>
+                        <Input type="email" placeholder="Enter your email" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-medium">Daily Digest</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Receive a daily summary of alerts
+                          </p>
+                        </div>
+                        <Switch />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <Database className="h-5 w-5" />
-                    <CardTitle>Data Retention</CardTitle>
-                  </div>
-                  <CardDescription>
-                    Manage how long monitoring data is kept
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Retention Period</Label>
-                    <Select defaultValue="90">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="30">30 days</SelectItem>
-                        <SelectItem value="90">90 days</SelectItem>
-                        <SelectItem value="180">6 months</SelectItem>
-                        <SelectItem value="365">1 year</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Auto-cleanup</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Automatically remove old data
-                      </p>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+              <TabsContent value="monitoring" className="p-4">
+                <div>
+                  <h3 className="text-2xl font-semibold mb-2 flex items-center">
+                    <Monitor className="h-6 w-6 mr-2" />
+                    Monitoring Settings
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Configure your monitoring preferences and thresholds
+                  </p>
+                </div>
 
-          <TabsContent value="security" className="flex-1 mt-4">
-            <div className="grid gap-4 md:grid-cols-2 h-full">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <Shield className="h-5 w-5" />
-                    <CardTitle>Authentication</CardTitle>
-                  </div>
-                  <CardDescription>
-                    Secure your account with additional authentication
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Two-Factor Authentication</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Add extra security to your account
-                      </p>
-                    </div>
-                    <Button variant="outline" size="sm">
-                      <Key className="h-4 w-4 mr-1" />
-                      Setup 2FA
-                    </Button>
-                  </div>
-                  <Separator />
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Session Timeout</Label>
-                    <Select defaultValue="24">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 hour</SelectItem>
-                        <SelectItem value="8">8 hours</SelectItem>
-                        <SelectItem value="24">24 hours</SelectItem>
-                        <SelectItem value="168">7 days</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card className="bg-background">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <Clock className="h-4 w-4 mr-2" />
+                        Check Frequency
+                      </CardTitle>
+                      <CardDescription>
+                        Set how often monitors should check your endpoints
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Default Check Interval</Label>
+                        <Select defaultValue="5">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">Every minute</SelectItem>
+                            <SelectItem value="5">Every 5 minutes</SelectItem>
+                            <SelectItem value="15">Every 15 minutes</SelectItem>
+                            <SelectItem value="30">Every 30 minutes</SelectItem>
+                            <SelectItem value="60">Every hour</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-medium">Retry on Failure</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Retry failed checks before alerting
+                          </p>
+                        </div>
+                        <Switch defaultChecked />
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <Key className="h-5 w-5" />
-                    <CardTitle>API Access</CardTitle>
-                  </div>
-                  <CardDescription>
-                    Manage API keys and integrations
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">API Key</Label>
-                    <div className="flex space-x-2">
-                      <Input value="sk-..." readOnly className="flex-1" />
-                      <Button variant="outline" size="sm">Regenerate</Button>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Rate Limiting</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Limit API requests per hour
-                      </p>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+                  <Card className="bg-background">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <Zap className="h-4 w-4 mr-2" />
+                        Performance Thresholds
+                      </CardTitle>
+                      <CardDescription>
+                        Set performance alert thresholds
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Response Time Threshold (ms)</Label>
+                        <Input type="number" placeholder="2000" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Availability Target (%)</Label>
+                        <Input type="number" placeholder="99.9" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
 
-          <TabsContent value="system" className="flex-1 mt-4">
-            <div className="grid gap-4 md:grid-cols-2 h-full">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <Server className="h-5 w-5" />
-                    <CardTitle>System Information</CardTitle>
-                  </div>
-                  <CardDescription>
-                    View system status and configuration
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <Label className="text-muted-foreground">Version</Label>
-                      <p className="font-medium">1.0.0</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Environment</Label>
-                      <p className="font-medium">Production</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Uptime</Label>
-                      <p className="font-medium">24 days</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Database</Label>
-                      <p className="font-medium">PostgreSQL</p>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Export Data</Label>
-                    <div className="flex space-x-2">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Export Monitors
+              <TabsContent value="security" className="p-4">
+                <div>
+                  <h3 className="text-2xl font-semibold mb-2 flex items-center">
+                    <Shield className="h-6 w-6 mr-2" />
+                    Security Settings
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Configure security and access settings
+                  </p>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card className="bg-background">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <Key className="h-4 w-4 mr-2" />
+                        API Keys
+                      </CardTitle>
+                      <CardDescription>
+                        Manage your API keys and access tokens
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Active API Keys</Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between p-2 border rounded-md">
+                            <div>
+                              <p className="text-sm font-medium">Production Key</p>
+                              <p className="text-xs text-muted-foreground">Created: Jan 1, 2024</p>
+                            </div>
+                            <Button variant="destructive" size="sm">Revoke</Button>
+                          </div>
+                        </div>
+                      </div>
+                      <Button className="w-full">
+                        <Key className="h-4 w-4 mr-2" />
+                        Generate New API Key
                       </Button>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Export Reports
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <SettingsIcon className="h-5 w-5" />
-                    <CardTitle>Advanced Settings</CardTitle>
-                  </div>
-                  <CardDescription>
-                    Advanced configuration options
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Debug Mode</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Enable detailed logging
-                      </p>
-                    </div>
-                    <Switch />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Maintenance Mode</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Temporarily disable monitoring
-                      </p>
-                    </div>
-                    <Switch />
-                  </div>
-                  <Separator />
-                  <div className="space-y-2">
-                    <Button variant="destructive" size="sm" className="w-full">
-                      Reset All Settings
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+                  <Card className="bg-background">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <Globe className="h-4 w-4 mr-2" />
+                        Access Control
+                      </CardTitle>
+                      <CardDescription>
+                        Configure IP restrictions and access rules
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-medium">IP Whitelist</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Restrict access to specific IPs
+                          </p>
+                        </div>
+                        <Switch />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Allowed IP Addresses</Label>
+                        <Input placeholder="Enter IP address" disabled />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="system" className="p-4">
+                <div>
+                  <h3 className="text-2xl font-semibold mb-2 flex items-center">
+                    <Server className="h-6 w-6 mr-2" />
+                    System Settings
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    View system information and manage data
+                  </p>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card className="bg-background">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <Database className="h-4 w-4 mr-2" />
+                        Data Management
+                      </CardTitle>
+                      <CardDescription>
+                        Manage your monitoring data
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Data Retention</Label>
+                        <Select defaultValue="90">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="30">30 days</SelectItem>
+                            <SelectItem value="90">90 days</SelectItem>
+                            <SelectItem value="180">180 days</SelectItem>
+                            <SelectItem value="365">1 year</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-medium">Auto-cleanup</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Automatically remove old data
+                          </p>
+                        </div>
+                        <Switch defaultChecked />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-background">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export Data
+                      </CardTitle>
+                      <CardDescription>
+                        Download your monitoring data
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Export Format</Label>
+                        <Select defaultValue="json">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="json">JSON</SelectItem>
+                            <SelectItem value="csv">CSV</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button className="w-full">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export Data
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+            </CardContent>
+          </Tabs>
+        </Card>
       </div>
     </div>
   );

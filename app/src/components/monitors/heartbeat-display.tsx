@@ -50,11 +50,11 @@ export function HeartbeatDisplay({ monitor }: HeartbeatDisplayProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-pink-600" />
-            Heartbeat Configuration
+            <Activity className="h-5 w-5" />
+            Monitor Status
           </CardTitle>
           <CardDescription>
-            Passive monitoring expecting regular pings from your services
+            {isOverdue ? "No ping received within expected interval" : "Monitor is receiving pings as expected"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -77,21 +77,20 @@ export function HeartbeatDisplay({ monitor }: HeartbeatDisplayProps) {
                   <>
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">{timeSinceLastPing}</span>
-                    {isOverdue && (
-                      <Badge variant="destructive" className="ml-2">
+                    {isOverdue ? (
+                      <Badge className="bg-red-100 text-red-800 hover:bg-red-200">
                         <AlertTriangle className="h-3 w-3 mr-1" />
-                        Overdue
+                        Down
                       </Badge>
-                    )}
-                    {!isOverdue && (
-                      <Badge variant="secondary" className="ml-2">
+                    ) : (
+                      <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
-                        On Time
+                        Up
                       </Badge>
                     )}
                   </>
                 ) : (
-                  <span className="text-sm text-muted-foreground">No pings received yet</span>
+                  <span className="text-sm text-muted-foreground">Waiting for first ping</span>
                 )}
               </div>
             </div>

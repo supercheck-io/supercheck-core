@@ -584,7 +584,7 @@ export function MonitorForm({
 
   if (showAlerts) {
     return (
-      <div className="space-y-4 p-4 max-h-[calc(100vh-10rem)] overflow-y-auto">
+      <div className="space-y-4 p-4 min-h-[calc(100vh-8rem)]">
         <Card>
           <CardHeader>
             <CardTitle>Alert Settings</CardTitle>
@@ -633,7 +633,7 @@ export function MonitorForm({
   }
 
   return (
-    <div className="space-y-4 p-4 max-h-[calc(100vh-10rem)] overflow-y-auto">
+    <div className="space-y-4 p-4 min-h-[calc(100vh-8rem)]">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
@@ -868,7 +868,7 @@ export function MonitorForm({
                 <div className="space-y-4 border-t pt-6">
                   <h3 className="text-lg font-medium">HTTP Request Settings</h3>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <FormField
                       control={form.control}
                       name="httpConfig_method"
@@ -969,6 +969,60 @@ export function MonitorForm({
                         );
                       }}
                     />
+
+                    {/* SSL Certificate Check Section - Compact and Inline */}
+                    <div className="p-3 border rounded-lg bg-muted/10">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Shield className="h-4 w-4 text-green-500" />
+                            <span className="text-sm font-medium">SSL Check</span>
+                            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span>
+                          </div>
+                          
+                          <FormField
+                            control={form.control}
+                            name="websiteConfig_enableSslCheck"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        {form.watch("websiteConfig_enableSslCheck") && (
+                          <div className="flex items-center space-x-2 pt-2 border-t">
+                            <span className="text-xs text-muted-foreground">Alert in</span>
+                            <FormField
+                              control={form.control}
+                              name="websiteConfig_sslDaysUntilExpirationWarning"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      placeholder="30"
+                                      min="1"
+                                      max="365"
+                                      className="w-16 h-7 text-xs"
+                                      {...field}
+                                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <span className="text-xs text-muted-foreground">days</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1011,118 +1065,119 @@ export function MonitorForm({
                     )}
                   </div>
 
-                  {/* Professional Authentication Section */}
-                  <Card className="mt-6">
-                    <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen}>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
-                          <div className="flex items-center space-x-2">
-                            {isAuthSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <CardTitle className="text-base">Authentication</CardTitle>
-                            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                  {/* Authentication and Response Content Validation sections side by side */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                    {/* Authentication Section */}
+                    <Card>
+                      <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen}>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+                            <div className="flex items-center space-x-2">
+                              {isAuthSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <CardTitle className="text-base">Authentication</CardTitle>
+                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                            </div>
+                            <CardDescription className="text-sm">
+                              Configure authentication credentials for protected endpoints
+                            </CardDescription>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent className="pt-0 space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="httpConfig_authType"
+                          render={({ field }) => (
+                            <FormItem className="mb-4">
+                              <FormLabel>Authentication Type</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select authentication type" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  <SelectItem value="basic">Basic Auth</SelectItem>
+                                  <SelectItem value="bearer">Bearer Token</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {authType === "basic" && (
+                          <div className="space-y-4 mb-4">
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_authUsername"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Username</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Enter username" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_authPassword"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Password</FormLabel>
+                                  <FormControl>
+                                    <Input type="password" placeholder="Enter password" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </div>
-                          <CardDescription className="text-sm">
-                            Configure authentication credentials for protected endpoints
-                          </CardDescription>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="httpConfig_authType"
-                        render={({ field }) => (
-                          <FormItem className="mb-4">
-                            <FormLabel>Authentication Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select authentication type" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="none">None</SelectItem>
-                                <SelectItem value="basic">Basic Auth</SelectItem>
-                                <SelectItem value="bearer">Bearer Token</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
                         )}
-                      />
 
-                      {authType === "basic" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                          <FormField
-                            control={form.control}
-                            name="httpConfig_authUsername"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Username</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Enter username" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="httpConfig_authPassword"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Password</FormLabel>
-                                <FormControl>
-                                  <Input type="password" placeholder="Enter password" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      )}
-
-                      {authType === "bearer" && (
-                        <div className="mb-4">
-                          <FormField
-                            control={form.control}
-                            name="httpConfig_authToken"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Bearer Token</FormLabel>
-                                <FormControl>
-                                  <Input type="password" placeholder="Enter bearer token" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      )}
-
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </Card>
-
-                  {/* Professional Keyword Check Section */}
-                  <Card className="mt-4">
-                    <Collapsible open={isKeywordSectionOpen} onOpenChange={setIsKeywordSectionOpen}>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
-                          <div className="flex items-center space-x-2">
-                            {isKeywordSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <CardTitle className="text-base">Response Content Validation</CardTitle>
-                            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                        {authType === "bearer" && (
+                          <div className="mb-4">
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_authToken"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Bearer Token</FormLabel>
+                                  <FormControl>
+                                    <Input type="password" placeholder="Enter bearer token" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </div>
-                          <CardDescription className="text-sm">
-                            Validate response content by checking for specific keywords or text
-                          </CardDescription>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        )}
+
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </Card>
+
+                    {/* Response Content Validation Section */}
+                    <Card>
+                      <Collapsible open={isKeywordSectionOpen} onOpenChange={setIsKeywordSectionOpen}>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+                            <div className="flex items-center space-x-2">
+                              {isKeywordSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <CardTitle className="text-base">Response Content Validation</CardTitle>
+                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                            </div>
+                            <CardDescription className="text-sm">
+                              Validate response content by checking for specific keywords or text
+                            </CardDescription>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent className="pt-0 space-y-4">
                         <FormField
                           control={form.control}
                           name="httpConfig_keywordInBody"
@@ -1167,11 +1222,11 @@ export function MonitorForm({
                             </FormItem>
                           )}
                         />
-                        </div>
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </Card>
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </Card>
+                  </div>
                 </div>
               )}
 
@@ -1248,120 +1303,175 @@ export function MonitorForm({
                         );
                       }}
                     />
+
+                    {/* SSL Certificate Check Section - Compact and Inline for Website */}
+                    <div className="p-3 border rounded-lg bg-muted/10">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Shield className="h-4 w-4 text-green-500" />
+                            <span className="text-sm font-medium">SSL Check</span>
+                            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span>
+                          </div>
+                          
+                          <FormField
+                            control={form.control}
+                            name="websiteConfig_enableSslCheck"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        {form.watch("websiteConfig_enableSslCheck") && (
+                          <div className="flex items-center space-x-2 pt-2 border-t">
+                            <span className="text-xs text-muted-foreground">Alert in</span>
+                            <FormField
+                              control={form.control}
+                              name="websiteConfig_sslDaysUntilExpirationWarning"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      placeholder="30"
+                                      min="1"
+                                      max="365"
+                                      className="w-16 h-7 text-xs"
+                                      {...field}
+                                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <span className="text-xs text-muted-foreground">days</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Professional Authentication Section for Website */}
-                  <Card className="mt-4">
-                    <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen}>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-2">
-                          <div className="flex items-center space-x-2">
-                            {isAuthSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <CardTitle className="text-base">Authentication</CardTitle>
-                            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                  {/* Authentication and Content Validation sections side by side for Website */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+                    {/* Authentication Section */}
+                    <Card>
+                      <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen}>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-2">
+                            <div className="flex items-center space-x-2">
+                              {isAuthSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <CardTitle className="text-base">Authentication</CardTitle>
+                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                            </div>
+                            <CardDescription className="text-sm">
+                              Configure authentication credentials for protected websites
+                            </CardDescription>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent className="pt-0 space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="httpConfig_authType"
+                          render={({ field }) => (
+                            <FormItem className="mb-4">
+                              <FormLabel>Authentication Type</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select authentication type" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  <SelectItem value="basic">Basic Auth</SelectItem>
+                                  <SelectItem value="bearer">Bearer Token</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {authType === "basic" && (
+                          <div className="space-y-4 mb-4">
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_authUsername"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Username</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Enter username" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_authPassword"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Password</FormLabel>
+                                  <FormControl>
+                                    <Input type="password" placeholder="Enter password" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </div>
-                          <CardDescription className="text-sm">
-                            Configure authentication credentials for protected websites
-                          </CardDescription>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="httpConfig_authType"
-                        render={({ field }) => (
-                          <FormItem className="mb-4">
-                            <FormLabel>Authentication Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select authentication type" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="none">None</SelectItem>
-                                <SelectItem value="basic">Basic Auth</SelectItem>
-                                <SelectItem value="bearer">Bearer Token</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
                         )}
-                      />
 
-                      {authType === "basic" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                          <FormField
-                            control={form.control}
-                            name="httpConfig_authUsername"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Username</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Enter username" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="httpConfig_authPassword"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Password</FormLabel>
-                                <FormControl>
-                                  <Input type="password" placeholder="Enter password" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      )}
-
-                      {authType === "bearer" && (
-                        <div className="mb-4">
-                          <FormField
-                            control={form.control}
-                            name="httpConfig_authToken"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Bearer Token</FormLabel>
-                                <FormControl>
-                                  <Input type="password" placeholder="Enter bearer token" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      )}
-
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </Card>
-
-                  {/* Professional Keyword Check Section for Website */}
-                  <Card className="mt-4">
-                    <Collapsible open={isKeywordSectionOpen} onOpenChange={setIsKeywordSectionOpen}>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-2">
-                          <div className="flex items-center space-x-2">
-                            {isKeywordSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <CardTitle className="text-base">Content Validation</CardTitle>
-                            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                        {authType === "bearer" && (
+                          <div className="mb-4">
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_authToken"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Bearer Token</FormLabel>
+                                  <FormControl>
+                                    <Input type="password" placeholder="Enter bearer token" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </div>
-                          <CardDescription className="text-sm">
-                            Check if specific text or keywords exist on your website
-                          </CardDescription>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        )}
+
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </Card>
+
+                    {/* Content Validation Section */}
+                    <Card>
+                      <Collapsible open={isKeywordSectionOpen} onOpenChange={setIsKeywordSectionOpen}>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-2">
+                            <div className="flex items-center space-x-2">
+                              {isKeywordSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <CardTitle className="text-base">Content Validation</CardTitle>
+                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                            </div>
+                            <CardDescription className="text-sm">
+                              Check if specific text or keywords exist on your website
+                            </CardDescription>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent className="pt-0 space-y-4">
                         <FormField
                           control={form.control}
                           name="httpConfig_keywordInBody"
@@ -1406,70 +1516,13 @@ export function MonitorForm({
                             </FormItem>
                           )}
                         />
-                        </div>
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </Card>
-
-                  {/* SSL Certificate Check Section - Compact */}
-                  <div className="mt-4 p-4 border rounded-lg bg-muted/20">
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <Shield className="h-4 w-4 text-green-500" />
-                        <span className="text-sm font-medium">SSL Certificate Monitoring</span>
-                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">Optional</span>
-                      </div>
-                      
-                      <FormField
-                        control={form.control}
-                        name="websiteConfig_enableSslCheck"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center justify-between">
-                            <div className="space-y-0.5">
-                              <FormLabel className="text-sm">Enable SSL monitoring</FormLabel>
-                              <FormDescription className="text-xs">
-                                Check certificate validity and expiration
-                              </FormDescription>
-                            </div>
-                            <FormControl>
-                              <Switch
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                      {form.watch("websiteConfig_enableSslCheck") && (
-                        <FormField
-                          control={form.control}
-                          name="websiteConfig_sslDaysUntilExpirationWarning"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-sm">Warning threshold (days)</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  placeholder="30"
-                                  min="1"
-                                  max="365"
-                                  className="w-24"
-                                  {...field}
-                                  onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                                />
-                              </FormControl>
-                              <FormDescription className="text-xs">
-                                Alert when certificate expires within this many days
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-                    </div>
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </Card>
                   </div>
+
+
                 </div>
               )}
 

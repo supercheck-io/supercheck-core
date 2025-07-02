@@ -117,7 +117,7 @@ export function CreatePageContent() {
         />
       </div>
 
-      <div className="mt-8 mb-3 pl-1">
+      <div className="mt-4 mb-3 pl-1">
         <h2 className="text-xl font-bold">Create New Monitor</h2>
         <p className="text-muted-foreground text-sm mt-1">Select the type of monitor you want to create</p>
       </div>

@@ -72,7 +72,7 @@ export async function POST(
         notificationType = 'monitor_recovery';
         severity = 'success';
         title = `Monitor Recovered - ${monitor.name}`;
-        message = `Monitor "${monitor.name}" has recovered and is back online.`;
+        message = `Monitor "${monitor.name}" has recovered and is now operational.`;
         
         // Only send recovery notifications if enabled
         if (!monitor.alertConfig.alertOnRecovery) {
@@ -87,11 +87,8 @@ export async function POST(
       case 'failure':
         notificationType = 'monitor_failure';
         severity = 'error';
-        title = `Monitor Down - ${monitor.name}`;
-        message = `Monitor "${monitor.name}" is currently down.`;
-        if (reason) {
-          message += ` ${reason}`;
-        }
+        title = `Monitor Alert - ${monitor.name}`;
+        message = `Monitor "${monitor.name}" is down. ${reason || 'No ping received within expected interval'}`;
         
         // Only send failure notifications if enabled
         if (!monitor.alertConfig.alertOnFailure) {
@@ -334,20 +331,8 @@ async function sendNotificationToProvider(provider: any, payload: any): Promise<
 }
 
 function formatNotificationForProvider(payload: any) {
-  // Professional formatting with icons and structured data
-  const getNotificationIcon = (type: string): string => {
-    switch (type) {
-      case 'monitor_failure':
-        return '🚨';
-      case 'monitor_recovery':
-        return '✅';
-      default:
-        return '📊';
-    }
-  };
-
-  const icon = getNotificationIcon(payload.type);
-  const title = `${icon} ${payload.title}`;
+  // Professional formatting without emojis for consistency
+  const title = payload.title;
 
   // Build structured fields
   const fields = [

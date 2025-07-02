@@ -143,32 +143,12 @@ export class NotificationService {
   }
 
   private formatNotification(payload: NotificationPayload): FormattedNotification {
-    // Standardized formatting with professional appearance
-    const getNotificationIcon = (type: string, severity: string): string => {
-      switch (type) {
-        case 'monitor_failure':
-          return '\ud83d\udea8';
-        case 'monitor_recovery':
-          return '\u2705';
-        case 'job_failed':
-          return '\u274c';
-        case 'job_success':
-          return '\u2705';
-        case 'job_timeout':
-          return '\u23f0';
-        case 'ssl_expiring':
-          return '\ud83d\udd12';
-        default:
-          return severity === 'error' ? '\ud83d\udea8' : severity === 'success' ? '\u2705' : '\u2139\ufe0f';
-      }
-    };
-
-    const icon = getNotificationIcon(payload.type, payload.severity);
+    // Standardized formatting with professional appearance - no emojis for consistency
     const isMonitor = payload.type.includes('monitor');
     const isJob = payload.type.includes('job');
 
-    // Consistent title format with icon
-    const title = `${icon} ${payload.title}`;
+    // Consistent title format without emojis for professional appearance
+    const title = payload.title;
 
     // Enhanced message with context
     let enhancedMessage = payload.message;

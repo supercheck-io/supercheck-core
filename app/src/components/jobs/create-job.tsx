@@ -30,7 +30,7 @@ import {
 import { ControllerRenderProps } from "react-hook-form";
 import TestSelector from "./test-selector";
 import CronScheduler from "./cron-scheduler";
-import { Info } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import NextRunDisplay from "./next-run-display";
 
 const jobFormSchema = z.object({
@@ -52,6 +52,7 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobPro
   const [selectedTests, setSelectedTests] = useState<Test[]>([]);
   const [submissionAttempted, setSubmissionAttempted] = useState(false);
   const [formChanged, setFormChanged] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
@@ -68,6 +69,7 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobPro
   // Handle form submission
   const onSubmit = form.handleSubmit(async (values: FormData) => {
     setSubmissionAttempted(true);
+    setIsSubmitting(true);
 
     // Ensure cronSchedule is a valid cron string or empty, default to '*' if empty but intended
     // react-js-cron defaults to '*' when initialized empty, let's reflect that maybe?
@@ -122,6 +124,8 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobPro
         description:
           error instanceof Error ? error.message : "An unknown error occurred",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   });
 
@@ -241,16 +245,21 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobPro
                   type="button"
                   variant="outline"
                   onClick={onCancel || (() => router.push("/jobs"))}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button 
                   type="submit" 
                   className="flex items-center"
-                 
+                  disabled={isSubmitting}
                 >
-                  <SaveIcon className="h-4 w-4 mr-2" />
-                  {hideAlerts ? "Next: Alerts" : "Create"}
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <SaveIcon className="h-4 w-4 mr-2" />
+                  )}
+                  {isSubmitting ? "Creating..." : (hideAlerts ? "Next: Alerts" : "Create")}
                 </Button>
               </div>
             </form>

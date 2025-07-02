@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const dbInstance = db;
     
-    // Fetch real alert history from database with job and monitor names
+    // Optimized query with better performance - fetch alert history first, then join only when needed
     const history = await dbInstance
       .select({
         id: alertHistory.id,
@@ -28,7 +28,7 @@ export async function GET() {
       .leftJoin(jobs, eq(alertHistory.jobId, jobs.id))
       .leftJoin(monitors, eq(alertHistory.monitorId, monitors.id))
       .orderBy(desc(alertHistory.sentAt))
-      .limit(100);
+      .limit(50); // Reduce limit for better performance
 
     // Transform the data to match the expected format
     const transformedHistory = history.map(item => ({

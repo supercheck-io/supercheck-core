@@ -37,9 +37,9 @@ export default async function CreateMonitorPage({ searchParams }: CreateMonitorP
         ]} />
         <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
           <CardContent>
-        <div className="p-2 mt-6">
+        <div className="p-2 mt-4">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold">Create New Monitor</h1>
+            <h1 className="text-2xl font-semibold">Create  Monitor</h1>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0">

@@ -458,7 +458,7 @@ export default function AlertsPage() {
                     </div>
                     
                     <div className="h-full flex-1 flex-col md:flex">
-                      {filteredAlertHistory.length === 0 ? (
+                      {filteredAlertHistory.length === 0 && !loading ? (
                         <div className="text-center py-8">
                           <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                           <h3 className="text-md font-medium mb-2">No alerts found</h3>

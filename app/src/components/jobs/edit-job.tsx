@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { SaveIcon, Trash2 } from "lucide-react";
+import { SaveIcon, Trash2, Loader2 } from "lucide-react";
 import { updateJob } from "@/actions/update-job";
 import { getJob } from "@/actions/get-jobs";
 import { deleteJob } from "@/actions/delete-job";
@@ -45,6 +45,7 @@ import CronScheduler from "./cron-scheduler";
 import { Info } from "lucide-react";
 import NextRunDisplay from "./next-run-display";
 import { AlertSettings } from "@/components/alerts/alert-settings";
+import { EditJobSkeleton } from "./edit-job-skeleton";
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
@@ -369,11 +370,7 @@ export default function EditJob({ jobId }: EditJobProps) {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-60">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
+    return <EditJobSkeleton />;
   }
 
   if (showAlerts) {
@@ -412,7 +409,13 @@ export default function EditJob({ jobId }: EditJobProps) {
               <Button
                 onClick={handleFinalSubmit}
                 disabled={isSubmitting || !formChanged}
+                className="flex items-center"
               >
+                {isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <SaveIcon className="mr-2 h-4 w-4" />
+                )}
                 {isSubmitting ? "Updating..." : "Update Job"}
               </Button>
             </div>

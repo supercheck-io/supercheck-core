@@ -5,6 +5,8 @@ import { CreateJob } from "./create-job";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface JobAlertConfig {
   enabled: boolean;
@@ -29,6 +31,7 @@ export function JobCreationWizard() {
     failureThreshold: 1,
     recoveryThreshold: 1,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleJobNext = (data: any) => {
     setJobData(data);
@@ -37,6 +40,7 @@ export function JobCreationWizard() {
 
   const handleCreateJob = async () => {
     try {
+      setIsSubmitting(true);
       const finalData = {
         ...jobData,
         alertConfig: alertConfig,
@@ -53,25 +57,28 @@ export function JobCreationWizard() {
         body: JSON.stringify(finalData),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          console.log("Job created successfully:", result);
-          
-          // TODO: Save alert configuration to job-notification settings
-          
-          window.location.href = "/jobs";
-        } else {
-          throw new Error(result.error || "Failed to create job");
-        }
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        console.log("Job created successfully:", result);
+        toast.success("Success", {
+          description: `Job "${finalData.name}" has been created.`,
+        });
+        window.location.href = "/jobs";
       } else {
-        const error = await response.json();
-        console.error("Failed to create job:", error);
-        throw new Error(error.error || "Failed to create job");
+        const errorMessage = result.error || result.message || "Failed to create job";
+        console.error("Failed to create job:", errorMessage);
+        toast.error("Failed to create job", {
+          description: errorMessage
+        });
       }
     } catch (error) {
       console.error("Failed to create job:", error);
-      // You might want to show an error toast here
+      toast.error("Error", {
+        description: error instanceof Error ? error.message : "An unexpected error occurred"
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -114,8 +121,19 @@ export function JobCreationWizard() {
             <Button variant="outline" onClick={() => setShowAlerts(false)}>
               Back
             </Button>
-            <Button onClick={handleCreateJob}>
-              Create Job
+            <Button 
+              onClick={handleCreateJob} 
+              disabled={isSubmitting}
+              className="flex items-center"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Job"
+              )}
             </Button>
           </div>
         </CardContent>

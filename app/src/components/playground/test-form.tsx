@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SaveIcon, Trash2 } from "lucide-react";
+import { SaveIcon, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { testsInsertSchema, TestPriority, TestType } from "@/db/schema/schema";
 import { saveTest } from "@/actions/save-test";
@@ -142,6 +142,7 @@ export function TestForm({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [formChanged, setFormChanged] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Track if form has changes compared to initial values
   const hasChangesLocal = useCallback(() => {
@@ -190,6 +191,7 @@ export function TestForm({
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     console.log("Submit clicked, current testCase:", testCase);
     console.log("Editor content length:", editorContent.length);
 
@@ -252,8 +254,11 @@ export function TestForm({
         toast.error("Error", {
           description: "Failed to save test. Please try again later.",
         });
+      } finally {
+        setIsSubmitting(false);
       }
     } else {
+      setIsSubmitting(false);
       // Show validation errors
       const errorMessages = Object.values(errors).filter(Boolean);
       const errorDescription =
@@ -575,20 +580,28 @@ export function TestForm({
                 type="submit"
                 onClick={handleSubmit}
                 className="flex items-center gap-2 h-9 px-4"
-                disabled={isRunning || !formChanged}
+                disabled={isRunning || !formChanged || isSubmitting}
               >
-                <SaveIcon className="h-4 w-4 mr-2" />
-                Update
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <SaveIcon className="h-4 w-4 mr-2" />
+                )}
+                {isSubmitting ? "Updating..." : "Update"}
               </Button>
             ) : (
               <Button
                 type="submit"
                 onClick={handleSubmit}
                 className="flex items-center gap-2 h-9 px-4"
-                disabled={isRunning || !formChanged}
+                disabled={isRunning || !formChanged || isSubmitting}
               >
-                <SaveIcon className="h-4 w-4 mr-2" />
-                Save
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <SaveIcon className="h-4 w-4 mr-2" />
+                )}
+                {isSubmitting ? "Saving..." : "Save"}
               </Button>
             )}
           </div>

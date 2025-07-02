@@ -137,15 +137,16 @@ export class JobExecutionProcessor extends WorkerHost {
       // Update the job status based on test results
       const finalStatus = result.success ? 'passed' : 'failed';
       
-      // Update database directly
-      if (originalJobId) {
-        await this.dbService.updateJobStatus(originalJobId, [finalStatus])
-          .catch(err => this.logger.error(`[${runId}] Failed to update job status to ${finalStatus}: ${err.message}`));
-      }
-      
-      // Update the run status with duration
+      // Update the run status with duration first
       await this.dbService.updateRunStatus(runId, finalStatus, durationSeconds.toString())
-        .catch(err => this.logger.error(`[${runId}] Failed to update run status to ${finalStatus}: ${err.message}`)); 
+        .catch(err => this.logger.error(`[${runId}] Failed to update run status to ${finalStatus}: ${err.message}`));
+      
+      // Update job status based on all current run statuses (including the one we just updated)
+      if (originalJobId) {
+        const finalRunStatuses = await this.dbService.getRunStatusesForJob(originalJobId);
+        await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
+          .catch(err => this.logger.error(`[${runId}] Failed to update job status: ${err.message}`));
+      } 
       
       // Status updates via Redis are now handled by QueueStatusService
       // through the Bull queue event listeners
@@ -163,13 +164,16 @@ export class JobExecutionProcessor extends WorkerHost {
       const errorStatus = 'failed';
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      if (originalJobId) {
-        await this.dbService.updateJobStatus(originalJobId, [errorStatus])
-          .catch(err => this.logger.error(`[${runId}] Failed to update job error status: ${err.message}`));
-      }
-      
+      // Update run status first
       await this.dbService.updateRunStatus(runId, errorStatus, '0')
         .catch(err => this.logger.error(`[${runId}] Failed to update run error status: ${err.message}`));
+      
+      // Update job status based on all current run statuses
+      if (originalJobId) {
+        const finalRunStatuses = await this.dbService.getRunStatusesForJob(originalJobId);
+        await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
+          .catch(err => this.logger.error(`[${runId}] Failed to update job error status: ${err.message}`));
+      }
       
       // Status updates via Redis are now handled by QueueStatusService
       // through the Bull queue event listeners
@@ -267,19 +271,19 @@ export class JobExecutionProcessor extends WorkerHost {
         alertType = 'job_timeout';
         severity = 'warning';
         title = `Job Timeout - ${job.name}`;
-        message = `Job ${job.name} timed out after ${durationSeconds} seconds`;
+        message = `Job "${job.name}" timed out after ${durationSeconds} seconds. No ping received within expected interval.`;
       } else if (shouldNotifyFailure) {
         notificationType = 'job_failed';
         alertType = 'job_failed';
         severity = 'error';
         title = `Job Failed - ${job.name}`;
-        message = `Job ${job.name} has failed.`;
+        message = `Job "${job.name}" has failed with ${failedTests} test failure${failedTests !== 1 ? 's' : ''}.`;
       } else if (shouldNotifySuccess) {
         notificationType = 'job_success';
         alertType = 'job_success';
         severity = 'success';
         title = `Job Completed - ${job.name}`;
-        message = `Job ${job.name} has completed successfully.`;
+        message = `Job "${job.name}" has completed successfully.`;
       } else {
         // This shouldn't happen since we return early if no conditions are met
         return;

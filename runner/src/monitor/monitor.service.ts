@@ -237,9 +237,11 @@ export class MonitorService {
             if (providers.length > 0) {
               const notificationPayload: NotificationPayload = {
                 type: resultData.status === 'up' && previousStatus === 'down' ? 'monitor_recovery' : 'monitor_failure',
-                title: `Monitor ${resultData.status === 'up' ? 'Recovery' : 'Alert'}: ${monitor.name}`,
+                title: resultData.status === 'up' ? `Monitor Recovered - ${monitor.name}` : `Monitor Alert - ${monitor.name}`,
                 message: monitor.alertConfig.customMessage || 
-                  `Monitor "${monitor.name}" is ${resultData.status}. ${resultData.details?.errorMessage || ''}`,
+                  (resultData.status === 'up' 
+                    ? `Monitor "${monitor.name}" has recovered and is now operational.`
+                    : `Monitor "${monitor.name}" is down. ${resultData.details?.errorMessage || 'No ping received within expected interval'}`),
                 targetName: monitor.name,
                 targetId: monitor.id,
                 severity: resultData.status === 'up' ? 'success' : 'error',
