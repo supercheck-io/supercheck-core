@@ -33,7 +33,7 @@ export function AlertsComponent() {
   }, [fetchAlerts]);
 
   return (
-    <div className="h-full flex-1 flex-col space-y-4 p-4 md:flex">
+    <div className="h-full flex-1 flex-col p-2 mt-6">
       <DataTable 
         columns={columns} 
         data={alerts} 

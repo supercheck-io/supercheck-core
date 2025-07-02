@@ -22,7 +22,7 @@ export function DataTableToolbar<TData>({
     <div className="flex items-center justify-between mb-4 -mt-2">
       <div className="flex items-center justify-between space-y-2">
         <div className="flex flex-col">
-          <h2 className="text-lg font-medium">Runs</h2>
+          <h2 className="text-2xl font-semibold">Runs</h2>
           <p className="text-muted-foreground text-sm">
             View Job runs and their results
           </p>

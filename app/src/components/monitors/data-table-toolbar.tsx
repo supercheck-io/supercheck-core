@@ -24,7 +24,7 @@ export function DataTableToolbar<TData>({
     <div className="flex items-center justify-between mb-4 -mt-2">
       <div className="flex items-center justify-between space-y-2">
         <div className="flex flex-col">
-          <h2 className="text-lg font-medium">Monitors</h2>
+          <h2 className="text-2xl font-semibold">Monitors</h2>
           <p className="text-muted-foreground text-sm">
             Manage your monitors and their configurations
           </p>

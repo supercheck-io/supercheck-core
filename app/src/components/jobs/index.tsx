@@ -251,7 +251,7 @@ export default function Jobs() {
   };
 
   return (
-    <div className="flex h-full flex-col space-y-4 p-4 w-full max-w-full overflow-x-hidden">
+    <div className="flex h-full flex-col space-y-4 p-2 mt-6 w-full max-w-full overflow-x-hidden">
       <DataTable
         data={jobs}
         columns={columns}

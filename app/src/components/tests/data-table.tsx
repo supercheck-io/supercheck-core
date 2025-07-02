@@ -110,7 +110,7 @@ export function DataTable<TData, TValue>({
     columns,
     initialState: {
       pagination: {
-        pageSize: 15,
+        pageSize: 12,
       },
     },
     state: {
@@ -213,7 +213,7 @@ export function DataTable<TData, TValue>({
                   onClick={() => onRowClick?.(row)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-2">
+                    <TableCell key={cell.id} className="py-2.5">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

@@ -82,7 +82,7 @@ export default function MonitorsList() {
   };
 
   return (
-    <div className="flex h-full flex-col space-y-4 p-4">
+    <div className="flex h-full flex-col space-y-4 p-2 mt-6">
       <DataTable
         key={tableKey}
         columns={columns}

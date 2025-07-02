@@ -512,11 +512,11 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   };
 
   return (
-    <div className="container py-4 px-4 md:px-4 ">
+    <div className=" p-4 h-full">
       
       {/* Status and Type Header */}
-      <div className="border rounded-lg p-2 mb-6 shadow-sm bg-card">
-        <div className="flex items-center justify-between mb-3">
+      <div className="border rounded-lg p-2 mb-4 shadow-sm bg-card">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button 
               variant="outline" 
@@ -528,9 +528,9 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               <span className="sr-only">Back to monitors</span>
             </Button>
             <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
+              <h1 className="text-2xl font-semibold flex items-center gap-2 mt-1">
                 {monitorTypeInfo?.icon && <monitorTypeInfo.icon className="h-6 w-6 text-primary" />}
-                {monitor.name}
+                {monitor.name.length > 40 ? monitor.name.slice(0, 40) + "..." : monitor.name}
               </h1>
               <div className="text-sm text-muted-foreground truncate max-w-md" title={monitor.url}>
                 {monitor.url} 
@@ -625,14 +625,14 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           </div>
         </div>
 
-        <div className={`grid gap-4 mt-4 ${monitor.type === "heartbeat" ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-5" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7"}`}>
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+        <div className={`grid gap-4 mt-4 ${monitor.type === "heartbeat" ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-6" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7"}`}>
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
               <StatusHeaderIcon status={currentActualStatus} />
               <CardTitle className="text-sm font-medium text-muted-foreground">Status</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
-              <div className="text-lg font-semibold">
+              <div className="text-xl font-semibold">
                 {statusInfo?.label ?? currentActualStatus?.charAt(0).toUpperCase() + currentActualStatus?.slice(1) ?? "Unknown"}
               </div>
             </CardContent>
@@ -640,18 +640,18 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
           {monitor.type === "heartbeat" ? (
             <>
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
                   <Clock className="h-5 w-5 text-purple-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Expected Interval</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-lg font-semibold">{(monitor as any).config?.expectedIntervalMinutes ? `${(monitor as any).config.expectedIntervalMinutes}m` : "60m"}</div>
+                  <div className="text-xl font-semibold">{(monitor as any).config?.expectedIntervalMinutes ? `${(monitor as any).config.expectedIntervalMinutes}m` : "60m"}</div>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
                   <ShieldCheck className="h-5 w-5 text-blue-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Grace Period</CardTitle>
                 </CardHeader>
@@ -660,82 +660,94 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
                   <Activity className="h-5 w-5 text-green-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Last Ping</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-lg font-semibold">
+                  <div className="text-xl font-semibold">
                     {formatShortDateTime((monitor as any).config?.lastPingAt)}
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
+                  <TrendingUp className="h-5 w-5 text-green-400" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4 px-4">
+                  <div className="text-xl font-semibold">{calculatedMetrics.uptime30d}</div>
                 </CardContent>
               </Card>
             </>
           ) : (
             <>
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
                   <Activity className="h-5 w-5 text-blue-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Response Time</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-lg font-semibold">{currentResponseTime}</div>
+                  <div className="text-xl font-semibold">{currentResponseTime}</div>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
                   <Clock className="h-5 w-5 text-purple-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Interval</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                    <div className="text-lg font-semibold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
+                    <div className="text-xl font-semibold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
                 </CardContent>
               </Card>
             </>
           )}
 
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
               <TrendingUp className="h-5 w-5 text-green-400" />
               <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (24h)</CardTitle>
             </CardHeader>
             <CardContent className="pb-4 px-4">
-              <div className="text-lg font-semibold">{calculatedMetrics.uptime24h}</div>
+              <div className="text-xl font-semibold">{calculatedMetrics.uptime24h}</div>
             </CardContent>
           </Card>
+
+  
           
 
           {monitor.type !== "heartbeat" && (
             <>
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
                   <Zap className="h-5 w-5 text-amber-400" /> 
                   <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (24h)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-lg font-semibold">{calculatedMetrics.avgResponse24h}</div>
+                  <div className="text-xl font-semibold">{calculatedMetrics.avgResponse24h}</div>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
                   <TrendingUp className="h-5 w-5 text-green-400" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-lg font-semibold">{calculatedMetrics.uptime30d}</div>
+                  <div className="text-xl font-semibold">{calculatedMetrics.uptime30d}</div>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-24">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-2 pt-3 px-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
                   <Zap className="h-5 w-5 text-amber-400" /> 
                   <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (30d)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-lg font-semibold">{calculatedMetrics.avgResponse30d}</div>
+                  <div className="text-xl font-semibold">{calculatedMetrics.avgResponse30d}</div>
                 </CardContent>
               </Card>
 
@@ -746,11 +758,11 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" >
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" >
         {monitor.type === "heartbeat" ? (
           <>
             {/* Left column - Availability Chart */}
-            <div className="flex flex-col space-y-6 h-full">
+            <div className="flex flex-col h-full">
               <div className="flex-1">
                 <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
               </div>
@@ -820,7 +832,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             <Card className="shadow-sm flex flex-col">
               <CardHeader className="flex-shrink-0">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl flex items-center">
+                  <CardTitle className="text-2xl font-semibold flex items-center">
                     Recent Check Results
                   </CardTitle>
                   <div className="flex items-center gap-2">
@@ -979,7 +991,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             <Card className="shadow-sm flex flex-col">
               <CardHeader className="flex-shrink-0">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl flex items-center">
+                  <CardTitle className="text-2xl font-semibold flex items-center">
                     Recent Check Results
                   </CardTitle>
                   <div className="flex items-center gap-2">

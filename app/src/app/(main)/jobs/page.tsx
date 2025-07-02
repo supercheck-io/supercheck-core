@@ -1,5 +1,6 @@
 import Jobs from "@/components/jobs";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function JobsPage() {
   const breadcrumbs = [
@@ -9,7 +10,11 @@ export default function JobsPage() {
   return (
     <div>
       <PageBreadcrumbs items={breadcrumbs} />
-      <Jobs />
+      <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
+        <CardContent>
+          <Jobs />
+        </CardContent>
+      </Card>
     </div>
   );
 } 

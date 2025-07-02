@@ -638,7 +638,7 @@ export function MonitorForm({
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <CardTitle>{title || (editMode ? "Edit Monitor" : "Create New Monitor")}</CardTitle>
+              <CardTitle className="text-2xl font-semibold">{title || (editMode ? "Edit Monitor" : "Create Monitor")}</CardTitle>
               {hideTypeSelector && (
                 <Popover>
                   <PopoverTrigger asChild>

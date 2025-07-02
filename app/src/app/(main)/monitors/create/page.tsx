@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata: Metadata = {
   title: "Create Monitor | Supercheck",
@@ -28,14 +29,17 @@ export default async function CreateMonitorPage({ searchParams }: CreateMonitorP
   if (!monitorType) {
     // Redirect to the existing create page with monitor options
     return (
+
       <div>
         <PageBreadcrumbs items={[
           { label: "Monitors", href: "/monitors" },
           { label: "Create", href: "/monitors/create" },
         ]} />
-        <div className="p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <h1 className="text-2xl font-bold">Create New Monitor</h1>
+        <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
+          <CardContent>
+        <div className="p-2 mt-6">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold">Create New Monitor</h1>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
@@ -62,7 +66,7 @@ export default async function CreateMonitorPage({ searchParams }: CreateMonitorP
               </PopoverContent>
             </Popover>
           </div>
-          <p className="text-muted-foreground mb-6">Select a monitor type to get started</p>
+              <p className="text-muted-foreground text-sm mb-6">Select a monitor type to get started</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {monitorTypes.map((type) => (
               <a
@@ -79,8 +83,10 @@ export default async function CreateMonitorPage({ searchParams }: CreateMonitorP
                 </div>
               </a>
             ))}
+            </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
       </div>
     );
   }

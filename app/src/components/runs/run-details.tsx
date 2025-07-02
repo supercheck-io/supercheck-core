@@ -181,7 +181,7 @@ export function RunDetails({ run }: RunDetailsProps) {
   };
 
   return (
-    <div className="container py-4 px-4 h-full overflow-hidden">
+    <div className=" py-4 px-4 h-full overflow-hidden">
       {/* Status listener for real-time updates */}
       <RunStatusListener 
         runId={run.id} 
@@ -190,7 +190,7 @@ export function RunDetails({ run }: RunDetailsProps) {
       />
       
       {/* Main header similar to monitor details */}
-      <div className="border rounded-lg p-4 mb-4">
+      <div className="border rounded-lg p-4 mb-4 shadow-sm bg-card ">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Button 
@@ -205,8 +205,8 @@ export function RunDetails({ run }: RunDetailsProps) {
               </Link>
             </Button>
             <div>
-              <h1 className="text-xl font-bold flex items-center gap-2">
-                {run.jobName || "Unknown Job"}
+              <h1 className="text-2xl font-semibold flex items-center gap-2">
+                {run.jobName && run.jobName.length > 40 ? run.jobName.slice(0, 40) + "..." : run.jobName || "Unknown Job"}
               </h1>
               {/* {run.testCount !== undefined && (
                 <div className="text-sm text-muted-foreground flex items-center" >
@@ -316,7 +316,7 @@ export function RunDetails({ run }: RunDetailsProps) {
             isRunning={currentStatus === "running"}
             backToLabel="Back to Runs"
             backToUrl="/runs"
-            containerClassName="w-full h-[calc(100vh-260px)] relative"
+            containerClassName="w-full h-[calc(100vh-270px)] relative"
             iframeClassName="w-full h-full border-0 rounded-lg"
             darkMode={false}
             hideEmptyMessage={true}

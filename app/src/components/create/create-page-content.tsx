@@ -66,7 +66,7 @@ export function CreatePageContent() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 p-4">
+    <div className=" mx-auto  p-4">
       <div className="mb-3 pl-1">
         <h2 className="text-xl font-bold">Create New Test</h2>
         <p className="text-muted-foreground text-sm mt-1">

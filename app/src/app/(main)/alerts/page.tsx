@@ -240,13 +240,11 @@ export default function AlertsPage() {
 
 
   return (
-    <div>
+    <div className="">
       <PageBreadcrumbs items={breadcrumbs} />
-      <div className="container mx-auto p-4">
-        <div className="space-y-6">
-   
-
-          <Card>
+      <div className="mx-auto p-4">
+        <div className="">
+          <Card >
             <Tabs defaultValue="history" className="w-full">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -326,11 +324,11 @@ export default function AlertsPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-0">
+              <CardContent className="pt-0 -mt-2">
                 <TabsContent value="providers" className="mt-0">
                   <div className="space-y-4">
                     <div>
-                      <CardTitle className="text-lg">Notification Providers</CardTitle>
+                      <CardTitle className="text-2xl font-semibold">Notification Providers</CardTitle>
                       <CardDescription>
                         Configure how you want to receive alerts
                       </CardDescription>
@@ -410,10 +408,10 @@ export default function AlertsPage() {
                 </TabsContent>
 
                 <TabsContent value="history" className="mt-0">
-                  <div className="space-y-4">
+                  <div >
                     <div className="flex items-center justify-between">
                       <div>
-                        <CardTitle className="text-lg">Alert History</CardTitle>
+                        <CardTitle className="text-2xl font-semibold">Alert History</CardTitle>
                         <CardDescription>
                           View all alert notifications that have been sent
                         </CardDescription>
@@ -459,7 +457,7 @@ export default function AlertsPage() {
                       </div>
                     </div>
                     
-                    <div className="h-full flex-1 flex-col space-y-4 md:flex">
+                    <div className="h-full flex-1 flex-col md:flex">
                       {filteredAlertHistory.length === 0 ? (
                         <div className="text-center py-8">
                           <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

@@ -423,7 +423,7 @@ export default function EditJob({ jobId }: EditJobProps) {
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
           <div>

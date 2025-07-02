@@ -108,7 +108,7 @@ export function DataTable<TData, TValue>({
     columns,
     initialState: {
       pagination: {
-        pageSize: 15,
+        pageSize: 12,
       },
     },
     state: {
@@ -217,7 +217,7 @@ export function DataTable<TData, TValue>({
                     <TableCell
                       key={cell.id}
                       className={cn(
-                        "py-2",
+                        "py-2.5",
                         cell.column.id === "actions" ? "actions-column" : ""
                       )}
                     >

@@ -138,26 +138,26 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
   ];
 
   return (
-    <Card className="h-full flex flex-col shadow-sm min-h-[400px]">
+    <Card className="h-full flex flex-col shadow-sm min-h-[415px] -mt-2">
       <CardHeader className="pb-3">
-        <CardTitle className="text-xl">Response Time</CardTitle>
+        <CardTitle className="text-2xl font-semibold">Response Time</CardTitle>
         <CardDescription className="text-sm">
           Recent response times in milliseconds ({data.length} data points)
         </CardDescription>
       </CardHeader>
-      <CardContent className="pl-1 pr-2 pb-3 flex-1">
+      <CardContent className="p-2 flex-1">
         <ChartContainer
           config={chartConfig}
-          className="h-full w-full"
+          className="h-full w-full -mt-2"
         >
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={sortedData}
               margin={{
-                left: -1,
-                right: 12,
-                top: 12,
-                bottom: 8
+                left: 5,
+                right: 5,
+                top: 5,
+                bottom: 5
               }}
             >
               <defs>

@@ -43,10 +43,10 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
     return (
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-xl">Availability Overview</CardTitle>
-          <CardDescription>Availability status for monitor checks.</CardDescription>
+          <CardTitle className="text-2xl font-semibold">Availability Overview</CardTitle>
+          <CardDescription className="text-sm ">Availability status for monitor checks.</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-center h-[120px]">
+        <CardContent className="flex items-center justify-center h-[125px]">
           <p className="text-muted-foreground">{getEmptyMessage()}</p>
         </CardContent>
       </Card>
@@ -78,20 +78,20 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle className="text-xl">Availability Overview</CardTitle>
+        <CardTitle className="text-2xl font-semibold">Availability Overview</CardTitle>
         <CardDescription>
           {getDescription()}
         </CardDescription>
       </CardHeader>
-      <CardContent className="p-1 pt-0 h-[120px]"> {/* Adjusted height, remove padding top from content if header has enough */}
-        <ChartContainer config={chartConfig} className="w-full h-full">
+      <CardContent className="p-2 pt-0 h-[132px]"> {/* Adjusted height, remove padding top from content if header has enough */}
+        <ChartContainer config={chartConfig} className="w-full h-full -mt-4">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={processedData}
               margin={{
-                top: 10, // Add some top margin for space from header
-                right: 10,
-                left: 10,
+                top: 5, // Add some top margin for space from header
+                right: 5,
+                left: 5,
                 bottom: 5,
               }}
               barSize={Math.max(8, Math.min(20, Math.floor(800 / data.length)))} // Dynamic bar size based on data count
