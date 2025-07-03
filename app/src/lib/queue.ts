@@ -359,8 +359,8 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
  */
 export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: number = 30): Promise<string> {
   const { jobQueue } = await getQueues();
-  const jobUuid = task.jobId; // Use jobId for tracking
-  console.log(`[Queue Client] Adding job ${jobUuid} (${task.testScripts.length} tests) to queue ${JOB_EXECUTION_QUEUE}`);
+  const runId = task.runId; // Use runId for consistency with scheduled jobs  
+  console.log(`[Queue Client] Adding job ${runId} (${task.testScripts.length} tests) to queue ${JOB_EXECUTION_QUEUE}`);
   
   try {
     // Check the current queue size against QUEUED_CAPACITY
@@ -370,15 +370,22 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
     console.log(`[Queue Client] Setting timeout of ${timeoutMs}ms (${expiryMinutes} minutes)`);
     
     const jobOptions = {
-      jobId: jobUuid,
-      // Timeout option would be: timeout: timeoutMs
-      // But timeout/duration is managed by worker instead
+      jobId: runId, // Use runId as BullMQ job ID for consistency
+      attempts: 3,
+      backoff: {
+        type: 'exponential' as const,
+        delay: 5000
+      },
+      removeOnComplete: true,
+      removeOnFail: false,
     };
-    await jobQueue.add(JOB_EXECUTION_QUEUE, task, jobOptions);
-    console.log(`[Queue Client] Job ${jobUuid} added successfully.`);
-    return jobUuid;
+    
+    // Use runId as the job name (first parameter) to match scheduled jobs
+    await jobQueue.add(runId, task, jobOptions);
+    console.log(`[Queue Client] Job ${runId} added successfully.`);
+    return runId;
   } catch (error) {
-    console.error(`[Queue Client] Error adding job ${jobUuid} to queue:`, error);
+    console.error(`[Queue Client] Error adding job ${runId} to queue:`, error);
     throw new Error(`Failed to add job execution job: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

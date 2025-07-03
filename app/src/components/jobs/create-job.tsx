@@ -45,18 +45,22 @@ interface CreateJobProps {
   hideAlerts?: boolean;
   onSave?: (data: any) => void;
   onCancel?: () => void;
+  initialValues?: Partial<FormData>;
+  selectedTests?: Test[];
+  setSelectedTests?: (tests: Test[]) => void;
 }
 
-export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobProps) {
+export function CreateJob({ hideAlerts = false, onSave, onCancel, initialValues, selectedTests: externalSelectedTests, setSelectedTests: setExternalSelectedTests }: CreateJobProps) {
   const router = useRouter();
-  const [selectedTests, setSelectedTests] = useState<Test[]>([]);
+  // Use external state if provided (wizard), else local state
+  const [selectedTests, setSelectedTests] = typeof externalSelectedTests !== 'undefined' && setExternalSelectedTests ? [externalSelectedTests, setExternalSelectedTests] : useState<Test[]>([]);
   const [submissionAttempted, setSubmissionAttempted] = useState(false);
   const [formChanged, setFormChanged] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
-    defaultValues: {
+    defaultValues: initialValues || {
       name: "",
       description: "",
       cronSchedule: "",
@@ -70,47 +74,29 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobPro
   const onSubmit = form.handleSubmit(async (values: FormData) => {
     setSubmissionAttempted(true);
     setIsSubmitting(true);
-
-    // Ensure cronSchedule is a valid cron string or empty, default to '*' if empty but intended
-    // react-js-cron defaults to '*' when initialized empty, let's reflect that maybe?
-    // Or ensure it's explicitly empty string if user clears it.
-    // For now, we trim and use empty string if cleared.
-    const cronValue = values.cronSchedule?.trim() || ""; 
-
+    const cronValue = values.cronSchedule?.trim() || "";
     try {
-      // Validate that at least one test is selected
       if (selectedTests.length === 0) {
         toast.error("Validation Error", {
           description: "Please select at least one test for the job",
         });
         return;
       }
-
-      // Create job data object
       const jobData = {
         name: values.name.trim(),
         description: values.description.trim(),
-        cronSchedule: cronValue, // Use the processed cron value
+        cronSchedule: cronValue,
         tests: selectedTests.map((test) => ({ id: test.id })),
       };
-
-      console.log("Submitting job data:", jobData);
-
-      // If onSave callback is provided (wizard mode), use it instead of API call
       if (onSave) {
         onSave(jobData);
         return;
       }
-
-      // Save the job to the database
       const response = await createJob(jobData);
-
       if (response.success) {
         toast.success("Success", {
           description: `Job \"${jobData.name}\" has been created.`,
         });
-
-        // Navigate to the jobs page
         router.push("/jobs");
       } else {
         console.error("Failed to create job:", response.error);
@@ -129,20 +115,12 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobPro
     }
   });
 
-  // Handle the selection of tests from the TestSelector component
-  const handleTestsSelected = (tests: Test[]) => {
-    setSelectedTests(tests);
-  };
-
   // Track form changes
   useEffect(() => {
-    // Check if form fields have values
     const formHasValues = 
       (watchedValues.name && watchedValues.name.trim() !== "") || 
       (watchedValues.description && watchedValues.description.trim() !== "") || 
       (watchedValues.cronSchedule && watchedValues.cronSchedule.trim() !== "");
-    
-    // Form is considered changed if either fields have values or tests are selected
     setFormChanged(formHasValues || selectedTests.length > 0);
   }, [watchedValues, selectedTests]);
 
@@ -235,7 +213,7 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobPro
               {/* Use the TestSelector component */}
               <TestSelector
                 selectedTests={selectedTests}
-                onTestsSelected={handleTestsSelected}
+                onTestsSelected={setSelectedTests}
                 emptyStateMessage="No tests selected"
                 required={submissionAttempted && selectedTests.length === 0}
               />
@@ -244,7 +222,10 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel }: CreateJobPro
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={onCancel || (() => router.push("/jobs"))}
+                  onClick={() => {
+                    if (onCancel) onCancel();
+                    else router.push("/jobs");
+                  }}
                   disabled={isSubmitting}
                 >
                   Cancel

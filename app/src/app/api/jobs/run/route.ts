@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     console.log(`[${jobId}/${runId}] Prepared ${testScripts.length} test scripts for queuing.`);
 
     const task: JobExecutionTask = {
-      jobId: jobId,
+      jobId: runId,
       testScripts,
       runId: runId,
       originalJobId: jobId
@@ -92,13 +92,6 @@ export async function POST(request: Request) {
           })
           .where(eq(runs.id, runId));
           
-        // Update the job status back to its previous state (not running)
-        await db.update(jobs)
-          .set({
-            status: "pending" as JobStatus
-          })
-          .where(eq(jobs.id, jobId));
-          
         // Return a 429 status code (Too Many Requests) with the error message
         return NextResponse.json(
           { error: "Queue capacity limit reached", message: errorMessage },
@@ -112,13 +105,6 @@ export async function POST(request: Request) {
       // Re-throw for other errors to be caught by the main catch block
       throw error;
     }
-
-    console.log(`[${jobId}/${runId}] Setting job status to "running" in the database.`);
-    const currentDate = new Date();
-    await db.update(jobs).set({ 
-      status: "running", 
-      lastRunAt: currentDate 
-    }).where(eq(jobs.id, jobId));
 
     return NextResponse.json({
       message: "Job execution queued successfully.",

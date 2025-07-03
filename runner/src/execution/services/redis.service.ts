@@ -85,8 +85,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Sets up listeners for Bull queue events to update database status
-   * This is the core of the status update system that replaces Redis pub/sub
+   * Sets up listeners for Bull queue events for logging and monitoring
+   * Database updates are handled by the job execution processor to avoid race conditions
    */
   private initializeQueueListeners() {
     // Set up QueueEvents for job queue
@@ -99,109 +99,41 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       connection: this.testQueue.opts.connection
     });
 
-    // Job queue event listeners
+    // Job queue event listeners - only for logging and monitoring
     this.jobQueueEvents.on('waiting', ({ jobId }) => {
       this.logger.debug(`Job ${jobId} is waiting`);
-      // Optional: Update database status if needed
     });
 
     this.jobQueueEvents.on('active', async ({ jobId }) => {
       this.logger.debug(`Job ${jobId} is active`);
-      const job = await this.jobQueue.getJob(jobId);
-      if (job) {
-        const { runId, originalJobId } = job.data;
-        if (originalJobId) {
-          await this.dbService.updateJobStatus(originalJobId, ['running'])
-            .catch(err => this.logger.error(`[${runId}] Failed to update job status to running: ${err.message}`));
-        }
-        
-        await this.dbService.updateRunStatus(runId, 'running')
-          .catch(err => this.logger.error(`[${runId}] Failed to update run status to running: ${err.message}`));
-      }
+      // Database updates are handled by the job execution processor
     });
 
     this.jobQueueEvents.on('completed', async ({ jobId, returnvalue }) => {
       this.logger.debug(`Job ${jobId} completed`);
-      const job = await this.jobQueue.getJob(jobId);
-      if (job) {
-        const { runId, originalJobId } = job.data;
-        
-        // TypeScript-safe way to handle returnvalue
-        const result = typeof returnvalue === 'object' && returnvalue !== null 
-          ? returnvalue as Record<string, any>
-          : {};
-          
-        const finalStatus = result.success === true ? 'passed' : 'failed';
-        
-        // Calculate duration if available in the result
-        let durationStr = '';
-        if (result.duration !== undefined) {
-          durationStr = String(result.duration);
-        }
-        
-        // Update run status first
-        await this.dbService.updateRunStatus(runId, finalStatus, durationStr)
-          .catch(err => this.logger.error(`[${runId}] Failed to update run status to ${finalStatus}: ${err.message}`));
-        
-        // Then update job status based on all current run statuses (including the one we just updated)
-        if (originalJobId) {
-          const finalRunStatuses = await this.dbService.getRunStatusesForJob(originalJobId);
-          await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
-            .catch(err => this.logger.error(`[${runId}] Failed to update job status: ${err.message}`));
-        }
-      }
+      // Database updates are handled by the job execution processor
     });
 
     this.jobQueueEvents.on('failed', async ({ jobId, failedReason }) => {
       this.logger.error(`Job ${jobId} failed: ${failedReason}`);
-      const job = await this.jobQueue.getJob(jobId);
-      if (job) {
-        const { runId, originalJobId } = job.data;
-        
-        if (originalJobId) {
-          await this.dbService.updateJobStatus(originalJobId, ['failed'])
-            .catch(err => this.logger.error(`[${runId}] Failed to update job status on error: ${err.message}`));
-        }
-        
-        await this.dbService.updateRunStatus(runId, 'failed')
-          .catch(err => this.logger.error(`[${runId}] Failed to update run status on error: ${err.message}`));
-      }
+      // Database updates are handled by the job execution processor
     });
 
-    // Test queue event listeners
+    // Test queue event listeners - only for logging and monitoring
     this.testQueueEvents.on('waiting', ({ jobId }) => {
       this.logger.debug(`Test ${jobId} is waiting`);
-      // Tests don't need database updates for waiting state
     });
 
     this.testQueueEvents.on('active', async ({ jobId }) => {
       this.logger.debug(`Test ${jobId} is active`);
-      const job = await this.testQueue.getJob(jobId);
-      if (job) {
-        const { testId } = job.data;
-        // Optional: Update test status in database if needed
-        this.logger.debug(`Test ${testId} is now running`);
-      }
     });
 
     this.testQueueEvents.on('completed', async ({ jobId, returnvalue }) => {
       this.logger.debug(`Test ${jobId} completed`);
-      const job = await this.testQueue.getJob(jobId);
-      if (job) {
-        const { testId } = job.data;
-        // Optional: Update test completion in database if needed
-        this.logger.debug(`Test ${testId} completed`);
-      }
     });
 
     this.testQueueEvents.on('failed', async ({ jobId, failedReason }) => {
       this.logger.error(`Test ${jobId} failed: ${failedReason}`);
-      const job = await this.testQueue.getJob(jobId);
-      if (job) {
-        const { testId } = job.data;
-        // Optional: Update test failure in database if needed
-        this.logger.error(`Test ${testId} failed: ${failedReason}`);
-      }
     });
   }
 

@@ -13,7 +13,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 
 import { getTest } from "@/actions/get-test";
 import { randomUUID } from "crypto";
-import { getRunsForJob } from '@/actions/get-runs';
+import { getJobs } from '@/actions/get-jobs';
 
 // Create a simple implementation here
 async function executeJob(jobId: string, tests: { id: string; script: string }[]) {
@@ -89,22 +89,14 @@ interface TestResult {
 // GET all jobs
 export async function GET(request: Request) {
   try {
-    const jobs = await getJobs();
-    const jobsWithLastRunStatus = await Promise.all(
-      jobs.map(async (job) => {
-        const runs = await db.query.runs.findMany({
-          where: eq(runs.jobId, job.id),
-          orderBy: desc(runs.createdAt),
-          limit: 1,
-        });
-        const lastRun = runs[0];
-        return {
-          ...job,
-          status: lastRun ? lastRun.status : job.status,
-        };
-      })
-    );
-    return Response.json(jobsWithLastRunStatus);
+    const jobsResponse = await getJobs();
+    if (!jobsResponse.success || !jobsResponse.jobs) {
+      return new Response(JSON.stringify({ error: 'Failed to fetch jobs' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return Response.json(jobsResponse.jobs);
   } catch (error) {
     console.error('Failed to fetch jobs with last run status:', error);
     return new Response(JSON.stringify({ error: 'Failed to fetch jobs' }), {
@@ -129,12 +121,11 @@ export async function POST(request: Request) {
     const jobData: JobData = await request.json();
 
     // Validate required fields
-    if (!jobData.name || !jobData.cronSchedule) {
+    if (!jobData.name) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            "Missing required fields. Name and cron schedule are required.",
+          error: "Missing required field: name is required.",
         },
         { status: 400 }
       );
@@ -150,9 +141,6 @@ export async function POST(request: Request) {
       description: jobData.description || null,
       cronSchedule: jobData.cronSchedule || null,
       status: jobData.status || 'pending',
-      config: jobData.config || {},
-      retryCount: jobData.retryCount || 0,
-      timeoutSeconds: jobData.timeoutSeconds || 300,
       alertConfig: jobData.alertConfig ? {
         enabled: Boolean(jobData.alertConfig.enabled),
         notificationProviders: Array.isArray(jobData.alertConfig.notificationProviders) ? jobData.alertConfig.notificationProviders : [],

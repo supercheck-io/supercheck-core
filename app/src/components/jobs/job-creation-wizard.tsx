@@ -21,7 +21,12 @@ interface JobAlertConfig {
 
 export function JobCreationWizard() {
   const [showAlerts, setShowAlerts] = useState(false);
-  const [jobData, setJobData] = useState<any>(null);
+  const [formValues, setFormValues] = useState({
+    name: '',
+    description: '',
+    cronSchedule: '',
+  });
+  const [selectedTests, setSelectedTests] = useState<any[]>([]);
   const [alertConfig, setAlertConfig] = useState<JobAlertConfig>({
     enabled: false,
     notificationProviders: [],
@@ -34,15 +39,23 @@ export function JobCreationWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleJobNext = (data: any) => {
-    setJobData(data);
+    setFormValues({
+      name: data.name,
+      description: data.description,
+      cronSchedule: data.cronSchedule || '',
+    });
+    setSelectedTests(data.tests || []);
     setShowAlerts(true);
   };
+
+  const handleBack = () => setShowAlerts(false);
 
   const handleCreateJob = async () => {
     try {
       setIsSubmitting(true);
       const finalData = {
-        ...jobData,
+        ...formValues,
+        tests: selectedTests,
         alertConfig: alertConfig,
       };
       
@@ -88,6 +101,9 @@ export function JobCreationWizard() {
         onSave={handleJobNext}
         onCancel={() => window.history.back()}
         hideAlerts={true}
+        initialValues={formValues}
+        selectedTests={selectedTests}
+        setSelectedTests={setSelectedTests}
       />
     );
   }
@@ -118,7 +134,7 @@ export function JobCreationWizard() {
           />
 
           <div className="flex justify-between pt-4">
-            <Button variant="outline" onClick={() => setShowAlerts(false)}>
+            <Button variant="outline" onClick={handleBack}>
               Back
             </Button>
             <Button 

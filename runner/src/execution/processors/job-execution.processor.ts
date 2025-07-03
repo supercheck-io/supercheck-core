@@ -1,11 +1,10 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { JOB_EXECUTION_QUEUE, TEST_EXECUTION_QUEUE, RUNNING_CAPACITY } from '../constants';
+import { JOB_EXECUTION_QUEUE } from '../constants';
 import { ExecutionService } from '../services/execution.service';
 import { DbService } from '../services/db.service';
-import { TestScript, JobExecutionTask, TestExecutionResult } from '../interfaces'; // Use updated interfaces
-import { Redis } from 'ioredis';
+import { TestScript, JobExecutionTask, TestExecutionResult } from '../interfaces';
 import { NotificationService, NotificationPayload } from '../../notification/notification.service';
 import { AlertStatus, AlertType } from '../../db/schema';
 
@@ -36,73 +35,6 @@ export class JobExecutionProcessor extends WorkerHost {
     this.logger.log(`[Constructor] JobExecutionProcessor instantiated.`);
   }
 
-  /**
-   * Checks if a job should be processed based on current running capacity
-   */
-  private async shouldProcessJob(): Promise<boolean> {
-    try {
-      const runningCount = await this.getRunningJobCount();
-      return runningCount < RUNNING_CAPACITY;
-    } catch (error) {
-      this.logger.error(`Error checking capacity: ${error.message}`);
-      // If we can't determine, default to allowing processing
-      return true;
-    }
-  }
-
-  /**
-   * Gets the current count of running jobs from Redis
-   */
-  private async getRunningJobCount(): Promise<number> {
-    let redisClient: Redis | null = null;
-    
-    try {
-      // Set up Redis connection
-      const host = process.env.REDIS_HOST || 'localhost';
-      const port = parseInt(process.env.REDIS_PORT || '6379');
-      const password = process.env.REDIS_PASSWORD;
-      
-      redisClient = new Redis({
-        host,
-        port,
-        password: password || undefined,
-        maxRetriesPerRequest: null,
-        connectTimeout: 3000,
-        retryStrategy: (times: number) => {
-          const delay = Math.min(times * 50, 2000);
-          return delay;
-        }
-      });
-
-      // Add event listeners for connection issues
-      redisClient.on('error', (err) => {
-        this.logger.error(`Redis connection error: ${err.message}`);
-      });
-
-      // Only count ACTIVE jobs (currently executing)
-      const [activeJobs, activeTests] = await Promise.all([
-        redisClient.llen(`bull:${JOB_EXECUTION_QUEUE}:active`),
-        redisClient.llen(`bull:${TEST_EXECUTION_QUEUE}:active`)
-      ]);
-      
-      // Running count is the sum of active jobs and tests
-      return activeJobs + activeTests;
-    } catch (error) {
-      this.logger.error(`Failed to get running job count: ${error instanceof Error ? error.message : String(error)}`);
-      return 0; // Return 0 on error to allow processing
-    } finally {
-      // Always close Redis connection
-      if (redisClient) {
-        try {
-          await redisClient.quit();
-        } catch (e) {
-          // Silently ignore Redis quit errors
-          this.logger.debug(`Redis disconnect error (safe to ignore): ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-    }
-  }
-
   // Specify concurrency if needed, e.g., @Process({ concurrency: 2 })
   // @Process()
   async process(job: Job<JobExecutionTask>): Promise<TestExecutionResult> { // Renamed to process
@@ -110,15 +42,6 @@ export class JobExecutionProcessor extends WorkerHost {
     const startTime = new Date();
     this.logger.log(`[${runId}] Job execution job ID: ${job.id} received for processing${originalJobId ? ` (job ${originalJobId})` : ''}`);
     
-    // Check if this job should be processed based on running capacity
-    const shouldProcess = await this.shouldProcessJob();
-    if (!shouldProcess) {
-      this.logger.log(`[${runId}] Job execution delayed - running capacity full (${RUNNING_CAPACITY})`);
-      // Re-queue the job with a small delay (5 seconds)
-      await job.moveToDelayed(Date.now() + 5000);
-      throw new Error('Running capacity full, job delayed');
-    }
-
     await job.updateProgress(10);
 
     try {
@@ -148,9 +71,6 @@ export class JobExecutionProcessor extends WorkerHost {
           .catch(err => this.logger.error(`[${runId}] Failed to update job status: ${err.message}`));
       } 
       
-      // Status updates via Redis are now handled by QueueStatusService
-      // through the Bull queue event listeners
-
       // Send notifications for job completion
       await this.handleJobNotifications(job.data, result, finalStatus, durationSeconds);
 
@@ -175,9 +95,6 @@ export class JobExecutionProcessor extends WorkerHost {
           .catch(err => this.logger.error(`[${runId}] Failed to update job error status: ${err.message}`));
       }
       
-      // Status updates via Redis are now handled by QueueStatusService
-      // through the Bull queue event listeners
-
       // Update job progress to indicate failure stage if applicable
       await job.updateProgress(100);
       
@@ -195,22 +112,23 @@ export class JobExecutionProcessor extends WorkerHost {
 
   private async handleJobNotifications(jobData: JobExecutionTask, result: TestExecutionResult, finalStatus: string, durationSeconds: number) {
     try {
-      // Get job configuration including alert settings
-      const job = await this.dbService.getJobById(jobData.jobId);
+      // Get job configuration including alert settings - use originalJobId for database lookup
+      const jobIdForLookup = jobData.originalJobId || jobData.jobId;
+      const job = await this.dbService.getJobById(jobIdForLookup);
       if (!job || !job.alertConfig?.enabled) {
-        this.logger.debug(`No alerts configured for job ${jobData.jobId} - alertConfig: ${JSON.stringify(job?.alertConfig)}`);
+        this.logger.debug(`No alerts configured for job ${jobIdForLookup} - alertConfig: ${JSON.stringify(job?.alertConfig)}`);
         return; // No alerts configured
       }
 
       // Get notification providers
       const providers = await this.dbService.getNotificationProviders(job.alertConfig.notificationProviders);
       if (!providers || providers.length === 0) {
-        this.logger.debug(`No notification providers configured for job ${jobData.jobId}`);
+        this.logger.debug(`No notification providers configured for job ${jobIdForLookup}`);
         return; // No providers configured
       }
 
-      // Get recent runs to check thresholds
-      const recentRuns = await this.dbService.getRecentRunsForJob(jobData.jobId, Math.max(job.alertConfig.failureThreshold, job.alertConfig.recoveryThreshold));
+      // Get recent runs to check thresholds - use originalJobId for database lookup
+      const recentRuns = await this.dbService.getRecentRunsForJob(jobIdForLookup, Math.max(job.alertConfig.failureThreshold, job.alertConfig.recoveryThreshold));
       
       // Calculate consecutive statuses
       let consecutiveFailures = 0;
@@ -248,11 +166,11 @@ export class JobExecutionProcessor extends WorkerHost {
       const shouldNotifyTimeout = job.alertConfig.alertOnTimeout && finalStatus === 'timeout';
 
       if (!shouldNotifyFailure && !shouldNotifySuccess && !shouldNotifyTimeout) {
-        this.logger.debug(`No notification conditions met for job ${jobData.jobId} - status: ${finalStatus}, consecutive failures: ${consecutiveFailures}, consecutive successes: ${consecutiveSuccesses}`);
+        this.logger.debug(`No notification conditions met for job ${jobIdForLookup} - status: ${finalStatus}, consecutive failures: ${consecutiveFailures}, consecutive successes: ${consecutiveSuccesses}`);
         return; // No notification conditions met
       }
 
-      this.logger.log(`Sending notifications for job ${jobData.jobId} with status ${finalStatus}`);
+      this.logger.log(`Sending notifications for job ${jobIdForLookup} with status ${finalStatus}`);
 
       // Calculate test counts from results
       const totalTests = result.results?.length || 0;
@@ -315,7 +233,7 @@ export class JobExecutionProcessor extends WorkerHost {
         payload
       );
 
-      this.logger.log(`Sent notifications for job ${jobData.jobId}: ${notificationResults.success} success, ${notificationResults.failed} failed`);
+      this.logger.log(`Sent notifications for job ${jobIdForLookup}: ${notificationResults.success} success, ${notificationResults.failed} failed`);
 
       // Save alert history with proper status handling
       try {
@@ -327,20 +245,18 @@ export class JobExecutionProcessor extends WorkerHost {
 
         // Save alert history for this notification batch
         await this.dbService.saveAlertHistory(
-          jobData.jobId,
+          jobIdForLookup, // Use originalJobId for database storage
           alertType as AlertType,
-          providers.map(p => p.type).join(', '),
+          providers.map(p => p.name).join(', '),
           alertStatus,
           payload.message,
-          alertErrorMessage
+          alertErrorMessage,
         );
-
-        this.logger.log(`Alert history saved for job ${jobData.jobId} with status: ${alertStatus}`);
-      } catch (error) {
-        this.logger.error(`Failed to save alert history: ${error.message}`);
+      } catch (historyError) {
+        this.logger.error(`Failed to save alert history for job ${jobIdForLookup}: ${historyError.message}`);
       }
     } catch (error) {
-      this.logger.error(`Error in handleJobNotifications for job ${jobData.jobId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to handle job notifications: ${error.message}`, error.stack);
     }
   }
 
