@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 import { getTests } from "@/actions/get-tests";
 
 interface TestSelectorProps {
-  selectedTests: Test[];
+  selectedTests?: Test[];
   onTestsSelected: (tests: Test[]) => void;
   buttonLabel?: string;
   emptyStateMessage?: string;
@@ -35,21 +35,22 @@ interface TestSelectorProps {
 }
 
 export default function TestSelector({
-  selectedTests,
+  selectedTests = [],
   onTestsSelected,
   buttonLabel = "Select Tests",
   emptyStateMessage = "No tests selected",
   required = true,
 }: TestSelectorProps) {
   const [isSelectTestsDialogOpen, setIsSelectTestsDialogOpen] = useState(false);
-  const [testSelections, setTestSelections] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [testSelections, setTestSelections] = useState<Record<string, boolean>>({});
   const [availableTests, setAvailableTests] = useState<Test[]>([]);
   const [isLoadingTests, setIsLoadingTests] = useState(true);
   const [testFilter, setTestFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Always ensure we have an array
+  const tests = Array.isArray(selectedTests) ? selectedTests : [];
 
   // Define the structure expected from the getTests action
   interface ActionTest {
@@ -125,22 +126,22 @@ export default function TestSelector({
     setIsSelectTestsDialogOpen(false);
   };
 
-  // Initialize test selections when dialog opens
+  // Initialize test selections when dialog opens - with safe array
   useEffect(() => {
     if (isSelectTestsDialogOpen) {
       const initialSelections: Record<string, boolean> = {};
       availableTests.forEach((test) => {
-        initialSelections[test.id] = selectedTests.some(
-          (selected) => selected.id === test.id,
+        initialSelections[test.id] = tests.some(
+          (selected) => selected.id === test.id
         );
       });
       setTestSelections(initialSelections);
     }
-  }, [isSelectTestsDialogOpen, availableTests, selectedTests]);
+  }, [isSelectTestsDialogOpen, availableTests, tests]);
 
-  // Remove a test from selection
+  // Remove a test from selection - using safe array
   const removeTest = (testId: string) => {
-    onTestsSelected(selectedTests.filter((test) => test.id !== testId));
+    onTestsSelected(tests.filter((test) => test.id !== testId));
   };
 
   // Filter the tests based on search input
@@ -175,7 +176,7 @@ export default function TestSelector({
           variant="outline"
           onClick={() => setIsSelectTestsDialogOpen(true)}
           className={cn(
-            required && selectedTests.length === 0 && "border-destructive",
+            required && tests.length === 0 && "border-destructive",
             "transition-colors",
           )}
           size="sm"
@@ -183,14 +184,14 @@ export default function TestSelector({
           <PlusCircle
             className={cn(
               "mr-2 h-4 w-4",
-              required && selectedTests.length === 0 && "text-destructive",
+              required && tests.length === 0 && "text-destructive",
             )}
           />
           {buttonLabel}
         </Button>
       </div>
 
-      {selectedTests.length === 0 ? (
+      {tests.length === 0 ? (
         <div className="text-center my-8">
           <p className={cn("text-sm", required && "text-destructive")}>
             {emptyStateMessage}
@@ -200,7 +201,7 @@ export default function TestSelector({
         <div
           className={cn(
             "overflow-y-auto border rounded-md",
-            selectedTests.length > 5 && "max-h-[350px]",
+            tests.length > 5 && "max-h-[350px]",
           )}
         >
           <Table>
@@ -224,7 +225,7 @@ export default function TestSelector({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {selectedTests.map((test) => (
+              {tests.map((test) => (
                 <TableRow key={test.id} className="hover:bg-transparent">
                   <TableCell
                     className="font-mono text-sm truncate"

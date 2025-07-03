@@ -375,7 +375,7 @@ export default function EditJob({ jobId }: EditJobProps) {
 
   if (showAlerts) {
     return (
-      <div className="space-y-4 p-4">
+      <div className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Alert Settings</CardTitle>

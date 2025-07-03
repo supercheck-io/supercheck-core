@@ -497,9 +497,9 @@ export function MonitorForm({
     }
 
     try {
-      // If onSave callback is provided (wizard mode), use it instead of API call
+      // If onSave callback is provided (wizard mode), pass the raw form data to preserve all fields
       if (onSave) {
-        onSave(apiData);
+        onSave(data); // Pass raw form data instead of processed API data
         setIsSubmitting(false);
         return;
       }

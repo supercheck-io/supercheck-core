@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Test } from "./schema";
 
 interface JobAlertConfig {
   enabled: boolean;
@@ -21,12 +22,12 @@ interface JobAlertConfig {
 
 export function JobCreationWizard() {
   const [showAlerts, setShowAlerts] = useState(false);
-  const [formValues, setFormValues] = useState({
+  const [formData, setFormData] = useState({
     name: '',
     description: '',
     cronSchedule: '',
+    tests: [] as Test[],
   });
-  const [selectedTests, setSelectedTests] = useState<any[]>([]);
   const [alertConfig, setAlertConfig] = useState<JobAlertConfig>({
     enabled: false,
     notificationProviders: [],
@@ -39,23 +40,24 @@ export function JobCreationWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleJobNext = (data: any) => {
-    setFormValues({
-      name: data.name,
-      description: data.description,
+    setFormData({
+      name: data.name || '',
+      description: data.description || '',
       cronSchedule: data.cronSchedule || '',
+      tests: Array.isArray(data.tests) ? data.tests : [],
     });
-    setSelectedTests(data.tests || []);
     setShowAlerts(true);
   };
 
-  const handleBack = () => setShowAlerts(false);
+  const handleBack = () => {
+    setShowAlerts(false);
+  };
 
   const handleCreateJob = async () => {
     try {
       setIsSubmitting(true);
       const finalData = {
-        ...formValues,
-        tests: selectedTests,
+        ...formData,
         alertConfig: alertConfig,
       };
       
@@ -101,15 +103,15 @@ export function JobCreationWizard() {
         onSave={handleJobNext}
         onCancel={() => window.history.back()}
         hideAlerts={true}
-        initialValues={formValues}
-        selectedTests={selectedTests}
-        setSelectedTests={setSelectedTests}
+        initialValues={formData}
+        selectedTests={formData.tests}
+        setSelectedTests={(tests) => setFormData(prev => ({ ...prev, tests: Array.isArray(tests) ? tests : [] }))}
       />
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4">
       <Card>
         <CardHeader>
           <CardTitle>Job Alert Settings</CardTitle>
@@ -133,7 +135,7 @@ export function JobCreationWizard() {
             context="job"
           />
 
-          <div className="flex justify-between pt-4">
+          <div className="flex justify-end gap-6 pt-4">
             <Button variant="outline" onClick={handleBack}>
               Back
             </Button>

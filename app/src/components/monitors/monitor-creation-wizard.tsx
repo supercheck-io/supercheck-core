@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MonitorForm } from "./monitor-form";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
+import { useSearchParams } from "next/navigation";
 
 interface AlertConfig {
   enabled: boolean;
@@ -31,9 +31,25 @@ export function MonitorCreationWizard() {
     recoveryThreshold: 1,
   });
 
+  // Get monitor type from URL for dynamic title
+  const searchParams = useSearchParams();
+  const type = searchParams?.get('type') || 'http_request';
+  const typeLabel = type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+
+  // Clear monitor data when URL changes and we're not in alert mode
+  useEffect(() => {
+    if (!showAlerts) {
+      setMonitorData(null);
+    }
+  }, [type]);
+
   const handleMonitorNext = (data: any) => {
     setMonitorData(data);
     setShowAlerts(true);
+  };
+
+  const handleBack = () => {
+    setShowAlerts(false);
   };
 
   const handleCreateMonitor = async () => {
@@ -81,15 +97,18 @@ export function MonitorCreationWizard() {
           onCancel={() => window.history.back()}
           hideAlerts={true}
           hideTypeSelector={true}
-          title="Create New Monitor"
+          monitorType={type as any}
+          title={` ${typeLabel} Monitor`}
           description="Configure a new uptime monitor"
+          // Pass monitorData to preserve state when navigating back
+          initialData={monitorData}
         />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4">
       <Card>
         <CardHeader>
           <CardTitle>Alert Settings</CardTitle>
@@ -112,8 +131,8 @@ export function MonitorCreationWizard() {
             })}
             context="monitor"
           />
-          <div className="flex justify-between pt-4">
-            <Button variant="outline" onClick={() => setShowAlerts(false)}>
+          <div className="flex justify-end gap-6 pt-4">
+            <Button variant="outline" onClick={handleBack}>
               Back
             </Button>
             <Button onClick={handleCreateMonitor}>

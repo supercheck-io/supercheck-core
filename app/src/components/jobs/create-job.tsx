@@ -45,53 +45,47 @@ interface CreateJobProps {
   hideAlerts?: boolean;
   onSave?: (data: any) => void;
   onCancel?: () => void;
-  initialValues?: Partial<FormData>;
+  initialValues?: any;
   selectedTests?: Test[];
   setSelectedTests?: (tests: Test[]) => void;
 }
 
-export function CreateJob({ hideAlerts = false, onSave, onCancel, initialValues, selectedTests: externalSelectedTests, setSelectedTests: setExternalSelectedTests }: CreateJobProps) {
+export function CreateJob({ 
+  hideAlerts = false, 
+  onSave, 
+  onCancel, 
+  initialValues = {}, 
+  selectedTests = [], // Default to empty array
+  setSelectedTests 
+}: CreateJobProps) {
   const router = useRouter();
-  // Use external state if provided (wizard), else local state
-  const [selectedTests, setSelectedTests] = typeof externalSelectedTests !== 'undefined' && setExternalSelectedTests ? [externalSelectedTests, setExternalSelectedTests] : useState<Test[]>([]);
-  const [submissionAttempted, setSubmissionAttempted] = useState(false);
-  const [formChanged, setFormChanged] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
-    defaultValues: initialValues || {
-      name: "",
-      description: "",
-      cronSchedule: "",
+    defaultValues: {
+      name: initialValues.name || "",
+      description: initialValues.description || "",
+      cronSchedule: initialValues.cronSchedule || "",
     },
   });
-  
-  // Watch form values for changes
-  const watchedValues = form.watch();
 
   // Handle form submission
   const onSubmit = form.handleSubmit(async (values: FormData) => {
-    setSubmissionAttempted(true);
     setIsSubmitting(true);
-    const cronValue = values.cronSchedule?.trim() || "";
     try {
-      if (selectedTests.length === 0) {
-        toast.error("Validation Error", {
-          description: "Please select at least one test for the job",
-        });
-        return;
-      }
       const jobData = {
         name: values.name.trim(),
         description: values.description.trim(),
-        cronSchedule: cronValue,
-        tests: selectedTests.map((test) => ({ id: test.id })),
+        cronSchedule: values.cronSchedule?.trim() || "",
+        tests: Array.isArray(selectedTests) ? selectedTests : [], // Ensure array
       };
+
       if (onSave) {
         onSave(jobData);
         return;
       }
+
       const response = await createJob(jobData);
       if (response.success) {
         toast.success("Success", {
@@ -107,22 +101,12 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel, initialValues,
     } catch (error) {
       console.error("Error creating job:", error);
       toast.error("Error", {
-        description:
-          error instanceof Error ? error.message : "An unknown error occurred",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
       });
     } finally {
       setIsSubmitting(false);
     }
   });
-
-  // Track form changes
-  useEffect(() => {
-    const formHasValues = 
-      (watchedValues.name && watchedValues.name.trim() !== "") || 
-      (watchedValues.description && watchedValues.description.trim() !== "") || 
-      (watchedValues.cronSchedule && watchedValues.cronSchedule.trim() !== "");
-    setFormChanged(formHasValues || selectedTests.length > 0);
-  }, [watchedValues, selectedTests]);
 
   return (
     <div className="space-y-4 p-4">
@@ -210,12 +194,12 @@ export function CreateJob({ hideAlerts = false, onSave, onCancel, initialValues,
                 </div>
               </div>
 
-              {/* Use the TestSelector component */}
+              {/* Test Selector - now guaranteed to receive an array */}
               <TestSelector
                 selectedTests={selectedTests}
-                onTestsSelected={setSelectedTests}
-                emptyStateMessage="No tests selected"
-                required={submissionAttempted && selectedTests.length === 0}
+                onTestsSelected={setSelectedTests || (() => {})}
+                buttonLabel="Select Tests"
+                required={true}
               />
 
               <div className="flex justify-end space-x-4 mt-6">
