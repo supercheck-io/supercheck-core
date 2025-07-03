@@ -58,6 +58,15 @@ export class MonitorProcessor extends WorkerHost {
 
   private async handleNotifications(jobData: MonitorJobDataDto, result: MonitorExecutionResult) {
     try {
+      // Robust null/undefined checks
+      if (!result) {
+        this.logger.warn(`[NOTIFICATION] No result provided for monitor ${jobData.monitorId}, skipping notification.`);
+        return;
+      }
+      if (typeof result.isUp === 'undefined') {
+        this.logger.warn(`[NOTIFICATION] Result for monitor ${jobData.monitorId} missing isUp, skipping notification.`);
+        return;
+      }
       this.logger.debug(`[NOTIFICATION] Processing notifications for monitor ${jobData.monitorId}, result: ${result.status}, isUp: ${result.isUp}`);
       
       // Get monitor configuration including alert settings
@@ -90,6 +99,12 @@ export class MonitorProcessor extends WorkerHost {
       // Current result is the most recent one (just saved)
       const currentResult = recentResults[0];
       const previousResult = recentResults[1]; // Second most recent
+
+      // Robust null/undefined checks for DB results
+      if (!currentResult || typeof currentResult.isUp === 'undefined') {
+        this.logger.warn(`[NOTIFICATION] Current result missing or missing isUp for monitor ${jobData.monitorId}, skipping notification.`);
+        return;
+      }
 
       this.logger.debug(`[NOTIFICATION] Current result: ${currentResult?.status}/${currentResult?.isUp}, Previous result: ${previousResult?.status}/${previousResult?.isUp}`);
 

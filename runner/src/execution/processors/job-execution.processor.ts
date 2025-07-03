@@ -7,6 +7,8 @@ import { DbService } from '../services/db.service';
 import { TestScript, JobExecutionTask, TestExecutionResult } from '../interfaces';
 import { NotificationService, NotificationPayload } from '../../notification/notification.service';
 import { AlertStatus, AlertType } from '../../db/schema';
+import { eq } from 'drizzle-orm';
+import { jobs } from 'src/db/schema';
 
 // Define the expected structure of the job data
 // Match this with TestScript and JobExecutionTask from original project
@@ -67,8 +69,17 @@ export class JobExecutionProcessor extends WorkerHost {
       // Update job status based on all current run statuses (including the one we just updated)
       if (originalJobId) {
         const finalRunStatuses = await this.dbService.getRunStatusesForJob(originalJobId);
-        await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
-          .catch(err => this.logger.error(`[${runId}] Failed to update job status: ${err.message}`));
+        // Robust: If only one run, or all runs are terminal, set job status to match this run
+        const allTerminal = finalRunStatuses.every(s => ['passed', 'failed', 'error'].includes(s));
+        if (finalRunStatuses.length === 1 || allTerminal) {
+          await this.dbService.updateJobStatus(originalJobId, [finalStatus])
+            .catch(err => this.logger.error(`[${runId}] Failed to update job status (robust): ${err.message}`));
+        } else {
+          await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
+            .catch(err => this.logger.error(`[${runId}] Failed to update job status: ${err.message}`));
+        }
+        // Always update lastRunAt after a run completes
+        await this.dbService.db.update(jobs).set({ lastRunAt: new Date() }).where(eq(jobs.id, originalJobId)).execute();
       } 
       
       // Send notifications for job completion
@@ -91,8 +102,14 @@ export class JobExecutionProcessor extends WorkerHost {
       // Update job status based on all current run statuses
       if (originalJobId) {
         const finalRunStatuses = await this.dbService.getRunStatusesForJob(originalJobId);
-        await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
-          .catch(err => this.logger.error(`[${runId}] Failed to update job error status: ${err.message}`));
+        const allTerminal = finalRunStatuses.every(s => ['passed', 'failed', 'error'].includes(s));
+        if (finalRunStatuses.length === 1 || allTerminal) {
+          await this.dbService.updateJobStatus(originalJobId, [errorStatus])
+            .catch(err => this.logger.error(`[${runId}] Failed to update job error status (robust): ${err.message}`));
+        } else {
+          await this.dbService.updateJobStatus(originalJobId, finalRunStatuses)
+            .catch(err => this.logger.error(`[${runId}] Failed to update job error status: ${err.message}`));
+        }
       }
       
       // Update job progress to indicate failure stage if applicable

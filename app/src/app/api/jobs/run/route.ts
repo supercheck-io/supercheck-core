@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     console.log(`[${jobId}/${runId}] Prepared ${testScripts.length} test scripts for queuing.`);
 
     const task: JobExecutionTask = {
-      jobId: runId,
+      jobId: jobId,
       testScripts,
       runId: runId,
       originalJobId: jobId
