@@ -1,7 +1,7 @@
 import { Metadata } from "next/types";
 
 export const metadata: Metadata = {
-  title: "Supercheck | Jobs",
+  title: "Jobs | Supercheck",
   description: "Manage test jobs and schedules",
 };
 

@@ -279,7 +279,7 @@ export function RunDetails({ run }: RunDetailsProps) {
                   year: '2-digit',
                   hour: '2-digit',
                   minute: '2-digit',
-                  hour12: true,
+                  hour12: false,
                 }) : "Unknown"}
               </div>
             </div>

@@ -220,20 +220,6 @@ export const columns: ColumnDef<Job>[] = [
     },
   },
   {
-    accessorKey: "description",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Description" />
-    ),
-    cell: ({ row }) => {
-      const description = row.getValue("description") as string | null;
-      return (
-        <div className="max-w-[200px] truncate">
-          {description || "No description provided"}
-        </div>
-      );
-    },
-  },
-  {
     accessorKey: "status",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />

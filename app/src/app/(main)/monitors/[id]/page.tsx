@@ -117,8 +117,8 @@ export async function generateMetadata({ params }: MonitorDetailsPageProps): Pro
     };
   }
   return {
-    title: `Monitor: ${monitor.name} | Supercheck`,
-    description: `Details and results for monitor ${monitor.name}`,
+    title: "Monitor Details | Supercheck",
+    description: "Details and results for monitor",
   };
 }
 

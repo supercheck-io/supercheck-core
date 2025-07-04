@@ -266,14 +266,48 @@ export default function Jobs() {
       />
 
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="xl:max-w-[800px] lg:max-w-[700px] md:max-w-[600px] sm:max-w-[500px] overflow-y-auto p-6">
+        <SheetContent className="xl:max-w-[800px] lg:max-w-[700px] md:max-w-[600px] sm:max-w-[500px] overflow-y-auto p-8">
           {selectedJob && (
             <>
               <SheetHeader>
-                <div className="flex items-center justify-between -ml-4">
-                  <SheetTitle className="text-xl font-semibold">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                  <SheetTitle className="text-2xl font-semibold ">
                     Job Details
+                    
                   </SheetTitle>
+                  <div className="flex items-center space-x-3 ml-2">
+                    {/* Alert Status Icon */}
+                    <div className={`flex items-center justify-center h-8 w-8 rounded-full ${selectedJob.alertConfig?.enabled
+                        ? 'bg-green-100 dark:bg-green-900/30'
+                        : 'bg-gray-100 dark:bg-gray-700/30'
+                      }`}>
+                      {selectedJob.alertConfig?.enabled ? (
+                        <Bell className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <BellOff className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      )}
+                    </div>
+                    {selectedJob.alertConfig?.enabled && (
+                      <div className="flex items-center space-x-2 text-xs text-muted-foreground ">
+                        {selectedJob.alertConfig.alertOnSuccess && (
+                          <div className="relative group">
+                            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-500" />
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                              Job Success
+                            </div>
+                          </div>
+                        )}
+                        {selectedJob.alertConfig.alertOnFailure && (
+                          <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />
+                        )}
+                        {selectedJob.alertConfig.alertOnTimeout && (
+                          <Clock className="h-4 w-4 text-orange-600 dark:text-orange-500" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  </div>
                   <div className="flex space-x-4">
                     <Button
                       variant="outline"
@@ -290,7 +324,7 @@ export default function Jobs() {
                 </div>
               </SheetHeader>
 
-              <div className="mt-6 space-y-6">
+              <div className="space-y-2">
                 {/* Job ID and Name */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-card p-4 rounded-lg border border-border/40">
                   <div className="space-y-1">
@@ -430,33 +464,7 @@ export default function Jobs() {
                     {/* Alert Settings */}
                     <div className="space-y-2 bg-card p-4 rounded-lg border border-border/40">
                       <h3 className="text-xs font-medium text-muted-foreground">Alert Settings</h3>
-                      <div className="flex items-center space-x-3">
-                        {/* Alert Status Icon */}
-                        <div className={`flex items-center justify-center h-8 w-8 rounded-full ${
-                          selectedJob.alertConfig?.enabled 
-                            ? 'bg-green-100 dark:bg-green-900/30' 
-                            : 'bg-orange-100 dark:bg-orange-900/30'
-                        }`}>
-                          {selectedJob.alertConfig?.enabled ? (
-                            <Bell className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          ) : (
-                            <BellOff className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                          )}
-                        </div>
-                        {selectedJob.alertConfig?.enabled && (
-                          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                            {selectedJob.alertConfig.alertOnSuccess && (
-                              <CheckCircle className="h-3 w-3 text-green-600" />
-                            )}
-                            {selectedJob.alertConfig.alertOnFailure && (
-                              <XCircle className="h-3 w-3 text-red-600" />
-                            )}
-                            {selectedJob.alertConfig.alertOnTimeout && (
-                              <Clock className="h-3 w-3 text-orange-600" />
-                            )}
-                          </div>
-                        )}
-                      </div>
+                     
                     </div>
                   </TabsContent>
 

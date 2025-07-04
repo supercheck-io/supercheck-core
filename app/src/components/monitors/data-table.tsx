@@ -164,47 +164,47 @@ export function DataTable<TData, TValue>({
   };
 
   // Don't render anything until mounted to prevent hydration issues
-  if (!mounted) {
-    return (
-      <div className="space-y-4">
-        <div className="rounded-md border relative">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  <div className="flex justify-center items-center space-x-2">
-                    <Loader2 className="h-6 w-4 animate-spin text-muted-foreground" />
-                    <span className="text-muted-foreground">
-                      Loading...
-                    </span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    );
-  }
+  // if (!mounted) {
+  //   return (
+  //     <div className="space-y-4">
+  //       <div className="rounded-md border relative">
+  //         <Table>
+  //           <TableHeader>
+  //             {table.getHeaderGroups().map((headerGroup) => (
+  //               <TableRow key={headerGroup.id}>
+  //                 {headerGroup.headers.map((header) => (
+  //                   <TableHead key={header.id}>
+  //                     {header.isPlaceholder
+  //                       ? null
+  //                       : flexRender(
+  //                           header.column.columnDef.header,
+  //                           header.getContext()
+  //                         )}
+  //                   </TableHead>
+  //                 ))}
+  //               </TableRow>
+  //             ))}
+  //           </TableHeader>
+  //           <TableBody>
+  //             <TableRow>
+  //               <TableCell
+  //                 colSpan={columns.length}
+  //                 className="h-24 text-center"
+  //               >
+  //                 <div className="flex justify-center items-center space-x-2">
+  //                   <Loader2 className="h-6 w-4 animate-spin text-muted-foreground" />
+  //                   <span className="text-muted-foreground">
+  //                     Loading...
+  //                   </span>
+  //                 </div>
+  //               </TableCell>
+  //             </TableRow>
+  //           </TableBody>
+  //         </Table>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="space-y-4">

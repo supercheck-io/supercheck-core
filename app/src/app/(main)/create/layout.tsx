@@ -1,8 +1,8 @@
 import { Metadata } from "next/types";
 
 export const metadata: Metadata = {
-  title: "Supercheck | Create Test",
-  description: "Create a new test for your application",
+  title: "Create | Supercheck",
+  description: "Create a new test or monitor",
 };
 
 export default function CreateLayout({

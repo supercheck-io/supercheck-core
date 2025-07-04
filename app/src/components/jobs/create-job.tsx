@@ -217,7 +217,7 @@ export function CreateJob({
                 <Button 
                   type="submit" 
                   className="flex items-center"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (hideAlerts && selectedTests.length === 0)}
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

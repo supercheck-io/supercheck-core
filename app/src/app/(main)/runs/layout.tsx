@@ -1,8 +1,8 @@
 import { Metadata } from "next/types";
 
 export const metadata: Metadata = {
-  title: "Supercheck | Test Runs",
-  description: "View all test execution runs",
+  title: "Runs | Supercheck",
+  description: "View all Job execution runs",
 };
 
 export default function RunsLayout({
