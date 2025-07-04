@@ -868,7 +868,7 @@ export function MonitorForm({
                 <div className="space-y-4 border-t pt-6">
                   <h3 className="text-lg font-medium">HTTP Request Settings</h3>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
                       name="httpConfig_method"

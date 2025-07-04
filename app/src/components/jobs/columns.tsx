@@ -142,7 +142,7 @@ function RunButton({ job }: { job: Job }) {
       size="sm"
       variant="default"
       className={cn(
-        "bg-[hsl(221.2,83.2%,53.3%)] hover:bg-[hsl(221.2,83.2%,48%)]",
+        "bg-[hsl(212,83%,53%)] hover:bg-[hsl(212,83%,48%)] dark:bg-[hsl(221,83%,53%)] dark:hover:bg-[hsl(221,83%,48%)]",
         "text-white",
         "flex items-center justify-center",
         "h-7 px-1 rounded-md",

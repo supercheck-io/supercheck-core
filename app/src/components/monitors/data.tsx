@@ -83,7 +83,7 @@ export const monitorTypes = [
     label: "Heartbeat Monitor",
     value: "heartbeat",
     icon: Activity,
-    color: "text-blue-300", 
+    color: "text-teal-500", 
     description: "Passive monitoring expecting regular pings from your services",
   },
 ];

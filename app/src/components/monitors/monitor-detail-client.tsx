@@ -529,7 +529,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </Button>
             <div>
               <h1 className="text-2xl font-semibold flex items-center gap-2 mt-1">
-                {monitorTypeInfo?.icon && <monitorTypeInfo.icon className="h-6 w-6 text-primary" />}
+                {monitorTypeInfo?.icon && <monitorTypeInfo.icon className={`h-6 w-6 ${monitorTypeInfo.color}`} />}
                 {monitor.name.length > 40 ? monitor.name.slice(0, 40) + "..." : monitor.name}
               </h1>
               <div className="text-sm text-muted-foreground truncate max-w-md" title={monitor.url}>

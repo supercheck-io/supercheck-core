@@ -74,12 +74,12 @@ export const columns: ColumnDef<Monitor>[] = [
         }
         
         // Truncate URL to keep it professional and not break UI
-        const truncatedUrl = displayUrl.length > 40 
-          ? `${displayUrl.substring(0, 37)}...` 
+        const truncatedUrl = displayUrl.length > 35 
+          ? `${displayUrl.substring(0, 32)}...` 
           : displayUrl;
         
         return (
-          <span className="max-w-[200px] truncate font-mono text-sm text-muted-foreground">
+          <span className="max-w-[200px] truncate font-mono text-sm">
             {truncatedUrl}
           </span>
         );
