@@ -296,7 +296,7 @@ export function MonitorForm({
     website: "e.g., https://example.com or https://mywebsite.com",
     ping_host: "e.g., example.com or 8.8.8.8 (IP address or hostname)",
     port_check: "e.g., example.com or 192.168.1.1 (hostname or IP address)",
-    heartbeat: "Auto-generated - will be created when monitor is saved",
+    heartbeat: "Unique URL will be auto-generated when monitor is saved",
   };
   
   const watchedValues = form.watch();
@@ -497,9 +497,9 @@ export function MonitorForm({
     }
 
     try {
-      // If onSave callback is provided (wizard mode), pass the raw form data to preserve all fields
+      // If onSave callback is provided (wizard mode), pass the processed API data
       if (onSave) {
-        onSave(data); // Pass raw form data instead of processed API data
+        onSave(apiData); // Pass processed API data with all required fields
         setIsSubmitting(false);
         return;
       }
@@ -706,11 +706,11 @@ export function MonitorForm({
                             {...field} 
                           />
                         </FormControl>
-                        {type === "heartbeat" && (
+                        {/* {type === "heartbeat" && (
                           <FormDescription>
                             A unique heartbeat token will be auto-generated
                           </FormDescription>
-                        )}
+                        )} */}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -849,7 +849,7 @@ export function MonitorForm({
                   />
                   
                   {/* Show note for heartbeat monitors */}
-                  {type === "heartbeat" && (
+                  {/* {type === "heartbeat" && (
                     <div className="border border-light-200 rounded-lg p-3">
                       <div className="flex items-center space-x-2">
                         <Activity className="h-4 w-4 text-blue-300" />
@@ -859,7 +859,7 @@ export function MonitorForm({
                         Heartbeat monitors check for missed pings from your services. Set check interval shorter than expected ping interval.
                       </p>
                     </div>
-                  )}
+                  )} */}
                 </div>
               </div>
 
@@ -970,59 +970,7 @@ export function MonitorForm({
                       }}
                     />
 
-                    {/* SSL Certificate Check Section - Compact and Inline */}
-                    <div className="p-3 border rounded-lg bg-muted/10">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <Shield className="h-4 w-4 text-green-500" />
-                            <span className="text-sm font-medium">SSL Check</span>
-                            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span>
-                          </div>
-                          
-                          <FormField
-                            control={form.control}
-                            name="websiteConfig_enableSslCheck"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <Switch
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                  />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
-                        </div>
 
-                        {form.watch("websiteConfig_enableSslCheck") && (
-                          <div className="flex items-center space-x-2 pt-2 border-t">
-                            <span className="text-xs text-muted-foreground">Alert in</span>
-                            <FormField
-                              control={form.control}
-                              name="websiteConfig_sslDaysUntilExpirationWarning"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      type="number"
-                                      placeholder="30"
-                                      min="1"
-                                      max="365"
-                                      className="w-16 h-7 text-xs"
-                                      {...field}
-                                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                                    />
-                                  </FormControl>
-                                </FormItem>
-                              )}
-                            />
-                            <span className="text-xs text-muted-foreground">days</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

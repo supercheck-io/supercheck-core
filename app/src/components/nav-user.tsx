@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession, signOut } from "@/utils/auth-client";
+import { useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,14 +15,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function NavUser() {
   const { data: session, isPending } = useSession();
+  const [isClient, setIsClient] = useState(false);
   const user = session?.user;
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const handleLogout = async () => {
     await signOut();
     window.location.href = "/sign-in";
   };
 
-  if (isPending) {
+  // Always show skeleton during SSR and initial client render to prevent hydration mismatch
+  if (!isClient || isPending) {
     return <Skeleton className="h-8 w-8 rounded-lg" />;
   }
 

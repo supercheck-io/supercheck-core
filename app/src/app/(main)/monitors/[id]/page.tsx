@@ -122,18 +122,6 @@ export async function generateMetadata({ params }: MonitorDetailsPageProps): Pro
   };
 }
 
-function DetailSkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-10 w-24" />
-      </div>
-      <Skeleton className="h-[300px] w-full" />
-      <Skeleton className="h-[400px] w-full" />
-    </div>
-  );
-}
 
 export default async function MonitorDetailsPage({ params }: MonitorDetailsPageProps) {
   const { id } = await params; // Wait for params to resolve
@@ -152,9 +140,7 @@ export default async function MonitorDetailsPage({ params }: MonitorDetailsPageP
   return (
     <div className="w-full max-w-full">
       <PageBreadcrumbs items={breadcrumbs} />
-      <Suspense fallback={<DetailSkeleton />}>
         <MonitorDetailClient monitor={monitorWithData} />
-      </Suspense>
     </div>
   );
 } 

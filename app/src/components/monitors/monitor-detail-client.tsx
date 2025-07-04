@@ -768,7 +768,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
               
               {/* Heartbeat Configuration */}
-              <Card className="shadow-sm flex-1">
+              <Card className="shadow-sm flex-1 mt-4 min-h-[410px]">
                 <CardHeader>
                   <CardTitle className="text-2xl">Heartbeat Configuration</CardTitle>
                   <CardDescription>
