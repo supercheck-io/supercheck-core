@@ -5,7 +5,7 @@ import { MonitorForm } from "./monitor-form";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 interface AlertConfig {
   enabled: boolean;
@@ -19,6 +19,7 @@ interface AlertConfig {
 }
 
 export function MonitorCreationWizard() {
+  const router = useRouter();
   const [showAlerts, setShowAlerts] = useState(false);
   const [monitorData, setMonitorData] = useState<any>(null);
   const [alertConfig, setAlertConfig] = useState<AlertConfig>({
@@ -52,6 +53,10 @@ export function MonitorCreationWizard() {
     setShowAlerts(false);
   };
 
+  const handleCancel = () => {
+    router.push("/monitors");
+  };
+
   const handleCreateMonitor = async () => {
     try {
       const finalData = {
@@ -76,8 +81,8 @@ export function MonitorCreationWizard() {
         
         // TODO: Save alert configuration to monitor-notification settings
         
-        // Redirect to monitors list
-        window.location.href = "/monitors";
+        // Redirect to monitors list using router
+        router.push("/monitors");
       } else {
         const error = await response.json();
         console.error("Failed to create monitor:", error);
@@ -94,7 +99,7 @@ export function MonitorCreationWizard() {
       <div className="space-y-4">
         <MonitorForm
           onSave={handleMonitorNext}
-          onCancel={() => window.history.back()}
+          onCancel={handleCancel}
           hideAlerts={true}
           hideTypeSelector={true}
           monitorType={type as any}

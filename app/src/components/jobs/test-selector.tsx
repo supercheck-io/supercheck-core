@@ -5,7 +5,7 @@ import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { XCircle, PlusCircle, Search } from "lucide-react";
+import { XCircle, PlusCircle, Search, PlusIcon, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -181,7 +181,7 @@ export default function TestSelector({
           )}
           size="sm"
         >
-          <PlusCircle
+          <PlusIcon
             className={cn(
               "mr-2 h-4 w-4",
               required && tests.length === 0 && "text-destructive",
@@ -193,7 +193,8 @@ export default function TestSelector({
 
       {tests.length === 0 ? (
         <div className="text-center my-8">
-          <p className={cn("text-sm", required && "text-destructive")}>
+          <p className={cn("text-sm flex items-center justify-center bg-muted/80 p-2 rounded-md w-fit mx-auto", required && "text-destructive")}>
+            <AlertCircle className="h-4 w-4 mr-2" />
             {emptyStateMessage}
           </p>
         </div>

@@ -1,5 +1,5 @@
 import type { Table } from "@tanstack/react-table";
-import { PlusCircle, X } from "lucide-react";
+import { PlusCircle, PlusIcon, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,8 +64,8 @@ export function DataTableToolbar<TData>({
 
           onClick={() => router.push("/jobs/create")}
         >
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Create New Job
+          <PlusIcon className="h-4 w-4 mr-2" />
+          Create Job
         </Button>
       </div>
     </div>

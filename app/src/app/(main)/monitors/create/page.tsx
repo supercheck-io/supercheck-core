@@ -4,6 +4,7 @@ import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { monitorTypes } from "@/components/monitors/data";
 import { notFound } from "next/navigation";
 import { Info } from "lucide-react";
+import Link from "next/link";
 import {
   Popover,
   PopoverContent,
@@ -69,7 +70,7 @@ export default async function CreateMonitorPage({ searchParams }: CreateMonitorP
               <p className="text-muted-foreground text-sm mb-6">Select a monitor type to get started</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {monitorTypes.map((type) => (
-              <a
+              <Link
                 key={type.value}
                 href={`/monitors/create?type=${type.value}`}
                 className="block p-4 border rounded-lg hover:border-primary transition-colors"
@@ -81,7 +82,7 @@ export default async function CreateMonitorPage({ searchParams }: CreateMonitorP
                     <p className="text-sm text-muted-foreground">{type.description}</p>
                   </div>
                 </div>
-              </a>
+              </Link>
             ))}
             </div>
           </div>

@@ -1,5 +1,5 @@
 import type { Table } from "@tanstack/react-table";
-import { PlusCircle, X } from "lucide-react";
+import { PlusCircle, PlusIcon, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,8 +69,8 @@ export function DataTableToolbar<TData>({
         <Button
           onClick={() => router.push("/monitors/create")}
         >
-          <PlusCircle className="mr-2 h-4 w-4" />
-          New Monitor
+          <PlusIcon className="h-4 w-4 mr-2" />
+          Create Monitor
         </Button>
       </div>
     </div>

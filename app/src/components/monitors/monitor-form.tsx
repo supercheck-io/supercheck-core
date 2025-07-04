@@ -155,12 +155,12 @@ const creationDefaultValues: FormValues = {
   httpConfig_authUsername: "",
   httpConfig_authPassword: "",
   httpConfig_authToken: "",
-  portConfig_port: undefined,
-  portConfig_protocol: undefined,
-  heartbeatConfig_expectedInterval: undefined,
-  heartbeatConfig_gracePeriod: undefined,
-  websiteConfig_enableSslCheck: undefined,
-  websiteConfig_sslDaysUntilExpirationWarning: undefined,
+  portConfig_port: 80, // Default port instead of undefined
+  portConfig_protocol: "tcp", // Default protocol instead of undefined
+  heartbeatConfig_expectedInterval: 60, // Default interval instead of undefined
+  heartbeatConfig_gracePeriod: 10, // Default grace period instead of undefined
+  websiteConfig_enableSslCheck: false, // Default to false instead of undefined
+  websiteConfig_sslDaysUntilExpirationWarning: 30, // Default to 30 days instead of undefined
 };
 
 // Add AlertConfiguration type
@@ -253,12 +253,12 @@ export function MonitorForm({
         httpConfig_authUsername: "",
         httpConfig_authPassword: "",
         httpConfig_authToken: "",
-        portConfig_port: typeToUse === "port_check" ? 80 : undefined,
-        portConfig_protocol: typeToUse === "port_check" ? "tcp" : undefined,
-        heartbeatConfig_expectedInterval: typeToUse === "heartbeat" ? 60 : undefined,
-        heartbeatConfig_gracePeriod: typeToUse === "heartbeat" ? 10 : undefined,
-        websiteConfig_enableSslCheck: typeToUse === "website" ? false : undefined,
-        websiteConfig_sslDaysUntilExpirationWarning: typeToUse === "website" ? 30 : undefined,
+        portConfig_port: typeToUse === "port_check" ? 80 : 80, // Always provide default
+        portConfig_protocol: typeToUse === "port_check" ? "tcp" : "tcp", // Always provide default
+        heartbeatConfig_expectedInterval: typeToUse === "heartbeat" ? 60 : 60, // Always provide default
+        heartbeatConfig_gracePeriod: typeToUse === "heartbeat" ? 10 : 10, // Always provide default
+        websiteConfig_enableSslCheck: typeToUse === "website" ? false : false, // Always provide default
+        websiteConfig_sslDaysUntilExpirationWarning: typeToUse === "website" ? 30 : 30, // Always provide default
       };
     }
     return creationDefaultValues;
@@ -638,6 +638,11 @@ export function MonitorForm({
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <div className="flex items-center gap-2">
+              {monitorTypes.map((type) => ( 
+                monitorType === type.value && (
+                  <type.icon className={`h-6 w-6 ${type.color} mt-0.5 flex-shrink-0`} key={type.value} />
+                )
+              ))}
               <CardTitle className="text-2xl font-semibold">{title || (editMode ? "Edit Monitor" : "Create Monitor")}</CardTitle>
               {hideTypeSelector && (
                 <Popover>
