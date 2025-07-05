@@ -11,9 +11,9 @@ import {
 } from "@/db/schema/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 
-import { getTest } from "@/actions/get-test";
 import { randomUUID } from "crypto";
-import { getJobs } from '@/actions/get-jobs';
+
+
 
 // Create a simple implementation here
 async function executeJob(jobId: string, tests: { id: string; script: string }[]) {
@@ -89,20 +89,91 @@ interface TestResult {
 // GET all jobs
 export async function GET(request: Request) {
   try {
-    const jobsResponse = await getJobs();
-    if (!jobsResponse.success || !jobsResponse.jobs) {
-      return new Response(JSON.stringify({ error: 'Failed to fetch jobs' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    return Response.json(jobsResponse.jobs);
-  } catch (error) {
-    console.error('Failed to fetch jobs with last run status:', error);
-    return new Response(JSON.stringify({ error: 'Failed to fetch jobs' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+    // Get all jobs with their associated tests and last run status
+    const result = await db
+      .select({
+        id: jobs.id,
+        name: jobs.name,
+        description: jobs.description,
+        cronSchedule: jobs.cronSchedule,
+        status: jobs.status,
+        alertConfig: jobs.alertConfig,
+        createdAt: jobs.createdAt,
+        updatedAt: jobs.updatedAt,
+        organizationId: jobs.organizationId,
+        createdByUserId: jobs.createdByUserId,
+        lastRunAt: jobs.lastRunAt,
+        nextRunAt: jobs.nextRunAt,
+      })
+      .from(jobs)
+      .orderBy(desc(jobs.createdAt));
+
+    // For each job, get its associated tests
+    const jobsWithTests = await Promise.all(
+      result.map(async (job) => {
+        const jobTestsResult = await db
+          .select({
+            id: testsTable.id,
+            title: testsTable.title,
+            description: testsTable.description,
+            type: testsTable.type,
+            priority: testsTable.priority,
+            script: testsTable.script,
+            createdAt: testsTable.createdAt,
+            updatedAt: testsTable.updatedAt,
+          })
+          .from(testsTable)
+          .innerJoin(jobTests, eq(testsTable.id, jobTests.testId))
+          .where(eq(jobTests.jobId, job.id));
+
+        // Get the last run for this job
+        const lastRunResult = await db
+          .select({
+            id: runs.id,
+            status: runs.status,
+            startedAt: runs.startedAt,
+            completedAt: runs.completedAt,
+            duration: runs.duration,
+          })
+          .from(runs)
+          .where(eq(runs.jobId, job.id))
+          .orderBy(desc(runs.startedAt))
+          .limit(1);
+
+        const lastRun = lastRunResult[0] || null;
+
+        return {
+          ...job,
+          lastRunAt: job.lastRunAt ? job.lastRunAt.toISOString() : null,
+          nextRunAt: job.nextRunAt ? job.nextRunAt.toISOString() : null,
+          tests: jobTestsResult.map((test) => ({
+            ...test,
+            name: test.title || "",
+            script: test.script,
+            createdAt: test.createdAt ? test.createdAt.toISOString() : null,
+            updatedAt: test.updatedAt ? test.updatedAt.toISOString() : null,
+          })),
+          lastRun: lastRun ? {
+            ...lastRun,
+            startedAt: lastRun.startedAt ? lastRun.startedAt.toISOString() : null,
+            completedAt: lastRun.completedAt ? lastRun.completedAt.toISOString() : null,
+          } : null,
+          createdAt: job.createdAt ? job.createdAt.toISOString() : null,
+          updatedAt: job.updatedAt ? job.updatedAt.toISOString() : null,
+        };
+      })
+    );
+
+    return NextResponse.json({
+      success: true,
+      jobs: jobsWithTests,
     });
+  } catch (error) {
+    console.error('Failed to fetch jobs:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch jobs' },
+      { status: 500 }
+    );
   }
 }
 
@@ -300,10 +371,11 @@ async function runJob(request: Request) {
 
       if (!testScript) {
         // Fetch the test from the database to get the script
-        const testResult = await getTest(test.id);
-        if (testResult.success && testResult.test?.script) {
-          testScript = testResult.test.script;
-          testName = testResult.test.title || testName;
+        const testResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/tests/${test.id}`);
+        const testData = await testResult.json();
+        if (testResult.ok && testData?.script) {
+          testScript = testData.script;
+          testName = testData.title || testName;
         } else {
           console.error(`Failed to fetch script for test ${test.id}`);
           // Add a placeholder for tests without scripts

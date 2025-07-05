@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createColumns } from "./columns";
 import { DataTable } from "./data-table";
-import { getRuns } from "@/actions/get-runs";
+// import { getRuns } from "@/actions/get-runs"; // Replaced with API call
 import { TestRun } from "./schema";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -19,9 +19,15 @@ export function RunsClient() {
   const fetchRuns = useCallback(async () => {
     setIsLoading(true);
     try {
-      const fetchedRuns = await getRuns();
+      const response = await fetch('/api/runs');
+      const fetchedRuns = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(fetchedRuns.error || 'Failed to fetch runs');
+      }
+      
       // Cast status and map nulls to undefined
-      const typedRuns = fetchedRuns.map(run => ({
+      const typedRuns = fetchedRuns.map((run: any) => ({
         ...run,
         status: run.status as TestRun['status'],
         jobName: run.jobName ?? undefined,

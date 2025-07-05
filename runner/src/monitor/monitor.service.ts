@@ -237,7 +237,7 @@ export class MonitorService {
             if (providers.length > 0) {
               const notificationPayload: NotificationPayload = {
                 type: resultData.status === 'up' && previousStatus === 'down' ? 'monitor_recovery' : 'monitor_failure',
-                title: resultData.status === 'up' ? `Monitor Recovered - ${monitor.name}` : `Monitor Alert - ${monitor.name}`,
+                title: resultData.status === 'up' ? `Monitor Recovered - ${monitor.name}` : `Monitor Down - ${monitor.name}`,
                 message: monitor.alertConfig.customMessage || 
                   (resultData.status === 'up' 
                     ? `Monitor "${monitor.name}" has recovered and is now operational.`

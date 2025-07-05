@@ -128,35 +128,33 @@ const Playground: React.FC<PlaygroundProps> = ({
     try {
       setLoading(true);
 
-      // Import the getTest function
-      const { getTest } = await import("@/actions/get-test");
+      // Fetch the test data from API
+      const response = await fetch(`/api/tests/${id}`);
+      const result = await response.json();
 
-      // Fetch the test data
-      const result = await getTest(id);
-
-      if (result.success && result.test) {
+      if (response.ok && result) {
         // Update the test case data
         setTestCase({
-          title: result.test.title,
-          description: result.test.description,
-          priority: result.test.priority as TestPriority,
-          type: result.test.type as TestType,
-          updatedAt: result.test.updatedAt ? result.test.updatedAt.toISOString() : null,
-          createdAt: result.test.createdAt ? result.test.createdAt.toISOString() : null,
+          title: result.title,
+          description: result.description,
+          priority: result.priority as TestPriority,
+          type: result.type as TestType,
+          updatedAt: result.updatedAt || null,
+          createdAt: result.createdAt || null,
         });
 
         // Update the editor content
-        setEditorContent(result.test.script);
-        setInitialEditorContent(result.test.script);
+        setEditorContent(result.script);
+        setInitialEditorContent(result.script);
 
         // Update the form values
         setInitialFormValues({
-          title: result.test.title,
-          description: result.test.description,
-          priority: result.test.priority as TestPriority,
-          type: result.test.type as TestType,
-          updatedAt: result.test.updatedAt ? result.test.updatedAt.toISOString() : null,
-          createdAt: result.test.createdAt ? result.test.createdAt.toISOString() : null,
+          title: result.title,
+          description: result.description,
+          priority: result.priority as TestPriority,
+          type: result.type as TestType,
+          updatedAt: result.updatedAt || null,
+          createdAt: result.createdAt || null,
         });
 
         // Set the test ID

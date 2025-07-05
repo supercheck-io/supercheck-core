@@ -4,7 +4,6 @@ import { jobs, jobTests, runs, testsSelectSchema, type jobsSelectSchema } from "
 import { eq, isNotNull, and } from "drizzle-orm";
 import { getQueues, JobExecutionTask, JOB_EXECUTION_QUEUE, JOB_SCHEDULER_QUEUE } from "./queue";
 import crypto from "crypto";
-import { getTest } from "@/actions/get-test";
 import { getNextRunDate } from "@/lib/cron-utils";
 import { z } from 'zod';
 
@@ -50,9 +49,10 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
 
     // Fetch all test scripts upfront
     const testCasePromises = jobTestsList.map(async (jobTest: { testId: string; orderPosition: number | null }) => {
-      const test = await getTest(jobTest.testId);
+      const test = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/tests/${jobTest.testId}`);
+      const testData = await test.json();
       return {
-        ...test.test,
+        ...testData,
         orderPosition: jobTest.orderPosition
       };
     });

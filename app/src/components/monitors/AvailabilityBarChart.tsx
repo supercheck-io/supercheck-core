@@ -69,9 +69,9 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
   // Different descriptions based on monitor type
   const getDescription = () => {
     if (monitorType === "heartbeat") {
-      return `Heartbeat events (${data.length} pings/failures) - ${uptimePercentage}% success rate`;
+      return `Latest Heartbeat events (${data.length} pings/failures)`;
     } else {
-      return `Status of individual checks (${data.length} data points) - ${uptimePercentage}% uptime`;
+      return `Status of latest individual checks (${data.length} data points)`;
     }
   };
 
@@ -103,8 +103,8 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
               <Tooltip
                 cursor={{ 
                   fill: "rgba(0,0,0,0.1)", 
-                  stroke: "rgba(0,0,0,0)",
-                  strokeWidth: 0,
+                  stroke: "rgba(0,0,0,0.1)",
+                  strokeWidth: 1,
                   strokeDasharray: "none"
                 }}
                 offset={10}

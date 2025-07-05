@@ -43,7 +43,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getJobs } from "@/actions/get-jobs";
+// import { getJobs } from "@/actions/get-jobs"; // Replaced with API call
 import { useJobContext } from "./job-context";
 import { formatDistanceToNow } from "date-fns";
 import { UUIDField } from "@/components/ui/uuid-field";
@@ -104,14 +104,16 @@ export default function Jobs() {
     async function fetchJobs() {
       setIsLoading(true);
       try {
-        const response = await getJobs();
-        if (response.success && response.jobs) {
-          const typedJobs = response.jobs.map((job) => ({
+        const response = await fetch('/api/jobs');
+        const data = await response.json();
+        
+        if (response.ok && data.success && data.jobs) {
+          const typedJobs = data.jobs.map((job: any) => ({
             ...job,
             status: job.status as Job["status"],
             description: job.description || null,
             cronSchedule: job.cronSchedule || null,
-            tests: job.tests.map((test) => ({
+            tests: job.tests.map((test: any) => ({
               ...test,
               type: test.type as Test["type"],
               description: test.description || null,
@@ -123,9 +125,9 @@ export default function Jobs() {
           }));
           setJobs(typedJobs as any);
         } else {
-          console.error("Failed to fetch jobs:", response.error);
+          console.error("Failed to fetch jobs:", data.error);
           toast.error("Failed to fetch jobs", {
-            description: response.error || "An unknown error occurred",
+            description: data.error || "An unknown error occurred",
           });
         }
       } catch (error) {

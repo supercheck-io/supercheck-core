@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getTest } from "@/actions/get-test";
 import { db } from "@/utils/db";
 import { jobs, runs, JobStatus } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
@@ -44,10 +43,12 @@ export async function POST(request: Request) {
       let testName = test.name || test.title || `Test ${test.id}`;
       if (!testScript) {
         console.log(`[${jobId}/${runId}] Fetching script for test ${test.id}`);
-        const testResult = await getTest(test.id);
-        if (testResult.success && testResult.test?.script) {
-          testScript = testResult.test.script;
-          testName = testResult.test.title || testName;
+        const testResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/tests/${test.id}`);
+        const testData = await testResult.json();
+        
+        if (testResult.ok && testData?.script) {
+          testScript = testData.script;
+          testName = testData.title || testName;
         } else {
           console.error(`[${jobId}/${runId}] Failed to fetch script for test ${test.id}, skipping.`);
           continue;

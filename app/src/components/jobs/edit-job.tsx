@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { SaveIcon, Trash2, Loader2 } from "lucide-react";
 import { updateJob } from "@/actions/update-job";
-import { getJob } from "@/actions/get-jobs";
+// import { getJob } from "@/actions/get-jobs"; // Replaced with API call
 import { deleteJob } from "@/actions/delete-job";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -131,19 +131,20 @@ export default function EditJob({ jobId }: EditJobProps) {
   const loadJob = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await getJob(jobId);
+      const response = await fetch(`/api/jobs/${jobId}`);
+      const data = await response.json();
 
-      if (!response.success || !response.job) {
+      if (!response.ok || data.error) {
         // This check is now handled by the server component
         // But we'll still handle it here for robustness
         toast.error("Error", {
-          description: "Job not found. Redirecting to jobs list.",
+          description: data.error || "Job not found. Redirecting to jobs list.",
         });
         router.push("/jobs");
         return;
       }
 
-      const jobData = response.job;
+      const jobData = data;
       
       // Set form values
       form.reset({
@@ -160,7 +161,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       });
 
       // Map the tests to the format expected by TestSelector
-      const tests = jobData.tests.map((test) => ({
+      const tests = jobData.tests.map((test: any) => ({
         id: test.id,
         name: test.name,
         description: test.description || null,

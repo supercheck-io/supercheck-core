@@ -160,7 +160,7 @@ export class MonitorProcessor extends WorkerHost {
       } else if (shouldNotifyFailure) {
         notificationType = 'monitor_failure';
         severity = 'error';
-        title = `Monitor Alert - ${monitor.name}`;
+        title = `Monitor Down - ${monitor.name}`;
         message = `Monitor "${monitor.name}" is down. ${result.details?.errorMessage || 'No ping received within expected interval'}`;
       } else if (shouldNotifyRecovery) {
         notificationType = 'monitor_recovery';

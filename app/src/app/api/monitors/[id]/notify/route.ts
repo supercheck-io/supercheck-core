@@ -87,7 +87,7 @@ export async function POST(
       case 'failure':
         notificationType = 'monitor_failure';
         severity = 'error';
-        title = `Monitor Alert - ${monitor.name}`;
+        title = `Monitor Down - ${monitor.name}`;
         message = `Monitor "${monitor.name}" is down. ${reason || 'No ping received within expected interval'}`;
         
         // Only send failure notifications if enabled

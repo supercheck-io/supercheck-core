@@ -3,7 +3,7 @@
 import { notFound, useParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import EditJob from "@/components/jobs/edit-job";
-import { getJob } from "@/actions/get-jobs";
+// import { getJob } from "@/actions/get-jobs"; // Replaced with API call
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { EditJobSkeleton } from "@/components/jobs/edit-job-skeleton";
@@ -16,8 +16,8 @@ export default function EditJobPage() {
   useEffect(() => {
     async function checkJobExists() {
       try {
-        const response = await getJob(jobId);
-        if (!response.success || !response.job) {
+        const response = await fetch(`/api/jobs/${jobId}`);
+        if (!response.ok) {
           notFound();
         }
       } catch (error) {

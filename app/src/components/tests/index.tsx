@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { getTests } from "@/actions/get-tests";
+// import { getTests } from "@/actions/get-tests"; // Replaced with API call
 import { Test } from "./schema";
 import { Row } from "@tanstack/react-table";
 
@@ -21,9 +21,11 @@ export default function Tests() {
     async function fetchTests() {
       setIsLoading(true);
       try {
-        const response = await getTests();
-        if (response.success && response.tests) {
-          const testsWithDefaults = response.tests.map((test) => ({
+        const response = await fetch('/api/tests');
+        const data = await response.json();
+        
+        if (response.ok && data) {
+          const testsWithDefaults = data.map((test: any) => ({
             ...test,
             priority: test.priority || "medium",
             description: test.description || null,
@@ -32,7 +34,7 @@ export default function Tests() {
           }));
           setTests(testsWithDefaults);
         } else {
-          console.error("Failed to fetch tests:", response.error);
+          console.error("Failed to fetch tests:", data.error);
         }
       } catch (error) {
         console.error("Error fetching tests:", error);

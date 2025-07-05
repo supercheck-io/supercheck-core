@@ -1,5 +1,5 @@
 import { RunDetails } from "@/components/runs/run-details";
-import { getRun } from "@/actions/get-runs";
+// import { getRun } from "@/actions/get-runs"; // Replaced with API call
 import { notFound } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { Suspense } from "react";
@@ -26,11 +26,17 @@ function DetailSkeleton() {
 
 export default async function RunPage({ params }: Params) {
   const { id } = await params;
-  const run = await getRun(id);
   
-  if (!run) {
+  // Fetch run data from API
+  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/runs/${id}`, {
+    cache: 'no-store'
+  });
+  
+  if (!response.ok) {
     notFound();
   }
+  
+  const run = await response.json();
   
   const breadcrumbs = [
     { label: "Home", href: "/" },

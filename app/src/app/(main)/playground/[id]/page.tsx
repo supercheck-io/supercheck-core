@@ -1,7 +1,7 @@
 "use client";
 import Playground from "@/components/playground";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
-import { getTest } from "@/actions/get-test";
+// import { getTest } from "@/actions/get-test"; // Replaced with API call
 import { useEffect, useState } from "react";
 import { useParams, notFound } from "next/navigation";
 import { TestPriority, TestType } from "@/db/schema/schema";
@@ -35,12 +35,14 @@ export default function PlaygroundPage() {
   useEffect(() => {
     async function fetchTestData() {
       try {
-        const result = await getTest(id);
-        if (result.success && result.test) {
+        const response = await fetch(`/api/tests/${id}`);
+        const result = await response.json();
+        
+        if (response.ok && result) {
           setTestData({
-            ...result.test,
-            updatedAt: result.test.updatedAt ? result.test.updatedAt.toISOString() : null,
-            createdAt: result.test.createdAt ? result.test.createdAt.toISOString() : null,
+            ...result,
+            updatedAt: result.updatedAt || null,
+            createdAt: result.createdAt || null,
           });
         } else {
           // Test not found or error, trigger the not-found page

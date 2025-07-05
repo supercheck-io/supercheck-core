@@ -1,18 +1,17 @@
-"use server";
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/utils/db";
+import { tests } from "@/db/schema/schema";
+import { eq } from "drizzle-orm";
 
 declare const Buffer: {
   from(data: string, encoding: string): { toString(encoding: string): string };
 };
 
-import { tests } from "@/db/schema/schema";
-import { eq } from "drizzle-orm";
-import { db } from "@/utils/db";
-
 /**
  * Helper function to decode base64-encoded test scripts
  * Works in both client and server environments
  */
-export async function decodeTestScript(base64Script: string): Promise<string> {
+async function decodeTestScript(base64Script: string): Promise<string> {
   // Check if the string is base64 encoded
   // A valid base64 string should only contain these characters
   const base64Regex = /^[A-Za-z0-9+/=]+$/;
@@ -38,23 +37,27 @@ export async function decodeTestScript(base64Script: string): Promise<string> {
   }
 }
 
-/**
- * Server action to get a test from the database by ID
- * @param id The ID of the test to retrieve
- * @returns The test data or null if not found
- */
-export async function getTest(id: string) {
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const params = await context.params;
+  const testId = params.id;
+
   try {
     // Query the database for the test with the given ID
     const result = await db
       .select()
       .from(tests)
-      .where(eq(tests.id, id))
+      .where(eq(tests.id, testId))
       .limit(1);
 
-    // If no test was found, return null
+    // If no test was found, return 404
     if (result.length === 0) {
-      return { success: false, error: "Test not found" };
+      return NextResponse.json(
+        { error: "Test not found" },
+        { status: 404 }
+      );
     }
 
     const test = result[0];
@@ -63,24 +66,21 @@ export async function getTest(id: string) {
     const decodedScript = await decodeTestScript(test.script || "");
 
     // Return the test data
-    return {
-      success: true,
-      test: {
-        id: test.id,
-        title: test.title,
-        description: test.description,
-        script: decodedScript, // Return the decoded script
-        priority: test.priority,
-        type: test.type,
-        updatedAt: test.updatedAt,
-        createdAt: test.createdAt,
-      },
-    };
+    return NextResponse.json({
+      id: test.id,
+      title: test.title,
+      description: test.description,
+      script: decodedScript, // Return the decoded script
+      priority: test.priority,
+      type: test.type,
+      updatedAt: test.updatedAt,
+      createdAt: test.createdAt,
+    });
   } catch (error) {
     console.error("Error fetching test:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-    };
+    return NextResponse.json(
+      { error: "Failed to fetch test" },
+      { status: 500 }
+    );
   }
 }

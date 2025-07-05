@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { createColumns } from "./columns";
 import { DataTable } from "./data-table";
 import { TestRun } from "./schema";
-import { getRuns } from "@/actions/get-runs";
+// import { getRuns } from "@/actions/get-runs"; // Replaced with API call
 import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -18,7 +18,13 @@ export function Runs() {
   const fetchRuns = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await getRuns();
+      const response = await fetch('/api/runs');
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch runs');
+      }
+      
       // Cast the data to TestRun[] to ensure type compatibility
       setRuns(data as unknown as TestRun[]);
     } catch (error) {

@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { getTests } from "@/actions/get-tests";
+// import { getTests } from "@/actions/get-tests"; // Replaced with API call
 
 interface TestSelectorProps {
   selectedTests?: Test[];
@@ -69,10 +69,12 @@ export default function TestSelector({
     async function fetchTests() {
       setIsLoadingTests(true);
       try {
-        const response = await getTests();
-        if (response.success && response.tests) {
+        const response = await fetch('/api/tests');
+        const data = await response.json();
+        
+        if (response.ok && data) {
           // Map the API response to the Test type
-          const formattedTests: Test[] = (response.tests as ActionTest[]).map(
+          const formattedTests: Test[] = (data as ActionTest[]).map(
             (test: ActionTest) => {
               let mappedType: Test["type"];
               switch (test.type) {
@@ -99,7 +101,7 @@ export default function TestSelector({
           );
           setAvailableTests(formattedTests);
         } else {
-          console.error("Failed to fetch tests:", response.error);
+          console.error("Failed to fetch tests:", data.error);
         }
       } catch (error) {
         console.error("Error fetching tests:", error);
@@ -234,10 +236,10 @@ export default function TestSelector({
                   >
                     {test.id.substring(0, 12)}...
                   </TableCell>
-                  <TableCell className="truncate" title={test.name}>
-                    {test.name.length > 50
-                      ? test.name.substring(0, 50) + "..."
-                      : test.name}
+                  <TableCell className="truncate" title={test.name || ""}>
+                    {(test.name|| "").length > 50
+                      ? (test.name  || "").substring(0, 50) + "..."
+                      : (test.name || "")}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{test.type}</Badge>
@@ -338,10 +340,10 @@ export default function TestSelector({
                         >
                           {test.id.substring(0, 8)}...
                         </TableCell>
-                        <TableCell className="truncate" title={test.name}>
-                          {test.name.length > 30
-                            ? test.name.substring(0, 30) + "..."
-                            : test.name}
+                        <TableCell className="truncate" title={test.name || ""}>
+                          {(test.name || "").length > 30
+                            ? (test.name || "").substring(0, 30) + "..."
+                            : (test.name || "")}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{test.type}</Badge>
