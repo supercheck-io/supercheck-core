@@ -147,7 +147,8 @@ export const apikey = pgTable("apikey", {
   start: text('start'),
   prefix: text('prefix'),
   key: text('key').notNull(),
-  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'no action' }),
+  jobId: uuid('job_id').references(() => jobs.id, { onDelete: 'cascade' }),
   refillInterval: text('refill_interval'),
   refillAmount: text('refill_amount'),
   lastRefillAt: timestamp('last_refill_at'),
@@ -672,8 +673,6 @@ export const integrations = pgTable("integrations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-
-
 /**
  * Defines periods of scheduled maintenance during which monitoring alerts can be suppressed.
  */
@@ -762,8 +761,6 @@ export const tagsSelectSchema = createSelectSchema(tags);
 
 export const notificationProvidersInsertSchema = createInsertSchema(notificationProviders);
 export const notificationProvidersSelectSchema = createSelectSchema(notificationProviders);
-
-
 
 export const maintenanceWindowsInsertSchema = createInsertSchema(maintenanceWindows);
 export const maintenanceWindowsSelectSchema = createSelectSchema(maintenanceWindows);

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { CreateJob } from "./create-job";
 import { AlertSettings } from "@/components/alerts/alert-settings";
+import { CiCdSettings } from "./cicd-settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -20,8 +21,10 @@ interface JobAlertConfig {
   customMessage?: string;
 }
 
+
+
 export function JobCreationWizard() {
-  const [showAlerts, setShowAlerts] = useState(false);
+  const [currentStep, setCurrentStep] = useState<'job' | 'alerts'>('job');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -37,6 +40,7 @@ export function JobCreationWizard() {
     failureThreshold: 1,
     recoveryThreshold: 1,
   });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleJobNext = (data: any) => {
@@ -46,12 +50,18 @@ export function JobCreationWizard() {
       cronSchedule: data.cronSchedule || '',
       tests: Array.isArray(data.tests) ? data.tests : [],
     });
-    setShowAlerts(true);
+    setCurrentStep('alerts');
   };
 
-  const handleBack = () => {
-    setShowAlerts(false);
+  const handleAlertsNext = () => {
+    handleCreateJob();
   };
+
+  const handleAlertsBack = () => {
+    setCurrentStep('job');
+  };
+
+
 
   const handleCreateJob = async () => {
     try {
@@ -97,7 +107,8 @@ export function JobCreationWizard() {
     }
   };
 
-  if (!showAlerts) {
+  // Step 1: Job Details
+  if (currentStep === 'job') {
     return (
       <CreateJob
         onSave={handleJobNext}
@@ -110,52 +121,47 @@ export function JobCreationWizard() {
     );
   }
 
-  return (
-    <div className="space-y-6 p-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Job Alert Settings</CardTitle>
-          <CardDescription>
-            Configure notifications for job execution events
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <AlertSettings
-            value={alertConfig}
-            onChange={(config) => setAlertConfig({
-              enabled: config.enabled,
-              notificationProviders: config.notificationProviders,
-              alertOnFailure: config.alertOnFailure,
-              alertOnSuccess: config.alertOnSuccess || false,
-              alertOnTimeout: config.alertOnTimeout || false,
-              failureThreshold: config.failureThreshold,
-              recoveryThreshold: config.recoveryThreshold,
-              customMessage: config.customMessage,
-            })}
-            context="job"
-          />
+  // Step 2: Alert Settings
+  if (currentStep === 'alerts') {
+    return (
+      <div className="space-y-6 p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Alert Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></CardTitle>
+            <CardDescription>
+              Configure notifications for job execution events
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <AlertSettings
+              value={alertConfig}
+              onChange={(config) => setAlertConfig({
+                enabled: config.enabled,
+                notificationProviders: config.notificationProviders,
+                alertOnFailure: config.alertOnFailure,
+                alertOnSuccess: config.alertOnSuccess || false,
+                alertOnTimeout: config.alertOnTimeout || false,
+                failureThreshold: config.failureThreshold,
+                recoveryThreshold: config.recoveryThreshold,
+                customMessage: config.customMessage,
+              })}
+              context="job"
+            />
 
-          <div className="flex justify-end gap-6 pt-4">
-            <Button variant="outline" onClick={handleBack}>
-              Back
-            </Button>
-            <Button 
-              onClick={handleCreateJob} 
-              disabled={isSubmitting}
-              className="flex items-center"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                "Create Job"
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+            <div className="flex justify-end gap-6 pt-4">
+              <Button variant="outline" onClick={handleAlertsBack}>
+                Back
+              </Button>
+              <Button onClick={handleAlertsNext} disabled={isSubmitting}>
+                {isSubmitting ? "Creating Job..." : "Create Job"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // This should never be reached since we only have 2 steps now
+  return null;
 } 

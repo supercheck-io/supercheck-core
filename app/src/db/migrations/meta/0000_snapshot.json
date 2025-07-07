@@ -1,5 +1,5 @@
 {
-  "id": "76638bf6-670a-491f-af40-7c3bfc2d3cbf",
+  "id": "c9967cc1-b475-4dbc-bd3f-63b00d660314",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -401,6 +401,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "job_id": {
+          "name": "job_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "refill_interval": {
           "name": "refill_interval",
           "type": "text",
@@ -504,6 +510,19 @@
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "apikey_job_id_jobs_id_fk": {
+          "name": "apikey_job_id_jobs_id_fk",
+          "tableFrom": "apikey",
+          "tableTo": "jobs",
+          "columnsFrom": [
+            "job_id"
           ],
           "columnsTo": [
             "id"

@@ -174,7 +174,7 @@ export function CreateJob({
                       <FormItem>
                         <FormLabel className="mb-6">
                           Cron Schedule (UTC){" "}
-                          <span className="text-gray-500">(optional)</span>
+                          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span>
                         </FormLabel>
                         <FormControl>
                           <CronScheduler 
@@ -224,7 +224,7 @@ export function CreateJob({
                   ) : (
                     <SaveIcon className="h-4 w-4 mr-2" />
                   )}
-                  {isSubmitting ? "Creating..." : (hideAlerts ? "Next: Alerts" : "Create")}
+                  {isSubmitting ? "Processing..." : "Next: Alert Settings"}
                 </Button>
               </div>
             </form>

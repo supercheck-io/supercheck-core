@@ -212,7 +212,7 @@ export class JobExecutionProcessor extends WorkerHost {
         alertType = 'job_failed';
         severity = 'error';
         title = `Job Failed - ${job.name}`;
-        message = `Job "${job.name}" has failed with ${failedTests} test failure${failedTests !== 1 ? 's' : ''}.`;
+        message = `Job "${job.name}" has failed.`;
       } else if (shouldNotifySuccess) {
         notificationType = 'job_success';
         alertType = 'job_success';

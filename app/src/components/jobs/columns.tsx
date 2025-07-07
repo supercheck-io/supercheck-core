@@ -89,7 +89,27 @@ function RunButton({ job }: { job: Job }) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to run job: ${response.status} ${errorText}`);
+        // Handle the error directly without throwing
+        let errorMessage = "Unknown error";
+        
+        if (response.status === 429) {
+          errorMessage = "Queue capacity limit reached. Please try again later.";
+        } else {
+          // Use the original error message but trim it to be more concise
+          errorMessage = errorText.replace("Failed to run job: ", "");
+          
+          // Limit the length of the error message
+          if (errorMessage.length > 100) {
+            errorMessage = errorMessage.substring(0, 100) + "...";
+          }
+        }
+        
+        toast.error("Error running job", {
+          description: errorMessage
+        });
+        
+        setJobRunning(false, job.id);
+        return; // Exit early without throwing
       }
 
       const data = await response.json();
@@ -108,23 +128,16 @@ function RunButton({ job }: { job: Job }) {
     } catch (error) {
       console.error("[RunButton] Error running job:", error);
       
-      // Get error message directly from the response if possible
-      let errorMessage = "Unknown error";
+      // This catch block now only handles network errors, parsing errors, etc.
+      // HTTP errors are handled above
+      let errorMessage = "Network error occurred while running the job.";
       
       if (error instanceof Error) {
-        const message = error.message;
+        errorMessage = error.message;
         
-        // Try to extract the more specific error message from the JSON string
-        if (message.includes('429')) {
-          errorMessage = "Queue capacity limit reached. Please try again later.";
-        } else {
-          // Use the original error message but trim it to be more concise
-          errorMessage = message.replace("Failed to run job: ", "");
-          
-          // Limit the length of the error message
-          if (errorMessage.length > 100) {
-            errorMessage = errorMessage.substring(0, 100) + "...";
-          }
+        // Limit the length of the error message
+        if (errorMessage.length > 100) {
+          errorMessage = errorMessage.substring(0, 100) + "...";
         }
       }
       

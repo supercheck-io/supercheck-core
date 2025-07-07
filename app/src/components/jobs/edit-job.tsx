@@ -45,6 +45,7 @@ import CronScheduler from "./cron-scheduler";
 import { Info } from "lucide-react";
 import NextRunDisplay from "./next-run-display";
 import { AlertSettings } from "@/components/alerts/alert-settings";
+import { CiCdSettings } from "./cicd-settings";
 import { EditJobSkeleton } from "./edit-job-skeleton";
 
 const jobFormSchema = z.object({
@@ -93,7 +94,7 @@ export default function EditJob({ jobId }: EditJobProps) {
     recoveryThreshold: 1,
     customMessage: "",
   });
-  const [showAlerts, setShowAlerts] = useState(false);
+  const [currentStep, setCurrentStep] = useState<'job' | 'alerts' | 'cicd'>('job');
   const [jobData, setJobData] = useState<any>(null);
   const [initialAlertConfig, setInitialAlertConfig] = useState<{
     enabled: boolean;
@@ -114,6 +115,7 @@ export default function EditJob({ jobId }: EditJobProps) {
     recoveryThreshold: 1,
     customMessage: "",
   });
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
@@ -240,7 +242,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       };
 
       setJobData(preparedJobData);
-      setShowAlerts(true);
+      setCurrentStep('alerts');
     } catch (error) {
       console.error("Error preparing job data:", error);
       toast.error("Error", {
@@ -374,12 +376,13 @@ export default function EditJob({ jobId }: EditJobProps) {
     return <EditJobSkeleton />;
   }
 
-  if (showAlerts) {
+  // Step 2: Alert Settings
+  if (currentStep === 'alerts') {
     return (
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>Alert Settings</CardTitle>
+            <CardTitle>Alert Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></CardTitle>
             <CardDescription>
               Configure alert notifications for this job
             </CardDescription>
@@ -402,7 +405,44 @@ export default function EditJob({ jobId }: EditJobProps) {
             <div className="flex justify-end space-x-4 mt-6">
               <Button
                 variant="outline"
-                onClick={() => setShowAlerts(false)}
+                onClick={() => setCurrentStep('job')}
+                type="button"
+              >
+                Back
+              </Button>
+              <Button
+                onClick={() => setCurrentStep('cicd')}
+                type="button"
+              >
+                Next: CI/CD Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Step 3: CI/CD Settings
+  if (currentStep === 'cicd') {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>CI/CD Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></CardTitle>
+            <CardDescription>
+              Configure API keys to trigger job remotely from your CI/CD pipelines
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <CiCdSettings
+              jobId={jobId}
+              context="edit"
+            />
+            <div className="flex justify-end space-x-4 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep('alerts')}
                 type="button"
               >
                 Back
@@ -546,7 +586,7 @@ export default function EditJob({ jobId }: EditJobProps) {
                   type="submit"
                   onClick={handleJobNext}
                 >
-                  Next: Alerts
+                  Next: Alert Settings
                 </Button>
               </div>
             </form>

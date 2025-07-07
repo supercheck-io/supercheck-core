@@ -193,7 +193,7 @@ export default function SettingsPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center">
                         <Bell className="h-4 w-4 mr-2" />
-                        Alert Settings
+                        Alert Settings 
                       </CardTitle>
                       <CardDescription>
                         Configure when and how you receive alerts

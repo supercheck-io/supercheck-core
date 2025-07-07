@@ -116,7 +116,7 @@ export function MonitorCreationWizard() {
     <div className="space-y-6 p-4">
       <Card>
         <CardHeader>
-          <CardTitle>Alert Settings</CardTitle>
+          <CardTitle>Alert Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></CardTitle>
           <CardDescription>
             Configure notifications for this monitor
           </CardDescription>

@@ -147,7 +147,8 @@ export const apikey = pgTable("apikey", {
 	start: text('start'),
 	prefix: text('prefix'),
 	key: text('key').notNull(),
-	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'no action' }),
+	jobId: uuid('job_id').references(() => jobs.id, { onDelete: 'cascade' }),
 	refillInterval: text('refill_interval'),
 	refillAmount: text('refill_amount'),
 	lastRefillAt: timestamp('last_refill_at'),
@@ -279,6 +280,8 @@ export const jobTests = pgTable(
     }),
   })
 );
+
+
 
 export type TestRunStatus =
   | "running"
@@ -745,6 +748,8 @@ export const testsSelectSchema = createSelectSchema(tests);
 export const jobsInsertSchema = createInsertSchema(jobs);
 export const jobsUpdateSchema = createUpdateSchema(jobs);
 export const jobsSelectSchema = createSelectSchema(jobs);
+
+
 
 export const alertSchema = createSelectSchema(alerts);
 export type Alert = z.infer<typeof alertSchema>

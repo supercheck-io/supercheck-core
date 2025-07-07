@@ -22,6 +22,8 @@ import {
   Shield,
   Bell,
   BellOff,
+  ActivitySquare,
+  ActivityIcon,
 } from "lucide-react";
 import { 
   Card, 
@@ -662,7 +664,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
               <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <Activity className="h-5 w-5 text-green-500" />
+                  <ActivityIcon className="h-5 w-5 text-sky-500" />
                   <CardTitle className="text-sm font-medium text-muted-foreground">Last Ping</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">

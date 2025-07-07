@@ -48,7 +48,8 @@ import { useJobContext } from "./job-context";
 import { formatDistanceToNow } from "date-fns";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { cn } from "@/lib/utils";
-import { Bell, BellOff, Shield, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Bell, BellOff, Shield, CheckCircle, XCircle, Clock, Key, Copy } from "lucide-react";
+import { UrlTriggerTooltip } from "./url-trigger-tooltip";
 
 // Helper function to map incoming types to the valid Test["type"]
 function mapToTestType(type: string | undefined): Test["type"] {
@@ -268,7 +269,7 @@ export default function Jobs() {
       />
 
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="xl:max-w-[800px] lg:max-w-[700px] md:max-w-[600px] sm:max-w-[500px] overflow-y-auto p-8">
+        <SheetContent className="xl:max-w-[850px] lg:max-w-[700px] md:max-w-[600px] sm:max-w-[500px] overflow-y-auto p-8">
           {selectedJob && (
             <>
               <SheetHeader>
@@ -463,10 +464,48 @@ export default function Jobs() {
                       </div>
                     </div>
 
-                    {/* Alert Settings */}
-                    <div className="space-y-2 bg-card p-4 rounded-lg border border-border/40">
-                      <h3 className="text-xs font-medium text-muted-foreground">Alert Settings</h3>
-                     
+                    {/* Remote API Trigger */}
+                    <div className="space-y-4 bg-card p-4 rounded-lg border border-border/40">
+                      <div className="flex items-center gap-2">
+                        {/* <Key className="h-4 w-4 text-muted-foreground" /> */}
+                        <h3 className="text-xs font-medium text-muted-foreground">CI/CD Remote Job Trigger</h3>
+                        <UrlTriggerTooltip jobId={selectedJob.id} />
+                      </div>
+                      
+                      <div className="space-y-3">
+            
+                        <div className="space-y-2">
+                          {/* <h4 className="text-sm font-medium">Curl</h4> */}
+                          <div className="relative">
+                            <pre className="p-3 bg-muted rounded text-xs overflow-x-auto">
+{`curl -X POST "${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/jobs/${selectedJob.id}/trigger" \\
+-H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json"`}   
+  
+                            </pre>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="absolute top-2 right-2"
+                              onClick={() => {
+                                const curlCommand = `curl -X POST "${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/jobs/${selectedJob.id}/trigger" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json"`;
+                                navigator.clipboard.writeText(curlCommand);
+                                toast.success("Curl command copied to clipboard");
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        
+
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <p><strong>Note:</strong> You need to create an API key first in the job settings and replace <strong> YOUR_API_KEY</strong> with actual API key.</p>
+                          <p><strong>Response:</strong> Returns JSON with job execution details and run ID.</p>
+                          <p><strong>Rate Limits:</strong> API keys have configurable rate limits and expiration.</p>
+                        </div>
+                      </div>
                     </div>
                   </TabsContent>
 

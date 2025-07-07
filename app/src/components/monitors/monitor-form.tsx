@@ -587,7 +587,7 @@ export function MonitorForm({
       <div className="space-y-4 p-4 min-h-[calc(100vh-8rem)]">
         <Card>
           <CardHeader>
-            <CardTitle>Alert Settings</CardTitle>
+            <CardTitle>Alert Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></CardTitle>
             <CardDescription>
               Configure alert notifications for this monitor
             </CardDescription>
