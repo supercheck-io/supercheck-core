@@ -1,259 +1,295 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Key, Copy, AlertCircle, Loader2, Calendar as CalendarIcon } from "lucide-react";
-import { authClient } from "@/utils/auth-client";
-import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { format } from "date-fns";
+import { CalendarIcon, Copy, Eye, EyeOff, Check, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ApiKeyDialogProps {
   jobId: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onApiKeyCreated: (apiKey: any) => void;
+  onApiKeyCreated?: () => void;
 }
 
-export function ApiKeyDialog({ 
-  jobId, 
-  open, 
-  onOpenChange, 
-  onApiKeyCreated 
-}: ApiKeyDialogProps) {
-  const [step, setStep] = useState<"form" | "success">("form");
-  const [name, setName] = useState("");
-  const [expiry, setExpiry] = useState<Date | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [createdKey, setCreatedKey] = useState<string | null>(null);
-  const [createdExpiry, setCreatedExpiry] = useState<string | null>(null);
+interface CreatedApiKey {
+  id: string;
+  name: string;
+  key: string;
+  expiresAt?: string;
+  createdAt?: string; // Added createdAt for compact display
+}
 
-  const handleClose = () => {
-    setStep("form");
+export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [hasExpiry, setHasExpiry] = useState(false);
+  const [expiryDate, setExpiryDate] = useState<Date>();
+  const [isCreating, setIsCreating] = useState(false);
+  const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const resetForm = () => {
     setName("");
-    setExpiry(null);
+    setHasExpiry(false);
+    setExpiryDate(undefined);
     setCreatedKey(null);
-    setCreatedExpiry(null);
-    onOpenChange(false);
+    setShowKey(false);
+    setCopied(false);
   };
 
-  const handleSubmit = async () => {
+  const handleClose = () => {
+    setOpen(false);
+    setTimeout(() => {
+      if (createdKey && onApiKeyCreated) onApiKeyCreated();
+      resetForm();
+    }, 200);
+  };
+
+  const handleDialogClose = () => {
+    setOpen(false);
+    setTimeout(() => {
+      if (createdKey && onApiKeyCreated) onApiKeyCreated();
+      resetForm();
+    }, 200);
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success("API key copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast.error("Failed to copy to clipboard");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!name.trim()) {
       toast.error("Please enter a name for the API key");
       return;
     }
 
+    setIsCreating(true);
+
     try {
-      setIsLoading(true);
-      
+      let payload: any = {
+        name: name.trim(),
+      };
+      if (hasExpiry && expiryDate) {
+        // Set expiry to end of selected day (23:59:59 local time)
+        const endOfDay = new Date(expiryDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        payload.expiresIn = Math.floor((endOfDay.getTime() - Date.now()) / 1000);
+      }
+
       const response = await fetch(`/api/jobs/${jobId}/api-keys`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          expiresIn: expiry ? Math.floor((expiry.getTime() - Date.now()) / 1000) : undefined,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
+      if (!response.ok) {
         throw new Error(data.error || "Failed to create API key");
       }
 
-      setCreatedKey(data.apiKey.key);
-      setCreatedExpiry(data.apiKey.expiresAt);
-      setStep("success");
-      onApiKeyCreated(data.apiKey);
-      toast.success("API key created successfully");
+      // Use data.apiKey for correct property
+      setCreatedKey(data.apiKey);
 
+      toast.success("API key created successfully");
     } catch (error) {
-      console.error("Error creating API key:", error);
-      toast.error("Failed to create API key: " + (error as Error).message);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to create API key: ${message}`);
     } finally {
-      setIsLoading(false);
+      setIsCreating(false);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
-  };
+  if (createdKey) {
+    return (
+      <Dialog open={open} onOpenChange={handleDialogClose}>
+        <DialogTrigger asChild>
+          <Button size="sm" className="h-8">
+            <Plus className="h-3 w-3 mr-1" />
+            Create Key
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-md">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-base">API Key Created</DialogTitle>
+          </DialogHeader>
 
-  const handleFinish = () => {
-    handleClose();
-  };
+          <div className="space-y-3">
+            <Card>
+              <CardContent className="p-3">
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Name</Label>
+                    <div className="text-xs font-mono">{createdKey.name}</div>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">API Key</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 relative">
+                        <Input
+                          value={createdKey.key}
+                          type={showKey ? "text" : "password"}
+                          readOnly
+                          className="pr-16 font-mono text-xs"
+                        />
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={() => setShowKey(!showKey)}
+                          >
+                            {showKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={() => copyToClipboard(createdKey.key)}
+                          >
+                            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Compact row for created/expiry date */}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                    <span>Created: {createdKey.createdAt ? format(new Date(createdKey.createdAt), "PPP") : "-"}</span>
+                    {createdKey.expiresAt && <span className="mx-1">·</span>}
+                    {createdKey.expiresAt && <span>Expires: {format(new Date(createdKey.expiresAt), "PPP")}</span>}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            {/* Quick Reference - compact, muted bg, rounded, small font */}
+            <div className="bg-muted border border-border rounded px-3 py-2">
+              <div className="text-xs font-medium text-muted-foreground mb-1">Quick Reference</div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-mono">Authorization: Bearer {createdKey.key?.substring(0, 20) || '...'}...</span>
+              </div>
+              <div className="text-xs text-blue-600 mt-1">Copy this key now - it won&apos;t be shown again</div>
+            </div>
+            <Button onClick={handleDialogClose} className="w-full text-xs">
+              I have copied the key
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        {step === "form" ? (
-          <>
-            <DialogHeader>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
-                  <Key className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <DialogTitle>Create API Key</DialogTitle>
-                  <DialogDescription>
-                    Create a new API key for remote job triggering
-                  </DialogDescription>
-                </div>
-              </div>
-            </DialogHeader>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="h-8">
+          <Plus className="h-3 w-3 mr-1" />
+          Create Key
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader className="pb-3">
+          <DialogTitle className="text-lg">Create API Key</DialogTitle>
+        </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="key-name">Name *</Label>
-                <Input
-                  id="key-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., GitHub Actions, Jenkins, CI Pipeline"
-                  disabled={isLoading}
-                />
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              placeholder="e.g., Production CI/CD"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-9"
+            />
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="expiry">Expiry Date (optional)</Label>
-                <div className="flex items-center gap-2">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="expiry" className="text-sm">
+                Set expiration date
+              </Label>
+              <Switch
+                id="expiry"
+                checked={hasExpiry}
+                onCheckedChange={setHasExpiry}
+              />
+            </div>
+
+            {hasExpiry && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-9",
+                      !expiryDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {expiryDate ? format(expiryDate, "PPP") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={expiry || undefined}
-                    onSelect={(date) => setExpiry(date ?? null)}
-                    fromDate={new Date()}
-                    className="rounded-md border shadow-sm bg-background"
+                    selected={expiryDate}
+                    onSelect={setExpiryDate}
+                    disabled={(date) => date < new Date()}
+                    initialFocus
                   />
-                  {expiry && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setExpiry(null)}
-                      className="ml-2"
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-                {expiry && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Expires: {format(expiry, "PPP")}
-                  </div>
-                )}
-              </div>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
 
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  This API key will only have permission to trigger this specific job.
-                  You can manage or revoke it anytime from the CI/CD settings.
-                </AlertDescription>
-              </Alert>
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={handleClose}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={isLoading || !name.trim()}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  "Create API Key"
-                )}
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30">
-                  <Key className="h-4 w-4 text-green-600 dark:text-green-400" />
-                </div>
-                <div>
-                  <DialogTitle>API Key Created</DialogTitle>
-                  <DialogDescription>
-                    Your API key has been created successfully
-                  </DialogDescription>
-                </div>
-              </div>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="space-y-3">
-                    <p className="font-medium">Important: Copy your API key now!</p>
-                    <p className="text-sm">
-                      This is the only time you'll be able to see the full key. 
-                      Store it securely as you won't be able to retrieve it again.
-                    </p>
-                  </div>
-                </AlertDescription>
-              </Alert>
-
-              <div className="space-y-2">
-                <Label>Your API Key</Label>
-                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg border">
-                  <code className="flex-1 text-sm font-mono break-all">
-                    {createdKey}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => copyToClipboard(createdKey!)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {createdExpiry && (
-                <div className="text-xs text-muted-foreground">
-                  Expires: {format(new Date(createdExpiry), "PPP p")}
-                </div>
-              )}
-
-              <div className="text-sm text-muted-foreground space-y-1">
-                <p><strong>Name:</strong> {name}</p>
-                <p><strong>Permissions:</strong> Can trigger this job only</p>
-                <p><strong>Usage:</strong> Include in CI/CD pipelines as x-api-key header</p>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button onClick={handleFinish} className="w-full">
-                I've copied the key
-              </Button>
-            </DialogFooter>
-          </>
-        )}
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isCreating}
+              className="flex-1"
+            >
+              {isCreating ? "Creating..." : "Create"}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

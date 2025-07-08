@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { runs, jobs, reports, jobTests } from "@/db/schema/schema";
 import { desc, eq, and, count } from "drizzle-orm";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
 // Function to get test count for a job
 async function getJobTestCount(jobId: string): Promise<number> {
@@ -20,6 +22,15 @@ async function getJobTestCount(jobId: string): Promise<number> {
 
 export async function GET(request: NextRequest) {
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Get all runs with job name and report urls in a single query with a left join
     const result = await db
       .select({

@@ -45,7 +45,7 @@ import CronScheduler from "./cron-scheduler";
 import { Info } from "lucide-react";
 import NextRunDisplay from "./next-run-display";
 import { AlertSettings } from "@/components/alerts/alert-settings";
-import { CiCdSettings } from "./cicd-settings";
+import { CicdSettings } from "./cicd-settings";
 import { EditJobSkeleton } from "./edit-job-skeleton";
 
 const jobFormSchema = z.object({
@@ -115,6 +115,7 @@ export default function EditJob({ jobId }: EditJobProps) {
     recoveryThreshold: 1,
     customMessage: "",
   });
+  const [apiKeysChanged, setApiKeysChanged] = useState(false);
 
 
   const form = useForm<FormData>({
@@ -149,18 +150,16 @@ export default function EditJob({ jobId }: EditJobProps) {
       const jobData = data;
       
       // Set form values
-      form.reset({
+      const formValues = {
         name: jobData.name,
         description: jobData.description || "",
         cronSchedule: jobData.cronSchedule || "",
-      });
+      };
+      
+      form.reset(formValues);
       
       // Store initial values for comparison
-      setInitialValues({
-        name: jobData.name,
-        description: jobData.description || "",
-        cronSchedule: jobData.cronSchedule || ""
-      });
+      setInitialValues(formValues);
 
       // Map the tests to the format expected by TestSelector
       const tests = jobData.tests.map((test: any) => ({
@@ -177,33 +176,37 @@ export default function EditJob({ jobId }: EditJobProps) {
       setOriginalSelectedTests(tests);
 
       // Load alert configuration if it exists
+      const alertConfigData = {
+        enabled: false,
+        notificationProviders: [],
+        alertOnFailure: true,
+        alertOnSuccess: false,
+        alertOnTimeout: true,
+        failureThreshold: 1,
+        recoveryThreshold: 1,
+        customMessage: "",
+      };
+
       if (jobData.alertConfig && typeof jobData.alertConfig === 'object') {
         const alertConfig = jobData.alertConfig as any; // Safe cast since we checked it's an object
-        setAlertConfig({
-          enabled: Boolean(alertConfig.enabled),
-          notificationProviders: Array.isArray(alertConfig.notificationProviders) ? alertConfig.notificationProviders : [],
-          alertOnFailure: alertConfig.alertOnFailure !== undefined ? Boolean(alertConfig.alertOnFailure) : true,
-          alertOnSuccess: Boolean(alertConfig.alertOnSuccess),
-          alertOnTimeout: alertConfig.alertOnTimeout !== undefined ? Boolean(alertConfig.alertOnTimeout) : true,
-          failureThreshold: typeof alertConfig.failureThreshold === 'number' ? alertConfig.failureThreshold : 1,
-          recoveryThreshold: typeof alertConfig.recoveryThreshold === 'number' ? alertConfig.recoveryThreshold : 1,
-          customMessage: typeof alertConfig.customMessage === 'string' ? alertConfig.customMessage : "",
-        });
-      } else {
-        // Set default alert config if none exists
-        setAlertConfig({
-          enabled: false,
-          notificationProviders: [],
-          alertOnFailure: true,
-          alertOnSuccess: false,
-          alertOnTimeout: true,
-          failureThreshold: 1,
-          recoveryThreshold: 1,
-          customMessage: "",
-        });
+        alertConfigData.enabled = Boolean(alertConfig.enabled);
+        alertConfigData.notificationProviders = Array.isArray(alertConfig.notificationProviders) ? alertConfig.notificationProviders : [];
+        alertConfigData.alertOnFailure = alertConfig.alertOnFailure !== undefined ? Boolean(alertConfig.alertOnFailure) : true;
+        alertConfigData.alertOnSuccess = Boolean(alertConfig.alertOnSuccess);
+        alertConfigData.alertOnTimeout = alertConfig.alertOnTimeout !== undefined ? Boolean(alertConfig.alertOnTimeout) : true;
+        alertConfigData.failureThreshold = typeof alertConfig.failureThreshold === 'number' ? alertConfig.failureThreshold : 1;
+        alertConfigData.recoveryThreshold = typeof alertConfig.recoveryThreshold === 'number' ? alertConfig.recoveryThreshold : 1;
+        alertConfigData.customMessage = typeof alertConfig.customMessage === 'string' ? alertConfig.customMessage : "";
       }
 
+      setAlertConfig(alertConfigData);
+      setInitialAlertConfig(alertConfigData);
+
       setJobData(jobData); // Store job data for later use
+      
+      // Reset form changed state after successful load
+      setFormChanged(false);
+      setApiKeysChanged(false);
     } catch (error) {
       console.error("Error loading job:", error);
       toast.error("Error", {
@@ -293,48 +296,43 @@ export default function EditJob({ jobId }: EditJobProps) {
 
   // Check if the form has changed
   useEffect(() => {
-    // Compare current form values with initial values
-    const currentName = watchedValues.name;
-    const currentDescription = watchedValues.description;
+    if (isLoading) return;
+
+    const currentName = watchedValues.name || "";
+    const currentDescription = watchedValues.description || "";
     const currentCronSchedule = watchedValues.cronSchedule || "";
-    
-    // Check if any form field has changed
-    const formFieldsChanged = 
+
+    const formFieldsChanged =
       currentName !== initialValues.name ||
       currentDescription !== initialValues.description ||
       currentCronSchedule !== initialValues.cronSchedule;
-    
-    // Compare selected tests with original tests
+
     const testsChanged = !(
       selectedTests.length === originalSelectedTests.length &&
-      selectedTests.every(test => 
+      selectedTests.every(test =>
         originalSelectedTests.some(origTest => origTest.id === test.id)
       ) &&
-      originalSelectedTests.every(origTest => 
+      originalSelectedTests.every(origTest =>
         selectedTests.some(test => test.id === origTest.id)
       )
     );
-    
-    // Check if alert config has changed
-    const checkForChanges = () => {
-      if (
-        initialAlertConfig.enabled !== alertConfig.enabled ||
-        JSON.stringify(initialAlertConfig.notificationProviders) !== JSON.stringify(alertConfig.notificationProviders) ||
-        initialAlertConfig.alertOnFailure !== alertConfig.alertOnFailure ||
-        initialAlertConfig.alertOnSuccess !== alertConfig.alertOnSuccess ||
-        initialAlertConfig.alertOnTimeout !== alertConfig.alertOnTimeout ||
-        initialAlertConfig.failureThreshold !== alertConfig.failureThreshold ||
-        initialAlertConfig.recoveryThreshold !== alertConfig.recoveryThreshold ||
-        initialAlertConfig.customMessage !== alertConfig.customMessage
-      ) {
-        return true;
-      }
 
-      return false;
-    };
+    const alertConfigChanged = (
+      initialAlertConfig.enabled !== alertConfig.enabled ||
+      JSON.stringify(initialAlertConfig.notificationProviders.sort()) !== JSON.stringify(alertConfig.notificationProviders.sort()) ||
+      initialAlertConfig.alertOnFailure !== alertConfig.alertOnFailure ||
+      initialAlertConfig.alertOnSuccess !== alertConfig.alertOnSuccess ||
+      initialAlertConfig.alertOnTimeout !== alertConfig.alertOnTimeout ||
+      initialAlertConfig.failureThreshold !== alertConfig.failureThreshold ||
+      initialAlertConfig.recoveryThreshold !== alertConfig.recoveryThreshold ||
+      (initialAlertConfig.customMessage || "") !== (alertConfig.customMessage || "")
+    );
 
-    setFormChanged(formFieldsChanged || testsChanged || checkForChanges());
-  }, [watchedValues, selectedTests, originalSelectedTests, alertConfig, initialAlertConfig, initialValues]);
+    const hasChanges = formFieldsChanged || testsChanged || alertConfigChanged || apiKeysChanged;
+    if (formChanged !== hasChanges) {
+      setFormChanged(hasChanges);
+    }
+  }, [watchedValues, selectedTests, originalSelectedTests, alertConfig, initialAlertConfig, initialValues, isLoading, formChanged, apiKeysChanged]);
 
   // Handle job deletion
   const handleDeleteJob = async () => {
@@ -435,9 +433,9 @@ export default function EditJob({ jobId }: EditJobProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <CiCdSettings
+            <CicdSettings
               jobId={jobId}
-              context="edit"
+              onChange={() => setApiKeysChanged(true)}
             />
             <div className="flex justify-end space-x-4 mt-6">
               <Button

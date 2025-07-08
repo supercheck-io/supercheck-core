@@ -12,11 +12,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTheme } from "next-themes";
+import { Moon, Sun, Monitor } from "lucide-react";
 
 export function NavUser() {
   const { data: session, isPending } = useSession();
   const [isClient, setIsClient] = useState(false);
   const user = session?.user;
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     setIsClient(true);
@@ -54,6 +57,21 @@ export function NavUser() {
             </p>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Theme</DropdownMenuLabel>
+        <DropdownMenuItem onClick={() => setTheme("dark")}> 
+          <span className="mr-2 flex items-center"><Moon className="h-4 w-4 mr-2" />Dark</span>
+          <span className="ml-auto">{theme === "dark" && <span className="inline-block w-2 h-2 rounded-full bg-primary" />}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("light")}> 
+          <span className="mr-2 flex items-center"><Sun className="h-4 w-4 mr-2" />Light</span>
+          <span className="ml-auto">{theme === "light" && <span className="inline-block w-2 h-2 rounded-full bg-primary" />}</span>
+        </DropdownMenuItem>
+       
+        <DropdownMenuItem onClick={() => setTheme("system")}> 
+          <span className="mr-2 flex items-center"><Monitor className="h-4 w-4 mr-2" />System</span>
+          <span className="ml-auto">{theme === "system" && <span className="inline-block w-2 h-2 rounded-full bg-primary" />}</span>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>Log out</DropdownMenuItem>
       </DropdownMenuContent>

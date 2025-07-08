@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { tests } from "@/db/schema/schema";
 import { desc } from "drizzle-orm";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
 declare const Buffer: {
   from(data: string, encoding: string): { toString(encoding: string): string };
@@ -39,6 +41,15 @@ async function decodeTestScript(base64Script: string): Promise<string> {
 
 export async function GET(request: NextRequest) {
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Fetch all tests from the database
     const allTests = await db
       .select()

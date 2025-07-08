@@ -79,101 +79,47 @@ export default function SettingsPage() {
             <CardContent className="pt-0 -mt-2">
               <TabsContent value="appearance" className="p-4">
                 <div className="space-y-4">
-                  <div>
-                    <h3 className="text-2xl font-semibold mb-2 flex items-center">
-                      <Palette className="h-6 w-6 mr-2 " />
-                      Theme Settings
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Customize the appearance of your dashboard
-                    </p>
-                  </div>
-                  
-                  <div className="grid gap-6 md:grid-cols-2">
-                    <Card className="bg-background">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center">
-                          <Eye className="h-4 w-4 mr-2" />
-                          Theme Settings
-                        </CardTitle>
-                        <CardDescription>
-                          Customize the appearance of your dashboard
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Label className="text-sm font-medium">Theme</Label>
-                            <p className="text-sm text-muted-foreground">
-                              Choose your preferred theme
-                            </p>
-                          </div>
-                          <ThemeToggle />
-                        </div>
-                        <Separator />
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Label className="text-sm font-medium">Compact View</Label>
-                            <p className="text-sm text-muted-foreground">
-                              Use a more compact layout
-                            </p>
-                          </div>
-                          <Switch />
-                        </div>
-                        <Separator />
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Label className="text-sm font-medium">High Contrast</Label>
-                            <p className="text-sm text-muted-foreground">
-                              Increase contrast for better visibility
-                            </p>
-                          </div>
-                          <Switch />
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-background">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center">
-                          <User className="h-4 w-4 mr-2" />
-                          Display Preferences
-                        </CardTitle>
-                        <CardDescription>
-                          Configure how information is displayed
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">Date Format</Label>
-                          <Select defaultValue="relative">
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="relative">Relative (2 hours ago)</SelectItem>
-                              <SelectItem value="absolute">Absolute (Dec 25, 2024)</SelectItem>
-                              <SelectItem value="iso">ISO Format</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">Timezone</Label>
-                          <Select defaultValue="auto">
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="auto">Auto-detect</SelectItem>
-                              <SelectItem value="utc">UTC</SelectItem>
-                              <SelectItem value="est">EST</SelectItem>
-                              <SelectItem value="pst">PST</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
+                  {/* Theme settings removed and moved to user account dropdown */}
+                  <Card className="bg-background">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <User className="h-4 w-4 mr-2" />
+                        Display Preferences
+                      </CardTitle>
+                      <CardDescription>
+                        Configure how information is displayed
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Date Format</Label>
+                        <Select defaultValue="relative">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="relative">Relative (2 hours ago)</SelectItem>
+                            <SelectItem value="absolute">Absolute (Dec 25, 2024)</SelectItem>
+                            <SelectItem value="iso">ISO Format</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Timezone</Label>
+                        <Select defaultValue="auto">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">Auto-detect</SelectItem>
+                            <SelectItem value="utc">UTC</SelectItem>
+                            <SelectItem value="est">EST</SelectItem>
+                            <SelectItem value="pst">PST</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </TabsContent>
 

@@ -1,303 +1,312 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { format } from "date-fns";
 import { 
-  Key, 
-  Plus, 
-  Copy, 
-  MoreVertical, 
   Trash2, 
-  Edit, 
-  Eye, 
-  EyeOff, 
-  AlertCircle,
-  CheckCircle,
+  AlertTriangle, 
+  Key,
   Loader2,
-  ExternalLink,
-  Info
+  CheckCircle,
+  Ban
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { ApiKeyDialog } from "./api-key-dialog";
-import { UrlTriggerTooltip } from "./url-trigger-tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ApiKey {
   id: string;
   name: string;
   start: string;
   enabled: boolean;
+  expiresAt: string | null;
   createdAt: string;
-  permissions: any;
+  lastRequest?: string;
+  requestCount?: string;
+  createdByName?: string;
 }
 
-interface CiCdSettingsProps {
+interface CicdSettingsProps {
   jobId: string;
-  context: "create" | "edit";
+  onChange?: () => void;
 }
 
-export function CiCdSettings({ jobId, context }: CiCdSettingsProps) {
+export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isLoadingAction, setIsLoadingAction] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [keyToDelete, setKeyToDelete] = useState<string | null>(null);
 
-  const triggerUrl = `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/api/jobs/${jobId}/trigger`;
-
-  // Load existing API keys
-  useEffect(() => {
-    if (context === "edit") {
-      loadApiKeys();
-    }
-  }, [jobId, context]);
-
-  const loadApiKeys = async () => {
+  const loadApiKeys = async (notifyChange = false) => {
     try {
       setIsLoading(true);
+      setError(null);
+      
       const response = await fetch(`/api/jobs/${jobId}/api-keys`);
-      const data = await response.json();
-
-      if (data.success) {
-        setApiKeys(data.apiKeys);
-      } else {
-        toast.error("Failed to load API keys");
+      
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error("Access denied. You don't have permission to view API keys for this job.");
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-    } catch (error) {
-      console.error("Error loading API keys:", error);
-      toast.error("Failed to load API keys");
+      
+      const data = await response.json();
+      setApiKeys(data.apiKeys || []);
+      if (notifyChange && typeof onChange === 'function') onChange();
+    } catch (err) {
+      console.error("Failed to load API keys:", err);
+      setError(err instanceof Error ? err.message : "Failed to load API keys. Please refresh the page.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleApiKeyCreated = (newApiKey: any) => {
-    setApiKeys(prev => [...prev, {
-      id: newApiKey.id,
-      name: newApiKey.name,
-      start: newApiKey.start,
-      enabled: newApiKey.enabled,
-      createdAt: newApiKey.createdAt,
-      permissions: newApiKey.permissions,
-    }]);
+  useEffect(() => {
+    if (jobId) {
+      loadApiKeys();
+    }
+  }, [jobId]);
+
+  const handleApiKeyCreated = () => {
+    loadApiKeys(true);
   };
 
-  const handleToggleEnabled = async (apiKey: ApiKey) => {
-    try {
-      setIsLoadingAction(apiKey.id);
-      
-      const response = await fetch(`/api/jobs/${jobId}/api-keys/${apiKey.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          enabled: !apiKey.enabled,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setApiKeys(prev => prev.map(key => 
-          key.id === apiKey.id 
-            ? { ...key, enabled: !key.enabled }
-            : key
-        ));
-        toast.success(`API key ${apiKey.enabled ? "disabled" : "enabled"}`);
-      } else {
-        toast.error("Failed to update API key");
-      }
-    } catch (error) {
-      console.error("Error updating API key:", error);
-      toast.error("Failed to update API key");
-    } finally {
-      setIsLoadingAction(null);
-    }
+  const handleDelete = async (keyId: string) => {
+    setKeyToDelete(keyId);
+    setShowDeleteDialog(true);
   };
 
-  const handleDeleteApiKey = async (apiKey: ApiKey) => {
-    if (!confirm(`Are you sure you want to delete the API key "${apiKey.name}"? This cannot be undone.`)) {
-      return;
-    }
+  const confirmDelete = async () => {
+    if (!keyToDelete) return;
 
     try {
-      setIsLoadingAction(apiKey.id);
-      
-      const response = await fetch(`/api/jobs/${jobId}/api-keys/${apiKey.id}`, {
+      const response = await fetch(`/api/jobs/${jobId}/api-keys/${keyToDelete}`, {
         method: "DELETE",
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setApiKeys(prev => prev.filter(key => key.id !== apiKey.id));
-        toast.success("API key deleted successfully");
-      } else {
-        toast.error("Failed to delete API key");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete API key");
       }
+
+      toast.success("API key deleted successfully");
+      loadApiKeys(true);
     } catch (error) {
       console.error("Error deleting API key:", error);
-      toast.error("Failed to delete API key");
+      toast.error(error instanceof Error ? error.message : "Failed to delete API key");
     } finally {
-      setIsLoadingAction(null);
+      setShowDeleteDialog(false);
+      setKeyToDelete(null);
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copied to clipboard`);
+  const handleToggleEnabled = async (keyId: string, currentEnabled: boolean) => {
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/api-keys/${keyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !currentEnabled }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update API key");
+      }
+
+      toast.success(`API key ${!currentEnabled ? 'enabled' : 'disabled'} successfully`);
+      loadApiKeys(true);
+    } catch (error) {
+      console.error("Error updating API key:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to update API key");
+    }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+  const getExpiryStatus = (expiresAt: string | null) => {
+    if (!expiresAt) return null;
+    
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysUntilExpiry < 0) {
+      return { status: "expired", text: "Expired", className: "bg-red-100 text-red-800 border-red-200" };
+    } else if (daysUntilExpiry <= 7) {
+      return { status: "expiring", text: `Expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}`, className: "bg-orange-100 text-orange-800 border-orange-200" };
+    }
+    
+    return null;
   };
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl font-semibold">CI/CD Integration</CardTitle>
+          <CardDescription>
+            Configure API access for continuous integration and deployment workflows
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold">Job Trigger API Keys </h3>
-            <UrlTriggerTooltip jobId={jobId} />
+      {/* API Keys Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl font-semibold">API Keys</CardTitle>
+              <CardDescription>
+                Create and manage API keys for automated job execution
+              </CardDescription>
+            </div>
+            <ApiKeyDialog jobId={jobId} onApiKeyCreated={handleApiKeyCreated} />
           </div>
-        </div>
-        <Button 
-          onClick={() => setIsDialogOpen(true)}
-          size="sm"
-          className="gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Create API Key
-        </Button>
-      </div>
-
-      {/* API Keys List */}
-      {/* <Card> */}
-        {/* <CardHeader> */}
-          {/* <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5" />
-            API Keys
-          </CardTitle>
-          <CardDescription>
-            Manage API keys for remote job triggering
-          </CardDescription>
-        </CardHeader> */}
-        {/* <CardContent className="space-y-4"> */}
-        <div className="space-y-4 bg-card p-4 rounded-lg border border-border/40"> 
+        </CardHeader>
+        <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="ml-2 text-xs text-muted-foreground">Loading API keys...</span>
             </div>
           ) : apiKeys.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Key className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h4 className="text-lg font-medium mb-2">No API Keys</h4>
-              <p className="text-sm">
-                Create your first API key to start triggering jobs remotely
+            <div className="text-center py-6">
+              <Key className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
+              <h3 className="text-sm font-medium text-muted-foreground mb-1">No API Keys</h3>
+              <p className="text-xs text-muted-foreground mb-2">
+                Create your first API key to enable remote job triggering
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {apiKeys.map((apiKey) => (
-                <div
-                  key={apiKey.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
-                      <Key className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
+            <div className="space-y-2">
+              {apiKeys.map((key) => {
+                const expiryStatus = getExpiryStatus(key.expiresAt);
+                const isExpired = expiryStatus?.status === "expired";
+                return (
+                  <div
+                    key={key.id}
+                    className={`flex items-center justify-between p-3 border rounded-lg ${
+                      isExpired ? 'bg-red-50 border-red-200' : 'bg-card'
+                    }`}
+                  >
+                    <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-medium">{apiKey.name}</h4>
-                        <Badge variant={apiKey.enabled ? "default" : "secondary"}>
-                          {apiKey.enabled ? "Active" : "Disabled"}
-                        </Badge>
+                        <Key className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-semibold text-sm">{key.name}</span>
+                        {key.enabled && !isExpired && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800 border border-green-200">
+                            Active
+                          </span>
+                        )}
+                        {!key.enabled && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200">
+                            Disabled
+                          </span>
+                        )}
+                        {expiryStatus && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${expiryStatus.className}`}>
+                            {expiryStatus.text}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>Key: {apiKey.start}...</span>
-                        <span>Created: {formatDate(apiKey.createdAt)}</span>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                        <span>Created: {format(new Date(key.createdAt), "PPP")}</span>
+                        <span className="mx-1">·</span>
+                        <span>Expires: {key.expiresAt ? format(new Date(key.expiresAt), "PPP") : "No expiry"}</span>
+                        {key.createdByName && <span className="mx-1">·</span>}
+                        {key.createdByName && <span>Created by: {key.createdByName}</span>}
+                        {key.lastRequest && <span className="mx-1">·</span>}
+                        {key.lastRequest && <span>Last used: {format(new Date(key.lastRequest), "PPP")}</span>}
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleToggleEnabled(apiKey)}
-                      disabled={isLoadingAction === apiKey.id}
-                    >
-                      {apiKey.enabled ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteApiKey(apiKey)}
-                          className="text-destructive"
-                          disabled={isLoadingAction === apiKey.id}
+                    <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleToggleEnabled(key.id, key.enabled)}
+                          className={key.enabled ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-gray-500 hover:text-red-600 hover:bg-red-50"}
+                          title={key.enabled ? "Disable key" : "Enable key"}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          {key.enabled ? <CheckCircle className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                        </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(key.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        title="Delete key"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Security Best Practices */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold">Security Best Practices</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div>• Monitor and rotate API keys regularly for enhanced security</div>
+            <div>• Set appropriate expiration dates for temporary access</div>
+            <div>• Store keys securely using environment variables or secrets management</div>
+            <div>• Use descriptive names to identify key purposes</div>
           </div>
-        {/* </CardContent> */}
-      {/* </Card> */}
+        </CardContent>
+      </Card>
 
-      {/* API Documentation */}
-
-          <Alert  className="p-4 rounded-lg border border-border/70">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              <div className="space-y-2 ">
-                <p className="font-medium">Important Notes:</p>
-                <ul className="text-sm space-y-1">
-                  <li>• Store API keys securely in your CI/CD environment secrets</li>
-                  <li>• Each API key can only trigger this specific job</li>
-                  <li>• Monitor usage and rotate keys regularly for security</li>
-                </ul>
-              </div>
-            </AlertDescription>
-          </Alert>
-    
-
-      {/* API Key Creation Dialog */}
-      <ApiKeyDialog
-        jobId={jobId}
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        onApiKeyCreated={handleApiKeyCreated}
-      />
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete API Key</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this API key? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 
+    

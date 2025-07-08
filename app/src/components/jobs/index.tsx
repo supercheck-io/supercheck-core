@@ -501,7 +501,7 @@ export default function Jobs() {
                         
 
                         <div className="text-xs text-muted-foreground space-y-1">
-                          <p><strong>Note:</strong> You need to create an API key first in the job settings and replace <strong> YOUR_API_KEY</strong> with actual API key.</p>
+                          <p><strong>Note:</strong> You need to create an API key first in the job settings and replace <i> YOUR_API_KEY</i> with actual API key.</p>
                           <p><strong>Response:</strong> Returns JSON with job execution details and run ID.</p>
                           <p><strong>Rate Limits:</strong> API keys have configurable rate limits and expiration.</p>
                         </div>

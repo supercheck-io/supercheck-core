@@ -9,6 +9,8 @@ import { scheduleJob } from "@/lib/job-scheduler";
 import { JOB_EXECUTION_QUEUE } from "@/lib/queue";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
 const createJobSchema = z.object({
   name: z.string(),
@@ -25,6 +27,19 @@ export async function createJob(data: CreateJobData) {
   console.log(`Creating job with data:`, JSON.stringify(data, null, 2));
   
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session || !session.user || !session.user.id) {
+      return {
+        success: false,
+        message: "Unauthorized - user must be logged in to create jobs",
+        error: "Unauthorized"
+      };
+    }
+
     // Validate the data
     const validatedData = createJobSchema.parse(data);
     
@@ -42,7 +57,7 @@ export async function createJob(data: CreateJobData) {
     }
     
     try {
-      // Create the job
+      // Create the job with proper user association
       await db.insert(jobs).values({
         id: jobId,
         name: validatedData.name,
@@ -50,6 +65,7 @@ export async function createJob(data: CreateJobData) {
         cronSchedule: validatedData.cronSchedule || null,
         status: "pending",
         nextRunAt: nextRunAt,
+        createdByUserId: session.user.id, // Set the authenticated user ID
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -88,7 +104,7 @@ export async function createJob(data: CreateJobData) {
         }
       }
       
-      console.log(`Job ${jobId} created successfully`);
+      console.log(`Job ${jobId} created successfully by user ${session.user.id}`);
       
       // Revalidate the jobs page
       revalidatePath('/jobs');
@@ -104,6 +120,7 @@ export async function createJob(data: CreateJobData) {
           nextRunAt: nextRunAt?.toISOString() || null,
           scheduledJobId,
           testCount: validatedData.tests.length,
+          createdByUserId: session.user.id,
         }
       };
     } catch (dbError) {

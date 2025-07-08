@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { CreateJob } from "./create-job";
 import { AlertSettings } from "@/components/alerts/alert-settings";
-import { CiCdSettings } from "./cicd-settings";
+import { CicdSettings } from "./cicd-settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";

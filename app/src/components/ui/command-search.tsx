@@ -106,6 +106,9 @@ export function CommandSearch({ className }: CommandSearchProps) {
         return
       }
       
+      // Remove manual ArrowUp, ArrowDown, and Enter handling here
+      // Let cmdk handle navigation and selection
+      
       // Individual shortcuts - only when command palette is closed
       if (!open && metaKey && e.altKey && !e.shiftKey) {
         switch (e.key.toLowerCase()) {
@@ -258,12 +261,12 @@ export function CommandSearch({ className }: CommandSearchProps) {
                   <CommandShortcut>⌘⇧⌥W</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-ping")}>
-                  <Network className="mr-2 h-4 w-4 text-orange-500" />
+                  <Terminal className="mr-2 h-4 w-4 text-orange-500" />
                   <span>Ping Monitor</span>
                   <CommandShortcut>⌘⇧⌥P</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-port")}>
-                  <Terminal className="mr-2 h-4 w-4 text-gray-500" />
+                  <Network className="mr-2 h-4 w-4 text-gray-500" />
                   <span>Port Monitor</span>
                   <CommandShortcut>⌘⇧⌥O</CommandShortcut>
                 </CommandItem>
@@ -302,16 +305,13 @@ export function CommandSearch({ className }: CommandSearchProps) {
                   <span>Settings</span>
                   <CommandShortcut>⌘⌥S</CommandShortcut>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("queue-stats")}>
-                  <Activity className="mr-2 h-4 w-4" />
-                  <span>Queue Stats</span>
-                </CommandItem>
-                <CommandItem onSelect={() => handleCommand("system-health")}>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  <span>System Health</span>
-                </CommandItem>
+              
               </CommandGroup>
             </CommandList>
+            <div className="flex justify-end items-center px-4 py-2 border-t text-xs text-muted-foreground select-none">
+              <span className="mr-4">↑↓ Navigate</span>
+              <span>↩ Select</span>
+            </div>
           </Command>
         </DialogContent>
       </Dialog>

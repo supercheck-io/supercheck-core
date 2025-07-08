@@ -10,6 +10,8 @@ import {
   jobNotificationSettings,
 } from "@/db/schema/schema";
 import { desc, eq, inArray } from "drizzle-orm";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
 import { randomUUID } from "crypto";
 
@@ -89,6 +91,15 @@ interface TestResult {
 // GET all jobs
 export async function GET(request: Request) {
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Get all jobs with their associated tests and last run status
     const result = await db
       .select({
@@ -180,6 +191,15 @@ export async function GET(request: Request) {
 // POST to create a new job
 export async function POST(request: Request) {
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Check if this is a job execution request
     const url = new URL(request.url);
     const action = url.searchParams.get("action");
@@ -223,7 +243,7 @@ export async function POST(request: Request) {
         customMessage: typeof jobData.alertConfig.customMessage === 'string' ? jobData.alertConfig.customMessage : "",
       } : null,
       organizationId: jobData.organizationId || null,
-      createdByUserId: jobData.createdByUserId || null,
+      createdByUserId: session.user.id, // Use authenticated user ID
     }).returning();
 
     // Link notification providers if alert config is enabled

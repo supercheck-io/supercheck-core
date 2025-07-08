@@ -1,5 +1,5 @@
 {
-  "id": "89d19361-76c4-40c8-beb5-b55a2f574802",
+  "id": "0cff5e1f-d90e-4521-8444-9537eab355be",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -400,6 +400,13 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'job-trigger'"
         },
         "job_id": {
           "name": "job_id",

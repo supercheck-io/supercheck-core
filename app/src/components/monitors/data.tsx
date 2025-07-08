@@ -8,6 +8,7 @@ import {
   Globe,
   Activity,
   LaptopMinimal,
+  Terminal,
 } from "lucide-react";
 
 
@@ -68,7 +69,7 @@ export const monitorTypes = [
   {
     label: "Ping Monitor",
     value: "ping_host",
-    icon: RefreshCw,
+    icon: Terminal,
     color: "text-sky-500", 
     description: "ICMP ping to a host",
   },

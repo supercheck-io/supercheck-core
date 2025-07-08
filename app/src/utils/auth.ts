@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/utils/db";
 import { authSchema } from "../db/schema/schema";
-import { apiKey, organization, admin } from "better-auth/plugins";
+import { apiKey, organization, admin, openAPI } from "better-auth/plugins";
 
 import { nextCookies } from "better-auth/next-js";
 
@@ -15,6 +15,7 @@ export const auth = betterAuth({
         schema: authSchema
     }),
     plugins: [ 
+        openAPI(),
         admin(),
         organization({
             // Enable organization features

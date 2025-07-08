@@ -4,9 +4,20 @@ import { monitors, monitorsInsertSchema, monitorResults, monitorNotificationSett
 import { scheduleMonitorCheck } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
 import { eq } from "drizzle-orm";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
 export async function GET() {
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // 1. Fetch all monitors
     const allMonitors: Array<typeof monitors.$inferSelect> = await db.query.monitors.findMany({
       orderBy: (monitors, { desc }) => [desc(monitors.createdAt)],
@@ -83,6 +94,15 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const rawData = await req.json();
     console.log("[MONITOR_CREATE] Incoming data:", JSON.stringify(rawData, null, 2));
     

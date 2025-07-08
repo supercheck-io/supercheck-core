@@ -8,6 +8,8 @@ import { z } from "zod";
 import { scheduleJob, deleteScheduledJob } from "@/lib/job-scheduler";
 import { JOB_EXECUTION_QUEUE } from "@/lib/queue";
 import { getNextRunDate } from "@/lib/cron-utils";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
 const updateJobSchema = z.object({
   jobId: z.string().uuid(),
@@ -35,14 +37,33 @@ export async function updateJob(data: UpdateJobData) {
   console.log(`Updating job ${data.jobId}`);
   
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session || !session.user || !session.user.id) {
+      return {
+        success: false,
+        message: "Unauthorized - user must be logged in to update jobs",
+        error: "Unauthorized"
+      };
+    }
+
     // Validate the data
     const validatedData = updateJobSchema.parse(data);
     
     const dbInstance = db;
     
-    // Check if the job exists
+    // Check if the job exists and if user has permission to update it
     const existingJob = await dbInstance
-      .select()
+      .select({
+        id: jobs.id,
+        name: jobs.name,
+        createdByUserId: jobs.createdByUserId,
+        cronSchedule: jobs.cronSchedule,
+        scheduledJobId: jobs.scheduledJobId,
+      })
       .from(jobs)
       .where(eq(jobs.id, validatedData.jobId))
       .limit(1);
@@ -55,6 +76,21 @@ export async function updateJob(data: UpdateJobData) {
     }
     
     const job = existingJob[0];
+    
+    // Check permission - user must own the job (unless it's a legacy job with no owner)
+    if (job.createdByUserId && job.createdByUserId !== session.user.id) {
+      console.warn(`Access denied: User ${session.user.id} attempted to update job ${validatedData.jobId} owned by ${job.createdByUserId}`);
+      return {
+        success: false,
+        message: "Access denied - you don't have permission to update this job",
+        error: "Forbidden"
+      };
+    }
+
+    // Log warning for legacy jobs without owner
+    if (!job.createdByUserId) {
+      console.warn(`Legacy job ${validatedData.jobId} has no createdByUserId - allowing update for user ${session.user.id}`);
+    }
     
     try {
       // Calculate next run date if cron schedule is provided
@@ -162,7 +198,7 @@ export async function updateJob(data: UpdateJobData) {
         scheduledJobId = previousSchedulerId;
       }
       
-      console.log(`Job ${validatedData.jobId} updated successfully`);
+      console.log(`Job ${validatedData.jobId} updated successfully by user ${session.user.id}`);
       
       // Revalidate the jobs page
       revalidatePath('/jobs');
