@@ -281,15 +281,23 @@ export default function Jobs() {
                   </SheetTitle>
                   <div className="flex items-center space-x-3 ml-2">
                     {/* Alert Status Icon */}
-                    <div className={`flex items-center justify-center h-8 w-8 rounded-full ${selectedJob.alertConfig?.enabled
-                        ? 'bg-green-100 dark:bg-green-900/30'
-                        : 'bg-gray-100 dark:bg-gray-700/30'
-                      }`}>
-                      {selectedJob.alertConfig?.enabled ? (
-                        <Bell className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      ) : (
-                        <BellOff className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                      )}
+                    <div className="relative group">
+                      <div
+                        className={`flex items-center justify-center h-8 w-8 rounded-full ${
+                          selectedJob.alertConfig?.enabled
+                            ? 'bg-green-100 dark:bg-green-900/30'
+                            : 'bg-gray-100 dark:bg-gray-700/30'
+                        }`}
+                      >
+                        {selectedJob.alertConfig?.enabled ? (
+                          <Bell className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <BellOff className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        )}
+                      </div>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                        {selectedJob.alertConfig?.enabled ? "Alerts enabled" : "Alerts disabled"}
+                      </div>
                     </div>
                     {selectedJob.alertConfig?.enabled && (
                       <div className="flex items-center space-x-2 text-xs text-muted-foreground ">
@@ -302,10 +310,20 @@ export default function Jobs() {
                           </div>
                         )}
                         {selectedJob.alertConfig.alertOnFailure && (
-                          <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />
+                          <div className="relative group">
+                            <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                              Job Failure
+                            </div>
+                          </div>
                         )}
                         {selectedJob.alertConfig.alertOnTimeout && (
-                          <Clock className="h-4 w-4 text-orange-600 dark:text-orange-500" />
+                          <div className="relative group">
+                            <Clock className="h-4 w-4 text-orange-600 dark:text-orange-500" />
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                              Job Timeout
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}

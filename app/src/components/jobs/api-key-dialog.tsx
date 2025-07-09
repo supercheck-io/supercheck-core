@@ -217,7 +217,7 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
               <div className="text-xs text-blue-600 mt-1">Copy this key now - it won&apos;t be shown again</div>
             </div>
             <Button onClick={handleDialogClose} className="w-full text-xs">
-              I have copied the key
+              <Check className="h-3 w-3 mr-1" /> I have copied the key
             </Button>
           </div>
         </DialogContent>
