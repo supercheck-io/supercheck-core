@@ -1549,7 +1549,7 @@ export function MonitorForm({
 
                   <div className="bg-muted/30 p-4 rounded-lg">
                     <h4 className="font-medium text-sm mb-2">How to use this heartbeat:</h4>
-                    <div className="text-sm text-muted-foreground space-y-2">
+                    <div className="text-xs text-muted-foreground space-y-2">
                       <p>1. Create this monitor to get a unique heartbeat URL</p>
                       <p>2. Send GET or POST requests to the URL from your service/script</p>
                       <p>3. If no ping is received within the expected interval + grace period, the monitor will be marked as down</p>

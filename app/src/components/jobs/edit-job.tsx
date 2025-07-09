@@ -47,6 +47,7 @@ import NextRunDisplay from "./next-run-display";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { CicdSettings } from "./cicd-settings";
 import { EditJobSkeleton } from "./edit-job-skeleton";
+import { UrlTriggerTooltip } from "./url-trigger-tooltip";
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
@@ -427,7 +428,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>CI/CD Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></CardTitle>
+            <CardTitle>CI/CD Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span> <UrlTriggerTooltip jobId={jobId} /></CardTitle>
             <CardDescription>
               Configure API keys to trigger job remotely from your CI/CD pipelines
             </CardDescription>

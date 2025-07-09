@@ -9,7 +9,8 @@ import {
   Info, 
   Copy, 
   Github,
-  Gitlab
+  Gitlab,
+  Code
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,6 +46,32 @@ export function UrlTriggerTooltip({ jobId }: ApiDocsTooltipProps) {
 
             <Separator />
 
+           {/* curl example */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">
+                <Code className="h-3 w-3 text-primary" />
+                cURL</Label>
+              <div className="relative">
+                <pre className="bg-muted p-2 rounded text-xs overflow-x-auto text-wrap">
+                  <code>{`curl -X POST "${triggerUrl}" \\
+      -H "Authorization: Bearer YOUR_API_KEY"  \\
+      -H "Content-Type: application/json"`}</code>
+                </pre>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute top-1 right-1 h-6 w-6 p-0"
+                  onClick={() => copyToClipboard(
+                    `curl -X POST "${triggerUrl}" \\\n      -H "Authorization: Bearer YOUR_API_KEY"  \\\n      -H "Content-Type: application/json"`,
+                    "Curl example"
+                  )}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+
+            {/* github actions example */}
             <div className="space-y-2">
               <Label className="text-xs font-medium"> 
                 <Github className="h-3 w-3 text-primary" />
@@ -71,7 +98,7 @@ export function UrlTriggerTooltip({ jobId }: ApiDocsTooltipProps) {
               </div>
             </div>
 
-
+            {/* gitlab pipeline example */}
             <div className="space-y-2">
               <Label className="text-xs font-medium">       <Gitlab className="h-3 w-3 text-primary" />Gitlab Pipeline</Label>
               <div className="relative">

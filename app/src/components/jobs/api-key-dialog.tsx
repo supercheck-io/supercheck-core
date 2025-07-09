@@ -101,9 +101,22 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
         // Set expiry to end of selected day (23:59:59 local time)
         const endOfDay = new Date(expiryDate);
         endOfDay.setHours(23, 59, 59, 999);
-        payload.expiresIn = Math.floor((endOfDay.getTime() - Date.now()) / 1000);
+        const expiresIn = Math.floor((endOfDay.getTime() - Date.now()) / 1000);
+        console.log("API Key Creation - Expiry calculation:", {
+          expiryDate: expiryDate.toISOString(),
+          endOfDay: endOfDay.toISOString(),
+          now: new Date().toISOString(),
+          expiresIn,
+          isValid: expiresIn > 60
+        });
+        if (expiresIn < 60) {
+          toast.error("Expiry date must be at least 1 minute in the future");
+          return;
+        }
+        payload.expiresIn = expiresIn;
       }
 
+      console.log("API Key Creation - Sending payload:", JSON.stringify(payload, null, 2));
       const response = await fetch(`/api/jobs/${jobId}/api-keys`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -113,6 +126,11 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
       const data = await response.json();
 
       if (!response.ok) {
+        console.log("API Key Creation - Error response:", data);
+        if (data.details && Array.isArray(data.details)) {
+          const errorMessages = data.details.map((err: any) => `${err.field}: ${err.message}`).join(', ');
+          throw new Error(`Validation failed: ${errorMessages}`);
+        }
         throw new Error(data.error || "Failed to create API key");
       }
 

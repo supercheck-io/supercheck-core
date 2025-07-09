@@ -11,7 +11,8 @@ const createApiKeySchema = z.object({
   name: z.string()
     .min(1, "Name is required")
     .max(100, "Name must be less than 100 characters")
-    .regex(/^[a-zA-Z0-9\s\-_.()]+$/, "Name contains invalid characters"),
+    .transform(val => val.trim())
+    .refine(val => val.length > 0, "Name cannot be empty after trimming"),
   expiresIn: z.number()
     .min(60, "Expiry must be at least 1 minute")
     .max(365 * 24 * 60 * 60, "Expiry cannot exceed 1 year")
@@ -130,8 +131,10 @@ export async function POST(
     }
 
     // Validate input data
+    console.log("API Key Creation - Request body:", JSON.stringify(requestBody, null, 2));
     const validation = createApiKeySchema.safeParse(requestBody);
     if (!validation.success) {
+      console.log("API Key Creation - Validation failed:", validation.error.issues);
       return NextResponse.json(
         { 
           error: "Validation failed", 

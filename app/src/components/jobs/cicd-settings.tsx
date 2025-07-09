@@ -11,7 +11,9 @@ import {
   Key,
   Loader2,
   CheckCircle,
-  Ban
+  Ban,
+  Info,
+  Shield
 } from "lucide-react";
 import { toast } from "sonner";
 import { ApiKeyDialog } from "./api-key-dialog";
@@ -272,19 +274,18 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
       </Card>
 
       {/* Security Best Practices */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">Security Best Practices</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="text-xs text-muted-foreground space-y-1">
-            <div>• Monitor and rotate API keys regularly for enhanced security</div>
-            <div>• Set appropriate expiration dates for temporary access</div>
-            <div>• Store keys securely using environment variables or secrets management</div>
-            <div>• Use descriptive names to identify key purposes</div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="bg-muted/30 p-4 rounded-lg">
+        <div className="flex items-center gap-2 mb-2">
+          <Shield className="h-4 w-4 " />
+          <h4 className="font-medium text-sm">  Security Best Practices:</h4>
+        </div>
+        <div className="text-xs text-muted-foreground space-y-2">
+          <p>• Monitor and rotate API keys regularly for enhanced security</p>
+          <p>• Set appropriate expiration dates for temporary access</p>
+          <p>• Store keys securely using environment variables or secrets management</p>
+          <p>• Use descriptive names to identify key purposes</p>
+        </div>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
