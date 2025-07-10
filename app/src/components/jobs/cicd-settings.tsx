@@ -197,7 +197,7 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
             </div>
           ) : apiKeys.length === 0 ? (
             <div className="text-center py-6">
-              <Key className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
+              <Key className="h-6 w-6 text-muted-foreground/90 mx-auto mb-2" />
               <h3 className="text-sm font-medium text-muted-foreground mb-1">No API Keys</h3>
               <p className="text-xs text-muted-foreground mb-2">
                 Create your first API key to enable remote job triggering

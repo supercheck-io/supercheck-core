@@ -546,7 +546,7 @@ export default function EditJob({ jobId }: EditJobProps) {
                       <FormItem>
                         <FormLabel className="mb-6">
                           Cron Schedule (UTC){" "}
-                          <span className="text-gray-500">(optional)</span>
+                          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span>
                         </FormLabel>
                         <FormControl>
                           <CronScheduler 
@@ -556,8 +556,7 @@ export default function EditJob({ jobId }: EditJobProps) {
                         </FormControl>
                         <NextRunDisplay cronExpression={field.value} />
                         <p className="text-xs text-muted-foreground mt-4 flex items-center">
-                          <Info className="h-3 w-3 mr-1" />
-                          <span>Leave empty for manual execution.</span>
+                         <span>Leave empty for manual execution.</span>
                         </p>
                         <FormMessage />
                       </FormItem>

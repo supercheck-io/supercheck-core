@@ -31,7 +31,7 @@ const NextRunDisplay: React.FC<NextRunDisplayProps> = ({ cronExpression }) => {
 
   return (
     <div className="flex items-center text-sm text-muted-foreground mt-2">
-      <Clock className="h-4 w-4 mr-2" />
+      <Clock className="h-4 w-4 mr-2 text-blue-500" />
       <span>Next run: {nextRun}</span>
     </div>
   );

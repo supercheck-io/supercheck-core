@@ -281,6 +281,8 @@ export const jobTests = pgTable(
   })
 );
 
+
+
 export type TestRunStatus =
   | "running"
   | "passed"
@@ -673,6 +675,8 @@ export const integrations = pgTable("integrations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+
+
 /**
  * Defines periods of scheduled maintenance during which monitoring alerts can be suppressed.
  */
@@ -745,6 +749,8 @@ export const jobsInsertSchema = createInsertSchema(jobs);
 export const jobsUpdateSchema = createUpdateSchema(jobs);
 export const jobsSelectSchema = createSelectSchema(jobs);
 
+
+
 export const alertSchema = createSelectSchema(alerts);
 export type Alert = z.infer<typeof alertSchema>
 export const insertAlertSchema = createInsertSchema(alerts);
@@ -761,6 +767,8 @@ export const tagsSelectSchema = createSelectSchema(tags);
 
 export const notificationProvidersInsertSchema = createInsertSchema(notificationProviders);
 export const notificationProvidersSelectSchema = createSelectSchema(notificationProviders);
+
+
 
 export const maintenanceWindowsInsertSchema = createInsertSchema(maintenanceWindows);
 export const maintenanceWindowsSelectSchema = createSelectSchema(maintenanceWindows);
