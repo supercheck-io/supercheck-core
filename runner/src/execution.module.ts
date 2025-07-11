@@ -17,7 +17,6 @@ import * as schema from './db/schema';
 import { 
   TEST_EXECUTION_QUEUE, 
   JOB_EXECUTION_QUEUE,
-  MAX_CONCURRENT_TESTS
 } from './execution/constants';
 
 // Define common job options with TTL settings
@@ -60,13 +59,11 @@ const drizzleProvider: Provider = {
         name: TEST_EXECUTION_QUEUE,
         defaultJobOptions
         // Note: Worker concurrency is controlled by the processor options
-        // MAX_CONCURRENT_TESTS is used by the job processors internally
       },
       {
         name: JOB_EXECUTION_QUEUE,
         defaultJobOptions
         // Note: Worker concurrency is controlled by the processor options
-        // MAX_CONCURRENT_TESTS is used by the job processors internally
       }
     ),
   ],

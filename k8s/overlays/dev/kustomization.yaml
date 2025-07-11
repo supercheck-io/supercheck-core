@@ -16,7 +16,6 @@ configMapGenerator:
     behavior: merge
     literals:
       - NODE_ENV=development
-      - MAX_CONCURRENT_TESTS=2
 
 secretGenerator:
   - name: app-secrets

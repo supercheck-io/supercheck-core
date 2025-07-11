@@ -8,7 +8,6 @@ data:
   AWS_REGION: "us-east-1"
   S3_JOB_BUCKET_NAME: "job-reports"
   S3_TEST_BUCKET_NAME: "test-reports"
-  MAX_CONCURRENT_TESTS: "2"
   RUNNING_CAPACITY: "5"
   QUEUED_CAPACITY: "50"
   REDIS_URL: "redis://redis:6379"

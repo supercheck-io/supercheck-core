@@ -19,7 +19,8 @@ declare namespace NodeJS {
     S3_MAX_RETRIES: string;
 
     // App Config
-    MAX_CONCURRENT_TESTS: string;
+    RUNNING_CAPACITY: string;
+    QUEUED_CAPACITY: string;
     TEST_EXECUTION_TIMEOUT_MS: string;
     TRACE_RECOVERY_INTERVAL_MS: string;
 

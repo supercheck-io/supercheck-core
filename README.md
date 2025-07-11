@@ -229,10 +229,6 @@ The system enforces capacity limits at multiple levels:
    - If running capacity is full, the job is delayed and returned to the queue
    - This ensures only the allowed number of jobs run simultaneously
 
-3. **Technical Limit (MAX_CONCURRENT_TESTS):**
-   - Controls the maximum number of BullMQ worker processes
-   - Sets the absolute system-level limit on parallel job processing
-
 These multi-level checks ensure the system maintains stability under heavy load while providing accurate UI feedback.
 
 ## Key Components
@@ -473,7 +469,6 @@ AWS_ACCESS_KEY_ID=minioadmin
 AWS_SECRET_ACCESS_KEY=minioadmin
 
 # Execution Parameters
-MAX_CONCURRENT_TESTS=2             # Maximum number of BullMQ worker processes
 RUNNING_CAPACITY=5                 # Maximum concurrent executions allowed to run
 QUEUED_CAPACITY=50                  # Maximum executions allowed in queued state
 TEST_EXECUTION_TIMEOUT_MS=900000   # 15 minutes default

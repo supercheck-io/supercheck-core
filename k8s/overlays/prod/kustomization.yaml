@@ -14,7 +14,6 @@ configMapGenerator:
     behavior: merge
     literals:
       - NODE_ENV=production
-      - MAX_CONCURRENT_TESTS=5
       - TEST_EXECUTION_TIMEOUT_MS=1800000
 
 # In production, you'd typically use a secret manager rather than 
