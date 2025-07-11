@@ -713,7 +713,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                       <div className="h-full flex flex-col">
                         {/* Validation Error Display */}
                         {validationError && (
-                          <div>
+                          <div className="z-10">
                             <ValidationError
                               error={validationError}
                               line={validationLine}
