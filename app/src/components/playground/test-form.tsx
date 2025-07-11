@@ -193,8 +193,9 @@ export function TestForm({
 
   // Get the save button message with validation feedback
   const getSaveButtonMessage = () => {
+   
+    if (isRunning) return "Test is running";
     if (!formChanged) return "No changes to save";
-    if (isRunning) return "Test is running...";
     if (isSubmitting) return "Saving...";
     
     // Check validation status first

@@ -49,11 +49,11 @@ export function ValidationError({
   return (
     <Alert
       variant="destructive"
-      className={`border border-red-600 bg-gray-300/90 shadow-lg rounded-md px-5 py-4 ${className}`}
+      className={` bg-rose-300/95 shadow-lg rounded-xs p-4  ${className}`}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-50 border border-red-200 mr-2">
+          <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-200 mr-2">
             <Info className="h-5 w-5 text-red-600" />
           </div>
           <div className="flex-1 min-w-0">
@@ -68,7 +68,7 @@ export function ValidationError({
                 </span>
               )}
             </div>
-            <AlertDescription className="text-sm text-gray-800 leading-relaxed">
+            <AlertDescription className="text-sm text-neutral-800 leading-relaxed">
               {cleanMessage}
             </AlertDescription>
           </div>
@@ -78,7 +78,7 @@ export function ValidationError({
             variant="ghost"
             size="icon"
             onClick={onDismiss}
-            className="h-8 w-8 ml-2 bg-gray-300 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition"
+            className="h-8 w-8 ml-2 bg-red-200 text-red-500 hover:text-red-600 hover:bg-red-200 rounded-lg transition"
             aria-label="Dismiss error"
           >
             <X className="h-4 w-4" />
