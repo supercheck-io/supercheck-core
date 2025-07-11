@@ -3,6 +3,8 @@ import { AlertCircle, Loader2Icon, FileText, Maximize2, ExternalLink, X } from "
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { PlaywrightLogo } from "../logo/playwright-logo";
+import { TimeoutErrorPage } from "./timeout-error-page";
+import { TimeoutErrorInfo } from "@/lib/timeout-utils";
 
 interface ReportViewerProps {
   reportUrl: string | null;
@@ -33,6 +35,7 @@ export function ReportViewer({
   const [currentReportUrl, setCurrentReportUrl] = useState<string | null>(reportUrl);
   const [isValidationError, setIsValidationError] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const [timeoutInfo, setTimeoutInfo] = useState<TimeoutErrorInfo | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const fullscreenIframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -52,10 +55,11 @@ export function ReportViewer({
       const finalUrl = formattedUrl; // Use the timestamped URL directly
       
       console.log("ReportViewer: Setting currentReportUrl to:", finalUrl);
-      setCurrentReportUrl(finalUrl);
-      setIsReportLoading(true);
-      setIframeError(false);
-      setReportError(null);
+                setCurrentReportUrl(finalUrl);
+          setIsReportLoading(true);
+          setIframeError(false);
+          setReportError(null);
+          setTimeoutInfo(null);
 
       // Check if the URL exists, but don't call the callback here
       // The onReportError callback will be called by the safety timeout or iframe error handlers
@@ -190,7 +194,39 @@ export function ReportViewer({
 
   // Error state - only show if it's not a validation error
   if (iframeError && !isRunning && !isValidationError) {
-    console.log("ReportViewer: Showing error state:", reportError);
+    console.log("ReportViewer: Showing error state:", reportError, timeoutInfo);
+    
+    // Show timeout-specific error page if timeout detected
+    if (timeoutInfo?.isTimeout) {
+      return (
+        <div className={containerClassName}>
+          <TimeoutErrorPage
+            timeoutInfo={timeoutInfo}
+            backToLabel={backToLabel}
+            backToUrl={backToUrl}
+            onRetry={() => {
+              // Retry by reloading the current report URL
+              if (currentReportUrl) {
+                setIsReportLoading(true);
+                setIframeError(false);
+                setTimeoutInfo(null);
+                setReportError(null);
+                
+                // Force a reload with a new timestamp
+                const baseUrl = currentReportUrl.split('?')[0];
+                const newUrl = `${baseUrl}?retry=true&t=${Date.now()}`;
+                setCurrentReportUrl(newUrl);
+              } else {
+                window.location.reload();
+              }
+            }}
+            containerClassName={containerClassName}
+          />
+        </div>
+      );
+    }
+    
+    // Show regular error page for non-timeout errors
     return (
       <div className={containerClassName}>
         <StaticErrorPage
@@ -284,7 +320,15 @@ export function ReportViewer({
                       const errorData = JSON.parse(bodyText);
                       const errorMessage = errorData.message || errorData.details || errorData.error || "Unknown error";
                       console.log("ReportViewer: Error in iframe content:", errorMessage);
-                      setReportError(errorMessage);
+                      
+                                             // Check if this is a timeout error based on the API response
+                       if (errorData.timeoutInfo && errorData.timeoutInfo.isTimeout) {
+                         console.log("ReportViewer: Timeout error detected from API:", errorData.timeoutInfo);
+                         setTimeoutInfo(errorData.timeoutInfo);
+                       } else {
+                         setReportError(errorMessage);
+                       }
+                      
                       setIframeError(true);
                       setIsValidationError(false);
                       setIsReportLoading(false);

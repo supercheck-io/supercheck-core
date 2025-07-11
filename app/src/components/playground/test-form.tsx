@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,6 +124,9 @@ interface TestFormProps {
   }>;
   initialEditorContent: string;
   testId?: string | null;
+  isCurrentScriptValidated: boolean; // Strict validation control
+  isCurrentScriptReadyToSave: boolean; // Both validated and test passed
+  testExecutionStatus: 'none' | 'passed' | 'failed'; // Test execution status
 }
 
 export function TestForm({
@@ -137,6 +140,9 @@ export function TestForm({
   initialFormValues,
   initialEditorContent: initialEditorContentProp,
   testId,
+  isCurrentScriptValidated,
+  isCurrentScriptReadyToSave,
+  testExecutionStatus,
 }: TestFormProps) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -170,6 +176,45 @@ export function TestForm({
     initialEditorContentProp,
     hasChangesLocal,
   ]);
+
+  // STRICT SAVE CONTROLS: Determine if save/update should be disabled
+  const isSaveDisabled = useMemo(() => {
+    // Always disabled if running or submitting
+    if (isRunning || isSubmitting) return true;
+    
+    // Disabled if no changes
+    if (!formChanged) return true;
+    
+    // STRICT: Disabled if current script has not been validated AND successfully executed
+    if (!isCurrentScriptReadyToSave) return true;
+    
+    return false;
+  }, [isRunning, isSubmitting, formChanged, isCurrentScriptReadyToSave]);
+
+  // Get the save button message with validation feedback
+  const getSaveButtonMessage = () => {
+    if (!formChanged) return "No changes to save";
+    if (isRunning) return "Test is running...";
+    if (isSubmitting) return "Saving...";
+    
+    // Check validation status first
+    if (!isCurrentScriptValidated) {
+      return "Script must be validated before saving";
+    }
+    
+    // Check test execution status
+    if (testExecutionStatus === 'none') {
+      return "Script must pass execution before saving";
+    }
+    
+    if (testExecutionStatus === 'failed') {
+      return "Script must pass execution before saving";
+    }
+    
+    return null;
+  };
+
+  const saveButtonMessage = getSaveButtonMessage();
 
   // Make the resetUpdateState function available to the parent component
   useEffect(() => {
@@ -560,7 +605,7 @@ export function TestForm({
 
       <div className="mt-4">
         <div className="flex justify-between items-center">
-          <div>
+          <div className="flex flex-col items-end -mt-7" >
             {testId && (
               <Button
                 type="button"
@@ -574,13 +619,13 @@ export function TestForm({
               </Button>
             )}
           </div>
-          <div>
+          <div className="flex flex-col items-end">
             {testId ? (
               <Button
                 type="submit"
                 onClick={handleSubmit}
-                className="flex items-center gap-2 h-9 px-4"
-                disabled={isRunning || !formChanged || isSubmitting}
+                className="flex items-center gap-2 h-9 px-4 mt-2"
+                disabled={isSaveDisabled}
               >
                 {isSubmitting ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -594,7 +639,7 @@ export function TestForm({
                 type="submit"
                 onClick={handleSubmit}
                 className="flex items-center gap-2 h-9 px-4"
-                disabled={isRunning || !formChanged || isSubmitting}
+                disabled={isSaveDisabled}
               >
                 {isSubmitting ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -604,6 +649,70 @@ export function TestForm({
                 {isSubmitting ? "Saving..." : "Save"}
               </Button>
             )}
+            {/* Professional single-row status message below save/update button */}
+            <div className="mt-2 text-right min-h-[16px]">
+              {/* Show a single, contextual status message */}
+              {(() => {
+                // Priority 1: Show blocking message if save is disabled
+                if (saveButtonMessage && (isRunning || isSubmitting)) {
+                  return (
+                    <div className="flex items-center justify-end gap-1.5 mt-2">
+                      <div className="w-2 h-2 rounded-full bg-gray-400 animate-pulse"></div>
+                      <p className="text-xs text-muted-foreground font-medium">
+                        {saveButtonMessage}
+                      </p>
+                    </div>
+                  );
+                }
+
+                // Priority 2: Show validation/execution requirements
+                if (saveButtonMessage && !isRunning && !isSubmitting) {
+                  const isValidationIssue = !isCurrentScriptValidated;
+                  const isExecutionIssue = isCurrentScriptValidated && testExecutionStatus !== 'passed';
+                  
+                  return (
+                    <div className="flex items-center justify-end gap-1.5 mt-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        isValidationIssue ? 'bg-blue-500' : isExecutionIssue ? 'bg-red-500' : 'bg-gray-400'
+                      }`}></div>
+                      <p className={`text-xs font-medium ${
+                        isValidationIssue ? 'text-muted-foreground' : isExecutionIssue ? 'text-muted-foreground' : 'text-muted-foreground'
+                      }`}>
+                        {isValidationIssue ? 'Run to validate script' : isExecutionIssue ? 'Script must pass to save' : saveButtonMessage}
+                      </p>
+                    </div>
+                  );
+                }
+
+                // Priority 3: Show ready state
+                if (!saveButtonMessage && formChanged && !isRunning && !isSubmitting && isCurrentScriptReadyToSave) {
+                  return (
+                    <div className="flex items-center justify-end gap-1.5 mt-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                      <p className="text-xs text-emerald-600 font-medium">
+                        Ready to {testId ? "update" : "save"} test
+                      </p>
+                      
+                    </div>
+                  );
+                }
+
+                // Priority 4: Show no changes state
+                if (!formChanged && !isRunning && !isSubmitting) {
+                  return (
+                    <div className="flex items-center justify-end gap-1.5 mt-2">
+                      <div className="w-2 h-2 rounded-full bg-gray-300"></div>
+                      <p className="text-xs text-gray-500 font-medium">
+                        No changes to save
+                      </p>
+                    </div>
+                  );
+                }
+
+                // Default: Empty space to maintain layout
+                return null;
+              })()}
+            </div>
           </div>
         </div>
       </div>

@@ -7,7 +7,6 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { ExecutionService } from './execution/services/execution.service';
 import { S3Service } from './execution/services/s3.service';
 import { DbService, DB_PROVIDER_TOKEN } from './execution/services/db.service';
-import { ValidationService } from './execution/services/validation.service';
 import { RedisService } from './execution/services/redis.service';
 import { TestExecutionProcessor } from './execution/processors/test-execution.processor';
 import { JobExecutionProcessor } from './execution/processors/job-execution.processor';
@@ -78,7 +77,6 @@ const drizzleProvider: Provider = {
     ExecutionService,
     S3Service,
     DbService,
-    ValidationService,
     RedisService,
     TestExecutionProcessor,
     JobExecutionProcessor,
