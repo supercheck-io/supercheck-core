@@ -5,7 +5,7 @@ import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { XCircle, PlusCircle, Search, PlusIcon, AlertCircle } from "lucide-react";
+import { XCircle, Search, PlusIcon, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 // import { getTests } from "@/actions/get-tests"; // Replaced with API call
 
 interface TestSelectorProps {
@@ -46,13 +48,14 @@ export default function TestSelector({
   const [availableTests, setAvailableTests] = useState<Test[]>([]);
   const [isLoadingTests, setIsLoadingTests] = useState(true);
   const [testFilter, setTestFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   // Always ensure we have an array
   const tests = Array.isArray(selectedTests) ? selectedTests : [];
 
-  // Define the structure expected from the getTests action
+  // Define the structure expected from the API
   interface ActionTest {
     id: string;
     title: string;
@@ -62,6 +65,7 @@ export default function TestSelector({
     script?: string;
     priority?: string;
     createdAt?: string | null;
+    tags?: Array<{ id: string; name: string; color: string | null }>;
   }
 
   // Fetch tests from database on component mount
@@ -96,6 +100,7 @@ export default function TestSelector({
                 status: "running" as const,
                 lastRunAt: test.updatedAt,
                 duration: null as number | null,
+                tags: test.tags || [],
               };
             },
           );
@@ -142,18 +147,28 @@ export default function TestSelector({
   }, [isSelectTestsDialogOpen, availableTests, tests]);
 
   // Remove a test from selection - using safe array
-  const removeTest = (testId: string) => {
+  const removeTest = (testId: string, testName: string) => {
+    toast.success(`Removed test "${testName}"`);
     onTestsSelected(tests.filter((test) => test.id !== testId));
+ 
   };
 
   // Filter the tests based on search input
-  const filteredTests = availableTests.filter(
-    (test) =>
+  const filteredTests = availableTests.filter((test) => {
+    const matchesTextFilter = 
       testFilter === "" ||
       test.name.toLowerCase().includes(testFilter.toLowerCase()) ||
       test.id.toLowerCase().includes(testFilter.toLowerCase()) ||
-      test.type.toLowerCase().includes(testFilter.toLowerCase()),
-  );
+      test.type.toLowerCase().includes(testFilter.toLowerCase()) ||
+      (test.description && test.description.toLowerCase().includes(testFilter.toLowerCase())) ||
+      (test.tags && test.tags.some(tag => tag.name.toLowerCase().includes(testFilter.toLowerCase())));
+
+    const matchesTagFilter = 
+      tagFilter === "" ||
+      (test.tags && test.tags.some(tag => tag.name.toLowerCase().includes(tagFilter.toLowerCase())));
+
+    return matchesTextFilter && matchesTagFilter;
+  });
 
   // Get the current page of tests
   const currentTests = filteredTests.slice(
@@ -210,19 +225,22 @@ export default function TestSelector({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[120px] sticky top-0 bg-background">
-                  ID
+                <TableHead className="w-[120px] sticky top-0">
+                  Test ID
                 </TableHead>
-                <TableHead className="w-[120px] sticky top-0 bg-background">
+                <TableHead className="w-[180px] sticky top-0">
                   Name
                 </TableHead>
-                <TableHead className="w-[100px] sticky top-0 bg-background">
+                <TableHead className="w-[120px] sticky top-0 ">
                   Type
                 </TableHead>
-                <TableHead className="sticky top-0 bg-background">
+                <TableHead className="w-[170px] sticky top-0">
+                  Tags
+                </TableHead>
+                  <TableHead className="w-[170px]  sticky top-0">
                   Description
                 </TableHead>
-                <TableHead className="w-[100px] sticky top-0 bg-background">
+                <TableHead className="w-[100px] sticky top-0">
                   Actions
                 </TableHead>
               </TableRow>
@@ -234,15 +252,70 @@ export default function TestSelector({
                     className="font-mono text-sm truncate"
                     title={test.id}
                   >
-                    {test.id.substring(0, 12)}...
+                    <code className="font-mono text-xs bg-muted px-2 py-1.5 rounded truncate pr-1">
+                      {test.id.substring(0, 12)}...
+                    </code>
                   </TableCell>
                   <TableCell className="truncate" title={test.name || ""}>
-                    {(test.name|| "").length > 50
-                      ? (test.name  || "").substring(0, 50) + "..."
+                    {(test.name|| "").length > 40
+                      ? (test.name  || "").substring(0, 40) + "..."
                       : (test.name || "")}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{test.type}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {!test.tags || test.tags.length === 0 ? (
+                      <div className="text-muted-foreground text-sm">
+                        No tags
+                      </div>
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1 min-h-[24px]">
+                              {test.tags.slice(0, 2).map((tag) => (
+                                <Badge 
+                                  key={tag.id} 
+                                  variant="secondary" 
+                                  className="text-xs whitespace-nowrap flex-shrink-0"
+                                  style={tag.color ? { 
+                                    backgroundColor: tag.color + "20", 
+                                    color: tag.color,
+                                    borderColor: tag.color + "40"
+                                  } : {}}
+                                >
+                                  {tag.name}
+                                </Badge>
+                              ))}
+                              {test.tags.length > 2 && (
+                                <Badge variant="secondary" className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                                  +{test.tags.length - 2}
+                                </Badge>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[500px]">
+                            <div className="flex flex-wrap gap-1">
+                              {test.tags.map((tag) => (
+                                <Badge 
+                                  key={tag.id} 
+                                  variant="secondary" 
+                                  className="text-xs"
+                                  style={tag.color ? { 
+                                    backgroundColor: tag.color + "20", 
+                                    color: tag.color,
+                                    borderColor: tag.color + "40"
+                                  } : {}}
+                                >
+                                  {tag.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                   </TableCell>
                   <TableCell
                     className="truncate"
@@ -256,9 +329,9 @@ export default function TestSelector({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => removeTest(test.id)}
+                      onClick={() => removeTest(test.id, test.name)}
                     >
-                      <XCircle className="h-4 w-4" />
+                      <XCircle className="h-4 w-4 text-red-700" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -272,7 +345,7 @@ export default function TestSelector({
         open={isSelectTestsDialogOpen}
         onOpenChange={setIsSelectTestsDialogOpen}
       >
-        <DialogContent>
+        <DialogContent className="w-full">
           <DialogHeader>
             <DialogTitle>Select Tests</DialogTitle>
             <DialogDescription>
@@ -289,35 +362,49 @@ export default function TestSelector({
           ) : (
             <>
               <div className="mb-4 space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Filter by test name, ID, or type..."
-                    className="pl-8"
-                    value={testFilter}
-                    onChange={(e) => setTestFilter(e.target.value)}
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative ">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Filter by test name, ID, type, tags, or description..."
+                      className="pl-8 w-[400px]"
+                      value={testFilter}
+                      onChange={(e) => setTestFilter(e.target.value)}
+                    />
+                  </div>
+                  {/* <div className="relative">
+                    <TagIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Filter by tags..."
+                      className="pl-8"
+                      value={tagFilter}
+                      onChange={(e) => setTagFilter(e.target.value)}
+                    />
+                  </div> */}
                 </div>
               </div>
-              <div className="max-h-[350px] overflow-y-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[40px] sticky top-0 bg-background"></TableHead>
-                      <TableHead className="w-[120px] sticky top-0 bg-background">
-                        ID
-                      </TableHead>
-                      <TableHead className="w-[200px] sticky top-0 bg-background">
-                        Name
-                      </TableHead>
-                      <TableHead className="w-[100px] sticky top-0 bg-background">
-                        Type
-                      </TableHead>
-                      <TableHead className="sticky top-0 bg-background">
-                        Description
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
+              <div className="max-h-[500px] w-full overflow-y-auto">
+                                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                     <TableHead> </TableHead>
+                        <TableHead className="w-[90px] sticky top-0 rounded-md">
+                          ID
+                        </TableHead>
+                        <TableHead className="w-[180px] sticky top-0">
+                          Name
+                        </TableHead>
+                        <TableHead className="w-[100px] sticky top-0">
+                          Type
+                        </TableHead>
+                        <TableHead className="w-[140px] sticky top-0">
+                          Tags
+                        </TableHead>
+                        <TableHead className="sticky top-0">
+                          Description
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
                   <TableBody>
                     {currentTests.map((test) => (
                       <TableRow
@@ -338,22 +425,77 @@ export default function TestSelector({
                           className="font-mono text-sm truncate"
                           title={test.id}
                         >
-                          {test.id.substring(0, 8)}...
+                          <code className="font-mono text-xs bg-muted px-2 py-1.5 rounded truncate pr-1">
+                            {test.id.substring(0, 6)}...
+                          </code>
                         </TableCell>
                         <TableCell className="truncate" title={test.name || ""}>
-                          {(test.name || "").length > 30
-                            ? (test.name || "").substring(0, 30) + "..."
+                          {(test.name || "").length > 25
+                            ? (test.name || "").substring(0, 25) + "..."
                             : (test.name || "")}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{test.type}</Badge>
+                          <Badge variant="secondary">{test.type}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {!test.tags || test.tags.length === 0 ? (
+                            <div className="text-muted-foreground text-sm">
+                              No tags
+                            </div>
+                          ) : (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-1 min-h-[24px]">
+                                    {test.tags.slice(0, 2).map((tag) => (
+                                      <Badge 
+                                        key={tag.id} 
+                                        variant="secondary" 
+                                        className="text-xs whitespace-nowrap flex-shrink-0"
+                                        style={tag.color ? { 
+                                          backgroundColor: tag.color + "20", 
+                                          color: tag.color,
+                                          borderColor: tag.color + "40"
+                                        } : {}}
+                                      >
+                                        {tag.name}
+                                      </Badge>
+                                    ))}
+                                    {test.tags.length > 2 && (
+                                      <Badge variant="secondary" className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                                        +{test.tags.length - 2}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[300px]">
+                                  <div className="flex flex-wrap gap-1">
+                                    {test.tags.map((tag) => (
+                                      <Badge 
+                                        key={tag.id} 
+                                        variant="secondary" 
+                                        className="text-xs"
+                                        style={tag.color ? { 
+                                          backgroundColor: tag.color + "20", 
+                                          color: tag.color,
+                                          borderColor: tag.color + "40"
+                                        } : {}}
+                                      >
+                                        {tag.name}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </TableCell>
                         <TableCell
                           className="truncate"
                           title={test.description || ""}
                         >
-                          {test.description && test.description.length > 30
-                            ? test.description.substring(0, 30) + "..."
+                          {test.description && test.description.length > 25
+                            ? test.description.substring(0, 25) + "..."
                             : test.description || "No description provided"}
                         </TableCell>
                       </TableRow>

@@ -18,7 +18,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       <DataTableColumnHeader className="ml-2" column={column} title ="Run ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[120px] ml-2">
+      <div className="w-[90px]">
         <UUIDField 
           value={row.getValue("id")} 
           maxLength={24} 
@@ -40,7 +40,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
           <UUIDField
             value={row.getValue("jobId")}
             maxLength={24}
-            className="w-[120px]"
+            className="w-[90px]"
             onCopy={() => toast.success("Job ID copied to clipboard")}
           />
         </div>
@@ -55,7 +55,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
     cell: ({ row }) => {
       const jobName = row.getValue("jobName") as string | undefined;
       return (
-        <div className="max-w-[200px] truncate">{jobName || "Unknown Job"}</div>
+        <div className="max-w-[300px] truncate">{jobName || "Unknown Job"}</div>
       );
     },
   },

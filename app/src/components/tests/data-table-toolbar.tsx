@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { types, priorities } from "./data";
 
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
+import { DataTableTagFilter } from "./data-table-tag-filter";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
@@ -51,6 +52,12 @@ export function DataTableToolbar<TData>({
             column={table.getColumn("priority")}
             title="Priority"
             options={priorities}
+          />
+        )}
+        {table.getColumn("tags") && (
+          <DataTableTagFilter
+            column={table.getColumn("tags")}
+            title="Tags"
           />
         )}
         {isFiltered && (

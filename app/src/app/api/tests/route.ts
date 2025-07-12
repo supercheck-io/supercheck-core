@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { tests } from "@/db/schema/schema";
-import { desc } from "drizzle-orm";
+import { tests, testTags, tags } from "@/db/schema/schema";
+import { desc, eq } from "drizzle-orm";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 
@@ -56,6 +56,30 @@ export async function GET(request: NextRequest) {
       .from(tests)
       .orderBy(desc(tests.createdAt));
 
+    // Get tags for all tests
+    const allTestTags = await db
+      .select({
+        testId: testTags.testId,
+        tagId: tags.id,
+        tagName: tags.name,
+        tagColor: tags.color,
+      })
+      .from(testTags)
+      .innerJoin(tags, eq(testTags.tagId, tags.id));
+
+    // Group tags by test ID
+    const testTagsMap = new Map<string, Array<{ id: string; name: string; color: string | null }>>();
+    allTestTags.forEach(({ testId, tagId, tagName, tagColor }) => {
+      if (!testTagsMap.has(testId)) {
+        testTagsMap.set(testId, []);
+      }
+      testTagsMap.get(testId)!.push({
+        id: tagId,
+        name: tagName,
+        color: tagColor,
+      });
+    });
+
     // Map the database results to the expected format
     const formattedTests = await Promise.all(allTests.map(async (test) => {
       // Decode the script if it exists
@@ -68,6 +92,7 @@ export async function GET(request: NextRequest) {
         priority: test.priority,
         type: test.type,
         script: decodedScript, // Include the decoded script
+        tags: testTagsMap.get(test.id) || [], // Include tags
         createdAt: test.createdAt ? new Date(test.createdAt).toISOString() : null,
         updatedAt: test.updatedAt ? new Date(test.updatedAt).toISOString() : null,
       };

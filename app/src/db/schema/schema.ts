@@ -496,6 +496,25 @@ export const monitorTags = pgTable(
   })
 );
 
+/**
+ * A join table linking tests to tags.
+ */
+export const testTags = pgTable(
+  "test_tags",
+  {
+    testId: uuid("test_id")
+      .notNull()
+      .references(() => tests.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+    assignedAt: timestamp("assigned_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.testId, table.tagId] }),
+  })
+);
+
 export type NotificationProviderType = "email" | "slack" | "webhook" | "telegram" | "discord";
 /**
  * Holds the configuration details for different notification provider types.
@@ -764,6 +783,9 @@ export const monitorResultsSelectSchema = createSelectSchema(monitorResults);
 
 export const tagsInsertSchema = createInsertSchema(tags);
 export const tagsSelectSchema = createSelectSchema(tags);
+
+export const testTagsInsertSchema = createInsertSchema(testTags);
+export const testTagsSelectSchema = createSelectSchema(testTags);
 
 export const notificationProvidersInsertSchema = createInsertSchema(notificationProviders);
 export const notificationProvidersSelectSchema = createSelectSchema(notificationProviders);

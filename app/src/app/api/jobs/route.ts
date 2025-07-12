@@ -4,6 +4,8 @@ import {
   jobs,
   jobTests,
   tests as testsTable,
+  testTags,
+  tags,
   runs,
   JobStatus,
   TestRunStatus,
@@ -137,6 +139,32 @@ export async function GET(request: Request) {
           .innerJoin(jobTests, eq(testsTable.id, jobTests.testId))
           .where(eq(jobTests.jobId, job.id));
 
+        // Get tags for all tests in this job
+        const testIds = jobTestsResult.map(test => test.id);
+        const testTagsForJob = testIds.length > 0 ? await db
+          .select({
+            testId: testTags.testId,
+            tagId: tags.id,
+            tagName: tags.name,
+            tagColor: tags.color,
+          })
+          .from(testTags)
+          .innerJoin(tags, eq(testTags.tagId, tags.id))
+          .where(inArray(testTags.testId, testIds)) : [];
+
+        // Group tags by test ID
+        const testTagsMap = new Map<string, Array<{ id: string; name: string; color: string | null }>>();
+        testTagsForJob.forEach(({ testId, tagId, tagName, tagColor }) => {
+          if (!testTagsMap.has(testId)) {
+            testTagsMap.set(testId, []);
+          }
+          testTagsMap.get(testId)!.push({
+            id: tagId,
+            name: tagName,
+            color: tagColor,
+          });
+        });
+
         // Get the last run for this job
         const lastRunResult = await db
           .select({
@@ -161,6 +189,7 @@ export async function GET(request: Request) {
             ...test,
             name: test.title || "",
             script: test.script,
+            tags: testTagsMap.get(test.id) || [],
             createdAt: test.createdAt ? test.createdAt.toISOString() : null,
             updatedAt: test.updatedAt ? test.updatedAt.toISOString() : null,
           })),

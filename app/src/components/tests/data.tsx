@@ -11,6 +11,7 @@ import {
   Database,
   Chrome,
   Webhook,
+  ArrowLeftRight,
 } from "lucide-react";
 
 export const labels = [
@@ -82,24 +83,27 @@ export const types = [
     label: "Browser",
     value: "browser",
     icon: Chrome,
-    color: "text-sky-500",
+    color: "text-sky-600",
   },
   {
     label: "API",
     value: "api",
-    icon: Webhook,
-    color: "text-cyan-600",
+    icon: ArrowLeftRight,
+    color: "text-teal-500",
   },
   {
     label: "Multi-step",
     value: "multistep",
     icon: Layers,
-    color: "text-blue-700",
+    color: "text-indigo-600",
   },
   {
     label: "Database",
     value: "database",
     icon: Database,
-    color: "text-teal-600",
+    color: "text-amber-600",
   },
+
+
+
 ];

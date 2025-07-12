@@ -26,10 +26,10 @@ export function getNextRunDate(cronExpression: string | null | undefined): Date 
 /**
  * Formats the next run date in a human-readable format
  * @param date The date to format
- * @returns A formatted string or "N/A" if date is null
+ * @returns A formatted string or "No date" if date is null
  */
 export function formatNextRunDate(date: Date | null): string {
-  if (!date) return "N/A";
+  if (!date) return "No date";
   
   return date.toLocaleString('en-US', {
     month: 'short',

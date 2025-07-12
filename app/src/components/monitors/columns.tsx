@@ -5,6 +5,7 @@ import type { Monitor } from "./schema";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { MonitorStatusIndicator } from "./monitor-status-indicator";
 import { monitorTypes } from "./data";
@@ -20,10 +21,10 @@ export const columns: ColumnDef<Monitor>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader className="ml-2" column={column} title="ID" />
+      <DataTableColumnHeader className="ml-2" column={column} title="Monitor ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[120px] ml-2">
+      <div className="w-[90px]">
         <UUIDField 
           value={row.getValue("id")} 
           maxLength={24} 
@@ -40,12 +41,36 @@ export const columns: ColumnDef<Monitor>[] = [
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => {
+      const name = row.getValue("name") as string;
+      
+      // Check if text is likely to be truncated (rough estimate)
+      const isTruncated = name.length > 20; // Approximate character limit for 200px width
+      
+      if (!isTruncated) {
+        return (
+          <div className="flex space-x-2">
+            <span className="max-w-[170px] truncate">
+              {name.length > 20 ? name.slice(0, 20) + "..." : name}
+            </span>
+          </div>
+        );
+      }
+      
       return (
-        <div className="flex space-x-2">
-          <span className="max-w-[200px] truncate">
-            {row.getValue("name")}
-          </span>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex space-x-2">
+                <span className="max-w-[170px] truncate">
+                  {name.length > 20 ? name.slice(0, 20) + "..." : name}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[1200px]">
+              <span>{name}</span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       );
     },
   },
@@ -73,22 +98,57 @@ export const columns: ColumnDef<Monitor>[] = [
           displayUrl = `${baseUrl}/api/heartbeat/${target}`;
         }
         
-        // Truncate URL to keep it professional and not break UI
-        const truncatedUrl = displayUrl.length > 35 
-          ? `${displayUrl.substring(0, 32)}...` 
-          : displayUrl;
+        // Check if URL is likely to be truncated
+        const isTruncated = displayUrl.length > 20;
+        
+        if (!isTruncated) {
+          return (
+            <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block">
+              {displayUrl}
+            </span>
+          );
+        }
         
         return (
-          <span className="max-w-[200px] truncate font-mono text-sm">
-            {truncatedUrl}
-          </span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block">
+                  {displayUrl}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[1200px]">
+                <span className="font-mono text-xs">{displayUrl}</span>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         );
       }
       
       const displayValue = target || legacyUrl || "—";
+      const isTruncated = displayValue.length > 20;
+      
+      if (!isTruncated) {
+        return (
+          <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block">
+            {displayValue}
+          </span>
+        );
+      }
       
       return (
-        <span className="max-w-[200px] truncate font-mono text-sm">{displayValue}</span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block">
+                {displayValue}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[1200px]">
+              <span className="font-mono text-xs">{displayValue}</span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       );
     },
   },

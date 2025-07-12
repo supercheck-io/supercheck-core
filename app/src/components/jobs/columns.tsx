@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { CalendarIcon, TimerIcon, Loader2, Zap, Clock } from "lucide-react";
+import {  TimerIcon, Loader2, Zap, Clock } from "lucide-react";
 import { useRef, useCallback, useEffect } from "react";
 
 import type { Job } from "./schema";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useJobContext, JobStatusDisplay } from "./job-context";
 import { UUIDField } from "@/components/ui/uuid-field";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Type definition for the extended meta object used in this table
 interface JobsTableMeta {
@@ -203,10 +204,10 @@ export const columns: ColumnDef<Job>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="ID" />
+      <DataTableColumnHeader column={column} title="Job ID" />
     ),
     cell: ({ row }) => (
-      <div className="w-[120px] ml-2">
+      <div className="w-[90px]">
         <UUIDField 
           value={row.getValue("id")} 
           maxLength={24} 
@@ -223,12 +224,36 @@ export const columns: ColumnDef<Job>[] = [
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => {
+      const name = row.getValue("name") as string;
+      
+      // Check if text is likely to be truncated (rough estimate)
+      const isTruncated = name.length > 20; // Approximate character limit for 200px width
+      
+      if (!isTruncated) {
+        return (
+          <div className="flex space-x-2">
+            <span className="max-w-[170px] truncate">
+              {name.length > 20 ? name.slice(0, 20) + "..." : name}
+            </span>
+          </div>
+        );
+      }
+      
       return (
-        <div className="flex space-x-2">
-          <span className="max-w-[200px] truncate">
-            {row.getValue("name")}
-          </span>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex space-x-2">
+                <span className="max-w-[170px] truncate">
+                  {name}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[1200px]">
+              <span>{name}</span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       );
     },
   },
@@ -257,7 +282,7 @@ export const columns: ColumnDef<Job>[] = [
       return (
         <div className="flex items-center">
           <TimerIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-          <span>{cronSchedule || "Not scheduled"}</span>
+          <span>{cronSchedule || "None"}</span>
         </div>
       );
     },
@@ -306,7 +331,7 @@ export const columns: ColumnDef<Job>[] = [
       const cronSchedule = row.getValue("cronSchedule") as string | null;
       
       if (!cronSchedule || !nextRunAt) {
-        return <div className="text-muted-foreground">N/A</div>;
+        return <div className="text-muted-foreground">No date</div>;
       }
       
       return (

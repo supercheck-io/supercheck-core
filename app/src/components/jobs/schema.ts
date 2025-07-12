@@ -39,6 +39,15 @@ export const alertConfigSchema = z.object({
 
 export type AlertConfig = z.infer<typeof alertConfigSchema>;
 
+// Tag schema for test tags
+export const tagSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string().nullable(),
+});
+
+export type Tag = z.infer<typeof tagSchema>;
+
 // Test schema for tests associated with a job
 export const testSchema = z.object({
   id: z.string(),
@@ -48,6 +57,7 @@ export const testSchema = z.object({
   status: z.enum(["running", "passed", "failed", "error"]).optional(),
   lastRunAt: z.string().nullable().optional(),
   duration: z.number().nullable().optional(), // in milliseconds
+  tags: z.array(tagSchema).optional(),
 });
 
 export type Test = z.infer<typeof testSchema>;

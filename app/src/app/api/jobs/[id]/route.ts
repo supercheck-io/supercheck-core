@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateJob } from "@/actions/update-job";
 import { db } from "@/utils/db";
-import { jobs, jobTests, tests as testsTable } from "@/db/schema/schema";
-import { eq } from "drizzle-orm";
+import { jobs, jobTests, tests as testsTable, testTags, tags } from "@/db/schema/schema";
+import { eq, inArray } from "drizzle-orm";
 
 export async function GET(
   request: NextRequest,
@@ -56,6 +56,32 @@ export async function GET(
       .from(testsTable)
       .innerJoin(jobTests, eq(testsTable.id, jobTests.testId))
       .where(eq(jobTests.jobId, jobId));
+
+    // Get tags for all tests in this job
+    const testIds = testsResult.map(test => test.id);
+    const testTagsForJob = testIds.length > 0 ? await db
+      .select({
+        testId: testTags.testId,
+        tagId: tags.id,
+        tagName: tags.name,
+        tagColor: tags.color,
+      })
+      .from(testTags)
+      .innerJoin(tags, eq(testTags.tagId, tags.id))
+      .where(inArray(testTags.testId, testIds)) : [];
+
+    // Group tags by test ID
+    const testTagsMap = new Map<string, Array<{ id: string; name: string; color: string | null }>>();
+    testTagsForJob.forEach(({ testId, tagId, tagName, tagColor }) => {
+      if (!testTagsMap.has(testId)) {
+        testTagsMap.set(testId, []);
+      }
+      testTagsMap.get(testId)!.push({
+        id: tagId,
+        name: tagName,
+        color: tagColor,
+      });
+    });
     
     const response = {
       ...job,
@@ -65,6 +91,7 @@ export async function GET(
         ...test,
         name: test.title || "",
         script: test.script, // Return as-is, let frontend handle decoding
+        tags: testTagsMap.get(test.id) || [],
         createdAt: test.createdAt ? test.createdAt.toISOString() : null,
         updatedAt: test.updatedAt ? test.updatedAt.toISOString() : null,
       })),

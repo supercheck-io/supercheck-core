@@ -9,7 +9,7 @@ interface NextRunDisplayProps {
 }
 
 const NextRunDisplay: React.FC<NextRunDisplayProps> = ({ cronExpression }) => {
-  const [nextRun, setNextRun] = useState<string>('N/A');
+  const [nextRun, setNextRun] = useState<string>('No date');
 
   useEffect(() => {
     if (cronExpression && cronExpression.trim() !== '') {
@@ -18,10 +18,10 @@ const NextRunDisplay: React.FC<NextRunDisplayProps> = ({ cronExpression }) => {
         setNextRun(formatNextRunDate(nextDate));
       } catch (error) {
         console.error('Error calculating next run date:', error);
-        setNextRun('N/A');
+        setNextRun('No date');
       }
     } else {
-      setNextRun('N/A');
+      setNextRun('No date');
     }
   }, [cronExpression]);
 

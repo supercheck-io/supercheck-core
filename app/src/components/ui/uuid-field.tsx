@@ -24,13 +24,14 @@ export function UUIDField({
       : value;
 
   return (
+    
     <div
       className={cn(
         "group relative inline-flex items-center w-full",
         className
       )}
     >
-      <span className="truncate pr-0">{displayValue}</span>
+      <code className="font-mono text-xs bg-muted px-1.5 p-1 rounded pr-1 truncate ">{displayValue}</code>
       <CopyButton value={value} onCopy={onCopy} className="ml-1" />
     </div>
   );
