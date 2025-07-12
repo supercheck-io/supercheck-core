@@ -30,12 +30,25 @@ export function DataTableToolbar<TData>({
      
       </div>
       <div className="flex items-center space-x-2">
-        <Input
-          placeholder="Filter by Run ID, Job ID, or Job Name..."
-          value={(table.getState().globalFilter as string) ?? ""}
-          onChange={(event) => table.setGlobalFilter(event.target.value)}
-          className="h-8 w-[200px] lg:w-[350px]"
-        />
+        <div className="relative">
+          <Input
+            placeholder="Filter by Run ID, Job ID, or Job Name..."
+            value={(table.getState().globalFilter as string) ?? ""}
+            onChange={(event) => table.setGlobalFilter(event.target.value)}
+            className="h-8 w-[300px] pr-8 "
+          />
+          {(table.getState().globalFilter as string)?.length > 0 && (
+            <button
+              type="reset"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 rounded-sm bg-red-200 p-0.5"
+              onClick={() => table.setGlobalFilter("")}
+              tabIndex={0}
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         {table.getColumn("status") && (
           <DataTableFacetedFilter
             column={table.getColumn("status")}
@@ -43,7 +56,7 @@ export function DataTableToolbar<TData>({
             options={runStatuses}
           />
         )}
-        {isFiltered && (
+        {/* {isFiltered && (
           <Button
             variant="ghost"
             onClick={() => {
@@ -55,7 +68,7 @@ export function DataTableToolbar<TData>({
             Reset
             <X className="ml-2 h-4 w-4" />
           </Button>
-        )}
+        )} */}
         <DataTableViewOptions table={table} />
       </div>
     </div>

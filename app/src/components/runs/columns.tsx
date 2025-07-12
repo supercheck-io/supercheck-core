@@ -54,8 +54,10 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
     ),
     cell: ({ row }) => {
       const jobName = row.getValue("jobName") as string | undefined;
+
+      const truncatedJobName = jobName?.length && jobName.length > 40 ? jobName.slice(0, 40) + "..." : jobName;
       return (
-        <div className="max-w-[300px] truncate">{jobName || "Unknown Job"}</div>
+          <div className="max-w-[250px] truncate">{truncatedJobName || "Unknown Job"}</div>
       );
     },
   },
@@ -72,7 +74,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       const statusInfo = runStatuses.find(s => s.value === mappedStatus);
       
       return (
-        <div className="flex items-center">
+        <div className="flex items-center w-[100px]">
           {statusInfo ? (
             <div className="flex items-center">
               {statusInfo.icon && (
@@ -101,7 +103,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
         return <div className="text-muted-foreground">-</div>;
       }
       return (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 w-[100px]">
           <CalendarIcon className="h-3 w-3 text-muted-foreground" />
           <span title={new Date(startedAt).toLocaleString()}>
             {formatDistanceToNow(new Date(startedAt), { addSuffix: true })}
@@ -120,7 +122,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       
       if (!duration) {
         return (
-          <div className="text-muted-foreground">
+          <div className="text-muted-foreground w-[100px]">
            -
           </div>
         );
@@ -154,7 +156,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       }
       
       return (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 w-[100px]">
           <ClockIcon className="h-3 w-3 text-muted-foreground" />
           <span>{formattedDuration}</span>
         </div>

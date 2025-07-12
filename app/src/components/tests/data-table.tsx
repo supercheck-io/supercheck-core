@@ -47,6 +47,26 @@ interface ExtendedTableMeta<TData> extends TableMeta<TData> {
   onDeleteTest?: (id: string) => void;
 }
 
+// Custom global filter function for tests table
+function testGlobalFilterFn(row: any, _columnId: string, filterValue: string) {
+  if (!filterValue) return true;
+  const search = String(filterValue).toLowerCase();
+  // Fallback to all relevant columns if meta is not available
+  const columns =
+    row?.table?.options?.meta?.globalFilterColumns ||
+    ["id", "title", "type", "priority", "tags"];
+  return columns.some((id: string) => {
+    const value = row.getValue(id);
+    if (typeof value === "string" || typeof value === "number") {
+      return String(value).toLowerCase().includes(search);
+    }
+    if (id === "tags" && Array.isArray(value)) {
+      return value.some(tag => tag.name.toLowerCase().includes(search));
+    }
+    return false;
+  });
+}
+
 export function DataTable<TData, TValue>({
   columns,
   data,
@@ -132,9 +152,9 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
-    globalFilterFn: "auto",
+    globalFilterFn: testGlobalFilterFn,
     meta: {
-      globalFilterColumns: ["id", "title"],
+      globalFilterColumns: ["id", "title", "type", "priority", "tags"],
       ...meta,
     } as ExtendedTableMeta<TData>,
   });
