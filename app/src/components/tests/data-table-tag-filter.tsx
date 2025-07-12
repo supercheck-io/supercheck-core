@@ -157,11 +157,9 @@ export function DataTableTagFilter<TData, TValue>({
                       style={{ backgroundColor: tag.color || "#64748b" }}
                     />
                     <span>{tag.name}</span>
-                    {facets?.get(tag.name) && (
-                      <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">
-                        {facets.get(tag.name)}
-                      </span>
-                    )}
+                    <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">
+                      {facets?.get(tag.name) ?? 0}
+                    </span>
                   </CommandItem>
                 );
               })}

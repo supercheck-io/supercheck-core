@@ -91,6 +91,7 @@ export const columns: ColumnDef<Test>[] = [
   // },
   {
     accessorKey: "type",
+    accessorFn: (row) => row.type, // Ensure primitive value for faceting
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Type" />
     ),
@@ -115,6 +116,7 @@ export const columns: ColumnDef<Test>[] = [
 
   {
     accessorKey: "priority",
+    accessorFn: (row) => row.priority, // Ensure primitive value for faceting
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Priority" />
     ),
@@ -145,12 +147,12 @@ export const columns: ColumnDef<Test>[] = [
 
   {
     accessorKey: "tags",
+    accessorFn: (row) => row.tags.map(tag => tag.name), // Use tag names for faceting
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Tags" />
     ),
     cell: ({ row }) => {
-      const tags = row.getValue("tags") as Array<{ id: string; name: string; color: string | null }>;
-      
+      const tags = row.original.tags as Array<{ id: string; name: string; color: string | null }>;
       if (!tags || tags.length === 0) {
         return (
           <div className="text-muted-foreground text-sm">
@@ -158,11 +160,8 @@ export const columns: ColumnDef<Test>[] = [
           </div>
         );
       }
-
       const displayTags = tags.slice(0, 2);
       const remainingCount = tags.length - 2;
-
-      // Only show tooltip if there are more than 2 tags
       if (tags.length <= 2) {
         return (
           <div className="flex items-center gap-1 min-h-[24px]">
@@ -179,7 +178,6 @@ export const columns: ColumnDef<Test>[] = [
           </div>
         );
       }
-
       return (
         <TooltipProvider>
           <Tooltip>
@@ -221,7 +219,7 @@ export const columns: ColumnDef<Test>[] = [
       );
     },
     filterFn: (row, id, value: string[]) => {
-      const tags = row.getValue(id) as Array<{ id: string; name: string; color: string | null }>;
+      const tags = row.original.tags as Array<{ id: string; name: string; color: string | null }>;
       if (!tags || tags.length === 0) return false;
       return value.some(filterTag => 
         tags.some(tag => tag.name.toLowerCase().includes(filterTag.toLowerCase()))
