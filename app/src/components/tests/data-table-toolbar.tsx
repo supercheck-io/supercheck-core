@@ -39,7 +39,7 @@ export function DataTableToolbar<TData>({
             placeholder="Filter by ID, Name, Type, Priority, or Tag..."
             value={(table.getState().globalFilter as string) ?? ""}
             onChange={(event) => table.setGlobalFilter(event.target.value)}
-            className="h-8 w-[300px] pr-8"
+            className="h-8 w-[320px] pr-8"
           />
           {(table.getState().globalFilter as string)?.length > 0 && (
             <button

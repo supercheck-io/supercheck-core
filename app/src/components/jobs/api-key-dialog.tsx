@@ -166,10 +166,10 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
                 <div className="space-y-2">
                   <div>
                     <Label className="text-xs font-medium text-muted-foreground">Name</Label>
-                    <div className="text-xs font-mono">{createdKey.name}</div>
+                    <div className="text-sm font-mono mt-0.5">{createdKey.name}</div>
                   </div>
                   <div>
-                    <Label className="text-xs font-medium text-muted-foreground">API Key</Label>
+                    <Label className="text-xs font-medium text-muted-foreground mt-2">API Key</Label>
                     <div className="flex items-center gap-2 mt-1">
                       <div className="flex-1 relative">
                         <Input
@@ -216,8 +216,8 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
               </div>
               <div className="text-xs text-blue-600 mt-1">Copy this key now - it won&apos;t be shown again</div>
             </div>
-            <Button onClick={handleDialogClose} className="w-full text-xs">
-              <Check className="h-3 w-3 mr-1" /> I have copied the key
+            <Button onClick={handleDialogClose} className="w-full text-sm">
+              <Check className="h-4 w-4 mr-1" /> I have copied the key
             </Button>
           </div>
         </DialogContent>
@@ -269,7 +269,7 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal h-9",
+                      "w-full justify-center text-center font-normal h-9",
                       !expiryDate && "text-muted-foreground"
                     )}
                   >
@@ -277,7 +277,7 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
                     {expiryDate ? format(expiryDate, "PPP") : "Select date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-full p-0" align="center">
                   <Calendar
                     mode="single"
                     selected={expiryDate}

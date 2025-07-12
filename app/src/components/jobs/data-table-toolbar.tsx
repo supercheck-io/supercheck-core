@@ -35,7 +35,7 @@ export function DataTableToolbar<TData>({
       <div className="flex items-center space-x-2">
         <div className="relative">
           <Input
-            placeholder="Filter by ID or Name..."
+            placeholder="Filter by Job ID, Name, or Status..."
             value={(table.getState().globalFilter as string) ?? ""}
             onChange={(event) => table.setGlobalFilter(event.target.value)}
             className="h-8 w-[300px] pr-8"

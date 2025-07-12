@@ -5,7 +5,7 @@ import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { XCircle, Search, PlusIcon, AlertCircle } from "lucide-react";
+import { XCircle, Search, PlusIcon, AlertCircle, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -345,7 +345,7 @@ export default function TestSelector({
         open={isSelectTestsDialogOpen}
         onOpenChange={setIsSelectTestsDialogOpen}
       >
-        <DialogContent className="w-full">
+        <DialogContent className="w-full min-w-[1100px]">
           <DialogHeader>
             <DialogTitle>Select Tests</DialogTitle>
             <DialogDescription>
@@ -363,24 +363,28 @@ export default function TestSelector({
             <>
               <div className="mb-4 space-y-2">
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="relative ">
+                  <div className="relative w-[500px]">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Filter by test name, ID, type, tags, or description..."
-                      className="pl-8 w-[400px]"
+                      className="pl-8"
                       value={testFilter}
                       onChange={(e) => setTestFilter(e.target.value)}
                     />
+                      {testFilter.length > 0 && (
+                        <button
+                          type="reset"
+                          className="absolute right-2 top-1/2 -translate-y-1/2  text-red-500 rounded-sm bg-red-200 p-0.5"
+                          onClick={() => setTestFilter("")}
+                          tabIndex={0}
+                          aria-label="Clear search"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                   </div>
-                  {/* <div className="relative">
-                    <TagIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Filter by tags..."
-                      className="pl-8"
-                      value={tagFilter}
-                      onChange={(e) => setTagFilter(e.target.value)}
-                    />
-                  </div> */}
+                    
+         
                 </div>
               </div>
               <div className="max-h-[500px] w-full overflow-y-auto">
@@ -388,19 +392,19 @@ export default function TestSelector({
                     <TableHeader>
                       <TableRow>
                      <TableHead> </TableHead>
-                        <TableHead className="w-[90px] sticky top-0 rounded-md">
+                        <TableHead className="w-[120px] sticky top-0 rounded-md">
                           ID
                         </TableHead>
-                        <TableHead className="w-[180px] sticky top-0">
+                        <TableHead className="w-[250px] sticky top-0">
                           Name
                         </TableHead>
-                        <TableHead className="w-[100px] sticky top-0">
+                        <TableHead className="w-[150px] sticky top-0">
                           Type
                         </TableHead>
-                        <TableHead className="w-[140px] sticky top-0">
+                        <TableHead className="w-[200px] sticky top-0">
                           Tags
                         </TableHead>
-                        <TableHead className="sticky top-0">
+                        <TableHead className="w-[200px] sticky top-0">
                           Description
                         </TableHead>
                       </TableRow>
@@ -409,7 +413,7 @@ export default function TestSelector({
                     {currentTests.map((test) => (
                       <TableRow
                         key={test.id} 
-                        className="hover:opacity-80 cursor-pointer transition-opacity"
+                        className="hover:bg-muted cursor-pointer transition-opacity"
                         onClick={() => handleTestSelection(test.id, !testSelections[test.id])}
                       >
                         <TableCell>
@@ -418,6 +422,7 @@ export default function TestSelector({
                             onCheckedChange={(checked) =>
                               handleTestSelection(test.id, checked as boolean)
                             }
+                            className="border-blue-600"
                             onClick={(e) => e.stopPropagation()}
                           />
                         </TableCell>
@@ -430,8 +435,8 @@ export default function TestSelector({
                           </code>
                         </TableCell>
                         <TableCell className="truncate" title={test.name || ""}>
-                          {(test.name || "").length > 25
-                            ? (test.name || "").substring(0, 25) + "..."
+                          {(test.name || "").length > 40
+                            ? (test.name || "").substring(0, 40) + "..."
                             : (test.name || "")}
                         </TableCell>
                         <TableCell>
@@ -494,8 +499,8 @@ export default function TestSelector({
                           className="truncate"
                           title={test.description || ""}
                         >
-                          {test.description && test.description.length > 25
-                            ? test.description.substring(0, 25) + "..."
+                          {test.description && test.description.length > 40 
+                            ? test.description.substring(0, 40) + "..."
                             : test.description || "No description provided"}
                         </TableCell>
                       </TableRow>
@@ -541,7 +546,7 @@ export default function TestSelector({
                   ).length !== 1
                     ? "s"
                     : ""}{" "}
-                  selected
+                  selected from {availableTests.length} tests
                 </div>
                 <DialogFooter>
                   <Button
