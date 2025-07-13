@@ -32,7 +32,7 @@ export const columns: ColumnDef<AlertHistory>[] = [
     cell: ({ row }) => {
       const id = row.getValue("id") as string;
       return (
-        <div className="w-[120px] ml-2">
+        <div className="w-[90px] ml-2">
           <UUIDField 
             value={id} 
             maxLength={24} 

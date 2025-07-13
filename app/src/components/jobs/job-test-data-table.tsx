@@ -52,7 +52,7 @@ export function JobTestDataTable({
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setGlobalFilter(searchValue)
-    }, 300)
+    }, 100)
 
     return () => clearTimeout(timer)
   }, [searchValue])

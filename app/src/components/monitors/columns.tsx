@@ -66,7 +66,7 @@ export const columns: ColumnDef<Monitor>[] = [
                 </span>
               </div>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[1200px]">
+            <TooltipContent side="top" className="max-w-[700px]">
               <span>{name}</span>
             </TooltipContent>
           </Tooltip>
@@ -117,7 +117,7 @@ export const columns: ColumnDef<Monitor>[] = [
                   {displayUrl}
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[1200px]">
+              <TooltipContent side="top" className="max-w-[700px]">
                 <span className="font-mono text-xs">{displayUrl}</span>
               </TooltipContent>
             </Tooltip>
@@ -144,7 +144,7 @@ export const columns: ColumnDef<Monitor>[] = [
                 {displayValue}
               </span>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[1200px]">
+            <TooltipContent side="top" className="max-w-[700px]">
               <span className="font-mono text-xs">{displayValue}</span>
             </TooltipContent>
           </Tooltip>

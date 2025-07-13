@@ -67,7 +67,7 @@ export const columns: ColumnDef<Test>[] = [
                 </span>
               </div>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[1200px]">
+            <TooltipContent side="top" className="max-w-[700px]">
               <span>{title}</span>
             </TooltipContent>
           </Tooltip>
@@ -202,7 +202,7 @@ export const columns: ColumnDef<Test>[] = [
                 )}
               </div>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[1200px]">
+            <TooltipContent side="top" className="max-w-[700px]">
               <div className="flex flex-wrap gap-1">
                 {tags.map((tag) => (
                   <Badge 

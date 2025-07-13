@@ -346,6 +346,42 @@ export function TestForm({
     console.log("Test priority is:", testCase.priority);
   }, [testId, testCase, testCase.type, testCase.priority]);
 
+  // Helper function to parse Zod validation errors and return user-friendly messages
+  const parseValidationErrors = (errorMessage: string): string => {
+    try {
+      // Try to parse the error as JSON (Zod validation errors)
+      const errors = JSON.parse(errorMessage);
+      
+      if (Array.isArray(errors)) {
+        const fieldErrors = errors.map((error: any) => {
+          const field = error.path?.[0] || 'field';
+          const message = error.message || 'Invalid value';
+          
+          // Map common Zod error codes to user-friendly messages
+          switch (error.code) {
+            case 'too_big':
+              return `${field.charAt(0).toUpperCase() + field.slice(1)} is too long. Maximum ${error.maximum} characters allowed.`;
+            case 'too_small':
+              return `${field.charAt(0).toUpperCase() + field.slice(1)} is too short. Minimum ${error.minimum} characters required.`;
+            case 'invalid_type':
+              return `${field.charAt(0).toUpperCase() + field.slice(1)} has an invalid format.`;
+            case 'invalid_string':
+              return `${field.charAt(0).toUpperCase() + field.slice(1)} format is invalid.`;
+            default:
+              return `${field.charAt(0).toUpperCase() + field.slice(1)}: ${message}`;
+          }
+        });
+        
+        return fieldErrors.join('\n');
+      }
+    } catch {
+      // If it's not JSON, return the original error message
+      return errorMessage;
+    }
+    
+    return errorMessage;
+  };
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -390,8 +426,9 @@ export function TestForm({
             router.push("/tests/");
           } else {
             console.error("Failed to update test:", result.error);
-            toast.error("Error", {
-              description: "Failed to update test. Please try again later.",
+            const errorMessage = parseValidationErrors(result.error || "Unknown error occurred");
+            toast.error("Validation Error", {
+              description: errorMessage,
             });
           }
         } else {
@@ -408,15 +445,18 @@ export function TestForm({
             router.push("/tests/");
           } else {
             console.error("Failed to save test:", result.error);
-            toast.error("Error", {
-              description: "Failed to save test. Please try again later.",
+            const errorMessage = parseValidationErrors(result.error || "Unknown error occurred");
+            toast.error("Validation Error", {
+              description: errorMessage,
             });
           }
         }
       } catch (err) {
         console.error("Error saving test:", err);
+        const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+        const parsedError = parseValidationErrors(errorMessage);
         toast.error("Error", {
-          description: "Failed to save test. Please try again later.",
+          description: parsedError,
         });
       } finally {
         setIsSubmitting(false);
@@ -430,7 +470,9 @@ export function TestForm({
           ? errorMessages.join("\n")
           : "Please fix the form errors before saving.";
 
-      toast.error(errorDescription);
+      toast.error("Form Validation Error", {
+        description: errorDescription,
+      });
     }
   };
 
@@ -563,16 +605,24 @@ export function TestForm({
             type="text"
             value={testCase.title}
             onChange={(e) =>
-              setTestCase({ ...testCase, title: e.target.value })
+              setTestCase({ ...testCase, title: e.target.value.slice(0, 255), })
             }
             placeholder="Enter test title"
             className={cn(errors.title && "border-destructive", "h-10")}
             disabled={isRunning}
           />
         </div>
-        {errors.title && (
-          <p className="text-red-500 text-xs mt-1.5">{errors.title}</p>
-        )}
+        <div className="flex justify-between items-center">
+          {errors.title && (
+            <p className="text-red-500 text-xs">{errors.title}</p>
+          )}
+          <p className={cn(
+            "text-xs ml-auto",
+            testCase.title.length > 240 ? "text-orange-500" : "text-muted-foreground"
+          )}>
+            {testCase.title.length}/255
+          </p>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -585,10 +635,12 @@ export function TestForm({
           onChange={(e) =>
             setTestCase((prev) => ({
               ...prev,
-              description: e.target.value,
+              description: e.target.value.slice(0, 1000), // Enforce 1000 char limit
             }))
           }
           placeholder="Enter test description"
+          maxLength={1000}
+          style={{ overflowY: 'auto', minHeight: 100, maxHeight: 150 }}
           className={cn(
             errors.description ? "border-red-500" : "",
             "min-h-[100px]",
@@ -596,9 +648,17 @@ export function TestForm({
           )}
           disabled={isRunning}
         />
-        {errors.description && (
-          <p className="text-red-500 text-xs mt-1.5">{errors.description}</p>
-        )}
+        <div className="flex justify-between items-center">
+          {errors.description && (
+            <p className="text-red-500 text-xs">{errors.description}</p>
+          )}
+          <p className={cn(
+            "text-xs ml-auto",
+            (testCase.description?.length || 0) > 950 ? "text-orange-500" : "text-muted-foreground"
+          )}>
+            {(testCase.description?.length || 0)}/1000
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

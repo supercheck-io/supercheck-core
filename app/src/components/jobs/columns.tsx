@@ -249,7 +249,7 @@ export const columns: ColumnDef<Job>[] = [
                 </span>
               </div>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[1200px]">
+            <TooltipContent side="top" className="max-w-[700px]">
               <span>{name}</span>
             </TooltipContent>
           </Tooltip>

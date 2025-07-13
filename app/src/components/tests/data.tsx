@@ -2,60 +2,12 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
-  CheckCircle,
-  Circle,
-  CircleOff,
-  HelpCircle,
-  Timer,
   Layers,
   Database,
   Chrome,
-  Webhook,
   ArrowLeftRight,
 } from "lucide-react";
 
-export const labels = [
-  {
-    value: "bug",
-    label: "Bug",
-  },
-  {
-    value: "feature",
-    label: "Feature",
-  },
-  {
-    value: "documentation",
-    label: "Documentation",
-  },
-];
-
-export const statuses = [
-  {
-    value: "backlog",
-    label: "Backlog",
-    icon: HelpCircle,
-  },
-  {
-    value: "todo",
-    label: "Todo",
-    icon: Circle,
-  },
-  {
-    value: "in progress",
-    label: "In Progress",
-    icon: Timer,
-  },
-  {
-    value: "done",
-    label: "Done",
-    icon: CheckCircle,
-  },
-  {
-    value: "canceled",
-    label: "Canceled",
-    icon: CircleOff,
-  },
-];
 
 export const priorities = [
   {
@@ -103,7 +55,5 @@ export const types = [
     icon: Database,
     color: "text-amber-600",
   },
-
-
 
 ];

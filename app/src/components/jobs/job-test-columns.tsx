@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DataTableColumnHeader } from "./data-table-column-header"
 import { Test } from "./schema"
 import { ExternalLink } from "lucide-react"
+import { types } from "../tests/data";
 
 export const createJobTestColumns = (): ColumnDef<Test>[] => [
   {
@@ -35,7 +36,7 @@ export const createJobTestColumns = (): ColumnDef<Test>[] => [
       const name = row.getValue("name") as string
       return (
         <div className="flex items-center gap-2">
-          <span className="font-medium max-w-[150px] truncate" title={name}>
+          <span className="max-w-[150px] truncate" title={name}>
             {name}
           </span>
   
@@ -51,12 +52,16 @@ export const createJobTestColumns = (): ColumnDef<Test>[] => [
       <DataTableColumnHeader column={column} title="Type" />
     ),
     cell: ({ row }) => {
-      const type = row.getValue("type") as string
+      const typeValue = row.getValue("type") as string;
+      const type = types.find((t) => t.value === typeValue);
+      if (!type) return null;
+      const Icon = type.icon;
       return (
-        <Badge variant="outline" className="capitalize">
-          {type}
-        </Badge>
-      )
+        <div className="flex items-center w-[120px]">
+          {Icon && <Icon className={`mr-2 h-4 w-4 ${type.color}`} />}
+          <span>{type.label}</span>
+        </div>
+      );
     },
     enableSorting: true,
     filterFn: (row, id, value) => {

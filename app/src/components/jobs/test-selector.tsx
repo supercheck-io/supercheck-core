@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { XCircle, Search, PlusIcon, AlertCircle, X } from "lucide-react";
+import { types } from "../tests/data";
 import {
   Dialog,
   DialogContent,
@@ -262,7 +263,17 @@ export default function TestSelector({
                       : (test.name || "")}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{test.type}</Badge>
+                    {(() => {
+                      const type = types.find((t) => t.value === test.type);
+                      if (!type) return null;
+                      const Icon = type.icon;
+                      return (
+                        <div className="flex items-center w-[120px]">
+                          {Icon && <Icon className={`mr-2 h-4 w-4 ${type.color}`} />}
+                          <span>{type.label}</span>
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     {!test.tags || test.tags.length === 0 ? (
@@ -440,7 +451,17 @@ export default function TestSelector({
                             : (test.name || "")}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{test.type}</Badge>
+                          {(() => {
+                            const type = types.find((t) => t.value === test.type);
+                            if (!type) return null;
+                            const Icon = type.icon;
+                            return (
+                              <div className="flex items-center w-[120px]">
+                                {Icon && <Icon className={`mr-2 h-4 w-4 ${type.color}`} />}
+                                <span>{type.label}</span>
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           {!test.tags || test.tags.length === 0 ? (
