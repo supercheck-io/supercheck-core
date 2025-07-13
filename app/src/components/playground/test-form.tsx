@@ -502,7 +502,7 @@ export function TestForm({
   }, [initialEditorContentProp, setInitialEditorContent]);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-3 -mt-2">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {/* Test metadata section with dates and ID */}
       {testId && (
         <div className="space-y-3">
@@ -592,8 +592,7 @@ export function TestForm({
         <label
           htmlFor="title"
           className={cn(
-            "block text-sm font-medium",
-            errors.title ? "text-destructive" : "text-foreground"
+            "block text-sm font-medium text-foreground"
           )}
         >
           Title
@@ -662,7 +661,7 @@ export function TestForm({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2 -mt-2">
+        <div className="space-y-2">
           <label htmlFor="priority" className="block text-sm font-medium">
             Priority
           </label>

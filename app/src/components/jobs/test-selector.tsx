@@ -399,8 +399,8 @@ export default function TestSelector({
          
                 </div>
               </div>
-              <div className="max-h-[500px] w-full overflow-y-auto">
-                                  <Table>
+              <div className="max-h-[500px] w-full overflow-y-auto rounded-sm">
+                  <Table>
                     <TableHeader>
                       <TableRow>
                      <TableHead> </TableHead>

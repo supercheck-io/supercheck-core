@@ -770,11 +770,11 @@ const Playground: React.FC<PlaygroundProps> = ({
               minSize={20}
               className="rounded-br-lg rounded-tr-lg"
             >
-              <div className="flex h-full flex-col border rounded-tr-lg rounded-br-lg">
+              <div className="flex h-full flex-col border rounded-tr-lg rounded-br-lg bg-card/60">
                 <div className="flex items-center justify-between border-b bg-card px-4 py-4 rounded-tr-lg">
                   <div className="flex items-center">
                     <Text className="h-4 w-4 mr-2" />
-                    <h3 className="text-sm font-medium">Test Details</h3>
+                    <h3 className="text-sm font-medium mt-1">Test Details</h3>
                   </div>
                 </div>
                 <ScrollArea className="flex-1">
