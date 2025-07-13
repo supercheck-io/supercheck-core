@@ -10,7 +10,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useJobContext, JobStatusDisplay } from "./job-context";
 import { UUIDField } from "@/components/ui/uuid-field";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useState } from "react";
 
 // Type definition for the extended meta object used in this table
 interface JobsTableMeta {
@@ -206,15 +211,35 @@ export const columns: ColumnDef<Job>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Job ID" />
     ),
-    cell: ({ row }) => (
-      <div className="w-[90px]">
-        <UUIDField 
-          value={row.getValue("id")} 
-          maxLength={24} 
-          onCopy={() => toast.success("ID copied to clipboard")}
-        />
-      </div>
-    ),
+    cell: ({ row }) => {
+      const id = row.getValue("id") as string;
+      const [isOpen, setIsOpen] = useState(false);
+      
+      return (
+        <div className="w-[90px]">
+          <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+              <div 
+                className="cursor-pointer"
+                onMouseEnter={() => setIsOpen(true)}
+                onMouseLeave={() => setIsOpen(false)}
+              >
+                <UUIDField 
+                  value={id} 
+                  maxLength={24} 
+                  onCopy={() => toast.success("ID copied to clipboard")}
+                />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="flex justify-center items-center">
+              <p className="text-xs text-muted-foreground break-all">
+                {id}
+              </p>
+            </PopoverContent>
+          </Popover>
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: false,
   },
@@ -225,6 +250,7 @@ export const columns: ColumnDef<Job>[] = [
     ),
     cell: ({ row }) => {
       const name = row.getValue("name") as string;
+      const [isOpen, setIsOpen] = useState(false);
       
       // Check if text is likely to be truncated (rough estimate)
       const isTruncated = name.length > 20; // Approximate character limit for 200px width
@@ -232,28 +258,34 @@ export const columns: ColumnDef<Job>[] = [
       if (!isTruncated) {
         return (
           <div className="flex space-x-2">
-            <span className="max-w-[170px] truncate">
-              {name.length > 20 ? name.slice(0, 20) + "..." : name}
+            <span className="max-w-[160px] truncate">
+              {name}
             </span>
           </div>
         );
       }
       
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex space-x-2">
-                <span className="max-w-[170px] truncate">
-                  {name}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[700px]">
-              <span>{name}</span>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <div 
+              className="flex space-x-2 cursor-pointer"
+              onMouseEnter={() => setIsOpen(true)}
+              onMouseLeave={() => setIsOpen(false)}
+            >
+              <span className="max-w-[160px] truncate">
+                {name}
+              </span>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="flex justify-center items-center">
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {name}
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
       );
     },
   },

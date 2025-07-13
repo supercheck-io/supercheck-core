@@ -5,7 +5,7 @@ import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { XCircle, Search, PlusIcon, AlertCircle, X } from "lucide-react";
+import { XCircle, Search, PlusIcon, AlertCircle, X, ChevronLeft, ChevronLeftCircle, ChevronsLeft, ChevronRight } from "lucide-react";
 import { types } from "../tests/data";
 import {
   Dialog,
@@ -334,7 +334,7 @@ export default function TestSelector({
                   >
                     {test.description && test.description.length > 50
                       ? test.description.substring(0, 50) + "..."
-                      : test.description || "No description provided"} 
+                      : test.description || "No description provided"}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -359,8 +359,9 @@ export default function TestSelector({
         <DialogContent className="w-full min-w-[1100px]">
           <DialogHeader>
             <DialogTitle>Select Tests</DialogTitle>
-            <DialogDescription>
-              Choose the tests to include in this job
+            <DialogDescription className="flex justify-between items-center">
+              <span>Choose the tests to include in this job</span>
+              <span className="text-sm text-muted-foreground">Max: <span className="font-bold">50</span> tests per job</span>
             </DialogDescription>
           </DialogHeader>
           {isLoadingTests ? (
@@ -538,7 +539,7 @@ export default function TestSelector({
                   }
                   disabled={currentPage === 1}
                 >
-                  Previous
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-sm">
                   Page {currentPage} of {totalPages}
@@ -551,23 +552,21 @@ export default function TestSelector({
                   }
                   disabled={currentPage === totalPages}
                 >
-                  Next
+                    <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
               <div className="mt-4 flex justify-between items-center">
                 <div className="text-sm text-muted-foreground">
-                  {
+                    <span className="font-bold">{
                     Object.keys(testSelections).filter(
                       (id) => testSelections[id],
                     ).length
-                  }{" "}
-                  test
-                  {Object.keys(testSelections).filter(
-                    (id) => testSelections[id],
-                  ).length !== 1
+                  }{" "} </span>
+                    of <span className="font-bold">{availableTests.length}</span> test
+                    {availableTests.length !== 1
                     ? "s"
                     : ""}{" "}
-                  selected from {availableTests.length} tests
+                  selected
                 </div>
                 <DialogFooter>
                   <Button

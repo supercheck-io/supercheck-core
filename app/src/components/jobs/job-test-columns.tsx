@@ -47,6 +47,23 @@ export const createJobTestColumns = (): ColumnDef<Test>[] => [
     enableHiding: false,
   },
   {
+    accessorKey: "description",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Description" />
+    ),
+    cell: ({ row }) => {
+      const description = row.getValue("description") as string
+      return (
+        <div className="flex items-center gap-2">
+          <span className="max-w-[150px] truncate" title={description || "No description provided"}>
+            {description || "No description provided"}
+          </span>
+        </div>
+      )
+    },
+    enableSorting: true,
+  },
+  {
     accessorKey: "type",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Type" />
@@ -139,36 +156,7 @@ export const createJobTestColumns = (): ColumnDef<Test>[] => [
       return tags.some(tag => value.includes(tag.name))
     },
   },
-  {
-    accessorKey: "description",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Description" />
-    ),
-    cell: ({ row }) => {
-      const description = row.getValue("description") as string
-      return (
-        <div className="max-w-[150px] truncate">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="truncate text-sm">
-                  {description || "No description provided"}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-[400px] break-words">
-                  {description || "No description provided"}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-         
-        </div>
-        
-      )
-    },
-    enableSorting: true,
-  },
+
 
   {
     accessorKey: "Open",

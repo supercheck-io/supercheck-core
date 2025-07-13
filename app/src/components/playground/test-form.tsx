@@ -572,7 +572,7 @@ export function TestForm({
           )}
 
           {/* Test ID */}
-          <div className="bg-card p-3 rounded-lg border border-border/40">
+          {/* <div className="bg-card p-3 rounded-lg border border-border/40">
           <div className="space-y-1">
             <h3 className="text-sm font-medium text-muted-foreground">Test ID</h3>
               <div className="group relative">
@@ -583,7 +583,7 @@ export function TestForm({
             />
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
       )}
 
@@ -625,7 +625,7 @@ export function TestForm({
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 -mt-2">
         <label htmlFor="description" className="block text-sm font-medium">
           Description
         </label>
@@ -662,7 +662,7 @@ export function TestForm({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
+        <div className="space-y-2 -mt-2">
           <label htmlFor="priority" className="block text-sm font-medium">
             Priority
           </label>
@@ -739,7 +739,7 @@ export function TestForm({
       </div>
 
       {/* Tags Section */}
-      <div className="space-y-2">
+      <div className="space-y-2 mb-6">
         <label htmlFor="tags" className="block text-sm font-medium">
           Tags
         </label>
@@ -759,7 +759,7 @@ export function TestForm({
 
       <div className="mt-4">
         <div className="flex justify-between items-center">
-          <div className="flex flex-col items-end -mt-7" >
+          <div className="flex flex-col items-end -mt-6.5" >
             {testId && (
               <Button
                 type="button"

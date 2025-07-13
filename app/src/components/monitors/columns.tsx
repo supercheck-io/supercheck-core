@@ -5,7 +5,12 @@ import type { Monitor } from "./schema";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useState } from "react";
 
 import { MonitorStatusIndicator } from "./monitor-status-indicator";
 import { monitorTypes } from "./data";
@@ -23,15 +28,35 @@ export const columns: ColumnDef<Monitor>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader className="ml-2" column={column} title="Monitor ID" />
     ),
-    cell: ({ row }) => (
-      <div className="w-[90px]">
-        <UUIDField 
-          value={row.getValue("id")} 
-          maxLength={24} 
-          onCopy={() => toast.success("Monitor ID copied to clipboard")}
-        />
-      </div>
-    ),
+    cell: ({ row }) => {
+      const id = row.getValue("id") as string;
+      const [isOpen, setIsOpen] = useState(false);
+      
+      return (
+        <div className="w-[90px]">
+          <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+              <div 
+                className="cursor-pointer"
+                onMouseEnter={() => setIsOpen(true)}
+                onMouseLeave={() => setIsOpen(false)}
+              >
+                <UUIDField 
+                  value={id} 
+                  maxLength={24} 
+                  onCopy={() => toast.success("Monitor ID copied to clipboard")}
+                />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="flex justify-center items-center">
+              <p className="text-xs text-muted-foreground break-all">
+                {id}
+              </p>
+            </PopoverContent>
+          </Popover>
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: false,
   },
@@ -42,6 +67,7 @@ export const columns: ColumnDef<Monitor>[] = [
     ),
     cell: ({ row }) => {
       const name = row.getValue("name") as string;
+      const [isOpen, setIsOpen] = useState(false);
       
       // Check if text is likely to be truncated (rough estimate)
       const isTruncated = name.length > 20; // Approximate character limit for 200px width
@@ -49,28 +75,34 @@ export const columns: ColumnDef<Monitor>[] = [
       if (!isTruncated) {
         return (
           <div className="flex space-x-2">
-            <span className="max-w-[170px] truncate">
-              {name.length > 20 ? name.slice(0, 20) + "..." : name}
+            <span className="max-w-[160px] truncate">
+              {name}
             </span>
           </div>
         );
       }
       
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex space-x-2">
-                <span className="max-w-[170px] truncate">
-                  {name.length > 20 ? name.slice(0, 20) + "..." : name}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[700px]">
-              <span>{name}</span>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <div 
+              className="flex space-x-2 cursor-pointer"
+              onMouseEnter={() => setIsOpen(true)}
+              onMouseLeave={() => setIsOpen(false)}
+            >
+              <span className="max-w-[160px] truncate">
+                {name}
+              </span>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="flex justify-center items-center">
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {name}
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
       );
     },
   },
@@ -83,6 +115,7 @@ export const columns: ColumnDef<Monitor>[] = [
       const target = row.getValue("target") as string;
       const monitorType = row.original.type as string;
       const legacyUrl = row.original.url as string; // Fallback for legacy data
+      const [isOpen, setIsOpen] = useState(false);
       
       // For heartbeat monitors, show truncated URL without hyperlink styling
       if (monitorType === "heartbeat") {
@@ -110,18 +143,22 @@ export const columns: ColumnDef<Monitor>[] = [
         }
         
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block">
-                  {displayUrl}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[700px]">
-                <span className="font-mono text-xs">{displayUrl}</span>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+              <span 
+                className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block cursor-pointer"
+                onMouseEnter={() => setIsOpen(true)}
+                onMouseLeave={() => setIsOpen(false)}
+              >
+                {displayUrl}
+              </span>
+            </PopoverTrigger>
+            <PopoverContent className="flex justify-center items-center">
+              <p className="text-xs text-muted-foreground font-mono">
+                {displayUrl}
+              </p>
+            </PopoverContent>
+          </Popover>
         );
       }
       
@@ -137,18 +174,22 @@ export const columns: ColumnDef<Monitor>[] = [
       }
       
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block">
-                {displayValue}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[700px]">
-              <span className="font-mono text-xs">{displayValue}</span>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <span 
+              className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block cursor-pointer"
+              onMouseEnter={() => setIsOpen(true)}
+              onMouseLeave={() => setIsOpen(false)}
+            >
+              {displayValue}
+            </span>
+          </PopoverTrigger>
+          <PopoverContent className="flex justify-center items-center">
+            <p className="text-xs text-muted-foreground font-mono">
+              {displayValue}
+            </p>
+          </PopoverContent>
+        </Popover>
       );
     },
   },

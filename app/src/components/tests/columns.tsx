@@ -5,8 +5,13 @@ import type { Test } from "./schema";
 import { CalendarIcon, ClockIcon, TagIcon } from "lucide-react";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { toast } from "sonner";
+import { useState } from "react";
 
 // Type definition for the extended meta object used in this table
 interface TestsTableMeta {
@@ -21,18 +26,37 @@ export const columns: ColumnDef<Test>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader className="ml-2"  column={column} title="Test ID" />
+      <DataTableColumnHeader className="ml-2" column={column} title="Test ID" />
     ),
-    cell: ({ row }) => (
-      <div className="w-[90px]">
-        
-        <UUIDField 
-          value={row.getValue("id")} 
-          maxLength={24} 
-          onCopy={() => toast.success("Test ID copied to clipboard")}
-        />
-      </div>
-    ),
+    cell: ({ row }) => {
+      const id = row.getValue("id") as string;
+      const [isOpen, setIsOpen] = useState(false);
+
+      return (
+        <div className="w-[90px]">
+          <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+              <div
+                className="cursor-pointer"
+                onMouseEnter={() => setIsOpen(true)}
+                onMouseLeave={() => setIsOpen(false)}
+              >
+                <UUIDField
+                  value={id}
+                  maxLength={24}
+                  onCopy={() => toast.success("Test ID copied to clipboard")}
+                />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="flex justify-center items-center">
+              <p className="text-xs text-muted-foreground break-all">
+                {id}
+              </p>
+            </PopoverContent>
+          </Popover>
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: false,
   },
@@ -43,52 +67,84 @@ export const columns: ColumnDef<Test>[] = [
     ),
     cell: ({ row }) => {
       const title = row.getValue("title") as string;
-      
+      const [isOpen, setIsOpen] = useState(false);
+
       // Check if text is likely to be truncated (rough estimate)
       const isTruncated = title.length > 20; // Approximate character limit for 200px width
-      
+
       if (!isTruncated) {
         return (
           <div className="flex space-x-2">
-            <span className="max-w-[170px] truncate">
-              {title.length > 20 ? title.slice(0, 20) + "..." : title}
+            <span className="max-w-[160px] truncate">
+              {title}
             </span>
           </div>
         );
       }
-      
+
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex space-x-2">
-                <span className="max-w-[170px] truncate">
-                  {title}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[700px]">
-              <span>{title}</span>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <div
+              className="flex space-x-2 cursor-pointer"
+              onMouseEnter={() => setIsOpen(true)}
+              onMouseLeave={() => setIsOpen(false)}
+            >
+              <span className="max-w-[160px] truncate">
+                {title}
+              </span>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="flex justify-center items-center">
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {title}
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
       );
     },
   },
-  // {
-  //   accessorKey: "description",
-  //   header: ({ column }) => (
-  //     <DataTableColumnHeader column={column} title="Description" />
-  //   ),
-  //   cell: ({ row }) => {
-  //     const description = row.getValue("description") as string | null;
-  //     return (
-  //       <div className="max-w-[200px] truncate">
-  //         {description || "No description provided"}
-  //       </div>
-  //     );
-  //   },
-  // },
+  {
+    accessorKey: "description",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Description" />
+    ),
+    cell: ({ row }) => {
+      const description = row.getValue("description") as string | null;
+      const displayText = description || "No description provided";
+      const isTruncated = displayText.length > 30; // Approximate character limit
+      const [isOpen, setIsOpen] = useState(false);
+
+      if (!isTruncated) {
+        return (
+          <div className="max-w-[200px] truncate">
+            {displayText}
+          </div>
+        );
+      }
+
+      return (
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <div
+              className="max-w-[160px] truncate cursor-pointer"
+              onMouseEnter={() => setIsOpen(true)}
+              onMouseLeave={() => setIsOpen(false)}
+            >
+              {displayText}
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="flex justify-center items-center">
+            <p className="text-xs text-muted-foreground">
+              {displayText}
+            </p>
+          </PopoverContent>
+        </Popover>
+      );
+    },
+  },
   {
     accessorKey: "type",
     header: ({ column }) => (
@@ -150,7 +206,8 @@ export const columns: ColumnDef<Test>[] = [
     ),
     cell: ({ row }) => {
       const tags = row.getValue("tags") as Array<{ id: string; name: string; color: string | null }>;
-      
+      const [isOpen, setIsOpen] = useState(false);
+
       if (!tags || tags.length === 0) {
         return (
           <div className="text-muted-foreground text-sm">
@@ -162,14 +219,14 @@ export const columns: ColumnDef<Test>[] = [
       const displayTags = tags.slice(0, 2);
       const remainingCount = tags.length - 2;
 
-      // Only show tooltip if there are more than 2 tags
+      // Only show popover if there are more than 2 tags
       if (tags.length <= 2) {
         return (
           <div className="flex items-center gap-1 min-h-[24px]">
             {tags.map((tag) => (
-              <Badge 
-                key={tag.id} 
-                variant="secondary" 
+              <Badge
+                key={tag.id}
+                variant="secondary"
                 className="text-xs whitespace-nowrap flex-shrink-0"
                 style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
               >
@@ -181,49 +238,51 @@ export const columns: ColumnDef<Test>[] = [
       }
 
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-1 min-h-[24px]">
-                {displayTags.map((tag) => (
-                  <Badge 
-                    key={tag.id} 
-                    variant="secondary" 
-                    className="text-xs whitespace-nowrap flex-shrink-0"
-                    style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
-                  >
-                    {tag.name}
-                  </Badge>
-                ))}
-                {remainingCount > 0 && (
-                  <Badge variant="secondary" className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                    +{remainingCount}
-                  </Badge>
-                )}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[700px]">
-              <div className="flex flex-wrap gap-1">
-                {tags.map((tag) => (
-                  <Badge 
-                    key={tag.id} 
-                    variant="secondary" 
-                    className="text-xs"
-                    style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
-                  >
-                    {tag.name}
-                  </Badge>
-                ))}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <div
+              className="flex items-center gap-1 min-h-[24px] cursor-pointer"
+              onMouseEnter={() => setIsOpen(true)}
+              onMouseLeave={() => setIsOpen(false)}
+            >
+              {displayTags.map((tag) => (
+                <Badge
+                  key={tag.id}
+                  variant="secondary"
+                  className="text-xs whitespace-nowrap flex-shrink-0"
+                  style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
+                >
+                  {tag.name}
+                </Badge>
+              ))}
+              {remainingCount > 0 && (
+                <Badge variant="secondary" className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                  +{remainingCount}
+                </Badge>
+              )}
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="max-w-[250px] flex justify-center items-center">
+            <div className="flex justify-center flex-wrap gap-1">
+              {tags.map((tag) => (
+                <Badge
+                  key={tag.id}
+                  variant="secondary"
+                  className="text-xs"
+                  style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
+                >
+                  {tag.name}
+                </Badge>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
       );
     },
     filterFn: (row, id, value: string[]) => {
       const tags = row.getValue(id) as Array<{ id: string; name: string; color: string | null }>;
       if (!tags || tags.length === 0) return false;
-      return value.some(filterTag => 
+      return value.some(filterTag =>
         tags.some(tag => tag.name.toLowerCase().includes(filterTag.toLowerCase()))
       );
     },
@@ -278,6 +337,7 @@ export const columns: ColumnDef<Test>[] = [
         </div>
       );
     },
+
   },
   {
     id: "actions",
