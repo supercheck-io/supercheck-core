@@ -150,10 +150,12 @@ export function DataTableRowActions<TData>({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Test</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the test &quot;{test.title}&quot;.
+              This will permanently delete the test <span className="font-semibold">&quot;{test.title}&quot;</span>. This action cannot be undone.
               This action cannot be undone.
+              <br /><br />
+              <strong>Note:</strong> If this test is currently used in any jobs, the deletion will be prevented and you'll need to remove the test from those jobs first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

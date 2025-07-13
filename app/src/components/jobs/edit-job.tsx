@@ -167,7 +167,7 @@ export default function EditJob({ jobId }: EditJobProps) {
         id: test.id,
         name: test.name,
         description: test.description || null,
-        type: test.type as "browser" | "api" | "multistep" | "database",
+        type: test.type as "browser" | "api" | "custom" | "database",
         status: "running" as const,
         lastRunAt: null,
         duration: null,
@@ -595,9 +595,11 @@ export default function EditJob({ jobId }: EditJobProps) {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Job</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete the job. This action cannot be undone.
+              <br /><br />
+              <strong>Note:</strong> All the runs related to this job will also be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

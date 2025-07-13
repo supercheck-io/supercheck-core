@@ -3,17 +3,15 @@ import React from "react";
 import { CreateCard } from "./create-card";
 import { useRouter } from "next/navigation";
 import {
-  Chrome,
-  Webhook,
-  ListOrdered,
-  DatabaseZap,
   Video,
   Clock,
   Zap,
 } from "lucide-react";
 import { monitorTypes } from "@/components/monitors/data";
+import { types } from "@/components/tests/data";
+import { jobStatuses } from "@/components/jobs/data";
 
-type ScriptType = "browser" | "api" | "multistep" | "database" | "record";
+type ScriptType = "browser" | "api" | "custom" | "database" | "record";
 
 export function CreatePageContent() {
   const router = useRouter();
@@ -24,44 +22,34 @@ export function CreatePageContent() {
   };
 
   const testTypes = [
-    {
-      icon: <Chrome size={24} className="text-green-500" />,
-      title: "Browser check",
-      description: "Check your crucial browser click flows.",
-      path: "/create/browser",
-      scriptType: "browser" as ScriptType,
-    },
-    {
-      icon: <Webhook size={24} className="text-purple-500" />,
-      title: "API check",
-      description: "Check speed and validity of API endpoints.",
-      path: "/create/api",
-      scriptType: "api" as ScriptType,
-    },
-
-    {
-      icon: <ListOrdered size={24} className="text-orange-500" />,
-      title: "Multistep check",
-      description: "Chained API calls, requests in sequence.",
-      path: "/create/multistep",
-      scriptType: "multistep" as ScriptType,
-    },
-
-
-    {
-      icon: <DatabaseZap size={24} className="text-yellow-500" />,
-      title: "Database check",
-      description: "Test database query execution.",
-      path: "/create/database",
-      scriptType: "database" as ScriptType,
-    },
-
+    ...types.map((type) => ({
+      icon: <type.icon size={24} className={type.color} />,
+      title: type.label,
+      description: `Check your crucial ${type.label.toLowerCase()} flows.`,
+      path: `/create/${type.value}`,
+      scriptType: type.value as ScriptType,
+    })),
     {
       icon: <Video size={24} className="text-red-500" />,
       title: "Record",
       description: "Record a script via browser extension.",
       path: "https://chromewebstore.google.com/detail/playwright-crx/jambeljnbnfbkcpnoiaedcabbgmnnlcd",
       scriptType: "record" as ScriptType,
+    },
+  ];
+
+  const jobTypes = [
+    {
+      icon: <Clock size={24} className="text-blue-500" />,
+      title: "Scheduled Job",
+      description: "Create a job that runs on a schedule",
+      onClick: () => router.push("/jobs/create"),
+    },
+    {
+      icon: <Zap size={24} className="text-amber-500" />,
+      title: "Immediate Job",
+      description: "Run a job immediately",
+      onClick: () => router.push("/jobs/create"),
     },
   ];
 
@@ -101,23 +89,18 @@ export function CreatePageContent() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-        <CreateCard
-          key="scheduled-job"
-          icon={<Clock size={24} className="text-blue-500" />}
-          title="Scheduled Job"
-          description="Create a job that runs on a schedule"
-          onClick={() => router.push("/jobs/create")}
-        />
-        <CreateCard
-          key="immediate-job"
-          icon={<Zap size={24} className="text-amber-500" />}
-          title="Immediate Job"
-          description="Run a job immediately"
-          onClick={() => router.push("/jobs/create")}
-        />
+        {jobTypes.map((jobType) => (
+          <CreateCard
+            key={jobType.title}
+            icon={jobType.icon}
+            title={jobType.title}
+            description={jobType.description}
+            onClick={jobType.onClick}
+          />
+        ))}
       </div>
 
-      <div className="mt-4 mb-3 pl-1">
+      <div className="mt-8 mb-3 pl-1">
         <h2 className="text-xl font-bold">Create New Monitor</h2>
         <p className="text-muted-foreground text-sm mt-1">Select the type of monitor you want to create</p>
       </div>

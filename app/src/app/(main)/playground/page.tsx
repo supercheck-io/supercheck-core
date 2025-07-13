@@ -17,8 +17,8 @@ const getBreadcrumbs = (scriptType: string | null) => {
     case "api":
       testTypeLabel = "API Test";
       break;
-    case "multistep":
-      testTypeLabel = "Multi-step Test";
+    case "custom":
+      testTypeLabel = "Custom Test";
       break;
     case "database":
       testTypeLabel = "Database Test";

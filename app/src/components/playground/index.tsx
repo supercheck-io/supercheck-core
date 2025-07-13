@@ -274,7 +274,7 @@ const Playground: React.FC<PlaygroundProps> = ({
       const defaultType = "browser" as TestType;
       const typeToSet =
         scriptTypeParam &&
-        ["browser", "api", "multistep", "database"].includes(scriptTypeParam)
+        ["browser", "api", "custom", "database"].includes(scriptTypeParam)
           ? scriptTypeParam
           : defaultType;
 

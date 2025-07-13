@@ -194,10 +194,9 @@ export function DataTableRowActions<TData>({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Monitor</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the monitor &quot;{monitor.name}&quot;.
-              This action cannot be undone.
+              This will permanently delete the monitor <span className="font-semibold">&quot;{monitor.name}&quot;</span>. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

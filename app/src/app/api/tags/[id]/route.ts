@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/utils/db';
-import { tags} from '@/db/schema/schema';
+import { tags, testTags } from '@/db/schema/schema';
 import { auth } from '@/utils/auth';
-import { eq } from 'drizzle-orm';
+import { eq, count } from 'drizzle-orm';
 import { headers } from 'next/headers';
 
 export async function DELETE(
@@ -35,12 +35,31 @@ export async function DELETE(
       return NextResponse.json({ error: 'Tag not found' }, { status: 404 });
     }
 
+    // Check if the tag is being used in any tests
+    const testUsageCount = await db
+      .select({ count: count() })
+      .from(testTags)
+      .where(eq(testTags.tagId, tagId));
+
+    const usageCount = testUsageCount[0]?.count ?? 0;
+
+    if (usageCount > 0) {
+      return NextResponse.json({ 
+        error: `Cannot delete tag "${existingTag[0].name}" because it is currently used in ${usageCount} test${usageCount === 1 ? '' : 's'}. Please remove the tag from all tests before deleting it.`,
+        usageCount,
+        tagName: existingTag[0].name
+      }, { status: 409 });
+    }
+
     // Delete the tag (cascading deletes will handle testTags and monitorTags)
     await db
       .delete(tags)
       .where(eq(tags.id, tagId));
 
-    return NextResponse.json({ message: 'Tag deleted successfully' });
+    return NextResponse.json({ 
+      message: 'Tag deleted successfully',
+      deletedTag: existingTag[0]
+    });
   } catch (error) {
     console.error('Error deleting tag:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

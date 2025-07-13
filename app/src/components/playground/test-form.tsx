@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TagSelector, type Tag } from "@/components/ui/tag-selector";
+import { priorities, types } from "@/components/tests/data";
 
 // Define the type for the display map keys explicitly based on allowed UI values
 type AllowedPriorityKey = "low" | "medium" | "high";
@@ -48,7 +49,7 @@ const allowedPriorities: AllowedPriorityKey[] = ["low", "medium", "high"];
 const typeDisplayMap = {
   browser: "Browser",
   api: "API",
-  multistep: "Multi-step",
+  custom: "Custom",
   database: "Database",
 };
 
@@ -74,9 +75,9 @@ const testCaseSchema = testsInsertSchema
       required_error: "Priority is required",
       invalid_type_error: "Priority must be low, medium, or high",
     }),
-    type: z.enum(["browser", "api", "multistep", "database"] as const, {
+    type: z.enum(["browser", "api", "custom", "database"] as const, {
       required_error: "Test type is required",
-      invalid_type_error: "Test type must be browser, api, multistep, or database",
+      invalid_type_error: "Test type must be browser, api, custom, or database",
     }),
     updatedAt: z.string().nullable().optional(),
     createdAt: z.string().nullable().optional(),
@@ -218,12 +219,24 @@ export function TestForm({
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to delete tag');
+      const errorData = await response.json();
+      
+      if (response.status === 409) {
+        // Tag is in use - show specific error message
+        throw new Error(errorData.error || 'Tag is currently in use and cannot be deleted');
+      }
+      
+      throw new Error(errorData.error || 'Failed to delete tag');
     }
 
+    const result = await response.json();
+    
     // Remove from available tags
     setAvailableTags(prev => prev.filter(tag => tag.id !== tagId));
+    
+    // Show success message with tag name if available
+    const deletedTagName = result.deletedTag?.name || 'Tag';
+    toast.success(`${deletedTagName} deleted successfully`);
   };
 
   // Handle tag changes
@@ -681,15 +694,31 @@ export function TestForm({
               isRunning ? "opacity-70 cursor-not-allowed" : ""
             )}>
               <SelectValue placeholder="Select priority">
-                {priorityDisplayMap[testCase.priority as AllowedPriorityKey] || "Select priority"}
+                {(() => {
+                  const selected = priorities.find((p) => p.value === testCase.priority);
+                  if (!selected) return "Select priority";
+                  const Icon = selected.icon;
+                  return (
+                    <span className="flex items-center gap-2">
+                      <Icon className={cn("h-4 w-4", selected.color)} />
+                      {selected.label}
+                    </span>
+                  );
+                })()}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {allowedPriorities.map((priority) => (
-                <SelectItem key={priority} value={priority}>
-                  {priorityDisplayMap[priority]}
-                </SelectItem>
-              ))}
+              {priorities.map((priority) => {
+                const Icon = priority.icon;
+                return (
+                  <SelectItem key={priority.value} value={priority.value}>
+                    <div className="flex items-center gap-2">
+                      <Icon className={cn("h-4 w-4", priority.color)} />
+                      {priority.label}
+                    </div>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
           {errors.priority && (
@@ -717,18 +746,31 @@ export function TestForm({
               isRunning ? "opacity-70 cursor-not-allowed" : ""
             )}>
               <SelectValue placeholder="Select type">
-                {typeDisplayMap[testCase.type as TestType] || "Select type"}
+                {(() => {
+                  const selected = types.find((t) => t.value === testCase.type);
+                  if (!selected) return "Select type";
+                  const Icon = selected.icon;
+                  return (
+                    <span className="flex items-center gap-2">
+                      <Icon className={cn("h-4 w-4", selected.color)} />
+                      {selected.label}
+                    </span>
+                  );
+                })()}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="browser">{typeDisplayMap.browser}</SelectItem>
-              <SelectItem value="api">{typeDisplayMap.api}</SelectItem>
-              <SelectItem value="multistep">
-                {typeDisplayMap.multistep}
-              </SelectItem>
-              <SelectItem value="database">
-                {typeDisplayMap.database}
-              </SelectItem>
+              {types.map((type) => {
+                const Icon = type.icon;
+                return (
+                  <SelectItem key={type.value} value={type.value}>
+                    <div className="flex items-center gap-2">
+                      <Icon className={cn("h-4 w-4", type.color)} />
+                      {type.label}
+                    </div>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
           {errors.type && (
@@ -748,7 +790,7 @@ export function TestForm({
           availableTags={availableTags}
           onCreateTag={handleCreateTag}
           onDeleteTag={handleDeleteTag}
-          placeholder="Select or create tags..."
+          placeholder="Select or create tags to organize tests..."
           disabled={isRunning || isLoadingTags}
         />
         {isLoadingTags && (
@@ -874,9 +916,11 @@ export function TestForm({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Test</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the test "{testCase.title}". This action cannot be undone.
+              This will permanently delete the test <span className="font-semibold">&quot;{testCase.title}&quot;</span>. This action cannot be undone.
+              <br /><br />
+              <strong>Note:</strong> If this test is currently used in any jobs, the deletion will be prevented and you'll need to remove the test from those jobs first. Make sure you have a backup of the data you need before deleting the test.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

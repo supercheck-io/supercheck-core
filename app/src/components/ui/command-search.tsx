@@ -68,7 +68,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
       "create-monitor-heartbeat": "/monitors/create?type=heartbeat",
       "create-test-browser": "/playground?scriptType=browser",
       "create-test-api": "/playground?scriptType=api",
-      "create-test-multistep": "/playground?scriptType=multistep",
+      "create-test-custom": "/playground?scriptType=custom",
       "create-test-database": "/playground?scriptType=database",
       "create-job": "/jobs/create",
       

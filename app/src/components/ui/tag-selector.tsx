@@ -183,11 +183,12 @@ export function TagSelector({
       await onDeleteTag(tagToDelete)
       // Remove from selected tags if it was selected
       onChange(value.filter(t => t.id !== tagToDelete))
-      const deletedTag = availableTags.find(t => t.id === tagToDelete)
-      toast.success(`Tag "${deletedTag?.name}" deleted successfully`)
+      // Success message is now handled in the onDeleteTag function
     } catch (error) {
       console.error("Failed to delete tag:", error)
-      toast.error("Failed to delete tag. Please try again.")
+      // Show the specific error message from the API
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete tag. Please try again."
+      toast.error(errorMessage)
     } finally {
       setIsDeleting(false)
       setShowDeleteDialog(false)
@@ -357,10 +358,12 @@ export function TagSelector({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Tag</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the tag "{availableTags.find(t => t.id === tagToDelete)?.name}". 
-              This action cannot be undone and will remove the tag from all tests.
+              This will permanently delete the tag <span className="font-semibold">&quot;{availableTags.find(t => t.id === tagToDelete)?.name}&quot;</span>. 
+              This action cannot be undone.
+              <br /><br />
+              <strong>Note:</strong> If this tag is currently used in any tests, the deletion will be prevented and you'll need to remove the tag from those tests first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

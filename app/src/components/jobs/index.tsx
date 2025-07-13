@@ -48,7 +48,7 @@ function mapToTestType(type: string | undefined): Test["type"] {
   switch (type) {
     case "browser":
     case "api":
-    case "multistep":
+    case "custom":
     case "database":
       return type; // Already valid
     default:
@@ -644,8 +644,8 @@ export default function Jobs() {
                               {/* Only show valid Test['type'] options */}
                               <SelectItem value="browser">Browser</SelectItem>
                               <SelectItem value="api">API</SelectItem>
-                              <SelectItem value="multistep">
-                                Multistep
+                              <SelectItem value="custom">
+                                Custom
                               </SelectItem>
                               <SelectItem value="database">Database</SelectItem>
                             </SelectContent>

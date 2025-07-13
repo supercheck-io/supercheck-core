@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RunResponse } from "@/actions/get-runs";
 import { runStatuses } from "./data";
 import { toast } from "sonner";
 import { ReportViewer } from "@/components/shared/report-viewer";
@@ -32,11 +31,23 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface RunDetailsProps {
-  run: RunResponse;
-}
+// Type based on the actual API response from /api/runs/[runId]
+type RunResponse = {
+  id: string;
+  jobId: string;
+  jobName?: string;
+  status: string;
+  duration?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  logs?: string | null;
+  errorDetails?: string | null;
+  reportUrl?: string | null;
+  timestamp?: string;
+  testCount?: number;
+};
 
-export function RunDetails({ run }: RunDetailsProps) {
+export function RunDetails({ run }: { run: RunResponse }) {
   const router = useRouter();
   const [reportUrl, setReportUrl] = useState('');
   const [duration, setDuration] = useState<string | undefined>(run.duration || undefined);
@@ -328,7 +339,7 @@ export function RunDetails({ run }: RunDetailsProps) {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Run</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete the run. This action cannot be undone.
             </AlertDialogDescription>

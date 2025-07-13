@@ -116,15 +116,14 @@ const data = {
         {
           title: "API Test",
           url: "/playground?scriptType=api",
-        },
-        {
-          title: "Multistep Test",
-          url: "/playground?scriptType=multistep",
-        },
- 
+        }, 
         {
           title: "Database Test",
           url: "/playground?scriptType=database",
+        },
+        {
+          title: "Custom Test",
+          url: "/playground?scriptType=custom",
         },
       ],
     },

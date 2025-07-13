@@ -187,7 +187,7 @@ export const columns: ColumnDef<Test>[] = [
         <div className="flex items-center w-[100px]">
           {priority.icon && (
             <priority.icon
-              className={`mr-2 h-4 w-4 text-muted-foreground ${priority.color}`}
+              className={`mr-2 h-4 w-4 ${priority.color}`}
             />
           )}
           <span>{priority.label}</span>

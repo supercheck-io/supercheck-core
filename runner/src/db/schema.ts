@@ -191,7 +191,7 @@ export const projects = pgTable("projects", {
 });
 
 export type TestPriority = "low" | "medium" | "high";
-export type TestType = "browser" | "api" | "multistep" | "database";
+export type TestType = "browser" | "api" | "custom" | "database";
 /**
  * Stores test definitions and scripts.
  */

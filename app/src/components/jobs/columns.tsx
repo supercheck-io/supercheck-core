@@ -314,7 +314,9 @@ export const columns: ColumnDef<Job>[] = [
       return (
         <div className="flex items-center">
           <TimerIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-          <span>{cronSchedule || "None"}</span>
+          <span className={cronSchedule ? "" : "text-muted-foreground"}>
+            {cronSchedule || "None"}
+          </span>
         </div>
       );
     },
@@ -363,7 +365,7 @@ export const columns: ColumnDef<Job>[] = [
       const cronSchedule = row.getValue("cronSchedule") as string | null;
       
       if (!cronSchedule || !nextRunAt) {
-        return <div className="text-muted-foreground">No date</div>;
+        return <div className="text-muted-foreground">Never</div>;
       }
       
       return (

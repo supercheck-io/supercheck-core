@@ -61,7 +61,7 @@ export default function TestSelector({
     id: string;
     title: string;
     description: string | null;
-    type: "browser" | "api" | "multistep" | "database";
+    type: "browser" | "api" | "custom" | "database";
     updatedAt: string | null;
     script?: string;
     priority?: string;
@@ -85,7 +85,7 @@ export default function TestSelector({
               switch (test.type) {
                 case "browser":
                 case "api":
-                case "multistep":
+                case "custom":
                 case "database":
                   mappedType = test.type;
                   break;

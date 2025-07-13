@@ -438,7 +438,7 @@ npm run test:e2e
 ## 🗺️ Roadmap
 
 ### Planned Features
-- [ ] Multi-step monitoring workflows
+- [ ] Custom monitoring workflows
 - [ ] Custom dashboard creation
 - [ ] Advanced analytics and reporting
 - [ ] Mobile app for alerts
