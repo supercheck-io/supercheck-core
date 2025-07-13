@@ -134,7 +134,7 @@ export function DataTable<TData, TValue>({
     getFacetedUniqueValues: getFacetedUniqueValues(),
     globalFilterFn: "auto",
     meta: {
-      globalFilterColumns: ["id", "name"],
+      globalFilterColumns: ["id", "name", "description", "status"],
       ...meta,
     } as ExtendedTableMeta<TData>,
   });

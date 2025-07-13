@@ -316,11 +316,13 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
     const recentResults = monitor.recentResults.slice(0, 50);
     
     const chartData = recentResults
+      .filter(r => r.responseTimeMs !== null && r.responseTimeMs !== undefined && r.responseTimeMs >= 0) // Include all valid response times including 0ms
       .map(r => {
         const date = typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt;
+        
         return {
           name: format(date, 'HH:mm'), // Show only time (HH:MM) for cleaner x-axis
-          time: r.responseTimeMs || 0,
+          time: r.responseTimeMs!, // Safe to use ! since we filtered out null/undefined above
           fullDate: format(date, 'MMM dd, HH:mm'), // Keep full date for tooltips
           isUp: r.isUp, // Keep status for conditional styling
           status: r.status

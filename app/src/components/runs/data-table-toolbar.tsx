@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import type { Table } from "@tanstack/react-table";
 
 import { Button } from "@/components/ui/button";
@@ -31,11 +31,12 @@ export function DataTableToolbar<TData>({
       </div>
       <div className="flex items-center space-x-2">
         <div className="relative">
+          <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Filter by Run ID, Job ID, or Job Name..."
+            placeholder="Filter by all available fields..."
             value={(table.getState().globalFilter as string) ?? ""}
             onChange={(event) => table.setGlobalFilter(event.target.value)}
-            className="h-8 w-[300px] pr-8 "
+            className="h-8 w-[400px] pr-8 pl-8"
           />
           {(table.getState().globalFilter as string)?.length > 0 && (
             <button

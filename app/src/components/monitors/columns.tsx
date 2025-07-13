@@ -95,7 +95,7 @@ export const columns: ColumnDef<Monitor>[] = [
               </span>
             </div>
           </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center">
+          <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 {name}
@@ -153,7 +153,7 @@ export const columns: ColumnDef<Monitor>[] = [
                 {displayUrl}
               </span>
             </PopoverTrigger>
-            <PopoverContent className="flex justify-center items-center">
+            <PopoverContent className="flex justify-center items-center w-auto max-w-[800px]">
               <p className="text-xs text-muted-foreground font-mono">
                 {displayUrl}
               </p>
@@ -184,7 +184,7 @@ export const columns: ColumnDef<Monitor>[] = [
               {displayValue}
             </span>
           </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center">
+          <PopoverContent className="flex justify-center items-center w-auto max-w-[800px]">
             <p className="text-xs text-muted-foreground font-mono">
               {displayValue}
             </p>

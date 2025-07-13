@@ -1,5 +1,5 @@
 import type { Table } from "@tanstack/react-table";
-import { PlusCircle, PlusIcon, X } from "lucide-react";
+import { PlusCircle, PlusIcon, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,11 +34,12 @@ export function DataTableToolbar<TData>({
 
       <div className="flex items-center space-x-2">
         <div className="relative">
+          <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Filter by Job ID, Name, or Status..."
+            placeholder="Filter by all available fields..."
             value={(table.getState().globalFilter as string) ?? ""}
             onChange={(event) => table.setGlobalFilter(event.target.value)}
-            className="h-8 w-[300px] pr-8"
+            className="h-8 w-[300px] pl-8"
           />
           {(table.getState().globalFilter as string)?.length > 0 && (
             <button

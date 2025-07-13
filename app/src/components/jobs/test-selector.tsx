@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 // import { getTests } from "@/actions/get-tests"; // Replaced with API call
 
 interface TestSelectorProps {
@@ -52,6 +53,8 @@ export default function TestSelector({
   const [tagFilter, setTagFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [testToRemove, setTestToRemove] = useState<{id: string, name: string} | null>(null);
 
   // Always ensure we have an array
   const tests = Array.isArray(selectedTests) ? selectedTests : [];
@@ -338,9 +341,26 @@ export default function TestSelector({
                   </TableCell>
                   <TableCell>
                     <Button
+                      type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => removeTest(test.id, test.name)}
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTestToRemove({ id: test.id, name: test.name });
+                        setShowRemoveDialog(true);
+                      }}
+                      onKeyDown={(e) => {
+                        // Only trigger on Space, not Enter
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                        }
+                        if (e.key === " " || e.key === "Spacebar") {
+                          setTestToRemove({ id: test.id, name: test.name });
+                          setShowRemoveDialog(true);
+                        }
+                      }}
+                      aria-label={`Remove test ${test.name}`}
                     >
                       <XCircle className="h-4 w-4 text-red-700" />
                     </Button>
@@ -584,6 +604,32 @@ export default function TestSelector({
           )}
         </DialogContent>
       </Dialog>
+      {showRemoveDialog && testToRemove && (
+  <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Remove Test from Job</AlertDialogTitle>
+        <AlertDialogDescription>
+          Are you sure you want to remove <span className="font-semibold">&quot;{testToRemove.name}&quot;</span> from this job?
+          <br /> This test will not run in current job.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction
+          onClick={() => {
+            removeTest(testToRemove.id, testToRemove.name);
+            setShowRemoveDialog(false);
+            setTestToRemove(null);
+          }}
+          className="bg-red-600 hover:bg-red-700"
+        >
+          Remove
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+)}
     </div>
   );
 } 

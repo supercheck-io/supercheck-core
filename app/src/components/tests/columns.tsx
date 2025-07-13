@@ -70,7 +70,7 @@ export const columns: ColumnDef<Test>[] = [
       const [isOpen, setIsOpen] = useState(false);
 
       // Check if text is likely to be truncated (rough estimate)
-      const isTruncated = title.length > 20; // Approximate character limit for 200px width
+      const isTruncated = title.length > 25; // Approximate character limit for 200px width
 
       if (!isTruncated) {
         return (
@@ -95,9 +95,9 @@ export const columns: ColumnDef<Test>[] = [
               </span>
             </div>
           </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center">
+          <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                 {title}
               </p>
             </div>
@@ -114,7 +114,7 @@ export const columns: ColumnDef<Test>[] = [
     cell: ({ row }) => {
       const description = row.getValue("description") as string | null;
       const displayText = description || "No description provided";
-      const isTruncated = displayText.length > 30; // Approximate character limit
+      const isTruncated = displayText.length > 25; // Approximate character limit
       const [isOpen, setIsOpen] = useState(false);
 
       if (!isTruncated) {
@@ -136,8 +136,8 @@ export const columns: ColumnDef<Test>[] = [
               {displayText}
             </div>
           </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center">
-            <p className="text-xs text-muted-foreground">
+          <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap">
               {displayText}
             </p>
           </PopoverContent>
@@ -262,7 +262,9 @@ export const columns: ColumnDef<Test>[] = [
               )}
             </div>
           </PopoverTrigger>
-          <PopoverContent className="max-w-[250px] flex justify-center items-center">
+  
+            <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+             
             <div className="flex justify-center flex-wrap gap-1">
               {tags.map((tag) => (
                 <Badge

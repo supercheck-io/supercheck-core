@@ -48,7 +48,7 @@ export function DataTableRowActions<TData>({
         name: (row.original as unknown as { name?: string })?.name || "Untitled Monitor",
         url: (row.original as unknown as { url?: string })?.url || "",
         method: "ping" as const, 
-        status: "up" as const,
+        status: (row.original as unknown as { status?: string })?.status || "up",
       };
       
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);

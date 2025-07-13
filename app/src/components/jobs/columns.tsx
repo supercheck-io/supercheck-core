@@ -278,12 +278,51 @@ export const columns: ColumnDef<Job>[] = [
               </span>
             </div>
           </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center">
+          <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 {name}
               </p>
             </div>
+          </PopoverContent>
+        </Popover>
+      );
+    },
+  },
+  {
+    accessorKey: "description",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Description" />
+    ),
+    cell: ({ row }) => {
+      const description = row.getValue("description") as string | null;
+      const displayText = description || "No description provided";
+      const isTruncated = displayText.length > 30; // Approximate character limit
+      const [isOpen, setIsOpen] = useState(false);
+
+      if (!isTruncated) {
+        return (
+          <div className="max-w-[200px] truncate">
+            {displayText}
+          </div>
+        );
+      }
+
+      return (
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <div
+              className="max-w-[160px] truncate cursor-pointer"
+              onMouseEnter={() => setIsOpen(true)}
+              onMouseLeave={() => setIsOpen(false)}
+            >
+              {displayText}
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+              {displayText}
+            </p>
           </PopoverContent>
         </Popover>
       );

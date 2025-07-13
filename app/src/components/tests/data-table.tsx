@@ -54,7 +54,7 @@ function testGlobalFilterFn(row: any, _columnId: string, filterValue: string) {
   // Fallback to all relevant columns if meta is not available
   const columns =
     row?.table?.options?.meta?.globalFilterColumns ||
-    ["id", "title", "type", "priority", "tags"];
+    ["id", "title", "description", "type", "priority", "tags"];
   return columns.some((id: string) => {
     const value = row.getValue(id);
     if (typeof value === "string" || typeof value === "number") {
@@ -156,7 +156,7 @@ export function DataTable<TData, TValue>({
     getFacetedUniqueValues: getFacetedUniqueValues(),
     globalFilterFn: testGlobalFilterFn,
     meta: {
-      globalFilterColumns: ["id", "title", "type", "priority", "tags"],
+      globalFilterColumns: ["id", "title", "description", "type", "priority", "tags"],
       ...meta,
     } as ExtendedTableMeta<TData>,
   });

@@ -171,6 +171,7 @@ export default function EditJob({ jobId }: EditJobProps) {
         status: "running" as const,
         lastRunAt: null,
         duration: null,
+        tags: test.tags || [], // <-- Ensure tags are included
       }));
 
       setSelectedTests(tests);
