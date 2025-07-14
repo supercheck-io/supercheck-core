@@ -620,7 +620,7 @@ export function TestForm({
               setTestCase({ ...testCase, title: e.target.value.slice(0, 255), })
             }
             placeholder="Enter test title"
-            className={cn(errors.title && "border-destructive", "h-10")}
+            className={cn( "h-10")}
             disabled={isRunning}
           />
         </div>
@@ -654,7 +654,6 @@ export function TestForm({
           maxLength={1000}
           style={{ overflowY: 'auto', minHeight: 100, maxHeight: 150 }}
           className={cn(
-            errors.description ? "border-red-500" : "",
             "min-h-[100px]",
             isRunning ? "opacity-70 cursor-not-allowed" : ""
           )}

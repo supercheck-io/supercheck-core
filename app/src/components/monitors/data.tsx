@@ -75,14 +75,14 @@ export const monitorTypes = [
     label: "Ping Monitor",
     value: "ping_host",
     icon: ChevronsLeftRightEllipsis,
-    color: "text-sky-600", 
+    color: "text-indigo-500", 
     description: "ICMP ping to a host",
   },
   {
     label: "Port Monitor",
     value: "port_check",
     icon: EthernetPort,
-    color: "text-indigo-600", 
+    color: "text-sky-600", 
     description: "Check specific TCP or UDP port",
   },
   {
