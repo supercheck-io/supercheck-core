@@ -8,6 +8,7 @@ import {
   ArrowLeftRight,
   FlaskConical,
   FileJson2,
+  SquareFunction,
 } from "lucide-react";
 
 
@@ -22,13 +23,13 @@ export const priorities = [
     label: "Medium",
     value: "medium",
     icon: ArrowRight,
-    color: "text-amber-500",
+    color: "text-yellow-500",
   },
   {
     label: "High",
     value: "high",
     icon: ArrowUp,
-    color: "text-red-500",
+    color: "text-orange-600",
   },
 ];
 
@@ -43,19 +44,19 @@ export const types = [
     label: "API",
     value: "api",
     icon: ArrowLeftRight,
-    color: "text-teal-500",
+    color: "text-teal-600",
   },
   {
     label: "Database",
     value: "database",
     icon: Database,
-    color: "text-amber-600",
+    color: "text-cyan-600",
   },
   {
     label: "Custom",
     value: "custom",
-    icon: FileJson2,
-    color: "text-blue-500",
+    icon: SquareFunction,
+    color: "text-blue-600",
   },
 
 

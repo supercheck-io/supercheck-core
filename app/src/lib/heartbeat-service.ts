@@ -69,6 +69,9 @@ export class HeartbeatService {
           const gracePeriodMinutes = (config?.gracePeriodMinutes as number) || 10; // Default 10 minutes grace
           const lastPingAt = config?.lastPingAt as string;
 
+          // Log config values for debugging
+          console.log(`[Heartbeat Service] Checking monitor ${monitor.id}: expectedIntervalMinutes=${expectedIntervalMinutes}, gracePeriodMinutes=${gracePeriodMinutes}, lastPingAt=${lastPingAt}`);
+
           // Calculate the deadline for the next ping
           const totalMinutes = expectedIntervalMinutes + gracePeriodMinutes;
           

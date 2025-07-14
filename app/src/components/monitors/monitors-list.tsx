@@ -7,7 +7,7 @@ import { DataTable } from "./data-table";
 import { Monitor } from "./schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Loader2 } from "lucide-react";
+import { PlusCircle, Loader2, Search, PlusIcon, SlidersHorizontal } from "lucide-react";
 
 export default function MonitorsList() {
   const router = useRouter();
@@ -111,49 +111,59 @@ export default function MonitorsList() {
             <div className="flex flex-col">
               <h2 className="text-2xl font-semibold">Monitors</h2>
               <p className="text-muted-foreground text-sm">
-                Manage your monitors and their configurations
+                Manage uptime monitors and their configurations
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            <Input
-              placeholder="Filter by ID or Name..."
-              disabled
-              className="h-8 w-[200px] lg:w-[250px]"
-            />
+            <div className="relative">
+              <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Filter by all available fields..."
+                disabled
+                className="h-8 w-[300px] pl-8"
+              />
+            </div>
             <Button
               variant="outline"
+              size="sm"
               disabled
-              className="h-8 px-2 lg:px-3"
+              className="h-8 border-dashed"
             >
+              <PlusCircle className="mr-2 h-4 w-4" />
               Status
             </Button>
             <Button
               variant="outline"
+              size="sm"
               disabled
-              className="h-8 px-2 lg:px-3"
+              className="h-8 border-dashed"
             >
+              <PlusCircle className="mr-2 h-4 w-4" />
               Type
             </Button>
             <Button
               variant="ghost"
               disabled
-              className="h-8 px-2 lg:px-3"
+              className="h-8"
             >
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
               View
             </Button>
             <Button disabled>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              New Monitor
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Create Monitor
             </Button>
           </div>
         </div>
 
         {/* Loading Table */}
-        <div className="rounded-md border">
-          <div className="h-36 flex items-center justify-center">
-          </div>
+        <div className="flex justify-center items-center space-x-2 h-47">
+          <Loader2 className="h-6 w-4 animate-spin text-muted-foreground" />
+          <span className="text-muted-foreground text-sm">
+            Loading data...
+          </span>
         </div>
       </div>
     );

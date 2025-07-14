@@ -26,7 +26,7 @@ export function DataTableToolbar<TData>({
         <div className="flex flex-col">
           <h2 className="text-2xl font-semibold">Monitors</h2>
           <p className="text-muted-foreground text-sm">
-            Manage your monitors and their configurations
+            Manage uptime monitors and their configurations
           </p>
         </div>
       </div>
@@ -35,7 +35,7 @@ export function DataTableToolbar<TData>({
         <div className="relative">
         <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Filter by ID or Name..."
+          placeholder="Filter by all available fields..."
           value={(table.getState().globalFilter as string) ?? ""}
           onChange={(event) => table.setGlobalFilter(event.target.value)}
           className="h-8 w-[300px] pl-8"
@@ -66,7 +66,7 @@ export function DataTableToolbar<TData>({
             options={monitorTypes}
           />
         )}
-        {isFiltered && (
+        {/* {isFiltered && (
           <Button
             variant="ghost"
             onClick={() => {
@@ -78,7 +78,7 @@ export function DataTableToolbar<TData>({
             Reset
             <X className="ml-2 h-4 w-4" />
           </Button>
-        )}
+        )} */}
      
         <DataTableViewOptions table={table} />
         <Button

@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { monitorTypes } from "@/components/monitors/data";
 import { types } from "@/components/tests/data";
-import { jobStatuses } from "@/components/jobs/data";
 
 type ScriptType = "browser" | "api" | "custom" | "database" | "record";
 

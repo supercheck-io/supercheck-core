@@ -25,7 +25,7 @@ async function triggerNotificationIfNeeded(monitorId: string, wasDown: boolean, 
         console.warn(`[HEARTBEAT] Failed to trigger notification for monitor ${monitorId}`);
       }
     } catch (error) {
-      console.warn(`[HEARTBEAT] Error triggering notification for monitor ${monitorId}:`, error.message);
+      console.warn(`[HEARTBEAT] Error triggering notification for monitor ${monitorId}:`, error || 'Unknown error');
     }
   }
 }

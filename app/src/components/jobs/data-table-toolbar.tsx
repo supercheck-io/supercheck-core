@@ -26,7 +26,7 @@ export function DataTableToolbar<TData>({
         <div className="flex flex-col">
           <h2 className="text-2xl font-semibold">Jobs</h2>
           <p className="text-muted-foreground text-sm">
-            Manage your jobs and their configurations
+            Manage jobs and their configurations
           </p>
         </div>
 

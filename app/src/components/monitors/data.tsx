@@ -9,6 +9,11 @@ import {
   Activity,
   LaptopMinimal,
   Terminal,
+  Rewind,
+  RefreshCcw,
+  EthernetPort,
+  ChevronsLeftRightEllipsis,
+  ArrowLeftRight,
 } from "lucide-react";
 
 
@@ -55,36 +60,36 @@ export const monitorTypes = [
   {
     label: "HTTP Monitor",
     value: "http_request",
-    icon: Globe,
-    color: "text-cyan-500", 
+    icon: ArrowLeftRight,
+    color: "text-teal-600", 
     description: "Check HTTP/S endpoints (availability, status, response time)",
   },
   {
     label: "Website Monitor",
     value: "website",
     icon: LaptopMinimal,
-    color: "text-blue-500", 
+    color: "text-blue-600", 
     description: "Monitor website availability and performance with optional SSL certificate checking",
   },
   {
     label: "Ping Monitor",
     value: "ping_host",
-    icon: Terminal,
-    color: "text-sky-500", 
+    icon: ChevronsLeftRightEllipsis,
+    color: "text-sky-600", 
     description: "ICMP ping to a host",
   },
   {
     label: "Port Monitor",
     value: "port_check",
-    icon: Network,
-    color: "text-indigo-500", 
+    icon: EthernetPort,
+    color: "text-indigo-600", 
     description: "Check specific TCP or UDP port",
   },
   {
     label: "Heartbeat Monitor",
     value: "heartbeat",
     icon: Activity,
-    color: "text-teal-500", 
+    color: "text-cyan-600", 
     description: "Passive monitoring expecting regular pings from your services",
   },
 ];

@@ -27,7 +27,7 @@ export function DataTableToolbar<TData>({
         <div className="flex flex-col">
           <h2 className="text-2xl font-semibold">Tests</h2>
           <p className="text-muted-foreground text-sm">
-            Manage your tests and their configurations
+            Manage tests and their configurations
           </p>
         </div>
      

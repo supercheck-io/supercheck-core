@@ -163,19 +163,39 @@ export async function initializeHeartbeatChecker(): Promise<void> {
   
   const { heartbeatCheckerQueue } = await getQueues();
 
-  // Schedule heartbeat checker to run every 5 minutes (more scalable and efficient)
-  // This interval balances responsiveness with system load
-  const checkInterval = 5 * 60 * 1000; // 5 minutes
-  await heartbeatCheckerQueue.add(HEARTBEAT_CHECKER_JOB_NAME, { checkIntervalMinutes: 5 }, {
+  // Dynamically determine the minimum check interval required by any heartbeat monitor
+  const heartbeatMonitors = await db
+    .select()
+    .from(monitorSchemaDb)
+    .where(eq(monitorSchemaDb.type, "heartbeat"));
+
+  let minCheckInterval = 5 * 60 * 1000; // Default 5 minutes
+  if (heartbeatMonitors.length > 0) {
+    // Find the minimum interval in minutes among all heartbeat monitors
+    const minMonitorInterval = heartbeatMonitors.reduce((min, monitor) => {
+      const config = monitor.config as any;
+      // Use 1 as fallback if not set
+      const expected = config?.expectedIntervalMinutes || 1;
+      const grace = config?.gracePeriodMinutes || 1;
+      // The check interval should be less than or equal to expected+grace
+      // But we want to check as frequently as the most frequent monitor
+      return Math.min(min, expected, grace);
+    }, 5);
+    minCheckInterval = Math.max(1, minMonitorInterval) * 60 * 1000;
+  }
+
+  console.log(`[Heartbeat Checker] Scheduling heartbeat checker every ${minCheckInterval / 60000} minute(s)`);
+
+  await heartbeatCheckerQueue.add(HEARTBEAT_CHECKER_JOB_NAME, { checkIntervalMinutes: minCheckInterval / 60000 }, {
     repeat: {
-      every: checkInterval,
+      every: minCheckInterval,
     },
     jobId: HEARTBEAT_CHECKER_JOB_NAME,
     removeOnComplete: true,
     removeOnFail: 100,
   });
 
-  console.log("[Heartbeat Checker] Heartbeat checker scheduled to run every 5 minutes");
+  console.log(`[Heartbeat Checker] Heartbeat checker scheduled to run every ${minCheckInterval / 60000} minute(s)`);
 }
 
 /**
