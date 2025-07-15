@@ -2,7 +2,8 @@
 
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
-import { useState, useEffect } from "react";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
+import { useState, useEffect, useCallback } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -14,12 +15,34 @@ export default function Tests() {
   const [selectedTest] = useState<Test | null>(null);
   const [tests, setTests] = useState<Test[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
+
+  // Set mounted to true after initial render
+  useEffect(() => {
+    setMounted(true);
+    return () => {
+      setMounted(false);
+    };
+  }, []);
+
+  // Safe state setters that only run when component is mounted
+  const safeSetTests = useCallback((tests: Test[] | ((prev: Test[]) => Test[])) => {
+    if (mounted) {
+      setTests(tests);
+    }
+  }, [mounted]);
+
+  const safeSetIsLoading = useCallback((loading: boolean) => {
+    if (mounted) {
+      setIsLoading(loading);
+    }
+  }, [mounted]);
 
   // Fetch tests from the database
   useEffect(() => {
     async function fetchTests() {
-      setIsLoading(true);
+      safeSetIsLoading(true);
       try {
         const response = await fetch('/api/tests');
         const data = await response.json();
@@ -32,19 +55,19 @@ export default function Tests() {
             createdAt: test.createdAt ?? undefined,
             updatedAt: test.updatedAt ?? undefined,
           }));
-          setTests(testsWithDefaults);
+          safeSetTests(testsWithDefaults);
         } else {
           console.error("Failed to fetch tests:", data.error);
         }
       } catch (error) {
         console.error("Error fetching tests:", error);
       } finally {
-        setIsLoading(false);
+        safeSetIsLoading(false);
       }
     }
 
     fetchTests();
-  }, []);
+  }, [safeSetTests, safeSetIsLoading]);
 
   const handleRowClick = (row: Row<Test>) => {
     const test = row.original;
@@ -52,8 +75,17 @@ export default function Tests() {
   };
 
   const handleDeleteTest = (testId: string) => {
-    setTests((prevTests) => prevTests.filter((test) => test.id !== testId));
+    safeSetTests((prevTests) => prevTests.filter((test) => test.id !== testId));
   };
+
+  // Don't render until component is mounted
+  if (!mounted) {
+    return (
+      <div className="flex h-full flex-col p-2 mt-6">
+        <DataTableSkeleton columns={5} rows={3} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col p-2 mt-6">

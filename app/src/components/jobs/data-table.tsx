@@ -30,6 +30,7 @@ import {
 
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData, TValue> {
@@ -68,8 +69,12 @@ export function DataTable<TData, TValue>({
 
   // Set mounted to true after initial render
   React.useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 0);
+    
     return () => {
+      clearTimeout(timer);
       setMounted(false);
     };
   }, []);
@@ -113,12 +118,18 @@ export function DataTable<TData, TValue>({
         pageSize: 12,
       },
     },
-    state: {
+    state: mounted ? {
       sorting,
       columnVisibility,
       rowSelection,
       columnFilters,
       globalFilter,
+    } : {
+      sorting: [],
+      columnVisibility: {},
+      rowSelection: {},
+      columnFilters: [],
+      globalFilter: "",
     },
     enableRowSelection: true,
     onRowSelectionChange: safeSetRowSelection,
@@ -143,7 +154,12 @@ export function DataTable<TData, TValue>({
   React.useEffect(() => {
     // Only reset if there's data and the component is mounted
     if (data.length > 0 && mounted) {
-      table.resetPageIndex(true);
+      // Use setTimeout to ensure this runs after the current render cycle
+      setTimeout(() => {
+        if (mounted) {
+          table.resetPageIndex(true);
+        }
+      }, 0);
     }
   }, [data, table, mounted]);
 
@@ -165,6 +181,11 @@ export function DataTable<TData, TValue>({
       onRowClick(row);
     }
   };
+
+  // Don't render the table until the component is mounted
+  if (!mounted) {
+    return <DataTableSkeleton columns={6} rows={3} />;
+  }
 
   return (
     <div className="space-y-4">

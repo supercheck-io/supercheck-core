@@ -28,6 +28,7 @@ import {
 
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData, TValue> {
@@ -84,48 +85,50 @@ export function DataTable<TData, TValue>({
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = React.useState("");
-
-  // Create a ref to track if the component is mounted
-  const isMounted = React.useRef(false);
+  const [mounted, setMounted] = React.useState(false);
 
   // Set mounted to true after initial render
   React.useEffect(() => {
-    isMounted.current = true;
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 0);
+    
     return () => {
-      isMounted.current = false;
+      clearTimeout(timer);
+      setMounted(false);
     };
   }, []);
 
   // Safe state setters that only run when component is mounted
   const safeSetRowSelection = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setRowSelection(value);
     }
-  }, []);
+  }, [mounted]);
   
   const safeSetSorting = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setSorting(value);
     }
-  }, []);
+  }, [mounted]);
   
   const safeSetColumnFilters = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setColumnFilters(value);
     }
-  }, []);
+  }, [mounted]);
   
   const safeSetColumnVisibility = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setColumnVisibility(value);
     }
-  }, []);
+  }, [mounted]);
   
   const safeSetGlobalFilter = React.useCallback((value: any) => {
-    if (isMounted.current) {
+    if (mounted) {
       setGlobalFilter(value);
     }
-  }, []);
+  }, [mounted]);
 
   const table = useReactTable({
     data,
@@ -135,12 +138,18 @@ export function DataTable<TData, TValue>({
         pageSize: 12,
       },
     },
-    state: {
+    state: mounted ? {
       sorting,
       columnVisibility,
       rowSelection,
       columnFilters,
       globalFilter,
+    } : {
+      sorting: [],
+      columnVisibility: {},
+      rowSelection: {},
+      columnFilters: [],
+      globalFilter: "",
     },
     enableRowSelection: true,
     onRowSelectionChange: safeSetRowSelection,
@@ -164,10 +173,15 @@ export function DataTable<TData, TValue>({
   // Use useEffect to reset pagination after the component has mounted
   React.useEffect(() => {
     // Only reset if there's data and the component is mounted
-    if (data.length > 0 && isMounted.current) {
-      table.resetPageIndex(true);
+    if (data.length > 0 && mounted) {
+      // Use setTimeout to ensure this runs after the current render cycle
+      setTimeout(() => {
+        if (mounted) {
+          table.resetPageIndex(true);
+        }
+      }, 0);
     }
-  }, [data, table]);
+  }, [data, table, mounted]);
 
   // Handle row clicks while checking for action column clicks
   const handleRowClick = (e: React.MouseEvent, row: Row<TData>) => {
@@ -187,6 +201,11 @@ export function DataTable<TData, TValue>({
       onRowClick(row);
     }
   };
+
+  // Don't render the table until the component is mounted
+  if (!mounted) {
+    return <DataTableSkeleton columns={5} rows={3} />;
+  }
 
   return (
     <div className="space-y-4">

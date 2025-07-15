@@ -4,10 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { Monitor } from "./schema";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { PlusCircle, Loader2, Search, PlusIcon, SlidersHorizontal } from "lucide-react";
+
 
 export default function MonitorsList() {
   const router = useRouter();
@@ -105,66 +104,7 @@ export default function MonitorsList() {
   if (!isMounted) {
     return (
       <div className="flex h-full flex-col space-y-4 p-2 mt-6">
-        {/* Loading Toolbar */}
-        <div className="flex items-center justify-between mb-4 -mt-2">
-          <div className="flex items-center justify-between space-y-2">
-            <div className="flex flex-col">
-              <h2 className="text-2xl font-semibold">Monitors</h2>
-              <p className="text-muted-foreground text-sm">
-                Manage uptime monitors and their configurations
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Filter by all available fields..."
-                disabled
-                className="h-8 w-[300px] pl-8"
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-              className="h-8 border-dashed"
-            >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Status
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-              className="h-8 border-dashed"
-            >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Type
-            </Button>
-            <Button
-              variant="ghost"
-              disabled
-              className="h-8"
-            >
-              <SlidersHorizontal className="mr-2 h-4 w-4" />
-              View
-            </Button>
-            <Button disabled>
-              <PlusIcon className="h-4 w-4 mr-2" />
-              Create Monitor
-            </Button>
-          </div>
-        </div>
-
-        {/* Loading Table */}
-        <div className="flex justify-center items-center space-x-2 h-47">
-          <Loader2 className="h-6 w-4 animate-spin text-muted-foreground" />
-          <span className="text-muted-foreground text-sm">
-            Loading data...
-          </span>
-        </div>
+        <DataTableSkeleton columns={5} rows={3} />
       </div>
     );
   }

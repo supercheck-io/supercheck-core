@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import {
   Sheet,
   SheetContent,
@@ -66,6 +67,34 @@ export default function Jobs() {
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const {} = useJobContext();
   const [isLoading, setIsLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Set mounted to true after initial render
+  useEffect(() => {
+    setMounted(true);
+    return () => {
+      setMounted(false);
+    };
+  }, []);
+
+  // Safe state setters that only run when component is mounted
+  const safeSetSelectedJob = useCallback((job: Job | null) => {
+    if (mounted) {
+      setSelectedJob(job);
+    }
+  }, [mounted]);
+
+  const safeSetIsSheetOpen = useCallback((open: boolean) => {
+    if (mounted) {
+      setIsSheetOpen(open);
+    }
+  }, [mounted]);
+
+  const safeSetSelectedTest = useCallback((test: Test | null) => {
+    if (mounted) {
+      setSelectedTest(test);
+    }
+  }, [mounted]);
 
   // Handle job selection with URL update
   const handleJobSelect = (job: Job) => {
@@ -138,8 +167,8 @@ export default function Jobs() {
     if (jobId && jobs.length > 0) {
       const job = jobs.find(j => j.id === jobId);
       if (job) {
-        setSelectedJob(job);
-        setIsSheetOpen(true);
+        safeSetSelectedJob(job);
+        safeSetIsSheetOpen(true);
       } else {
         // Job not found, remove from URL
         const params = new URLSearchParams(searchParams);
@@ -149,10 +178,10 @@ export default function Jobs() {
       }
     } else if (!jobId && isSheetOpen) {
       // URL doesn't have job ID but sheet is open, close it
-      setIsSheetOpen(false);
-      setSelectedJob(null);
+      safeSetIsSheetOpen(false);
+      safeSetSelectedJob(null);
     }
-  }, [searchParams, jobs, isSheetOpen, router]);
+  }, [searchParams, jobs, isSheetOpen, router, safeSetSelectedJob, safeSetIsSheetOpen]);
 
   // Edit an existing test
   const handleEditTest = () => {
@@ -174,10 +203,10 @@ export default function Jobs() {
       };
 
       // Update the selected job
-      setSelectedJob(updatedJob);
+      safeSetSelectedJob(updatedJob);
 
       // Reset the selected test
-      setSelectedTest(null);
+      safeSetSelectedTest(null);
 
       // Close the dialog
       setIsEditTestDialogOpen(false);
@@ -243,8 +272,8 @@ export default function Jobs() {
 
     // If the deleted job is currently selected, close the sheet
     if (selectedJob && selectedJob.id === jobId) {
-      setIsSheetOpen(false);
-      setSelectedJob(null);
+      safeSetIsSheetOpen(false);
+      safeSetSelectedJob(null);
     }
   };
 
@@ -259,6 +288,15 @@ export default function Jobs() {
     // Return the actual updatedAt time
     return job.updatedAt;
   };
+
+  // Don't render until component is mounted
+  if (!mounted) {
+    return (
+      <div className="flex h-full flex-col space-y-4 p-2 mt-6 w-full max-w-full overflow-x-hidden">
+        <DataTableSkeleton columns={6} rows={3} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col space-y-4 p-2 mt-6 w-full max-w-full overflow-x-hidden">

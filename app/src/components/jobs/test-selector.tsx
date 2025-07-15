@@ -611,7 +611,6 @@ export default function TestSelector({
         <AlertDialogTitle>Remove Test from Job</AlertDialogTitle>
         <AlertDialogDescription>
           Are you sure you want to remove <span className="font-semibold">&quot;{testToRemove.name}&quot;</span> from this job?
-          <br /> This test will not run in current job.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>

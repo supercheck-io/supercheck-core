@@ -14,9 +14,9 @@ interface QueueStats {
 export function ParallelThreads() {
   const [stats, setStats] = useState<QueueStats>({
     running: 0,
-    runningCapacity: parseInt(process.env.RUNNING_CAPACITY || '5'),
+    runningCapacity: 2, // Default value, will be updated from SSE
     queued: 0,
-    queuedCapacity: parseInt(process.env.QUEUED_CAPACITY || '50'),
+    queuedCapacity: 10, // Default value, will be updated from SSE
   });
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
@@ -166,21 +166,25 @@ function LoadingSkeleton() {
         <div className="font-medium text-gray-500 mr-2 text-xs">Parallel
           <div className="font-medium text-gray-500 mr-2 text-xs">Executions:</div>
         </div>
-     
+        
         <div className="flex flex-col mr-4">
-          <div className="flex items-center justify-between mb-1">
-            <Skeleton className="h-3 w-14" />
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="font-medium text-gray-500">RUNNING</span>
             <Skeleton className="h-3 w-8" />
           </div>
-          <Skeleton className="w-28 h-1.5 rounded-full" />
+          <div className="w-28 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 rounded-full" style={{ width: '0%' }} />
+          </div>
         </div>
         
         <div className="flex flex-col">
-          <div className="flex items-center justify-between mb-1">
-            <Skeleton className="h-3 w-14" />
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="font-medium text-gray-500">QUEUED</span>
             <Skeleton className="h-3 w-8" />
           </div>
-          <Skeleton className="w-28 h-1.5 rounded-full" />
+          <div className="w-28 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div className="h-full bg-amber-600 rounded-full" style={{ width: '0%' }} />
+          </div>
         </div>
       </div>
     </div>

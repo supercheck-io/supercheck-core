@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createColumns } from "./columns";
 import { DataTable } from "./data-table";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { TestRun } from "./schema";
-// import { getRuns } from "@/actions/get-runs"; // Replaced with API call
 import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -14,9 +14,37 @@ export function Runs() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [tableKey, setTableKey] = useState(Date.now()); // Add key to force remounting
+  const [mounted, setMounted] = useState(false);
+
+  // Set mounted to true after initial render
+  useEffect(() => {
+    setMounted(true);
+    return () => {
+      setMounted(false);
+    };
+  }, []);
+
+  // Safe state setters that only run when component is mounted
+  const safeSetRuns = useCallback((runs: TestRun[] | ((prev: TestRun[]) => TestRun[])) => {
+    if (mounted) {
+      setRuns(runs);
+    }
+  }, [mounted]);
+
+  const safeSetIsLoading = useCallback((loading: boolean) => {
+    if (mounted) {
+      setIsLoading(loading);
+    }
+  }, [mounted]);
+
+  const safeSetTableKey = useCallback((key: number) => {
+    if (mounted) {
+      setTableKey(key);
+    }
+  }, [mounted]);
 
   const fetchRuns = useCallback(async () => {
-    setIsLoading(true);
+    safeSetIsLoading(true);
     try {
       const response = await fetch('/api/runs');
       const data = await response.json();
@@ -26,14 +54,14 @@ export function Runs() {
       }
       
       // Cast the data to TestRun[] to ensure type compatibility
-      setRuns(data as unknown as TestRun[]);
+      safeSetRuns(data as unknown as TestRun[]);
     } catch (error) {
       console.error("Failed to fetch runs:", error);
       toast.error("Failed to fetch runs");
     } finally {
-      setIsLoading(false);
+      safeSetIsLoading(false);
     }
-  }, []);
+  }, [safeSetRuns, safeSetIsLoading]);
 
   useEffect(() => {
     fetchRuns();
@@ -47,10 +75,19 @@ export function Runs() {
   // Simple handler to refresh data after deletion
   const handleDeleteRun = () => {
     // Generate a new table key to force remounting
-    setTableKey(Date.now());
+    safeSetTableKey(Date.now());
     // Refresh data after deletion
     fetchRuns();
   };
+
+  // Don't render until component is mounted
+  if (!mounted) {
+    return (
+      <div className="h-full flex-1 flex-col space-y-4 p-4 md:flex">
+        <DataTableSkeleton columns={6} rows={8} />
+      </div>
+    );
+  }
 
   // Create columns with the delete handler
   const columns = createColumns(handleDeleteRun);

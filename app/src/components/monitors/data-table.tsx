@@ -30,6 +30,7 @@ import {
 
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData, TValue> {
@@ -140,7 +141,12 @@ export function DataTable<TData, TValue>({
   React.useEffect(() => {
     // Only reset if there's data and the component is mounted
     if (data.length > 0 && mounted) {
-      table.resetPageIndex(true);
+      // Use setTimeout to ensure this runs after the current render cycle
+      setTimeout(() => {
+        if (mounted) {
+          table.resetPageIndex(true);
+        }
+      }, 0);
     }
   }, [data, table, mounted]);
 
@@ -165,45 +171,7 @@ export function DataTable<TData, TValue>({
 
   // Don't render anything until mounted to prevent hydration issues
   if (!mounted) {
-    return (
-      <div className="space-y-4">
-        <div className="rounded-md border relative">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  <div className="flex justify-center items-center space-x-2">
-                    <Loader2 className="h-6 w-4 animate-spin text-muted-foreground" />
-                    <span className="text-muted-foreground">
-                      Loading...
-                    </span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    );
+    return <DataTableSkeleton columns={5} rows={3} />;
   }
 
   return (
