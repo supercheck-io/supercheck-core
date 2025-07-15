@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors, monitorResults } from "@/db/schema/schema";
 import { eq, desc } from "drizzle-orm";
+import { addHeartbeatPingNotificationJob } from "@/lib/queue";
 
 export async function GET(
   request: NextRequest,
@@ -77,7 +78,7 @@ async function handleHeartbeatFailure(request: NextRequest, token: string) {
                   "Unknown";
 
     const now = new Date();
-    const wasUp = heartbeatMonitor.status === 'up';
+    const wasUp = heartbeatMonitor.status === 'up' || heartbeatMonitor.status === 'pending'; // Treat pending as up for first failure
 
     // Check if this is a status change by looking at recent results
     const recentResults = await db
@@ -91,7 +92,7 @@ async function handleHeartbeatFailure(request: NextRequest, token: string) {
 
     console.log(`[HEARTBEAT-FAIL] Updating monitor status to 'down', was: ${heartbeatMonitor.status}, status change: ${isStatusChange}`);
 
-    // Update monitor status
+    // Update monitor status to 'down' regardless of previous state
     await db
       .update(monitors)
       .set({
@@ -100,11 +101,11 @@ async function handleHeartbeatFailure(request: NextRequest, token: string) {
         lastStatusChangeAt: wasUp ? now : heartbeatMonitor.lastStatusChangeAt,
       })
       .where(eq(monitors.id, heartbeatMonitor.id));
-
+    
     // Create failure details
     const errorMessage = (failureData as any)?.message || 
                         (failureData as any)?.error || 
-                        "Explicit failure reported";
+                        "Explicit failure reported by a ping to the /fail URL.";
     
     const exitCode = (failureData as any)?.exitCode;
     const output = (failureData as any)?.output;
@@ -116,54 +117,35 @@ async function handleHeartbeatFailure(request: NextRequest, token: string) {
       status: "down",
       responseTimeMs: 0, // Heartbeat pings don't have response time
       details: {
-        source: source,
-        sourceHeaders: sourceHeaders,
-        errorMessage: errorMessage,
-        failureTime: now.toISOString(),
+        source,
+        sourceHeaders,
+        errorMessage,
         statusChanged: wasUp,
-        triggeredBy: 'manual_failure',
-        ...(exitCode !== undefined && { exitCode }),
-        ...(output && { output }),
-        ...failureData, // Include any additional failure data
+        triggeredBy: 'explicit_fail_ping',
+        ...failureData,
       },
       isUp: false,
-      isStatusChange: isStatusChange,
+      isStatusChange: wasUp,
     });
 
-    // Trigger failure notification if status changed from up to down
+    // If status changed from up/pending to down, dispatch a notification job
     if (wasUp && heartbeatMonitor.alertConfig?.enabled) {
-      console.log(`[HEARTBEAT-FAIL] Monitor ${heartbeatMonitor.name} failed - triggering notification`);
+      console.log(`[HEARTBEAT-FAIL] Status changed to DOWN. Dispatching notification job for monitor ${heartbeatMonitor.name}`);
       
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-        const notifyResponse = await fetch(`${baseUrl}/api/monitors/${heartbeatMonitor.id}/notify`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        await addHeartbeatPingNotificationJob({
+            monitorId: heartbeatMonitor.id,
             type: 'failure',
             reason: errorMessage,
             metadata: {
-              source: source,
-              failedAt: now.toISOString(),
-              trigger: 'heartbeat_failure',
-              errorMessage: errorMessage,
-              ...(exitCode !== undefined && { exitCode }),
-              ...(output && { output })
+                source,
+                trigger: 'heartbeat_fail_url',
+                ...failureData
             }
-          })
         });
-
-        if (notifyResponse.ok) {
-          const notifyResult = await notifyResponse.json();
-          console.log(`[HEARTBEAT-FAIL] Failure notification sent:`, notifyResult);
-        } else {
-          console.warn(`[HEARTBEAT-FAIL] Failed to send failure notification: ${notifyResponse.status}`);
-        }
-        
-      } catch (notificationError) {
-        console.error(`[HEARTBEAT-FAIL] Failed to trigger failure notification:`, notificationError);
+        console.log(`[HEARTBEAT-FAIL] Successfully dispatched notification job for ${heartbeatMonitor.name}.`);
+      } catch (queueError) {
+        console.error(`[HEARTBEAT-FAIL] Failed to dispatch notification job:`, queueError);
       }
     }
 
@@ -177,7 +159,6 @@ async function handleHeartbeatFailure(request: NextRequest, token: string) {
       statusChanged: wasUp,
       isUp: false,
       errorMessage: errorMessage,
-      notificationSent: wasUp && heartbeatMonitor.alertConfig?.enabled,
     });
 
   } catch (error) {

@@ -59,15 +59,16 @@ const CronScheduler: React.FC<CronSchedulerProps> = ({
         {value && !readOnly && !disabled && (
           <Button 
             type="button" 
-            variant="destructive" // Make the clear button red
+            variant="secondary" // Make the clear button red
             size="sm"
             onClick={() => {
               onChange(""); // Clear the value
-              toast.success("Cron schedule cleared"); // Show success toast message
+              toast.success("Cron schedule will be removed after job update"); // Show success toast message
             }}
-            aria-label="Clear schedule"
+            aria-label="Remove schedule"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4 text-destructive" />
+            Clear
           </Button>
         )}
       </div>

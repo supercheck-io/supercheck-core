@@ -24,6 +24,113 @@ interface JobsTableMeta {
   // Include other potential properties from the base TableMeta if needed
 }
 
+// Separate component for UUID field with popover
+function UUIDFieldWithPopover({ value, maxLength, onCopy }: {
+  value: string;
+  maxLength?: number;
+  onCopy?: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div 
+          className="cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          <UUIDField 
+            value={value} 
+            maxLength={maxLength} 
+            onCopy={onCopy}
+          />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="flex justify-center items-center">
+        <p className="text-xs text-muted-foreground break-all">
+          {value}
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Separate component for name with popover
+function NameWithPopover({ name }: { name: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // Check if text is likely to be truncated (rough estimate)
+  const isTruncated = name.length > 20; // Approximate character limit for 200px width
+  
+  if (!isTruncated) {
+    return (
+      <div className="flex space-x-2">
+        <span className="max-w-[160px] truncate">
+          {name}
+        </span>
+      </div>
+    );
+  }
+  
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div 
+          className="flex space-x-2 cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          <span className="max-w-[160px] truncate">
+            {name}
+          </span>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            {name}
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Separate component for description with popover
+function DescriptionWithPopover({ description }: { description: string | null }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const displayText = description || "No description provided";
+  const isTruncated = displayText.length > 30; // Approximate character limit
+
+  if (!isTruncated) {
+    return (
+      <div className="max-w-[200px] truncate">
+        {displayText}
+      </div>
+    );
+  }
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div
+          className="max-w-[160px] truncate cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          {displayText}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+        <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+          {displayText}
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // Create a proper React component for the run button
 function RunButton({ job }: { job: Job }) {
   const { isJobRunning, setJobRunning, startJobRun } = useJobContext();
@@ -213,30 +320,14 @@ export const columns: ColumnDef<Job>[] = [
     ),
     cell: ({ row }) => {
       const id = row.getValue("id") as string;
-      const [isOpen, setIsOpen] = useState(false);
       
       return (
         <div className="w-[90px]">
-          <Popover open={isOpen} onOpenChange={setIsOpen}>
-            <PopoverTrigger asChild>
-              <div 
-                className="cursor-pointer"
-                onMouseEnter={() => setIsOpen(true)}
-                onMouseLeave={() => setIsOpen(false)}
-              >
-                <UUIDField 
-                  value={id} 
-                  maxLength={24} 
-                  onCopy={() => toast.success("ID copied to clipboard")}
-                />
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="flex justify-center items-center">
-              <p className="text-xs text-muted-foreground break-all">
-                {id}
-              </p>
-            </PopoverContent>
-          </Popover>
+          <UUIDFieldWithPopover
+            value={id}
+            maxLength={24}
+            onCopy={() => toast.success("ID copied to clipboard")}
+          />
         </div>
       );
     },
@@ -250,43 +341,8 @@ export const columns: ColumnDef<Job>[] = [
     ),
     cell: ({ row }) => {
       const name = row.getValue("name") as string;
-      const [isOpen, setIsOpen] = useState(false);
       
-      // Check if text is likely to be truncated (rough estimate)
-      const isTruncated = name.length > 20; // Approximate character limit for 200px width
-      
-      if (!isTruncated) {
-        return (
-          <div className="flex space-x-2">
-            <span className="max-w-[160px] truncate">
-              {name}
-            </span>
-          </div>
-        );
-      }
-      
-      return (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <div 
-              className="flex space-x-2 cursor-pointer"
-              onMouseEnter={() => setIsOpen(true)}
-              onMouseLeave={() => setIsOpen(false)}
-            >
-              <span className="max-w-[160px] truncate">
-                {name}
-              </span>
-            </div>
-          </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                {name}
-              </p>
-            </div>
-          </PopoverContent>
-        </Popover>
-      );
+      return <NameWithPopover name={name} />;
     },
   },
   {
@@ -296,36 +352,8 @@ export const columns: ColumnDef<Job>[] = [
     ),
     cell: ({ row }) => {
       const description = row.getValue("description") as string | null;
-      const displayText = description || "No description provided";
-      const isTruncated = displayText.length > 30; // Approximate character limit
-      const [isOpen, setIsOpen] = useState(false);
-
-      if (!isTruncated) {
-        return (
-          <div className="max-w-[200px] truncate">
-            {displayText}
-          </div>
-        );
-      }
-
-      return (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <div
-              className="max-w-[160px] truncate cursor-pointer"
-              onMouseEnter={() => setIsOpen(true)}
-              onMouseLeave={() => setIsOpen(false)}
-            >
-              {displayText}
-            </div>
-          </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
-            <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-              {displayText}
-            </p>
-          </PopoverContent>
-        </Popover>
-      );
+      
+      return <DescriptionWithPopover description={description} />;
     },
   },
   {

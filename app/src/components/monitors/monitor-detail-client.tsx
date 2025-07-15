@@ -900,14 +900,12 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                               <td className="px-4 py-3 whitespace-nowrap text-sm w-20">
                                 <div className="flex items-center gap-2">
                                   <SimpleStatusIcon isUp={result.isUp} />
-                                  {monitor.type === "heartbeat" && result.isStatusChange && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                      Status Change
-                                    </span>
-                                  )}
+                                  <span className={cn(result.isUp ? "text-green-500" : "text-red-500")}>
+                                     
+                                  </span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(result.checkedAt)}</td>
+                              <td className="py-3 px-4 text-sm text-gray-400">{formatDateTime(result.checkedAt)}</td>
                               <td className="px-4 py-3 text-sm text-muted-foreground">
                                 {result.isUp ? (
                                   <span className="text-muted-foreground text-xs">

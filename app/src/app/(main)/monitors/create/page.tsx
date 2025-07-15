@@ -49,7 +49,7 @@ export default async function CreateMonitorPage({ searchParams }: CreateMonitorP
               </PopoverTrigger>
               <PopoverContent className="w-96" side="right" sideOffset={8}>
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-sm mb-3">Monitor Types</h4>
+                  <h4 className="font-semibold text-sm mb-3">Uptime Monitor Types</h4>
                   <div className="space-y-3">
                     {monitorTypes.map((type) => (
                       <div key={type.value} className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
@@ -67,7 +67,7 @@ export default async function CreateMonitorPage({ searchParams }: CreateMonitorP
               </PopoverContent>
             </Popover>
           </div>
-              <p className="text-muted-foreground text-sm mb-6">Select a monitor type to get started</p>
+              <p className="text-muted-foreground text-sm mb-6">Select uptime monitor type to get started</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {monitorTypes.map((type) => (
               <Link

@@ -10,7 +10,8 @@ import {
   Copy, 
   Github,
   Gitlab,
-  Code
+  Code,
+  Workflow
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,8 +38,8 @@ export function UrlTriggerTooltip({ jobId }: ApiDocsTooltipProps) {
       <PopoverContent align="start" className="w-[500px] p-0 bg-popover text-popover-foreground border shadow-xl">
         <div className="p-4 space-y-4">
           <div className="flex items-center gap-2">
-         
-            <h4 className="font-semibold text-sm">Trigger Commands</h4>
+         <Workflow className="h-4 w-4 text-primary" />
+            <h4 className="font-semibold text-sm">Remote trigger commands</h4>
           </div>
           
           <div className="space-y-3">
@@ -52,7 +53,7 @@ export function UrlTriggerTooltip({ jobId }: ApiDocsTooltipProps) {
                 <Code className="h-3 w-3 text-primary" />
                 cURL</Label>
               <div className="relative">
-                <pre className="bg-muted p-2 rounded text-xs overflow-x-auto text-wrap">
+                <pre className="bg-muted p-2 pr-8 rounded text-xs overflow-x-auto text-wrap">
                   <code>{`curl -X POST "${triggerUrl}" \\
       -H "Authorization: Bearer YOUR_API_KEY"  \\
       -H "Content-Type: application/json"`}</code>

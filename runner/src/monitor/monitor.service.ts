@@ -7,8 +7,8 @@ import { MonitorExecutionResult, MonitorResultStatus, MonitorResultDetails } fro
 import { DbService } from '../db/db.service';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js'; // Import specific Drizzle type
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
-import { eq, inArray } from 'drizzle-orm';
-import { NotificationService, NotificationPayload } from '../notification/notification.service';
+import { eq } from 'drizzle-orm';
+import { MonitorAlertService } from './services/monitor-alert.service';
 
 
 // Placeholder for actual execution libraries (axios, ping, net, dns, playwright-runner)
@@ -59,7 +59,7 @@ export class MonitorService {
   constructor(
     private readonly dbService: DbService,
     private readonly httpService: HttpService,
-    private readonly notificationService: NotificationService
+    private readonly monitorAlertService: MonitorAlertService,
   ) {}
 
   async executeMonitor(jobData: MonitorJobDataDto): Promise<MonitorExecutionResult | null> {
@@ -209,67 +209,40 @@ export class MonitorService {
       const monitor = await this.getMonitorById(resultData.monitorId);
       
       if (monitor) {
-        // Get previous status *before* saving the new one
         const previousStatus = monitor.status;
         
-        // Save result to database first
         await this.saveMonitorResultToDb(resultData);
+        await this.updateMonitorStatus(resultData.monitorId, resultData.isUp ? 'up' : 'down', resultData.checkedAt);
         
-        // Then update the main monitor status
-        await this.updateMonitorStatus(resultData.monitorId, resultData.status, resultData.checkedAt);
+        const currentStatus = resultData.isUp ? 'up' : 'down';
+        const isStatusChange = previousStatus !== currentStatus && previousStatus !== 'paused';
         
-        // Now check for status change
-        const isStatusChange = previousStatus !== resultData.status;
-        
-        this.logger.log(`Saved result for monitor ${resultData.monitorId}: ${resultData.status}. Status changed: ${isStatusChange}`);
+        this.logger.log(`Saved result for monitor ${resultData.monitorId}: ${currentStatus}. Status changed: ${isStatusChange}`);
 
-        // Handle alerts if there's a status change and alertConfig is enabled
         if (isStatusChange && monitor.alertConfig?.enabled) {
-          const shouldSendAlert = (
-            (resultData.status === 'down' && monitor.alertConfig.alertOnFailure) ||
-            (resultData.status === 'up' && previousStatus === 'down' && monitor.alertConfig.alertOnRecovery) ||
-            (resultData.status === 'timeout' && monitor.alertConfig.alertOnTimeout)
-          );
+          const shouldSendAlert = 
+            (currentStatus === 'down' && monitor.alertConfig.alertOnFailure) ||
+            (currentStatus === 'up' && previousStatus === 'down' && monitor.alertConfig.alertOnRecovery);
 
           if (shouldSendAlert) {
-            const providers = await this.getNotificationProviders(resultData.monitorId);
+            const type = currentStatus === 'up' ? 'recovery' : 'failure';
+            const reason = resultData.details?.errorMessage || (type === 'failure' ? 'Monitor is down' : 'Monitor has recovered');
+            const metadata = {
+                responseTime: resultData.responseTimeMs
+            };
             
-            if (providers.length > 0) {
-              const notificationPayload: NotificationPayload = {
-                type: resultData.status === 'up' && previousStatus === 'down' ? 'monitor_recovery' : 'monitor_failure',
-                title: resultData.status === 'up' ? `Monitor Recovered - ${monitor.name}` : `Monitor Down - ${monitor.name}`,
-                message: monitor.alertConfig.customMessage || 
-                  (resultData.status === 'up' 
-                    ? `Monitor "${monitor.name}" has recovered and is now operational.`
-                    : `Monitor "${monitor.name}" is down. ${resultData.details?.errorMessage || 'No ping received within expected interval'}`),
-                targetName: monitor.name,
-                targetId: monitor.id,
-                severity: resultData.status === 'up' ? 'success' : 'error',
-                timestamp: resultData.checkedAt,
-                metadata: {
-                  status: resultData.status,
-                  responseTime: resultData.responseTimeMs,
-                  details: resultData.details
-                }
-              };
-
-              const { success, failed } = await this.notificationService.sendNotificationToMultipleProviders(
-                providers,
-                notificationPayload
-              );
-
-              this.logger.log(`Sent alerts: ${success} successful, ${failed} failed`);
-            } else {
-              this.logger.warn(`No valid notification providers found for monitor ${resultData.monitorId}`);
-            }
+            await this.monitorAlertService.sendNotification(
+                resultData.monitorId,
+                type,
+                reason,
+                metadata
+            );
+            this.logger.log(`Delegated notification for monitor ${resultData.monitorId}`);
           }
         }
-      } else {
-        this.logger.warn(`Monitor ${resultData.monitorId} not found when saving result`);
       }
     } catch (error) {
       this.logger.error(`Failed to save result for monitor ${resultData.monitorId}: ${error.message}`, error.stack);
-      // Don't throw error to prevent job failure
     }
   }
 
@@ -980,43 +953,9 @@ export class MonitorService {
   }
 
   async getMonitorById(monitorId: string): Promise<any> {
-    try {
-      const monitor = await this.dbService.db.query.monitors.findFirst({
-        where: eq(schema.monitors.id, monitorId),
-      });
-      return monitor;
-    } catch (error) {
-      this.logger.error(`Failed to get monitor ${monitorId}: ${error.message}`);
-      throw error;
-    }
-  }
-
-  async getNotificationProviders(monitorId: string): Promise<any[]> {
-    try {
-      const providers = await this.dbService.db
-        .select({
-          id: schema.notificationProviders.id,
-          type: schema.notificationProviders.type,
-          config: schema.notificationProviders.config,
-        })
-        .from(schema.notificationProviders)
-        .innerJoin(
-          schema.monitorNotificationSettings,
-          eq(schema.monitorNotificationSettings.notificationProviderId, schema.notificationProviders.id)
-        )
-        .where(eq(schema.monitorNotificationSettings.monitorId, monitorId));
-      
-      return providers.map(provider => ({
-        id: provider.id,
-        type: provider.type,
-        config: provider.config,
-      })) || [];
-    } catch (error) {
-      this.logger.error(
-        `Failed to get notification providers for monitor ${monitorId}: ${error.message}`
-      );
-      return [];
-    }
+    return this.dbService.db.query.monitors.findFirst({
+      where: (monitors, { eq }) => eq(monitors.id, monitorId),
+    });
   }
 
   private async saveMonitorResultToDb(resultData: MonitorExecutionResult): Promise<void> {
@@ -1034,18 +973,18 @@ export class MonitorService {
     }
   }
 
-  private async updateMonitorStatus(monitorId: string, status: MonitorResultStatus, checkedAt: Date): Promise<void> {
+  private async updateMonitorStatus(monitorId: string, status: 'up' | 'down', checkedAt: Date): Promise<void> {
     try {
-      const monitorStatus: schema.MonitorStatus = status === 'timeout' ? 'down' : status;
       await this.dbService.db
         .update(schema.monitors)
         .set({ 
-          status: monitorStatus,
+          status: status,
           lastCheckAt: checkedAt,
-        })
+          lastStatusChangeAt: status !== (await this.getMonitorById(monitorId))?.status ? checkedAt : undefined,
+         })
         .where(eq(schema.monitors.id, monitorId));
     } catch (error) {
-      this.logger.error(`Failed to update monitor status for ${monitorId}: ${error.message}`);
+      this.logger.error(`Failed to update monitor status for ${monitorId}: ${error.message}`, error.stack);
     }
   }
 } 

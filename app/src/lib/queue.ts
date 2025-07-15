@@ -47,6 +47,7 @@ export interface MonitorJobData {
 export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
 export const MONITOR_EXECUTION_QUEUE = 'monitor-execution';
+export const HEARTBEAT_PING_NOTIFICATION_QUEUE = 'heartbeat-ping-notification';
 
 // Scheduler-related queues
 export const JOB_SCHEDULER_QUEUE = "job-scheduler";
@@ -69,6 +70,7 @@ let redisClient: Redis | null = null;
 let testQueue: Queue | null = null;
 let jobQueue: Queue | null = null;
 let monitorExecution: Queue | null = null;
+let heartbeatPingNotificationQueue: Queue | null = null;
 let jobSchedulerQueue: Queue | null = null;
 let monitorSchedulerQueue: Queue | null = null;
 let heartbeatCheckerQueue: Queue | null = null;
@@ -143,6 +145,7 @@ async function getQueues(): Promise<{
   testQueue: Queue, 
   jobQueue: Queue, 
   monitorExecutionQueue: Queue,
+  heartbeatPingNotificationQueue: Queue,
   jobSchedulerQueue: Queue,
   monitorSchedulerQueue: Queue,
   heartbeatCheckerQueue: Queue
@@ -181,6 +184,7 @@ async function getQueues(): Promise<{
         testQueue = new Queue(TEST_EXECUTION_QUEUE, queueSettings);
         jobQueue = new Queue(JOB_EXECUTION_QUEUE, queueSettings);
         monitorExecution = new Queue(MONITOR_EXECUTION_QUEUE, queueSettings);
+        heartbeatPingNotificationQueue = new Queue(HEARTBEAT_PING_NOTIFICATION_QUEUE, queueSettings);
         
         // Schedulers
         jobSchedulerQueue = new Queue(JOB_SCHEDULER_QUEUE, queueSettings);
@@ -193,6 +197,7 @@ async function getQueues(): Promise<{
         testQueue.on('error', (error) => console.error(`[Queue Client] Test Queue Error:`, error));
         jobQueue.on('error', (error) => console.error(`[Queue Client] Job Queue Error:`, error));
         monitorExecution.on('error', (error) => console.error(`[Queue Client] Monitor Execution Queue Error:`, error));
+        heartbeatPingNotificationQueue.on('error', (error) => console.error(`[Queue Client] Heartbeat Ping Notification Queue Error:`, error));
         jobSchedulerQueue.on('error', (error) => console.error(`[Queue Client] Job Scheduler Queue Error:`, error));
         monitorSchedulerQueue.on('error', (error) => console.error(`[Queue Client] Monitor Scheduler Queue Error:`, error));
         heartbeatCheckerQueue.on('error', (error) => console.error(`[Queue Client] Heartbeat Checker Queue Error:`, error));
@@ -212,10 +217,10 @@ async function getQueues(): Promise<{
   }
   await initPromise;
 
-  if (!testQueue || !jobQueue || !monitorExecution || !monitorExecutionEvents || !jobSchedulerQueue || !monitorSchedulerQueue || !heartbeatCheckerQueue) {
+  if (!testQueue || !jobQueue || !monitorExecution || !heartbeatPingNotificationQueue || !monitorExecutionEvents || !jobSchedulerQueue || !monitorSchedulerQueue || !heartbeatCheckerQueue) {
     throw new Error("One or more queues or event listeners could not be initialized.");
   }
-  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution, jobSchedulerQueue, monitorSchedulerQueue, heartbeatCheckerQueue };
+  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution, heartbeatPingNotificationQueue, jobSchedulerQueue, monitorSchedulerQueue, heartbeatCheckerQueue };
 }
 
 /**
@@ -252,6 +257,7 @@ async function performQueueCleanup(connection: Redis): Promise<void> {
     { name: TEST_EXECUTION_QUEUE, queue: testQueue },
     { name: JOB_EXECUTION_QUEUE, queue: jobQueue },
     { name: MONITOR_EXECUTION_QUEUE, queue: monitorExecution },
+    { name: HEARTBEAT_PING_NOTIFICATION_QUEUE, queue: heartbeatPingNotificationQueue },
     { name: JOB_SCHEDULER_QUEUE, queue: jobSchedulerQueue },
     { name: MONITOR_SCHEDULER_QUEUE, queue: monitorSchedulerQueue },
     { name: HEARTBEAT_CHECKER_QUEUE, queue: heartbeatCheckerQueue },
@@ -443,6 +449,7 @@ export async function closeQueue(): Promise<void> {
   if (testQueue) promises.push(testQueue.close());
   if (jobQueue) promises.push(jobQueue.close());
   if (monitorExecution) promises.push(monitorExecution.close());
+  if (heartbeatPingNotificationQueue) promises.push(heartbeatPingNotificationQueue.close());
   if (jobSchedulerQueue) promises.push(jobSchedulerQueue.close());
   if (monitorSchedulerQueue) promises.push(monitorSchedulerQueue.close());
   if (heartbeatCheckerQueue) promises.push(heartbeatCheckerQueue.close());
@@ -459,6 +466,7 @@ export async function closeQueue(): Promise<void> {
     testQueue = null;
     jobQueue = null;
     monitorExecution = null;
+    heartbeatPingNotificationQueue = null;
     jobSchedulerQueue = null;
     monitorSchedulerQueue = null;
     heartbeatCheckerQueue = null;
@@ -498,37 +506,44 @@ export async function setQueueCapacityLimit(limit: number): Promise<void> {
  * Add a monitor execution task to the MONITOR_EXECUTION_QUEUE.
  */
 export async function addMonitorExecutionJobToQueue(task: MonitorJobData): Promise<string> {
-  const queues = await getQueues();
-  const currentMonitorExecution = queues.monitorExecutionQueue;
-  const jobId = task.monitorId; // Use monitorId for job tracking, or generate a new UUID if preferred
-  console.log(`[Queue Client] Adding monitor execution job ${jobId} for monitor ${task.monitorId} to queue ${MONITOR_EXECUTION_QUEUE}`);
-
-  try {
-    // Optionally, add capacity checks if needed for monitor execution jobs
-    // await verifyQueueCapacityOrThrow(); 
-
-    const jobOptions = {
-      jobId: jobId, // Using monitorId as BullMQ job ID for this task
-      attempts: 3, // Default attempts, can be overridden from monitor config if needed
-      backoff: { type: 'exponential' as const, delay: 5000 },
-      removeOnComplete: true, // Keep default job options as in other queues
-      removeOnFail: { count: 1000, age: 7 * 24 * 3600 }, 
-    };
-
-    // The job name for the runner's processor is EXECUTE_MONITOR_JOB
-    // This constant should ideally be shared or reliably duplicated.
-    // For now, hardcoding based on runner's monitor.constants.ts
-    const EXECUTE_MONITOR_JOB_NAME = 'executeMonitorJob'; 
-
-    await currentMonitorExecution.add(EXECUTE_MONITOR_JOB_NAME, task, jobOptions);
-    console.log(`[Queue Client] Monitor execution job ${jobId} for ${task.monitorId} added successfully.`);
-    return jobId;
-  } catch (error) {
-    console.error(`[Queue Client] Error adding monitor execution job ${jobId} for ${task.monitorId}:`, error);
-    throw new Error(`Failed to add monitor execution job: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const { monitorExecutionQueue } = await getQueues();
+  const job = await monitorExecutionQueue.add(
+    `monitor-execution-${task.monitorId}`, 
+    task,
+    {
+      jobId: task.monitorId, // Use monitorId as job ID to prevent duplicates if job already in queue
+      removeOnComplete: true, // Auto-remove successful monitor jobs
+      removeOnFail: { count: 10 }, // Keep last 10 failed jobs for debugging
+    }
+  );
+  return job.id!;
 }
 
+export interface HeartbeatPingNotificationData {
+    monitorId: string;
+    type: 'recovery' | 'failure';
+    reason: string;
+    metadata?: Record<string, any>;
+}
+
+export async function addHeartbeatPingNotificationJob(data: HeartbeatPingNotificationData): Promise<string> {
+    const { heartbeatPingNotificationQueue } = await getQueues();
+    const job = await heartbeatPingNotificationQueue.add(`heartbeat-notification-${data.monitorId}-${Date.now()}`, data, {
+        removeOnComplete: true,
+        removeOnFail: { count: 10 },
+        attempts: 5,
+        backoff: {
+            type: 'exponential',
+            delay: 5000,
+        }
+    });
+    console.log(`[Queue Client] Added heartbeat ping notification job for monitor ${data.monitorId} to queue.`);
+    return job.id!;
+}
+
+/**
+ * Cleanup old jobs that may not have been removed automatically
+ */
 async function cleanupOldJobs() {
   try {
     const queues = await getQueues();
@@ -536,6 +551,7 @@ async function cleanupOldJobs() {
         queues.testQueue, 
         queues.jobQueue, 
         queues.monitorExecutionQueue,
+        queues.heartbeatPingNotificationQueue,
         queues.jobSchedulerQueue,
         queues.monitorSchedulerQueue,
         queues.heartbeatCheckerQueue
@@ -558,6 +574,9 @@ async function cleanupOldJobs() {
     }
     if (queues.monitorExecutionQueue) {
       await queues.monitorExecutionQueue.trimEvents(1000);
+    }
+    if (queues.heartbeatPingNotificationQueue) {
+      await queues.heartbeatPingNotificationQueue.trimEvents(1000);
     }
     
 

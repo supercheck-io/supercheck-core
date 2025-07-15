@@ -1,34 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors, monitorResults } from "@/db/schema/schema";
-import { eq, desc } from "drizzle-orm";
-
-async function triggerNotificationIfNeeded(monitorId: string, wasDown: boolean, isNowUp: boolean) {
-  // Only trigger notification if there was a status change
-  if (wasDown && isNowUp) {
-    console.log(`[HEARTBEAT] Status changed from down to up for monitor ${monitorId}, triggering recovery notification`);
-    
-    try {
-      // Make a call to the notification service or trigger it via queue
-      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/monitors/${monitorId}/notify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'recovery',
-          reason: 'Heartbeat ping received after being down'
-        })
-      });
-      
-      if (!response.ok) {
-        console.warn(`[HEARTBEAT] Failed to trigger notification for monitor ${monitorId}`);
-      }
-    } catch (error) {
-      console.warn(`[HEARTBEAT] Error triggering notification for monitor ${monitorId}:`, error || 'Unknown error');
-    }
-  }
-}
+import { eq } from "drizzle-orm";
+import { addHeartbeatPingNotificationJob } from "@/lib/queue";
 
 export async function GET(
   request: NextRequest,
@@ -94,29 +68,10 @@ async function handleHeartbeatPing(request: NextRequest, token: string) {
     const now = new Date();
     const wasDown = heartbeatMonitor.status === 'down';
 
-    // Check if this is a status change by looking at recent results
-    const recentResults = await db
-      .select()
-      .from(monitorResults)
-      .where(eq(monitorResults.monitorId, heartbeatMonitor.id))
-      .orderBy(desc(monitorResults.checkedAt))
-      .limit(1);
-
-    const isStatusChange = recentResults.length === 0 || !recentResults[0].isUp;
-
-    // Update the monitor's last ping time in config
-    const updatedConfig = {
-      ...heartbeatMonitor.config,
-      lastPingAt: now.toISOString(),
-    };
-
-    console.log(`[HEARTBEAT] Updating monitor status to 'up', was: ${heartbeatMonitor.status}, status change: ${isStatusChange}`);
-
-    // Update monitor status and last ping time
+    // Update monitor status to 'up'
     await db
       .update(monitors)
       .set({
-        config: updatedConfig,
         status: "up",
         lastCheckAt: now,
         lastStatusChangeAt: wasDown ? now : heartbeatMonitor.lastStatusChangeAt,
@@ -128,50 +83,35 @@ async function handleHeartbeatPing(request: NextRequest, token: string) {
       monitorId: heartbeatMonitor.id,
       checkedAt: now,
       status: "up",
-      responseTimeMs: 0, // Heartbeat pings don't have response time
+      responseTimeMs: 0,
       details: {
-        source: source,
-        sourceHeaders: sourceHeaders,
+        source,
+        sourceHeaders,
         message: "Ping received successfully",
-        pingTime: now.toISOString(),
         statusChanged: wasDown,
-        triggeredBy: 'manual_ping',
+        triggeredBy: 'explicit_pass_ping',
       },
       isUp: true,
-      isStatusChange: isStatusChange,
+      isStatusChange: wasDown,
     });
 
-    // Trigger notification if status changed from down to up
+    // If status changed from down to up, dispatch a recovery notification job
     if (wasDown && heartbeatMonitor.alertConfig?.enabled) {
-      console.log(`[HEARTBEAT] Monitor ${heartbeatMonitor.name} recovered - triggering notification`);
+      console.log(`[HEARTBEAT] Status changed to UP. Dispatching notification job for monitor ${heartbeatMonitor.name}`);
       
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-        const notifyResponse = await fetch(`${baseUrl}/api/monitors/${heartbeatMonitor.id}/notify`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        await addHeartbeatPingNotificationJob({
+            monitorId: heartbeatMonitor.id,
             type: 'recovery',
-            reason: 'Heartbeat ping received after being down',
+            reason: 'Heartbeat ping received successfully after being down.',
             metadata: {
-              source: source,
-              recoveredAt: now.toISOString(),
-              trigger: 'heartbeat_ping'
+                source,
+                trigger: 'heartbeat_pass_url',
             }
-          })
         });
-
-        if (notifyResponse.ok) {
-          const notifyResult = await notifyResponse.json();
-          console.log(`[HEARTBEAT] Recovery notification sent:`, notifyResult);
-        } else {
-          console.warn(`[HEARTBEAT] Failed to send recovery notification: ${notifyResponse.status}`);
-        }
-        
-      } catch (notificationError) {
-        console.error(`[HEARTBEAT] Failed to trigger recovery notification:`, notificationError);
+        console.log(`[HEARTBEAT] Successfully dispatched recovery notification job for ${heartbeatMonitor.name}.`);
+      } catch (queueError) {
+        console.error(`[HEARTBEAT] Failed to dispatch recovery notification job:`, queueError);
       }
     }
 
@@ -184,7 +124,6 @@ async function handleHeartbeatPing(request: NextRequest, token: string) {
       monitor: heartbeatMonitor.name,
       statusChanged: wasDown,
       isUp: true,
-      notificationSent: wasDown && heartbeatMonitor.alertConfig?.enabled,
     });
 
   } catch (error) {

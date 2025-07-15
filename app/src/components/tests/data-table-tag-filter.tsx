@@ -36,27 +36,36 @@ export function DataTableTagFilter<TData, TValue>({
   column,
   title = "Tags",
 }: DataTableTagFilterProps<TData, TValue>) {
-  const [facets, setFacets] = React.useState<Map<string, number> | undefined>(
-    undefined
-  );
-  const [selectedValues, setSelectedValues] = React.useState<Set<string>>(
-    new Set()
-  );
   const [availableTags, setAvailableTags] = React.useState<Tag[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
+
+  const selectedValues = new Set(column?.getFilterValue() as string[]);
+
+  const facets = React.useMemo(() => {
+    const newFacets = new Map<string, number>();
+    column?.getFacetedRowModel().rows.forEach((row) => {
+      const tags = row.getValue(column.id) as Tag[] | undefined;
+      if (tags) {
+        tags.forEach((tag) => {
+          newFacets.set(tag.name, (newFacets.get(tag.name) || 0) + 1);
+        });
+      }
+    });
+    return newFacets;
+  }, [column?.getFacetedRowModel().rows]);
 
   // Load available tags
   React.useEffect(() => {
     const loadTags = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/tags');
+        const response = await fetch("/api/tags");
         if (response.ok) {
           const tags = await response.json();
           setAvailableTags(tags);
         }
       } catch (error) {
-        console.error('Error loading tags:', error);
+        console.error("Error loading tags:", error);
       } finally {
         setIsLoading(false);
       }
@@ -65,21 +74,13 @@ export function DataTableTagFilter<TData, TValue>({
     loadTags();
   }, []);
 
-  React.useEffect(() => {
-    if (column) {
-      setFacets(column.getFacetedUniqueValues());
-      const filterValue = column.getFilterValue() as string[] | undefined;
-      setSelectedValues(new Set(filterValue || []));
-    }
-  }, [column]);
-
-  const selectedTags = availableTags.filter(tag => selectedValues.has(tag.name));
+  const selectedTags = availableTags.filter((tag) => selectedValues.has(tag.name));
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 border-dashed">
-          <PlusCircle />
+          <PlusCircle className="mr-2 h-4 w-4" />
           {title}
           {selectedValues?.size > 0 && (
             <>
@@ -104,7 +105,11 @@ export function DataTableTagFilter<TData, TValue>({
                       variant="secondary"
                       key={tag.id}
                       className="rounded-sm px-1 font-normal"
-                      style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
+                      style={
+                        tag.color
+                          ? { backgroundColor: tag.color + "20", color: tag.color }
+                          : {}
+                      }
                     >
                       {tag.name}
                     </Badge>
@@ -129,17 +134,15 @@ export function DataTableTagFilter<TData, TValue>({
                   <CommandItem
                     key={tag.id}
                     onSelect={() => {
-                      const newSelectedValues = new Set(selectedValues);
                       if (isSelected) {
-                        newSelectedValues.delete(tag.name);
+                        selectedValues.delete(tag.name);
                       } else {
-                        newSelectedValues.add(tag.name);
+                        selectedValues.add(tag.name);
                       }
-                      const filterValues = Array.from(newSelectedValues);
+                      const filterValues = Array.from(selectedValues);
                       column?.setFilterValue(
                         filterValues.length ? filterValues : undefined
                       );
-                      setSelectedValues(newSelectedValues);
                     }}
                   >
                     <div
@@ -157,9 +160,11 @@ export function DataTableTagFilter<TData, TValue>({
                       style={{ backgroundColor: tag.color || "#64748b" }}
                     />
                     <span>{tag.name}</span>
-                    <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">
-                      {facets?.get(tag.name) ?? 0}
-                    </span>
+                    {facets?.get(tag.name) && (
+                      <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">
+                        {facets.get(tag.name)}
+                      </span>
+                    )}
                   </CommandItem>
                 );
               })}
@@ -169,10 +174,7 @@ export function DataTableTagFilter<TData, TValue>({
                 <CommandSeparator />
                 <CommandGroup>
                   <CommandItem
-                    onSelect={() => {
-                      column?.setFilterValue(undefined);
-                      setSelectedValues(new Set());
-                    }}
+                    onSelect={() => column?.setFilterValue(undefined)}
                     className="justify-center text-center"
                   >
                     Clear filters

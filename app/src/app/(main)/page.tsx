@@ -351,7 +351,7 @@ export default function Home() {
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <BarChart3 className="h-5 w-5" />
-                    Monitor Types
+                    Uptime Monitor Types
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">

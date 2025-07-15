@@ -16,6 +16,78 @@ import {
 } from "@/components/ui/popover";
 import { useState } from "react";
 
+// Separate component for UUID field with popover
+function UUIDFieldWithPopover({ value, maxLength, onCopy, className }: {
+  value: string;
+  maxLength?: number;
+  onCopy?: () => void;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div 
+          className="cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          <UUIDField 
+            value={value} 
+            maxLength={maxLength} 
+            className={className}
+            onCopy={onCopy}
+          />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="flex justify-center items-center">
+        <p className="text-xs text-muted-foreground break-all">
+          {value}
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Separate component for job name with popover
+function JobNameWithPopover({ jobName }: { jobName: string | undefined }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const displayName = jobName || "Unknown Job";
+  
+  // Check if text is likely to be truncated
+  const isTruncated = displayName.length > 40;
+  
+  if (!isTruncated) {
+    return (
+      <div className="max-w-[250px] truncate">
+        {displayName}
+      </div>
+    );
+  }
+  
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div 
+          className="max-w-[250px] truncate cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          {displayName}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            {displayName}
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // Create a function that returns the columns with the onDelete prop
 export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
   {
@@ -25,30 +97,14 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
     ),
     cell: ({ row }) => {
       const id = row.getValue("id") as string;
-      const [isOpen, setIsOpen] = useState(false);
       
       return (
         <div className="w-[90px]">
-          <Popover open={isOpen} onOpenChange={setIsOpen}>
-            <PopoverTrigger asChild>
-              <div 
-                className="cursor-pointer"
-                onMouseEnter={() => setIsOpen(true)}
-                onMouseLeave={() => setIsOpen(false)}
-              >
-                <UUIDField 
-                  value={id} 
-                  maxLength={24} 
-                  onCopy={() => toast.success("Run ID copied to clipboard")}
-                />
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="flex justify-center items-center">
-              <p className="text-xs text-muted-foreground break-all">
-                {id}
-              </p>
-            </PopoverContent>
-          </Popover>
+          <UUIDFieldWithPopover 
+            value={id} 
+            maxLength={24} 
+            onCopy={() => toast.success("Run ID copied to clipboard")}
+          />
         </div>
       );
     },
@@ -62,31 +118,15 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
     ),
     cell: ({ row }) => {
       const jobId = row.getValue("jobId") as string;
-      const [isOpen, setIsOpen] = useState(false);
       
       return (
         <div className="w-[80px]">
-          <Popover open={isOpen} onOpenChange={setIsOpen}>
-            <PopoverTrigger asChild>
-              <div 
-                className="cursor-pointer"
-                onMouseEnter={() => setIsOpen(true)}
-                onMouseLeave={() => setIsOpen(false)}
-              >
-                <UUIDField
-                  value={jobId}
-                  maxLength={24}
-                  className="w-[90px]"
-                  onCopy={() => toast.success("Job ID copied to clipboard")}
-                />
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="flex justify-center items-center">
-              <p className="text-xs text-muted-foreground break-all">
-                {jobId}
-              </p>
-            </PopoverContent>
-          </Popover>
+          <UUIDFieldWithPopover
+            value={jobId}
+            maxLength={24}
+            className="w-[90px]"
+            onCopy={() => toast.success("Job ID copied to clipboard")}
+          />
         </div>
       );
     },
@@ -98,40 +138,8 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
     ),
     cell: ({ row }) => {
       const jobName = row.getValue("jobName") as string | undefined;
-      const displayName = jobName || "Unknown Job";
-      const [isOpen, setIsOpen] = useState(false);
       
-      // Check if text is likely to be truncated
-      const isTruncated = displayName.length > 40;
-      
-      if (!isTruncated) {
-        return (
-          <div className="max-w-[250px] truncate">
-            {displayName}
-          </div>
-        );
-      }
-      
-      return (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <div 
-              className="max-w-[250px] truncate cursor-pointer"
-              onMouseEnter={() => setIsOpen(true)}
-              onMouseLeave={() => setIsOpen(false)}
-            >
-              {displayName}
-            </div>
-          </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                {displayName}
-              </p>
-            </div>
-          </PopoverContent>
-        </Popover>
-      );
+      return <JobNameWithPopover jobName={jobName} />;
     },
   },
   {

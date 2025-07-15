@@ -653,7 +653,7 @@ export function MonitorForm({
                   </PopoverTrigger>
                   <PopoverContent className="w-96 mt-2" side="right" sideOffset={8}>
                     <div>
-                      <h4 className="font-semibold text-sm mb-3 text-foreground">Monitor Types</h4>
+                      <h4 className="font-semibold text-sm mb-3 text-foreground">Uptime Monitor Types</h4>
                       <div className="space-y-3">
                         {monitorTypes.map((type) => (
                           <div key={type.value} className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
@@ -741,7 +741,7 @@ export function MonitorForm({
                               </PopoverTrigger>
                               <PopoverContent className="w-96 p-0" side="right" sideOffset={8}>
                                 <div className="p-4">
-                                  <h4 className="font-semibold text-sm mb-3 text-foreground">Monitor Types</h4>
+                                  <h4 className="font-semibold text-sm mb-3 text-foreground">Uptime Monitor Types</h4>
                                                                      <div className="space-y-3">
                                      <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
                                        <Globe className="h-4 w-4 text-cyan-600 mt-0.5 flex-shrink-0" />
