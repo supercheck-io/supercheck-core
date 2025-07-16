@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { NotificationProviderForm } from "@/components/alerts/notification-provider-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Mail, MessageSquare, Webhook, Plus, Edit, Trash2, SearchIcon, AlertTriangle, Bell } from "lucide-react";
+import { Mail, Webhook, Plus, Edit, Trash2, SearchIcon, AlertTriangle, Bell, MessageCircle, Slack, BotMessageSquare } from "lucide-react";
 import { formatDistance } from "date-fns";
 import { DataTable } from "@/components/alerts/data-table";
 import { columns, type AlertHistory } from "@/components/alerts/columns";
@@ -86,17 +86,17 @@ export default function AlertsPage() {
   const getProviderIcon = (type: string) => {
     switch (type) {
       case 'email':
-        return <Mail className="h-4 w-4" />;
+        return <Mail className="h-4 w-4 text-blue-500" />;
       case 'slack':
-        return <MessageSquare className="h-4 w-4" />;
+        return <Slack className="h-4 w-4 text-purple-500" />;
       case 'webhook':
-        return <Webhook className="h-4 w-4" />;
+        return <Webhook className="h-4 w-4 text-orange-500" />;
       case 'telegram':
-        return <MessageSquare className="h-4 w-4" />;
+        return <MessageCircle className="h-4 w-4 text-sky-500" />;
       case 'discord':
-        return <MessageSquare className="h-4 w-4" />;
+        return <BotMessageSquare className="h-4 w-4 text-indigo-500" />;
       default:
-        return <Bell className="h-4 w-4" />;
+        return <Bell className="h-4 w-4 text-gray-500" />;
     }
   };
 

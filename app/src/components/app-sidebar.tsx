@@ -41,7 +41,7 @@ import { CheckIcon } from "@/components/logo/supercheck-logo";
 import { NavMain } from "@/components/nav-main";
 // import { NavProjects } from "@/components/nav-projects";
 import { NavUser } from "@/components/nav-user";
-// import { TeamSwitcher } from "@/components/team-switcher";
+import { ProjectSwitcher } from "@/components/project-switcher";
 import Link from "next/link";
 import {
   Sidebar,
@@ -66,7 +66,7 @@ const data = {
     {
       name: "Supercheck", 
       logo: CheckIcon,
-      plan: "Automation & Monitoring",
+      plan: "MPT",
     },
     {
       name: "Test Team 1",
@@ -248,14 +248,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="group-data-[collapsible=icon]:px-0">
-        {/* <TeamSwitcher teams={data.teams} /> */}
-        <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
+        <ProjectSwitcher projects={data.teams} />
+        {/* <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
           <LogoToDisplay className="h-7 w-7 flex-shrink-0" /> 
           <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
             <span className="truncate font-medium">{teamName}</span>
             <span className="truncate text-xs">{teamPlan}</span>
           </div>
-        </div>
+        </div> */}
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup className="-mb-2 ">
@@ -264,7 +264,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <Link href="/create" className="flex w-full">
                 <SidebarMenuButton
                   tooltip="Quick Create"
-                  className="flex items-center justify-center min-w-7 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground cursor-pointer w-[90%] ml-[5%] mr-[5%]"
+                  className="flex items-center justify-center min-w-7 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground cursor-pointer w-[90%] ml-[5%] mr-[5%] group-data-[collapsible=icon]:mt-3 group-data-[collapsible=icon]:mb-2"
                 >
                   <PlusCircleIcon className="h-4 w-4 ml-2" />
                   <span> Quick Create</span>
