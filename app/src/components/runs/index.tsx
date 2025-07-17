@@ -53,8 +53,12 @@ export function Runs() {
         throw new Error(data.error || 'Failed to fetch runs');
       }
       
-      // Cast the data to TestRun[] to ensure type compatibility
-      safeSetRuns(data as unknown as TestRun[]);
+      // Cast the data to TestRun[] to ensure type compatibility and handle trigger field
+      const typedRuns = data.map((run: any) => ({
+        ...run,
+        trigger: run.trigger ?? undefined,
+      }));
+      safeSetRuns(typedRuns as TestRun[]);
     } catch (error) {
       console.error("Failed to fetch runs:", error);
       toast.error("Failed to fetch runs");

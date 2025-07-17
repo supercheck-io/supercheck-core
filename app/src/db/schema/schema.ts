@@ -288,11 +288,18 @@ export type TestRunStatus =
   | "passed"
   | "failed"
   | "error";
+
+export type JobTrigger = 
+  | "manual"
+  | "remote" 
+  | "schedule";
+
 export type ArtifactPaths = {
   logs?: string;
   video?: string;
   screenshots?: string[];
 };
+
 /**
  * Records the execution history and results of a job run.
  */
@@ -308,6 +315,7 @@ export const runs = pgTable("runs", {
   artifactPaths: jsonb("artifact_paths").$type<ArtifactPaths>(),
   logs: text("logs"),
   errorDetails: text("error_details"),
+  trigger: varchar("trigger", { length: 50 }).$type<JobTrigger>().notNull().default("manual"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -798,6 +806,10 @@ export const maintenanceWindowsSelectSchema = createSelectSchema(maintenanceWind
 export const projectsInsertSchema = createInsertSchema(projects);
 export const projectsSelectSchema = createSelectSchema(projects);
 export const projectsUpdateSchema = createUpdateSchema(projects);
+
+export const runsInsertSchema = createInsertSchema(runs);  
+export const runsSelectSchema = createSelectSchema(runs);
+export type Run = z.infer<typeof runsSelectSchema>;
 
 export const auditLogsInsertSchema = createInsertSchema(auditLogs);
 export const auditLogsSelectSchema = createSelectSchema(auditLogs);

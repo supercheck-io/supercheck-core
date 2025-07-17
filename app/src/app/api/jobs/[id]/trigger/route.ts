@@ -210,6 +210,7 @@ export async function POST(
           triggeredBy: "api",
           apiKeyName: key.name,
           apiKeyId: key.id,
+          trigger: "remote", // Add trigger value
           ...triggerOptions, // Allow additional options from request body
         }),
       }

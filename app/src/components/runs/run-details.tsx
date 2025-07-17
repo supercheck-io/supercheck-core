@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { runStatuses } from "./data";
+import { runStatuses, triggerTypes } from "./data";
 import { toast } from "sonner";
 import { ReportViewer } from "@/components/shared/report-viewer";
 import { formatDistanceToNow } from "date-fns";
@@ -45,6 +45,7 @@ type RunResponse = {
   reportUrl?: string | null;
   timestamp?: string;
   testCount?: number;
+  trigger?: string;
 };
 
 export function RunDetails({ run }: { run: RunResponse }) {
@@ -219,11 +220,7 @@ export function RunDetails({ run }: { run: RunResponse }) {
               <h1 className="text-2xl font-semibold flex items-center gap-2">
                 {run.jobName && run.jobName.length > 40 ? run.jobName.slice(0, 40) + "..." : run.jobName || "Unknown Job"}
               </h1>
-              {/* {run.testCount !== undefined && (
-                <div className="text-sm text-muted-foreground flex items-center" >
-                 <Code className="h-4 w-4 mr-1 text-blue-500" /> {run.testCount} {run.testCount === 1 ? 'test' : 'tests'} executed
-                </div>
-              )} */}
+              
             </div>
           </div>
           <Button 
@@ -238,7 +235,7 @@ export function RunDetails({ run }: { run: RunResponse }) {
         </div>
 
         {/* Status cards - similar to monitor details but with appropriate content */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-2 mt-2">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2 mt-2">
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
             {statusInfo && (
               <statusInfo.icon className={`h-6 w-6 min-w-6 mr-2 ${statusInfo.color}`} />
@@ -247,6 +244,25 @@ export function RunDetails({ run }: { run: RunResponse }) {
               <div className="text-xs font-medium text-muted-foreground">Status</div>
               <div className="text-sm font-semibold truncate">{statusInfo?.label || 'Unknown'}</div>
             </div>
+          </div>
+
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
+            {(() => {
+              const triggerType = triggerTypes.find((t) => t.value === run.trigger);
+              const Icon = triggerType?.icon || Code2;
+              const color = triggerType?.color || "text-gray-500";
+              const label = triggerType?.label || "Unknown";
+              
+              return (
+                <>
+                  <Icon className={`h-6 w-6 min-w-6 mr-2 ${color}`} />
+                  <div className="min-w-0 w-full">
+                    <div className="text-xs font-medium text-muted-foreground">Trigger</div>
+                    <div className="text-sm font-semibold truncate">{label}</div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">

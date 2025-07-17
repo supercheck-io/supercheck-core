@@ -65,6 +65,7 @@ export function RunsClient() {
         reportUrl: run.reportUrl ?? undefined,
         logs: run.logs ?? undefined,
         errorDetails: run.errorDetails ?? undefined,
+        trigger: run.trigger ?? undefined,
       }));
       safeSetRuns(typedRuns);
     } catch (error) {

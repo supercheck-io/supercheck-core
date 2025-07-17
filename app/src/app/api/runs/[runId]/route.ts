@@ -48,6 +48,7 @@ export async function GET(
         logs: runs.logs,
         errorDetails: runs.errorDetails,
         reportUrl: reports.s3Url,
+        trigger: runs.trigger,
       })
       .from(runs)
       .leftJoin(jobs, eq(runs.jobId, jobs.id))
@@ -88,6 +89,7 @@ export async function GET(
       completedAt: run.completedAt ? run.completedAt.toISOString() : null,
       timestamp: run.startedAt ? run.startedAt.toISOString() : new Date().toISOString(),
       testCount: testCount,
+      trigger: run.trigger,
     };
     
     return NextResponse.json(response, { headers: corsHeaders });

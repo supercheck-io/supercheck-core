@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTableViewOptions } from "@/components/jobs/data-table-view-options";
 import { DataTableFacetedFilter } from "@/components/jobs/data-table-faceted-filter";
-import { runStatuses } from "./data";
+import { runStatuses, triggerTypes } from "./data";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
@@ -55,6 +55,13 @@ export function DataTableToolbar<TData>({
             column={table.getColumn("status")}
             title="Status"
             options={runStatuses}
+          />
+        )}
+        {table.getColumn("trigger") && (
+          <DataTableFacetedFilter
+            column={table.getColumn("trigger")}
+            title="Trigger"
+            options={triggerTypes}
           />
         )}
         {/* {isFiltered && (

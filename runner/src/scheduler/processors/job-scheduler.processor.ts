@@ -52,6 +52,7 @@ export class JobSchedulerProcessor extends WorkerHost {
         jobId: jobId,
         status: 'running',
         startedAt: new Date(),
+        trigger: 'schedule', // Set trigger to 'schedule'
       });
 
       this.logger.log(`Created run record ${runId} for scheduled job ${jobId}`);
@@ -98,6 +99,7 @@ export class JobSchedulerProcessor extends WorkerHost {
           script: test.script,
           name: test.title,
         })),
+        trigger: 'schedule',
       };
 
       const jobOptions = {

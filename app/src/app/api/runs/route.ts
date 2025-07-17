@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
         logs: runs.logs,
         errorDetails: runs.errorDetails,
         reportUrl: reports.s3Url,
+        trigger: runs.trigger,
       })
       .from(runs)
       .leftJoin(jobs, eq(runs.jobId, jobs.id))
@@ -68,6 +69,7 @@ export async function GET(request: NextRequest) {
       logs: run.logs,
       errorDetails: run.errorDetails,
       reportUrl: run.reportUrl,
+      trigger: run.trigger,
       timestamp: run.startedAt ? run.startedAt.toISOString() : new Date().toISOString(),
     }));
 

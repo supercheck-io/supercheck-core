@@ -55,7 +55,10 @@ export interface JobExecutionTask {
   testScripts: TestScript[];
   runId: string; // Required run ID to distinguish parallel executions of the same job
   originalJobId?: string; // The original job ID from the 'jobs' table that should be updated
+  trigger: JobTrigger; // Add trigger property
 }
+
+export type JobTrigger = 'manual' | 'remote' | 'schedule'; // Define allowed trigger values
 
 // Optional: Interface for database report metadata storage
 export interface ReportMetadata {

@@ -10,6 +10,7 @@ import {
   JobStatus,
   TestRunStatus,
   jobNotificationSettings,
+  JobTrigger,
 } from "@/db/schema/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 import { auth } from "@/utils/auth";
@@ -34,6 +35,7 @@ async function executeJob(jobId: string, tests: { id: string; script: string }[]
     jobId: jobId,
     status: 'running' as TestRunStatus,
     startedAt: new Date(),
+    trigger: 'manual' as JobTrigger,
   });
   
   console.log(`[${jobId}] Created running test run record: ${runId}`);
@@ -407,6 +409,7 @@ async function runJob(request: Request) {
       jobId,
       status: "running",
       startedAt: startTime,
+      trigger: "manual" as JobTrigger,
     });
 
     // Prepare test scripts for execution

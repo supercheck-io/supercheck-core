@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Input } from "@/components/ui/input"
 import { useRef, useEffect } from "react"
+import { toast } from "sonner"
 
 export function ProjectSwitcher({
   projects,
@@ -80,16 +81,19 @@ export function ProjectSwitcher({
   const handleProjectSelect = (project: typeof projects[0]) => {
     setActiveProject(project)
     setIsOpen(false)
+    toast.success(`Switched to ${project.name}`, {
+      description: `You are now viewing the ${project.name} project.`,
+    })
   }
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
-          <DropdownMenuTrigger asChild>
+          <DropdownMenuTrigger asChild className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0">
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:ml-2.5"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:ml-2.5 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
             >
               <div className="text-foreground flex items-center justify-center">
                 <CheckIcon className="size-7" />

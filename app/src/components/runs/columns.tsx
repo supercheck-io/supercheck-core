@@ -1,7 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 
-import { runStatuses } from "./data";
+import { runStatuses, triggerTypes } from "./data";
 import type { TestRun } from "./schema";
 import { DataTableColumnHeader } from "../jobs/data-table-column-header";
 import { formatDistanceToNow } from "date-fns";
@@ -15,6 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 // Separate component for UUID field with popover
 function UUIDFieldWithPopover({ value, maxLength, onCopy, className }: {
@@ -111,26 +112,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
     enableSorting: false,
     enableHiding: false,
   },
-  {
-    accessorKey: "jobId",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Job ID" />
-    ),
-    cell: ({ row }) => {
-      const jobId = row.getValue("jobId") as string;
-      
-      return (
-        <div className="w-[80px]">
-          <UUIDFieldWithPopover
-            value={jobId}
-            maxLength={24}
-            className="w-[90px]"
-            onCopy={() => toast.success("Job ID copied to clipboard")}
-          />
-        </div>
-      );
-    },
-  },
+
   {
     accessorKey: "jobName",
     header: ({ column }) => (
@@ -173,26 +155,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       return value.includes(row.getValue(id));
     },
   },
-  {
-    accessorKey: "startedAt",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Started" />
-    ),
-    cell: ({ row }) => {
-      const startedAt = row.getValue("startedAt") as string | undefined;
-      if (!startedAt) {
-        return <div className="text-muted-foreground">-</div>;
-      }
-      return (
-        <div className="flex items-center gap-1 w-[100px]">
-          <CalendarIcon className="h-3 w-3 text-muted-foreground" />
-          <span title={new Date(startedAt).toLocaleString()}>
-            {formatDistanceToNow(new Date(startedAt), { addSuffix: true })}
-          </span>
-        </div>
-      );
-    },
-  },
+
   {
     accessorKey: "duration",
     header: ({ column }) => (
@@ -203,8 +166,9 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       
       if (!duration) {
         return (
-          <div className="text-muted-foreground w-[100px]">
-           -
+          <div className="flex items-center gap-1 w-[100px]">
+            <ClockIcon className="h-4 w-4 text-muted-foreground mr-1" />
+            <span className="text-muted-foreground">-</span>
           </div>
         );
       }
@@ -238,8 +202,75 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       
       return (
         <div className="flex items-center gap-1 w-[100px]">
-          <ClockIcon className="h-3 w-3 text-muted-foreground" />
+          <ClockIcon className="h-4 w-4 text-muted-foreground mr-1" />
           <span>{formattedDuration}</span>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "trigger",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Trigger" />
+    ),
+    cell: ({ row }) => {
+      const trigger = row.original.trigger;
+      const triggerType = triggerTypes.find((t) => t.value === trigger);
+
+      if (!triggerType) {
+        return <div className="text-muted-foreground">-</div>;
+      }
+
+      const { icon: Icon, label, color } = triggerType;
+
+      return (
+        <div className="flex items-center gap-2 w-[100px]">
+          <Icon className={cn("w-4 h-4", color)} />
+          <span>{label}</span>
+        </div>
+      );
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id));
+    },
+    enableSorting: true,
+  },
+  {
+    accessorKey: "startedAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Started" />
+    ),
+    cell: ({ row }) => {
+      const startedAt = row.getValue("startedAt") as string | undefined;
+      if (!startedAt) {
+        return <div className="text-muted-foreground">-</div>;
+      }
+      return (
+        <div className="flex items-center gap-1 w-[150px]">
+          <CalendarIcon className="h-4 w-4 text-muted-foreground mr-1" />
+          <span title={new Date(startedAt).toLocaleString()}>
+            {formatDistanceToNow(new Date(startedAt), { addSuffix: true })}
+          </span>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "jobId",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Job ID" />
+    ),
+    cell: ({ row }) => {
+      const jobId = row.getValue("jobId") as string;
+
+      return (
+        <div className="w-[80px]">
+          <UUIDFieldWithPopover
+            value={jobId}
+            maxLength={24}
+            className="w-[90px]"
+            onCopy={() => toast.success("Job ID copied to clipboard")}
+          />
         </div>
       );
     },

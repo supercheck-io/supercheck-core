@@ -15,6 +15,13 @@
       "when": 1752268632477,
       "tag": "0001_silent_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1752750353667,
+      "tag": "0002_complete_reaper",
+      "breakpoints": true
     }
   ]
 }

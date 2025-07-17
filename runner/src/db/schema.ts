@@ -296,6 +296,11 @@ export type ArtifactPaths = {
 /**
  * Records the execution history and results of a job run.
  */
+export type JobTrigger = 
+  | "manual"
+  | "remote" 
+  | "schedule";
+
 export const runs = pgTable("runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   jobId: uuid("job_id")
@@ -308,6 +313,7 @@ export const runs = pgTable("runs", {
   artifactPaths: jsonb("artifact_paths").$type<ArtifactPaths>(),
   logs: text("logs"),
   errorDetails: text("error_details"),
+  trigger: varchar("trigger", { length: 50 }).$type<JobTrigger>().notNull().default("manual"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -16,6 +16,7 @@ export const runSchema = z.object({
   screenshotUrls: z.array(z.string()).optional(),
   timestamp: z.string().optional(),
   testCount: z.number().optional(),
+  trigger: z.enum(["manual", "remote", "schedule"]).optional(),
 });
 
 export type TestRun = z.infer<typeof runSchema>;

@@ -432,7 +432,7 @@ export class ExecutionService {
      * Uses the native Playwright test runner and HTML reporter.
      */
     async runJob(task: JobExecutionTask): Promise<TestExecutionResult> {
-        const { runId, testScripts, originalJobId } = task;
+        const { runId, testScripts, originalJobId, trigger } = task;
         const entityType = 'job';
         this.logger.log(`[${runId}] Starting job execution with ${testScripts.length} tests.`);
 

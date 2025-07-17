@@ -3,7 +3,7 @@ import { RunsClient } from "@/components/runs/runs-client";
 import { Card, CardContent } from "@/components/ui/card";
 
 
-export default function RunsPage() {
+export default async function RunsPage() {
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Runs", isCurrentPage: true },

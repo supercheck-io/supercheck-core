@@ -196,6 +196,7 @@ function RunButton({ job }: { job: Job }) {
         body: JSON.stringify({
           jobId: job.id,
           tests: testData,
+          trigger: "manual", // Add trigger value
         }),
         cache: "no-store",
       });

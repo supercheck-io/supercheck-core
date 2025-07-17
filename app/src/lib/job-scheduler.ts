@@ -1,6 +1,7 @@
 import { Job } from 'bullmq';
 import { db } from "@/utils/db";
 import { jobs, jobTests, runs, testsSelectSchema, type jobsSelectSchema } from "@/db/schema/schema";
+import { JobTrigger } from "@/db/schema/schema";
 import { eq, isNotNull, and } from "drizzle-orm";
 import { getQueues, JobExecutionTask, JOB_EXECUTION_QUEUE, JOB_SCHEDULER_QUEUE } from "./queue";
 import crypto from "crypto";
@@ -163,6 +164,7 @@ export async function handleScheduledJobTrigger(job: Job) {
         jobId: jobId,
         status: "running", // Using direct value matching TestRunStatus from schema
         startedAt: new Date(),
+        trigger: "schedule" as JobTrigger,
       });
     
     console.log(`Created run record ${runId} for scheduled job ${jobId}`);
@@ -208,7 +210,8 @@ export async function handleScheduledJobTrigger(job: Job) {
         id: test.id,
         script: test.script,
         name: test.title
-      }))
+      })),
+      trigger: 'schedule'
     };
     
     // Add task to the execution queue - always use runId as both job name and ID

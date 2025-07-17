@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { jobs, runs, JobStatus } from "@/db/schema/schema";
+import { runs, JobTrigger } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
@@ -13,6 +13,16 @@ export async function POST(request: Request) {
     const data = await request.json();
     jobId = data.jobId as string;
     const tests = data.tests;
+    const trigger = data.trigger as JobTrigger; // Get trigger from request body
+    
+    // Validate trigger value
+    if (!trigger || !['manual', 'remote', 'schedule'].includes(trigger)) {
+      console.error("Invalid trigger value:", trigger);
+      return NextResponse.json(
+        { error: "Invalid trigger value. Must be one of 'manual', 'remote', or 'schedule'." },
+        { status: 400 }
+      );
+    }
 
     console.log(`Received job execution request:`, { jobId, testCount: tests?.length });
     
@@ -32,6 +42,7 @@ export async function POST(request: Request) {
       jobId,
       status: "running",
       startedAt: startTime,
+      trigger, // Include trigger value
     });
 
     console.log(`[${jobId}/${runId}] Created running test run record: ${runId}`);
@@ -72,7 +83,8 @@ export async function POST(request: Request) {
       jobId: jobId,
       testScripts,
       runId: runId,
-      originalJobId: jobId
+      originalJobId: jobId,
+      trigger: trigger
     };
 
     try {
