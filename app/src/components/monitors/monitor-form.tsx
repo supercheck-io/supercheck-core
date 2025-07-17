@@ -27,8 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { monitorTypes } from "./data";
-import { Loader2, SaveIcon, ChevronDown, ChevronRight, Info, RefreshCw, Network, Globe, Activity, Shield, LaptopMinimal } from "lucide-react";
+import { Loader2, SaveIcon, ChevronDown, ChevronRight, Shield } from "lucide-react";
 import { AlertSettings } from "@/components/alerts/alert-settings";
+import { MonitorTypesPopover } from "./monitor-types-popover";
 
 import {
   Card,
@@ -42,14 +43,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  TooltipProvider,
-} from "@/components/ui/tooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
 // Define presets for Expected Status Codes
@@ -181,7 +174,6 @@ interface MonitorFormProps {
   initialData?: FormValues;
   editMode?: boolean;
   id?: string;
-  hideTypeSelector?: boolean;
   monitorType?: FormValues["type"];
   title?: string;
   description?: string;
@@ -195,7 +187,6 @@ export function MonitorForm({
   initialData, 
   editMode = false, 
   id, 
-  hideTypeSelector = false,
   monitorType,
   title,
   description,
@@ -644,33 +635,7 @@ export function MonitorForm({
                 )
               ))}
               <CardTitle className="text-2xl font-semibold">{title || (editMode ? "Edit Monitor" : "Create Monitor")}</CardTitle>
-              {hideTypeSelector && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-96 mt-2" side="right" sideOffset={8}>
-                    <div>
-                      <h4 className="font-semibold text-sm mb-3 text-foreground">Uptime Monitor Types</h4>
-                      <div className="space-y-3">
-                        {monitorTypes.map((type) => (
-                          <div key={type.value} className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                            {type.icon && (
-                              <type.icon className={`h-4 w-4 ${type.color} mt-0.5 flex-shrink-0`} />
-                            )}
-                            <div>
-                              <p className="font-medium text-sm">{type.label}</p>
-                              <p className="text-xs text-muted-foreground">{type.description}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
+              <MonitorTypesPopover />
             </div>
             <CardDescription className="mt-1">
               {description || (editMode ? "Update monitor configuration" : "Configure a new uptime monitor")}
@@ -724,96 +689,6 @@ export function MonitorForm({
 
                 {/* Right column */}
                 <div className="space-y-4">
-                  {!hideTypeSelector && (
-                    <FormField
-                      control={form.control}
-                      name="type"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="flex items-center">
-                            <FormLabel>Check Type</FormLabel>
-                            <TooltipProvider>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="ghost" size="sm" className="ml-2 h-6 w-6 p-0">
-                                  <Info className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-96 p-0" side="right" sideOffset={8}>
-                                <div className="p-4">
-                                  <h4 className="font-semibold text-sm mb-3 text-foreground">Uptime Monitor Types</h4>
-                                                                     <div className="space-y-3">
-                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                       <Globe className="h-4 w-4 text-cyan-600 mt-0.5 flex-shrink-0" />
-                                       <div>
-                                         <p className="font-medium text-sm">HTTP Monitor</p>
-                                         <p className="text-xs text-muted-foreground">Monitors web pages and API endpoints for availability, status codes, and response content validation.</p>
-                                       </div>
-                                     </div>
-                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                       <LaptopMinimal className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                                       <div>
-                                         <p className="font-medium text-sm">Website Monitor</p>
-                                         <p className="text-xs text-muted-foreground">Simple website monitoring with GET requests to check availability and response times.</p>
-                                       </div>
-                                     </div>
-                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                       <RefreshCw className="h-4 w-4 text-sky-500 mt-0.5 flex-shrink-0" />
-                                       <div>
-                                         <p className="font-medium text-sm">Ping Monitor</p>
-                                         <p className="text-xs text-muted-foreground">Sends ICMP ping packets to verify basic network connectivity and measure response times.</p>
-                                       </div>
-                                     </div>
-                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                       <Network className="h-4 w-4 text-teal-600 mt-0.5 flex-shrink-0" />
-                                       <div>
-                                         <p className="font-medium text-sm">Port Monitor</p>
-                                         <p className="text-xs text-muted-foreground">Tests TCP/UDP port availability and connectivity to ensure services are accessible.</p>
-                                       </div>
-                                     </div>
-                                     <div className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                                       <Activity className="h-4 w-4 text-blue-300 mt-0.5 flex-shrink-0" />
-                                       <div>
-                                         <p className="font-medium text-sm">Heartbeat Monitor</p>
-                                         <p className="text-xs text-muted-foreground">Passive monitoring that expects regular pings from your services, scripts, or cron jobs.</p>
-                                       </div>
-                                     </div>
-                                   </div>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          </TooltipProvider>
-                        </div>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a check type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {monitorTypes
-                              .map((monitorType) => (
-                                <SelectItem key={monitorType.value} value={monitorType.value}>
-                                  <div className="flex items-center">
-                                    {monitorType.icon && (
-                                      <monitorType.icon className={`mr-2 h-4 w-4 ${monitorType.color}`} />
-                                    )}
-                                    <span>{monitorType.label}</span>
-                                  </div>
-                                </SelectItem>
-                              ))
-                            }
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  )}
-
                   {/* Interval field - heartbeat monitors use this for checking missed pings */}
                   <FormField
                     control={form.control}
@@ -852,19 +727,6 @@ export function MonitorForm({
                       </FormItem>
                     )}
                   />
-                  
-                  {/* Show note for heartbeat monitors */}
-                  {/* {type === "heartbeat" && (
-                    <div className="border border-light-200 rounded-lg p-3">
-                      <div className="flex items-center space-x-2">
-                        <Activity className="h-4 w-4 text-blue-300" />
-                        <span className="text-sm font-medium">Heartbeat Monitoring</span>
-                      </div>
-                      <p className="text-xs">
-                        Heartbeat monitors check for missed pings from your services. Set check interval shorter than expected ping interval.
-                      </p>
-                    </div>
-                  )} */}
                 </div>
               </div>
 

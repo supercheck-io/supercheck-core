@@ -101,7 +101,6 @@ export function MonitorCreationWizard() {
           onSave={handleMonitorNext}
           onCancel={handleCancel}
           hideAlerts={true}
-          hideTypeSelector={true}
           monitorType={type as any}
           title={` ${typeLabel} Monitor`}
           description="Configure a new uptime monitor"

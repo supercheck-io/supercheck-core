@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, Plus } from "lucide-react"
+import { ChevronsUpDown, Plus, Search } from "lucide-react"
+import { CheckIcon } from "@/components/logo/supercheck-logo"
 
 import {
   DropdownMenu,
@@ -18,34 +19,84 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { Input } from "@/components/ui/input"
+import { useRef, useEffect } from "react"
 
 export function ProjectSwitcher({
   projects,
 }: {
   projects: {
     name: string
-    logo: React.ElementType
-    plan: string
   }[]
 }) {
   const { isMobile } = useSidebar()
   const [activeProject, setActiveProject] = React.useState(projects[0])
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [isOpen, setIsOpen] = React.useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Filter projects based on search query
+  const filteredProjects = projects.filter(project =>
+    project.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  // Reset search when dropdown closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery("")
+    }
+  }, [isOpen])
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open)
+    if (open) {
+      // Focus the search input after the dropdown is rendered
+      setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 50)
+    }
+  }
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setSearchQuery(e.target.value)
+  }
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setIsOpen(false)
+    } else if (e.key === "Enter") {
+      e.preventDefault()
+      // Select the first filtered project if available
+      if (filteredProjects.length > 0) {
+        handleProjectSelect(filteredProjects[0])
+      }
+    }
+    // Prevent dropdown from closing on other key presses
+    e.stopPropagation()
+  }
+
+  const handleProjectSelect = (project: typeof projects[0]) => {
+    setActiveProject(project)
+    setIsOpen(false)
+  }
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:ml-2.5"
             >
               <div className="text-foreground flex items-center justify-center">
-                <activeProject.logo className="size-7" />
+                <CheckIcon className="size-7" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{activeProject.name}</span>
-                <span className="truncate text-xs">{activeProject.plan}</span>
+                <span className="truncate font-medium">Supercheck</span>
+                <span className="truncate text-xs">{activeProject.name}</span>
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>
@@ -59,18 +110,48 @@ export function ProjectSwitcher({
             <DropdownMenuLabel className="text-muted-foreground text-xs">
               Projects
             </DropdownMenuLabel>
-            {projects.map((project, index) => (
-              <DropdownMenuItem
-                key={project.name}
-                onClick={() => setActiveProject(project)}
-                className="gap-2 p-2"
-              >
-                {project.name}
-                <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
-              </DropdownMenuItem>
-            ))}
+            
+            {/* Search Bar */}
+            <div className="px-2 py-1.5" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  ref={searchInputRef}
+                  placeholder="Search projects..."
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  onKeyDown={handleSearchKeyDown}
+                  className="h-8 pl-8 text-xs"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+
+            {/* Project List */}
+            <div className="max-h-48 overflow-y-auto">
+              {filteredProjects.map((project, index) => (
+                <DropdownMenuItem
+                  key={project.name}
+                  onClick={() => handleProjectSelect(project)}
+                  className="gap-2 p-2"
+                >
+                  {project.name}
+                  <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+                </DropdownMenuItem>
+              ))}
+              {filteredProjects.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground text-center">
+                  No projects found
+                </div>
+              )}
+            </div>
+
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 p-2">
+            <DropdownMenuItem 
+              className="gap-2 p-2"
+              onClick={() => setIsOpen(false)}
+            >
               <div className="bg-background flex size-6 items-center justify-center rounded-md border">
                 <Plus className="size-4" />
               </div>

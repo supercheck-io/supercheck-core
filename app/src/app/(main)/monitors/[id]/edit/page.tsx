@@ -129,7 +129,6 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
         initialData={formData} 
         editMode={true} 
         id={id}
-        hideTypeSelector={true}
         monitorType={formType}
         title={`Edit ${monitorTypeInfo?.label || 'Monitor'}`}
         description={`Update ${monitor.name} configuration`}

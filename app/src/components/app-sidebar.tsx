@@ -62,21 +62,15 @@ const data = {
     email: "m@example.com",
     avatar: "https://ui-avatars.com/api/?name=Test+User&background=random",
   },
-  teams: [
+  projects: [
     {
-      name: "Supercheck", 
-      logo: CheckIcon,
-      plan: "MPT",
+      name: "MPT",
     },
     {
-      name: "Test Team 1",
-      logo: CheckIcon,
-      plan: "Startup",
+      name: "FXH",
     },
     {
-      name: "Test Team 2",
-      logo: CheckIcon,
-      plan: "Enterprise",
+      name: "BWI",
     },
   ], 
 
@@ -248,7 +242,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="group-data-[collapsible=icon]:px-0">
-        <ProjectSwitcher projects={data.teams} />
+        <ProjectSwitcher projects={data.projects} />
         {/* <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
           <LogoToDisplay className="h-7 w-7 flex-shrink-0" /> 
           <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
