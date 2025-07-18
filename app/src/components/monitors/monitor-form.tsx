@@ -44,6 +44,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
+import { formatDurationMinutes } from "@/lib/date-utils";
 
 // Define presets for Expected Status Codes
 const statusCodePresets = [
@@ -68,7 +69,7 @@ const checkIntervalOptions = [
 
 // Create schema for the form with conditional validation
 const formSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().min(10, "Name must be at least 10 characters"),
   target: z.string().optional(),
   type: z.enum(["http_request", "website", "ping_host", "port_check", "heartbeat"], {
     required_error: "Please select a check type",
@@ -88,14 +89,14 @@ const formSchema = z.object({
   httpConfig_authPassword: z.string().optional(),
   httpConfig_authToken: z.string().optional(),
   // Port Check specific
-  portConfig_port: z.coerce.number().int().min(1).max(65535).optional(),
+  portConfig_port: z.coerce.number().int().min(1, "Port must be at least 1").max(65535, "Port must be 65535 or less").optional(),
   portConfig_protocol: z.enum(["tcp", "udp"]).optional(),
   // Heartbeat specific
-  heartbeatConfig_expectedInterval: z.coerce.number().int().min(1).max(10080).optional(), // 1 minute to 1 week
-  heartbeatConfig_gracePeriod: z.coerce.number().int().min(1).max(1440).optional(), // 1 minute to 1 day
+  heartbeatConfig_expectedInterval: z.coerce.number().int().min(1, "Expected interval must be at least 1 minute").max(10080, "Expected interval must be 1 week or less").optional(), // 1 minute to 1 week
+  heartbeatConfig_gracePeriod: z.coerce.number().int().min(1, "Grace period must be at least 1 minute").max(1440, "Grace period must be 1 day or less").optional(), // 1 minute to 1 day
   // Website SSL checking
   websiteConfig_enableSslCheck: z.boolean().optional(),
-  websiteConfig_sslDaysUntilExpirationWarning: z.coerce.number().int().min(1).max(365).optional(), // 1 day to 1 year
+  websiteConfig_sslDaysUntilExpirationWarning: z.coerce.number().int().min(1, "SSL warning days must be at least 1").max(365, "SSL warning days must be 365 or less").optional(), // 1 day to 1 year
 }).superRefine((data, ctx) => {
   // Target is required for all monitor types except heartbeat
   if (data.type !== "heartbeat" && (!data.target || data.target.trim() === "")) {
@@ -474,13 +475,17 @@ export function MonitorForm({
       // For heartbeat monitors, target is the unique token
       apiData.target = heartbeatToken;
       
-      // Heartbeat monitors use check interval to detect missed pings
-      // This should be more frequent than the expected ping interval
-      apiData.frequencyMinutes = Math.round(parseInt(data.interval, 10) / 60);
+      // Heartbeat monitors should check at expected interval + grace period
+      // This ensures they only check when a ping could actually be overdue
+      const expectedIntervalMinutes = data.heartbeatConfig_expectedInterval || 60;
+      const gracePeriodMinutes = data.heartbeatConfig_gracePeriod || 10;
+      const checkFrequencyMinutes = expectedIntervalMinutes + gracePeriodMinutes;
+      
+      apiData.frequencyMinutes = checkFrequencyMinutes;
       
       apiData.config = {
-        expectedIntervalMinutes: data.heartbeatConfig_expectedInterval || 60,
-        gracePeriodMinutes: data.heartbeatConfig_gracePeriod || 10,
+        expectedIntervalMinutes: expectedIntervalMinutes,
+        gracePeriodMinutes: gracePeriodMinutes,
         heartbeatUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${heartbeatToken}`,
         // Add check type to distinguish heartbeat checking logic
         checkType: 'heartbeat_missed_ping',
@@ -689,44 +694,60 @@ export function MonitorForm({
 
                 {/* Right column */}
                 <div className="space-y-4">
-                  {/* Interval field - heartbeat monitors use this for checking missed pings */}
-                  <FormField
-                    control={form.control}
-                    name="interval"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {type === "heartbeat" ? "Check for Missed Pings" : "Check Interval"}
-                        </FormLabel>
-                        <div className="md:w-40">
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select interval" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {checkIntervalOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                  {/* Interval field - not shown for heartbeat monitors */}
+                  {type !== "heartbeat" && (
+                    <FormField
+                      control={form.control}
+                      name="interval"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Check Interval</FormLabel>
+                          <div className="md:w-40">
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select interval" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {checkIntervalOptions.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <FormDescription>
+                            How often to run the check
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* Check frequency display for heartbeat monitors */}
+                  {type === "heartbeat" && (
+                    <div className="space-y-2">
+                      <FormLabel>Check Frequency</FormLabel>
+                      <div className="bg-muted/30 p-3 rounded-lg">
+                        <div className="text-sm text-muted-foreground">
+                                                      <p>
+                              This monitor will check every <strong className="text-foreground">
+                                {formatDurationMinutes((form.watch("heartbeatConfig_expectedInterval") || 60) + (form.watch("heartbeatConfig_gracePeriod") || 10))}
+                              </strong> for missed pings.
+                            </p>
+                          <p className="text-xs mt-1">
+                            (Expected interval: {form.watch("heartbeatConfig_expectedInterval") || 60} min + Grace period: {form.watch("heartbeatConfig_gracePeriod") || 10} min)
+                          </p>
                         </div>
-                        <FormDescription>
-                          {type === "heartbeat" 
-                            ? "How often to check for missed pings (should be more frequent than expected interval)"
-                            : "How often to run the check"
-                          }
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1157,8 +1178,8 @@ export function MonitorForm({
                                     <Input
                                       type="number"
                                       placeholder="30"
-                                      min="1"
-                                      max="365"
+        
+        
                                       className="w-16 h-7 text-xs"
                                       {...field}
                                       onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
@@ -1355,8 +1376,6 @@ export function MonitorForm({
                           <FormControl>
                             <Input
                               type="number"
-                              min={1}
-                              max={10080}
                               placeholder="60"
                               {...field}
                               onChange={(e) => {
@@ -1386,8 +1405,6 @@ export function MonitorForm({
                           <FormControl>
                             <Input
                               type="number"
-                              min={1}
-                              max={1440}
                               placeholder="10"
                               {...field}
                               onChange={(e) => {
@@ -1409,13 +1426,28 @@ export function MonitorForm({
                     />
                   </div>
 
+                  {/* Display calculated check frequency */}
+                  <div className="bg-muted/30 p-4 rounded-lg">
+                    <h4 className="font-medium text-sm mb-2">Check Frequency:</h4>
+                    <div className="text-xs text-muted-foreground space-y-2">
+                                              <p>
+                          This monitor will check every <strong>
+                            {formatDurationMinutes((form.watch("heartbeatConfig_expectedInterval") || 60) + (form.watch("heartbeatConfig_gracePeriod") || 10))}
+                          </strong> for missed pings.
+                        </p>
+                      <p className="text-xs">
+                        (Expected interval: {form.watch("heartbeatConfig_expectedInterval") || 60} min + Grace period: {form.watch("heartbeatConfig_gracePeriod") || 10} min)
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="bg-muted/30 p-4 rounded-lg">
                     <h4 className="font-medium text-sm mb-2">How to use this heartbeat:</h4>
                     <div className="text-xs text-muted-foreground space-y-2">
                       <p>1. Create this monitor to get a unique heartbeat URL</p>
                       <p>2. Send GET or POST requests to the URL from your service/script</p>
                       <p>3. If no ping is received within the expected interval + grace period, the monitor will be marked as down</p>
-                      <p className="font-medium">Example: <code className="bg-background px-1 rounded">curl https://yourapp.com/api/heartbeat/YOUR_TOKEN</code></p>
+                                              <p className="font-medium">Example: <code className="bg-background px-1 rounded">curl {process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/YOUR_TOKEN</code></p>
                     </div>
                   </div>
                 </div>
@@ -1434,8 +1466,6 @@ export function MonitorForm({
                           <FormControl>
                             <Input
                               type="number"
-                              min={1}
-                              max={65535}
                               placeholder="443"
                               {...field}
                               onChange={(e) => {

@@ -421,6 +421,7 @@ export const monitors = pgTable("monitors", {
   lastCheckAt: timestamp("last_check_at"),
   lastStatusChangeAt: timestamp("last_status_change_at"),
   mutedUntil: timestamp("muted_until"),
+  scheduledJobId: varchar("scheduled_job_id", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

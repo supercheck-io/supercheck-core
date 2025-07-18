@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1751975633888,
-      "tag": "0000_curious_sugar_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1752268632477,
-      "tag": "0001_silent_blazing_skull",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1752750353667,
-      "tag": "0002_complete_reaper",
+      "when": 1752784870387,
+      "tag": "0000_cynical_rage",
       "breakpoints": true
     }
   ]

@@ -1,6 +1,5 @@
 export const JOB_SCHEDULER_QUEUE = 'job-scheduler';
 export const MONITOR_SCHEDULER_QUEUE = 'monitor-scheduler';
-export const HEARTBEAT_CHECKER_QUEUE = 'heartbeat-checker';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
 export const MONITOR_EXECUTION_QUEUE = 'monitor-execution';
 

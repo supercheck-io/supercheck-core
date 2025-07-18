@@ -1,207 +1,219 @@
 import { Job } from 'bullmq';
-import { db } from "@/utils/db"; // Your DB instance
-import { monitors as monitorSchemaDb } from "@/db/schema/schema"; // Monitor schema from your app
+import { db } from "@/utils/db";
+import { monitors as monitorSchemaDb } from "@/db/schema/schema";
 import { eq, isNotNull, and } from "drizzle-orm";
-import { getQueues, MonitorJobData, MONITOR_SCHEDULER_QUEUE, HEARTBEAT_CHECKER_QUEUE } from "./queue";
-import { HeartbeatService } from "./heartbeat-service";
-
-// --- Constants ---
-const MONITOR_SCHEDULER_JOB_PREFIX = "scheduled-monitor-";
-const HEARTBEAT_CHECKER_JOB_NAME = "check-missed-heartbeats";
-
-// --- Scheduling Functions ---
+import { getQueues, MonitorJobData, MONITOR_SCHEDULER_QUEUE } from "./queue";
 
 interface ScheduleMonitorOptions {
   monitorId: string;
   frequencyMinutes: number;
-  jobData: MonitorJobData; // This will be the payload for the EXECUTION queue
+  jobData: MonitorJobData;
+  retryLimit?: number;
 }
 
-export async function scheduleMonitorCheck(options: ScheduleMonitorOptions): Promise<string> {
-  if (options.frequencyMinutes <= 0) {
-    console.warn(`[Monitor Scheduler] Invalid frequencyMinutes (${options.frequencyMinutes}) for monitor ${options.monitorId}. Skipping scheduling.`);
-    // Remove any existing schedule if frequency is set to 0 or less
-    await removeScheduledMonitorCheck(options.monitorId);
-    return options.monitorId;
-  }
-
-  const { monitorSchedulerQueue } = await getQueues();
-  const jobName = `${MONITOR_SCHEDULER_JOB_PREFIX}${options.monitorId}`;
-  const intervalMs = options.frequencyMinutes * 60 * 1000;
-
-  console.log(`[Monitor Scheduler] Scheduling monitor ${options.monitorId} to run every ${options.frequencyMinutes} minutes (${intervalMs}ms). Job name: ${jobName}`);
-
-  // Remove any existing schedule first to prevent duplicates
-  await removeScheduledMonitorCheck(options.monitorId);
-
-  // Schedule the repeatable job
-  await monitorSchedulerQueue.add(jobName, options.jobData, {
-    repeat: {
-      every: intervalMs,
-    },
-    jobId: jobName, // Explicitly set BullMQ job ID to our unique name
-    removeOnComplete: true, // The trigger job itself can be removed once it fires & dispatches
-    removeOnFail: 100,
-  });
-  
-  console.log(`[Monitor Scheduler] Monitor ${options.monitorId} scheduled successfully with ${options.frequencyMinutes}min interval.`);
-  return options.monitorId;
-}
-
-export async function removeScheduledMonitorCheck(monitorId: string): Promise<boolean> {
+/**
+ * Creates or updates a monitor scheduler using BullMQ
+ */
+export async function scheduleMonitor(options: ScheduleMonitorOptions): Promise<string> {
   try {
+    console.log(`Setting up scheduled monitor "${options.monitorId}" with frequency ${options.frequencyMinutes} minutes`);
+
     const { monitorSchedulerQueue } = await getQueues();
-    const jobName = `${MONITOR_SCHEDULER_JOB_PREFIX}${monitorId}`;
-    
-    console.log(`[Monitor Scheduler] Attempting to remove scheduled check for monitor ${monitorId} (Job name: ${jobName})`);
-    
+    const schedulerJobName = `scheduled-monitor-${options.monitorId}`;
+
+    // Clean up any existing repeatable jobs for this monitor ID
     const repeatableJobs = await monitorSchedulerQueue.getRepeatableJobs();
-    console.log(`[Monitor Scheduler] Found ${repeatableJobs.length} repeatable jobs`);
+    const existingJob = repeatableJobs.find(job => 
+      job.id === options.monitorId || 
+      job.key.includes(options.monitorId) || 
+      job.name === schedulerJobName
+    );
     
-    // Log all repeatable jobs for debugging
-    repeatableJobs.forEach(job => {
-      console.log(`[Monitor Scheduler] Repeatable job - ID: ${job.id}, Name: ${job.name}, Key: ${job.key}`);
-    });
-    
-    // Find jobs that match our monitor ID (more flexible matching)
-    const jobsToRemove = repeatableJobs.filter(job => 
-      job.id === jobName || 
-      job.name === jobName ||
-      job.key.includes(monitorId) ||
-      job.key.includes(jobName)
+    if (existingJob) {
+      console.log(`Removing existing repeatable job: ${existingJob.key}`);
+      await monitorSchedulerQueue.removeRepeatableByKey(existingJob.key);
+    }
+
+    // Create a repeatable job that follows the frequency schedule
+    await monitorSchedulerQueue.add(
+      schedulerJobName,
+      {
+        monitorId: options.monitorId,
+        jobData: options.jobData,
+        frequencyMinutes: options.frequencyMinutes,
+        retryLimit: options.retryLimit || 3,
+      },
+      {
+        repeat: {
+          every: options.frequencyMinutes * 60 * 1000, // Convert to milliseconds
+        },
+        removeOnComplete: true,
+        removeOnFail: 100,
+        jobId: schedulerJobName,
+      }
     );
 
+    console.log(`Created monitor scheduler ${options.monitorId} with frequency ${options.frequencyMinutes} minutes`);
+    return options.monitorId;
+  } catch (error) {
+    console.error(`Failed to schedule monitor:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Deletes a monitor scheduler
+ */
+export async function deleteScheduledMonitor(schedulerId: string): Promise<boolean> {
+  try {
+    console.log(`Removing monitor scheduler ${schedulerId}`);
+    
+    const { monitorSchedulerQueue } = await getQueues();
+    const repeatableJobs = await monitorSchedulerQueue.getRepeatableJobs();
+    const schedulerJobName = `scheduled-monitor-${schedulerId}`;
+
+    const jobsToRemove = repeatableJobs.filter(job => 
+      job.id === schedulerId || 
+      job.key.includes(schedulerId) ||
+      job.name === schedulerJobName ||
+      job.key.includes(schedulerJobName)
+    );
+    
     if (jobsToRemove.length > 0) {
-        console.log(`[Monitor Scheduler] Found ${jobsToRemove.length} jobs to remove for monitor ${monitorId}`);
-        let removedCount = 0;
-        
-        for (const job of jobsToRemove) {
-            console.log(`[Monitor Scheduler] Removing job with key: ${job.key}`);
-            const removed = await monitorSchedulerQueue.removeRepeatableByKey(job.key);
-            if (removed) {
-                removedCount++;
-                console.log(`[Monitor Scheduler] Successfully removed job with key: ${job.key}`);
-            } else {
-                console.warn(`[Monitor Scheduler] Failed to remove job with key: ${job.key}`);
-            }
-        }
-        
-        return removedCount > 0;
+      const removePromises = jobsToRemove.map(async (job) => {
+        console.log(`Removing repeatable job with key ${job.key}`);
+        return monitorSchedulerQueue.removeRepeatableByKey(job.key);
+      });
+      
+      await Promise.all(removePromises);
+      console.log(`Removed ${jobsToRemove.length} repeatable jobs for scheduler ${schedulerId}`);
+      return true;
     } else {
-        console.log(`[Monitor Scheduler] No scheduled check found for monitor ${monitorId} to remove.`);
-        return false;
+      console.log(`No repeatable jobs found for scheduler ${schedulerId}`);
+      return false;
     }
   } catch (error) {
-    console.error(`[Monitor Scheduler] Failed to remove scheduled check for monitor ${monitorId}:`, error);
+    console.error(`Failed to delete scheduled monitor:`, error);
     return false;
   }
 }
 
+/**
+ * Initializes monitor schedulers for all monitors with frequency
+ * Called on application startup
+ */
 export async function initializeMonitorSchedulers(): Promise<{ success: boolean; scheduled: number; failed: number }> {
-  console.log("[Monitor Scheduler] Initializing monitor schedulers...");
-
-  let scheduledCount = 0;
-  let failedCount = 0;
-
   try {
+    console.log("Initializing monitor schedulers...");
+    
     const activeMonitors = await db
       .select()
       .from(monitorSchemaDb)
       .where(and(
         isNotNull(monitorSchemaDb.frequencyMinutes), 
         eq(monitorSchemaDb.enabled, true)
-      )); // Schedule all enabled monitors regardless of current status
-
-    console.log(`[Monitor Scheduler] Found ${activeMonitors.length} active monitors with frequency to schedule.`);
-
+      ));
+      
+    console.log(`Found ${activeMonitors.length} active monitors to initialize`);
+    
+    let scheduledCount = 0;
+    let failedCount = 0;
+    
     for (const monitor of activeMonitors) {
       if (monitor.frequencyMinutes && monitor.frequencyMinutes > 0) {
         try {
           // Skip heartbeat monitors - they are handled by the separate heartbeat checker
           if (monitor.type === 'heartbeat') {
-            console.log(`[Monitor Scheduler] Skipping heartbeat monitor ${monitor.id} - handled by heartbeat checker`);
+            console.log(`Skipping heartbeat monitor ${monitor.id} - handled by heartbeat checker`);
             continue;
           }
 
-          // Prepare the MonitorJobData payload
           const jobDataPayload: MonitorJobData = {
             monitorId: monitor.id,
-            type: monitor.type as MonitorJobData['type'], // Ensure type compatibility
+            type: monitor.type as MonitorJobData['type'],
             target: monitor.target,
-            config: monitor.config as any, // Cast config, ensure it matches runner's DTO expectations
+            config: monitor.config as any,
             frequencyMinutes: monitor.frequencyMinutes,
           };
 
-          await scheduleMonitorCheck({
+          const schedulerId = await scheduleMonitor({
             monitorId: monitor.id,
             frequencyMinutes: monitor.frequencyMinutes,
             jobData: jobDataPayload,
+            retryLimit: 3
           });
+          
+          // Update the monitor with the scheduler ID (like jobs do)
+          await db
+            .update(monitorSchemaDb)
+            .set({ scheduledJobId: schedulerId })
+            .where(eq(monitorSchemaDb.id, monitor.id));
+            
+          console.log(`Initialized monitor scheduler ${schedulerId} for monitor ${monitor.id}`);
           scheduledCount++;
         } catch (error) {
-          console.error(`[Monitor Scheduler] Failed to schedule monitor ${monitor.id}:`, error);
+          console.error(`Failed to initialize scheduler for monitor ${monitor.id}:`, error);
           failedCount++;
         }
       }
     }
-
-    // Initialize heartbeat checker for passive monitoring
-    await initializeHeartbeatChecker();
-
-    console.log(`[Monitor Scheduler] Initialization complete: ${scheduledCount} succeeded, ${failedCount} failed.`);
+    
+    console.log(`Monitor scheduler initialization complete: ${scheduledCount} succeeded, ${failedCount} failed`);
     return { success: true, scheduled: scheduledCount, failed: failedCount };
   } catch (error) {
-    console.error("[Monitor Scheduler] Failed to initialize monitor schedulers:", error);
+    console.error(`Failed to initialize monitor schedulers:`, error);
     return { success: false, scheduled: 0, failed: 0 };
   }
 }
 
-// --- Heartbeat Checker Functions ---
-
-export async function initializeHeartbeatChecker(): Promise<void> {
-  console.log("[Heartbeat Checker] Initializing heartbeat checker...");
-  
-  const { heartbeatCheckerQueue } = await getQueues();
-
-  // Dynamically determine the minimum check interval required by any heartbeat monitor
-  const heartbeatMonitors = await db
-    .select()
-    .from(monitorSchemaDb)
-    .where(eq(monitorSchemaDb.type, "heartbeat"));
-
-  let minCheckInterval = 5 * 60 * 1000; // Default 5 minutes
-  if (heartbeatMonitors.length > 0) {
-    // Find the minimum interval in minutes among all heartbeat monitors
-    const minMonitorInterval = heartbeatMonitors.reduce((min, monitor) => {
-      const config = monitor.config as any;
-      // Use 1 as fallback if not set
-      const expected = config?.expectedIntervalMinutes || 1;
-      const grace = config?.gracePeriodMinutes || 1;
-      // The check interval should be less than or equal to expected+grace
-      // But we want to check as frequently as the most frequent monitor
-      return Math.min(min, expected, grace);
-    }, 5);
-    minCheckInterval = Math.max(1, minMonitorInterval) * 60 * 1000;
-  }
-
-  console.log(`[Heartbeat Checker] Scheduling heartbeat checker every ${minCheckInterval / 60000} minute(s)`);
-
-  await heartbeatCheckerQueue.add(HEARTBEAT_CHECKER_JOB_NAME, { checkIntervalMinutes: minCheckInterval / 60000 }, {
-    repeat: {
-      every: minCheckInterval,
-    },
-    jobId: HEARTBEAT_CHECKER_JOB_NAME,
-    removeOnComplete: true,
-    removeOnFail: 100,
-  });
-
-  console.log(`[Heartbeat Checker] Heartbeat checker scheduled to run every ${minCheckInterval / 60000} minute(s)`);
-}
-
 /**
  * Cleanup function to close all monitor scheduler queues and workers.
+ * Should be called when shutting down the application
  */
-export async function cleanupMonitorScheduler(): Promise<void> {
-  console.log("[Monitor Scheduler] Cleaning up...");
-  console.log("[Monitor Scheduler] Cleanup complete.");
+export async function cleanupMonitorScheduler(): Promise<boolean> {
+  try {
+    console.log("Cleaning up monitor scheduler...");
+    
+    const { monitorSchedulerQueue } = await getQueues();
+    const repeatableJobs = await monitorSchedulerQueue.getRepeatableJobs();
+    console.log(`Found ${repeatableJobs.length} repeatable jobs in Redis`);
+    
+    // Get all monitors with schedules from the database
+    const monitorsWithSchedules = await db
+      .select({ id: monitorSchemaDb.id, scheduledJobId: monitorSchemaDb.scheduledJobId })
+      .from(monitorSchemaDb)
+      .where(isNotNull(monitorSchemaDb.scheduledJobId));
+    
+    const validMonitorIds = new Set(monitorsWithSchedules.map(m => m.id));
+    const validSchedulerIds = new Set(monitorsWithSchedules.map(m => m.scheduledJobId).filter(Boolean));
+    
+    // Find orphaned jobs
+    const orphanedJobs = repeatableJobs.filter(job => {
+      const monitorIdMatch = job.name?.match(/scheduled-monitor-([0-9a-f-]+)/);
+      const monitorId = monitorIdMatch ? monitorIdMatch[1] : null;
+      
+      return (!monitorId || !validMonitorIds.has(monitorId)) && 
+             (!job.id || !validSchedulerIds.has(job.id as string));
+    });
+    
+    if (orphanedJobs.length > 0) {
+      console.log(`Found ${orphanedJobs.length} orphaned repeatable jobs to clean up`);
+      
+      const removePromises = orphanedJobs.map(async (job) => {
+        console.log(`Removing orphaned repeatable job: ${job.key}`);
+        return monitorSchedulerQueue.removeRepeatableByKey(job.key);
+      });
+      
+      await Promise.all(removePromises);
+      console.log(`Removed ${orphanedJobs.length} orphaned repeatable jobs`);
+    } else {
+      console.log("No orphaned repeatable jobs found");
+    }
+    
+    console.log("Monitor scheduler cleanup complete");
+    return true;
+  } catch (error) {
+    console.error("Failed to cleanup monitor scheduler:", error);
+    return false;
+  }
 }

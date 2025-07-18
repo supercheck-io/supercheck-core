@@ -14,6 +14,7 @@ import { useState } from "react";
 
 import { MonitorStatusIndicator } from "./monitor-status-indicator";
 import { monitorTypes } from "./data";
+import { formatDurationMinutes } from "@/lib/date-utils";
 
 // Type definition for the extended meta object used in this table
 interface MonitorTableMeta {
@@ -127,7 +128,7 @@ export const columns: ColumnDef<Monitor>[] = [
           displayUrl = heartbeatUrl;
         } else {
           // Fallback: construct URL from target token
-          const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
           displayUrl = `${baseUrl}/api/heartbeat/${target}`;
         }
         
@@ -239,9 +240,7 @@ export const columns: ColumnDef<Monitor>[] = [
       const frequencyMinutes = row.getValue("frequencyMinutes") as number;
       
       // Format interval to be readable (i.e. 1 -> 1m, 60 -> 1h)
-      const formatted = frequencyMinutes < 60 
-        ? `${frequencyMinutes}m` 
-        : `${Math.floor(frequencyMinutes / 60)}h`;
+      const formatted = formatDurationMinutes(frequencyMinutes);
 
       return (
         <div className="flex items-center w-[80px]">

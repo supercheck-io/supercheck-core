@@ -4,7 +4,7 @@ This document outlines the architecture of the background job processing system 
 
 ## I. Active Monitor Scheduling & Execution
 
-This system is used for monitors that actively check a target, such as HTTP, Ping, and Port checks. It is designed for heterogeneous scheduling, where each monitor can have a unique frequency.
+This system is used for monitors that actively check a target, such as HTTP, Ping, Port, and Heartbeat checks. It is designed for heterogeneous scheduling, where each monitor can have a unique frequency.
 
 ### Queues
 
@@ -44,18 +44,18 @@ graph TD
     style app fill:#e1f0ff,stroke:#333
 ```
 
-## II. Passive Heartbeat Monitoring
+## II. Heartbeat Monitoring
 
-This system handles two distinct scenarios for heartbeat monitors: passive checking for missed pings and immediate notifications from explicit pass/fail signals.
+Heartbeat monitors now follow the **standard monitor pattern** and use the same scheduling and execution system as other monitors. The key difference is in the execution logic, which checks for missed pings rather than actively pinging external services.
 
-### A. Passive Checking (The "Janitor")
+### A. Standard Heartbeat Scheduling
 
-This flow is designed to catch "silent failures" where a service stops pinging without sending a failure signal.
+Heartbeat monitors are scheduled using the same `monitor-scheduler` queue as other monitors:
 
-1.  **`heartbeat-checker`**
-    *   **Purpose**: To periodically check for missed heartbeats.
-    *   **Job Type**: Singleton, repeating job.
-    *   **How it Works**: A single repeating job runs at a fixed system interval (e.g., every minute). It triggers the `HeartbeatCheckerProcessor`, which queries the database for **all** heartbeat monitors and checks if any have missed their expected ping. This is a highly efficient batch process.
+1.  **Frequency Calculation**: `expected interval + grace period` (e.g., 60 + 10 = 70 minutes)
+2.  **Scheduling**: Standard monitor scheduling via `monitor-scheduler` queue
+3.  **Execution**: Standard monitor execution via `monitor-execution` queue
+4.  **Logic**: `checkHeartbeatMissedPing` method in `MonitorService`
 
 ### B. Immediate Notifications (The "Express Lane")
 
@@ -95,4 +95,41 @@ graph TD
     style app fill:#e1f0ff,stroke:#333
 ```
 
-This dual approach for heartbeats provides both robust passive checking and highly responsive immediate alerting. 
+## III. Heartbeat Monitor Architecture
+
+### Standard Monitor Pattern
+
+Heartbeat monitors now follow the exact same pattern as other monitors:
+
+```mermaid
+graph TD
+    A[User creates heartbeat monitor] --> B[Save to database]
+    B --> C[Schedule with frequency = expected interval + grace period]
+    C --> D[monitor-scheduler queue]
+    D --> E[MonitorSchedulerProcessor]
+    E --> F[Add to monitor-execution queue]
+    F --> G[MonitorProcessor]
+    G --> H[MonitorService.executeMonitor]
+    H --> I[checkHeartbeatMissedPing]
+    I --> J[Save result & send alerts]
+```
+
+### Key Benefits
+
+1. **Consistency**: Same architecture as HTTP, Ping, and Port monitors
+2. **Simplicity**: No complex hybrid approach or app-side filtering
+3. **Accuracy**: Check frequency is mathematically correct (`expected interval + grace period`)
+4. **Maintainability**: Standard patterns across all monitor types
+5. **User Experience**: Clear UI with calculated check frequency display
+
+### Removed Components
+
+The following components were removed as part of the standardization:
+
+- `app/src/lib/heartbeat-service.ts` - App-side service
+- `app/src/lib/heartbeat-scheduler.ts` - Separate scheduler
+- `runner/src/scheduler/processors/heartbeat-checker.processor.ts` - Separate processor
+- `runner/src/monitor/services/heartbeat.service.ts` - Separate service
+- `HEARTBEAT_CHECKER_QUEUE` - Redundant queue
+
+This unified approach provides both robust scheduled checking and highly responsive immediate alerting while maintaining consistency across all monitor types. 

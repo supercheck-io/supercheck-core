@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors, monitorResults, monitorsUpdateSchema, monitorNotificationSettings } from "@/db/schema/schema";
 import { eq, desc } from "drizzle-orm";
-import { scheduleMonitorCheck, removeScheduledMonitorCheck } from "@/lib/monitor-scheduler";
+import { scheduleMonitor, deleteScheduledMonitor } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
 
 const RECENT_RESULTS_LIMIT = 1000; // Number of recent results to fetch
@@ -142,12 +142,12 @@ export async function PUT(
       if (newStatus === 'paused') {
         // Pause monitor - remove from scheduler
         console.log(`Pausing monitor ${id} - removing from scheduler`);
-        await removeScheduledMonitorCheck(id);
+        await deleteScheduledMonitor(id);
       } else if (oldStatus === 'paused' && (newStatus === 'up' || newStatus === 'down')) {
         // Resume monitor - add to scheduler if it has valid frequency
         if (newFrequency && newFrequency > 0) {
           console.log(`Resuming monitor ${id} - adding to scheduler with ${newFrequency} minute frequency`);
-          await scheduleMonitorCheck({ monitorId: id, frequencyMinutes: newFrequency, jobData });
+          await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
         }
       }
     }
@@ -160,11 +160,11 @@ export async function PUT(
     if ((oldFrequency !== newFrequency || configChanged || targetChanged || typeChanged) && newStatus !== 'paused') {
         // Always remove the old schedule first
         console.log(`Rescheduling monitor ${id} due to changes - frequency: ${oldFrequency} -> ${newFrequency}, config: ${configChanged}, target: ${targetChanged}, type: ${typeChanged}`);
-        await removeScheduledMonitorCheck(id);
+        await deleteScheduledMonitor(id);
         
         if (newFrequency && newFrequency > 0) {
             console.log(`Scheduling monitor ${id} with updated configuration`);
-            await scheduleMonitorCheck({ monitorId: id, frequencyMinutes: newFrequency, jobData });
+            await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
         } else {
             console.log(`Monitor ${id} frequency set to ${newFrequency}, not scheduling.`);
         }
@@ -190,7 +190,7 @@ export async function DELETE(
   try {
     // First, unschedule the monitor
     try {
-        await removeScheduledMonitorCheck(id);
+        await deleteScheduledMonitor(id);
         console.log(`Unscheduled monitor ${id} before deletion.`);
     } catch (scheduleError) {
         console.error(`Error unscheduling monitor ${id} during deletion:`, scheduleError);

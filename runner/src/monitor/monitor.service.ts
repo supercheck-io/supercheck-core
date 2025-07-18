@@ -166,9 +166,6 @@ export class MonitorService {
           }
           ({ status, details, responseTimeMs, isUp } = heartbeatResult);
           break;
-        case MonitorType.SSL:
-          ({ status, details, responseTimeMs, isUp } = await this.executeSslCheck(jobData.target, jobData.config));
-          break;
         default:
           const _exhaustiveCheck: never = jobData.type;
           this.logger.warn(`Unsupported monitor type: ${jobData.type}`);
@@ -698,13 +695,12 @@ export class MonitorService {
       }
 
       if (!currentLastPingAt) {
-        // No ping received yet - check grace period from creation
+        // No ping received yet - check if monitor was created more than the expected interval ago
         if (minutesSinceCreation > totalWaitMinutes) {
           isOverdue = true;
           overdueMessage = `No initial ping received within ${totalWaitMinutes} minutes of creation (${Math.round(minutesSinceCreation)} minutes ago)`;
         } else {
           // Still within grace period for initial ping - don't create a result entry
-          // The heartbeat service should not have queued this check yet
           this.logger.debug(`Monitor ${monitorId} still within grace period, skipping result creation`);
           return null; // Signal to not create a result entry
         }

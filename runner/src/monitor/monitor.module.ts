@@ -5,7 +5,6 @@ import { MonitorService } from './monitor.service';
 import { MonitorProcessor } from './monitor.processor';
 import { MONITOR_EXECUTION_QUEUE, HEARTBEAT_PING_NOTIFICATION_QUEUE } from './monitor.constants';
 import { DbModule } from '../db/db.module';
-import { HeartbeatService } from './services/heartbeat.service';
 import { NotificationModule } from '../notification/notification.module';
 import { MonitorAlertService } from './services/monitor-alert.service';
 import { HeartbeatPingNotificationProcessor } from './processors/heartbeat-ping-notification.processor';
@@ -23,10 +22,9 @@ import { HeartbeatPingNotificationProcessor } from './processors/heartbeat-ping-
   providers: [
     MonitorService,
     MonitorProcessor,
-    HeartbeatService,
     MonitorAlertService,
     HeartbeatPingNotificationProcessor,
   ],
-  exports: [MonitorService, HeartbeatService],
+  exports: [MonitorService],
 })
 export class MonitorModule {} 

@@ -1,5 +1,5 @@
 {
-  "id": "89d19361-76c4-40c8-beb5-b55a2f574802",
+  "id": "d81ecb23-8d8d-4bfd-8e90-2cee1c198c70",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1622,6 +1622,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "scheduled_job_id": {
+          "name": "scheduled_job_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2161,6 +2167,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "trigger": {
+          "name": "trigger",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual'"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2467,6 +2480,73 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.test_tags": {
+      "name": "test_tags",
+      "schema": "",
+      "columns": {
+        "test_id": {
+          "name": "test_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag_id": {
+          "name": "tag_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "test_tags_test_id_tests_id_fk": {
+          "name": "test_tags_test_id_tests_id_fk",
+          "tableFrom": "test_tags",
+          "tableTo": "tests",
+          "columnsFrom": [
+            "test_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "test_tags_tag_id_tags_id_fk": {
+          "name": "test_tags_tag_id_tags_id_fk",
+          "tableFrom": "test_tags",
+          "tableTo": "tags",
+          "columnsFrom": [
+            "tag_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "test_tags_test_id_tag_id_pk": {
+          "name": "test_tags_test_id_tag_id_pk",
+          "columns": [
+            "test_id",
+            "tag_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

@@ -1,1 +1,0 @@
-ALTER TABLE "runs" ADD COLUMN "trigger" varchar(50) DEFAULT 'manual' NOT NULL;

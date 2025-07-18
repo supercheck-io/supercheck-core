@@ -8,7 +8,6 @@ export enum MonitorType {
   PING_HOST = 'ping_host',
   PORT_CHECK = 'port_check',
   HEARTBEAT = 'heartbeat',
-  SSL = 'ssl',
 }
 
 export interface MonitorConfig {
