@@ -550,15 +550,68 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             )}
             
+            {/* Alert Status Indicators */}
+            <div className="flex items-center gap-1 ml-1 mr-1">
+              {/* Main Alert Status */}
+              <div className="relative group mr-1">
+                <div
+                  className={`flex items-center justify-center h-10 w-10 rounded-full ${
+                    monitor.alertConfig?.enabled
+                      ? 'bg-green-100 dark:bg-green-900/30'
+                      : 'bg-gray-100 dark:bg-gray-700/30'
+                  }`}
+                >
+                  {monitor.alertConfig?.enabled ? (
+                    <Bell className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <BellOff className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                  )}
+                </div>
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                  {monitor.alertConfig?.enabled ? "Alerts enabled" : "Alerts disabled"}
+                </div>
+              </div>
+
+              {monitor.alertConfig?.enabled && (
+                <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                  {monitor.alertConfig.alertOnFailure && (
+                    <div className="relative group">
+                      <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                        Monitor failure alert
+                      </div>
+                    </div>
+                  )}
+                  {monitor.alertConfig.alertOnRecovery && (
+                    <div className="relative group">
+                      <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-500" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                        Monitor recovery alert
+                      </div>
+                    </div>
+                  )}
+                  {monitor.alertConfig.alertOnSslExpiration && monitor.type === 'website' && (
+                    <div className="relative group">
+                      <Shield className="h-4 w-4 text-blue-600 dark:text-blue-500" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                        SSL expiration alert
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
             {/* SSL Certificate Expiry for Website Monitors */}
             {monitor.type === 'website' && sslCertificateInfo && (
-              <div className={`flex items-center px-2 py-1 rounded-md border ${
+              <div className={`flex items-center px-2 py-2 rounded-md border ${
                 sslCertificateInfo.daysRemaining <= 7 
                   ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
                   : sslCertificateInfo.daysRemaining <= 30
                   ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
                   : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-              }`}>
+              }`}
+                title="SSL enabled">
                 <Shield className={`h-4 w-4 mr-1 ${
                   sslCertificateInfo.daysRemaining <= 7 
                     ? 'text-red-600 dark:text-red-400' 
@@ -580,28 +633,14 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             
             {/* Debug info for SSL when not showing */}
             {monitor.type === 'website' && !sslCertificateInfo && (
-              <div className="flex items-center px-2 py-1 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                title="SSL disabled">
                 <Shield className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs text-blue-700 dark:text-blue-300">
                   SSL: No certificate data yet
                 </span>
               </div>
             )}
-            
-            {/* Alert Status Indicator with debug info */}
-            <div className={`flex items-center justify-center h-8 w-8 rounded-full ${
-              monitor.alertConfig?.enabled 
-                ? 'bg-green-100 dark:bg-green-900/30' 
-                : 'bg-gray-100 dark:bg-gray-900/30'
-            }`}
-              title={`Alerts: ${monitor.alertConfig?.enabled ? 'Enabled' : 'Disabled'} - Config: ${JSON.stringify(monitor.alertConfig)}`}
-            >
-              {monitor.alertConfig?.enabled ? (
-                <Bell className="h-4 w-4 text-green-600 dark:text-green-400" />
-              ) : (
-                <BellOff className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-              )}
-            </div>
             
             <Button variant="outline" size="sm" onClick={handleToggleStatus}>
               {monitor.status === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
@@ -727,7 +766,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             <>
               <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <Zap className="h-5 w-5 text-amber-400" /> 
+                  <Zap className="h-5 w-5 text-sky-500" /> 
                   <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (24h)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
@@ -747,7 +786,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
 
               <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
                 <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <Zap className="h-5 w-5 text-amber-400" /> 
+                  <Zap className="h-5 w-5 text-sky-500" /> 
                   <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (30d)</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">

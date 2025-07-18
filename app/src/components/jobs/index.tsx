@@ -322,16 +322,14 @@ export default function Jobs() {
             <>
               <SheetHeader>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                  <SheetTitle className="text-2xl font-semibold ">
+                  <SheetTitle className="text-2xl font-semibold">
                     Job Details
-                    
                   </SheetTitle>
-                  <div className="flex items-center space-x-3 ml-2">
+                  <div className="flex items-center space-x-2">
                     {/* Alert Status Icon */}
                     <div className="relative group">
                       <div
-                        className={`flex items-center justify-center h-8 w-8 rounded-full ${
+                        className={`flex items-center justify-center h-10 w-10 rounded-full ${
                           selectedJob.alertConfig?.enabled
                             ? 'bg-green-100 dark:bg-green-900/30'
                             : 'bg-gray-100 dark:bg-gray-700/30'
@@ -348,12 +346,12 @@ export default function Jobs() {
                       </div>
                     </div>
                     {selectedJob.alertConfig?.enabled && (
-                      <div className="flex items-center space-x-2 text-xs text-muted-foreground ">
+                      <div className="flex items-center space-x-1 text-xs text-muted-foreground">
                         {selectedJob.alertConfig.alertOnSuccess && (
                           <div className="relative group">
                             <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-500" />
                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                              Job Success
+                              Job success alert
                             </div>
                           </div>
                         )}
@@ -361,7 +359,7 @@ export default function Jobs() {
                           <div className="relative group">
                             <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />
                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                              Job Failure
+                              Job failure alert
                             </div>
                           </div>
                         )}
@@ -369,24 +367,21 @@ export default function Jobs() {
                           <div className="relative group">
                             <Clock className="h-4 w-4 text-orange-600 dark:text-orange-500" />
                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                              Job Timeout
+                              Job timeout alert
                             </div>
                           </div>
                         )}
                       </div>
                     )}
-                  </div>
-                  </div>
-                  <div className="flex space-x-4">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() =>
                         router.push(`/jobs/edit/${selectedJob.id}`)
                       }
-                      
+                      className="ml-2"
                     >
-                      <Edit className="h-4 w-4 mr-2" />
+                      <Edit className="h-4 w-4 mr-2 " />
                       Edit Job
                     </Button>
                   </div>

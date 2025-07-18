@@ -479,10 +479,11 @@ export default function EditJob({ jobId }: EditJobProps) {
           <div className="flex space-x-2">
             <Button
               type="button"
-              variant="destructive"
+              variant="outline"
               onClick={() => setShowDeleteDialog(true)}
               disabled={isSubmitting || isDeleting}
               size="sm"
+              className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete

@@ -224,9 +224,10 @@ export function RunDetails({ run }: { run: RunResponse }) {
             </div>
           </div>
           <Button 
-            variant="destructive"
+            variant="outline"
             size="sm"
-            className=""
+            className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+          
             onClick={() => setShowDeleteDialog(true)}
           >
             <Trash2 className="h-4 w-4 mr-1" />

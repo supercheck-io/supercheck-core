@@ -803,10 +803,10 @@ export function TestForm({
             {testId && (
               <Button
                 type="button"
-                variant="destructive"
+                variant="outline"
                 onClick={() => setShowDeleteDialog(true)}
                 disabled={isRunning}
-                className="h-9 px-3"
+                className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
@@ -919,7 +919,7 @@ export function TestForm({
             <AlertDialogDescription>
               This will permanently delete the test <span className="font-semibold">&quot;{testCase.title}&quot;</span>. This action cannot be undone.
               <br /><br />
-              <strong>Note:</strong> If this test is currently used in any jobs, the deletion will be prevented and you'll need to remove the test from those jobs first. Make sure you have a backup of the data you need before deleting the test.
+              <strong>Note:</strong> If this test is currently used in any jobs, the deletion will be prevented and you'll need to remove the test from those jobs first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

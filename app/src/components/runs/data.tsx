@@ -3,9 +3,9 @@ import {
   AlertCircle,
   PlayCircle,
   XCircle,
-  Zap,
   Workflow,
   Timer,
+  MousePointerClick,
 } from "lucide-react";
 
 export const runStatuses = [
@@ -39,14 +39,14 @@ export const triggerTypes = [
   {
     value: "manual",
     label: "Manual",
-    icon: Zap,
-    color: "text-cyan-500",
+    icon: MousePointerClick,
+    color: "text-blue-500",
   },
   {
     value: "remote",
     label: "Remote",
     icon: Workflow,
-    color: "text-blue-500",
+    color: "text-cyan-500",
   },
   {
     value: "schedule",
