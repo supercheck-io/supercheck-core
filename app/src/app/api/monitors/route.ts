@@ -102,6 +102,31 @@ export async function POST(req: NextRequest) {
       createdByUserId: session.user.id,
     };
 
+    // Validate alert configuration if enabled
+    if (alertConfig?.enabled) {
+      // Check if at least one notification provider is selected
+      if (!alertConfig.notificationProviders || alertConfig.notificationProviders.length === 0) {
+        return NextResponse.json(
+          { error: "At least one notification channel must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+
+      // Check if at least one alert type is selected
+      const alertTypesSelected = [
+        alertConfig.alertOnFailure,
+        alertConfig.alertOnRecovery,
+        alertConfig.alertOnSslExpiration
+      ].some(Boolean);
+
+      if (!alertTypesSelected) {
+        return NextResponse.json(
+          { error: "At least one alert type must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+    }
+
     const newMonitor = await createMonitorHandler(monitorData);
 
     // Link notification providers if alert config is enabled
@@ -194,6 +219,31 @@ export async function PUT(req: NextRequest) {
       config: updateData.config,
       alertConfig: alertConfig,
     };
+
+    // Validate alert configuration if enabled
+    if (alertConfig?.enabled) {
+      // Check if at least one notification provider is selected
+      if (!alertConfig.notificationProviders || alertConfig.notificationProviders.length === 0) {
+        return NextResponse.json(
+          { error: "At least one notification channel must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+
+      // Check if at least one alert type is selected
+      const alertTypesSelected = [
+        alertConfig.alertOnFailure,
+        alertConfig.alertOnRecovery,
+        alertConfig.alertOnSslExpiration
+      ].some(Boolean);
+
+      if (!alertTypesSelected) {
+        return NextResponse.json(
+          { error: "At least one alert type must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+    }
 
     const updatedMonitor = await updateMonitorHandler(id, monitorUpdateData);
 

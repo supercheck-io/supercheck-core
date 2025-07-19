@@ -259,6 +259,31 @@ export default function EditJob({ jobId }: EditJobProps) {
   // Handle final submission with alerts
   const handleFinalSubmit = async () => {
     try {
+      // Validate alert configuration before proceeding
+      if (alertConfig.enabled) {
+        // Check if at least one notification provider is selected
+        if (!alertConfig.notificationProviders || alertConfig.notificationProviders.length === 0) {
+          toast.error("Validation Error", {
+            description: "At least one notification channel must be selected when alerts are enabled",
+          });
+          return;
+        }
+
+        // Check if at least one alert type is selected
+        const alertTypesSelected = [
+          alertConfig.alertOnFailure,
+          alertConfig.alertOnSuccess,
+          alertConfig.alertOnTimeout
+        ].some(Boolean);
+
+        if (!alertTypesSelected) {
+          toast.error("Validation Error", {
+            description: "At least one alert type must be selected when alerts are enabled",
+          });
+          return;
+        }
+      }
+
       setIsSubmitting(true);
 
       const finalJobData = {

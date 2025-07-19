@@ -277,6 +277,31 @@ export async function POST(request: Request) {
       createdByUserId: session.user.id, // Use authenticated user ID
     }).returning();
 
+    // Validate alert configuration if enabled
+    if (jobData.alertConfig?.enabled) {
+      // Check if at least one notification provider is selected
+      if (!jobData.alertConfig.notificationProviders || jobData.alertConfig.notificationProviders.length === 0) {
+        return NextResponse.json(
+          { error: "At least one notification channel must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+
+      // Check if at least one alert type is selected
+      const alertTypesSelected = [
+        jobData.alertConfig.alertOnFailure,
+        jobData.alertConfig.alertOnSuccess,
+        jobData.alertConfig.alertOnTimeout
+      ].some(Boolean);
+
+      if (!alertTypesSelected) {
+        return NextResponse.json(
+          { error: "At least one alert type must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+    }
+
     // Link notification providers if alert config is enabled
     if (insertedJob && jobData.alertConfig?.enabled && Array.isArray(jobData.alertConfig.notificationProviders)) {
       await Promise.all(

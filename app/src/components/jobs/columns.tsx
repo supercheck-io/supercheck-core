@@ -358,6 +358,23 @@ export const columns: ColumnDef<Job>[] = [
     },
   },
   {
+    accessorKey: "cronSchedule",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Schedule" />
+    ),
+    cell: ({ row }) => {
+      const cronSchedule = row.getValue("cronSchedule") as string | null;
+      return (
+        <div className="flex items-center">
+          <TimerIcon className={`${cronSchedule ? "text-sky-500" : "text-muted-foreground"} mr-2 h-4 w-4`} />
+          <span className={cronSchedule ? "text-foreground" : "text-muted-foreground"}>
+            {cronSchedule || "None"}
+          </span>
+        </div>
+      );
+    },
+  },
+  {
     accessorKey: "status",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
@@ -370,23 +387,6 @@ export const columns: ColumnDef<Job>[] = [
     },
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));
-    },
-  },
-  {
-    accessorKey: "cronSchedule",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Schedule" />
-    ),
-    cell: ({ row }) => {
-      const cronSchedule = row.getValue("cronSchedule") as string | null;
-      return (
-        <div className="flex items-center">
-          <TimerIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-          <span className={cronSchedule ? "" : "text-muted-foreground"}>
-            {cronSchedule || "None"}
-          </span>
-        </div>
-      );
     },
   },
   {

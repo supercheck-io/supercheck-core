@@ -254,8 +254,8 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label htmlFor="expiry" className="text-sm">
-                Set expiration date
-              </Label>
+                Set expiration date <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span>
+              </Label> 
               <Switch
                 id="expiry"
                 checked={hasExpiry}

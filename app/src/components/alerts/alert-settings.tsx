@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Mail, MessageSquare, Webhook, Plus, Bell } from "lucide-react";
+import { Plus, Bell } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { NotificationProviderForm } from "@/components/alerts/notification-provider-form";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { getNotificationProviderConfig } from "@/components/alerts/data";
 
 interface AlertSettingsProps {
   value?: AlertConfiguration;
@@ -73,6 +74,12 @@ export function AlertSettings({
     notificationProviders: value?.notificationProviders || [],
   });
 
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState<{
+    notificationProviders?: string;
+    alertTypes?: string;
+  }>({});
+
   useEffect(() => {
     // Load providers from API
     const loadProviders = async () => {
@@ -109,25 +116,45 @@ export function AlertSettings({
   const updateConfig = (updates: Partial<AlertConfiguration>) => {
     const newConfig = { ...config, ...updates };
     setConfig(newConfig);
+    
+    // Validate the new configuration
+    validateConfig(newConfig);
+    
     onChange?.(newConfig);
   };
 
-  const getProviderIcon = (type: string) => {
-    switch (type) {
-      case 'email':
-        return <Mail className="h-4 w-4" />;
-      case 'slack':
-        return <MessageSquare className="h-4 w-4" />;
-      case 'webhook':
-        return <Webhook className="h-4 w-4" />;
-      case 'telegram':
-        return <MessageSquare className="h-4 w-4" />;
-      case 'discord':
-        return <MessageSquare className="h-4 w-4" />;
-      default:
-        return <Bell className="h-4 w-4" />;
+  const validateConfig = (configToValidate: AlertConfiguration) => {
+    const errors: { notificationProviders?: string; alertTypes?: string } = {};
+
+    if (configToValidate.enabled) {
+      // Check if at least one notification provider is selected
+      if (!configToValidate.notificationProviders || configToValidate.notificationProviders.length === 0) {
+        errors.notificationProviders = "At least one notification channel must be selected when alerts are enabled";
+      }
+
+      // Check if at least one alert type is selected
+      const alertTypesSelected = [
+        configToValidate.alertOnFailure,
+        configToValidate.alertOnRecovery,
+        configToValidate.alertOnSuccess,
+        configToValidate.alertOnTimeout,
+        configToValidate.alertOnSslExpiration
+      ].some(Boolean);
+
+      if (!alertTypesSelected) {
+        errors.alertTypes = "At least one alert type must be selected when alerts are enabled";
+      }
     }
+
+    setValidationErrors(errors);
   };
+
+  // Validate config whenever it changes
+  useEffect(() => {
+    validateConfig(config);
+  }, [config]);
+
+
 
   const toggleProvider = (providerId: string) => {
     const currentProviders = config.notificationProviders || [];
@@ -179,6 +206,7 @@ export function AlertSettings({
                     id="alert-failure"
                     checked={config.alertOnFailure}
                     onCheckedChange={(checked) => updateConfig({ alertOnFailure: checked as boolean })}
+                    className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500  :border-blue-500 data-[state=checked]:text-white"
                   />
                   <Label htmlFor="alert-failure" className="text-sm">
                     {context === 'job' ? 'Job failures' : 'Alert on failure'}
@@ -192,6 +220,7 @@ export function AlertSettings({
                         id="alert-recovery"
                         checked={config.alertOnRecovery || false}
                         onCheckedChange={(checked) => updateConfig({ alertOnRecovery: checked as boolean })}
+                        className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500  :border-blue-500 data-[state=checked]:text-white"
                       />
                       <Label htmlFor="alert-recovery" className="text-sm">
                         Alert on recovery
@@ -204,6 +233,7 @@ export function AlertSettings({
                           id="alert-ssl"
                           checked={config.alertOnSslExpiration || false}
                           onCheckedChange={(checked) => updateConfig({ alertOnSslExpiration: checked as boolean })}
+                          className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500  :border-blue-500 data-[state=checked]:text-white"
                         />
                         <Label htmlFor="alert-ssl" className="text-sm">
                           Alert on SSL certificate expiration
@@ -220,9 +250,10 @@ export function AlertSettings({
                         id="alert-success"
                         checked={config.alertOnSuccess || false}
                         onCheckedChange={(checked) => updateConfig({ alertOnSuccess: checked as boolean })}
+                        className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500  :border-blue-500 data-[state=checked]:text-white"
                       />
                       <Label htmlFor="alert-success" className="text-sm">
-                        Job success (completion notifications)
+                        Job success <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">completion</span>
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -230,6 +261,7 @@ export function AlertSettings({
                         id="alert-timeout"
                         checked={config.alertOnTimeout || false}
                         onCheckedChange={(checked) => updateConfig({ alertOnTimeout: checked as boolean })}
+                        className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500  :border-blue-500 data-[state=checked]:text-white"
                       />
                       <Label htmlFor="alert-timeout" className="text-sm">
                         Job timeouts
@@ -238,6 +270,9 @@ export function AlertSettings({
                   </>
                 )}
               </div>
+              {validationErrors.alertTypes && (
+                <p className="text-sm text-destructive">{validationErrors.alertTypes}</p>
+              )}
             </div>
 
             {/* Thresholds */}
@@ -303,7 +338,7 @@ export function AlertSettings({
                   </DialogTrigger>
                   <DialogContent className="max-w-2xl">
                     <DialogHeader>
-                      <DialogTitle>Add Notification Provider</DialogTitle>
+                      <DialogTitle>Add Notification Channel</DialogTitle>
                       <DialogDescription>
                         Configure a new notification channel for alerts
                       </DialogDescription>
@@ -351,88 +386,58 @@ export function AlertSettings({
                       <div className="flex flex-col items-center space-y-3">
                         <Bell className="h-8 w-8 text-muted-foreground" />
                         <div>
-                          <p className="text-sm font-medium">No notification providers configured</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Create a notification provider first to receive alerts
-                          </p>
+                                                  <p className="text-sm font-medium">No notification channels configured</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Create a notification channel first to receive alerts
+                        </p>
                         </div>
-                        <Dialog open={isProviderDialogOpen} onOpenChange={setIsProviderDialogOpen}>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Plus className="h-4 w-4 mr-2" />
-                              Create Provider
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>Add Notification Provider</DialogTitle>
-                              <DialogDescription>
-                                Configure a new notification channel for alerts
-                              </DialogDescription>
-                            </DialogHeader>
-                            <NotificationProviderForm 
-                              onSuccess={async (newProvider) => {
-                                try {
-                                  const response = await fetch('/api/notification-providers', {
-                                    method: 'POST',
-                                    headers: {
-                                      'Content-Type': 'application/json',
-                                    },
-                                    body: JSON.stringify({
-                                      type: newProvider.type,
-                                      config: newProvider.config,
-                                    }),
-                                  });
-
-                                  if (response.ok) {
-                                    const createdProvider = await response.json();
-                                    setProviders(prev => [...prev, createdProvider]);
-                                    setIsProviderDialogOpen(false);
-                                  } else {
-                                    console.error('Failed to create notification provider');
-                                  }
-                                } catch (error) {
-                                  console.error('Error creating notification provider:', error);
-                                }
-                              }}
-                              onCancel={() => setIsProviderDialogOpen(false)}
-                            />
-                          </DialogContent>
-                        </Dialog>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsProviderDialogOpen(true)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create Channel
+                        </Button>
                       </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {providers.map((provider) => (
-                        <div 
-                          key={provider.id}
-                          onClick={() => toggleProvider(provider.id)}
-                          className={`flex items-center p-3 rounded-lg border transition-all duration-200 cursor-pointer hover:shadow-sm ${
-                            (config.notificationProviders || []).includes(provider.id) 
-                              ? 'border-primary bg-primary/5 shadow-sm' 
-                              : 'border-border hover:bg-muted/50 hover:border-primary/50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted mr-3 shrink-0">
-                            {getProviderIcon(provider.type)}
+                      {providers.map((provider) => {
+                        const providerConfig = getNotificationProviderConfig(provider.type);
+                        const IconComponent = providerConfig.icon;
+                        const isSelected = (config.notificationProviders || []).includes(provider.id);
+                        
+                        return (
+                          <div 
+                            key={provider.id}
+                            onClick={() => toggleProvider(provider.id)}
+                            className={"flex items-center p-3 rounded-lg transition-all duration-200 cursor-pointer bg-secondary hover:shadow-sm hover:bg-muted/50"}
+                          >
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full mr-3 shrink-0 bg-muted/50">
+                              <IconComponent className={`h-4 w-4 ${providerConfig.color}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{provider.config.name as string}</p>
+                              <p className="text-xs text-muted-foreground capitalize truncate">
+                                {provider.type}
+                              </p>
+                            </div>
+                            <Checkbox
+                              checked={isSelected}
+                              onChange={() => {}} // Handled by parent onClick
+                              className="ml-2 shrink-0 data-[state=checked]:bg-blue-500  :border-blue-500 data-[state=checked]:border-blue-500 data-[state=checked]:text-white"
+                              onClick={(e) => e.stopPropagation()} // Prevent double toggle
+                            />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{provider.config.name as string}</p>
-                            <p className="text-xs text-muted-foreground capitalize truncate">
-                              {provider.type}
-                            </p>
-                          </div>
-                          <Checkbox
-                            checked={(config.notificationProviders || []).includes(provider.id)}
-                            onChange={() => {}} // Handled by parent onClick
-                            className="ml-2 shrink-0"
-                            onClick={(e) => e.stopPropagation()} // Prevent double toggle
-                          />
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
+              )}
+              {validationErrors.notificationProviders && (
+                <p className="text-sm text-destructive">{validationErrors.notificationProviders}</p>
               )}
             </div>
           </>

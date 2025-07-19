@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { notificationProviders, notificationProvidersInsertSchema, alertHistory } from "@/db/schema/schema";
 import { desc, sql } from "drizzle-orm";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
 export async function GET() {
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const providers = await db.query.notificationProviders.findMany({
       orderBy: [desc(notificationProviders.createdAt)],
     });
@@ -42,10 +53,31 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const rawData = await req.json();
-    const validationResult = notificationProvidersInsertSchema.safeParse(rawData);
+    
+    // Transform the data to match the database schema
+    // The frontend sends { type, config } but the database expects { name, type, config, organizationId, createdByUserId }
+    const transformedData = {
+      name: rawData.config?.name || "Unnamed Provider",
+      type: rawData.type,
+      config: rawData.config,
+      organizationId: null, // For now, set to null since we don't have organization context
+      createdByUserId: session.user.id,
+    };
+
+    const validationResult = notificationProvidersInsertSchema.safeParse(transformedData);
 
     if (!validationResult.success) {
+      console.error("Validation error:", validationResult.error.format());
       return NextResponse.json(
         { error: "Invalid input", details: validationResult.error.format() },
         { status: 400 }
@@ -57,6 +89,7 @@ export async function POST(req: NextRequest) {
     const [insertedProvider] = await db
       .insert(notificationProviders)
       .values({
+        name: newProviderData.name!,
         type: newProviderData.type!,
         config: newProviderData.config!,
         organizationId: newProviderData.organizationId,

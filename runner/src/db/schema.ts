@@ -507,6 +507,7 @@ export type NotificationProviderType = "email" | "slack" | "webhook" | "telegram
  * Holds the configuration details for different notification provider types.
  */
 export type NotificationProviderConfig = {
+  name?: string;
   isDefault?: boolean;
   smtpHost?: string;
   smtpPort?: number;
@@ -535,7 +536,7 @@ export const notificationProviders = pgTable("notification_providers", {
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
-  name: varchar("name", { length: 255 }).notNull().default("Default Provider"),
+  name: varchar("name", { length: 255 }).notNull(),
   type: varchar("type", { length: 50 }).$type<NotificationProviderType>().notNull(),
   config: jsonb("config").$type<NotificationProviderConfig>().notNull(),
   isEnabled: boolean("is_enabled").notNull().default(true),

@@ -17,7 +17,6 @@ const notificationProviderSchema = z.object({
   type: z.enum(["email", "slack", "webhook", "telegram", "discord"]),
   config: z.object({
     name: z.string().min(1, "Name is required"),
-    isDefault: z.boolean().optional(),
     
     // Email fields
     smtpHost: z.string().optional(),
@@ -85,7 +84,6 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
       type: initialData.type,
       config: {
         name: initialData.config.name || "",
-        isDefault: initialData.config.isDefault || false,
         smtpHost: initialData.config.smtpHost || "",
         smtpPort: initialData.config.smtpPort || 587,
         smtpUser: initialData.config.smtpUser || "",
@@ -107,7 +105,6 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
       type: "email",
       config: {
         name: "",
-        isDefault: false,
         smtpHost: "",
         smtpPort: 587,
         smtpUser: "",
@@ -172,10 +169,10 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
         form.reset();
       }
       
-      toast.success(initialData ? "Notification provider updated successfully" : "Notification provider created successfully");
+      toast.success(initialData ? "Notification channel updated successfully" : "Notification channel created successfully");
     } catch (error) {
       console.error("Error saving notification provider:", error);
-      toast.error("Failed to save notification provider");
+      toast.error("Failed to save notification channel");
     } finally {
       setIsSubmitting(false);
     }
@@ -190,11 +187,11 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
                 name="type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Provider Type</FormLabel>
+                    <FormLabel>Channel Type</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select provider type" />
+                          <SelectValue placeholder="Select channel type" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -224,27 +221,6 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
                 )}
               />
             </div>
-
-            <FormField
-              control={form.control}
-              name="config.isDefault"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel>Default Provider</FormLabel>
-                    <div className="text-sm text-muted-foreground">
-                      Use this as the default notification method for new monitors
-                    </div>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
 
             {/* Email Configuration */}
             {selectedType === "email" && (
@@ -307,11 +283,7 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
                         <FormControl>
                           <Input type="password" placeholder="your-app-password" {...field} />
                         </FormControl>
-                        <div className="text-xs text-muted-foreground">
-                          For Gmail, use an App Password instead of your regular password. 
-                          <br />
-                          Generate one at: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google App Passwords</a>
-                        </div>
+                       
                         <FormMessage />
                       </FormItem>
                     )}

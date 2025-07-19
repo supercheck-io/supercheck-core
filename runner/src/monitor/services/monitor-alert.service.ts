@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { eq } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { DbService } from "src/db/db.service";
 import * as schema from "src/db/schema";
 import { AlertType } from "src/db/schema";
@@ -93,11 +93,11 @@ export class MonitorAlertService {
 
         const notificationPayload: NotificationPayload = {
             type: notificationType,
-            title,
+            title: title,
             message: monitor.alertConfig.customMessage || message,
             targetName: monitor.name,
             targetId: monitor.id,
-            severity,
+            severity: severity,
             timestamp: new Date(),
             metadata: {
                 target: monitor.target,

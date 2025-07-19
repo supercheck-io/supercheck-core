@@ -53,6 +53,25 @@ export async function updateJob(data: UpdateJobData) {
     // Validate the data
     const validatedData = updateJobSchema.parse(data);
     
+    // Validate alert configuration if enabled
+    if (validatedData.alertConfig?.enabled) {
+      // Check if at least one notification provider is selected
+      if (!validatedData.alertConfig.notificationProviders || validatedData.alertConfig.notificationProviders.length === 0) {
+        return { success: false, error: "At least one notification channel must be selected when alerts are enabled" };
+      }
+
+      // Check if at least one alert type is selected
+      const alertTypesSelected = [
+        validatedData.alertConfig.alertOnFailure,
+        validatedData.alertConfig.alertOnSuccess,
+        validatedData.alertConfig.alertOnTimeout
+      ].some(Boolean);
+
+      if (!alertTypesSelected) {
+        return { success: false, error: "At least one alert type must be selected when alerts are enabled" };
+      }
+    }
+    
     const dbInstance = db;
     
     // Check if the job exists and if user has permission to update it

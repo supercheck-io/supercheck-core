@@ -7,7 +7,7 @@ import { MonitorExecutionResult, MonitorResultStatus, MonitorResultDetails } fro
 import { DbService } from '../db/db.service';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js'; // Import specific Drizzle type
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { MonitorAlertService } from './services/monitor-alert.service';
 
 
@@ -217,15 +217,53 @@ export class MonitorService {
         this.logger.log(`Saved result for monitor ${resultData.monitorId}: ${currentStatus}. Status changed: ${isStatusChange}`);
 
         if (isStatusChange && monitor.alertConfig?.enabled) {
-          const shouldSendAlert = 
-            (currentStatus === 'down' && monitor.alertConfig.alertOnFailure) ||
-            (currentStatus === 'up' && previousStatus === 'down' && monitor.alertConfig.alertOnRecovery);
+          // Get recent monitor results to check thresholds
+          const recentResults = await this.getRecentMonitorResults(
+            resultData.monitorId, 
+            Math.max(monitor.alertConfig.failureThreshold || 1, monitor.alertConfig.recoveryThreshold || 1)
+          );
+          
+          // Calculate consecutive statuses
+          let consecutiveFailures = 0;
+          let consecutiveSuccesses = 0;
+          
+          // Count current result
+          if (currentStatus === 'down') {
+            consecutiveFailures = 1;
+          } else if (currentStatus === 'up') {
+            consecutiveSuccesses = 1;
+          }
+          
+          // Count previous results until we hit a different status
+          for (const result of recentResults) {
+            if (currentStatus === 'down' && result.isUp === false) {
+              consecutiveFailures++;
+            } else if (currentStatus === 'down') {
+              break;
+            } else if (currentStatus === 'up' && result.isUp === true) {
+              consecutiveSuccesses++;
+            } else if (currentStatus === 'up') {
+              break;
+            }
+          }
 
-          if (shouldSendAlert) {
+          // Check threshold conditions
+          const shouldSendFailureAlert = monitor.alertConfig.alertOnFailure && 
+            currentStatus === 'down' && 
+            consecutiveFailures >= (monitor.alertConfig.failureThreshold || 1);
+          
+          const shouldSendRecoveryAlert = monitor.alertConfig.alertOnRecovery && 
+            currentStatus === 'up' && 
+            previousStatus === 'down' && 
+            consecutiveSuccesses >= (monitor.alertConfig.recoveryThreshold || 1);
+
+          if (shouldSendFailureAlert || shouldSendRecoveryAlert) {
             const type = currentStatus === 'up' ? 'recovery' : 'failure';
             const reason = resultData.details?.errorMessage || (type === 'failure' ? 'Monitor is down' : 'Monitor has recovered');
             const metadata = {
-                responseTime: resultData.responseTimeMs
+                responseTime: resultData.responseTimeMs,
+                consecutiveFailures,
+                consecutiveSuccesses,
             };
             
             await this.monitorAlertService.sendNotification(
@@ -981,6 +1019,23 @@ export class MonitorService {
         .where(eq(schema.monitors.id, monitorId));
     } catch (error) {
       this.logger.error(`Failed to update monitor status for ${monitorId}: ${error.message}`, error.stack);
+    }
+  }
+
+  /**
+   * Get recent monitor results for threshold checking
+   */
+  private async getRecentMonitorResults(monitorId: string, limit: number): Promise<any[]> {
+    try {
+      const results = await this.dbService.db.query.monitorResults.findMany({
+        where: eq(schema.monitorResults.monitorId, monitorId),
+        orderBy: [desc(schema.monitorResults.checkedAt)],
+        limit: limit,
+      });
+      return results || [];
+    } catch (error) {
+      this.logger.error(`Failed to get recent monitor results: ${error.message}`);
+      return [];
     }
   }
 } 

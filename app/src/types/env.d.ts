@@ -27,5 +27,15 @@ declare namespace NodeJS {
     // Playwright Config
     PLAYWRIGHT_RETRIES: string;
     PLAYWRIGHT_WORKERS: string;
+
+    // Redis Configuration
+    REDIS_HOST: string;
+    REDIS_PORT: string;
+    REDIS_PASSWORD: string;
+    REDIS_URL: string;
+
+    // Scheduler Configuration
+    DISABLE_JOB_SCHEDULER: string;
+    DISABLE_MONITOR_SCHEDULER: string;
   }
 } 

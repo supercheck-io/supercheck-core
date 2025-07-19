@@ -6,6 +6,7 @@ import { AlertSettings } from "@/components/alerts/alert-settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface AlertConfig {
   enabled: boolean;
@@ -79,18 +80,26 @@ export function MonitorCreationWizard() {
         const createdMonitor = await response.json();
         console.log("Monitor created successfully:", createdMonitor);
         
-        // TODO: Save alert configuration to monitor-notification settings
+        toast.success("Monitor created successfully");
         
         // Redirect to monitors list using router
         router.push("/monitors");
       } else {
-        const error = await response.json();
-        console.error("Failed to create monitor:", error);
-        throw new Error(error.error || "Failed to create monitor");
+        const errorData = await response.json();
+        console.error("Failed to create monitor:", errorData);
+        
+        // Show error as toast
+        toast.error("Failed to create monitor", {
+          description: errorData.error || "An unknown error occurred",
+        });
       }
     } catch (error) {
       console.error("Failed to create monitor:", error);
-      // You might want to show an error toast here
+      
+      // Show error as toast
+      toast.error("Failed to create monitor", {
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
     }
   };
 

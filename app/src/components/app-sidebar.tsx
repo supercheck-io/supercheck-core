@@ -2,45 +2,23 @@
 
 import * as React from "react";
 import {
-  // AudioWaveform,
-  // BellRing,
-  Code,
-  // Command,
   CalendarClock,
-  Frame,
   ChartColumn,
-  // Activity,
-  Map,
-  PieChart,
-  // ChartBar,
   NotepadText,
-  Settings2,
-  // PlusIcon,
-  // Shield,
-  PlusCircleIcon,
   Globe,
-  // Globe2,
-  ChartBar,
   BellRing,
   SquarePlus,
   Settings,
-  SearchIcon,
-  HelpCircle,
-  Search,
   DatabaseIcon,
   ClipboardListIcon,
   FileIcon,
   Code2,
-  BookOpen,
   BookOpenText,
-  History
-  // MailIcon,
+  History,
+  Plus
 } from "lucide-react";
-
 import { CheckIcon } from "@/components/logo/supercheck-logo";
 import { NavMain } from "@/components/nav-main";
-// import { NavProjects } from "@/components/nav-projects";
-import { NavUser } from "@/components/nav-user";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import Link from "next/link";
 import {
@@ -82,11 +60,6 @@ const data = {
       isActive: true,
     },
     
-      // {
-      //   title: "Status",
-      //   url: "/status",
-      //   icon: ChartBar,
-      // },
       {
         title: "Alerts",
         url: "/alerts",
@@ -137,16 +110,6 @@ const data = {
       icon: NotepadText,
     },
   
-    // {
-    //   title: "Panels",
-    //   url: "/panels",
-    //   icon: ChartBar,
-    // },
-    // {
-    //   title: "Alerts",
-    //   url: "/alerts",
-    //   icon: BellRing,
-    // },
 
   ],
 
@@ -258,9 +221,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <Link href="/create" className="flex w-full">
                 <SidebarMenuButton
                   tooltip="Quick Create"
-                  className="flex items-center justify-center min-w-7 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground cursor-pointer w-[90%] ml-[5%] mr-[5%] group-data-[collapsible=icon]:mt-3 group-data-[collapsible=icon]:mb-2"
+                  className="flex items-center justify-center min-w-7 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground  w-[90%] ml-[5%] mr-[5%] group-data-[collapsible=icon]:mt-3 group-data-[collapsible=icon]:mb-2"
                 >
-                  <PlusCircleIcon className="h-4 w-4 ml-2" />
+                  <Plus className="h-4 w-4 ml-2" />
                   <span> Quick Create</span>
                 </SidebarMenuButton>
               </Link>
@@ -275,7 +238,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <NavMain groupLabel="" items={data.navSecondary} />
       <SidebarFooter>
-        {/* <NavUser /> */}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

@@ -92,15 +92,8 @@ runner/
 # Database
 DATABASE_URL="postgresql://user:password@localhost:5432/supertest"
 
-# Authentication
-AUTH_SECRET="your-auth-secret"
-AUTH_URL="http://localhost:3000"
-
 # Redis
 REDIS_URL="redis://localhost:6379"
-
-# Runner Communication
-RUNNER_URL="http://localhost:4000"
 ```
 
 #### Backend (runner/.env)
@@ -110,15 +103,6 @@ DATABASE_URL="postgresql://user:password@localhost:5432/supertest"
 
 # Redis
 REDIS_URL="redis://localhost:6379"
-
-# App Communication
-APP_URL="http://localhost:3000"
-
-# Email (optional)
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT="587"
-SMTP_USER="your-email@gmail.com"
-SMTP_PASS="your-app-password"
 ```
 
 ### Installation Steps

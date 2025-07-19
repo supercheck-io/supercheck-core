@@ -573,6 +573,31 @@ export function MonitorForm({
   }
 
   async function handleFinalSubmit() {
+    // Validate alert configuration before proceeding
+    if (alertConfig.enabled) {
+      // Check if at least one notification provider is selected
+      if (!alertConfig.notificationProviders || alertConfig.notificationProviders.length === 0) {
+        toast.error("Validation Error", {
+                      description: "At least one notification channel must be selected when alerts are enabled",
+        });
+        return;
+      }
+
+      // Check if at least one alert type is selected
+      const alertTypesSelected = [
+        alertConfig.alertOnFailure,
+        alertConfig.alertOnRecovery,
+        alertConfig.alertOnSslExpiration
+      ].some(Boolean);
+
+      if (!alertTypesSelected) {
+        toast.error("Validation Error", {
+          description: "At least one alert type must be selected when alerts are enabled",
+        });
+        return;
+      }
+    }
+
     if (monitorData) {
       await handleDirectSave(monitorData, true);
     }
@@ -1372,7 +1397,7 @@ export function MonitorForm({
                       name="heartbeatConfig_expectedInterval"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Expected Interval (minutes)</FormLabel>
+                          <FormLabel>Expected Interval <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">mins</span></FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -1389,7 +1414,7 @@ export function MonitorForm({
                             />
                           </FormControl>
                           <FormDescription>
-                            How often you expect to receive a ping (1-10080 minutes)
+                            How often you expect to receive a ping (1-10080 mins)
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -1401,7 +1426,7 @@ export function MonitorForm({
                       name="heartbeatConfig_gracePeriod"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Grace Period (minutes)</FormLabel>
+                          <FormLabel>Grace Period <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">mins</span></FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -1418,7 +1443,7 @@ export function MonitorForm({
                             />
                           </FormControl>
                           <FormDescription>
-                            Additional time to wait before marking as down (1-1440 minutes)
+                            Additional time to wait before marking as down (1-1440 mins)
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -1427,7 +1452,7 @@ export function MonitorForm({
                   </div>
 
                   {/* Display calculated check frequency */}
-                  <div className="bg-muted/30 p-4 rounded-lg">
+                  {/* <div className="bg-muted/30 p-4 rounded-lg">
                     <h4 className="font-medium text-sm mb-2">Check Frequency:</h4>
                     <div className="text-xs text-muted-foreground space-y-2">
                                               <p>
@@ -1439,7 +1464,7 @@ export function MonitorForm({
                         (Expected interval: {form.watch("heartbeatConfig_expectedInterval") || 60} min + Grace period: {form.watch("heartbeatConfig_gracePeriod") || 10} min)
                       </p>
                     </div>
-                  </div>
+                  </div> */}
 
                   <div className="bg-muted/30 p-4 rounded-lg">
                     <h4 className="font-medium text-sm mb-2">How to use this heartbeat:</h4>

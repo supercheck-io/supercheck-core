@@ -10,12 +10,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { NotificationProviderForm } from "@/components/alerts/notification-provider-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Mail, Webhook, Plus, Edit, Trash2, SearchIcon, AlertTriangle, Bell, MessageCircle, Slack, BotMessageSquare } from "lucide-react";
+import { Plus, Edit, Trash2, SearchIcon, AlertTriangle, Bell } from "lucide-react";
 import { formatDistance } from "date-fns";
 import { DataTable } from "@/components/alerts/data-table";
 import { columns, type AlertHistory } from "@/components/alerts/columns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { alertStatuses } from "@/components/alerts/data";
+import { alertStatuses, getNotificationProviderConfig } from "@/components/alerts/data";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { toast } from "sonner";
 
@@ -84,20 +84,9 @@ export default function AlertsPage() {
   }, []);
 
   const getProviderIcon = (type: string) => {
-    switch (type) {
-      case 'email':
-        return <Mail className="h-4 w-4 text-blue-500" />;
-      case 'slack':
-        return <Slack className="h-4 w-4 text-purple-500" />;
-      case 'webhook':
-        return <Webhook className="h-4 w-4 text-orange-500" />;
-      case 'telegram':
-        return <MessageCircle className="h-4 w-4 text-sky-500" />;
-      case 'discord':
-        return <BotMessageSquare className="h-4 w-4 text-indigo-500" />;
-      default:
-        return <Bell className="h-4 w-4 text-gray-500" />;
-    }
+    const config = getNotificationProviderConfig(type);
+    const IconComponent = config.icon;
+    return <IconComponent className={`h-4 w-4 ${config.color}`} />;
   };
 
   const handleCreateProvider = async (newProvider: {
@@ -249,7 +238,7 @@ export default function AlertsPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <TabsList className="grid w-full max-w-md grid-cols-2">
-                    <TabsTrigger value="providers">Notification Providers</TabsTrigger>
+                    <TabsTrigger value="providers">Notification Channels</TabsTrigger>
                     <TabsTrigger value="history">Alert History</TabsTrigger>
                   </TabsList>
                   <div className="flex items-center space-x-2">
@@ -257,12 +246,12 @@ export default function AlertsPage() {
                       <DialogTrigger asChild>
                         <Button>
                           <Plus className="h-4 w-4 mr-2" />
-                          Add Provider
+                          Add Channel
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl">
                         <DialogHeader>
-                          <DialogTitle>Create Notification Provider</DialogTitle>
+                          <DialogTitle>Create Notification Channel</DialogTitle>
                           <DialogDescription>
                             Add a new way to receive alert notifications
                           </DialogDescription>
@@ -277,9 +266,9 @@ export default function AlertsPage() {
                     <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                       <DialogContent className="max-w-2xl">
                         <DialogHeader>
-                          <DialogTitle>Edit Notification Provider</DialogTitle>
+                          <DialogTitle>Edit Notification Channel</DialogTitle>
                           <DialogDescription>
-                            Update your notification provider settings
+                            Update your notification channel settings
                           </DialogDescription>
                         </DialogHeader>
                         {editingProvider && (
@@ -298,10 +287,10 @@ export default function AlertsPage() {
                     <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Notification Provider</AlertDialogTitle>
+                          <AlertDialogTitle>Delete Notification Channel</AlertDialogTitle>
                           <AlertDialogDescription>
                             Are you sure you want to delete &quot;{(deletingProvider?.config.name as string) || deletingProvider?.type}&quot;? 
-                            This action cannot be undone. Make sure this provider is not being used by any monitors or jobs.
+                            This action cannot be undone. Make sure this channel is not being used by any monitors or jobs.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -328,7 +317,7 @@ export default function AlertsPage() {
                 <TabsContent value="providers" className="mt-0">
                   <div className="space-y-4">
                     <div>
-                      <CardTitle className="text-2xl font-semibold">Notification Providers</CardTitle>
+                      <CardTitle className="text-2xl font-semibold">Notification Channels</CardTitle>
                       <CardDescription>
                         Configure how you want to receive alerts
                       </CardDescription>
@@ -337,13 +326,13 @@ export default function AlertsPage() {
                     {providers.length === 0 ? (
                       <div className="text-center py-8">
                         <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No notification providers</h3>
+                        <h3 className="text-lg font-medium mb-2">No notification channels</h3>
                         <p className="text-muted-foreground mb-4">
-                          Add your first notification provider to start receiving alerts
+                          Add your first notification channel to start receiving alerts
                         </p>
                         <Button onClick={() => setIsCreateDialogOpen(true)}>
                           <Plus className="h-4 w-4 mr-2" />
-                          Add Provider
+                          Add Channel
                         </Button>
                       </div>
                     ) : (

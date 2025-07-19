@@ -1,0 +1,1 @@
+ALTER TABLE "notification_providers" ALTER COLUMN "name" DROP DEFAULT;

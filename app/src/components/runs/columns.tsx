@@ -112,7 +112,26 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
     enableSorting: false,
     enableHiding: false,
   },
+  {
+    accessorKey: "jobId",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Job ID" />
+    ),
+    cell: ({ row }) => {
+      const jobId = row.getValue("jobId") as string;
 
+      return (
+        <div className="w-[90px]">
+          <UUIDFieldWithPopover
+            value={jobId}
+            maxLength={24}
+            className="w-[90px]"
+            onCopy={() => toast.success("Job ID copied to clipboard")}
+          />
+        </div>
+      );
+    },
+  },
   {
     accessorKey: "jobName",
     header: ({ column }) => (
@@ -121,8 +140,39 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
     cell: ({ row }) => {
       const jobName = row.getValue("jobName") as string | undefined;
       
-      return <JobNameWithPopover jobName={jobName} />;
+      return (
+
+          <JobNameWithPopover jobName={jobName} />
+
+      );
     },
+  },
+  {
+    accessorKey: "trigger",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Trigger" />
+    ),
+    cell: ({ row }) => {
+      const trigger = row.original.trigger;
+      const triggerType = triggerTypes.find((t) => t.value === trigger);
+
+      if (!triggerType) {
+        return <div className="text-muted-foreground">-</div>;
+      }
+
+      const { icon: Icon, label, color } = triggerType;
+
+      return (
+        <div className="flex items-center gap-2 w-[100px]">
+          <Icon className={cn("w-4 h-4", color)} />
+          <span>{label}</span>
+        </div>
+      );
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id));
+    },
+    enableSorting: true,
   },
   {
     accessorKey: "status",
@@ -208,33 +258,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       );
     },
   },
-  {
-    accessorKey: "trigger",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Trigger" />
-    ),
-    cell: ({ row }) => {
-      const trigger = row.original.trigger;
-      const triggerType = triggerTypes.find((t) => t.value === trigger);
-
-      if (!triggerType) {
-        return <div className="text-muted-foreground">-</div>;
-      }
-
-      const { icon: Icon, label, color } = triggerType;
-
-      return (
-        <div className="flex items-center gap-2 w-[100px]">
-          <Icon className={cn("w-4 h-4", color)} />
-          <span>{label}</span>
-        </div>
-      );
-    },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
-    },
-    enableSorting: true,
-  },
+ 
   {
     accessorKey: "startedAt",
     header: ({ column }) => (
@@ -255,26 +279,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       );
     },
   },
-  {
-    accessorKey: "jobId",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Job ID" />
-    ),
-    cell: ({ row }) => {
-      const jobId = row.getValue("jobId") as string;
-
-      return (
-        <div className="w-[80px]">
-          <UUIDFieldWithPopover
-            value={jobId}
-            maxLength={24}
-            className="w-[90px]"
-            onCopy={() => toast.success("Job ID copied to clipboard")}
-          />
-        </div>
-      );
-    },
-  },
+  
   {
     id: "actions",
     cell: ({ row }) => <DataTableRowActions row={row} onDelete={onDelete} />,

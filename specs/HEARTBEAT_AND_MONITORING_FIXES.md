@@ -124,7 +124,6 @@ This document outlines all the fixes implemented to resolve issues with the hear
 ## Configuration Requirements
 
 ### Environment Variables
-- `NEXT_PUBLIC_APP_URL`: Base URL for dashboard links in notifications
 - Database connection strings for both app and runner services
 
 ### Alert Configuration
