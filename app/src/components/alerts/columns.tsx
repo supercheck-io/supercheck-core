@@ -55,7 +55,7 @@ export const columns: ColumnDef<AlertHistory>[] = [
   {
     accessorKey: "targetName",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Name" />
+      <DataTableColumnHeader column={column} title="Monitor or Job Name" />
     ),
     cell: ({ row }) => {
       const targetName = row.getValue("targetName") as string;
@@ -122,24 +122,41 @@ export const columns: ColumnDef<AlertHistory>[] = [
         );
       }
 
-      const displayProviders = providers.slice(0, 2);
-      const remainingCount = providers.length - 2;
+      // Group providers by type and count them
+      const providerCounts = providers.reduce((acc, providerType) => {
+        acc[providerType] = (acc[providerType] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
-      // Only show popover if there are more than 2 providers
-      if (providers.length <= 2) {
+      // Convert to array of unique providers with counts
+      const uniqueProviders = Object.entries(providerCounts).map(([type, count]) => ({
+        type,
+        count,
+        config: getNotificationProviderConfig(type)
+      }));
+
+      const displayProviders = uniqueProviders.slice(0, 2);
+      const remainingCount = uniqueProviders.length - 2;
+
+      // Only show popover if there are more than 2 unique provider types
+      if (uniqueProviders.length <= 2) {
         return (
           <div className="flex items-center gap-1 min-h-[24px]">
-            {providers.map((providerType, index) => {
-              const config = getNotificationProviderConfig(providerType);
+            {uniqueProviders.map(({ type, count, config }, index) => {
               const IconComponent = config.icon;
               return (
                 <Badge
                   key={index}
                   variant="outline"
-                  className="text-xs whitespace-nowrap flex-shrink-0 flex items-center gap-1 px-2.5 py-1 bg-card"
+                  className="text-xs whitespace-nowrap flex-shrink-0 flex items-center gap-1 px-2.5 py-1 bg-background border-border"
                 >
                   <IconComponent className={`h-3 w-3 mr-0.5 ${config.color}`} />
                   {config.label}
+                  {count > 1 && (
+                    <span className="ml-1 px-1 text-xs bg-primary text-primary-foreground rounded-sm">
+                      {count}
+                    </span>
+                  )}
                 </Badge>
               );
             })}
@@ -155,22 +172,26 @@ export const columns: ColumnDef<AlertHistory>[] = [
               onMouseEnter={() => setIsOpen(true)}
               onMouseLeave={() => setIsOpen(false)}
             >
-              {displayProviders.map((providerType, index) => {
-                const config = getNotificationProviderConfig(providerType);
+              {displayProviders.map(({ type, count, config }, index) => {
                 const IconComponent = config.icon;
                 return (
                   <Badge
                     key={index}
                     variant="outline"
-                    className="text-xs whitespace-nowrap flex-shrink-0 flex items-center gap-1 px-2.5 py-1 bg-card"
+                    className="text-xs whitespace-nowrap flex-shrink-0 flex items-center gap-1 px-2.5 py-1 bg-background border-border"
                   >
                     <IconComponent className={`h-3 w-3 mr-0.5 ${config.color}`} />
                     {config.label}
+                    {count > 1 && (
+                      <span className="ml-1 px-1 text-xs bg-primary text-primary-foreground rounded-sm">
+                        {count}
+                      </span>
+                    )}
                   </Badge>
                 );
               })}
               {remainingCount > 0 && (
-                <Badge variant="outline" className="text-xs whitespace-nowrap flex-shrink-0 flex items-center gap-1 px-2.5 py-1 bg-card">
+                <Badge variant="outline" className="text-xs whitespace-nowrap flex-shrink-0 flex items-center gap-1 px-2.5 py-1 bg-background border-border">
                   +{remainingCount}
                 </Badge>
               )}
@@ -178,8 +199,7 @@ export const columns: ColumnDef<AlertHistory>[] = [
           </PopoverTrigger>
           <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
             <div className="flex justify-center flex-wrap gap-1">
-              {providers.map((providerType, index) => {
-                const config = getNotificationProviderConfig(providerType);
+              {uniqueProviders.map(({ type, count, config }, index) => {
                 const IconComponent = config.icon;
                 return (
                   <Badge
@@ -189,6 +209,11 @@ export const columns: ColumnDef<AlertHistory>[] = [
                   >
                     <IconComponent className={`h-3 w-3 ${config.color}`} />
                     {config.label}
+                    {count > 1 && (
+                      <span className="ml-1 px-1 text-xs bg-primary text-primary-foreground rounded-sm">
+                        {count}
+                    </span>
+                    )}
                   </Badge>
                 );
               })}

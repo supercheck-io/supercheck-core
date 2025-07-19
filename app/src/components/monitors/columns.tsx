@@ -30,36 +30,18 @@ export const columns: ColumnDef<Monitor>[] = [
       <DataTableColumnHeader className="ml-2" column={column} title="Monitor ID" />
     ),
     cell: ({ row }) => {
-      const id = row.getValue("id") as string;
-      const [isOpen, setIsOpen] = useState(false);
-      
+      const id = row.getValue("id") as string;    
       return (
         <div className="w-[90px]">
-          <Popover open={isOpen} onOpenChange={setIsOpen}>
-            <PopoverTrigger asChild>
-              <div 
-                className="cursor-pointer"
-                onMouseEnter={() => setIsOpen(true)}
-                onMouseLeave={() => setIsOpen(false)}
-              >
                 <UUIDField 
                   value={id} 
                   maxLength={24} 
                   onCopy={() => toast.success("Monitor ID copied to clipboard")}
                 />
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="flex justify-center items-center">
-              <p className="text-xs text-muted-foreground break-all">
-                {id}
-              </p>
-            </PopoverContent>
-          </Popover>
         </div>
       );
     },
     enableSorting: false,
-    enableHiding: false,
   },
   {
     accessorKey: "name",

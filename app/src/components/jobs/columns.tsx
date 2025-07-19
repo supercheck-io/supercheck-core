@@ -306,7 +306,7 @@ function RunButton({ job }: { job: Job }) {
 export const columns: ColumnDef<Job>[] = [
   {
     id: "run",
-    header: () => <div className="ml-2">Run</div>,
+    header: () => <div className="ml-2">Trigger</div>,
     cell: ({ row }) => {
       const job = row.original;
       return <RunButton job={job} />;
@@ -324,7 +324,7 @@ export const columns: ColumnDef<Job>[] = [
       
       return (
         <div className="w-[90px]">
-          <UUIDFieldWithPopover
+          <UUIDField
             value={id}
             maxLength={24}
             onCopy={() => toast.success("ID copied to clipboard")}

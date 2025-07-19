@@ -419,7 +419,7 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
                   name="config.bodyTemplate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Body Template (optional)</FormLabel>
+                      <FormLabel>Body Template <span className="text-xs text-muted-foreground bg-muted rounded-sm px-1.5 py-0.5">Optional</span></FormLabel>
                       <FormControl>
                         <Textarea 
                           placeholder='{"message": "Monitor {{monitorName}} is {{status}}"}'

@@ -36,7 +36,7 @@ export function DataTableToolbar<TData>({
         <div className="relative">
           <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Filter by alert ID, name, message, type, status, or provider..."
+            placeholder="Filter by all available fields..."
             value={(table.getState().globalFilter as string) ?? ""}
             onChange={(event) => table.setGlobalFilter(event.target.value)}
             className="h-8 w-[250px] pr-8 pl-8"

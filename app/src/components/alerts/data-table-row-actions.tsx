@@ -29,7 +29,7 @@ export function DataTableRowActions<TData>({
     if (alert.targetType === "monitor" && alert.targetId) {
       router.push(`/monitors/${alert.targetId}`);
     } else if (alert.targetType === "job" && alert.targetId) {
-      router.push(`/jobs/edit/${alert.targetId}`);
+      router.push(`/jobs/?job=${alert.targetId}`);
     }
   };
 

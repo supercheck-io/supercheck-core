@@ -75,6 +75,7 @@ export async function PUT(
     const [updatedProvider] = await db
       .update(notificationProviders)
       .set({
+        name: updateData.name!,
         type: updateData.type!,
         config: updateData.config!,
         updatedAt: new Date(),

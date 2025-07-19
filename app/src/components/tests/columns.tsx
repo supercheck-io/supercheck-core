@@ -28,29 +28,13 @@ function UUIDFieldWithPopover({ value, maxLength, onCopy }: {
   maxLength?: number;
   onCopy?: () => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-
+  
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <div
-          className="cursor-pointer"
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
-        >
           <UUIDField
             value={value}
             maxLength={maxLength}
             onCopy={onCopy}
-          />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent className="flex justify-center items-center">
-        <p className="text-xs text-muted-foreground break-all">
-          {value}
-        </p>
-      </PopoverContent>
-    </Popover>
+          />  
   );
 }
 

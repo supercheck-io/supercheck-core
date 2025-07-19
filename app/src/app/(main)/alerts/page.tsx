@@ -3,24 +3,25 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { NotificationProviderForm } from "@/components/alerts/notification-provider-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Edit, Trash2, Bell } from "lucide-react";
-import { formatDistance } from "date-fns";
+import { Plus, Bell } from "lucide-react";
 import { DataTable } from "@/components/alerts/data-table";
 import { columns, type AlertHistory } from "@/components/alerts/columns";
-import { getNotificationProviderConfig } from "@/components/alerts/data";
+
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { toast } from "sonner";
+import { NotificationChannelsComponent } from "@/components/alerts/notification-channels-component";
+import { NotificationChannel } from "@/components/alerts/notification-channels-schema";
 
 interface NotificationProvider {
   id: string;
+  name: string;
   type: 'email' | 'slack' | 'webhook' | 'telegram' | 'discord';
   config: Record<string, unknown>;
+  isEnabled: boolean;
   createdAt: string;
   updatedAt?: string;
   lastUsed?: string;
@@ -53,7 +54,18 @@ export default function AlertsPage() {
         
         if (providersResponse.ok) {
           const data = await providersResponse.json();
-          setProviders(data);
+          // Transform the data to match our interface
+          const transformedData: NotificationProvider[] = data.map((provider: any) => ({
+            id: provider.id,
+            name: provider.name,
+            type: provider.type,
+            config: provider.config,
+            isEnabled: provider.isEnabled,
+            createdAt: provider.createdAt,
+            updatedAt: provider.updatedAt,
+            lastUsed: provider.lastUsed,
+          }));
+          setProviders(transformedData);
         } else {
           console.error('Failed to fetch notification providers');
           setProviders([]);
@@ -78,11 +90,7 @@ export default function AlertsPage() {
     loadData();
   }, []);
 
-  const getProviderIcon = (type: string) => {
-    const config = getNotificationProviderConfig(type);
-    const IconComponent = config.icon;
-    return <IconComponent className={`h-4 w-4 ${config.color}`} />;
-  };
+
 
   const handleCreateProvider = async (newProvider: {
     type: string;
@@ -95,6 +103,7 @@ export default function AlertsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          name: (newProvider.config as any)?.name || `New ${newProvider.type} Channel`,
           type: newProvider.type,
           config: newProvider.config,
         }),
@@ -104,11 +113,19 @@ export default function AlertsPage() {
         const createdProvider = await response.json();
         setProviders(prev => [...prev, createdProvider]);
         setIsCreateDialogOpen(false);
+        toast.success("Notification channel created successfully");
       } else {
-        console.error('Failed to create notification provider');
+        const errorData = await response.json();
+        console.error('Failed to create notification provider:', errorData);
+        toast.error("Failed to create notification channel", {
+          description: errorData.error || "Please try again",
+        });
       }
     } catch (error) {
       console.error('Error creating notification provider:', error);
+      toast.error("Failed to create notification channel", {
+        description: "An unexpected error occurred",
+      });
     }
   };
 
@@ -129,6 +146,7 @@ export default function AlertsPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            name: (updatedProvider.config as any)?.name || editingProvider.name,
             type: updatedProvider.type,
             config: updatedProvider.config,
           }),
@@ -139,11 +157,19 @@ export default function AlertsPage() {
           setProviders(prev => prev.map(p => p.id === editingProvider.id ? updated : p));
           setIsEditDialogOpen(false);
           setEditingProvider(null);
+          toast.success("Notification channel updated successfully");
         } else {
-          console.error('Failed to update notification provider');
+          const errorData = await response.json();
+          console.error('Failed to update notification provider:', errorData);
+          toast.error("Failed to update notification channel", {
+            description: errorData.error || "Please try again",
+          });
         }
       } catch (error) {
         console.error('Error updating notification provider:', error);
+        toast.error("Failed to update notification channel", {
+          description: "An unexpected error occurred",
+        });
       }
     }
   };
@@ -158,14 +184,19 @@ export default function AlertsPage() {
         setProviders(prev => prev.filter(p => p.id !== providerId));
         setIsDeleteDialogOpen(false);
         setDeletingProvider(null);
+        toast.success("Notification channel deleted successfully");
       } else {
         const errorData = await response.json();
         console.error('Failed to delete notification provider:', errorData.error || response.statusText);
-        // You could show a toast notification here
+        toast.error("Failed to delete notification channel", {
+          description: errorData.error || errorData.details || "Please try again",
+        });
       }
     } catch (error) {
       console.error('Error deleting notification provider:', error);
-      // You could show a toast notification here
+      toast.error("Failed to delete notification channel", {
+        description: "An unexpected error occurred",
+      });
     }
   };
 
@@ -188,7 +219,7 @@ export default function AlertsPage() {
             
             // Show error toast - provider is in use
             toast.error("Cannot delete provider", {
-              description: "This provider is currently being used by monitors or jobs. Remove it from all configurations first.",
+              description: "This channel is currently being used by one or more monitors or jobs. Please remove it first to delete it.",
             });
             return;
           }
@@ -203,6 +234,34 @@ export default function AlertsPage() {
 
       await handleDeleteProvider(deletingProvider.id);
     }
+  };
+
+  const handleEditChannel = (channel: NotificationChannel) => {
+    const provider: NotificationProvider = {
+      id: channel.id,
+      name: channel.name,
+      type: channel.type,
+      config: channel.config,
+      isEnabled: channel.isEnabled,
+      createdAt: channel.createdAt,
+      updatedAt: channel.updatedAt,
+      lastUsed: channel.lastUsed,
+    };
+    handleEditProvider(provider);
+  };
+
+  const handleDeleteChannel = (channel: NotificationChannel) => {
+    const provider: NotificationProvider = {
+      id: channel.id,
+      name: channel.name,
+      type: channel.type,
+      config: channel.config,
+      isEnabled: channel.isEnabled,
+      createdAt: channel.createdAt,
+      updatedAt: channel.updatedAt,
+      lastUsed: channel.lastUsed,
+    };
+    handleDeleteProviderWithConfirmation(provider);
   };
 
   return (
@@ -267,7 +326,9 @@ export default function AlertsPage() {
                           <AlertDialogTitle>Delete Notification Channel</AlertDialogTitle>
                           <AlertDialogDescription>
                             Are you sure you want to delete &quot;{(deletingProvider?.config.name as string) || deletingProvider?.type}&quot;? 
-                            This action cannot be undone. Make sure this channel is not being used by any monitors or jobs.
+                            <br/>
+                            <br/>
+                           <strong>Note: </strong> This action cannot be undone. Make sure this channel is not being used by any monitors or jobs.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -291,7 +352,7 @@ export default function AlertsPage() {
               </CardHeader>
 
               <CardContent className="pt-0">
-                <TabsContent value="providers" className="mt-2">
+                <TabsContent value="providers">
                   <div className="space-y-4">
                     <div>
                       <CardTitle className="text-2xl font-semibold">Notification Channels</CardTitle>
@@ -313,62 +374,10 @@ export default function AlertsPage() {
                         </Button>
                       </div>
                     ) : (
-                      <Table className="rounded-sm">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Provider</TableHead>
-                            <TableHead>Created</TableHead>
-                            <TableHead>Last Used</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {providers.map((provider) => (
-                            <TableRow key={provider.id}>
-                              <TableCell className="font-medium">
-                                <div className="flex items-center space-x-3">                               
-                                  <span className="capitalize">{(provider.config as Record<string, unknown>).name as string}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center space-x-2">
-                                  {getProviderIcon(provider.type)}
-                                  <span className="capitalize">{provider.type}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                {formatDistance(new Date(provider.createdAt), new Date(), { addSuffix: true })}
-                              </TableCell>
-                              <TableCell>
-                                {provider.lastUsed 
-                                  ? formatDistance(new Date(provider.lastUsed), new Date(), { addSuffix: true })
-                                  : <span className="text-muted-foreground">Never</span>
-                                }
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end space-x-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleEditProvider(provider)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteProviderWithConfirmation(provider)}
-                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                      <NotificationChannelsComponent
+                        onEditChannel={handleEditChannel}
+                        onDeleteChannel={handleDeleteChannel}
+                      />
                     )}
                   </div>
                 </TabsContent>

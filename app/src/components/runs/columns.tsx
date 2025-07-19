@@ -101,7 +101,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       
       return (
         <div className="w-[90px]">
-          <UUIDFieldWithPopover 
+          <UUIDField
             value={id} 
             maxLength={24} 
             onCopy={() => toast.success("Run ID copied to clipboard")}
@@ -110,7 +110,6 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
       );
     },
     enableSorting: false,
-    enableHiding: false,
   },
   {
     accessorKey: "jobId",
@@ -122,7 +121,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
 
       return (
         <div className="w-[90px]">
-          <UUIDFieldWithPopover
+          <UUIDField
             value={jobId}
             maxLength={24}
             className="w-[90px]"
@@ -131,6 +130,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
         </div>
       );
     },
+    enableSorting: false,
   },
   {
     accessorKey: "jobName",
