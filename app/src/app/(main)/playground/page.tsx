@@ -29,7 +29,8 @@ const getBreadcrumbs = (scriptType: string | null) => {
   return [
     { label: "Home", href: "/" },
     { label: "Tests", href: "/tests" },
-    { label: `Create ${testTypeLabel}`, isCurrentPage: true },
+    { label: `Create ${testTypeLabel}`, href: `/playground/?scriptType=${scriptType}` },
+    { label: "Playground", isCurrentPage: true },
   ];
 };
 

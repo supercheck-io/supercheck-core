@@ -114,7 +114,7 @@ export function CreateJob({
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
           <div>
             <CardTitle>Create New Job</CardTitle>
-            <CardDescription className="mt-2">Configure a new automated job</CardDescription>
+            <CardDescription className="mt-2">Configure a new automated or manual job</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -184,7 +184,7 @@ export function CreateJob({
                         </FormControl>
                         <NextRunDisplay cronExpression={field.value} />
                         <p className="text-xs text-muted-foreground mt-4 flex items-center">
-                         <span>Leave empty for manual execution.</span>
+                         <span>Leave empty for manual execution</span>
                         </p>
                         <FormMessage />
                       </FormItem>

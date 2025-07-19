@@ -3,15 +3,14 @@
 import { notFound, useParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import EditJob from "@/components/jobs/edit-job";
-// import { getJob } from "@/actions/get-jobs"; // Replaced with API call
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { EditJobSkeleton } from "@/components/jobs/edit-job-skeleton";
 
 export default function EditJobPage() {
   const params = useParams();
   const jobId = params.id as string;
   const [isLoading, setIsLoading] = useState(true);
+  const [jobName, setJobName] = useState<string>("");
   
   useEffect(() => {
     async function checkJobExists() {
@@ -20,6 +19,8 @@ export default function EditJobPage() {
         if (!response.ok) {
           notFound();
         }
+        const jobData = await response.json();
+        setJobName(jobData.name || jobId);
       } catch (error) {
         console.error("Error checking job:", error);
         notFound();
@@ -34,6 +35,7 @@ export default function EditJobPage() {
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Jobs", href: "/jobs" },
+    { label: jobName.length > 20 ? `${jobName.substring(0, 20)}...` : jobName, href: `/jobs?job=${jobId}` },
     { label: "Edit", isCurrentPage: true },
     
   ];

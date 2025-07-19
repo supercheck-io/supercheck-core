@@ -69,7 +69,7 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Monitors", href: "/monitors" },
-    { label: monitor.name, href: `/monitors/${id}` },
+    { label: monitor.name && monitor.name.length > 20 ? `${monitor.name?.substring(0, 20)}...` : monitor.name || id, href: `/monitors/${id}` },
     { label: "Edit", isCurrentPage: true },
   ];
 

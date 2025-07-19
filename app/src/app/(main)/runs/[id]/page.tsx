@@ -41,6 +41,7 @@ export default async function RunPage({ params }: Params) {
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Runs", href: "/runs" },
+    { label: run.jobName && run.jobName.length > 20 ? `${run.jobName.substring(0, 20)}...` : run.jobName || id, href: `/jobs?job=${run.jobId}` },
     { label: "Report", isCurrentPage: true },
   ];
 

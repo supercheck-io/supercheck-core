@@ -1,10 +1,5 @@
-import { Suspense } from "react";
-import { Metadata } from "next";
-// MonitorSchemaType is used by MonitorDetailClient, keep if that prop type remains
-// import { Monitor as MonitorSchemaType } from "@/components/monitors/schema"; 
+import { Metadata } from "next"; 
 import { MonitorDetailClient, MonitorWithResults, MonitorResultItem } from "@/components/monitors/monitor-detail-client";
-import { Monitor as MonitorSchemaType } from "@/components/monitors/schema";
-import { Skeleton } from "@/components/ui/skeleton";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { notFound } from "next/navigation";
 import { db } from "@/utils/db";
@@ -18,7 +13,7 @@ import {
 } from "@/db/schema/schema";
 import { eq, desc } from "drizzle-orm";
 
-const RECENT_RESULTS_LIMIT = 1000;
+const resultsLimit = process.env.RECENT_MONITOR_RESULTS_LIMIT ? parseInt(process.env.RECENT_MONITOR_RESULTS_LIMIT) : 1000;
 
 type MonitorDetailsPageProps = {
   params: Promise<{
@@ -42,7 +37,7 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
       .from(monitorResults)
       .where(eq(monitorResults.monitorId, id))
       .orderBy(desc(monitorResults.checkedAt))
-      .limit(RECENT_RESULTS_LIMIT);
+      .limit(resultsLimit);
 
     // Map DB results to MonitorResultItem structure
     const mappedRecentResults: MonitorResultItem[] = recentResultsData.map((r) => ({
@@ -57,28 +52,6 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
     }));
     
     const frequencyMinutes = monitorData.frequencyMinutes ?? 0;
-    const intervalInSeconds = frequencyMinutes * 60;
-
-    // Helper to map DB MonitorType to the 'method' string expected by MonitorSchemaType
-    // let methodValue: MonitorSchemaType['method'];
-    // switch (monitorData.type) {
-    //     case "http_request":
-    //         methodValue = "http_request";
-    //         break;
-    //     case "ping_host":
-    //         methodValue = "ping"; // Map ping_host to ping
-    //         break;
-    //     case "port_check":
-    //         methodValue = "port_check";
-    //         break;
-
-    //     // Add other cases as necessary or a default case
-    //     default:
-    //         // Attempt to cast directly, or use a default if appropriate
-    //         // For safety, let's default to http_request or handle as an error
-    //         // This depends on how strictly you want to enforce the mapping
-    //         methodValue = "http_request"; // Or throw new Error(`Unsupported monitor type: ${monitorData.type}`);
-    // }
 
     const transformedMonitor: MonitorWithResults = {
       id: monitorData.id,
@@ -134,7 +107,7 @@ export default async function MonitorDetailsPage({ params }: MonitorDetailsPageP
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Monitors", href: "/monitors" },
-    { label: monitorWithData.name || "Monitor Details", isCurrentPage: true }, 
+    { label: monitorWithData.name && monitorWithData.name.length > 30 ? `${monitorWithData.name?.substring(0, 30)}...` : monitorWithData.name || id, isCurrentPage: true }, 
   ];
 
   return (

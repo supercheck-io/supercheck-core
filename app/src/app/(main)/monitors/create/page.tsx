@@ -70,9 +70,10 @@ export default async function CreateMonitorPage({ searchParams }: CreateMonitorP
   }
 
   const breadcrumbs = [
+    { label: "Home", href: "/" },
     { label: "Monitors", href: "/monitors" },
     { label: "Create", href: "/monitors/create" },
-    { label: selectedMonitorType.label, href: `/monitors/create?type=${monitorType}` },
+    { label: selectedMonitorType.label, isCurrentPage: true },
   ];
 
   return (

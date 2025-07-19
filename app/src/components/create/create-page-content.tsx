@@ -84,7 +84,7 @@ export function CreatePageContent() {
 
       <div className="mt-8 mb-3 pl-1">
         <h2 className="text-xl font-bold">Create New Job</h2>
-        <p className="text-muted-foreground text-sm mt-1">Configure a new automated job</p>
+        <p className="text-muted-foreground text-sm mt-1"> Configure a new automated or manual job</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">

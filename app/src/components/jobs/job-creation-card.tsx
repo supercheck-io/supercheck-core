@@ -9,7 +9,7 @@ export function JobCreationCard() {
     <div>
       <h2 className="text-2xl font-bold">Create New Job</h2>
       <p className="text-muted-foreground">
-        Configure a new automated job
+        Configure a new automated or manual job
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
         <CreateCard
