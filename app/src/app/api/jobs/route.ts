@@ -287,6 +287,15 @@ export async function POST(request: Request) {
         );
       }
 
+      // Check notification channel limit
+      const maxJobChannels = parseInt(process.env.MAX_JOB_NOTIFICATION_CHANNELS || '10', 10);
+      if (jobData.alertConfig.notificationProviders.length > maxJobChannels) {
+        return NextResponse.json(
+          { error: `You can only select up to ${maxJobChannels} notification channels` },
+          { status: 400 }
+        );
+      }
+
       // Check if at least one alert type is selected
       const alertTypesSelected = [
         jobData.alertConfig.alertOnFailure,

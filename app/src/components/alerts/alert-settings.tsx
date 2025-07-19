@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Bell } from "lucide-react";
+import { Plus, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { NotificationProviderForm } from "@/components/alerts/notification-provider-form";
@@ -11,6 +11,11 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getNotificationProviderConfig } from "@/components/alerts/data";
+import { toast } from "sonner";
+
+// Get limits from environment variables
+const MAX_JOB_NOTIFICATION_CHANNELS = parseInt(process.env.NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS || '10', 10);
+const MAX_MONITOR_NOTIFICATION_CHANNELS = parseInt(process.env.NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS || '10', 10);
 
 interface AlertSettingsProps {
   value?: AlertConfiguration;
@@ -70,6 +75,8 @@ export function AlertSettings({
   const [providers, setProviders] = useState<NotificationProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8; // 4 columns * 2 rows
   const [config, setConfig] = useState<AlertConfiguration>({
     ...defaultConfig,
     ...value,
@@ -108,6 +115,11 @@ export function AlertSettings({
 
     loadProviders();
   }, []);
+
+  // Reset to first page when providers change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [providers.length]);
 
   useEffect(() => {
     // Ensure the config always has required properties with defaults
@@ -182,11 +194,24 @@ export function AlertSettings({
 
   const toggleProvider = (providerId: string) => {
     const currentProviders = config.notificationProviders || [];
-    const newProviders = currentProviders.includes(providerId)
-      ? currentProviders.filter(id => id !== providerId)
-      : [...currentProviders, providerId];
+    const maxChannels = context === 'job' ? MAX_JOB_NOTIFICATION_CHANNELS : MAX_MONITOR_NOTIFICATION_CHANNELS;
     
-    updateConfig({ notificationProviders: newProviders });
+    if (currentProviders.includes(providerId)) {
+      // Remove provider
+      const newProviders = currentProviders.filter(id => id !== providerId);
+      updateConfig({ notificationProviders: newProviders });
+    } else {
+      // Add provider - check limit
+      if (currentProviders.length >= maxChannels) {
+        toast.error("Channel limit reached", {
+          description: `You can only select up to ${maxChannels} notification channels.`,
+        });
+        return;
+      }
+      
+      const newProviders = [...currentProviders, providerId];
+      updateConfig({ notificationProviders: newProviders });
+    }
   };
 
   return (
@@ -426,43 +451,79 @@ export function AlertSettings({
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {providers.map((provider) => {
-                        const providerConfig = getNotificationProviderConfig(provider.type);
-                        const IconComponent = providerConfig.icon;
-                        const isSelected = (config.notificationProviders || []).includes(provider.id);
-                        
-                        return (
-                          <div 
-                            key={provider.id}
-                            onClick={() => toggleProvider(provider.id)}
-                            className={"flex items-center p-3 rounded-lg transition-all duration-200 cursor-pointer bg-secondary hover:shadow-sm hover:bg-muted/50"}
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {providers
+                          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                          .map((provider) => {
+                          const providerConfig = getNotificationProviderConfig(provider.type);
+                          const IconComponent = providerConfig.icon;
+                          const isSelected = (config.notificationProviders || []).includes(provider.id);
+                          
+                          return (
+                            <div 
+                              key={provider.id}
+                              onClick={() => toggleProvider(provider.id)}
+                              className={"flex items-center p-3 rounded-lg transition-all duration-200 cursor-pointer bg-secondary hover:shadow-sm hover:bg-muted/50"}
+                            >
+                              <div className="flex items-center justify-center w-8 h-8 rounded-full mr-3 shrink-0 bg-muted/50">
+                                <IconComponent className={`h-4 w-4 ${providerConfig.color}`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{provider.config.name as string}</p>
+                                <p className="text-xs text-muted-foreground capitalize truncate">
+                                  {provider.type}
+                                </p>
+                              </div>
+                              <Checkbox
+                                checked={isSelected}
+                                onChange={() => {}} // Handled by parent onClick
+                                className="ml-2 shrink-0 data-[state=checked]:bg-blue-500  :border-blue-500 data-[state=checked]:border-blue-500 data-[state=checked]:text-white"
+                                onClick={(e) => e.stopPropagation()} // Prevent double toggle
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Pagination */}
+                      {providers.length > itemsPerPage && (
+                        <div className="flex items-center justify-center space-x-2 mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
                           >
-                            <div className="flex items-center justify-center w-8 h-8 rounded-full mr-3 shrink-0 bg-muted/50">
-                              <IconComponent className={`h-4 w-4 ${providerConfig.color}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{provider.config.name as string}</p>
-                              <p className="text-xs text-muted-foreground capitalize truncate">
-                                {provider.type}
-                              </p>
-                            </div>
-                            <Checkbox
-                              checked={isSelected}
-                              onChange={() => {}} // Handled by parent onClick
-                              className="ml-2 shrink-0 data-[state=checked]:bg-blue-500  :border-blue-500 data-[state=checked]:border-blue-500 data-[state=checked]:text-white"
-                              onClick={(e) => e.stopPropagation()} // Prevent double toggle
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            Page {currentPage} of {Math.ceil(providers.length / itemsPerPage)}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.min(Math.ceil(providers.length / itemsPerPage), prev + 1))}
+                            disabled={currentPage === Math.ceil(providers.length / itemsPerPage)}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
               {validationErrors.notificationProviders && (
                 <p className="text-sm text-destructive">{validationErrors.notificationProviders}</p>
               )}
+              
+              {/* Channel count display */}
+              {!validationErrors.notificationProviders && (<div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  {config.notificationProviders?.length || 0} of {context === 'job' ? MAX_JOB_NOTIFICATION_CHANNELS : MAX_MONITOR_NOTIFICATION_CHANNELS} channels selected
+                </span>
+              </div>)}
             </div>
           </>
         )}

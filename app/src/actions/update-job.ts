@@ -60,6 +60,12 @@ export async function updateJob(data: UpdateJobData) {
         return { success: false, error: "At least one notification channel must be selected when alerts are enabled" };
       }
 
+      // Check notification channel limit
+      const maxJobChannels = parseInt(process.env.MAX_JOB_NOTIFICATION_CHANNELS || '10', 10);
+      if (validatedData.alertConfig.notificationProviders.length > maxJobChannels) {
+        return { success: false, error: `You can only select up to ${maxJobChannels} notification channels` };
+      }
+
       // Check if at least one alert type is selected
       const alertTypesSelected = [
         validatedData.alertConfig.alertOnFailure,

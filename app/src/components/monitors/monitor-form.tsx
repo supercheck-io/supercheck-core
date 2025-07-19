@@ -583,6 +583,15 @@ export function MonitorForm({
         return;
       }
 
+      // Check notification channel limit
+      const maxMonitorChannels = parseInt(process.env.NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS || '10', 10);
+      if (alertConfig.notificationProviders.length > maxMonitorChannels) {
+        toast.error("Validation Error", {
+          description: `You can only select up to ${maxMonitorChannels} notification channels`,
+        });
+        return;
+      }
+
       // Check if at least one alert type is selected
       const alertTypesSelected = [
         alertConfig.alertOnFailure,

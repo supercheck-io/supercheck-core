@@ -81,6 +81,40 @@ export async function PUT(
         return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
     }
 
+    // Validate alert configuration if enabled
+    if (rawData.alertConfig?.enabled) {
+      // Check if at least one notification provider is selected
+      if (!rawData.alertConfig.notificationProviders || rawData.alertConfig.notificationProviders.length === 0) {
+        return NextResponse.json(
+          { error: "At least one notification channel must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+
+      // Check notification channel limit
+      const maxMonitorChannels = parseInt(process.env.MAX_MONITOR_NOTIFICATION_CHANNELS || '10', 10);
+      if (rawData.alertConfig.notificationProviders.length > maxMonitorChannels) {
+        return NextResponse.json(
+          { error: `You can only select up to ${maxMonitorChannels} notification channels` },
+          { status: 400 }
+        );
+      }
+
+      // Check if at least one alert type is selected
+      const alertTypesSelected = [
+        rawData.alertConfig.alertOnFailure,
+        rawData.alertConfig.alertOnRecovery,
+        rawData.alertConfig.alertOnSslExpiration
+      ].some(Boolean);
+
+      if (!alertTypesSelected) {
+        return NextResponse.json(
+          { error: "At least one alert type must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+    }
+
     const [updatedMonitor] = await db
       .update(monitors)
       .set({

@@ -112,6 +112,15 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Check notification channel limit
+      const maxMonitorChannels = parseInt(process.env.MAX_MONITOR_NOTIFICATION_CHANNELS || '10', 10);
+      if (alertConfig.notificationProviders.length > maxMonitorChannels) {
+        return NextResponse.json(
+          { error: `You can only select up to ${maxMonitorChannels} notification channels` },
+          { status: 400 }
+        );
+      }
+
       // Check if at least one alert type is selected
       const alertTypesSelected = [
         alertConfig.alertOnFailure,
@@ -226,6 +235,15 @@ export async function PUT(req: NextRequest) {
       if (!alertConfig.notificationProviders || alertConfig.notificationProviders.length === 0) {
         return NextResponse.json(
           { error: "At least one notification channel must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+
+      // Check notification channel limit
+      const maxMonitorChannels = parseInt(process.env.MAX_MONITOR_NOTIFICATION_CHANNELS || '10', 10);
+      if (alertConfig.notificationProviders.length > maxMonitorChannels) {
+        return NextResponse.json(
+          { error: `You can only select up to ${maxMonitorChannels} notification channels` },
           { status: 400 }
         );
       }

@@ -64,6 +64,15 @@ export function JobCreationWizard() {
         return;
       }
 
+      // Check notification channel limit
+      const maxJobChannels = parseInt(process.env.NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS || '10', 10);
+      if (alertConfig.notificationProviders.length > maxJobChannels) {
+        toast.error("Validation Error", {
+          description: `You can only select up to ${maxJobChannels} notification channels`,
+        });
+        return;
+      }
+
       // Check if at least one alert type is selected
       const alertTypesSelected = [
         alertConfig.alertOnFailure,

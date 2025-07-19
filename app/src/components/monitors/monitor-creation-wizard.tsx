@@ -59,6 +59,40 @@ export function MonitorCreationWizard() {
   };
 
   const handleCreateMonitor = async () => {
+    // Validate alert configuration before proceeding
+    if (alertConfig.enabled) {
+      // Check if at least one notification provider is selected
+      if (!alertConfig.notificationProviders || alertConfig.notificationProviders.length === 0) {
+        toast.error("Validation Error", {
+          description: "At least one notification channel must be selected when alerts are enabled",
+        });
+        return;
+      }
+
+      // Check notification channel limit
+      const maxMonitorChannels = parseInt(process.env.NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS || '10', 10);
+      if (alertConfig.notificationProviders.length > maxMonitorChannels) {
+        toast.error("Validation Error", {
+          description: `You can only select up to ${maxMonitorChannels} notification channels`,
+        });
+        return;
+      }
+
+      // Check if at least one alert type is selected
+      const alertTypesSelected = [
+        alertConfig.alertOnFailure,
+        alertConfig.alertOnRecovery,
+        alertConfig.alertOnSslExpiration
+      ].some(Boolean);
+
+      if (!alertTypesSelected) {
+        toast.error("Validation Error", {
+          description: "At least one alert type must be selected when alerts are enabled",
+        });
+        return;
+      }
+    }
+
     try {
       const finalData = {
         ...monitorData,

@@ -172,6 +172,8 @@ export const apikey = pgTable("apikey", {
    Application-specific tables.
 =================================== */
 
+
+
 /**
  * Represents a project within an organization.
  */
@@ -229,7 +231,7 @@ export type JobConfig = {
  */
 export type AlertConfig = {
   enabled: boolean;
-  notificationProviders: string[];
+  notificationProviders: string[]; // Limited to MAX_NOTIFICATION_CHANNELS
   alertOnFailure: boolean;
   alertOnRecovery?: boolean;
   alertOnSslExpiration?: boolean;
