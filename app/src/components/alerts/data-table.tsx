@@ -31,11 +31,87 @@ import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
 import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { cn } from "@/lib/utils";
+import { notificationProviders } from "./data";
 
 // Define a more specific meta type
 interface TableMeta {
   globalFilterColumns?: string[];
   onDelete?: () => void;
+}
+
+// Custom global filter function for alerts table
+function alertGlobalFilterFn(row: any, _columnId: string, filterValue: string) {
+  if (!filterValue) return true;
+  const search = String(filterValue).toLowerCase();
+  
+  try {
+    // Get the actual data from the row
+    const rowData = row.original;
+    
+    if (!rowData) return false;
+    
+    // Check if any of the searchable fields contain the search term
+    const searchableFields = [
+      rowData.id,
+      rowData.targetName,
+      rowData.message,
+      rowData.type,
+      rowData.status,
+      rowData.notificationProvider // Add notificationProvider to searchable fields
+    ];
+    
+    // Check basic field matching
+    const basicMatch = searchableFields.some(field => {
+      if (typeof field === "string" || typeof field === "number") {
+        return String(field).toLowerCase().includes(search);
+      }
+      return false;
+    });
+    
+    if (basicMatch) return true;
+    
+    // Enhanced provider search logic
+    if (rowData.notificationProvider && typeof rowData.notificationProvider === "string") {
+      const providerString = rowData.notificationProvider.toLowerCase();
+      
+      // Direct string match
+      if (providerString.includes(search)) return true;
+      
+      // Search through individual providers in comma-separated string
+      const providers = providerString
+        .split(',')
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length > 0);
+      
+      // Check if any provider matches the search term
+      if (providers.some((provider: string) => provider.includes(search))) return true;
+      
+      // Enhanced provider label matching using actual provider configurations
+      const searchTerm = search.trim();
+      if (providers.some((provider: string) => {
+        const cleanProvider = provider.trim();
+        
+        // Direct match
+        if (cleanProvider === searchTerm) return true;
+        
+        // Find provider config and check label
+        const providerConfig = notificationProviders.find(p => p.type === cleanProvider);
+        if (providerConfig && providerConfig.label.toLowerCase().includes(searchTerm)) {
+          return true;
+        }
+        
+        // Check if search term matches provider type
+        if (cleanProvider.includes(searchTerm)) return true;
+        
+        return false;
+      })) return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error in global filter function:', error);
+    return false;
+  }
 }
 
 interface DataTableProps<TData, TValue> {
@@ -133,9 +209,9 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
-    globalFilterFn: "auto",
+    globalFilterFn: alertGlobalFilterFn,
     meta: {
-      globalFilterColumns: ["id", "targetName", "message"],
+      globalFilterColumns: ["id", "targetName", "message", "type", "status", "notificationProvider"],
       ...meta,
     } as TableMeta,
   });

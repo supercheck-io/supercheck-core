@@ -9,13 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { NotificationProviderForm } from "@/components/alerts/notification-provider-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Plus, Edit, Trash2, SearchIcon, AlertTriangle, Bell } from "lucide-react";
+import { Plus, Edit, Trash2, Bell } from "lucide-react";
 import { formatDistance } from "date-fns";
 import { DataTable } from "@/components/alerts/data-table";
 import { columns, type AlertHistory } from "@/components/alerts/columns";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { alertStatuses, getNotificationProviderConfig } from "@/components/alerts/data";
+import { getNotificationProviderConfig } from "@/components/alerts/data";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { toast } from "sonner";
 
@@ -38,9 +36,6 @@ export default function AlertsPage() {
   const [editingProvider, setEditingProvider] = useState<NotificationProvider | null>(null);
   const [deletingProvider, setDeletingProvider] = useState<NotificationProvider | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
 
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -210,24 +205,6 @@ export default function AlertsPage() {
     }
   };
 
-  // Get unique alert types for filter
-  const alertTypes = [...new Set(alertHistory.map(alert => alert.type))].map(type => ({
-    value: type,
-    label: type.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()),
-    icon: AlertTriangle,
-  }));
-
-  const filteredAlertHistory = alertHistory.filter(alert => {
-    const matchesSearch = (alert.message?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                         (alert.targetName?.toLowerCase() || "").includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || alert.status === statusFilter;
-    const matchesType = typeFilter === "all" || alert.type === typeFilter;
-    
-    return matchesSearch && matchesStatus && matchesType;
-  });
-
-
-
   return (
     <div className="">
       <PageBreadcrumbs items={breadcrumbs} />
@@ -313,8 +290,8 @@ export default function AlertsPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-0 -mt-2">
-                <TabsContent value="providers" className="mt-0">
+              <CardContent className="pt-0">
+                <TabsContent value="providers" className="mt-2">
                   <div className="space-y-4">
                     <div>
                       <CardTitle className="text-2xl font-semibold">Notification Channels</CardTitle>
@@ -336,7 +313,7 @@ export default function AlertsPage() {
                         </Button>
                       </div>
                     ) : (
-                      <Table>
+                      <Table className="rounded-sm">
                         <TableHeader>
                           <TableRow>
                             <TableHead>Name</TableHead>
@@ -350,15 +327,15 @@ export default function AlertsPage() {
                           {providers.map((provider) => (
                             <TableRow key={provider.id}>
                               <TableCell className="font-medium">
-                                <div className="flex items-center space-x-3">
-                                  {getProviderIcon(provider.type)}
-                                  <span>{(provider.config as Record<string, unknown>).name as string || `${provider.type} Provider`}</span>
+                                <div className="flex items-center space-x-3">                               
+                                  <span className="capitalize">{(provider.config as Record<string, unknown>).name as string}</span>
                                 </div>
                               </TableCell>
                               <TableCell>
-                                <Badge variant="outline" className="capitalize">
-                                  {provider.type}
-                                </Badge>
+                                <div className="flex items-center space-x-2">
+                                  {getProviderIcon(provider.type)}
+                                  <span className="capitalize">{provider.type}</span>
+                                </div>
                               </TableCell>
                               <TableCell>
                                 {formatDistance(new Date(provider.createdAt), new Date(), { addSuffix: true })}
@@ -396,72 +373,19 @@ export default function AlertsPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="history" className="mt-0">
-                  <div >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-2xl font-semibold">Alert History</CardTitle>
-                        <CardDescription>
-                          View all alert notifications that have been sent
-                        </CardDescription>
+                <TabsContent value="history" className="mt-2">
+                  <div className="h-full flex-1 flex-col md:flex">
+                    {alertHistory.length === 0 && !loading ? (
+                      <div className="text-center py-8">
+                        <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-md font-medium mb-2">No alerts found</h3>
+                        <p className="text-muted-foreground text-sm">
+                          Alerts will appear here when your monitors or jobs trigger notifications
+                        </p>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="relative">
-                          <SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Filter by Alert ID, Target, or Message..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-8 h-8  w-[200px] lg:w-[350px]"
-                          />
-                        </div>
-                        {alertTypes.length > 0 && (
-                          <Select value={typeFilter} onValueChange={setTypeFilter}>
-                            <SelectTrigger className="w-[120px] h-8">
-                              <SelectValue placeholder="Type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All Types</SelectItem>
-                              {alertTypes.map((type) => (
-                                <SelectItem key={type.value} value={type.value}>
-                                  {type.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger className="w-[120px] h-8">
-                            <SelectValue placeholder="Status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
-                            {alertStatuses.map((status) => (
-                              <SelectItem key={status.value} value={status.value}>
-                                {status.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    <div className="h-full flex-1 flex-col md:flex">
-                      {filteredAlertHistory.length === 0 && !loading ? (
-                        <div className="text-center py-8">
-                          <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                          <h3 className="text-md font-medium mb-2">No alerts found</h3>
-                          <p className="text-muted-foreground text-sm">
-                            {searchTerm || statusFilter !== "all" || typeFilter !== "all"
-                              ? "Try adjusting your filters" 
-                              : "Alerts will appear here when your monitors or jobs trigger notifications"
-                            }
-                          </p>
-                        </div>
-                      ) : (
-                        <DataTable columns={columns} data={filteredAlertHistory} isLoading={loading} />
-                      )}
-                    </div>
+                    ) : (
+                      <DataTable columns={columns} data={alertHistory} isLoading={loading} />
+                    )}
                   </div>
                 </TabsContent>
               </CardContent>

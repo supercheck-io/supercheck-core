@@ -264,7 +264,7 @@ export class JobExecutionProcessor extends WorkerHost {
         await this.dbService.saveAlertHistory(
           jobIdForLookup, // Use originalJobId for database storage
           alertType as AlertType,
-          providers.map(p => p.name).join(', '),
+          providers.map(p => p.type).join(', '),
           alertStatus,
           payload.message,
           alertErrorMessage,

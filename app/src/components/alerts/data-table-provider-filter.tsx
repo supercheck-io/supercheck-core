@@ -1,3 +1,4 @@
+import * as React from "react";
 import { CheckIcon, PlusCircle } from "lucide-react";
 import { Column } from "@tanstack/react-table";
 
@@ -19,25 +20,51 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { getNotificationProviderConfig } from "./data";
 
-interface DataTableFacetedFilterProps<TData, TValue> {
+interface DataTableProviderFilterProps<TData, TValue> {
   column?: Column<TData, TValue>;
   title?: string;
-  options: {
-    label: string;
-    value: string;
-    icon?: React.ComponentType<{ className?: string }>;
-    color?: string;
-  }[];
 }
 
-export function DataTableFacetedFilter<TData, TValue>({
+export function DataTableProviderFilter<TData, TValue>({
   column,
   title,
-  options,
-}: DataTableFacetedFilterProps<TData, TValue>) {
-  const facets = column?.getFacetedUniqueValues();
+}: DataTableProviderFilterProps<TData, TValue>) {
   const selectedValues = new Set(column?.getFilterValue() as string[]);
+
+  // Calculate facets properly by iterating through rows
+  const facets = React.useMemo(() => {
+    const newFacets = new Map<string, number>();
+    column?.getFacetedRowModel().rows.forEach((row) => {
+      const providerString = row.getValue(column.id) as string;
+      if (providerString) {
+        const providers = providerString
+          .split(',')
+          .map(p => p.trim())
+          .filter(p => p.length > 0);
+        
+        providers.forEach(provider => {
+          newFacets.set(provider, (newFacets.get(provider) || 0) + 1);
+        });
+      }
+    });
+    return newFacets;
+  }, [column?.getFacetedRowModel().rows]);
+
+  // Get all unique providers from the facets
+  const allProviders = Array.from(facets.keys()).sort();
+
+  // Create options from unique providers
+  const options = allProviders.map(providerType => {
+    const config = getNotificationProviderConfig(providerType);
+    return {
+      label: config.label,
+      value: providerType,
+      icon: config.icon,
+      color: config.color,
+    };
+  });
 
   return (
     <Popover>
@@ -69,8 +96,9 @@ export function DataTableFacetedFilter<TData, TValue>({
                       <Badge
                         variant="secondary"
                         key={option.value}
-                        className="rounded-sm px-1 font-normal"
+                        className="rounded-sm px-1 font-normal flex items-center gap-1"
                       >
+                        <option.icon className={`h-3 w-3 ${option.color}`} />
                         {option.label}
                       </Badge>
                     ))
@@ -84,7 +112,7 @@ export function DataTableFacetedFilter<TData, TValue>({
         <Command>
           <CommandInput placeholder={title} />
           <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandEmpty>No providers found.</CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
                 const isSelected = selectedValues.has(option.value);
@@ -113,14 +141,12 @@ export function DataTableFacetedFilter<TData, TValue>({
                     >
                       <CheckIcon className={cn("h-4 w-4")} />
                     </div>
-                    {option.icon && (
-                      <option.icon
-                        className={cn(
-                          "mr-2 h-4 w-4 flex-shrink-0",
-                          option.color ?? "text-foreground"
-                        )}
-                      />
-                    )}
+                    <option.icon
+                      className={cn(
+                        "mr-2 h-4 w-4 flex-shrink-0",
+                        option.color ?? "text-foreground"
+                      )}
+                    />
                     <span className="truncate flex-1">{option.label}</span>
                     {facets?.get(option.value) && (
                       <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs flex-shrink-0">
@@ -149,4 +175,4 @@ export function DataTableFacetedFilter<TData, TValue>({
       </PopoverContent>
     </Popover>
   );
-}
+} 

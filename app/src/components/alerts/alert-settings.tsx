@@ -20,6 +20,7 @@ interface AlertSettingsProps {
   hideTitle?: boolean;
   context?: 'monitor' | 'job';
   monitorType?: 'http_request' | 'website' | 'ping_host' | 'port_check' | 'heartbeat';
+  sslCheckEnabled?: boolean;
 }
 
 interface AlertConfiguration {
@@ -63,7 +64,8 @@ export function AlertSettings({
   description = "Configure how you want to be notified when this check fails or recovers",
   hideTitle = true,
   context = 'monitor',
-  monitorType
+  monitorType,
+  sslCheckEnabled = false
 }: AlertSettingsProps) {
   const [providers, setProviders] = useState<NotificationProvider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +74,10 @@ export function AlertSettings({
     ...defaultConfig,
     ...value,
     notificationProviders: value?.notificationProviders || [],
+    // Auto-enable SSL alerts if SSL checking is enabled
+    alertOnSslExpiration: (monitorType === 'website' && sslCheckEnabled) ? true : (value?.alertOnSslExpiration || false),
+    // Auto-enable job success alerts for job context
+    alertOnSuccess: context === 'job' ? true : (value?.alertOnSuccess || false),
   });
 
   // Validation state
@@ -109,9 +115,27 @@ export function AlertSettings({
       ...defaultConfig,
       ...value,
       notificationProviders: value?.notificationProviders || [],
+      // Auto-enable SSL alerts if SSL checking is enabled
+      alertOnSslExpiration: (monitorType === 'website' && sslCheckEnabled) ? true : (value?.alertOnSslExpiration || false),
+      // Auto-enable job success alerts for job context
+      alertOnSuccess: context === 'job' ? true : (value?.alertOnSuccess || false),
     };
     setConfig(safeConfig);
-  }, [value]);
+  }, [value, monitorType, sslCheckEnabled, context]);
+
+  // Auto-enable SSL alerts when SSL checking is enabled
+  useEffect(() => {
+    if (monitorType === 'website' && sslCheckEnabled && !config.alertOnSslExpiration) {
+      updateConfig({ alertOnSslExpiration: true });
+    }
+  }, [monitorType, sslCheckEnabled, config.alertOnSslExpiration]);
+
+  // Auto-enable job success alerts for job context
+  useEffect(() => {
+    if (context === 'job' && !config.alertOnSuccess) {
+      updateConfig({ alertOnSuccess: true });
+    }
+  }, [context, config.alertOnSuccess]);
 
   const updateConfig = (updates: Partial<AlertConfiguration>) => {
     const newConfig = { ...config, ...updates };
@@ -226,8 +250,8 @@ export function AlertSettings({
                         Alert on recovery
                       </Label>
                     </div>
-                    {/* Only show SSL alerts for website monitors */}
-                    {monitorType === 'website' && (
+                    {/* Only show SSL alerts for website monitors with SSL checking enabled */}
+                    {monitorType === 'website' && sslCheckEnabled && (
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id="alert-ssl"

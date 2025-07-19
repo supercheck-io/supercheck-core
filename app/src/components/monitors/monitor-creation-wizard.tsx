@@ -143,6 +143,8 @@ export function MonitorCreationWizard() {
               customMessage: config.customMessage,
             })}
             context="monitor"
+            monitorType={monitorData?.type || type}
+            sslCheckEnabled={monitorData?.type === 'website' ? !!monitorData?.config?.enableSslCheck : false}
           />
           <div className="flex justify-end gap-6 pt-4">
             <Button variant="outline" onClick={handleBack}>
