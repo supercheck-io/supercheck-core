@@ -49,11 +49,11 @@ export function ValidationError({
   return (
     <Alert
       variant="destructive"
-      className={` bg-rose-300/95 shadow-lg rounded-xs p-4  ${className}`}
+      className={` bg-rose-300/95 shadow-lg rounded-sm p-4 relative ${className}`}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-200 mr-2">
+      <div className="flex items-start w-full pr-10">
+        <div className="flex items-start gap-4 flex-1">
+          <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-200 mr-2 mt-1">
             <Info className="h-5 w-5 text-red-600" />
           </div>
           <div className="flex-1 min-w-0">
@@ -62,29 +62,29 @@ export function ValidationError({
                 {category.label} Error
               </span>
               {line && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-md border border-red-200">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-sm border border-red-200">
                   <MapPin className="h-3 w-3" />
                   Line {line}{column ? `:${column}` : ''}
                 </span>
               )}
             </div>
-            <AlertDescription className="text-sm text-neutral-800 leading-relaxed">
+            <AlertDescription className="text-sm text-red-800 leading-relaxed">
               {cleanMessage}
             </AlertDescription>
           </div>
         </div>
-        {onDismiss && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onDismiss}
-            className="h-8 w-8 ml-2 bg-red-200 text-red-500 hover:text-red-600 hover:bg-red-200 rounded-lg transition"
-            aria-label="Dismiss error"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
       </div>
+      {onDismiss && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onDismiss}
+          className="absolute top-6 right-4 h-8 w-8 rounded-full bg-red-200 text-gray-600 transition" 
+          aria-label="Dismiss error"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
     </Alert>
   );
 }

@@ -35,26 +35,41 @@ const BLOCKED_MODULES = new Set([
   'async_hooks',
 ]);
 
-// Strictly allowed modules - only Playwright
+// Strictly allowed modules 
 const ALLOWED_MODULES = new Set([
-  '@playwright/test',
-  'playwright',
-  'expect',
+  '@playwright/test',       // UI & E2E testing framework
+  'playwright',             // Browser automation engine
+  'expect',                 // Assertion library
+  'mssql',                  // MSSQL database client
+  'mysql',                  // Legacy MySQL client
+  'pg',                     // PostgreSQL client
+  'oracledb',               // Oracle DB client
+  'mysql2',                 // Improved MySQL client
+  'mongodb',                // MongoDB driver
+  'lodash',                 // Utility library
+  'axios',                  // Promise‑based HTTP client – simpler and safer than native http
+  'zod',                    // Type-safe input validation – lightweight and audited 
+  'uuid',                   // Solid pure-JS unique IDs, no side effects
+  'dayjs',                  // Lightweight date manipulation (safer than moment.js)
+  'validator',              // String validation (emails, URLs, etc.) – pure and audited
 ]);
+
 
 // Enhanced blocked identifiers with more coverage
 const BLOCKED_IDENTIFIERS = new Set([
-  'process', 'Buffer', 'global', '__dirname', '__filename',
+  'process', 'Buffer', 'global', 'globalThis',
+  '__dirname', '__filename',
   'require', 'module', 'exports', '__non_webpack_require__',
-  'eval', 'Function', 'setTimeout', 'setInterval', 'setImmediate',
+  'eval', 'Function', 'GeneratorFunction', 'AsyncFunction',
+  'AsyncGeneratorFunction',
+  'setTimeout', 'setInterval', 'setImmediate',
   'clearTimeout', 'clearInterval', 'clearImmediate',
-  'btoa', 'atob', 'Worker', 'SharedArrayBuffer', 'Atomics',
+  'btoa', 'atob',
+  'Worker', 'SharedWorker', 'MessageChannel', 'postMessage',
+  'SharedArrayBuffer', 'Atomics',
+  'WebAssembly',
 ]);
 
-// Identifiers allowed from Playwright context only
-const ALLOWED_IDENTIFIERS_IN_CONTEXT = new Set([
-  'page', 'browser', 'context', 'test', 'expect'
-]);
 
 // Security constants
 const MAX_SCRIPT_LENGTH = 50000; // 50KB max
