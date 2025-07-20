@@ -5,7 +5,7 @@ FROM base AS deps
 WORKDIR /app
 
 # Copy package files
-COPY app/package.json app/package-lock.json* ./
+COPY package.json package-lock.json* ./
 
 # Install dependencies
 RUN npm ci
@@ -14,7 +14,7 @@ RUN npm ci
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY app .
+COPY . .
 
 # Build the Next.js application
 ENV NEXT_TELEMETRY_DISABLED 1

@@ -5,7 +5,7 @@ FROM base AS deps
 WORKDIR /app
 
 # Copy package files
-COPY runner/package.json runner/package-lock.json* ./
+COPY package.json package-lock.json* ./
 
 # Install dependencies
 RUN npm ci
@@ -14,7 +14,7 @@ RUN npm ci
 FROM mcr.microsoft.com/playwright:v1.38.0-focal AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY runner .
+COPY . .
 
 # Build the NestJS application
 RUN npm run build

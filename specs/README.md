@@ -87,7 +87,19 @@ Welcome to the Supertest documentation. This repository contains comprehensive d
 - **API Routes**: Next.js API routes in `/app/src/app/api/`
 - **Worker Services**: NestJS services in `/runner/src/`
 
+
+## Start Services Quick Reference
+
+# Start Redis
+docker run -d --name redis-supertest -p 6379:6379 redis
+
+# Start Postgres
+docker run -d --name postgres-supertest -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supertest -p 5432:5432 postgres:16
+
+# Start MinIO
+docker run -d --name minio-supertest -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
+
 ---
 
-*Last updated: January 2024*
+*Last updated: July 2025*
 *Maintained by: Development Team*

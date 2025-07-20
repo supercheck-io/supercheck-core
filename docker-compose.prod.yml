@@ -1,0 +1,263 @@
+version: '3.8'
+
+services:
+  # Frontend (Next.js App) - Reduced to 1 replica for limited resources
+  frontend:
+    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supertest}/frontend:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supertest
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=supertest
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      
+      # AWS S3 / MinIO Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://minio:9000
+      - S3_JOB_BUCKET_NAME=playwright-job-artifacts
+      - S3_FORCE_PATH_STYLE=true
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+      
+      # App Configuration - Optimized for single instance
+      - NODE_ENV=production
+      - RUNNING_CAPACITY=8
+      - QUEUED_CAPACITY=50
+      - TEST_EXECUTION_TIMEOUT_MS=900000
+      - TRACE_RECOVERY_INTERVAL_MS=300000
+      
+      # Scheduler Configuration
+      - DISABLE_JOB_SCHEDULER=false
+      - DISABLE_MONITOR_SCHEDULER=false
+    volumes:
+      - ./app/public/tests:/app/public/tests
+      - ./app/public/test-results:/app/public/test-results
+      - ./app/public/artifacts:/app/public/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - supertest-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  # Worker (NestJS Runner) - Optimized for limited resources
+  worker:
+    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supertest}/worker:latest
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supertest
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=supertest
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      
+      # AWS S3 / MinIO Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://minio:9000
+      - S3_JOB_BUCKET_NAME=playwright-job-artifacts
+      - S3_FORCE_PATH_STYLE=true
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+      
+      # App Configuration - Optimized for limited resources
+      - NODE_ENV=production
+      - RUNNING_CAPACITY=3
+      - QUEUED_CAPACITY=20
+      - TEST_EXECUTION_TIMEOUT_MS=900000
+      - TRACE_RECOVERY_INTERVAL_MS=300000
+      
+      # Scheduler Configuration
+      - DISABLE_JOB_SCHEDULER=false
+      - DISABLE_MONITOR_SCHEDULER=false
+    volumes:
+      - ./runner/playwright-reports:/app/playwright-reports
+      - ./runner/report:/app/report
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - supertest-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+
+  # PostgreSQL Database - Optimized for limited resources
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=supertest
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supertest-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1.5G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  # Redis (for job queues) - Optimized for limited resources
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supertest-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  # MinIO (S3-compatible storage) - Optimized for limited resources
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supertest-network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local
+
+networks:
+  supertest-network:
+    driver: bridge 
