@@ -9,16 +9,37 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, Save } from "lucide-react";
 import { toast } from "sonner";
 
+import { type NotificationProviderType, type NotificationProviderConfig } from "@/db/schema/schema";
+
+interface NotificationProviderData {
+  id: string;
+  name: string;
+  type: NotificationProviderType;
+  config: NotificationProviderConfig;
+  enabled: boolean;
+}
+
+interface AlertConfig {
+  enabled: boolean;
+  notificationProviders: string[];
+  alertOnFailure: boolean;
+  alertOnRecovery: boolean;
+  alertOnSslExpiration: boolean;
+  failureThreshold: number;
+  recoveryThreshold: number;
+  customMessage: string;
+}
+
 interface EditAlertWizardProps {
   providerId: string;
-  initialData: any;
+  initialData: NotificationProviderData;
 }
 
 export function EditAlertWizard({ providerId, initialData }: EditAlertWizardProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [providerData, setProviderData] = useState(initialData);
-  const [alertConfig, setAlertConfig] = useState({
+  const [alertConfig, setAlertConfig] = useState<AlertConfig>({
     enabled: true,
     notificationProviders: [providerId],
     alertOnFailure: true,
@@ -79,14 +100,20 @@ export function EditAlertWizard({ providerId, initialData }: EditAlertWizardProp
     }
   ];
 
-  async function handleProviderSave(data: any) {
+  async function handleProviderSave(data: { type: NotificationProviderType; config: NotificationProviderConfig }) {
     try {
       const response = await fetch(`/api/notification-providers/${providerId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          id: providerId,
+          name: data.config.name,
+          type: data.type,
+          config: data.config,
+          enabled: providerData.enabled,
+        }),
       });
 
       if (!response.ok) {

@@ -1,39 +1,7 @@
 import * as acorn from 'acorn';
 import * as walk from 'acorn-walk';
 
-// Enhanced blocked modules with comprehensive coverage
-const BLOCKED_MODULES = new Set([
-  // File system and OS
-  'fs', 'fs/promises', 'path', 'os',
-  // Process and execution
-  'child_process', 'cluster', 'worker_threads',
-  // System utilities
-  'util', 'v8', 'vm', 'repl', 'readline', 'stream',
-  // Crypto and security (can be dangerous)
-  'crypto', 'zlib',
-  // Debugging and inspection
-  'inspector', 'perf_hooks', 'trace_events',
-  // Timers (can be used for DoS)
-  'timers', 'timers/promises',
-  // Module system manipulation
-  'module',
-  // Buffer manipulation
-  'buffer',
-  // Events (can be used for complex attacks)
-  'events',
-  // URL manipulation (keep basic URL stuff blocked)
-  'url', 'querystring', 'punycode',
-  // Assert (not needed in tests)
-  'assert',
-  // String decoder
-  'string_decoder',
-  // TTY
-  'tty',
-  // Console (can interfere with logging)
-  'console',
-  // Async hooks
-  'async_hooks',
-]);
+
 
 // Strictly allowed modules 
 const ALLOWED_MODULES = new Set([
@@ -232,7 +200,7 @@ export class ValidationService {
       let statementCount = 0;
 
       walk.simple(ast, {
-        Statement: (node: any) => {
+        Statement: () => {
           statementCount++;
           if (statementCount > MAX_STATEMENTS) {
             throw new Error(`Script too complex: more than ${MAX_STATEMENTS} statements`);
@@ -240,10 +208,10 @@ export class ValidationService {
         },
 
         CallExpression: (node: acorn.CallExpression & acorn.Node) => {
-          const callee = node.callee as any;
+          const callee = node.callee as acorn.Node;
           
           // Enhanced require() validation
-          if (callee.type === 'Identifier' && callee.name === 'require') {
+          if (callee.type === 'Identifier' && (callee as acorn.Identifier).name === 'require') {
             if (node.arguments.length !== 1) {
               const line = node.loc?.start?.line || 1;
               throw new Error(`Invalid require() call at line ${line}`);
@@ -264,10 +232,10 @@ export class ValidationService {
           
           // Check for blocked function calls
           if (callee.type === 'MemberExpression') {
-            const obj = callee.object as any;
-            if (obj.name && BLOCKED_IDENTIFIERS.has(obj.name)) {
+            const obj = (callee as acorn.MemberExpression).object as acorn.Node;
+            if (obj.type === 'Identifier' && BLOCKED_IDENTIFIERS.has((obj as acorn.Identifier).name)) {
               const line = node.loc?.start?.line || 1;
-              throw new Error(`Access to '${obj.name}' is not allowed at line ${line}`);
+              throw new Error(`Access to '${(obj as acorn.Identifier).name}' is not allowed at line ${line}`);
             }
           }
         },

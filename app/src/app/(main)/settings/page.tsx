@@ -7,22 +7,18 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Palette,
   Bell,
   Shield,
   Database,
-  Globe,
   User,
   Key,
   Mail,
   Server,
-  Settings as SettingsIcon,
   Monitor,
   Clock,
-  Eye,
   Zap,
   Download,
 
@@ -33,8 +29,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-
 
 
 export default function SettingsPage() {
@@ -326,7 +320,7 @@ export default function SettingsPage() {
                   <Card className="bg-background">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center">
-                        <Globe className="h-4 w-4 mr-2" />
+                        <Server className="h-4 w-4 mr-2" />
                         Access Control
                       </CardTitle>
                       <CardDescription>

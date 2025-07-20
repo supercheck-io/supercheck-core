@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Tooltip, TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export interface ChartConfig {
@@ -62,18 +62,27 @@ export function ChartTooltip({
   children: React.ReactNode;
 }) {
   return (
-    <Tooltip content={content} disableHoverableContent>
-      {children}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>
+        {content}
+      </TooltipContent>
     </Tooltip>
   );
 }
 
 interface ChartTooltipContentProps extends React.HTMLAttributes<HTMLDivElement> {
   active?: boolean;
-  payload?: Array<{ name?: string; value?: string | number }>;
+  payload?: Array<{ 
+    name?: string; 
+    value?: string | number;
+    payload?: Record<string, unknown>;
+  }>;
   nameKey?: string;
-  labelFormatter?: (value: any) => string;
-  valueFormatter?: (value: any) => string;
+  labelFormatter?: (value: unknown) => string;
+  valueFormatter?: (value: unknown) => string;
 }
 
 export function ChartTooltipContent({
@@ -108,7 +117,7 @@ export function ChartTooltipContent({
             {nameKey && labelFormatter && (
               <p className="text-xs text-muted-foreground">
                 {labelFormatter(
-                  payload[0].payload?.[nameKey] || payload[0].payload
+                  payload[0]?.payload?.[nameKey] || payload[0]?.payload || payload[0]
                 )}
               </p>
             )}

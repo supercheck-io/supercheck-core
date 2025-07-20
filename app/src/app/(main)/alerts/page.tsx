@@ -15,18 +15,19 @@ import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { toast } from "sonner";
 import { NotificationChannelsComponent } from "@/components/alerts/notification-channels-component";
 import { NotificationChannel } from "@/components/alerts/notification-channels-schema";
+import { type NotificationProviderType, type NotificationProviderConfig } from "@/db/schema/schema";
 
-interface NotificationProvider {
+type NotificationProvider = {
   id: string;
   name: string;
-  type: 'email' | 'slack' | 'webhook' | 'telegram' | 'discord';
-  config: Record<string, unknown>;
+  type: NotificationProviderType;
+  config: NotificationProviderConfig;
   isEnabled: boolean;
   createdAt: string;
   updatedAt?: string;
   lastUsed?: string;
   isInUse?: boolean;
-}
+};
 
 export default function AlertsPage() {
   const [providers, setProviders] = useState<NotificationProvider[]>([]);
@@ -55,7 +56,7 @@ export default function AlertsPage() {
         if (providersResponse.ok) {
           const data = await providersResponse.json();
           // Transform the data to match our interface
-          const transformedData: NotificationProvider[] = data.map((provider: any) => ({
+          const transformedData: NotificationProvider[] = data.map((provider: NotificationProvider) => ({
             id: provider.id,
             name: provider.name,
             type: provider.type,
@@ -103,7 +104,7 @@ export default function AlertsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: (newProvider.config as any)?.name || `New ${newProvider.type} Channel`,
+          name: (newProvider.config as NotificationProviderConfig)?.name || `New ${newProvider.type} Channel`,
           type: newProvider.type,
           config: newProvider.config,
         }),
@@ -146,7 +147,7 @@ export default function AlertsPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            name: (updatedProvider.config as any)?.name || editingProvider.name,
+            name: (updatedProvider.config as NotificationProviderConfig)?.name || editingProvider.name,
             type: updatedProvider.type,
             config: updatedProvider.config,
           }),

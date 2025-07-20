@@ -7,7 +7,7 @@ import { headers } from 'next/headers';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth.api.getSession({
@@ -18,7 +18,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const tagId = params.id;
+    const resolvedParams = await params;
+    const tagId = resolvedParams.id;
 
     if (!tagId) {
       return NextResponse.json({ error: 'Tag ID is required' }, { status: 400 });
@@ -68,7 +69,7 @@ export async function DELETE(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth.api.getSession({
@@ -79,7 +80,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const tagId = params.id;
+    const resolvedParams = await params;
+    const tagId = resolvedParams.id;
 
     if (!tagId) {
       return NextResponse.json({ error: 'Tag ID is required' }, { status: 400 });
@@ -105,7 +107,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth.api.getSession({
@@ -116,7 +118,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const tagId = params.id;
+    const resolvedParams = await params;
+    const tagId = resolvedParams.id;
     const { name, color } = await request.json();
 
     if (!tagId) {

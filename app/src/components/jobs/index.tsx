@@ -39,7 +39,7 @@ import { toast } from "sonner";
 import { useJobContext } from "./job-context";
 import { formatDistanceToNow } from "date-fns";
 import { UUIDField } from "@/components/ui/uuid-field";
-import { Bell, BellOff, CheckCircle, XCircle, Clock, Key, Copy } from "lucide-react";
+import { Bell, BellOff, CheckCircle, XCircle, Clock, Copy } from "lucide-react";
 import { UrlTriggerTooltip } from "./url-trigger-tooltip";
 import { JobTestDataTable } from "./job-test-data-table";
 import { createJobTestColumns } from "./job-test-columns";
@@ -122,22 +122,24 @@ export default function Jobs() {
         const data = await response.json();
         
         if (response.ok && data.success && data.jobs) {
-          const typedJobs = data.jobs.map((job: any) => ({
+          const typedJobs = data.jobs.map((job: Record<string, unknown>) => ({
             ...job,
             status: job.status as Job["status"],
             description: job.description || null,
             cronSchedule: job.cronSchedule || null,
-            tests: job.tests.map((test: any) => ({
-              ...test,
-              type: test.type as Test["type"],
-              description: test.description || null,
-              status: (test.status || "pending") as Test["status"],
-              lastRunAt: test.lastRunAt || null,
-              duration: test.duration || null,
-            })),
-            alertConfig: job.alertConfig as any,
+            tests: Array.isArray(job.tests) 
+              ? job.tests.map((test: Record<string, unknown>) => ({
+                  ...test,
+                  type: test.type as Test["type"],
+                  description: test.description || null,
+                  status: (test.status || "pending") as Test["status"],
+                  lastRunAt: test.lastRunAt || null,
+                  duration: test.duration || null,
+                }))
+              : [],
+            alertConfig: job.alertConfig as Record<string, unknown>,
           }));
-          setJobs(typedJobs as any);
+          setJobs(typedJobs as Job[]);
         } else {
           console.error("Failed to fetch jobs:", data.error);
           toast.error("Failed to fetch jobs", {

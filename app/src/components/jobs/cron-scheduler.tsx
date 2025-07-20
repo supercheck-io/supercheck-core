@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Cron, OnError } from "react-js-cron";
 import "react-js-cron/dist/styles.css"; // Import base styles
 import { Input } from "@/components/ui/input"; // Import shadcn Input

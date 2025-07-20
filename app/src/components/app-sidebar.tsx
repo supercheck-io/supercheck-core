@@ -17,7 +17,7 @@ import {
   History,
   Plus
 } from "lucide-react";
-import { CheckIcon } from "@/components/logo/supercheck-logo";
+
 import { NavMain } from "@/components/nav-main";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import Link from "next/link";
@@ -198,9 +198,6 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // const activeTeam = data.teams[0]; // Assuming we want to display the first team
-  const LogoToDisplay = CheckIcon;
-  const teamName = "Supercheck";
-  const teamPlan = "MPT";
 
   return (
     <Sidebar collapsible="icon" {...props}>

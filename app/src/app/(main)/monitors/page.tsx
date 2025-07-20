@@ -1,6 +1,6 @@
 import MonitorsList from "@/components/monitors/monitors-list";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
-import { Card, CardTitle, CardHeader, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function MonitorsPage() {
   const breadcrumbs = [

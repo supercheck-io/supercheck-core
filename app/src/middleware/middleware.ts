@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCookieCache } from "better-auth/cookies";
 import { db } from "@/utils/db";
 import { apikey } from "@/db/schema/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

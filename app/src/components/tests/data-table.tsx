@@ -4,6 +4,7 @@ import {
   type ColumnFiltersState,
   type SortingState,
   type VisibilityState,
+  type RowSelectionState,
   type Row,
   flexRender,
   getCoreRowModel,
@@ -49,13 +50,11 @@ interface ExtendedTableMeta<TData> extends TableMeta<TData> {
 }
 
 // Custom global filter function for tests table
-function testGlobalFilterFn(row: any, _columnId: string, filterValue: string) {
+function testGlobalFilterFn(row: Row<unknown>, _columnId: string, filterValue: string) {
   if (!filterValue) return true;
   const search = String(filterValue).toLowerCase();
-  // Fallback to all relevant columns if meta is not available
-  const columns =
-    row?.table?.options?.meta?.globalFilterColumns ||
-    ["id", "title", "description", "type", "priority", "tags"];
+  // Use default columns for filtering
+  const columns = ["id", "title", "description", "type", "priority", "tags"];
   return columns.some((id: string) => {
     const value = row.getValue(id);
     if (typeof value === "string" || typeof value === "number") {
@@ -100,33 +99,53 @@ export function DataTable<TData, TValue>({
   }, []);
 
   // Safe state setters that only run when component is mounted
-  const safeSetRowSelection = React.useCallback((value: any) => {
+  const safeSetRowSelection = React.useCallback((updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
     if (mounted) {
-      setRowSelection(value);
+      if (typeof updaterOrValue === 'function') {
+        setRowSelection(updaterOrValue);
+      } else {
+        setRowSelection(updaterOrValue);
+      }
     }
   }, [mounted]);
   
-  const safeSetSorting = React.useCallback((value: any) => {
+  const safeSetSorting = React.useCallback((updaterOrValue: SortingState | ((old: SortingState) => SortingState)) => {
     if (mounted) {
-      setSorting(value);
+      if (typeof updaterOrValue === 'function') {
+        setSorting(updaterOrValue);
+      } else {
+        setSorting(updaterOrValue);
+      }
     }
   }, [mounted]);
   
-  const safeSetColumnFilters = React.useCallback((value: any) => {
+  const safeSetColumnFilters = React.useCallback((updaterOrValue: ColumnFiltersState | ((old: ColumnFiltersState) => ColumnFiltersState)) => {
     if (mounted) {
-      setColumnFilters(value);
+      if (typeof updaterOrValue === 'function') {
+        setColumnFilters(updaterOrValue);
+      } else {
+        setColumnFilters(updaterOrValue);
+      }
     }
   }, [mounted]);
   
-  const safeSetColumnVisibility = React.useCallback((value: any) => {
+  const safeSetColumnVisibility = React.useCallback((updaterOrValue: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
     if (mounted) {
-      setColumnVisibility(value);
+      if (typeof updaterOrValue === 'function') {
+        setColumnVisibility(updaterOrValue);
+      } else {
+        setColumnVisibility(updaterOrValue);
+      }
     }
   }, [mounted]);
   
-  const safeSetGlobalFilter = React.useCallback((value: any) => {
+  const safeSetGlobalFilter = React.useCallback((updaterOrValue: string | ((old: string) => string)) => {
     if (mounted) {
-      setGlobalFilter(value);
+      if (typeof updaterOrValue === 'function') {
+        setGlobalFilter(updaterOrValue);
+      } else {
+        setGlobalFilter(updaterOrValue);
+      }
     }
   }, [mounted]);
 
@@ -183,24 +202,7 @@ export function DataTable<TData, TValue>({
     }
   }, [data, table, mounted]);
 
-  // Handle row clicks while checking for action column clicks
-  const handleRowClick = (e: React.MouseEvent, row: Row<TData>) => {
-    const target = e.target as HTMLElement;
-    
-    // Check if the click was inside or on a dropdown menu or button
-    if (
-      target.closest('[role="menuitem"]') || 
-      target.closest('[role="menu"]') || 
-      target.closest('button')
-    ) {
-      return; // Don't process row click
-    }
-    
-    // Process row click if handler provided
-    if (onRowClick) {
-      onRowClick(row);
-    }
-  };
+
 
   // Don't render the table until the component is mounted
   if (!mounted) {

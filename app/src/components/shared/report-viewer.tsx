@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Loader2Icon, FileText, Maximize2, ExternalLink, X } from "lucide-react";
+import { AlertCircle, Loader2Icon, FileText, Maximize2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { PlaywrightLogo } from "../logo/playwright-logo";

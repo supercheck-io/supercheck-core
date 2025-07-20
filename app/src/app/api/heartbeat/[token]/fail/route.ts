@@ -25,13 +25,13 @@ async function handleHeartbeatFailure(request: NextRequest, token: string) {
   
   try {
     // Parse request body for additional failure data
-    let failureData = {};
+    let failureData: Record<string, unknown> = {};
     try {
       const contentType = request.headers.get("content-type");
       if (contentType?.includes("application/json")) {
         failureData = await request.json();
       }
-    } catch (error) {
+    } catch {
       // Ignore JSON parsing errors - failure data is optional
       console.log(`[HEARTBEAT-FAIL] No valid JSON body provided, continuing with empty failure data`);
     }
@@ -103,13 +103,10 @@ async function handleHeartbeatFailure(request: NextRequest, token: string) {
       .where(eq(monitors.id, heartbeatMonitor.id));
     
     // Create failure details
-    const errorMessage = (failureData as any)?.message || 
-                        (failureData as any)?.error || 
+    const errorMessage = (failureData as Record<string, unknown>)?.message as string || 
+                        (failureData as Record<string, unknown>)?.error as string || 
                         "Explicit failure reported by a ping to the /fail URL.";
     
-    const exitCode = (failureData as any)?.exitCode;
-    const output = (failureData as any)?.output;
-
     // Record the failure result
     await db.insert(monitorResults).values({
       monitorId: heartbeatMonitor.id,

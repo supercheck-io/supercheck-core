@@ -151,12 +151,6 @@ export function RunDetails({ run }: { run: RunResponse }) {
 
   const statusInfo = runStatuses.find((s) => s.value === currentStatus);
   
-  // Helper function to truncate ID
-  const truncateId = (id: string) => {
-    if (!id) return '';
-    return id;  // No longer truncating
-  };
-
   const handleDeleteRun = async () => {
     setIsDeleting(true);
     try {

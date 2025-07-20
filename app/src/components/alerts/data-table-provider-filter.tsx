@@ -36,21 +36,24 @@ export function DataTableProviderFilter<TData, TValue>({
   // Calculate facets properly by iterating through rows
   const facets = React.useMemo(() => {
     const newFacets = new Map<string, number>();
-    column?.getFacetedRowModel().rows.forEach((row) => {
-      const providerString = row.getValue(column.id) as string;
-      if (providerString) {
-        const providers = providerString
-          .split(',')
-          .map(p => p.trim())
-          .filter(p => p.length > 0);
-        
-        providers.forEach(provider => {
-          newFacets.set(provider, (newFacets.get(provider) || 0) + 1);
-        });
-      }
-    });
+    const rows = column?.getFacetedRowModel().rows;
+    if (rows) {
+      rows.forEach((row) => {
+        const providerString = row.getValue(column.id) as string;
+        if (providerString) {
+          const providers = providerString
+            .split(',')
+            .map(p => p.trim())
+            .filter(p => p.length > 0);
+          
+          providers.forEach(provider => {
+            newFacets.set(provider, (newFacets.get(provider) || 0) + 1);
+          });
+        }
+      });
+    }
     return newFacets;
-  }, [column?.getFacetedRowModel().rows]);
+  }, [column]);
 
   // Get all unique providers from the facets
   const allProviders = Array.from(facets.keys()).sort();

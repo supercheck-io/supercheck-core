@@ -1,26 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { runs, jobs, reports, jobTests } from "@/db/schema/schema";
-import { desc, eq, and, count } from "drizzle-orm";
+import { runs, jobs, reports } from "@/db/schema/schema";
+import { desc, eq, and } from "drizzle-orm";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 
-// Function to get test count for a job
-async function getJobTestCount(jobId: string): Promise<number> {
-  try {
-    const result = await db
-      .select({ count: count() })
-      .from(jobTests)
-      .where(eq(jobTests.jobId, jobId));
-    
-    return result[0].count || 0;
-  } catch (error) {
-    console.error(`Failed to get test count for job ${jobId}:`, error);
-    return 0;
-  }
-}
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Verify user is authenticated
     const session = await auth.api.getSession({

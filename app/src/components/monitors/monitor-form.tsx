@@ -179,7 +179,7 @@ interface MonitorFormProps {
   title?: string;
   description?: string;
   hideAlerts?: boolean;
-  onSave?: (data: any) => void;
+  onSave?: (data: Record<string, unknown>) => void;
   onCancel?: () => void;
   alertConfig?: AlertConfiguration | null; // Use proper type
 }
@@ -214,7 +214,7 @@ export function MonitorForm({
     customMessage: "" as string,
   });
   const [showAlerts, setShowAlerts] = useState(false);
-  const [monitorData, setMonitorData] = useState<any>(null);
+  const [monitorData, setMonitorData] = useState<Record<string, unknown> | null>(null);
 
   // Get current monitor type from URL params if not provided as prop
   const urlType = searchParams.get('type') as FormValues["type"];
@@ -353,7 +353,7 @@ export function MonitorForm({
       type: data.type,
       // Convert interval from seconds to minutes
       frequencyMinutes: Math.round(parseInt(data.interval, 10) / 60),
-      config: {} as any,
+      config: {} as Record<string, unknown>,
     };
 
     // Build config based on monitor type
@@ -522,7 +522,7 @@ export function MonitorForm({
     }
   }
 
-  async function handleDirectSave(apiData: any, includeAlerts = false) {
+  async function handleDirectSave(apiData: Record<string, unknown>, includeAlerts = false) {
     setIsSubmitting(true);
     
     try {

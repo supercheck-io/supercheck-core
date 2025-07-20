@@ -1,12 +1,10 @@
 "use client";
 
 import type { Table } from "@tanstack/react-table";
-import { PlusCircle, PlusIcon, X, Search } from "lucide-react";
+import { X, Search } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTableViewOptions } from "@/components/alerts/data-table-view-options";
-import { useRouter } from "next/navigation";
 
 import { alertStatuses, alertTypes } from "./data";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
@@ -19,8 +17,6 @@ interface DataTableToolbarProps<TData> {
 export function DataTableToolbar<TData>({
   table,
 }: DataTableToolbarProps<TData>) {
-  const router = useRouter();
-
   return (
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center justify-between space-y-2">

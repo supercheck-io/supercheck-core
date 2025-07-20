@@ -1,11 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Activity, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Monitor } from "./schema";
 import { MonitorConfig } from "@/db/schema/schema";
-import { formatDistanceToNow, parseISO } from "date-fns";
 
 interface HeartbeatDisplayProps {
   monitor: Monitor & { config?: MonitorConfig };

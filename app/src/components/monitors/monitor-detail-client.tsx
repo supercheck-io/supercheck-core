@@ -22,7 +22,6 @@ import {
   Shield,
   Bell,
   BellOff,
-  ActivitySquare,
   ActivityIcon,
 } from "lucide-react";
 import { 
@@ -30,23 +29,11 @@ import {
   CardContent, 
   CardHeader, 
   CardTitle,
-  CardFooter,
   CardDescription,
 } from "@/components/ui/card";
 import { monitorStatuses, monitorTypes } from "@/components/monitors/data";
-import { Monitor, monitorSchema } from "./schema";
-import { AlertConfig } from "@/db/schema/schema";
+import { Monitor } from "./schema";
 import { formatDistanceToNow, format, startOfDay, endOfDay, parseISO, subHours, subDays, isWithinInterval } from "date-fns";
-import { cn } from "@/lib/utils";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import {
   Popover,
   PopoverContent,
@@ -71,7 +58,8 @@ import { AvailabilityBarChart } from "./AvailabilityBarChart";
 import { 
     MonitorStatus as DBMoniotorStatusType,
     MonitorResultStatus as DBMonitorResultStatusType, 
-    MonitorResultDetails as DBMonitorResultDetailsType 
+    MonitorResultDetails as DBMonitorResultDetailsType,
+    MonitorConfig
 } from "@/db/schema/schema";
 
 export interface MonitorResultItem {
@@ -232,63 +220,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
     }
   };
 
-  const handleToggleAlerts = async () => {
-    // 1. Save original monitor for potential rollback
-    const originalMonitor = monitor;
-
-    // 2. Determine the new state and create a fully-formed alertConfig
-    const newAlertsEnabled = !(originalMonitor.alertConfig?.enabled ?? false);
-    
-    const updatedAlertConfig = {
-        enabled: newAlertsEnabled,
-        notificationProviders: originalMonitor.alertConfig?.notificationProviders ?? [],
-        alertOnFailure: originalMonitor.alertConfig?.alertOnFailure ?? true,
-        alertOnRecovery: originalMonitor.alertConfig?.alertOnRecovery ?? true,
-        alertOnSslExpiration: originalMonitor.alertConfig?.alertOnSslExpiration ?? true,
-        alertOnSuccess: originalMonitor.alertConfig?.alertOnSuccess ?? false,
-        alertOnTimeout: originalMonitor.alertConfig?.alertOnTimeout ?? true,
-        failureThreshold: originalMonitor.alertConfig?.failureThreshold ?? 1,
-        recoveryThreshold: originalMonitor.alertConfig?.recoveryThreshold ?? 1,
-        customMessage: originalMonitor.alertConfig?.customMessage ?? "",
-    };
-
-    // 3. Optimistically update the UI. The new monitor state is guaranteed to be valid.
-    setMonitor({ ...originalMonitor, alertConfig: updatedAlertConfig });
-
-    // 4. Make the API call
-    try {
-        const response = await fetch(`/api/monitors/${originalMonitor.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                alertConfig: { // Only send the changed value
-                    enabled: newAlertsEnabled
-                }
-            })
-        });
-
-        if (!response.ok) {
-            // If API fails, it will be caught and we'll roll back.
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to update alert settings.");
-        }
-        
-        const updatedMonitorFromServer = await response.json();
-
-        // 5. Sync with the authoritative state from the server.
-        setMonitor(updatedMonitorFromServer);
-        toast.success(`Alerts ${newAlertsEnabled ? 'enabled' : 'disabled'} successfully.`);
-        
-        router.refresh();
-
-    } catch (error) {
-        console.error("Error toggling alert settings:", error);
-        toast.error((error as Error).message || "Could not update alert settings.");
-        
-        // 6. Rollback on error
-        setMonitor(originalMonitor);
-    }
-  };
+  // Removed unused handleToggleAlerts function
 
   // Filter results by selected date if any
   const filteredResults = useMemo(() => {
@@ -479,8 +411,12 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
       return null;
     }
     
-    const sslCert = resultWithSsl.details.sslCertificate as any;
+    const sslCert = resultWithSsl.details.sslCertificate as DBMonitorResultDetailsType['sslCertificate'];
     console.log("[SSL Debug] SSL Certificate data:", sslCert);
+    
+    if (!sslCert) {
+      return null;
+    }
     
     return {
       validTo: sslCert.validTo,
@@ -603,7 +539,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </div>
             
             {/* SSL Certificate Expiry for Website Monitors */}
-            {monitor.type === 'website' && sslCertificateInfo && (
+            {monitor.type === 'website' && sslCertificateInfo && sslCertificateInfo.daysRemaining !== undefined && (
               <div className={`flex items-center px-2 py-2 rounded-md border ${
                 sslCertificateInfo.daysRemaining <= 7 
                   ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
@@ -689,7 +625,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   <CardTitle className="text-sm font-medium text-muted-foreground">Expected Interval</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-semibold">{(monitor as any).config?.expectedIntervalMinutes ? `${(monitor as any).config.expectedIntervalMinutes}m` : "60m"}</div>
+                  <div className="text-xl font-semibold">{(monitor.config as MonitorConfig)?.expectedIntervalMinutes ? `${(monitor.config as MonitorConfig).expectedIntervalMinutes}m` : "60m"}</div>
                 </CardContent>
               </Card>
 
@@ -699,7 +635,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                   <CardTitle className="text-sm font-medium text-muted-foreground">Grace Period</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-bold">{(monitor as any).config?.gracePeriodMinutes ? `${(monitor as any).config.gracePeriodMinutes}m` : "10m"}</div>
+                  <div className="text-xl font-bold">{(monitor.config as MonitorConfig)?.gracePeriodMinutes ? `${(monitor.config as MonitorConfig).gracePeriodMinutes}m` : "10m"}</div>
                 </CardContent>
               </Card>
 
@@ -710,7 +646,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                 </CardHeader>
                 <CardContent className="pb-4 px-4">
                   <div className="text-xl font-semibold">
-                    {formatShortDateTime((monitor as any).config?.lastPingAt)}
+                    {formatShortDateTime((monitor.config as MonitorConfig)?.lastPingAt)}
                   </div>
                 </CardContent>
               </Card>
@@ -830,13 +766,13 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                       <label className="text-sm font-medium text-muted-foreground">Success URL</label>
                       <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group">
                         <code className="flex-1 text-sm font-mono break-all">
-                          {(monitor as any).config?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`}
+                          {(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`}
                         </code>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const url = (monitor as any).config?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`;
+                            const url = (monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`;
                             navigator.clipboard.writeText(url);
                             toast.success("URL copied to clipboard");
                           }}
@@ -851,13 +787,13 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                       <label className="text-sm font-medium text-muted-foreground">Failure URL</label>
                       <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group mb-5" >
                         <code className="flex-1 text-sm font-mono break-all">
-                          {(monitor as any).config?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`}/fail
+                          {(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`}/fail
                         </code>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const url = `${(monitor as any).config?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`}/fail`;
+                            const url = `${(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`}/fail`;
                             navigator.clipboard.writeText(url);
                             toast.success("URL copied to clipboard");
                           }}
@@ -939,16 +875,13 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                               <td className="px-4 py-3 whitespace-nowrap text-sm w-20">
                                 <div className="flex items-center gap-2">
                                   <SimpleStatusIcon isUp={result.isUp} />
-                                  <span className={cn(result.isUp ? "text-green-500" : "text-red-500")}>
-                                     
-                                  </span>
                                 </div>
                               </td>
                               <td className="py-3 px-4 text-sm text-gray-400">{formatDateTime(result.checkedAt)}</td>
                               <td className="px-4 py-3 text-sm text-muted-foreground">
                                 {result.isUp ? (
                                   <span className="text-muted-foreground text-xs">
-                                    {result.details?.message || "Ping received"}
+                                    {typeof result.details?.message === 'string' ? result.details.message : "Ping received"}
                                   </span>
                                 ) : (
                                   <span className="text-muted-foreground text-xs truncate max-w-[150px]" title={result.details?.errorMessage || "No ping within expected interval"}>

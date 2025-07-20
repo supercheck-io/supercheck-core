@@ -34,7 +34,19 @@ interface ResponseTimeBarChartProps {
     data: ResponseTimeChartDataPoint[];
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    value: number;
+    payload: {
+      fullDate?: string;
+      isUp?: boolean;
+    };
+  }>;
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const displayDate = data.fullDate || label;

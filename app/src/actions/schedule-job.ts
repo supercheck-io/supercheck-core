@@ -1,15 +1,54 @@
 "use server";
 
 import { db } from "../utils/db";
-import { jobs as jobsTable } from "../db/schema/schema";
+import { jobs as jobsTable, jobsSelectSchema } from "../db/schema/schema";
 import { eq } from "drizzle-orm";
 import { scheduleJob } from "../lib/job-scheduler";
-import { getJob } from "./get-jobs";
+import { z } from "zod";
+
+type Job = z.infer<typeof jobsSelectSchema>;
 
 interface ScheduleJobResponse {
   success: boolean;
   error?: string;
   scheduleName?: string;
+}
+
+interface GetJobResponse {
+  success: boolean;
+  job?: Job;
+  error?: string;
+}
+
+/**
+ * Local function to get a job by ID
+ */
+async function getJob(jobId: string): Promise<GetJobResponse> {
+  try {
+    const job = await db
+      .select()
+      .from(jobsTable)
+      .where(eq(jobsTable.id, jobId))
+      .limit(1);
+
+    if (job.length === 0) {
+      return {
+        success: false,
+        error: "Job not found"
+      };
+    }
+
+    return {
+      success: true,
+      job: job[0]
+    };
+  } catch (error) {
+    console.error("Error getting job:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to get job"
+    };
+  }
 }
 
 /**

@@ -5,12 +5,7 @@ import type { Monitor } from "./schema";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { useState } from "react";
+
 
 import { MonitorStatusIndicator } from "./monitor-status-indicator";
 import { monitorTypes } from "./data";
@@ -50,7 +45,6 @@ export const columns: ColumnDef<Monitor>[] = [
     ),
     cell: ({ row }) => {
       const name = row.getValue("name") as string;
-      const [isOpen, setIsOpen] = useState(false);
       
       // Check if text is likely to be truncated (rough estimate)
       const isTruncated = name.length > 20; // Approximate character limit for 200px width
@@ -66,26 +60,11 @@ export const columns: ColumnDef<Monitor>[] = [
       }
       
       return (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <div 
-              className="flex space-x-2 cursor-pointer"
-              onMouseEnter={() => setIsOpen(true)}
-              onMouseLeave={() => setIsOpen(false)}
-            >
-              <span className="max-w-[160px] truncate">
-                {name}
-              </span>
-            </div>
-          </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                {name}
-              </p>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <div className="flex space-x-2">
+          <span className="max-w-[160px] truncate" title={name}>
+            {name}
+          </span>
+        </div>
       );
     },
   },
@@ -98,7 +77,6 @@ export const columns: ColumnDef<Monitor>[] = [
       const target = row.getValue("target") as string;
       const monitorType = row.original.type as string;
       const legacyUrl = row.original.url as string; // Fallback for legacy data
-      const [isOpen, setIsOpen] = useState(false);
       
       // For heartbeat monitors, show truncated URL without hyperlink styling
       if (monitorType === "heartbeat") {
@@ -114,65 +92,19 @@ export const columns: ColumnDef<Monitor>[] = [
           displayUrl = `${baseUrl}/api/heartbeat/${target}`;
         }
         
-        // Check if URL is likely to be truncated
-        const isTruncated = displayUrl.length > 20;
-        
-        if (!isTruncated) {
-          return (
-            <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block">
-              {displayUrl}
-            </span>
-          );
-        }
-        
         return (
-          <Popover open={isOpen} onOpenChange={setIsOpen}>
-            <PopoverTrigger asChild>
-              <span 
-                className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block cursor-pointer"
-                onMouseEnter={() => setIsOpen(true)}
-                onMouseLeave={() => setIsOpen(false)}
-              >
-                {displayUrl}
-              </span>
-            </PopoverTrigger>
-            <PopoverContent className="flex justify-center items-center w-auto max-w-[800px]">
-              <p className="text-xs text-muted-foreground font-mono">
-                {displayUrl}
-              </p>
-            </PopoverContent>
-          </Popover>
-        );
-      }
-      
-      const displayValue = target || legacyUrl || "—";
-      const isTruncated = displayValue.length > 20;
-      
-      if (!isTruncated) {
-        return (
-          <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block">
-            {displayValue}
+          <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block" title={displayUrl}>
+            {displayUrl}
           </span>
         );
       }
       
+      const displayValue = target || legacyUrl || "—";
+      
       return (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <span 
-              className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block cursor-pointer"
-              onMouseEnter={() => setIsOpen(true)}
-              onMouseLeave={() => setIsOpen(false)}
-            >
-              {displayValue}
-            </span>
-          </PopoverTrigger>
-          <PopoverContent className="flex justify-center items-center w-auto max-w-[800px]">
-            <p className="text-xs text-muted-foreground font-mono">
-              {displayValue}
-            </p>
-          </PopoverContent>
-        </Popover>
+        <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block" title={displayValue}>
+          {displayValue}
+        </span>
       );
     },
   },

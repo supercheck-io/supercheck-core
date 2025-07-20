@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Settings,
@@ -12,7 +13,6 @@ import {
   BellRing,
   Network,
   LaptopMinimal,
-  RefreshCw,
   ChartColumn,
   CalendarClock,
   NotepadText,
@@ -46,7 +46,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
   const [open, setOpen] = React.useState(false)
   const router = useRouter()
 
-  const handleCommand = (command: string) => {
+  const handleCommand = useCallback((command: string) => {
     setOpen(false)
     
     const routes: Record<string, string> = {
@@ -91,7 +91,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
         router.push(route)
       }
     }
-  }
+  }, [router])
 
   // Enhanced keyboard shortcuts
   React.useEffect(() => {
@@ -184,7 +184,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
 
     document.addEventListener("keydown", down)
     return () => document.removeEventListener("keydown", down)
-  }, [open])
+  }, [open, handleCommand])
 
   return (
     <div className={className}>

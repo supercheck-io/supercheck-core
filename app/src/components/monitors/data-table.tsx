@@ -7,6 +7,7 @@ import {
   type SortingState,
   type VisibilityState,
   type Row,
+  type RowSelectionState,
   flexRender,
   getCoreRowModel,
   getFacetedRowModel,
@@ -73,31 +74,31 @@ export function DataTable<TData, TValue>({
   }, []);
 
   // Safe state setters that only run when component is mounted
-  const safeSetRowSelection = React.useCallback((value: any) => {
+  const safeSetRowSelection = React.useCallback((value: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
     if (mounted) {
       setRowSelection(value);
     }
   }, [mounted]);
   
-  const safeSetSorting = React.useCallback((value: any) => {
+  const safeSetSorting = React.useCallback((value: SortingState | ((old: SortingState) => SortingState)) => {
     if (mounted) {
       setSorting(value);
     }
   }, [mounted]);
   
-  const safeSetColumnFilters = React.useCallback((value: any) => {
+  const safeSetColumnFilters = React.useCallback((value: ColumnFiltersState | ((old: ColumnFiltersState) => ColumnFiltersState)) => {
     if (mounted) {
       setColumnFilters(value);
     }
   }, [mounted]);
   
-  const safeSetColumnVisibility = React.useCallback((value: any) => {
+  const safeSetColumnVisibility = React.useCallback((value: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
     if (mounted) {
       setColumnVisibility(value);
     }
   }, [mounted]);
   
-  const safeSetGlobalFilter = React.useCallback((value: any) => {
+  const safeSetGlobalFilter = React.useCallback((value: string | ((old: string) => string)) => {
     if (mounted) {
       setGlobalFilter(value);
     }
@@ -150,24 +151,7 @@ export function DataTable<TData, TValue>({
     }
   }, [data, table, mounted]);
 
-  // Handle row clicks while checking for action column clicks
-  const handleRowClick = (e: React.MouseEvent, row: Row<TData>) => {
-    const target = e.target as HTMLElement;
-    
-    // Check if the click was inside or on a dropdown menu or button
-    if (
-      target.closest('[role="menuitem"]') || 
-      target.closest('[role="menu"]') || 
-      target.closest('button')
-    ) {
-      return; // Don't process row click
-    }
-    
-    // Process row click if handler provided
-    if (onRowClick) {
-      onRowClick(row);
-    }
-  };
+
 
   // Don't render anything until mounted to prevent hydration issues
   if (!mounted) {

@@ -11,7 +11,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; keyId: string }> }
 ) {
   try {
-    const { id: jobId, keyId } = await params;
+    const { keyId } = await params;
     const { enabled, name } = await request.json();
 
     // Verify user is authenticated
@@ -24,7 +24,7 @@ export async function PATCH(
     }
 
     // Update the API key directly in database
-    const updateData: any = {};
+    const updateData: Partial<typeof apikey.$inferInsert> = {};
     if (enabled !== undefined) updateData.enabled = enabled;
     if (name !== undefined) updateData.name = name;
     updateData.updatedAt = new Date();

@@ -9,7 +9,6 @@ import {
   Activity, 
   AlertTriangle, 
   CheckCircle, 
-  Database, 
   Monitor, 
   Play, 
   TrendingUp, 
@@ -18,11 +17,7 @@ import {
   BarChart3,
   Clock,
   Zap,
-  Globe,
-  TestTube,
-  Calendar,
-  Shield,
-  Network
+  TestTube
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";

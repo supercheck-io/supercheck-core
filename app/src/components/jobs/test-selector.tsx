@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { XCircle, Search, PlusIcon, AlertCircle, X, ChevronLeft, ChevronLeftCircle, ChevronsLeft, ChevronRight } from "lucide-react";
+import { XCircle, Search, PlusIcon, AlertCircle, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { types } from "../tests/data";
 import {
   Dialog,
@@ -50,14 +50,14 @@ export default function TestSelector({
   const [availableTests, setAvailableTests] = useState<Test[]>([]);
   const [isLoadingTests, setIsLoadingTests] = useState(true);
   const [testFilter, setTestFilter] = useState("");
-  const [tagFilter, setTagFilter] = useState("");
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   const [testToRemove, setTestToRemove] = useState<{id: string, name: string} | null>(null);
 
   // Always ensure we have an array
-  const tests = Array.isArray(selectedTests) ? selectedTests : [];
+  const tests = useMemo(() => Array.isArray(selectedTests) ? selectedTests : [], [selectedTests]);
 
   // Define the structure expected from the API
   interface ActionTest {
@@ -167,11 +167,7 @@ export default function TestSelector({
       (test.description && test.description.toLowerCase().includes(testFilter.toLowerCase())) ||
       (test.tags && test.tags.some(tag => tag.name.toLowerCase().includes(testFilter.toLowerCase())));
 
-    const matchesTagFilter = 
-      tagFilter === "" ||
-      (test.tags && test.tags.some(tag => tag.name.toLowerCase().includes(tagFilter.toLowerCase())));
-
-    return matchesTextFilter && matchesTagFilter;
+    return matchesTextFilter;
   });
 
   // Get the current page of tests

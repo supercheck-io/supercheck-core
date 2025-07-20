@@ -27,11 +27,12 @@ import {
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { cn } from "@/lib/utils";
+import { NotificationChannel } from "./notification-channels-schema";
 
 // Define a more specific meta type
 interface TableMeta {
-  onEdit?: (channel: any) => void;
-  onDelete?: (channel: any) => void;
+  onEdit?: (channel: NotificationChannel) => void;
+  onDelete?: (channel: NotificationChannel) => void;
 }
 
 interface DataTableProps<TData, TValue> {
@@ -52,7 +53,7 @@ export function NotificationChannelsDataTable<TData, TValue>({
   const [mounted, setMounted] = React.useState(false);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
-  const [rowSelection, setRowSelection] = React.useState({});
+  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
 
   // Set mounted to true after initial render
   React.useEffect(() => {
@@ -75,7 +76,7 @@ export function NotificationChannelsDataTable<TData, TValue>({
     }
   }, [mounted]);
 
-  const safeSetRowSelection = React.useCallback((selection: any) => {
+  const safeSetRowSelection = React.useCallback((selection: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => {
     if (mounted) {
       setRowSelection(selection);
     }

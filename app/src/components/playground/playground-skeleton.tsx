@@ -3,13 +3,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 // Skeleton Component
 export function PlaygroundSkeleton() {
-  // Use a default breadcrumb structure or omit it for the skeleton
-  const skeletonBreadcrumbs = [
-    { label: "Home", href: "/" },
-    { label: "Tests", href: "/tests" },
-    { label: "Create Test", isCurrentPage: true },
-  ];
-
   return (
     <div className="h-full flex flex-col overflow-hidden">
 

@@ -6,6 +6,7 @@ import {
   ColumnFiltersState,
   SortingState,
   VisibilityState,
+  RowSelectionState,
   flexRender,
   getCoreRowModel,
   getFacetedRowModel,
@@ -76,33 +77,53 @@ export function DataTable<TData, TValue>({
   }, []);
 
   // Safe state setters that only run when component is mounted
-  const safeSetRowSelection = React.useCallback((value: any) => {
+  const safeSetRowSelection = React.useCallback((updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
     if (mounted) {
-      setRowSelection(value);
+      if (typeof updaterOrValue === 'function') {
+        setRowSelection(updaterOrValue);
+      } else {
+        setRowSelection(updaterOrValue);
+      }
     }
   }, [mounted]);
   
-  const safeSetSorting = React.useCallback((value: any) => {
+  const safeSetSorting = React.useCallback((updaterOrValue: SortingState | ((old: SortingState) => SortingState)) => {
     if (mounted) {
-      setSorting(value);
+      if (typeof updaterOrValue === 'function') {
+        setSorting(updaterOrValue);
+      } else {
+        setSorting(updaterOrValue);
+      }
     }
   }, [mounted]);
   
-  const safeSetColumnFilters = React.useCallback((value: any) => {
+  const safeSetColumnFilters = React.useCallback((updaterOrValue: ColumnFiltersState | ((old: ColumnFiltersState) => ColumnFiltersState)) => {
     if (mounted) {
-      setColumnFilters(value);
+      if (typeof updaterOrValue === 'function') {
+        setColumnFilters(updaterOrValue);
+      } else {
+        setColumnFilters(updaterOrValue);
+      }
     }
   }, [mounted]);
   
-  const safeSetColumnVisibility = React.useCallback((value: any) => {
+  const safeSetColumnVisibility = React.useCallback((updaterOrValue: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
     if (mounted) {
-      setColumnVisibility(value);
+      if (typeof updaterOrValue === 'function') {
+        setColumnVisibility(updaterOrValue);
+      } else {
+        setColumnVisibility(updaterOrValue);
+      }
     }
   }, [mounted]);
   
-  const safeSetGlobalFilter = React.useCallback((value: any) => {
+  const safeSetGlobalFilter = React.useCallback((updaterOrValue: string | ((old: string) => string)) => {
     if (mounted) {
-      setGlobalFilter(value);
+      if (typeof updaterOrValue === 'function') {
+        setGlobalFilter(updaterOrValue);
+      } else {
+        setGlobalFilter(updaterOrValue);
+      }
     }
   }, [mounted]);
 

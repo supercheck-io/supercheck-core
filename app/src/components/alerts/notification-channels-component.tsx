@@ -6,6 +6,17 @@ import { NotificationChannelsDataTable } from "./notification-channels-data-tabl
 import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { NotificationChannel } from "./notification-channels-schema";
 
+interface NotificationProvider {
+  id: string;
+  name: string;
+  type: string;
+  config: Record<string, unknown>;
+  isEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastUsed?: string;
+}
+
 interface NotificationChannelsComponentProps {
   onEditChannel?: (channel: NotificationChannel) => void;
   onDeleteChannel?: (channel: NotificationChannel) => void;
@@ -47,7 +58,7 @@ export function NotificationChannelsComponent({
       if (response.ok) {
         const data = await response.json();
         // Transform the data to match our schema
-        const transformedData: NotificationChannel[] = data.map((provider: any) => ({
+        const transformedData: NotificationChannel[] = data.map((provider: NotificationProvider) => ({
           id: provider.id,
           name: provider.name,
           type: provider.type,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,15 +25,11 @@ export function CiCdStatus({ jobId, compact = false }: CiCdStatusProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadApiKeys();
-  }, [jobId]);
-
-  const loadApiKeys = async () => {
+  const loadApiKeys = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const response = await fetch(`/api/jobs/${jobId}/api-keys`);
       const data = await response.json();
 
@@ -48,7 +44,13 @@ export function CiCdStatus({ jobId, compact = false }: CiCdStatusProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [jobId]);
+  
+  useEffect(() => {
+    loadApiKeys();
+  }, [jobId, loadApiKeys]);
+
+
 
   const activeKeysCount = apiKeys.filter(key => key.enabled).length;
   const totalKeysCount = apiKeys.length;

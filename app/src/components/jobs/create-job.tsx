@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ import {
 import { ControllerRenderProps } from "react-hook-form";
 import TestSelector from "./test-selector";
 import CronScheduler from "./cron-scheduler";
-import { Info, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import NextRunDisplay from "./next-run-display";
 
 const jobFormSchema = z.object({
@@ -43,9 +43,13 @@ type FormData = z.infer<typeof jobFormSchema>;
 
 interface CreateJobProps {
   hideAlerts?: boolean;
-  onSave?: (data: any) => void;
+  onSave?: (data: Record<string, unknown>) => void;
   onCancel?: () => void;
-  initialValues?: any;
+  initialValues?: {
+    name?: string;
+    description?: string;
+    cronSchedule?: string;
+  };
   selectedTests?: Test[];
   setSelectedTests?: (tests: Test[]) => void;
 }

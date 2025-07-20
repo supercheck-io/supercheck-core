@@ -377,7 +377,7 @@ export type MonitorConfig = {
   expectedStatusCodes?: string;
   keywordInBody?: string;
   keywordInBodyShouldBePresent?: boolean;
-  responseBodyJsonPath?: { path: string; expectedValue: any };
+  responseBodyJsonPath?: { path: string; expectedValue: unknown };
   auth?: {
     type: "none" | "basic" | "bearer";
     username?: string;
@@ -400,7 +400,7 @@ export type MonitorConfig = {
     backoffFactor: number;
   };
   alertChannels?: string[];
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 /**
@@ -448,7 +448,7 @@ export type MonitorResultDetails = {
     validTo?: string;
     daysRemaining?: number;
   };
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 /**
@@ -549,7 +549,7 @@ export type NotificationProviderConfig = {
   botToken?: string;
   chatId?: string;
   discordWebhookUrl?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 /**

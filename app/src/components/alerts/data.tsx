@@ -4,10 +4,8 @@ import {
   Clock,
   XCircle,
   Mail,
-  MessageSquare,
   Webhook,
   Bot,
-  MessageCircle,
   Slack,
   BotMessageSquare,
 } from "lucide-react";

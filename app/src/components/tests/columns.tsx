@@ -1,17 +1,17 @@
-import type { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef } from "@tanstack/react-table";
+import { Badge } from "@/components/ui/badge";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
-import type { Test } from "./schema";
-import { CalendarIcon, ClockIcon, TagIcon } from "lucide-react";
+import { Test } from "./schema";
 import { UUIDField } from "@/components/ui/uuid-field";
-import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { useState } from "react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { toast } from "sonner";
-import { useState } from "react";
+import { CalendarIcon, ClockIcon } from "lucide-react";
 
 // Type definition for the extended meta object used in this table
 interface TestsTableMeta {
@@ -21,22 +21,6 @@ interface TestsTableMeta {
 }
 
 import { priorities, types } from "./data";
-
-// Separate component for UUID field with popover
-function UUIDFieldWithPopover({ value, maxLength, onCopy }: {
-  value: string;
-  maxLength?: number;
-  onCopy?: () => void;
-}) {
-  
-  return (
-          <UUIDField
-            value={value}
-            maxLength={maxLength}
-            onCopy={onCopy}
-          />  
-  );
-}
 
 // Separate component for title with popover
 function TitleWithPopover({ title }: { title: string }) {
@@ -113,6 +97,83 @@ function DescriptionWithPopover({ description }: { description: string | null })
   );
 }
 
+// Separate component for tags cell to fix React hooks issue
+const TagsCell = ({ tags }: { tags: Array<{ id: string; name: string; color: string | null }> }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!tags || tags.length === 0) {
+    return (
+      <div className="text-muted-foreground text-sm">
+        No tags
+      </div>
+    );
+  }
+
+  const displayTags = tags.slice(0, 2);
+  const remainingCount = tags.length - 2;
+
+  // Only show popover if there are more than 2 tags
+  if (tags.length <= 2) {
+    return (
+      <div className="flex items-center gap-1 min-h-[24px]">
+        {tags.map((tag) => (
+          <Badge
+            key={tag.id}
+            variant="secondary"
+            className="text-xs whitespace-nowrap flex-shrink-0"
+            style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
+          >
+            {tag.name}
+          </Badge>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div
+          className="flex items-center gap-1 min-h-[24px] cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          {displayTags.map((tag) => (
+            <Badge
+              key={tag.id}
+              variant="secondary"
+              className="text-xs whitespace-nowrap flex-shrink-0"
+              style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
+            >
+              {tag.name}
+            </Badge>
+          ))}
+          {remainingCount > 0 && (
+            <Badge variant="secondary" className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+              +{remainingCount}
+            </Badge>
+          )}
+        </div>
+      </PopoverTrigger>
+
+      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+        <div className="flex justify-center flex-wrap gap-1">
+          {tags.map((tag) => (
+            <Badge
+              key={tag.id}
+              variant="secondary"
+              className="text-xs"
+              style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
+            >
+              {tag.name}
+            </Badge>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export const columns: ColumnDef<Test>[] = [
   {
     accessorKey: "id",
@@ -124,7 +185,7 @@ export const columns: ColumnDef<Test>[] = [
 
       return (
         <div className="w-[90px]">
-          <UUIDFieldWithPopover
+          <UUIDField
             value={id}
             maxLength={24}
             onCopy={() => toast.success("Test ID copied to clipboard")}
@@ -218,80 +279,7 @@ export const columns: ColumnDef<Test>[] = [
     ),
     cell: ({ row }) => {
       const tags = row.getValue("tags") as Array<{ id: string; name: string; color: string | null }>;
-      const [isOpen, setIsOpen] = useState(false);
-
-      if (!tags || tags.length === 0) {
-        return (
-          <div className="text-muted-foreground text-sm">
-            No tags
-          </div>
-        );
-      }
-
-      const displayTags = tags.slice(0, 2);
-      const remainingCount = tags.length - 2;
-
-      // Only show popover if there are more than 2 tags
-      if (tags.length <= 2) {
-        return (
-          <div className="flex items-center gap-1 min-h-[24px]">
-            {tags.map((tag) => (
-              <Badge
-                key={tag.id}
-                variant="secondary"
-                className="text-xs whitespace-nowrap flex-shrink-0"
-                style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
-              >
-                {tag.name}
-              </Badge>
-            ))}
-          </div>
-        );
-      }
-
-      return (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <div
-              className="flex items-center gap-1 min-h-[24px] cursor-pointer"
-              onMouseEnter={() => setIsOpen(true)}
-              onMouseLeave={() => setIsOpen(false)}
-            >
-              {displayTags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  variant="secondary"
-                  className="text-xs whitespace-nowrap flex-shrink-0"
-                  style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
-                >
-                  {tag.name}
-                </Badge>
-              ))}
-              {remainingCount > 0 && (
-                <Badge variant="secondary" className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                  +{remainingCount}
-                </Badge>
-              )}
-            </div>
-          </PopoverTrigger>
-  
-            <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
-             
-            <div className="flex justify-center flex-wrap gap-1">
-              {tags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  variant="secondary"
-                  className="text-xs"
-                  style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
-                >
-                  {tag.name}
-                </Badge>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-      );
+      return <TagsCell tags={tags} />;
     },
     filterFn: (row, id, value: string[]) => {
       const tags = row.getValue(id) as Array<{ id: string; name: string; color: string | null }>;

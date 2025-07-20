@@ -7,22 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-
-interface AlertConfig {
-  enabled: boolean;
-  notificationProviders: string[];
-  alertOnFailure: boolean;
-  alertOnRecovery: boolean;
-  alertOnSslExpiration: boolean;
-  failureThreshold: number;
-  recoveryThreshold: number;
-  customMessage?: string;
-}
+import { MonitorType, AlertConfig } from "@/db/schema/schema";
+import { FormValues } from "./monitor-form";
 
 export function MonitorCreationWizard() {
   const router = useRouter();
   const [showAlerts, setShowAlerts] = useState(false);
-  const [monitorData, setMonitorData] = useState<any>(null);
+  const [monitorData, setMonitorData] = useState<FormValues | undefined>(undefined);
   const [alertConfig, setAlertConfig] = useState<AlertConfig>({
     enabled: false,
     notificationProviders: [],
@@ -41,12 +32,14 @@ export function MonitorCreationWizard() {
   // Clear monitor data when URL changes and we're not in alert mode
   useEffect(() => {
     if (!showAlerts) {
-      setMonitorData(null);
+      setMonitorData(undefined);
     }
-  }, [type]);
+  }, [type, showAlerts]);
 
-  const handleMonitorNext = (data: any) => {
-    setMonitorData(data);
+  const handleMonitorNext = (data: Record<string, unknown>) => {
+    // Transform the form data to FormValues format
+    const formData: FormValues = data as FormValues;
+    setMonitorData(formData);
     setShowAlerts(true);
   };
 
@@ -144,7 +137,7 @@ export function MonitorCreationWizard() {
           onSave={handleMonitorNext}
           onCancel={handleCancel}
           hideAlerts={true}
-          monitorType={type as any}
+          monitorType={type as MonitorType}
           title={` ${typeLabel} Monitor`}
           description="Configure a new uptime monitor"
           // Pass monitorData to preserve state when navigating back
@@ -177,8 +170,8 @@ export function MonitorCreationWizard() {
               customMessage: config.customMessage,
             })}
             context="monitor"
-            monitorType={monitorData?.type || type}
-            sslCheckEnabled={monitorData?.type === 'website' ? !!monitorData?.config?.enableSslCheck : false}
+            monitorType={monitorData?.type || (type as MonitorType)}
+            sslCheckEnabled={monitorData?.type === 'website' ? !!monitorData?.websiteConfig_enableSslCheck : false}
           />
           <div className="flex justify-end gap-6 pt-4">
             <Button variant="outline" onClick={handleBack}>

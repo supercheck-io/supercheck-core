@@ -22,7 +22,7 @@ export async function deleteMonitor(monitorId: string) {
     await dbInstance.delete(monitorResults).where(eq(monitorResults.monitorId, monitorId));
     
     // Delete the monitor
-    const result = await dbInstance.delete(monitors).where(eq(monitors.id, monitorId));
+    await dbInstance.delete(monitors).where(eq(monitors.id, monitorId));
     
     console.log(`Successfully deleted monitor ${monitorId}`);
     

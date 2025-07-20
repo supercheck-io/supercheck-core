@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { AlertTriangle, Clock, ArrowLeft, RotateCcw, BookOpen } from "lucide-react";
+import { AlertTriangle, Clock, ArrowLeft, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { TimeoutErrorInfo, getTimeoutErrorMessages, getTimeoutActions } from "@/lib/timeout-utils";
+import { TimeoutErrorInfo, getTimeoutErrorMessages } from "@/lib/timeout-utils";
 
 interface TimeoutErrorPageProps {
   timeoutInfo: TimeoutErrorInfo;
@@ -21,7 +21,6 @@ export function TimeoutErrorPage({
   containerClassName = "w-full h-full relative"
 }: TimeoutErrorPageProps) {
   const errorMessages = getTimeoutErrorMessages(timeoutInfo);
-  const actions = getTimeoutActions(timeoutInfo);
 
   const getIconColor = () => {
     switch (timeoutInfo.timeoutType) {
@@ -68,18 +67,6 @@ export function TimeoutErrorPage({
               <p className="text-sm text-muted-foreground mb-4">
                 {errorMessages.suggestion}
               </p>
-              
-              {/* <div className="space-y-2">
-                <h4 className="font-semibold text-sm">Recommended actions:</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  {actions.map((action, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="inline-block w-1 h-1 rounded-full bg-current mt-2 flex-shrink-0"></span>
-                      <span>{action}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div> */}
             </CardContent>
           </Card>
 
@@ -121,19 +108,6 @@ export function TimeoutErrorPage({
                 </Link>
               </Button>
             )}
-
-            {/* Documentation link - customize based on your docs */}
-            {/* <Button
-              asChild
-              variant="ghost"
-              className="flex items-center gap-2"
-              size="lg"
-            >
-              <Link href="/docs/troubleshooting" target="_blank">
-                <BookOpen className="h-4 w-4" />
-                View Docs
-              </Link>
-            </Button> */}
           </div>
 
           {/* Additional Help Text */}

@@ -3,10 +3,10 @@
 import React, { useState } from "react";
 import { CreateJob } from "./create-job";
 import { AlertSettings } from "@/components/alerts/alert-settings";
-import { CicdSettings } from "./cicd-settings";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+
 import { toast } from "sonner";
 import { Test } from "./schema";
 
@@ -43,11 +43,11 @@ export function JobCreationWizard() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleJobNext = (data: any) => {
+  const handleJobNext = (data: Record<string, unknown>) => {
     setFormData({
-      name: data.name || '',
-      description: data.description || '',
-      cronSchedule: data.cronSchedule || '',
+      name: (data.name as string) || '',
+      description: (data.description as string) || '',
+      cronSchedule: (data.cronSchedule as string) || '',
       tests: Array.isArray(data.tests) ? data.tests : [],
     });
     setCurrentStep('alerts');

@@ -8,7 +8,6 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const startTime = Date.now();
   let apiKeyUsed: string | null = null;
   
   try {
@@ -178,7 +177,7 @@ export async function POST(
       if (body && body.trim()) {
         triggerOptions = JSON.parse(body);
       }
-    } catch (error) {
+    } catch {
       // Ignore JSON parsing errors for optional body
       console.warn(`Invalid JSON in trigger request body for job ${jobId}, proceeding with defaults`);
     }
@@ -230,10 +229,9 @@ export async function POST(
     }
 
     const runData = await runResponse.json();
-    const executionTime = Date.now() - startTime;
 
     // Log successful API key usage
-    console.log(`Job ${jobId} triggered successfully via API key ${key.name} (${key.id}) in ${executionTime}ms`);
+    console.log(`Job ${jobId} triggered successfully via API key ${key.name} (${key.id})`);
 
     return NextResponse.json({
       success: true,
@@ -245,12 +243,10 @@ export async function POST(
         testCount: jobTestsResult.length,
         triggeredBy: key.name,
         triggeredAt: now.toISOString(),
-        executionTime: `${executionTime}ms`,
       },
     });
 
   } catch (error) {
-    const executionTime = Date.now() - startTime;
     console.error(`Error triggering job via API key ${apiKeyUsed}...:`, error);
     
     return NextResponse.json(

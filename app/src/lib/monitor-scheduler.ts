@@ -1,8 +1,7 @@
-import { Job } from 'bullmq';
 import { db } from "@/utils/db";
-import { monitors as monitorSchemaDb } from "@/db/schema/schema";
+import { monitors as monitorSchemaDb, MonitorConfig } from "@/db/schema/schema";
 import { eq, isNotNull, and } from "drizzle-orm";
-import { getQueues, MonitorJobData, MONITOR_SCHEDULER_QUEUE } from "./queue";
+import { getQueues, MonitorJobData } from "./queue";
 
 interface ScheduleMonitorOptions {
   monitorId: string;
@@ -128,7 +127,7 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
             monitorId: monitor.id,
             type: monitor.type as MonitorJobData['type'],
             target: monitor.target,
-            config: monitor.config as any,
+            config: monitor.config as MonitorConfig,
             frequencyMinutes: monitor.frequencyMinutes,
           };
 

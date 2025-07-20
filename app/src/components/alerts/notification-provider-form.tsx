@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { type NotificationProviderType, type NotificationProviderConfig } from "@/db/schema/schema";
 
 const notificationProviderSchema = z.object({
-  type: z.enum(["email", "slack", "webhook", "telegram", "discord"]),
+  type: z.enum(["email", "slack", "webhook", "telegram", "discord"] as const),
   config: z.object({
     name: z.string().min(1, "Name is required"),
     
@@ -71,7 +72,10 @@ type FormValues = z.infer<typeof notificationProviderSchema>;
 interface NotificationProviderFormProps {
   onSuccess?: (data: FormValues) => void;
   onCancel?: () => void;
-  initialData?: any;
+  initialData?: {
+    type: NotificationProviderType;
+    config: NotificationProviderConfig;
+  };
 }
 
 export function NotificationProviderForm({ onSuccess, onCancel, initialData }: NotificationProviderFormProps) {

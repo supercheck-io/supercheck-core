@@ -27,6 +27,14 @@ interface MonitorChartProps {
   // responseTime?: number;
 }
 
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    payload: MonitorChartDataPoint;
+  }>;
+  label?: string;
+}
+
 // Default data generation if no data is provided via props
 const generateDefaultChartData = (days = 14) => {
   const data: MonitorChartDataPoint[] = [];
@@ -54,7 +62,7 @@ const generateDefaultChartData = (days = 14) => {
   return data;
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload }: TooltipProps) => {
   if (active && payload && payload.length) {
     const dataPoint = payload[0].payload as MonitorChartDataPoint;
     const date = new Date(dataPoint.timestamp);

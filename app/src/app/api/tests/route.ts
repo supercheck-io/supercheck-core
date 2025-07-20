@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { tests, testTags, tags } from "@/db/schema/schema";
 import { desc, eq } from "drizzle-orm";
@@ -39,7 +39,7 @@ async function decodeTestScript(base64Script: string): Promise<string> {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Verify user is authenticated
     const session = await auth.api.getSession({

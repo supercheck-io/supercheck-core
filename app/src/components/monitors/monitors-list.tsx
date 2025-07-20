@@ -6,7 +6,7 @@ import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { Monitor } from "./schema";
-
+import { Row } from "@tanstack/react-table";
 
 export default function MonitorsList() {
   const router = useRouter();
@@ -25,7 +25,7 @@ export default function MonitorsList() {
   
   // Fetch monitors with proper cleanup
   useEffect(() => {
-    let abortController = new AbortController();
+    const abortController = new AbortController();
     
     async function fetchMonitors() {
       if (!isMounted) return;
@@ -74,12 +74,12 @@ export default function MonitorsList() {
   }, [isMounted]);
 
   // Handle row click to navigate to monitor detail
-  const handleRowClick = useCallback((row: any) => {
+  const handleRowClick = useCallback((row: Row<Monitor>) => {
     router.push(`/monitors/${row.original.id}`);
   }, [router]);
   
   // Handle delete callback
-  const handleDeleteMonitor = useCallback(async (id: string) => {
+  const handleDeleteMonitor = useCallback(async () => {
     // Check if mounted before proceeding
     if (!isMounted) return;
     

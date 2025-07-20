@@ -17,7 +17,6 @@ import { saveTest } from "@/actions/save-test";
 import { decodeTestScript } from "@/actions/save-test";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { UUIDField } from "@/components/ui/uuid-field";
 import { formatDistanceToNow } from "date-fns";
 import { deleteTest } from "@/actions/delete-test";
 import {
@@ -32,26 +31,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { TagSelector, type Tag } from "@/components/ui/tag-selector";
 import { priorities, types } from "@/components/tests/data";
-
-// Define the type for the display map keys explicitly based on allowed UI values
-type AllowedPriorityKey = "low" | "medium" | "high";
-
-// Map the database schema values to display values for the UI
-const priorityDisplayMap: Record<AllowedPriorityKey, string> = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-};
-
-// Explicitly define allowed priorities based on the map keys
-const allowedPriorities: AllowedPriorityKey[] = ["low", "medium", "high"];
-
-const typeDisplayMap = {
-  browser: "Browser",
-  api: "API",
-  custom: "Custom",
-  database: "Database",
-};
 
 // Using the testsInsertSchema from schema.ts with extensions for playground-specific fields
 const testCaseSchema = testsInsertSchema
@@ -366,7 +345,7 @@ export function TestForm({
       const errors = JSON.parse(errorMessage);
       
       if (Array.isArray(errors)) {
-        const fieldErrors = errors.map((error: any) => {
+        const fieldErrors = errors.map((error: { path?: string[]; message?: string; code?: string; maximum?: number; minimum?: number }) => {
           const field = error.path?.[0] || 'field';
           const message = error.message || 'Invalid value';
           
@@ -919,7 +898,7 @@ export function TestForm({
             <AlertDialogDescription>
               This will permanently delete the test <span className="font-semibold">&quot;{testCase.title}&quot;</span>. This action cannot be undone.
               <br /><br />
-              <strong>Note:</strong> If this test is currently used in any jobs, the deletion will be prevented and you'll need to remove the test from those jobs first.
+              <strong>Note:</strong> If this test is currently used in any jobs, the deletion will be prevented and you&apos;ll need to remove the test from those jobs first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -937,7 +916,7 @@ export function TestForm({
                   } else {
                     toast.error("Failed to delete test");
                   }
-                } catch (error) {
+                } catch {
                   toast.error("Error deleting test");
                 } finally {
                   setIsDeleting(false);

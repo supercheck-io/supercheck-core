@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { type NotificationProviderConfig } from "@/db/schema/schema";
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function testEmailConnection(config: any) {
+async function testEmailConnection(config: NotificationProviderConfig) {
   try {
     // Validate required fields
     if (!config.smtpHost || !config.smtpUser || !config.smtpPassword) {
@@ -43,7 +44,7 @@ async function testEmailConnection(config: any) {
       throw new Error("Localhost SMTP connections are not allowed. Please use a valid SMTP server.");
     }
 
-    const port = parseInt(config.smtpPort) || 587;
+    const port = parseInt(String(config.smtpPort)) || 587;
     const transporter = nodemailer.createTransport({
       host: config.smtpHost,
       port: port,
@@ -79,7 +80,7 @@ async function testEmailConnection(config: any) {
   }
 }
 
-async function testSlackConnection(config: any) {
+async function testSlackConnection(config: NotificationProviderConfig) {
   try {
     if (!config.webhookUrl) {
       throw new Error("Webhook URL is required");
@@ -109,7 +110,7 @@ async function testSlackConnection(config: any) {
   }
 }
 
-async function testWebhookConnection(config: any) {
+async function testWebhookConnection(config: NotificationProviderConfig) {
   try {
     if (!config.url) {
       throw new Error("URL is required");
@@ -144,7 +145,7 @@ async function testWebhookConnection(config: any) {
   }
 }
 
-async function testTelegramConnection(config: any) {
+async function testTelegramConnection(config: NotificationProviderConfig) {
   try {
     if (!config.botToken || !config.chatId) {
       throw new Error("Bot token and chat ID are required");
@@ -176,7 +177,7 @@ async function testTelegramConnection(config: any) {
   }
 }
 
-async function testDiscordConnection(config: any) {
+async function testDiscordConnection(config: NotificationProviderConfig) {
   try {
     if (!config.discordWebhookUrl) {
       throw new Error("Discord webhook URL is required");

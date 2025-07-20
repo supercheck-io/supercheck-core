@@ -1,9 +1,9 @@
 import { Job } from 'bullmq';
 import { db } from "@/utils/db";
-import { jobs, jobTests, runs, testsSelectSchema, type jobsSelectSchema } from "@/db/schema/schema";
+import { jobs, jobTests, runs, testsSelectSchema } from "@/db/schema/schema";
 import { JobTrigger } from "@/db/schema/schema";
 import { eq, isNotNull, and } from "drizzle-orm";
-import { getQueues, JobExecutionTask, JOB_EXECUTION_QUEUE, JOB_SCHEDULER_QUEUE } from "./queue";
+import { getQueues, JobExecutionTask, JOB_EXECUTION_QUEUE } from "./queue";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
 import { z } from 'zod';

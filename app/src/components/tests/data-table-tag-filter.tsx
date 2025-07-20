@@ -43,16 +43,19 @@ export function DataTableTagFilter<TData, TValue>({
 
   const facets = React.useMemo(() => {
     const newFacets = new Map<string, number>();
-    column?.getFacetedRowModel().rows.forEach((row) => {
-      const tags = row.getValue(column.id) as Tag[] | undefined;
-      if (tags) {
-        tags.forEach((tag) => {
-          newFacets.set(tag.name, (newFacets.get(tag.name) || 0) + 1);
-        });
-      }
-    });
+    const rows = column?.getFacetedRowModel().rows;
+    if (rows && column) {
+      rows.forEach((row) => {
+        const tags = row.getValue(column.id) as Tag[] | undefined;
+        if (tags) {
+          tags.forEach((tag) => {
+            newFacets.set(tag.name, (newFacets.get(tag.name) || 0) + 1);
+          });
+        }
+      });
+    }
     return newFacets;
-  }, [column?.getFacetedRowModel().rows]);
+  }, [column]);
 
   // Load available tags
   React.useEffect(() => {

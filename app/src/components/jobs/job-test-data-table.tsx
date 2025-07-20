@@ -14,8 +14,9 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  Row,
 } from "@tanstack/react-table"
-import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Search, X, Filter, ExternalLink } from "lucide-react"
+import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Search, X, Filter } from "lucide-react"
 
 import {
   Table,
@@ -59,7 +60,7 @@ export function JobTestDataTable({
 
   // Custom global filter function for comprehensive search
   const globalFilterFn = React.useCallback(
-    (row: any, columnId: string, filterValue: string) => {
+    (row: Row<Test>, columnId: string, filterValue: string) => {
       const test = row.original as Test;
       const searchTerm = filterValue.toLowerCase().trim();
       
@@ -76,8 +77,8 @@ export function JobTestDataTable({
       
       // Search in tags
       if (test.tags && Array.isArray(test.tags)) {
-        const tagMatch = test.tags.some((tag: any) => 
-          tag.name?.toLowerCase().includes(searchTerm)
+        const tagMatch = test.tags.some((tag: Record<string, unknown>) => 
+          (tag.name as string)?.toLowerCase().includes(searchTerm)
         );
         if (tagMatch) return true;
       }

@@ -155,7 +155,7 @@ export function DataTableRowActions<TData>({
               This will permanently delete the test <span className="font-semibold">&quot;{test.title}&quot;</span>. This action cannot be undone.
               This action cannot be undone.
               <br /><br />
-              <strong>Note:</strong> If this test is currently used in any jobs, the deletion will be prevented and you'll need to remove the test from those jobs first.
+              <strong>Note:</strong> If this test is currently used in any jobs, the deletion will be prevented and you&apos;ll need to remove the test from those jobs first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

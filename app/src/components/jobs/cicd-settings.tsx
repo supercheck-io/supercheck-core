@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,7 +12,6 @@ import {
   Loader2,
   CheckCircle,
   Ban,
-  Info,
   Shield
 } from "lucide-react";
 import { toast } from "sonner";
@@ -52,7 +51,7 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [keyToDelete, setKeyToDelete] = useState<string | null>(null);
 
-  const loadApiKeys = async (notifyChange = false) => {
+  const loadApiKeys = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -69,23 +68,23 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
       
       const data = await response.json();
       setApiKeys(data.apiKeys || []);
-      if (notifyChange && typeof onChange === 'function') onChange();
     } catch (err) {
       console.error("Failed to load API keys:", err);
       setError(err instanceof Error ? err.message : "Failed to load API keys. Please refresh the page.");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [jobId]);
 
   useEffect(() => {
     if (jobId) {
       loadApiKeys();
     }
-  }, [jobId]);
+  }, [jobId, loadApiKeys]);
 
   const handleApiKeyCreated = () => {
-    loadApiKeys(true);
+    loadApiKeys();
+    if (onChange) onChange();
   };
 
   const handleDelete = async (keyId: string) => {
@@ -107,7 +106,8 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
       }
 
       toast.success("API key deleted successfully");
-      loadApiKeys(true);
+      loadApiKeys();
+      if (onChange) onChange();
     } catch (error) {
       console.error("Error deleting API key:", error);
       toast.error(error instanceof Error ? error.message : "Failed to delete API key");
@@ -131,7 +131,8 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
       }
 
       toast.success(`API key ${!currentEnabled ? 'enabled' : 'disabled'} successfully`);
-      loadApiKeys(true);
+      loadApiKeys();
+      if (onChange) onChange();
     } catch (error) {
       console.error("Error updating API key:", error);
       toast.error(error instanceof Error ? error.message : "Failed to update API key");

@@ -4,7 +4,7 @@ import { monitors, monitorNotificationSettings } from "@/db/schema/schema";
 import { eq, desc } from "drizzle-orm";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
-import { createMonitorHandler, updateMonitorHandler, deleteMonitorHandler } from "@/lib/monitor-service";
+import { createMonitorHandler, updateMonitorHandler } from "@/lib/monitor-service";
 
 export async function GET() {
   try {

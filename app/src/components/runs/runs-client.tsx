@@ -55,7 +55,18 @@ export function RunsClient() {
       }
       
       // Cast status and map nulls to undefined
-      const typedRuns = fetchedRuns.map((run: any) => ({
+      const typedRuns = fetchedRuns.map((run: { 
+        status?: string; 
+        jobName?: string; 
+        duration?: number; 
+        startedAt?: string; 
+        completedAt?: string; 
+        reportUrl?: string; 
+        logs?: string; 
+        errorDetails?: string; 
+        trigger?: string;
+        [key: string]: unknown;
+      }) => ({
         ...run,
         status: run.status as TestRun['status'],
         jobName: run.jobName ?? undefined,

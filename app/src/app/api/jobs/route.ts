@@ -93,7 +93,7 @@ interface TestResult {
 }
 
 // GET all jobs
-export async function GET(request: Request) {
+export async function GET() {
   try {
     // Verify user is authenticated
     const session = await auth.api.getSession({
@@ -383,7 +383,7 @@ export async function PUT(request: Request) {
         description: jobData.description || "",
         cronSchedule: jobData.cronSchedule,
         status: jobData.status as JobStatus,
-        alertConfig: (jobData as any).alertConfig || null,
+        alertConfig: jobData.alertConfig || null,
         updatedAt: new Date(),
       })
       .where(eq(jobs.id, jobData.id));

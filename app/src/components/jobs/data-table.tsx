@@ -57,7 +57,7 @@ export function DataTable<TData, TValue>({
   onRowClick,
   meta,
 }: DataTableProps<TData, TValue>) {
-  const [rowSelection, setRowSelection] = React.useState({});
+  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -80,31 +80,31 @@ export function DataTable<TData, TValue>({
   }, []);
 
   // Safe state setters that only run when component is mounted
-  const safeSetRowSelection = React.useCallback((value: any) => {
+  const safeSetRowSelection = React.useCallback((value: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => {
     if (mounted) {
       setRowSelection(value);
     }
   }, [mounted]);
   
-  const safeSetSorting = React.useCallback((value: any) => {
+  const safeSetSorting = React.useCallback((value: SortingState | ((old: SortingState) => SortingState)) => {
     if (mounted) {
       setSorting(value);
     }
   }, [mounted]);
   
-  const safeSetColumnFilters = React.useCallback((value: any) => {
+  const safeSetColumnFilters = React.useCallback((value: ColumnFiltersState | ((old: ColumnFiltersState) => ColumnFiltersState)) => {
     if (mounted) {
       setColumnFilters(value);
     }
   }, [mounted]);
   
-  const safeSetColumnVisibility = React.useCallback((value: any) => {
+  const safeSetColumnVisibility = React.useCallback((value: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
     if (mounted) {
       setColumnVisibility(value);
     }
   }, [mounted]);
   
-  const safeSetGlobalFilter = React.useCallback((value: any) => {
+  const safeSetGlobalFilter = React.useCallback((value: string | ((old: string) => string)) => {
     if (mounted) {
       setGlobalFilter(value);
     }
@@ -163,24 +163,7 @@ export function DataTable<TData, TValue>({
     }
   }, [data, table, mounted]);
 
-  // Handle row clicks while checking for action column clicks
-  const handleRowClick = (e: React.MouseEvent, row: Row<TData>) => {
-    const target = e.target as HTMLElement;
-    
-    // Check if the click was inside or on a dropdown menu or button
-    if (
-      target.closest('[role="menuitem"]') || 
-      target.closest('[role="menu"]') || 
-      target.closest('button')
-    ) {
-      return; // Don't process row click
-    }
-    
-    // Process row click if handler provided
-    if (onRowClick) {
-      onRowClick(row);
-    }
-  };
+
 
   // Don't render the table until the component is mounted
   if (!mounted) {

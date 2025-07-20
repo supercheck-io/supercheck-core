@@ -42,12 +42,26 @@ import {
 } from "@/components/ui/alert-dialog";
 import TestSelector from "./test-selector";
 import CronScheduler from "./cron-scheduler";
-import { Info } from "lucide-react";
+
 import NextRunDisplay from "./next-run-display";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { CicdSettings } from "./cicd-settings";
 import { EditJobSkeleton } from "./edit-job-skeleton";
 import { UrlTriggerTooltip } from "./url-trigger-tooltip";
+
+
+interface AlertConfiguration {
+  enabled: boolean;
+  notificationProviders: string[];
+  alertOnFailure: boolean;
+  alertOnRecovery?: boolean;
+  alertOnSslExpiration?: boolean;
+  alertOnSuccess?: boolean;
+  alertOnTimeout?: boolean;
+  failureThreshold: number;
+  recoveryThreshold: number;
+  customMessage?: string;
+}
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
@@ -76,16 +90,7 @@ export default function EditJob({ jobId }: EditJobProps) {
     description: "",
     cronSchedule: ""
   });
-  const [alertConfig, setAlertConfig] = useState<{
-    enabled: boolean;
-    notificationProviders: string[];
-    alertOnFailure: boolean;
-    alertOnSuccess: boolean;
-    alertOnTimeout: boolean;
-    failureThreshold: number;
-    recoveryThreshold: number;
-    customMessage: string;
-  }>({
+  const [alertConfig, setAlertConfig] = useState<AlertConfiguration>({
     enabled: false,
     notificationProviders: [],
     alertOnFailure: true,
@@ -96,17 +101,8 @@ export default function EditJob({ jobId }: EditJobProps) {
     customMessage: "",
   });
   const [currentStep, setCurrentStep] = useState<'job' | 'alerts' | 'cicd'>('job');
-  const [jobData, setJobData] = useState<any>(null);
-  const [initialAlertConfig, setInitialAlertConfig] = useState<{
-    enabled: boolean;
-    notificationProviders: string[];
-    alertOnFailure: boolean;
-    alertOnSuccess: boolean;
-    alertOnTimeout: boolean;
-    failureThreshold: number;
-    recoveryThreshold: number;
-    customMessage: string;
-  }>({
+
+  const [initialAlertConfig, setInitialAlertConfig] = useState<AlertConfiguration>({
     enabled: false,
     notificationProviders: [],
     alertOnFailure: true,
@@ -163,7 +159,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       setInitialValues(formValues);
 
       // Map the tests to the format expected by TestSelector
-      const tests = jobData.tests.map((test: any) => ({
+      const tests = jobData.tests.map((test: Record<string, unknown>) => ({
         id: test.id,
         name: test.name,
         description: test.description || null,
@@ -178,7 +174,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       setOriginalSelectedTests(tests);
 
       // Load alert configuration if it exists
-      const alertConfigData = {
+      const alertConfigData: AlertConfiguration = {
         enabled: false,
         notificationProviders: [],
         alertOnFailure: true,
@@ -190,9 +186,9 @@ export default function EditJob({ jobId }: EditJobProps) {
       };
 
       if (jobData.alertConfig && typeof jobData.alertConfig === 'object') {
-        const alertConfig = jobData.alertConfig as any; // Safe cast since we checked it's an object
+        const alertConfig = jobData.alertConfig as Record<string, unknown>; // Safe cast since we checked it's an object
         alertConfigData.enabled = Boolean(alertConfig.enabled);
-        alertConfigData.notificationProviders = Array.isArray(alertConfig.notificationProviders) ? alertConfig.notificationProviders : [];
+        alertConfigData.notificationProviders = Array.isArray(alertConfig.notificationProviders) ? (alertConfig.notificationProviders as string[]) : [];
         alertConfigData.alertOnFailure = alertConfig.alertOnFailure !== undefined ? Boolean(alertConfig.alertOnFailure) : true;
         alertConfigData.alertOnSuccess = Boolean(alertConfig.alertOnSuccess);
         alertConfigData.alertOnTimeout = alertConfig.alertOnTimeout !== undefined ? Boolean(alertConfig.alertOnTimeout) : true;
@@ -204,7 +200,7 @@ export default function EditJob({ jobId }: EditJobProps) {
       setAlertConfig(alertConfigData);
       setInitialAlertConfig(alertConfigData);
 
-      setJobData(jobData); // Store job data for later use
+
       
       // Reset form changed state after successful load
       setFormChanged(false);
@@ -225,7 +221,7 @@ export default function EditJob({ jobId }: EditJobProps) {
   }, [loadJob]);
 
   // Handle form submission for job details
-  const handleJobNext = form.handleSubmit(async (values: FormData) => {
+  const handleJobNext = form.handleSubmit(async () => {
     setSubmissionAttempted(true);
     
     try {
@@ -238,15 +234,6 @@ export default function EditJob({ jobId }: EditJobProps) {
       }
 
       // Prepare job data for next step
-      const preparedJobData = {
-        jobId: jobId,
-        name: values.name.trim(),
-        description: values.description.trim(),
-        cronSchedule: values.cronSchedule?.trim() || "",
-        tests: selectedTests.map((test) => ({ id: test.id })),
-      };
-
-      setJobData(preparedJobData);
       setCurrentStep('alerts');
     } catch (error) {
       console.error("Error preparing job data:", error);
@@ -296,7 +283,11 @@ export default function EditJob({ jobId }: EditJobProps) {
       setIsSubmitting(true);
 
       const finalJobData = {
-        ...jobData,
+        jobId: jobId,
+        name: watchedValues.name,
+        description: watchedValues.description,
+        tests: selectedTests.map(test => ({ id: test.id })),
+        cronSchedule: watchedValues.cronSchedule,
         alertConfig: alertConfig,
       };
 

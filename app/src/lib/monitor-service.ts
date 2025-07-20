@@ -1,9 +1,8 @@
 import { db } from '@/utils/db';
-import { monitors as monitorTable, monitorsInsertSchema, MonitorConfig, MonitorType as DBMoniotorType, MonitorStatus as DBMonitorStatus } from '@/db/schema/schema';
+import { monitors as monitorTable, monitorsInsertSchema, MonitorConfig, MonitorType as DBMoniotorType, MonitorStatus as DBMonitorStatus, AlertConfig } from '@/db/schema/schema';
 import { MonitorJobData } from '@/lib/queue';
 import { scheduleMonitor, deleteScheduledMonitor } from '@/lib/monitor-scheduler';
 import { eq } from 'drizzle-orm';
-import { NextApiRequest, NextApiResponse } from 'next'; // For conceptual typing
 
 // This is a conceptual service layer, actual Next.js API routes would call these functions.
 
@@ -15,7 +14,7 @@ interface MonitorApiData {
   frequencyMinutes: number;
   enabled?: boolean;
   config?: MonitorConfig | null;
-  alertConfig?: any; // Alert configuration for notifications
+  alertConfig?: AlertConfig | null; // Alert configuration for notifications
   organizationId?: string; // Optional for now, will be required when organizations are implemented
   createdByUserId?: string; // Assuming this comes from authenticated session
 }
@@ -53,7 +52,7 @@ export async function createMonitorHandler(data: MonitorApiData) {
       monitorId: newMonitor.id,
       type: newMonitor.type as MonitorJobData['type'],
       target: newMonitor.target,
-      config: newMonitor.config as any,
+      config: newMonitor.config as MonitorConfig,
       frequencyMinutes: newMonitor.frequencyMinutes,
     };
     try {
@@ -138,7 +137,7 @@ export async function updateMonitorHandler(monitorId: string, data: Partial<Moni
         monitorId: updatedMonitor.id,
         type: updatedMonitor.type as MonitorJobData['type'],
         target: updatedMonitor.target,
-        config: updatedMonitor.config as any,
+        config: updatedMonitor.config as MonitorConfig,
         frequencyMinutes: updatedMonitor.frequencyMinutes,
       };
       try {

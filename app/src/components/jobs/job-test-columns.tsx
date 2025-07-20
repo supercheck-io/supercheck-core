@@ -163,7 +163,7 @@ export const createJobTestColumns = (): ColumnDef<Test>[] => [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="" />
     ),
-    cell: ({ row }) => {
+    cell: () => {
     
       return (
         <div className="max-w-[30px] truncate">

@@ -54,7 +54,7 @@ export function Runs() {
       }
       
       // Cast the data to TestRun[] to ensure type compatibility and handle trigger field
-      const typedRuns = data.map((run: any) => ({
+      const typedRuns = data.map((run: { trigger?: string; [key: string]: unknown }) => ({
         ...run,
         trigger: run.trigger ?? undefined,
       }));

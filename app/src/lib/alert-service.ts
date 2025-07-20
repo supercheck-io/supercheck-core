@@ -3,6 +3,8 @@ import {
   alerts,
   Alert,
   alertHistory,
+  AlertType,
+  AlertStatus,
 } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 
@@ -20,19 +22,19 @@ export class AlertService {
    * Save alert notification to history
    */
   async saveAlertHistory(alertData: {
-    type: string;
+    type: AlertType;
     message: string;
     target: string;
     targetType: 'monitor' | 'job';
     monitorId?: string;
     jobId?: string;
     provider: string;
-    status: 'sent' | 'failed' | 'pending';
+    status: AlertStatus;
     errorMessage?: string;
   }): Promise<void> {
     try {
       await db.insert(alertHistory).values({
-        type: alertData.type as any,
+        type: alertData.type,
         message: alertData.message,
         target: alertData.target,
         targetType: alertData.targetType,

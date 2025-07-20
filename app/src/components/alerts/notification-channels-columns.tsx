@@ -1,7 +1,6 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { Badge } from "@/components/ui/badge";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { NotificationChannel } from "./notification-channels-schema";
 import { UUIDField } from "@/components/ui/uuid-field";
@@ -10,6 +9,11 @@ import { Clock, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getNotificationProviderConfig } from "./data";
 import { formatDistance } from "date-fns";
+
+interface TableMeta {
+  onEdit?: (channel: NotificationChannel) => void;
+  onDelete?: (channel: NotificationChannel) => void;
+}
 
 export const notificationChannelColumns: ColumnDef<NotificationChannel>[] = [
   {
@@ -102,7 +106,7 @@ export const notificationChannelColumns: ColumnDef<NotificationChannel>[] = [
     header: "Actions",
     cell: ({ row, table }) => {
       const channel = row.original;
-      const meta = table.options.meta as { onEdit?: (channel: any) => void; onDelete?: (channel: any) => void };
+      const meta = table.options.meta as TableMeta;
       
       return (
         <div className="flex items-center space-x-2">

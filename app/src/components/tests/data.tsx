@@ -2,12 +2,9 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
-  Layers,
   Database,
   Chrome,
   ArrowLeftRight,
-  FlaskConical,
-  FileJson2,
   SquareFunction,
 } from "lucide-react";
 

@@ -3,7 +3,6 @@ import { MonitorCreationWizard } from "@/components/monitors/monitor-creation-wi
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { monitorTypes } from "@/components/monitors/data";
 import { notFound } from "next/navigation";
-import { Globe } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { MonitorTypesPopover } from "@/components/monitors/monitor-types-popover";

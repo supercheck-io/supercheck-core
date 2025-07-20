@@ -17,40 +17,6 @@ import {
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-// Separate component for UUID field with popover
-function UUIDFieldWithPopover({ value, maxLength, onCopy, className }: {
-  value: string;
-  maxLength?: number;
-  onCopy?: () => void;
-  className?: string;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <div 
-          className="cursor-pointer"
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
-        >
-          <UUIDField 
-            value={value} 
-            maxLength={maxLength} 
-            className={className}
-            onCopy={onCopy}
-          />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent className="flex justify-center items-center">
-        <p className="text-xs text-muted-foreground break-all">
-          {value}
-        </p>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 // Separate component for job name with popover
 function JobNameWithPopover({ jobName }: { jobName: string | undefined }) {
   const [isOpen, setIsOpen] = useState(false);

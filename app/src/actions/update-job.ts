@@ -6,7 +6,6 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { scheduleJob, deleteScheduledJob } from "@/lib/job-scheduler";
-import { JOB_EXECUTION_QUEUE } from "@/lib/queue";
 import { getNextRunDate } from "@/lib/cron-utils";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";

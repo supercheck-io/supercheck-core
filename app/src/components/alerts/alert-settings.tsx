@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Bell, ChevronLeft, ChevronRight } from "lucide-react";
@@ -12,44 +12,32 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getNotificationProviderConfig } from "@/components/alerts/data";
 import { toast } from "sonner";
+import { type NotificationProviderType, type NotificationProviderConfig, type AlertConfig, type MonitorType } from "@/db/schema/schema";
 
 // Get limits from environment variables
 const MAX_JOB_NOTIFICATION_CHANNELS = parseInt(process.env.NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS || '10', 10);
 const MAX_MONITOR_NOTIFICATION_CHANNELS = parseInt(process.env.NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS || '10', 10);
 
 interface AlertSettingsProps {
-  value?: AlertConfiguration;
-  onChange?: (config: AlertConfiguration) => void;
+  value?: AlertConfig;
+  onChange?: (config: AlertConfig) => void;
   title?: string;
   description?: string;
   hideTitle?: boolean;
   context?: 'monitor' | 'job';
-  monitorType?: 'http_request' | 'website' | 'ping_host' | 'port_check' | 'heartbeat';
+  monitorType?: MonitorType;
   sslCheckEnabled?: boolean;
-}
-
-interface AlertConfiguration {
-  enabled: boolean;
-  notificationProviders: string[];
-  alertOnFailure: boolean;
-  alertOnRecovery?: boolean;
-  alertOnSslExpiration?: boolean;
-  alertOnSuccess?: boolean;
-  alertOnTimeout?: boolean;
-  failureThreshold: number;
-  recoveryThreshold: number;
-  customMessage?: string;
 }
 
 interface NotificationProvider {
   id: string;
-  type: 'email' | 'slack' | 'webhook' | 'telegram' | 'discord';
-  config: Record<string, unknown>;
+  type: NotificationProviderType;
+  config: NotificationProviderConfig;
 }
 
 
 
-const defaultConfig: AlertConfiguration = {
+const defaultConfig: AlertConfig = {
   enabled: false,
   notificationProviders: [],
   alertOnFailure: true,
@@ -77,7 +65,7 @@ export function AlertSettings({
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8; // 4 columns * 2 rows
-  const [config, setConfig] = useState<AlertConfiguration>({
+  const [config, setConfig] = useState<AlertConfig>({
     ...defaultConfig,
     ...value,
     notificationProviders: value?.notificationProviders || [],
@@ -135,21 +123,7 @@ export function AlertSettings({
     setConfig(safeConfig);
   }, [value, monitorType, sslCheckEnabled, context]);
 
-  // Auto-enable SSL alerts when SSL checking is enabled
-  useEffect(() => {
-    if (monitorType === 'website' && sslCheckEnabled && !config.alertOnSslExpiration) {
-      updateConfig({ alertOnSslExpiration: true });
-    }
-  }, [monitorType, sslCheckEnabled, config.alertOnSslExpiration]);
-
-  // Auto-enable job success alerts for job context
-  useEffect(() => {
-    if (context === 'job' && !config.alertOnSuccess) {
-      updateConfig({ alertOnSuccess: true });
-    }
-  }, [context, config.alertOnSuccess]);
-
-  const updateConfig = (updates: Partial<AlertConfiguration>) => {
+  const updateConfig = useCallback((updates: Partial<AlertConfig>) => {
     const newConfig = { ...config, ...updates };
     setConfig(newConfig);
     
@@ -157,9 +131,23 @@ export function AlertSettings({
     validateConfig(newConfig);
     
     onChange?.(newConfig);
-  };
+  }, [config, onChange]);
 
-  const validateConfig = (configToValidate: AlertConfiguration) => {
+  // Auto-enable SSL alerts when SSL checking is enabled
+  useEffect(() => {
+    if (monitorType === 'website' && sslCheckEnabled && !config.alertOnSslExpiration) {
+      updateConfig({ alertOnSslExpiration: true });
+    }
+  }, [monitorType, sslCheckEnabled, config.alertOnSslExpiration, updateConfig]);
+
+  // Auto-enable job success alerts for job context
+  useEffect(() => {
+    if (context === 'job' && !config.alertOnSuccess) {
+      updateConfig({ alertOnSuccess: true });
+    }
+  }, [context, config.alertOnSuccess, updateConfig]);
+
+  const validateConfig = (configToValidate: AlertConfig) => {
     const errors: { notificationProviders?: string; alertTypes?: string } = {};
 
     if (configToValidate.enabled) {

@@ -52,8 +52,8 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
     // Handle cases where Monitor.type needs mapping (e.g., old "get"/"post" to "http_request")
     // Or if it's an unmapped but valid Monitor.type
     switch (currentType) {
-      case "get" as any: // Legacy type mapping
-      case "post" as any: // Legacy type mapping
+      case "get" as string: // Legacy type mapping
+      case "post" as string: // Legacy type mapping
         formType = "http_request";
         console.warn(`Monitor type '${currentType}' mapped to form type 'http_request'.`);
         break;

@@ -78,7 +78,7 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
       setCopied(true);
       toast.success("API key copied to clipboard");
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       toast.error("Failed to copy to clipboard");
     }
   };
@@ -94,7 +94,7 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
     setIsCreating(true);
 
     try {
-      let payload: any = {
+      const payload: Record<string, unknown> = {
         name: name.trim(),
       };
       if (hasExpiry && expiryDate) {
@@ -128,7 +128,7 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
       if (!response.ok) {
         console.log("API Key Creation - Error response:", data);
         if (data.details && Array.isArray(data.details)) {
-          const errorMessages = data.details.map((err: any) => `${err.field}: ${err.message}`).join(', ');
+          const errorMessages = data.details.map((err: Record<string, unknown>) => `${err.field}: ${err.message}`).join(', ');
           throw new Error(`Validation failed: ${errorMessages}`);
         }
         throw new Error(data.error || "Failed to create API key");

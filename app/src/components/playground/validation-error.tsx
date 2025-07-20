@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, X, MapPin, Info } from 'lucide-react';
+import { X, MapPin, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ValidationErrorProps {
@@ -35,7 +35,7 @@ export function ValidationError({
   };
 
   // Get error category for styling
-  const getErrorCategory = (type?: string, message?: string) => {
+  const getErrorCategory = (type?: string) => {
     if (type === 'syntax') return { label: 'Syntax', color: 'text-red-600' };
     if (type === 'security') return { label: 'Security', color: 'text-red-600' };
     if (type === 'complexity') return { label: 'Complexity', color: 'text-amber-600' };
@@ -44,7 +44,7 @@ export function ValidationError({
   };
 
   const cleanMessage = getCleanErrorMessage(error);
-  const category = getErrorCategory(errorType, error);
+  const category = getErrorCategory(errorType);
 
   return (
     <Alert

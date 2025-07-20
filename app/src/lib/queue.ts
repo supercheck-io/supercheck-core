@@ -1,4 +1,4 @@
-import { Queue, Worker, Job, QueueEvents, FlowProducer } from 'bullmq';
+import { Queue, QueueEvents } from 'bullmq';
 import Redis, { RedisOptions } from 'ioredis';
 
 // Interfaces matching those in the worker service
@@ -28,7 +28,7 @@ export interface MonitorJobData {
   monitorId: string;
   type: "http_request" | "website" | "ping_host" | "port_check" | "heartbeat";
   target: string;
-  config?: any; // Using any for config for now, can be refined with shared MonitorConfig type
+  config?: unknown; // Using unknown for config for now, can be refined with shared MonitorConfig type
   frequencyMinutes?: number; 
 }
 
@@ -516,7 +516,7 @@ export interface HeartbeatPingNotificationData {
     monitorId: string;
     type: 'recovery' | 'failure';
     reason: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
 }
 
 export async function addHeartbeatPingNotificationJob(data: HeartbeatPingNotificationData): Promise<string> {
@@ -534,48 +534,6 @@ export async function addHeartbeatPingNotificationJob(data: HeartbeatPingNotific
     return job.id!;
 }
 
-/**
- * Cleanup old jobs that may not have been removed automatically
- */
-async function cleanupOldJobs() {
-  try {
-    const queues = await getQueues();
-    const allQueues = [
-        queues.testQueue, 
-        queues.jobQueue, 
-        queues.monitorExecutionQueue,
-        queues.heartbeatPingNotificationQueue,
-        queues.jobSchedulerQueue,
-        queues.monitorSchedulerQueue
-    ].filter(q => q !== null) as Queue[];
 
-    // Clean completed and failed jobs older than REDIS_JOB_KEY_TTL
-    for (const queue of allQueues) {
-      if (queue) { // Ensure queue is not null
-        await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-        await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-      }
-    }
-
-    // Trim events to prevent Redis memory issues
-    if (queues.testQueue) {
-      await queues.testQueue.trimEvents(1000); // Keep last 1000 events
-    }
-    if (queues.jobQueue) {
-      await queues.jobQueue.trimEvents(1000);
-    }
-    if (queues.monitorExecutionQueue) {
-      await queues.monitorExecutionQueue.trimEvents(1000);
-    }
-    if (queues.heartbeatPingNotificationQueue) {
-      await queues.heartbeatPingNotificationQueue.trimEvents(1000);
-    }
-    
-
-    console.log('[Queue Client] Old jobs and events cleanup successful.');
-  } catch (error) {
-    console.error('[Queue Client] Error during old jobs and events cleanup:', error);
-  }
-}
 
 export { getQueues };

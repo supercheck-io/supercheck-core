@@ -30,7 +30,7 @@ export const auth = betterAuth({
                 teamLimit: 10,
             },
             // Custom invitation email
-            sendInvitationEmail: async ({ invitation, organization, inviter }) => {
+            sendInvitationEmail: async ({ invitation, organization }) => {
                 console.log(`Invitation sent to ${invitation.email} for ${organization.name}`);
                 // Implement your email sending logic here            
             },    

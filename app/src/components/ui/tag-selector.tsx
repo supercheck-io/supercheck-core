@@ -219,6 +219,7 @@ export function TagSelector({
           <div
             role="combobox"
             aria-expanded={open}
+            aria-controls="tag-selector-content"
             className={cn(
               "flex min-h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
               "cursor-pointer hover:bg-accent/50",
@@ -363,7 +364,7 @@ export function TagSelector({
               This will permanently delete the tag <span className="font-semibold">&quot;{availableTags.find(t => t.id === tagToDelete)?.name}&quot;</span>. 
               This action cannot be undone.
               <br /><br />
-              <strong>Note:</strong> If this tag is currently used in any tests, the deletion will be prevented and you'll need to remove the tag from those tests first.
+              <strong>Note:</strong> If this tag is currently used in any tests, the deletion will be prevented and you&apos;ll need to remove the tag from those tests first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

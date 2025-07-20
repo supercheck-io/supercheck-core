@@ -48,7 +48,13 @@ export default function Tests() {
         const data = await response.json();
         
         if (response.ok && data) {
-          const testsWithDefaults = data.map((test: any) => ({
+          const testsWithDefaults = data.map((test: { 
+            priority?: string; 
+            description?: string | null; 
+            createdAt?: string; 
+            updatedAt?: string;
+            [key: string]: unknown;
+          }) => ({
             ...test,
             priority: test.priority || "medium",
             description: test.description || null,
