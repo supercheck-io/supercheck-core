@@ -29,9 +29,10 @@ yarn-error.log*
 lerna-debug.log* # From runner
 
 ## Environment / Secrets
-# .env.local
-# .env.*.local
-# *.pem
+.env.local
+.env.*.local
+.env
+*.pem
 
 ## Temp / Runtime / Reports
 .temp

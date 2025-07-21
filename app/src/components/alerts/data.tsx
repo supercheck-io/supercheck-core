@@ -111,5 +111,25 @@ export const notificationProviders = [
 ];
 
 export const getNotificationProviderConfig = (type: string) => {
-  return notificationProviders.find(provider => provider.type === type) || notificationProviders[0];
+  // First try exact match
+  const exactMatch = notificationProviders.find(provider => provider.type === type);
+  if (exactMatch) {
+    return exactMatch;
+  }
+  
+  // If no exact match, try case-insensitive match
+  const caseInsensitiveMatch = notificationProviders.find(provider => 
+    provider.type.toLowerCase() === type.toLowerCase()
+  );
+  if (caseInsensitiveMatch) {
+    return caseInsensitiveMatch;
+  }
+  
+  // If still no match, create a fallback config for unknown providers
+  return {
+    type: type,
+    label: type.charAt(0).toUpperCase() + type.slice(1), // Capitalize first letter
+    icon: BotMessageSquare, // Default icon
+    color: "text-gray-500", // Default color
+  };
 };

@@ -335,9 +335,9 @@ export const columns: ColumnDef<Job>[] = [
     cell: ({ row }) => {
       const cronSchedule = row.getValue("cronSchedule") as string | null;
       return (
-        <div className="flex items-center">
-          <TimerIcon className={`${cronSchedule ? "text-sky-500" : "text-muted-foreground"} mr-2 h-4 w-4`} />
-          <span className={cronSchedule ? "text-foreground" : "text-muted-foreground"}>
+        <div className="flex items-center max-w-[120px]">
+          <TimerIcon className={`${cronSchedule ? "text-sky-500" : "text-muted-foreground"} mr-2 h-4 w-4 flex-shrink-0`} />
+          <span className={`${cronSchedule ? "text-foreground" : "text-muted-foreground"} truncate`}>
             {cronSchedule || "None"}
           </span>
         </div>

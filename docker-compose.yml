@@ -1,19 +1,19 @@
 version: '3.8'
 
 services:
-  # Frontend (Next.js App)
-  frontend:
-    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supertest}/frontend:latest
+  # App (Next.js Frontend)
+  app:
+    image: ghcr.io/krish-kant/supercheck/app:latest
     ports:
       - "3000:3000"
     environment:
       # Database Configuration
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supertest
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=supertest
+      - DB_NAME=supercheck
       
       # Redis Configuration
       - REDIS_HOST=redis
@@ -59,7 +59,7 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - supertest-network
+      - supercheck-network
     deploy:
       resources:
         limits:
@@ -71,15 +71,15 @@ services:
 
   # Worker (NestJS Runner)
   worker:
-    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supertest}/worker:latest
+    image: ghcr.io/krish-kant/supercheck/worker:latest
     environment:
       # Database Configuration
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supertest
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=supertest
+      - DB_NAME=supercheck
       
       # Redis Configuration
       - REDIS_HOST=redis
@@ -124,7 +124,7 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - supertest-network
+      - supercheck-network
     deploy:
       resources:
         limits:
@@ -140,7 +140,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=supertest
+      - POSTGRES_DB=supercheck
     ports:
       - "5432:5432"
     volumes:
@@ -152,7 +152,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - supertest-network
+      - supercheck-network
     deploy:
       resources:
         limits:
@@ -177,7 +177,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - supertest-network
+      - supercheck-network
     deploy:
       resources:
         limits:
@@ -206,7 +206,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - supertest-network
+      - supercheck-network
     deploy:
       resources:
         limits:
@@ -225,5 +225,5 @@ volumes:
     driver: local
 
 networks:
-  supertest-network:
+  supercheck-network:
     driver: bridge 

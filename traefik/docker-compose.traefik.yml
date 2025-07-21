@@ -3,7 +3,7 @@ version: '3.8'
 networks:
   traefik-public:
     external: true
-  supertest-network:
+  supercheck-network:
     driver: bridge
 
 services:
@@ -23,7 +23,7 @@ services:
       - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     networks:
       - traefik-public
-      - supertest-network
+      - supercheck-network
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
@@ -44,8 +44,8 @@ services:
 
   # PostgreSQL Database
   postgres:
-    image: postgres:16-alpine
-    container_name: supertest-postgres
+    image: postgres:16.2
+    container_name: supercheck-postgres
     environment:
       - POSTGRES_DB=supercheck
       - POSTGRES_USER=postgres
@@ -53,7 +53,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - supertest-network
+      - supercheck-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -62,13 +62,13 @@ services:
 
   # Redis Cache
   redis:
-    image: redis:7-alpine
-    container_name: supertest-redis
+    image: redis:7.2
+    container_name: supercheck-redis
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     networks:
-      - supertest-network
+      - supercheck-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -78,7 +78,7 @@ services:
   # MinIO Object Storage
   minio:
     image: minio/minio:latest
-    container_name: supertest-minio
+    container_name: supercheck-minio
     command: server /data --console-address ":9001"
     environment:
       - MINIO_ROOT_USER=minioadmin
@@ -86,7 +86,7 @@ services:
     volumes:
       - minio_data:/data
     networks:
-      - supertest-network
+      - supercheck-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -95,7 +95,7 @@ services:
 
   # Database Migration Service
   migration:
-    image: postgres:16-alpine
+    image: postgres:16.2
     environment:
       - PGPASSWORD=postgres
     volumes:
@@ -105,12 +105,12 @@ services:
         condition: service_healthy
     command: ["sh", "-c", "sleep 5 && psql -h postgres -U postgres -d supercheck -f /migrations/0000_cynical_rage.sql && psql -h postgres -U postgres -d supercheck -f /migrations/0001_flashy_spectrum.sql"]
     networks:
-      - supertest-network
+      - supercheck-network
     restart: "no"
 
-  # Frontend (Next.js App)
-  frontend:
-    image: supertest-app:latest
+  # App (Next.js Frontend)
+  app:
+    image: ghcr.io/krish-kant/supercheck/app:latest
     environment:
       # Database Configuration
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
@@ -125,7 +125,7 @@ services:
       - REDIS_PORT=6379
       
       # App Configuration
-      - NEXT_PUBLIC_APP_URL=https://supertest.localhost
+      - NEXT_PUBLIC_APP_URL=https://supercheck.localhost
       - NODE_ENV=production
       - RUNNING_CAPACITY=5
       - QUEUED_CAPACITY=50
@@ -161,22 +161,22 @@ services:
     restart: unless-stopped
     networks:
       - traefik-public
-      - supertest-network
+      - supercheck-network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`supertest.localhost`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
-      - "traefik.http.middlewares.frontend-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
-      - "traefik.http.routers.frontend.middlewares=frontend-headers"
-      - "traefik.http.middlewares.frontend-rate-limit.ratelimit.average=100"
-      - "traefik.http.middlewares.frontend-rate-limit.ratelimit.burst=200"
-      - "traefik.http.routers.frontend.middlewares=frontend-rate-limit"
+      - "traefik.http.routers.app.rule=Host(`supercheck.localhost`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.app-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.app.middlewares=app-headers"
+      - "traefik.http.middlewares.app-rate-limit.ratelimit.average=100"
+      - "traefik.http.middlewares.app-rate-limit.ratelimit.burst=200"
+      - "traefik.http.routers.app.middlewares=app-rate-limit"
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: supertest-worker:latest
+    image: ghcr.io/krish-kant/supercheck/worker:latest
     environment:
       # Database Configuration
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
@@ -191,7 +191,7 @@ services:
       - REDIS_PORT=6379
       
       # App Configuration
-      - NEXT_PUBLIC_APP_URL=https://supertest.localhost
+      - NEXT_PUBLIC_APP_URL=https://supercheck.localhost
       - NODE_ENV=production
       - RUNNING_CAPACITY=5
       - QUEUED_CAPACITY=50
@@ -223,7 +223,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - supertest-network
+      - supercheck-network
     deploy:
       replicas: 2
       resources:

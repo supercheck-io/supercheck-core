@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Docker Images Management Script for Supertest
+# Docker Images Management Script for Supercheck
 # This script helps build, push, and pull Docker images
 
 set -e
 
 # Configuration
-GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-"your-username/supertest"}
+GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-"your-username/supercheck"}
 REGISTRY="ghcr.io"
-FRONTEND_IMAGE="$REGISTRY/$GITHUB_REPOSITORY/frontend"
+APP_IMAGE="$REGISTRY/$GITHUB_REPOSITORY/app"
 WORKER_IMAGE="$REGISTRY/$GITHUB_REPOSITORY/worker"
 
 # Colors for output
@@ -47,10 +47,10 @@ check_docker() {
 build_images() {
     print_status "Building Docker images..."
     
-    # Build frontend image
-    print_status "Building frontend image..."
-    docker build -t $FRONTEND_IMAGE:latest ./app
-    print_success "Frontend image built successfully"
+    # Build app image
+    print_status "Building app image..."
+    docker build -t $APP_IMAGE:latest ./app
+    print_success "App image built successfully"
     
     # Build worker image
     print_status "Building worker image..."
@@ -70,10 +70,10 @@ push_images() {
         echo "echo \$GITHUB_TOKEN | docker login ghcr.io -u \$GITHUB_USERNAME --password-stdin"
     fi
     
-    # Push frontend image
-    print_status "Pushing frontend image..."
-    docker push $FRONTEND_IMAGE:latest
-    print_success "Frontend image pushed successfully"
+    # Push app image
+    print_status "Pushing app image..."
+    docker push $APP_IMAGE:latest
+    print_success "App image pushed successfully"
     
     # Push worker image
     print_status "Pushing worker image..."
@@ -87,10 +87,10 @@ push_images() {
 pull_images() {
     print_status "Pulling images from GitHub Container Registry..."
     
-    # Pull frontend image
-    print_status "Pulling frontend image..."
-    docker pull $FRONTEND_IMAGE:latest
-    print_success "Frontend image pulled successfully"
+    # Pull app image
+    print_status "Pulling app image..."
+    docker pull $APP_IMAGE:latest
+    print_success "App image pulled successfully"
     
     # Pull worker image
     print_status "Pulling worker image..."
@@ -111,9 +111,9 @@ tag_images() {
     
     print_status "Tagging images with version $version..."
     
-    # Tag frontend image
-    docker tag $FRONTEND_IMAGE:latest $FRONTEND_IMAGE:$version
-    print_success "Frontend image tagged as $version"
+    # Tag app image
+    docker tag $APP_IMAGE:latest $APP_IMAGE:$version
+    print_success "App image tagged as $version"
     
     # Tag worker image
     docker tag $WORKER_IMAGE:latest $WORKER_IMAGE:$version
@@ -126,20 +126,20 @@ tag_images() {
 show_images() {
     print_status "Current Docker images:"
     echo ""
-    docker images | grep -E "($FRONTEND_IMAGE|$WORKER_IMAGE)" || print_warning "No Supertest images found locally"
+    docker images | grep -E "($APP_IMAGE|$WORKER_IMAGE)" || print_warning "No Supercheck images found locally"
     echo ""
     print_status "Image URLs:"
-    echo "Frontend: $FRONTEND_IMAGE:latest"
+    echo "App: $APP_IMAGE:latest"
     echo "Worker: $WORKER_IMAGE:latest"
 }
 
 # Function to clean up images
 clean_images() {
-    print_warning "This will remove all Supertest Docker images. Are you sure? (y/N)"
+    print_warning "This will remove all Supercheck Docker images. Are you sure? (y/N)"
     read -r response
     if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        print_status "Removing Supertest Docker images..."
-        docker rmi $(docker images | grep -E "($FRONTEND_IMAGE|$WORKER_IMAGE)" | awk '{print $3}') 2>/dev/null || print_warning "No images to remove"
+        print_status "Removing Supercheck Docker images..."
+        docker rmi $(docker images | grep -E "($APP_IMAGE|$WORKER_IMAGE)" | awk '{print $3}') 2>/dev/null || print_warning "No images to remove"
         print_success "Cleanup completed!"
     else
         print_status "Cleanup cancelled"
@@ -148,7 +148,7 @@ clean_images() {
 
 # Function to show help
 show_help() {
-    echo "Supertest Docker Images Management Script"
+    echo "Supercheck Docker Images Management Script"
     echo ""
     echo "Usage: $0 <command> [options]"
     echo ""
@@ -158,17 +158,17 @@ show_help() {
     echo "  pull               Pull images from GitHub Container Registry"
     echo "  tag <version>      Tag images with specific version"
     echo "  show               Show current images and URLs"
-    echo "  clean              Remove all Supertest images"
+    echo "  clean              Remove all Supercheck images"
     echo "  help               Show this help message"
     echo ""
     echo "Environment Variables:"
-    echo "  GITHUB_REPOSITORY  Your GitHub repository (default: your-username/supertest)"
+    echo "  GITHUB_REPOSITORY  Your GitHub repository (default: your-username/supercheck)"
     echo ""
     echo "Examples:"
     echo "  $0 build"
     echo "  $0 push"
     echo "  $0 tag v1.0.0"
-    echo "  GITHUB_REPOSITORY=myorg/supertest $0 pull"
+    echo "  GITHUB_REPOSITORY=myorg/supercheck $0 pull"
 }
 
 # Main script logic

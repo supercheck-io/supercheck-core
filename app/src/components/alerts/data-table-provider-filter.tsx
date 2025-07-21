@@ -32,42 +32,41 @@ export function DataTableProviderFilter<TData, TValue>({
   title,
 }: DataTableProviderFilterProps<TData, TValue>) {
   const selectedValues = new Set(column?.getFilterValue() as string[]);
-
-  // Calculate facets properly by iterating through rows
-  const facets = React.useMemo(() => {
-    const newFacets = new Map<string, number>();
-    const rows = column?.getFacetedRowModel().rows;
-    if (rows) {
-      rows.forEach((row) => {
-        const providerString = row.getValue(column.id) as string;
-        if (providerString) {
-          const providers = providerString
-            .split(',')
-            .map(p => p.trim())
-            .filter(p => p.length > 0);
-          
-          providers.forEach(provider => {
-            newFacets.set(provider, (newFacets.get(provider) || 0) + 1);
-          });
-        }
-      });
-    }
-    return newFacets;
-  }, [column]);
+  const facets = column?.getFacetedUniqueValues();
 
   // Get all unique providers from the facets
-  const allProviders = Array.from(facets.keys()).sort();
+  const allProviders = React.useMemo(() => {
+    if (!facets) return [];
+    
+    const providers = new Set<string>();
+    facets.forEach((count, providerString) => {
+      if (providerString) {
+        const providerList = providerString
+          .split(',')
+          .map((p: string) => p.trim())
+          .filter((p: string) => p.length > 0);
+        
+        providerList.forEach((provider: string) => {
+          providers.add(provider);
+        });
+      }
+    });
+    
+    return Array.from(providers).sort();
+  }, [facets]);
 
   // Create options from unique providers
-  const options = allProviders.map(providerType => {
-    const config = getNotificationProviderConfig(providerType);
-    return {
-      label: config.label,
-      value: providerType,
-      icon: config.icon,
-      color: config.color,
-    };
-  });
+  const options = React.useMemo(() => {
+    return allProviders.map(providerType => {
+      const config = getNotificationProviderConfig(providerType);
+      return {
+        label: config.label,
+        value: providerType,
+        icon: config.icon,
+        color: config.color,
+      };
+    });
+  }, [allProviders]);
 
   return (
     <Popover>
@@ -151,11 +150,27 @@ export function DataTableProviderFilter<TData, TValue>({
                       )}
                     />
                     <span className="truncate flex-1">{option.label}</span>
-                    {facets?.get(option.value) && (
-                      <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs flex-shrink-0">
-                        {facets.get(option.value)}
-                      </span>
-                    )}
+                    {(() => {
+                      // Calculate count for this provider from all facets
+                      let count = 0;
+                      facets?.forEach((facetCount, providerString) => {
+                        if (providerString) {
+                          const providerList = providerString
+                            .split(',')
+                            .map((p: string) => p.trim())
+                            .filter((p: string) => p.length > 0);
+                          
+                          if (providerList.includes(option.value)) {
+                            count += facetCount;
+                          }
+                        }
+                      });
+                      return count > 0 ? (
+                        <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs flex-shrink-0">
+                          {count}
+                        </span>
+                      ) : null;
+                    })()}
                   </CommandItem>
                 );
               })}
