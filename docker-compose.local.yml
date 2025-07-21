@@ -1,0 +1,250 @@
+version: '3.8'
+
+services:
+  # Database Migration Service
+  migration:
+    image: postgres:16-alpine
+    environment:
+      - PGPASSWORD=postgres
+    volumes:
+      - ./app/src/db/migrations:/migrations
+      - ./scripts:/scripts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["/scripts/migrate.sh"]
+    networks:
+      - supertest-network
+    restart: "no"
+
+  # Frontend (Next.js App)
+  frontend:
+    image: supertest-app:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=supercheck
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # App Configuration
+      - NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+      - NODE_ENV=production
+      - RUNNING_CAPACITY=5
+      - QUEUED_CAPACITY=50
+      - TEST_EXECUTION_TIMEOUT_MS=900000
+      - TRACE_RECOVERY_INTERVAL_MS=300000
+      
+      # AWS S3 / MinIO Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://minio:9000
+      - S3_JOB_BUCKET_NAME=playwright-job-artifacts
+      - S3_FORCE_PATH_STYLE=true
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+      
+      # Scheduler Configuration
+      - DISABLE_JOB_SCHEDULER=false
+      - DISABLE_MONITOR_SCHEDULER=false
+    volumes:
+      - ./app/public/tests:/app/public/tests
+      - ./app/public/test-results:/app/public/test-results
+      - ./app/public/artifacts:/app/public/artifacts
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - supertest-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+
+
+  # Worker (NestJS Runner) - 2 replicas
+  worker:
+    image: supertest-worker:latest
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=supercheck
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # App Configuration
+      - NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+      - NODE_ENV=production
+      - RUNNING_CAPACITY=5
+      - QUEUED_CAPACITY=50
+      - TEST_EXECUTION_TIMEOUT_MS=900000
+      - TRACE_RECOVERY_INTERVAL_MS=300000
+      
+      # AWS S3 / MinIO Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://minio:9000
+      - S3_JOB_BUCKET_NAME=playwright-job-artifacts
+      - S3_FORCE_PATH_STYLE=true
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+      
+      # Scheduler Configuration
+      - DISABLE_JOB_SCHEDULER=false
+      - DISABLE_MONITOR_SCHEDULER=false
+    volumes:
+      - ./runner/playwright-reports:/app/playwright-reports
+      - ./runner/report:/app/report
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - supertest-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=supercheck
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supertest-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # Redis (for job queues)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supertest-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # MinIO (S3-compatible storage)
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supertest-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local
+
+networks:
+  supertest-network:
+    driver: bridge 

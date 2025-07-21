@@ -48,7 +48,7 @@ docker-compose logs -f worker
 
 ### Frontend (Next.js App)
 - **Port**: 3000
-- **Image**: `ghcr.io/your-username/supertest/frontend:latest`
+- **Image**: `ghcr.io/your-username/supertest/app:latest`
 - **Purpose**: Web interface for managing tests, jobs, and monitors
 - **Health Check**: http://localhost:3000/api/health
 
@@ -110,7 +110,7 @@ The Docker Compose file is configured to use images from GitHub Container Regist
 
 ```yaml
 frontend:
-  image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supertest}/frontend:latest
+  image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supertest}/app:latest
 
 worker:
   image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supertest}/worker:latest
@@ -118,19 +118,168 @@ worker:
 
 ### Building and Publishing Images
 
+#### Prerequisites for GHCR Publishing
+
+1. **Create GitHub Personal Access Token**:
+   - Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+   - Generate a new token with the following permissions:
+     - `write:packages` - Upload packages to GitHub Package Registry
+     - `read:packages` - Download packages from GitHub Package Registry
+     - `delete:packages` - Delete packages from GitHub Package Registry
+   - Copy the token and save it securely
+
+2. **Login to GitHub Container Registry**:
+   ```bash
+   # Set your GitHub username and token
+   export GITHUB_USERNAME="your-github-username"
+   export GITHUB_TOKEN="your-github-token"
+   
+   # Login to GHCR
+   echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
+   ```
+
+3. **Set Repository Variable**:
+   ```bash
+   export GITHUB_REPOSITORY="your-username/supertest"
+   ```
+
 #### Option 1: Using GitHub Actions (Recommended)
-Images are automatically built and published when you push to main branch or create tags:
 
-```bash
-# Push to main branch to trigger build
-git push origin main
+Create a GitHub Actions workflow to automatically build and publish images:
 
-# Create a release tag
-git tag v1.0.0
-git push origin v1.0.0
-```
+1. **Create the workflow directory and file**:
+   ```bash
+   mkdir -p .github/workflows
+   ```
+
+2. **Create `.github/workflows/docker-publish.yml`**:
+   ```yaml
+   name: Build and Publish Docker Images
+   
+   on:
+     push:
+       branches: [ main ]
+       tags: [ 'v*' ]
+     pull_request:
+       branches: [ main ]
+   
+   env:
+     REGISTRY: ghcr.io
+     IMAGE_NAME: ${{ github.repository }}
+   
+   jobs:
+     build:
+       runs-on: ubuntu-latest
+       permissions:
+         contents: read
+         packages: write
+       
+       steps:
+       - name: Checkout repository
+         uses: actions/checkout@v4
+       
+       - name: Set up Docker Buildx
+         uses: docker/setup-buildx-action@v3
+       
+       - name: Log in to Container Registry
+         uses: docker/login-action@v3
+         with:
+           registry: ${{ env.REGISTRY }}
+           username: ${{ github.actor }}
+           password: ${{ secrets.GITHUB_TOKEN }}
+       
+       - name: Extract metadata
+         id: meta
+         uses: docker/metadata-action@v5
+         with:
+           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/app,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker
+           tags: |
+             type=ref,event=branch
+             type=ref,event=pr
+             type=semver,pattern={{version}}
+             type=semver,pattern={{major}}.{{minor}}
+             type=sha
+       
+       - name: Build and push App image
+         uses: docker/build-push-action@v5
+         with:
+           context: ./app
+           file: ./app/Dockerfile
+           push: true
+           tags: ${{ steps.meta.outputs.tags }}
+           labels: ${{ steps.meta.outputs.labels }}
+           cache-from: type=gha
+           cache-to: type=gha,mode=max
+       
+       - name: Build and push Worker image
+         uses: docker/build-push-action@v5
+         with:
+           context: ./runner
+           file: ./runner/Dockerfile
+           push: true
+           tags: ${{ steps.meta.outputs.tags }}
+           labels: ${{ steps.meta.outputs.labels }}
+           cache-from: type=gha
+           cache-to: type=gha,mode=max
+   ```
+
+3. **Commit and push the workflow**:
+   ```bash
+   git add .github/workflows/docker-publish.yml
+   git commit -m "Add Docker image build workflow"
+   git push origin main
+   ```
+
+2. **Trigger the workflow**:
+   ```bash
+   # Push to main branch to trigger build
+   git push origin main
+   
+   # Create a release tag
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
 
 #### Option 2: Manual Build and Push
+
+1. **Build Images Locally**:
+   ```bash
+   # Set your GitHub repository name
+   export GITHUB_REPOSITORY="your-username/supertest"
+   
+   # Build app image
+   docker build -t ghcr.io/$GITHUB_REPOSITORY/app:latest ./app
+   
+   # Build worker image
+   docker build -t ghcr.io/$GITHUB_REPOSITORY/worker:latest ./runner
+   
+   # Tag with version (optional)
+   docker tag ghcr.io/$GITHUB_REPOSITORY/app:latest ghcr.io/$GITHUB_REPOSITORY/app:v1.0.0
+   docker tag ghcr.io/$GITHUB_REPOSITORY/worker:latest ghcr.io/$GITHUB_REPOSITORY/worker:v1.0.0
+   ```
+
+2. **Push Images to GHCR**:
+   ```bash
+   # Push latest tags
+   docker push ghcr.io/$GITHUB_REPOSITORY/app:latest
+   docker push ghcr.io/$GITHUB_REPOSITORY/worker:latest
+   
+   # Push version tags (optional)
+   docker push ghcr.io/$GITHUB_REPOSITORY/app:v1.0.0
+   docker push ghcr.io/$GITHUB_REPOSITORY/worker:v1.0.0
+   ```
+
+3. **Pull Images**:
+   ```bash
+   # Pull latest images
+   docker pull ghcr.io/$GITHUB_REPOSITORY/app:latest
+   docker pull ghcr.io/$GITHUB_REPOSITORY/worker:latest
+   ```
+
+#### Option 3: Using the Build Script
+
+The project includes a build script for convenience:
+
 ```bash
 # Make script executable
 chmod +x scripts/docker-images.sh
@@ -148,20 +297,56 @@ chmod +x scripts/docker-images.sh
 ./scripts/docker-images.sh tag v1.0.0
 ```
 
-### GitHub Container Registry Setup
+### Using Images in Docker Compose
 
-1. **Create GitHub Token**:
-   - Go to GitHub Settings → Developer settings → Personal access tokens
-   - Generate a token with `write:packages` permission
-
-2. **Login to GHCR**:
-   ```bash
-   echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
-   ```
-
-3. **Set Repository Variable**:
+1. **Set Environment Variable**:
    ```bash
    export GITHUB_REPOSITORY="your-username/supertest"
+   ```
+
+2. **Start Services**:
+   ```bash
+   # Start with environment variable
+   GITHUB_REPOSITORY=your-username/supertest docker-compose up -d
+   
+   # Or set it permanently
+   echo 'export GITHUB_REPOSITORY="your-username/supertest"' >> ~/.bashrc
+   source ~/.bashrc
+   docker-compose up -d
+   ```
+
+3. **Verify Images are Pulled**:
+   ```bash
+   # Check if images exist locally
+   docker images | grep ghcr.io
+   
+   # Pull images if needed
+   docker-compose pull
+   ```
+
+### Image Versioning Strategy
+
+- **`latest`**: Latest development version (from main branch)
+- **`v1.0.0`**: Semantic versioned releases
+- **`sha-abc123`**: Commit-specific builds (from GitHub Actions)
+
+### Managing Image Permissions
+
+1. **Make Package Public** (if desired):
+   - Go to your GitHub repository
+   - Click on "Packages" tab
+   - Select the package (frontend or worker)
+   - Go to "Package settings" → "Inherit access from source repository"
+   - Or set specific permissions under "Manage actions access"
+
+2. **Delete Old Images**:
+   ```bash
+   # List images
+   docker images ghcr.io/$GITHUB_REPOSITORY/*
+   
+   # Remove local images
+   docker rmi ghcr.io/$GITHUB_REPOSITORY/app:latest
+   docker rmi ghcr.io/$GITHUB_REPOSITORY/worker:latest
    ```
 
 ## 🐳 Docker Swarm Deployment
@@ -243,6 +428,268 @@ docker-compose exec -T postgres psql -U postgres supertest < backup.sql
 ```
 
 ## 🛠️ Development Setup
+
+### Running Docker Containers Locally
+
+#### Option 1: Build and Run Individual Containers
+
+1. **Build App Container**:
+   ```bash
+   # Navigate to app directory
+   cd app
+   
+   # Build the app image
+   docker build -t supertest-app:latest .
+   
+   # Run the app container
+   docker run -d \
+     --name supertest-app \
+     --network supertest-network \
+     -p 3000:3000 \
+     -e DATABASE_URL=postgresql://postgres:postgres@postgres-supercheck:5432/supercheck \
+     -e REDIS_HOST=supertest-redis \
+     -e REDIS_PORT=6379 \
+     -e NEXT_PUBLIC_APP_URL=http://supertest-app:3000 \
+     -e S3_ENDPOINT=http://host.docker.internal:9000 \
+     -e AWS_ACCESS_KEY_ID=minioadmin \
+     -e AWS_SECRET_ACCESS_KEY=minioadmin \
+     supertest-app:latest
+   ```
+
+2. **Build Worker Container**:
+   ```bash
+   # Navigate to runner directory
+   cd runner
+   
+   # Build the worker image
+   docker build -t supertest-worker:latest .
+   
+   # Run the worker container
+   docker run -d \
+     --name supertest-worker \
+     --network supertest-network \
+     -p 3001:3001 \
+     -e DATABASE_URL=postgresql://postgres:postgres@postgres-supercheck:5432/supercheck \
+     -e REDIS_HOST=supertest-redis \
+     -e REDIS_PORT=6379 \
+     -e NEXT_PUBLIC_APP_URL=http://supertest-app:3000 \
+     -e S3_ENDPOINT=http://host.docker.internal:9000 \
+     -e AWS_ACCESS_KEY_ID=minioadmin \
+     -e AWS_SECRET_ACCESS_KEY=minioadmin \
+     supertest-worker:latest
+   ```
+
+3. **Start Infrastructure Services**:
+   ```bash
+   # Start PostgreSQL
+   docker run -d \
+     --name supertest-postgres \
+     -p 5432:5432 \
+     -e POSTGRES_PASSWORD=postgres \
+     -e POSTGRES_DB=supercheck \
+     postgres:16
+   
+   # Start Redis
+   docker run -d \
+     --name supertest-redis \
+     -p 6379:6379 \
+     redis:7-alpine
+   
+   # Start MinIO
+   docker run -d \
+     --name supertest-minio \
+     -p 9000:9000 \
+     -p 9001:9001 \
+     -e MINIO_ROOT_USER=minioadmin \
+     -e MINIO_ROOT_PASSWORD=minioadmin \
+     minio/minio server /data --console-address ":9001"
+   ```
+
+#### Option 2: Using Docker Compose with Local Builds
+
+1. **Create a local docker-compose file** (`docker-compose.local.yml`):
+   ```yaml
+   version: '3.8'
+   
+   services:
+     app:
+       build:
+         context: ./app
+         dockerfile: Dockerfile
+       ports:
+         - "3000:3000"
+       environment:
+         - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
+         - REDIS_URL=redis://redis:6379
+         - S3_ENDPOINT=http://minio:9000
+         - AWS_ACCESS_KEY_ID=minioadmin
+         - AWS_SECRET_ACCESS_KEY=minioadmin
+       depends_on:
+         - postgres
+         - redis
+         - minio
+   
+     worker:
+       build:
+         context: ./runner
+         dockerfile: Dockerfile
+       ports:
+         - "3001:3001"
+       environment:
+         - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
+         - REDIS_URL=redis://redis:6379
+         - S3_ENDPOINT=http://minio:9000
+         - AWS_ACCESS_KEY_ID=minioadmin
+         - AWS_SECRET_ACCESS_KEY=minioadmin
+       depends_on:
+         - postgres
+         - redis
+         - minio
+   
+     postgres:
+       image: postgres:15
+       environment:
+         - POSTGRES_PASSWORD=postgres
+         - POSTGRES_DB=supercheck
+       ports:
+         - "5432:5432"
+       volumes:
+         - postgres_data:/var/lib/postgresql/data
+   
+     redis:
+       image: redis:7-alpine
+       ports:
+         - "6379:6379"
+       volumes:
+         - redis_data:/data
+   
+     minio:
+       image: minio/minio
+       environment:
+         - MINIO_ROOT_USER=minioadmin
+         - MINIO_ROOT_PASSWORD=minioadmin
+       ports:
+         - "9000:9000"
+         - "9001:9001"
+       volumes:
+         - minio_data:/data
+       command: server /data --console-address ":9001"
+   
+   volumes:
+     postgres_data:
+     redis_data:
+     minio_data:
+   ```
+
+2. **Build and run with local images**:
+   ```bash
+   # Build and start all services
+   docker-compose -f docker-compose.local.yml up -d --build
+   
+   # View logs
+   docker-compose -f docker-compose.local.yml logs -f
+   
+   # Stop services
+   docker-compose -f docker-compose.local.yml down
+   ```
+
+#### Option 3: Development with Hot Reload
+
+For development with hot reload, you can run the containers with volume mounts:
+
+```bash
+# App with hot reload
+docker run -d \
+  --name supertest-app-dev \
+  -p 3000:3000 \
+  -v $(pwd)/app:/app \
+  -v /app/node_modules \
+  -e DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/supercheck \
+  -e REDIS_URL=redis://host.docker.internal:6379 \
+  -e S3_ENDPOINT=http://host.docker.internal:9000 \
+  -e AWS_ACCESS_KEY_ID=minioadmin \
+  -e AWS_SECRET_ACCESS_KEY=minioadmin \
+  supertest-app:latest npm run dev
+
+# Worker with hot reload
+docker run -d \
+  --name supertest-worker-dev \
+  -p 3001:3001 \
+  -v $(pwd)/runner:/app \
+  -v /app/node_modules \
+  -e DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/supercheck \
+  -e REDIS_URL=redis://host.docker.internal:6379 \
+  -e S3_ENDPOINT=http://host.docker.internal:9000 \
+  -e AWS_ACCESS_KEY_ID=minioadmin \
+  -e AWS_SECRET_ACCESS_KEY=minioadmin \
+  supertest-worker:latest npm run start:dev
+```
+
+#### Managing Local Containers
+
+**View running containers**:
+```bash
+# List all containers
+docker ps
+
+# List all containers (including stopped)
+docker ps -a
+
+# View container logs
+docker logs supertest-app
+docker logs supertest-worker
+docker logs supertest-postgres
+docker logs supertest-redis
+docker logs supertest-minio
+
+# Follow logs in real-time
+docker logs -f supertest-app
+```
+
+**Stop and remove containers**:
+```bash
+# Stop containers
+docker stop supertest-app supertest-worker supertest-postgres supertest-redis supertest-minio
+
+# Remove containers
+docker rm supertest-app supertest-worker supertest-postgres supertest-redis supertest-minio
+
+# Stop and remove in one command
+docker rm -f supertest-app supertest-worker supertest-postgres supertest-redis supertest-minio
+```
+
+**Clean up images**:
+```bash
+# Remove local images
+docker rmi supertest-app:latest supertest-worker:latest
+
+# Remove all unused images
+docker image prune -a
+
+# Remove all unused containers, networks, and images
+docker system prune -a
+```
+
+**Access container shell**:
+```bash
+# Access app container
+docker exec -it supertest-app /bin/bash
+
+# Access worker container
+docker exec -it supertest-worker /bin/bash
+
+# Access PostgreSQL
+docker exec -it supertest-postgres psql -U postgres -d supercheck
+```
+
+**Run database migrations**:
+```bash
+# Run migrations in app container
+docker exec supertest-app npm run db:migrate
+
+# Run migrations in worker container
+docker exec supertest-worker npm run db:migrate
+```
 
 ### Local Development with Published Images
 ```bash
@@ -345,6 +792,29 @@ docker service scale supertest_worker=5
    
    # Pull images manually
    ./scripts/docker-images.sh pull
+   
+   # Check if images exist in GHCR
+   curl -H "Authorization: token $GITHUB_TOKEN" \
+     https://api.github.com/user/packages/container/app/versions
+   ```
+
+2. **Authentication issues with GHCR**
+   ```bash
+   # Re-login to GHCR
+   docker logout ghcr.io
+   echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
+   
+   # Verify login
+   docker login ghcr.io --username $GITHUB_USERNAME
+   ```
+
+3. **Permission denied errors**
+   ```bash
+   # Check if package is public or you have access
+   # Go to GitHub repository → Packages tab → Check package visibility
+   
+   # For private packages, ensure you're logged in with correct account
+   docker login ghcr.io -u $GITHUB_USERNAME
    ```
 
 2. **Services not starting**
@@ -372,6 +842,167 @@ docker service scale supertest_worker=5
    ```bash
    docker-compose logs worker
    docker-compose exec worker npm run start:prod
+   ```
+
+7. **Docker build fails with npm dependency conflicts**
+   ```bash
+   # Check if the issue is resolved in the Dockerfile
+   # The Dockerfile now uses --legacy-peer-deps flag
+   
+   # If still having issues, try building with force flag
+   docker build --no-cache -t supertest-app:latest .
+   
+   # Or try building with different npm flags
+   # Edit Dockerfile to use: RUN npm install --legacy-peer-deps
+   ```
+
+8. **Docker build fails with "npm ci" error**
+   ```bash
+   # The error: "npm ci can only install with an existing package-lock.json"
+   # Solution: Use npm install instead of npm ci
+   # The Dockerfile has been updated to use: RUN npm install --legacy-peer-deps --force
+   
+   # If you prefer npm ci, ensure package-lock.json exists:
+   npm install
+   git add package-lock.json
+   git commit -m "Add package-lock.json"
+   ```
+
+9. **Docker build fails with "Override conflicts with direct dependency"**
+   ```bash
+   # The error: "Override for typescript@^5 conflicts with direct dependency"
+   # Solution: Remove conflicting overrides from package.json
+   # Keep only necessary overrides for React types
+   
+   # Update package.json overrides to:
+   # "overrides": {
+   #   "@types/react": "19.1.2",
+   #   "@types/react-dom": "19.1.2"
+   # }
+   ```
+
+10. **TypeScript version conflicts**
+   ```bash
+   # Check package.json overrides section
+   # Ensure TypeScript version is compatible with all dependencies
+   
+   # Update package.json overrides if needed:
+   # "overrides": {
+   #   "typescript": "5.7.3",
+   #   "react": "19.1.0",
+   #   "react-dom": "19.1.0"
+   # }
+   ```
+
+11. **Docker build fails with ".next/standalone not found"**
+   ```bash
+   # The error: "/app/.next/standalone": not found
+   # Solution: Add output: 'standalone' to next.config.ts
+   
+   # Update next.config.ts:
+   # const nextConfig: NextConfig = {
+   #   output: 'standalone',
+   #   // ... other config
+   # };
+   ```
+
+12. **Worker build fails with Node.js version issues**
+   ```bash
+   # The error: "Unsupported engine" for Node.js 18
+   # Solution: Update Dockerfile to use Node.js 20
+   
+   # Update runner/Dockerfile:
+   # FROM node:20-alpine AS deps
+   # FROM node:20-alpine AS runner
+   # RUN npm install --legacy-peer-deps --force
+   ```
+
+13. **Worker build fails with Playwright installation**
+   ```bash
+   # The error: "apt-get: not found" on Alpine Linux
+   # Solution: Install system dependencies first and use chromium only
+   
+   # Update runner/Dockerfile:
+   # RUN apk add --no-cache chromium nss freetype ... (all dependencies)
+   # RUN npx playwright install chromium
+   ```
+
+14. **Worker build fails with user creation**
+   ```bash
+   # The error: "passwd: password for nodejs is unchanged" (interactive prompt)
+   # Solution: Use -D flag to create user without password
+   
+   # Update runner/Dockerfile:
+   # RUN adduser -D -u 1001 -G nodejs -s /bin/bash nodejs
+   ```
+
+15. **Job execution "fetch failed" errors**
+   ```bash
+   # The error: "Failed to queue job execution: fetch failed"
+   # Solution: Set NEXT_PUBLIC_APP_URL to correct internal container address
+   
+   # Update container environment:
+   # -e NEXT_PUBLIC_APP_URL=http://supertest-app:3000
+   
+   # Ensure all containers are on the same Docker network
+   # docker network create supertest-network
+   # docker network connect supertest-network supertest-app
+   ```
+
+16. **Redis connection issues**
+   ```bash
+   # The error: "connect ECONNREFUSED 127.0.0.1:6379"
+   # Solution: Use REDIS_HOST and REDIS_PORT instead of REDIS_URL
+   
+   # Update container environment:
+   # -e REDIS_HOST=supertest-redis
+   # -e REDIS_PORT=6379
+   
+   # Check Redis container status:
+   # docker ps | grep redis
+   
+   # Verify network connectivity:
+   # docker network inspect supertest-network
+   ```
+
+17. **Worker jobs not processing**
+   ```bash
+   # The error: Worker not processing jobs, Redis connection errors
+   # Solution: Update worker container with correct Redis configuration
+   
+   # Stop and restart worker with correct environment:
+   # docker stop supertest-worker && docker rm supertest-worker
+   # docker run -d --name supertest-worker --network supertest-network \
+   #   -e DATABASE_URL=postgresql://postgres:postgres@postgres-supercheck:5432/supercheck \
+   #   -e REDIS_HOST=supertest-redis \
+   #   -e REDIS_PORT=6379 \
+   #   supertest-worker:latest
+   
+   # Check worker logs:
+   # docker logs supertest-worker | grep -E "(Processor|Job|Redis)"
+   ```
+
+18. **Playwright browser installation errors**
+   ```bash
+   # The error: "error while loading shared libraries: libglib-2.0.so.0"
+   # Solution: Install system dependencies in the final Docker stage
+   
+   # Update runner/Dockerfile to install dependencies in runner stage:
+   # RUN apt-get update && apt-get install -y \
+   #     libglib2.0-0 libnss3 libnspr4 libatk1.0-0 \
+   #     libatk-bridge2.0-0 libcups2 libdrm2 libdbus-1-3 \
+   #     libxcb1 libxkbcommon0 libx11-6 libxcomposite1 \
+   #     libxdamage1 libxext6 libxfixes3 libxrandr2 \
+   #     libgbm1 libpango-1.0-0 libcairo2 libasound2 \
+   #     libatspi2.0-0 libgtk-3-0 libgdk-pixbuf2.0-0 \
+   #     libxss1 libxshmfence1
+   
+   # Use Debian-based image (node:20-slim) instead of Alpine
+   # FROM node:20-slim AS deps
+   # FROM node:20-slim AS runner
+   
+   # Check browser installation:
+   # docker exec supertest-worker ldd /app/playwright-browsers/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell
    ```
 
 ### Log Analysis
