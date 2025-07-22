@@ -94,7 +94,7 @@ Welcome to the Supertest documentation. This repository contains comprehensive d
 docker run -d --name redis-supercheck -p 6379:6379 redis
 
 # Start Postgres
-docker run -d --name postgres-supercheck -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supercheck -p 5432:5432 postgres:16
+docker run -d --name postgres-supercheck -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supercheck -p 5432:5432 postgres:16.2
 
 # Start MinIO
 docker run -d --name minio-supercheck -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
