@@ -1,35 +1,6 @@
 services:
-  # Migration Service - Runs before app and worker
-  migration:
-    image: ghcr.io/krish-kant/supercheck/migrate:latest
-    environment:
-      # Database Configuration
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=supercheck
-      
-      # AWS S3 / MinIO Configuration
-      - AWS_REGION=us-east-1
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - S3_ENDPOINT=http://minio:9000
-      - S3_JOB_BUCKET_NAME=playwright-job-artifacts
-      - S3_FORCE_PATH_STYLE=true
-      - S3_OPERATION_TIMEOUT=10000
-      - S3_MAX_RETRIES=3
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: "no"
-    networks:
-      - supercheck-network
-
-  # App (Next.js Frontend) - No longer handles migrations
+  # App (Next.js Frontend) - Handles migrations internally
   app:
-    # image: supertest-app:latest
     image: ghcr.io/krish-kant/supercheck/app:latest
     ports:
       - "3000:3000"
@@ -68,13 +39,16 @@ services:
       # Scheduler Configuration
       - DISABLE_JOB_SCHEDULER=false
       - DISABLE_MONITOR_SCHEDULER=false
+      
+      # Migration Configuration
+      # Migrations are always run on app startup
     volumes:
       - ./app/public/tests:/app/public/tests
       - ./app/public/test-results:/app/public/test-results
       - ./app/public/artifacts:/app/public/artifacts
     depends_on:
-      migration:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -99,7 +73,6 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    # image: supertest-worker:latest
     image: ghcr.io/krish-kant/supercheck/worker:latest
     environment:
       # Database Configuration
@@ -140,8 +113,8 @@ services:
       - ./runner/playwright-reports:/app/playwright-reports
       - ./runner/report:/app/report
     depends_on:
-      migration:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
