@@ -6,6 +6,7 @@ import {
   ColumnFiltersState,
   SortingState,
   VisibilityState,
+  RowSelectionState,
   flexRender,
   getCoreRowModel,
   getFacetedRowModel,
@@ -27,8 +28,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { DataTablePagination } from "@/components/jobs/data-table-pagination";
+import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { cn } from "@/lib/utils";
 
 // Define a more specific meta type
@@ -60,23 +62,98 @@ export function DataTable<TData, TValue>({
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = React.useState("");
+  const [mounted, setMounted] = React.useState(false);
+
+  // Set mounted to true after initial render
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 0);
+    
+    return () => {
+      clearTimeout(timer);
+      setMounted(false);
+    };
+  }, []);
+
+  // Safe state setters that only run when component is mounted
+  const safeSetRowSelection = React.useCallback((updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
+    if (mounted) {
+      if (typeof updaterOrValue === 'function') {
+        setRowSelection(updaterOrValue);
+      } else {
+        setRowSelection(updaterOrValue);
+      }
+    }
+  }, [mounted]);
+  
+  const safeSetSorting = React.useCallback((updaterOrValue: SortingState | ((old: SortingState) => SortingState)) => {
+    if (mounted) {
+      if (typeof updaterOrValue === 'function') {
+        setSorting(updaterOrValue);
+      } else {
+        setSorting(updaterOrValue);
+      }
+    }
+  }, [mounted]);
+  
+  const safeSetColumnFilters = React.useCallback((updaterOrValue: ColumnFiltersState | ((old: ColumnFiltersState) => ColumnFiltersState)) => {
+    if (mounted) {
+      if (typeof updaterOrValue === 'function') {
+        setColumnFilters(updaterOrValue);
+      } else {
+        setColumnFilters(updaterOrValue);
+      }
+    }
+  }, [mounted]);
+  
+  const safeSetColumnVisibility = React.useCallback((updaterOrValue: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
+    if (mounted) {
+      if (typeof updaterOrValue === 'function') {
+        setColumnVisibility(updaterOrValue);
+      } else {
+        setColumnVisibility(updaterOrValue);
+      }
+    }
+  }, [mounted]);
+  
+  const safeSetGlobalFilter = React.useCallback((updaterOrValue: string | ((old: string) => string)) => {
+    if (mounted) {
+      if (typeof updaterOrValue === 'function') {
+        setGlobalFilter(updaterOrValue);
+      } else {
+        setGlobalFilter(updaterOrValue);
+      }
+    }
+  }, [mounted]);
 
   const table = useReactTable({
     data,
     columns,
-    state: {
+    initialState: {
+      pagination: {
+        pageSize: 12,
+      },
+    },
+    state: mounted ? {
       sorting,
       columnVisibility,
       rowSelection,
       columnFilters,
       globalFilter,
+    } : {
+      sorting: [],
+      columnVisibility: {},
+      rowSelection: {},
+      columnFilters: [],
+      globalFilter: "",
     },
     enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onGlobalFilterChange: setGlobalFilter,
+    onRowSelectionChange: safeSetRowSelection,
+    onSortingChange: safeSetSorting,
+    onColumnFiltersChange: safeSetColumnFilters,
+    onColumnVisibilityChange: safeSetColumnVisibility,
+    onGlobalFilterChange: safeSetGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -89,6 +166,19 @@ export function DataTable<TData, TValue>({
       ...meta,
     } as TableMeta,
   });
+
+  // Use useEffect to reset pagination after the component has mounted
+  React.useEffect(() => {
+    // Only reset if there's data and the component is mounted
+    if (data.length > 0 && mounted) {
+      // Use setTimeout to ensure this runs after the current render cycle
+      setTimeout(() => {
+        if (mounted) {
+          table.resetPageIndex(true);
+        }
+      }, 0);
+    }
+  }, [data, table, mounted]);
 
   // Handle row clicks while checking for action column clicks
   const handleRowClick = (e: React.MouseEvent, row: Row<TData>) => {
@@ -110,12 +200,10 @@ export function DataTable<TData, TValue>({
     }
   };
 
-  // Initialize pagination after component has mounted
-  React.useEffect(() => {
-    if (data.length > 0) {
-      table.resetPageIndex(true);
-    }
-  }, [data, table]);
+  // Don't render the table until the component is mounted
+  if (!mounted) {
+    return <DataTableSkeleton columns={6} rows={3} />;
+  }
 
   return (
     <div className="space-y-4">
@@ -127,7 +215,7 @@ export function DataTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
+                    <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -160,17 +248,16 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={(e) => handleRowClick(e, row)}
                   className={cn(
-                    onRowClick ? "hover:bg-muted cursor-pointer" : "",
-                    "h-16"
+                    onRowClick ? "hover:bg-muted cursor-pointer" : ""
                   )}
+                  onClick={(e) => handleRowClick(e, row)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell 
-                      key={cell.id} 
+                    <TableCell
+                      key={cell.id}
                       className={cn(
-                        "py-4",
+                        "py-2.5",
                         cell.column.id === "actions" ? "actions-column" : ""
                       )}
                     >

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { addTestToQueue, TestExecutionTask } from "@/lib/queue";
+import { validationService } from "@/lib/validation-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +13,34 @@ export async function POST(request: NextRequest) {
         { error: "No script provided" },
         { status: 400 }
       );
+    }
+
+    // Validate the script first - only queue if validation passes
+    console.log("Validating script before queuing...");
+    try {
+      const validationResult = validationService.validateCode(code);
+      
+      if (!validationResult.valid) {
+        console.warn("Script validation failed:", validationResult.error);
+        return NextResponse.json({
+          error: "Script validation failed",
+          validationError: validationResult.error,
+          line: validationResult.line,
+          column: validationResult.column,
+          errorType: validationResult.errorType,
+          isValidationError: true,
+        }, { status: 400 });
+      }
+      
+      console.log("Script validation passed, proceeding to queue test...");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown validation error';
+      console.error("Validation service error:", errorMessage);
+      return NextResponse.json({
+        error: "Script validation failed",
+        validationError: `Validation service error: ${errorMessage}`,
+        isValidationError: true,
+      }, { status: 500 });
     }
 
     const testId = crypto.randomUUID();

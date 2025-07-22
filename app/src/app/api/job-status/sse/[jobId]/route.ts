@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/db/client';
-import { runs } from '@/db/schema';
+import { db } from '@/utils/db';
+import { runs } from '@/db/schema/schema';
 import { eq } from 'drizzle-orm';
 import { Queue } from 'bullmq';
 import { JOB_EXECUTION_QUEUE } from '@/lib/queue';
@@ -18,9 +18,18 @@ const createSSEMessage = (data: Record<string, unknown>) => {
  */
 const getRedisConnection = async (): Promise<Redis> => {
   console.log(`Creating Redis connection for SSE endpoint`);
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
   
-  const redis = new Redis(redisUrl, {
+  // Read directly from process.env (same as main queue system)
+  const host = process.env.REDIS_HOST || 'localhost';
+  const port = parseInt(process.env.REDIS_PORT || '6379');
+  const password = process.env.REDIS_PASSWORD;
+  
+  console.log(`[SSE Redis Client] Connecting to Redis at ${host}:${port}`);
+  
+  const redis = new Redis({
+    host,
+    port,
+    password: password || undefined,
     maxRetriesPerRequest: null, // Required for BullMQ
     enableReadyCheck: false,    // Speed up connection
   });
@@ -45,7 +54,6 @@ export async function GET(request: Request) {
     async start(controller) {
       try {
         // Check if we already have a result for this job's latest run
-        const db = await getDb();
         const runId = jobId; // In our system, the SSE endpoint is now called with runId
         
         // Get the specific run by ID
@@ -119,15 +127,36 @@ export async function GET(request: Request) {
         }
         
         // Get the Bull job to watch for events
-        const job = await jobQueue.getJob(runId);
+        let job = await jobQueue.getJob(runId);
+        
+        // If job not found by ID, try getting all jobs and finding by other means
         if (!job) {
-          console.log(`[SSE] Job ${runId} not found in Bull queue`);
-          // Even if job not found in Bull, keep the connection alive
-          // as it might be added later or already completed
-          return;
+          console.log(`[SSE] Job ${runId} not found directly by ID, searching for jobs by data.runId...`);
+          
+          // Get active jobs from the queue
+          const activeJobs = await jobQueue.getJobs(['active', 'delayed', 'wait', 'waiting']);
+          console.log(`[SSE] Found ${activeJobs.length} active jobs in the queue`);
+          
+          // Find job matching our runId in the data object
+          for (const activeJob of activeJobs) {
+            const data = activeJob.data || {};
+            if (data.runId === runId || activeJob.name === runId) {
+              console.log(`[SSE] Found matching job with ID ${activeJob.id} and name ${activeJob.name} for runId ${runId}`);
+              job = activeJob;
+              break;
+            }
+          }
+          
+          if (!job) {
+            console.log(`[SSE] Job ${runId} not found in active Bull queue jobs`);
+            // Even if job not found in Bull, keep the connection alive
+            // as it might be added later or already completed
+          }
+        } else {
+          console.log(`[SSE] Found job ${runId} directly by ID in Bull queue`);
         }
         
-        // Set up polling to check job status from Bull queue
+        // Set up polling to check job status from Bull queue and database
         const pollInterval = setInterval(async () => {
           if (connectionClosed) {
             clearInterval(pollInterval);
@@ -135,45 +164,94 @@ export async function GET(request: Request) {
           }
           
           try {
-            // Get fresh job data
-            const updatedJob = await jobQueue.getJob(runId);
-            if (!updatedJob) {
-              return;
-            }
-            
-            // Get job state
-            const state = await updatedJob.getState();
-            const progress = JSON.stringify(await updatedJob.progress);
-            
-            // Map Bull states to our application states
-            let status = state;
-            if (state === 'completed') {
-              // Check result to determine if passed or failed
-              const result = await updatedJob.returnvalue;
-              status = result?.success === true ? 'passed' : 'failed';
-            }
-            
-            // Send status update
+            // Get fresh database run status first (more reliable than queue)
             const dbRun = await db.query.runs.findFirst({
               where: eq(runs.id, runId),
             });
             
-            controller.enqueue(encoder.encode(createSSEMessage({ 
-              status,
-              runId,
-              progress,
-              duration: dbRun?.duration || null,
-              ...(updatedJob.returnvalue || {})
-            })));
-            
-            // If terminal state, close connection
-            if (['completed', 'failed'].includes(state)) {
-              console.log(`[SSE] Job ${runId} reached terminal state ${status}, closing connection`);
+            // If run shows terminal status in DB, use that status
+            if (dbRun && ['completed', 'failed', 'passed', 'error'].includes(dbRun.status)) {
+              console.log(`[SSE] Run ${runId} has terminal status ${dbRun.status} in database, sending update`);
+              
+              controller.enqueue(encoder.encode(createSSEMessage({ 
+                status: dbRun.status,
+                runId: dbRun.id,
+                duration: dbRun.duration,
+                startedAt: dbRun.startedAt,
+                completedAt: dbRun.completedAt,
+                errorDetails: dbRun.errorDetails,
+                artifactPaths: dbRun.artifactPaths
+              })));
+              
+              // Close connection for terminal status
               connectionClosed = true;
               clearInterval(pollInterval);
-              // Close Redis connection using our cleanup function
               await cleanup();
               controller.close();
+              return;
+            }
+            
+            // Try to get job from queue again if we didn't find it before
+            // Jobs might appear later for scheduled tasks
+            if (!job) {
+              job = await jobQueue.getJob(runId);
+              
+              if (!job) {
+                // Still not found, check active jobs again
+                const activeJobs = await jobQueue.getJobs(['active', 'delayed', 'wait', 'waiting']);
+                
+                for (const activeJob of activeJobs) {
+                  const data = activeJob.data || {};
+                  if (data.runId === runId || activeJob.name === runId) {
+                    job = activeJob;
+                    console.log(`[SSE] Found job in later poll with ID ${activeJob.id} and name ${activeJob.name}`);
+                    break;
+                  }
+                }
+              }
+            }
+            
+            // If we have a job from the queue, process its state
+            if (job) {
+              // Get job state
+              const state = await job.getState();
+              const progress = JSON.stringify(await job.progress);
+              
+              // Map Bull states to our application states
+              let status = state;
+              if (state === 'completed') {
+                // Check result to determine if passed or failed
+                const result = await job.returnvalue;
+                status = result?.success === true ? 'passed' : 'failed';
+              }
+              
+              // Send status update based on Bull job state
+              controller.enqueue(encoder.encode(createSSEMessage({ 
+                status,
+                runId,
+                progress,
+                duration: dbRun?.duration || null,
+                ...(job.returnvalue || {})
+              })));
+              
+              // If terminal state, close connection
+              if (['completed', 'failed'].includes(state)) {
+                console.log(`[SSE] Job ${runId} reached terminal state ${status}, closing connection`);
+                connectionClosed = true;
+                clearInterval(pollInterval);
+                // Close Redis connection using our cleanup function
+                await cleanup();
+                controller.close();
+              }
+            } else if (dbRun) {
+              // If we have a database run but no job in the queue, send the database status
+              controller.enqueue(encoder.encode(createSSEMessage({ 
+                status: dbRun.status,
+                runId: dbRun.id,
+                duration: dbRun.duration,
+                startedAt: dbRun.startedAt,
+                completedAt: dbRun.completedAt
+              })));
             }
           } catch (pollError) {
             console.error(`[SSE] Error polling job ${runId} status:`, pollError);

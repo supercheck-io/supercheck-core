@@ -8,7 +8,7 @@
 export enum ScriptType {
   Browser = "browser",
   API = "api",
-  Multistep = "multistep",
+  Custom = "custom",
   Database = "database",
 
 }
@@ -171,16 +171,16 @@ test('API check - Error handling for non-existent resource', async ({ request })
 });
 `,
 
-  [ScriptType.Multistep]: `/**
- * Multistep Check Script
+  [ScriptType.Custom]: `/**
+ * Custom Check Script
  *
- * This script demonstrates how to perform multistep API tests using Playwright.
+ * This script demonstrates how to perform custom API tests using Playwright.
  * It shows how to chain API calls and use data from previous responses in subsequent requests.
  */
 
 import { test, expect } from "@playwright/test";
 
-test("Multistep check - Create, read, update, and delete a resource", async ({
+test("Custom check - Create, read, update, and delete a resource", async ({
   request,
 }) => {
   // Step 1: Create a new resource (POST)
@@ -189,7 +189,7 @@ test("Multistep check - Create, read, update, and delete a resource", async ({
     "https://jsonplaceholder.typicode.com/posts",
     {
       data: {
-        title: "Multistep Test with Playwright",
+        title: "Custom Test with Playwright",
         body: "This is a test of chained API calls using Playwright",
         userId: 1,
       },
@@ -208,7 +208,7 @@ test("Multistep check - Create, read, update, and delete a resource", async ({
 
   expect(getResponse.status()).toBe(200);
   const retrievedPost = await getResponse.json();
-  expect(retrievedPost.title).toBe("Multistep Test with Playwright");
+  expect(retrievedPost.title).toBe("Custom Test with Playwright");
   console.log("✅ Post retrieved successfully");
 
   // Step 3: Update the resource (PUT)
@@ -218,7 +218,7 @@ test("Multistep check - Create, read, update, and delete a resource", async ({
     {
       data: {
         id: newPost.id,
-        title: "Updated Multistep Test",
+        title: "Updated Custom Test",
         body: "This post has been updated",
         userId: 1,
       },
@@ -227,7 +227,7 @@ test("Multistep check - Create, read, update, and delete a resource", async ({
 
   expect(updateResponse.status()).toBe(200);
   const updatedPost = await updateResponse.json();
-  expect(updatedPost.title).toBe("Updated Multistep Test");
+  expect(updatedPost.title).toBe("Updated Custom Test");
   console.log("✅ Post updated successfully");
 
   // Step 4: Delete the resource (DELETE)
@@ -240,7 +240,7 @@ test("Multistep check - Create, read, update, and delete a resource", async ({
   console.log("✅ Post deleted successfully");
 });
 
-test("Multistep check - Authentication and authorized requests", async ({
+test("Custom check - Authentication and authorized requests", async ({
   request,
 }) => {
   // Step 1: Get authentication token (simulated)
@@ -281,7 +281,7 @@ test("Multistep check - Authentication and authorized requests", async ({
   );
 });
 
-test("Multistep check - Conditional flow based on response", async ({
+test("Custom check - Conditional flow based on response", async ({
   request,
 }) => {
   // Step 1: Get a list of resources

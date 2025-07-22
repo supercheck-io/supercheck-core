@@ -5,29 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1745152557813,
-      "tag": "0000_whole_jack_power",
+      "when": 1752784870387,
+      "tag": "0000_cynical_rage",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1745991698225,
-      "tag": "0001_moaning_mojo",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1747081980916,
-      "tag": "0002_next_madame_masque",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1747242484215,
-      "tag": "0003_needy_raider",
+      "when": 1752908727097,
+      "tag": "0001_flashy_spectrum",
       "breakpoints": true
     }
   ]

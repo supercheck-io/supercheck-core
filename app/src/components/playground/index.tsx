@@ -13,7 +13,8 @@ import {
 import { CodeEditor } from "./code-editor";
 import { TestForm } from "./test-form";
 import { LoadingOverlay } from "./loading-overlay";
-import { TestPriority, TestType } from "@/db/schema";
+import { ValidationError } from "./validation-error";
+import { TestPriority, TestType } from "@/db/schema/schema";
 import {
   FileTextIcon,
   Loader2Icon,
@@ -98,9 +99,85 @@ const Playground: React.FC<PlaygroundProps> = ({
   // Create empty errors object for TestForm
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Validation state with strict tracking
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationLine, setValidationLine] = useState<number | undefined>(undefined);
+  const [validationColumn, setValidationColumn] = useState<number | undefined>(undefined);
+  const [validationErrorType, setValidationErrorType] = useState<string | undefined>(undefined);
+  const [isValid, setIsValid] = useState<boolean>(false); // Default to false for safety
+  const [hasValidated, setHasValidated] = useState<boolean>(false);
+  const [isValidating, setIsValidating] = useState<boolean>(false);
+  const [lastValidatedScript, setLastValidatedScript] = useState<string>(""); // Track last validated script
+  
+  // Test execution status tracking
+  const [testExecutionStatus, setTestExecutionStatus] = useState<'none' | 'passed' | 'failed'>('none'); // Track if last test run passed or failed
+  const [lastExecutedScript, setLastExecutedScript] = useState<string>(""); // Track last executed script
+  
+  // Derived state: is current script validated and passed?
+  const isCurrentScriptValidated = hasValidated && isValid && editorContent === lastValidatedScript;
+  const isCurrentScriptExecutedSuccessfully = testExecutionStatus === 'passed' && editorContent === lastExecutedScript;
+  const isCurrentScriptReadyToSave = isCurrentScriptValidated && isCurrentScriptExecutedSuccessfully;
+  
+  // Clear validation state when script changes
+  const resetValidationState = () => {
+    setValidationError(null);
+    setValidationLine(undefined);
+    setValidationColumn(undefined);
+    setValidationErrorType(undefined);
+    setIsValid(false);
+    setHasValidated(false);
+    // Don't reset lastValidatedScript here - only when validation passes
+  };
+  
+  // Clear test execution state when script changes
+  const resetTestExecutionState = () => {
+    setTestExecutionStatus('none');
+    // Don't reset lastExecutedScript here - only when test passes
+  };
+
   // Editor reference
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const searchParams = useSearchParams();
+
+  // Manual validation function (called only on run/submit)
+  const validateScript = async (script: string): Promise<{ valid: boolean; error?: string; line?: number; column?: number; errorType?: string }> => {
+    if (!script || script.trim() === "") {
+      return { valid: true }; // Empty script is considered valid for now
+    }
+
+    setIsValidating(true);
+    try {
+      const response = await fetch('/api/validate-script', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ script }),
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok || !result.valid) {
+        return {
+          valid: false,
+          error: result.error || "Unknown validation error",
+          line: result.line,
+          column: result.column,
+          errorType: result.errorType,
+        };
+      }
+
+      return { valid: true };
+    } catch (error) {
+      console.error("Validation error:", error);
+      return {
+        valid: false,
+        error: "Unable to validate script - validation service unavailable",
+      };
+    } finally {
+      setIsValidating(false);
+    }
+  };
 
   // Reset testId when on the main playground page
   useEffect(() => {
@@ -116,6 +193,15 @@ const Playground: React.FC<PlaygroundProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
+  // Initialize validation state for existing test data
+  useEffect(() => {
+    if (initialTestData && initialTestData.script) {
+      // For existing tests, consider them as needing revalidation for security
+      resetValidationState();
+      setLastValidatedScript(""); // Force revalidation of existing scripts
+    }
+  }, [initialTestData]);
+
   // Load test data if testId is provided
   useEffect(() => {
     if (initialTestId) {
@@ -128,35 +214,33 @@ const Playground: React.FC<PlaygroundProps> = ({
     try {
       setLoading(true);
 
-      // Import the getTest function
-      const { getTest } = await import("@/actions/get-test");
+      // Fetch the test data from API
+      const response = await fetch(`/api/tests/${id}`);
+      const result = await response.json();
 
-      // Fetch the test data
-      const result = await getTest(id);
-
-      if (result.success && result.test) {
+      if (response.ok && result) {
         // Update the test case data
         setTestCase({
-          title: result.test.title,
-          description: result.test.description,
-          priority: result.test.priority as TestPriority,
-          type: result.test.type as TestType,
-          updatedAt: result.test.updatedAt ? result.test.updatedAt.toISOString() : null,
-          createdAt: result.test.createdAt ? result.test.createdAt.toISOString() : null,
+          title: result.title,
+          description: result.description,
+          priority: result.priority as TestPriority,
+          type: result.type as TestType,
+          updatedAt: result.updatedAt || null,
+          createdAt: result.createdAt || null,
         });
 
         // Update the editor content
-        setEditorContent(result.test.script);
-        setInitialEditorContent(result.test.script);
+        setEditorContent(result.script);
+        setInitialEditorContent(result.script);
 
         // Update the form values
         setInitialFormValues({
-          title: result.test.title,
-          description: result.test.description,
-          priority: result.test.priority as TestPriority,
-          type: result.test.type as TestType,
-          updatedAt: result.test.updatedAt ? result.test.updatedAt.toISOString() : null,
-          createdAt: result.test.createdAt ? result.test.createdAt.toISOString() : null,
+          title: result.title,
+          description: result.description,
+          priority: result.priority as TestPriority,
+          type: result.type as TestType,
+          updatedAt: result.updatedAt || null,
+          createdAt: result.createdAt || null,
         });
 
         // Set the test ID
@@ -190,7 +274,7 @@ const Playground: React.FC<PlaygroundProps> = ({
       const defaultType = "browser" as TestType;
       const typeToSet =
         scriptTypeParam &&
-        ["browser", "api", "multistep", "database"].includes(scriptTypeParam)
+        ["browser", "api", "custom", "database"].includes(scriptTypeParam)
           ? scriptTypeParam
           : defaultType;
 
@@ -335,8 +419,29 @@ const Playground: React.FC<PlaygroundProps> = ({
 
   const runTest = async () => {
     if (isRunning) {
-      toast.warning("A test is already running", {
-        description: "Please wait for the current test to complete, or cancel it before running a new test.",
+      toast.warning("A script is already running", {
+        description: "Please wait for the current script to complete, or cancel it before running a new script.",
+      });
+      return;
+    }
+
+    // Validate the script content
+    const validationResult = await validateScript(editorContent);
+    setValidationError(validationResult.error || null);
+    setValidationLine(validationResult.line);
+    setValidationColumn(validationResult.column);
+    setValidationErrorType(validationResult.errorType);
+    setIsValid(validationResult.valid);
+    setHasValidated(true);
+    
+    if (validationResult.valid) {
+      setLastValidatedScript(editorContent); // Update last validated script on success
+    }
+
+    if (!validationResult.valid) {
+      toast.error("Script validation failed", {
+        description: validationResult.error || "Please fix validation errors before running the test.",
+        duration: 5000,
       });
       return;
     }
@@ -344,8 +449,8 @@ const Playground: React.FC<PlaygroundProps> = ({
     setIsRunning(true);
 
     // Show a loading toast to indicate that the test is running
-    const loadingToastId = toast.loading(`Executing test${testId ? `: ${testCase.title.length > 25 ? testCase.title.substring(0, 25) + '...' : testCase.title}` : ''}`, {
-      description: "Test execution is in progress...",
+    const loadingToastId = toast.loading(`Executing script${testId ? `: ${testCase.title.length > 25 ? testCase.title.substring(0, 25) + '...' : testCase.title}` : ''}`, {
+      description: "Script execution is in progress...",
       duration: Infinity, // Keep this visible until execution completes
     });
 
@@ -406,6 +511,13 @@ const Playground: React.FC<PlaygroundProps> = ({
                   setIsRunning(false);
                   setIsReportLoading(false);
                   
+                  // Update test execution status based on result
+                  const testPassed = normalizedStatus === "completed" || normalizedStatus === "passed";
+                  setTestExecutionStatus(testPassed ? 'passed' : 'failed');
+                  if (testPassed) {
+                    setLastExecutedScript(editorContent); // Mark this script as successfully executed
+                  }
+                  
                   // Close the SSE connection
                   eventSource.close();
                   eventSourceClosed = true;
@@ -434,11 +546,11 @@ const Playground: React.FC<PlaygroundProps> = ({
                   // Dismiss loading toast and show completion toast
                   toast.dismiss(loadingToastId);
                   toast[isSuccess ? "success" : "error"](
-                    isSuccess ? "Test execution passed" : "Test execution failed",
+                    isSuccess ? "Script execution passed" : "Script execution failed",
                     { 
                       description: isSuccess 
                         ? "All checks completed successfully." 
-                        : "Test did not complete successfully.",
+                        : "All checks did not complete successfully.",
                       duration: 10000 
                     }
                   );
@@ -461,7 +573,7 @@ const Playground: React.FC<PlaygroundProps> = ({
           toast.dismiss(loadingToastId);
           
           // Show error toast
-          toast.error("Test execution error", {
+          toast.error("Script execution error", {
             description: "Connection to test status updates was lost. The test may still be running in the background.",
             duration: 5000,
           });
@@ -489,25 +601,36 @@ const Playground: React.FC<PlaygroundProps> = ({
         
         // Check for errors first
         if (result.error) {
-          console.error("Test execution error:", result.error);
+          console.error("Script execution error:", result.error);
 
-          // Always show a user-friendly message regardless of the actual error
-          toast.error("Test Execution Failed", {
-            description: result.error || "The test encountered an error during execution. Please check your test script and try again.",
-            duration: 5000,
-          });
+          // Handle validation errors specially
+          if (result.isValidationError) {
+            setValidationError(result.validationError);
+            setIsValid(false);
+            setHasValidated(true);
+            toast.error("Script Validation Failed", {
+              description: result.validationError || "Please fix validation errors before running the test.",
+              duration: 5000,
+            });
+          } else {
+            // Always show a user-friendly message regardless of the actual error
+            toast.error("Script Execution Failed", {
+              description: result.error || "The test encountered an error during execution. Please check your test script and try again.",
+              duration: 5000,
+            });
+          }
         } else {
           console.error("API response missing required fields:", result);
-          toast.error("Test Execution Issue", {
+          toast.error("Script Execution Issue", {
             description: "Could not retrieve test report URL.",
             duration: 5000,
           });
         }
       }
     } catch (error) {
-      console.error("Error running test:", error);
+      console.error("Error running script:", error);
       toast.dismiss(loadingToastId);
-      toast.error("Error running test", {
+      toast.error("Error running script", {
         description: error instanceof Error ? error.message : "Unknown error",
         duration: 5000,
       });
@@ -526,8 +649,8 @@ const Playground: React.FC<PlaygroundProps> = ({
         }
       >
         <div className="md:hidden">{/* Mobile view */}</div>
-        <div className="hidden h-full flex-col flex-1 md:flex p-4">
-          <ResizablePanelGroup direction="horizontal" className="h-screen">
+        <div className="hidden flex-col flex-1 md:flex p-4  h-[calc(100vh-5rem)]">
+          <ResizablePanelGroup direction="horizontal" >
             <ResizablePanel defaultSize={70} minSize={30}>
               <div className="flex h-full flex-col">
                 <div className="flex items-center justify-between border-b bg-card p-4 py-2 rounded-tl-lg">
@@ -554,11 +677,16 @@ const Playground: React.FC<PlaygroundProps> = ({
                   </div>
                   <Button
                     onClick={runTest}
-                    disabled={isRunning}
+                    disabled={isRunning || isValidating}
                     className="flex items-center gap-2 bg-[hsl(221.2,83.2%,53.3%)] text-white hover:bg-[hsl(221.2,83.2%,48%)] "
                     size="sm"
                   >
-                    {isRunning ? (
+                    {isValidating ? (
+                      <>
+                        <Loader2Icon className="h-4 w-4 animate-spin" />
+                        <span className="mr-2">Validating...</span>
+                      </>
+                    ) : isRunning ? (
                       <>
                         <Loader2Icon className="h-4 w-4 animate-spin" />
                         <span className="mr-2">Running...</span>
@@ -566,7 +694,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                     ) : (
                       <>
                         <ZapIcon className="h-4 w-4" />
-                        <span className="mr-2">Run Script </span>
+                        <span className="mr-2">Run</span>
                       </>
                     )}
                   </Button>
@@ -583,11 +711,35 @@ const Playground: React.FC<PlaygroundProps> = ({
                       className="h-full border-0 p-0 mt-0 relative"
                     >
                       <div className="h-full flex flex-col">
-                        <div className="h-full">
+                        {/* Validation Error Display */}
+                        {validationError && (
+                          <div className="z-10">
+                            <ValidationError
+                              error={validationError}
+                              line={validationLine}
+                              column={validationColumn}
+                              errorType={validationErrorType}
+                              onDismiss={() => {
+                                resetValidationState();
+                                setLastValidatedScript(""); // Clear last validated script on dismiss
+                                resetTestExecutionState(); // Also clear test execution state
+                              }}
+                            />
+                          </div>
+                        )}
+                        
+                        <div className="flex-1">
                           <CodeEditor
                             value={editorContent}
                             onChange={(value) => {
                               setEditorContent(value || "");
+                              // Clear validation and test execution state when content changes
+                              if (hasValidated) {
+                                resetValidationState();
+                              }
+                              if (testExecutionStatus !== 'none') {
+                                resetTestExecutionState();
+                              }
                             }}
                             ref={editorRef}
                           />
@@ -596,13 +748,13 @@ const Playground: React.FC<PlaygroundProps> = ({
                     </TabsContent>
                     <TabsContent
                       value="report"
-                      className="h-screen border-0 p-0 mt-0"
+                      className="h-full border-0 p-0 mt-0"
                     >
                       <ReportViewer
                         reportUrl={reportUrl}
                         isRunning={isRunning || isReportLoading}
-                        containerClassName="h-[calc(100vh-10rem)] w-full relative"
-                        iframeClassName="h-[calc(100vh-10rem)] w-full"
+                        containerClassName="h-full w-full relative bg-[#191919] border-1 rounded-bl-lg"
+                        iframeClassName="h-full w-full rounded-bl-lg"
                         darkMode={true}
                       />
                     </TabsContent>
@@ -618,11 +770,11 @@ const Playground: React.FC<PlaygroundProps> = ({
               minSize={20}
               className="rounded-br-lg rounded-tr-lg"
             >
-              <div className="flex h-full flex-col border rounded-tr-lg rounded-br-lg">
+              <div className="flex h-full flex-col border rounded-tr-lg rounded-br-lg bg-card/60">
                 <div className="flex items-center justify-between border-b bg-card px-4 py-4 rounded-tr-lg">
                   <div className="flex items-center">
                     <Text className="h-4 w-4 mr-2" />
-                    <h3 className="text-sm font-medium">Test Details</h3>
+                    <h3 className="text-sm font-medium mt-1">Test Details</h3>
                   </div>
                 </div>
                 <ScrollArea className="flex-1">
@@ -638,6 +790,9 @@ const Playground: React.FC<PlaygroundProps> = ({
                       testId={testId}
                       errors={errors}
                       validateForm={validateForm}
+                      isCurrentScriptValidated={isCurrentScriptValidated}
+                      isCurrentScriptReadyToSave={isCurrentScriptReadyToSave}
+                      testExecutionStatus={testExecutionStatus}
                     />
                   </div>
                 </ScrollArea>

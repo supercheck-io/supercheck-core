@@ -19,12 +19,23 @@ declare namespace NodeJS {
     S3_MAX_RETRIES: string;
 
     // App Config
-    MAX_CONCURRENT_TESTS: string;
+    RUNNING_CAPACITY: string;
+    QUEUED_CAPACITY: string;
     TEST_EXECUTION_TIMEOUT_MS: string;
     TRACE_RECOVERY_INTERVAL_MS: string;
 
     // Playwright Config
     PLAYWRIGHT_RETRIES: string;
     PLAYWRIGHT_WORKERS: string;
+
+    // Redis Configuration
+    REDIS_HOST: string;
+    REDIS_PORT: string;
+    REDIS_PASSWORD: string;
+    REDIS_URL: string;
+
+    // Scheduler Configuration
+    DISABLE_JOB_SCHEDULER: string;
+    DISABLE_MONITOR_SCHEDULER: string;
   }
 } 

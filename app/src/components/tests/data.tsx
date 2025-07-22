@@ -2,66 +2,19 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
-  CheckCircle,
-  Circle,
-  CircleOff,
-  HelpCircle,
-  Timer,
-  Layers,
   Database,
   Chrome,
-  Webhook,
+  ArrowLeftRight,
+  SquareFunction,
 } from "lucide-react";
 
-export const labels = [
-  {
-    value: "bug",
-    label: "Bug",
-  },
-  {
-    value: "feature",
-    label: "Feature",
-  },
-  {
-    value: "documentation",
-    label: "Documentation",
-  },
-];
-
-export const statuses = [
-  {
-    value: "backlog",
-    label: "Backlog",
-    icon: HelpCircle,
-  },
-  {
-    value: "todo",
-    label: "Todo",
-    icon: Circle,
-  },
-  {
-    value: "in progress",
-    label: "In Progress",
-    icon: Timer,
-  },
-  {
-    value: "done",
-    label: "Done",
-    icon: CheckCircle,
-  },
-  {
-    value: "canceled",
-    label: "Canceled",
-    icon: CircleOff,
-  },
-];
 
 export const priorities = [
   {
     label: "Low",
     value: "low",
     icon: ArrowDown,
-    color: "text-green-500",
+    color: "text-gray-400",
   },
   {
     label: "Medium",
@@ -73,7 +26,7 @@ export const priorities = [
     label: "High",
     value: "high",
     icon: ArrowUp,
-    color: "text-red-500",
+    color: "text-orange-600",
   },
 ];
 
@@ -82,24 +35,26 @@ export const types = [
     label: "Browser",
     value: "browser",
     icon: Chrome,
-    color: "text-sky-500",
+    color: "text-sky-600",
   },
   {
     label: "API",
     value: "api",
-    icon: Webhook,
-    color: "text-cyan-600",
-  },
-  {
-    label: "Multi-step",
-    value: "multistep",
-    icon: Layers,
-    color: "text-blue-700",
+    icon: ArrowLeftRight,
+    color: "text-teal-600",
   },
   {
     label: "Database",
     value: "database",
     icon: Database,
-    color: "text-teal-600",
+    color: "text-cyan-600",
   },
+  {
+    label: "Custom",
+    value: "custom",
+    icon: SquareFunction,
+    color: "text-blue-600",
+  },
+
+
 ];

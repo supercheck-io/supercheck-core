@@ -3,16 +3,14 @@ import React from "react";
 import { CreateCard } from "./create-card";
 import { useRouter } from "next/navigation";
 import {
-  Chrome,
-  Webhook,
-  ListOrdered,
-  DatabaseZap,
+  Video,
   Clock,
   Zap,
-  Video,
 } from "lucide-react";
+import { monitorTypes } from "@/components/monitors/data";
+import { types } from "@/components/tests/data";
 
-type ScriptType = "browser" | "api" | "multistep" | "database" | "record";
+type ScriptType = "browser" | "api" | "custom" | "database" | "record";
 
 export function CreatePageContent() {
   const router = useRouter();
@@ -23,60 +21,15 @@ export function CreatePageContent() {
   };
 
   const testTypes = [
+    ...types.map((type) => ({
+      icon: <type.icon size={24} className={type.color} />,
+      title: type.label,
+      description: `Check your crucial ${type.label.toLowerCase()} flows.`,
+      path: `/create/${type.value}`,
+      scriptType: type.value as ScriptType,
+    })),
     {
-      icon: <Chrome size={24} />,
-      title: "Browser check",
-      description: "Check your crucial browser click flows.",
-      path: "/create/browser",
-      scriptType: "browser" as ScriptType,
-    },
-    {
-      icon: <Webhook size={24} />,
-      title: "API check",
-      description: "Check speed and validity of API endpoints.",
-      path: "/create/api",
-      scriptType: "api" as ScriptType,
-    },
-    // {
-    //   icon: <Server size={24} />,
-    //   title: "TCP check",
-    //   description: "Monitor connectivity to TCP endpoints.",
-    //   path: "/create/tcp",
-    //   scriptType: "tcp" as ScriptType,
-    // },
-    {
-      icon: <ListOrdered size={24} />,
-      title: "Multistep check",
-      description: "Chained API calls, requests in sequence.",
-      path: "/create/multistep",
-      scriptType: "multistep" as ScriptType,
-    },
-    
-    // {
-    //   icon: <Clock size={24} />,
-    //   title: "CRON/Heartbeat",
-    //   description: "Monitor tasks that run automatically.",
-    //   path: "/create/cron",
-    //   scriptType: "cron" as ScriptType,
-    // },
-    // {
-    //   icon: <Zap size={24} />,
-    //   title: "Group check",
-    //   description: "Organize multiple tests into logical groups.",
-    //   path: "/create/group",
-    //   scriptType: "group" as ScriptType,
-    // },
-
-    {
-      icon: <DatabaseZap size={24} />,
-      title: "Database check",
-      description: "Test database query execution.",
-      path: "/create/database",
-      scriptType: "database" as ScriptType,
-    },
-
-    {
-      icon: <Video size={24} />,
+      icon: <Video size={24} className="text-red-500" />,
       title: "Record",
       description: "Record a script via browser extension.",
       path: "https://chromewebstore.google.com/detail/playwright-crx/jambeljnbnfbkcpnoiaedcabbgmnnlcd",
@@ -84,8 +37,23 @@ export function CreatePageContent() {
     },
   ];
 
+  const jobTypes = [
+    {
+      icon: <Clock size={24} className="text-blue-500" />,
+      title: "Scheduled Job",
+      description: "Create a job that runs on a schedule",
+      onClick: () => router.push("/jobs/create"),
+    },
+    {
+      icon: <Zap size={24} className="text-amber-500" />,
+      title: "Immediate Job",
+      description: "Run a job immediately",
+      onClick: () => router.push("/jobs/create"),
+    },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6 p-4">
+    <div className=" mx-auto  p-4">
       <div className="mb-3 pl-1">
         <h2 className="text-xl font-bold">Create New Test</h2>
         <p className="text-muted-foreground text-sm mt-1">
@@ -116,25 +84,42 @@ export function CreatePageContent() {
 
       <div className="mt-8 mb-3 pl-1">
         <h2 className="text-xl font-bold">Create New Job</h2>
-        <p className="text-muted-foreground text-sm mt-1">Configure a new automated job</p>
+        <p className="text-muted-foreground text-sm mt-1"> Configure a new automated or manual job</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-        <CreateCard
-          key="scheduled-job"
-          icon={<Clock size={24} />}
-          title="Scheduled Job"
-          description="Create a job that runs on a schedule"
-          onClick={() => router.push("/jobs/create")}
-        />
-        <CreateCard
-          key="immediate-job"
-          icon={<Zap size={24} />}
-          title="Immediate Job"
-          description="Run a job immediately"
-          onClick={() => router.push("/jobs/create")}
-        />
+        {jobTypes.map((jobType) => (
+          <CreateCard
+            key={jobType.title}
+            icon={jobType.icon}
+            title={jobType.title}
+            description={jobType.description}
+            onClick={jobType.onClick}
+          />
+        ))}
       </div>
+
+      <div className="mt-8 mb-3 pl-1">
+        <h2 className="text-xl font-bold">Create New Monitor</h2>
+        <p className="text-muted-foreground text-sm mt-1">Select the type of uptime monitor you want to create</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        {monitorTypes.map((monitorType) => {
+          const IconComponent = monitorType.icon;
+          return (
+            <CreateCard
+              key={monitorType.value}
+              icon={<IconComponent size={24} className={monitorType.color} />}
+              title={monitorType.label}
+              description={monitorType.description}
+              onClick={() => router.push(`/monitors/create?type=${monitorType.value}`)}
+            />
+          );
+        })}
+      </div>
+
+
     </div>
   );
 }

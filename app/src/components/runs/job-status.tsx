@@ -16,10 +16,11 @@ export function JobStatus({ jobId, initialStatus }: JobStatusProps) {
   const router = useRouter();
   const eventSourceRef = useRef<EventSource | null>(null);
   const hasShownToastRef = useRef<boolean>(false);
+  const lastStatusRef = useRef<string>(initialStatus);
 
   useEffect(() => {
-    // Only set up SSE if the job is running
-    if (initialStatus !== 'running') {
+    // Only set up SSE if the job is not in a terminal state
+    if (['completed', 'failed', 'passed', 'error'].includes(initialStatus)) {
       setStatus(initialStatus);
       return;
     }
@@ -41,6 +42,7 @@ export function JobStatus({ jobId, initialStatus }: JobStatusProps) {
     
     // Reset toast flag on new connection
     hasShownToastRef.current = false;
+    lastStatusRef.current = initialStatus;
 
     eventSource.onmessage = (event) => {
       try {
@@ -48,19 +50,24 @@ export function JobStatus({ jobId, initialStatus }: JobStatusProps) {
         console.log(`[JobStatus] Status update received:`, data);
         
         if (data.status) {
+          const newStatus = data.status;
           // Update the displayed status
-          setStatus(data.status);
+          setStatus(newStatus);
           
-          // Handle terminal statuses with toast notifications
-          // Only show toast if we haven't shown one for this SSE connection
-          if ((data.status === 'completed' || data.status === 'passed' || 
-              data.status === 'failed' || data.status === 'error') && !hasShownToastRef.current) {
-            
+          // Handle status change with toast notifications
+          const isTerminalStatus = ['completed', 'passed', 'failed', 'error'].includes(newStatus);
+          const isStatusChange = lastStatusRef.current !== newStatus;
+          
+          // Update our tracking of last status
+          lastStatusRef.current = newStatus;
+          
+          // Show toast for terminal status changes if we haven't shown one already
+          if (isTerminalStatus && isStatusChange && !hasShownToastRef.current) {
             // Mark that we've shown a toast to prevent duplicates
             hasShownToastRef.current = true;
             
             // Determine if job passed or failed
-            const passed = data.status === 'completed' || data.status === 'passed';
+            const passed = newStatus === 'completed' || newStatus === 'passed';
             
             // Show toast message for status change
             toast[passed ? 'success' : 'error'](

@@ -1,17 +1,24 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db/client";
+import { db } from "@/utils/db";
 import {
   jobs,
   jobTests,
   tests as testsTable,
+  testTags,
+  tags,
   runs,
   JobStatus,
   TestRunStatus,
-} from "@/db/schema";
+  jobNotificationSettings,
+  JobTrigger,
+} from "@/db/schema/schema";
 import { desc, eq, inArray } from "drizzle-orm";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
-import { getTest } from "@/actions/get-test";
 import { randomUUID } from "crypto";
+
+
 
 // Create a simple implementation here
 async function executeJob(jobId: string, tests: { id: string; script: string }[]) {
@@ -21,14 +28,14 @@ async function executeJob(jobId: string, tests: { id: string; script: string }[]
   console.log(`Received job execution request: { jobId: ${jobId}, testCount: ${tests.length} }`);
   
   const runId = randomUUID();
-  const dbInstance = await db();
   
   // Create a run record
-  await dbInstance.insert(runs).values({
+  await db.insert(runs).values({
     id: runId,
     jobId: jobId,
     status: 'running' as TestRunStatus,
     startedAt: new Date(),
+    trigger: 'manual' as JobTrigger,
   });
   
   console.log(`[${jobId}] Created running test run record: ${runId}`);
@@ -62,6 +69,18 @@ interface JobData {
   retryCount: number;
   config: Record<string, unknown>;
   tests: Test[];
+  alertConfig?: {
+    enabled: boolean;
+    notificationProviders: string[];
+    alertOnFailure: boolean;
+    alertOnSuccess: boolean;
+    alertOnTimeout: boolean;
+    failureThreshold: number;
+    recoveryThreshold: number;
+    customMessage: string;
+  };
+  organizationId?: string;
+  createdByUserId?: string;
 }
 
 // Define the TestResult interface to match what's returned by executeMultipleTests
@@ -76,73 +95,125 @@ interface TestResult {
 // GET all jobs
 export async function GET() {
   try {
-    const dbInstance = await db();
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
-    // Get all jobs from the database
-    const allJobs = await dbInstance
-      .select()
-      .from(jobs)
-      .leftJoin(jobTests, eq(jobs.id, jobTests.jobId))
-      .orderBy(desc(jobs.createdAt));
-
-    // Group jobs by ID and collect test IDs
-    const jobMap = new Map<string, unknown>();
-    for (const row of allJobs) {
-      const job = row.jobs;
-      const testId = row.job_tests?.testId;
-
-      if (!jobMap.has(job.id)) {
-        jobMap.set(job.id, {
-          ...job,
-          tests: testId ? [{ testId }] : [],
-        });
-      } else if (testId) {
-        const existingJob = jobMap.get(job.id);
-        (existingJob as { tests: { testId: string }[] }).tests.push({ testId });
-      }
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Convert map to array
-    const jobsArray = Array.from(jobMap.values());
+    // Get all jobs with their associated tests and last run status
+    const result = await db
+      .select({
+        id: jobs.id,
+        name: jobs.name,
+        description: jobs.description,
+        cronSchedule: jobs.cronSchedule,
+        status: jobs.status,
+        alertConfig: jobs.alertConfig,
+        createdAt: jobs.createdAt,
+        updatedAt: jobs.updatedAt,
+        organizationId: jobs.organizationId,
+        createdByUserId: jobs.createdByUserId,
+        lastRunAt: jobs.lastRunAt,
+        nextRunAt: jobs.nextRunAt,
+      })
+      .from(jobs)
+      .orderBy(desc(jobs.createdAt));
 
-    // Map the jobs to include full test information
+    // For each job, get its associated tests
     const jobsWithTests = await Promise.all(
-      jobsArray.map(async (job) => {
-        // Get the test IDs associated with this job
-        const testIds = (job as { tests: { testId: string }[] }).tests.map(
-          (test: { testId: string }) => test.testId
-        );
+      result.map(async (job) => {
+        const jobTestsResult = await db
+          .select({
+            id: testsTable.id,
+            title: testsTable.title,
+            description: testsTable.description,
+            type: testsTable.type,
+            priority: testsTable.priority,
+            script: testsTable.script,
+            createdAt: testsTable.createdAt,
+            updatedAt: testsTable.updatedAt,
+          })
+          .from(testsTable)
+          .innerJoin(jobTests, eq(testsTable.id, jobTests.testId))
+          .where(eq(jobTests.jobId, job.id));
 
-        // If there are test IDs, fetch the full test information
-        let testDetails: Test[] = [];
-        if (testIds.length > 0) {
-          // Fetch test details for each test ID
-          const testResults = await dbInstance
-            .select()
-            .from(testsTable)
-            .where(inArray(testsTable.id, testIds));
+        // Get tags for all tests in this job
+        const testIds = jobTestsResult.map(test => test.id);
+        const testTagsForJob = testIds.length > 0 ? await db
+          .select({
+            testId: testTags.testId,
+            tagId: tags.id,
+            tagName: tags.name,
+            tagColor: tags.color,
+          })
+          .from(testTags)
+          .innerJoin(tags, eq(testTags.tagId, tags.id))
+          .where(inArray(testTags.testId, testIds)) : [];
 
-          // Convert test results to match our Test interface
-          testDetails = testResults.map((test) => ({
-            id: test.id,
-            name: test.title,
-            type: test.type,
-          }));
-        }
+        // Group tags by test ID
+        const testTagsMap = new Map<string, Array<{ id: string; name: string; color: string | null }>>();
+        testTagsForJob.forEach(({ testId, tagId, tagName, tagColor }) => {
+          if (!testTagsMap.has(testId)) {
+            testTagsMap.set(testId, []);
+          }
+          testTagsMap.get(testId)!.push({
+            id: tagId,
+            name: tagName,
+            color: tagColor,
+          });
+        });
 
-        // Return the job with its associated tests
+        // Get the last run for this job
+        const lastRunResult = await db
+          .select({
+            id: runs.id,
+            status: runs.status,
+            startedAt: runs.startedAt,
+            completedAt: runs.completedAt,
+            duration: runs.duration,
+          })
+          .from(runs)
+          .where(eq(runs.jobId, job.id))
+          .orderBy(desc(runs.startedAt))
+          .limit(1);
+
+        const lastRun = lastRunResult[0] || null;
+
         return {
-          ...(job as object),
-          tests: testDetails,
+          ...job,
+          lastRunAt: job.lastRunAt ? job.lastRunAt.toISOString() : null,
+          nextRunAt: job.nextRunAt ? job.nextRunAt.toISOString() : null,
+          tests: jobTestsResult.map((test) => ({
+            ...test,
+            name: test.title || "",
+            script: test.script,
+            tags: testTagsMap.get(test.id) || [],
+            createdAt: test.createdAt ? test.createdAt.toISOString() : null,
+            updatedAt: test.updatedAt ? test.updatedAt.toISOString() : null,
+          })),
+          lastRun: lastRun ? {
+            ...lastRun,
+            startedAt: lastRun.startedAt ? lastRun.startedAt.toISOString() : null,
+            completedAt: lastRun.completedAt ? lastRun.completedAt.toISOString() : null,
+          } : null,
+          createdAt: job.createdAt ? job.createdAt.toISOString() : null,
+          updatedAt: job.updatedAt ? job.updatedAt.toISOString() : null,
         };
       })
     );
 
-    return NextResponse.json({ success: true, jobs: jobsWithTests });
+    return NextResponse.json({
+      success: true,
+      jobs: jobsWithTests,
+    });
   } catch (error) {
-    console.error("Error fetching jobs:", error);
+    console.error('Failed to fetch jobs:', error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch jobs" },
+      { success: false, error: 'Failed to fetch jobs' },
       { status: 500 }
     );
   }
@@ -151,6 +222,15 @@ export async function GET() {
 // POST to create a new job
 export async function POST(request: Request) {
   try {
+    // Verify user is authenticated
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Check if this is a job execution request
     const url = new URL(request.url);
     const action = url.searchParams.get("action");
@@ -161,15 +241,13 @@ export async function POST(request: Request) {
 
     // Regular job creation
     const jobData: JobData = await request.json();
-    const dbInstance = await db();
 
     // Validate required fields
-    if (!jobData.name || !jobData.cronSchedule) {
+    if (!jobData.name) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            "Missing required fields. Name and cron schedule are required.",
+          error: "Missing required field: name is required.",
         },
         { status: 400 }
       );
@@ -179,13 +257,71 @@ export async function POST(request: Request) {
     const jobId = randomUUID();
 
     // Insert the job into the database with default values for nullable fields
-    await dbInstance.insert(jobs).values({
+    const [insertedJob] = await db.insert(jobs).values({
       id: jobId,
       name: jobData.name,
-      description: jobData.description || "",
-      cronSchedule: jobData.cronSchedule,
-      status: "pending", // Always set to pending for new jobs
-    });
+      description: jobData.description || null,
+      cronSchedule: jobData.cronSchedule || null,
+      status: jobData.status || 'pending',
+      alertConfig: jobData.alertConfig ? {
+        enabled: Boolean(jobData.alertConfig.enabled),
+        notificationProviders: Array.isArray(jobData.alertConfig.notificationProviders) ? jobData.alertConfig.notificationProviders : [],
+        alertOnFailure: jobData.alertConfig.alertOnFailure !== undefined ? Boolean(jobData.alertConfig.alertOnFailure) : true,
+        alertOnSuccess: Boolean(jobData.alertConfig.alertOnSuccess),
+        alertOnTimeout: Boolean(jobData.alertConfig.alertOnTimeout),
+        failureThreshold: typeof jobData.alertConfig.failureThreshold === 'number' ? jobData.alertConfig.failureThreshold : 1,
+        recoveryThreshold: typeof jobData.alertConfig.recoveryThreshold === 'number' ? jobData.alertConfig.recoveryThreshold : 1,
+        customMessage: typeof jobData.alertConfig.customMessage === 'string' ? jobData.alertConfig.customMessage : "",
+      } : null,
+      organizationId: jobData.organizationId || null,
+      createdByUserId: session.user.id, // Use authenticated user ID
+    }).returning();
+
+    // Validate alert configuration if enabled
+    if (jobData.alertConfig?.enabled) {
+      // Check if at least one notification provider is selected
+      if (!jobData.alertConfig.notificationProviders || jobData.alertConfig.notificationProviders.length === 0) {
+        return NextResponse.json(
+          { error: "At least one notification channel must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+
+      // Check notification channel limit
+      const maxJobChannels = parseInt(process.env.MAX_JOB_NOTIFICATION_CHANNELS || '10', 10);
+      if (jobData.alertConfig.notificationProviders.length > maxJobChannels) {
+        return NextResponse.json(
+          { error: `You can only select up to ${maxJobChannels} notification channels` },
+          { status: 400 }
+        );
+      }
+
+      // Check if at least one alert type is selected
+      const alertTypesSelected = [
+        jobData.alertConfig.alertOnFailure,
+        jobData.alertConfig.alertOnSuccess,
+        jobData.alertConfig.alertOnTimeout
+      ].some(Boolean);
+
+      if (!alertTypesSelected) {
+        return NextResponse.json(
+          { error: "At least one alert type must be selected when alerts are enabled" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Link notification providers if alert config is enabled
+    if (insertedJob && jobData.alertConfig?.enabled && Array.isArray(jobData.alertConfig.notificationProviders)) {
+      await Promise.all(
+        jobData.alertConfig.notificationProviders.map(providerId =>
+          db.insert(jobNotificationSettings).values({
+            jobId: insertedJob.id,
+            notificationProviderId: providerId,
+          })
+        )
+      );
+    }
 
     // If tests are provided, create job-test associations
     if (jobData.tests && jobData.tests.length > 0) {
@@ -194,7 +330,7 @@ export async function POST(request: Request) {
         testId: test.id,
       }));
 
-      await dbInstance.insert(jobTests).values(jobTestValues);
+      await db.insert(jobTests).values(jobTestValues);
     }
 
     return NextResponse.json({
@@ -219,7 +355,6 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const jobData: JobData = await request.json();
-    const dbInstance = await db();
 
     if (!jobData.id) {
       return NextResponse.json(
@@ -241,19 +376,20 @@ export async function PUT(request: Request) {
     }
 
     // Update the job in the database
-    await dbInstance
+    await db
       .update(jobs)
       .set({
         name: jobData.name,
         description: jobData.description || "",
         cronSchedule: jobData.cronSchedule,
         status: jobData.status as JobStatus,
+        alertConfig: jobData.alertConfig || null,
         updatedAt: new Date(),
       })
       .where(eq(jobs.id, jobData.id));
 
     // Delete existing job-test associations
-    await dbInstance.delete(jobTests).where(eq(jobTests.jobId, jobData.id));
+    await db.delete(jobTests).where(eq(jobTests.jobId, jobData.id));
 
     // If tests are provided, create new job-test associations
     if (jobData.tests && jobData.tests.length > 0) {
@@ -262,7 +398,7 @@ export async function PUT(request: Request) {
         testId: test.id,
       }));
 
-      await dbInstance.insert(jobTests).values(jobTestValues);
+      await db.insert(jobTests).values(jobTestValues);
     }
 
     return NextResponse.json({
@@ -298,16 +434,16 @@ async function runJob(request: Request) {
     }
 
     // Create a new test run record in the database
-    const dbInstance = await db();
     const runId = crypto.randomUUID();
     const startTime = new Date();
 
     // Insert a new test run record
-    await dbInstance.insert(runs).values({
+    await db.insert(runs).values({
       id: runId,
       jobId,
       status: "running",
       startedAt: startTime,
+      trigger: "manual" as JobTrigger,
     });
 
     // Prepare test scripts for execution
@@ -321,10 +457,11 @@ async function runJob(request: Request) {
 
       if (!testScript) {
         // Fetch the test from the database to get the script
-        const testResult = await getTest(test.id);
-        if (testResult.success && testResult.test?.script) {
-          testScript = testResult.test.script;
-          testName = testResult.test.title || testName;
+        const testResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/tests/${test.id}`);
+        const testData = await testResult.json();
+        if (testResult.ok && testData?.script) {
+          testScript = testData.script;
+          testName = testData.title || testName;
         } else {
           console.error(`Failed to fetch script for test ${test.id}`);
           // Add a placeholder for tests without scripts
@@ -371,7 +508,7 @@ async function runJob(request: Request) {
     const durationFormatted = `${Math.floor(durationMs / 1000)}s`;
 
     // Update the job status in the database
-    await dbInstance
+    await db
       .update(jobs)
       .set({
         status: result.success
@@ -415,7 +552,7 @@ async function runJob(request: Request) {
       : false;
 
     // Update the test run record with results
-    await dbInstance
+    await db
       .update(runs)
       .set({
         status: hasFailedTests

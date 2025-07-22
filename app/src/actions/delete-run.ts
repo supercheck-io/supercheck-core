@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "../db/client";
-import { runs, reports } from "../db/schema";
+import { db } from "../utils/db";
+import { runs, reports } from "../db/schema/schema";
 import { eq, or, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -25,10 +25,8 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
   }
 
   try {
-    const dbInstance = await db();
-    
     // Perform the deletion within a transaction
-    return await dbInstance.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
       // Check if the run exists
       console.log(`[DELETE_RUN] Checking if run ${runId} exists`);
       const existingRun = await tx

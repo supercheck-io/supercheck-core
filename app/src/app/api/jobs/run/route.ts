@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getTest } from "@/actions/get-test";
-import { createDb } from "@/db/client";
-import { jobs, runs, JobStatus } from "@/db/schema";
+import { db } from "@/utils/db";
+import { runs, JobTrigger } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
@@ -9,12 +8,21 @@ import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
 export async function POST(request: Request) {
   let jobId: string | null = null;
   let runId: string | null = null;
-  const dbInstance = await createDb();
 
   try {
     const data = await request.json();
     jobId = data.jobId as string;
     const tests = data.tests;
+    const trigger = data.trigger as JobTrigger; // Get trigger from request body
+    
+    // Validate trigger value
+    if (!trigger || !['manual', 'remote', 'schedule'].includes(trigger)) {
+      console.error("Invalid trigger value:", trigger);
+      return NextResponse.json(
+        { error: "Invalid trigger value. Must be one of 'manual', 'remote', or 'schedule'." },
+        { status: 400 }
+      );
+    }
 
     console.log(`Received job execution request:`, { jobId, testCount: tests?.length });
     
@@ -29,11 +37,12 @@ export async function POST(request: Request) {
     runId = crypto.randomUUID();
     const startTime = new Date();
     
-    await dbInstance.insert(runs).values({
+    await db.insert(runs).values({
       id: runId,
       jobId,
       status: "running",
       startedAt: startTime,
+      trigger, // Include trigger value
     });
 
     console.log(`[${jobId}/${runId}] Created running test run record: ${runId}`);
@@ -45,10 +54,12 @@ export async function POST(request: Request) {
       let testName = test.name || test.title || `Test ${test.id}`;
       if (!testScript) {
         console.log(`[${jobId}/${runId}] Fetching script for test ${test.id}`);
-        const testResult = await getTest(test.id);
-        if (testResult.success && testResult.test?.script) {
-          testScript = testResult.test.script;
-          testName = testResult.test.title || testName;
+        const testResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/tests/${test.id}`);
+        const testData = await testResult.json();
+        
+        if (testResult.ok && testData?.script) {
+          testScript = testData.script;
+          testName = testData.title || testName;
         } else {
           console.error(`[${jobId}/${runId}] Failed to fetch script for test ${test.id}, skipping.`);
           continue;
@@ -59,7 +70,7 @@ export async function POST(request: Request) {
 
     if (testScripts.length === 0) {
         console.error(`[${jobId}/${runId}] No valid test scripts found after fetching. Aborting run.`);
-        await dbInstance.update(runs).set({ status: "failed", completedAt: new Date(), errorDetails: "No valid test scripts found for the job." }).where(eq(runs.id, runId));
+        await db.update(runs).set({ status: "failed", completedAt: new Date(), errorDetails: "No valid test scripts found for the job." }).where(eq(runs.id, runId));
         return NextResponse.json(
             { error: "No valid test scripts could be prepared for the job." },
             { status: 400 }
@@ -69,10 +80,11 @@ export async function POST(request: Request) {
     console.log(`[${jobId}/${runId}] Prepared ${testScripts.length} test scripts for queuing.`);
 
     const task: JobExecutionTask = {
-      jobId: runId,
+      jobId: jobId,
       testScripts,
       runId: runId,
-      originalJobId: jobId
+      originalJobId: jobId,
+      trigger: trigger
     };
 
     try {
@@ -85,20 +97,13 @@ export async function POST(request: Request) {
         console.log(`[Job API] Capacity limit reached: ${errorMessage}`);
         
         // Update the run status to failed with capacity limit error
-        await dbInstance.update(runs)
+        await db.update(runs)
           .set({
             status: "failed",
             completedAt: new Date(),
             errorDetails: errorMessage
           })
           .where(eq(runs.id, runId));
-          
-        // Update the job status back to its previous state (not running)
-        await dbInstance.update(jobs)
-          .set({
-            status: "pending" as JobStatus
-          })
-          .where(eq(jobs.id, jobId));
           
         // Return a 429 status code (Too Many Requests) with the error message
         return NextResponse.json(
@@ -114,13 +119,6 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    console.log(`[${jobId}/${runId}] Setting job status to "running" in the database.`);
-    const currentDate = new Date();
-    await dbInstance.update(jobs).set({ 
-      status: "running", 
-      lastRunAt: currentDate 
-    }).where(eq(jobs.id, jobId));
-
     return NextResponse.json({
       message: "Job execution queued successfully.",
       jobId: jobId,
@@ -132,7 +130,7 @@ export async function POST(request: Request) {
 
     if (runId) {
       try {
-        await dbInstance.update(runs)
+        await db.update(runs)
           .set({
             status: "failed",
             completedAt: new Date(),

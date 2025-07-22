@@ -1,15 +1,54 @@
 "use server";
 
-import { db } from "../db/client";
-import { jobs as jobsTable } from "../db/schema";
+import { db } from "../utils/db";
+import { jobs as jobsTable, jobsSelectSchema } from "../db/schema/schema";
 import { eq } from "drizzle-orm";
 import { scheduleJob } from "../lib/job-scheduler";
-import { getJob } from "./get-jobs";
+import { z } from "zod";
+
+type Job = z.infer<typeof jobsSelectSchema>;
 
 interface ScheduleJobResponse {
   success: boolean;
   error?: string;
   scheduleName?: string;
+}
+
+interface GetJobResponse {
+  success: boolean;
+  job?: Job;
+  error?: string;
+}
+
+/**
+ * Local function to get a job by ID
+ */
+async function getJob(jobId: string): Promise<GetJobResponse> {
+  try {
+    const job = await db
+      .select()
+      .from(jobsTable)
+      .where(eq(jobsTable.id, jobId))
+      .limit(1);
+
+    if (job.length === 0) {
+      return {
+        success: false,
+        error: "Job not found"
+      };
+    }
+
+    return {
+      success: true,
+      job: job[0]
+    };
+  } catch (error) {
+    console.error("Error getting job:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to get job"
+    };
+  }
 }
 
 /**
@@ -36,30 +75,17 @@ export async function scheduleCronJob(jobId: string, cronExpression: string): Pr
 
     const job = jobResult.job;
     
-    // Map the tests to the format expected by the queue
-    const testScripts = job.tests.map(test => ({
-      id: test.id,
-      script: test.script || '',
-      name: test.name
-    }));
-
     // Schedule the job in BullMQ
     const scheduleName = await scheduleJob({
       name: job.name,
       cron: cronExpression,
       timezone: "UTC", // Could make this configurable in the future
-      data: {
-        jobId,
-        testScripts
-      },
-      queue: "job-execution",
-      retryLimit: 1,
-      expireInMinutes: 30
+      jobId: jobId,
+      retryLimit: 1
     });
 
     // Update job in the database with next run details
-    const dbInstance = await db();
-    await dbInstance
+    await db
       .update(jobsTable)
       .set({
         scheduledJobId: scheduleName,
@@ -121,8 +147,7 @@ export async function cancelScheduledJob(jobId: string): Promise<ScheduleJobResp
 
     // Update the job in the database to remove the scheduledJobId
     try {
-      const dbInstance = await db();
-      await dbInstance
+      await db
         .update(jobsTable)
         .set({
           scheduledJobId: null,

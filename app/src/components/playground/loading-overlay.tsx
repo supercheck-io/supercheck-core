@@ -9,8 +9,8 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible }) => 
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 bg-background z-50 flex flex-col items-center justify-start">
-      <div className="w-full max-w-full p-4">
+    <div className="fixed inset-0 bg-background z-50 flex flex-col items-center justify-start overflow-hidden">
+      <div className="w-full max-w-full p-4 h-full overflow-hidden">
         {/* Header area skeleton - match the exact layout of the actual header */}
         <div className="flex justify-between items-center mb-4">
           <Skeleton className="h-10 w-48" />
@@ -21,7 +21,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible }) => 
         </div>
         
         {/* Main content with exact dimensions to match the real content */}
-        <div className="h-[calc(100vh-8rem)]">
+        <div className="h-[calc(100vh-10rem)]">
           <div className="hidden h-full flex-col flex-1 md:flex">
             <div className="flex h-full">
               {/* Left panel - Editor */}

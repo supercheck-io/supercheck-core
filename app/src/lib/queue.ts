@@ -1,4 +1,4 @@
-import { Queue } from 'bullmq';
+import { Queue, QueueEvents } from 'bullmq';
 import Redis, { RedisOptions } from 'ioredis';
 
 // Interfaces matching those in the worker service
@@ -16,15 +16,48 @@ export interface JobExecutionTask {
   }>;
   runId: string; // Optional run ID to distinguish parallel executions of the same job
   originalJobId?: string; // The original job ID from the 'jobs' table
+  trigger?: 'manual' | 'remote' | 'schedule'; // Trigger type for the job execution
 }
+
+// Health check task interface - REMOVING
+// export interface HealthCheckExecutionTask { ... }
+
+// Interface for Monitor Job Data (mirroring DTO in runner)
+// Consider moving to a shared types location if used across app/runner extensively
+export interface MonitorJobData {
+  monitorId: string;
+  type: "http_request" | "website" | "ping_host" | "port_check" | "heartbeat";
+  target: string;
+  config?: unknown; // Using unknown for config for now, can be refined with shared MonitorConfig type
+  frequencyMinutes?: number; 
+}
+
+// Interface for Monitor Execution Result (mirroring type in runner)
+// This is the data that will be sent TO this queue BY the runner
+// export interface MonitorResultData { // REMOVING
+//   monitorId: string;
+//   status: "up" | "down" | "error" | "timeout"; // Corresponds to MonitorResultStatus
+//   checkedAt: string; // ISO string date
+//   responseTimeMs?: number;
+//   details?: any; // Corresponds to MonitorResultDetails, using any for now
+//   isUp: boolean;
+//   error?: string; 
+// }
 
 // Constants for queue names and Redis keys
 export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
+export const MONITOR_EXECUTION_QUEUE = 'monitor-execution';
+export const HEARTBEAT_PING_NOTIFICATION_QUEUE = 'heartbeat-ping-notification';
+
+// Scheduler-related queues
+export const JOB_SCHEDULER_QUEUE = "job-scheduler";
+export const MONITOR_SCHEDULER_QUEUE = "monitor-scheduler";
 
 // Redis capacity limit keys
-export const RUNNING_CAPACITY_LIMIT_KEY = 'supertest:capacity:running';
-export const QUEUE_CAPACITY_LIMIT_KEY = 'supertest:capacity:queued';
+export const RUNNING_CAPACITY_LIMIT_KEY = 'supercheck:capacity:running';
+export const QUEUE_CAPACITY_LIMIT_KEY = 'supercheck:capacity:queued';
+// export const HEALTH_CHECK_CAPACITY_LIMIT_KEY = 'supercheck:capacity:healthcheck'; // REMOVING
 
 // Redis key TTL values (in seconds) - applies to both job and test execution
 export const REDIS_JOB_KEY_TTL = 7 * 24 * 60 * 60;  // 7 days for job data (completed/failed jobs)
@@ -36,12 +69,18 @@ export const REDIS_CLEANUP_BATCH_SIZE = 100;        // Process keys in smaller b
 let redisClient: Redis | null = null;
 let testQueue: Queue | null = null;
 let jobQueue: Queue | null = null;
+let monitorExecution: Queue | null = null;
+let heartbeatPingNotificationQueue: Queue | null = null;
+let jobSchedulerQueue: Queue | null = null;
+let monitorSchedulerQueue: Queue | null = null;
+
+let monitorExecutionEvents: QueueEvents | null = null;
 
 // Store initialization promise to prevent race conditions
 let initPromise: Promise<void> | null = null;
 
 // Queue event subscription type
-export type JobType = 'test' | 'job';
+export type JobType = 'test' | 'job'; // Removed 'healthCheck'
 
 /**
  * Get or create Redis connection using environment variables.
@@ -101,7 +140,14 @@ export async function getRedisConnection(): Promise<Redis> {
 /**
  * Get queue instances, initializing them if necessary.
  */
-async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue }> {
+async function getQueues(): Promise<{ 
+  testQueue: Queue, 
+  jobQueue: Queue, 
+  monitorExecutionQueue: Queue,
+  heartbeatPingNotificationQueue: Queue,
+  jobSchedulerQueue: Queue,
+  monitorSchedulerQueue: Queue
+}> { 
   if (!initPromise) {
     initPromise = (async () => {
       try {
@@ -115,6 +161,9 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue }> {
           backoff: { type: 'exponential', delay: 1000 }
         };
 
+        // Health check job options (different from regular jobs) - REMOVING
+        // const healthCheckJobOptions = { ... };
+
         // Queue settings with Redis TTL and auto-cleanup options
         const queueSettings = {
           connection,
@@ -127,11 +176,28 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue }> {
           }
         };
 
+        // Health check queue settings - REMOVING
+        // const healthCheckQueueSettings = { ... };
+
         testQueue = new Queue(TEST_EXECUTION_QUEUE, queueSettings);
         jobQueue = new Queue(JOB_EXECUTION_QUEUE, queueSettings);
+        monitorExecution = new Queue(MONITOR_EXECUTION_QUEUE, queueSettings);
+        heartbeatPingNotificationQueue = new Queue(HEARTBEAT_PING_NOTIFICATION_QUEUE, queueSettings);
+        
+        // Schedulers
+        jobSchedulerQueue = new Queue(JOB_SCHEDULER_QUEUE, queueSettings);
+        monitorSchedulerQueue = new Queue(MONITOR_SCHEDULER_QUEUE, queueSettings);
+
+
+        monitorExecutionEvents = new QueueEvents(MONITOR_EXECUTION_QUEUE, { connection: connection });
 
         testQueue.on('error', (error) => console.error(`[Queue Client] Test Queue Error:`, error));
         jobQueue.on('error', (error) => console.error(`[Queue Client] Job Queue Error:`, error));
+        monitorExecution.on('error', (error) => console.error(`[Queue Client] Monitor Execution Queue Error:`, error));
+        heartbeatPingNotificationQueue.on('error', (error) => console.error(`[Queue Client] Heartbeat Ping Notification Queue Error:`, error));
+        jobSchedulerQueue.on('error', (error) => console.error(`[Queue Client] Job Scheduler Queue Error:`, error));
+        monitorSchedulerQueue.on('error', (error) => console.error(`[Queue Client] Monitor Scheduler Queue Error:`, error));
+        monitorExecutionEvents.on('error', (error) => console.error(`[Queue Client] Monitor Execution Queue Events Error:`, error));
 
         // Set up periodic cleanup for orphaned Redis keys
         await setupQueueCleanup(connection);
@@ -147,10 +213,10 @@ async function getQueues(): Promise<{ testQueue: Queue, jobQueue: Queue }> {
   }
   await initPromise;
 
-  if (!testQueue || !jobQueue) {
-    throw new Error('Queue initialization failed or did not complete.');
+  if (!testQueue || !jobQueue || !monitorExecution || !heartbeatPingNotificationQueue || !monitorExecutionEvents || !jobSchedulerQueue || !monitorSchedulerQueue) {
+    throw new Error("One or more queues or event listeners could not be initialized.");
   }
-  return { testQueue, jobQueue };
+  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution, heartbeatPingNotificationQueue, jobSchedulerQueue, monitorSchedulerQueue };
 }
 
 /**
@@ -183,32 +249,30 @@ async function setupQueueCleanup(connection: Redis): Promise<void> {
  */
 async function performQueueCleanup(connection: Redis): Promise<void> {
   console.log('[Queue Client] Running queue cleanup for Redis keys');
-  
-  // 1. Clean up completed/failed jobs older than their TTL
-  if (testQueue) {
-    await testQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-    await testQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-  }
-  
-  if (jobQueue) {
-    await jobQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-    await jobQueue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-  }
+  const queuesToClean = [
+    { name: TEST_EXECUTION_QUEUE, queue: testQueue },
+    { name: JOB_EXECUTION_QUEUE, queue: jobQueue },
+    { name: MONITOR_EXECUTION_QUEUE, queue: monitorExecution },
+    { name: HEARTBEAT_PING_NOTIFICATION_QUEUE, queue: heartbeatPingNotificationQueue },
+    { name: JOB_SCHEDULER_QUEUE, queue: jobSchedulerQueue },
+    { name: MONITOR_SCHEDULER_QUEUE, queue: monitorSchedulerQueue },
+  ];
 
-  // 2. Trim event streams to reduce memory usage (keep last 1000 events)
-  if (testQueue) {
-    await testQueue.trimEvents(1000);
+  for (const { name, queue } of queuesToClean) {
+    if (queue) {
+      console.log(`[Queue Client] Cleaning up queue: ${name}`);
+      await cleanupOrphanedKeys(connection, name); // Cleans up BullMQ internal keys
+      
+      // Clean completed and failed jobs older than REDIS_JOB_KEY_TTL from the queue itself
+      await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
+      await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
+      
+      // Trim events to prevent Redis memory issues
+      await queue.trimEvents(1000); // Keep last 1000 events
+      console.log(`[Queue Client] Finished cleaning queue: ${name}`);
+    }
   }
-  
-  if (jobQueue) {
-    await jobQueue.trimEvents(1000);
-  }
-  
-  // 3. Process orphaned keys in smaller batches to reduce memory pressure
-  await cleanupOrphanedKeys(connection, TEST_EXECUTION_QUEUE);
-  await cleanupOrphanedKeys(connection, JOB_EXECUTION_QUEUE);
-  
-  console.log('[Queue Client] Queue cleanup completed');
+  console.log('[Queue Client] Finished all queue cleanup tasks.');
 }
 
 /**
@@ -234,7 +298,7 @@ async function cleanupOrphanedKeys(connection: Redis, queueName: string): Promis
         // Skip keys that BullMQ manages properly (active jobs, waiting jobs, etc.)
         if (key.includes(':active') || key.includes(':wait') || 
             key.includes(':delayed') || key.includes(':failed') ||
-            key.includes(':completed')) {
+            key.includes(':completed') || key.includes(':schedulers')) { // Preserve job scheduler keys
           continue;
         }
         
@@ -248,8 +312,8 @@ async function cleanupOrphanedKeys(connection: Redis, queueName: string): Promis
             expiryTime = REDIS_EVENT_KEY_TTL;
           } else if (key.includes(':metrics')) {
             expiryTime = REDIS_METRICS_TTL;
-          } else if (key.includes(':meta')) {
-            continue; // Skip meta keys as they should live as long as the app runs
+          } else if (key.includes(':meta') || key.includes(':scheduler:')) {
+            continue; // Skip meta keys and scheduler keys as they should live as long as the app runs
           }
           
           await connection.expire(key, expiryTime);
@@ -296,8 +360,8 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
  */
 export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: number = 30): Promise<string> {
   const { jobQueue } = await getQueues();
-  const jobUuid = task.jobId; // Use jobId for tracking
-  console.log(`[Queue Client] Adding job ${jobUuid} (${task.testScripts.length} tests) to queue ${JOB_EXECUTION_QUEUE}`);
+  const runId = task.runId; // Use runId for consistency with scheduled jobs  
+  console.log(`[Queue Client] Adding job ${runId} (${task.testScripts.length} tests) to queue ${JOB_EXECUTION_QUEUE}`);
   
   try {
     // Check the current queue size against QUEUED_CAPACITY
@@ -307,15 +371,22 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
     console.log(`[Queue Client] Setting timeout of ${timeoutMs}ms (${expiryMinutes} minutes)`);
     
     const jobOptions = {
-      jobId: jobUuid,
-      // Timeout option would be: timeout: timeoutMs
-      // But timeout/duration is managed by worker instead
+      jobId: runId, // Use runId as BullMQ job ID for consistency
+      attempts: 3,
+      backoff: {
+        type: 'exponential' as const,
+        delay: 5000
+      },
+      removeOnComplete: true,
+      removeOnFail: false,
     };
-    await jobQueue.add(JOB_EXECUTION_QUEUE, task, jobOptions);
-    console.log(`[Queue Client] Job ${jobUuid} added successfully.`);
-    return jobUuid;
+    
+    // Use runId as the job name (first parameter) to match scheduled jobs
+    await jobQueue.add(runId, task, jobOptions);
+    console.log(`[Queue Client] Job ${runId} added successfully.`);
+    return runId;
   } catch (error) {
-    console.error(`[Queue Client] Error adding job ${jobUuid} to queue:`, error);
+    console.error(`[Queue Client] Error adding job ${runId} to queue:`, error);
     throw new Error(`Failed to add job execution job: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
@@ -369,21 +440,33 @@ export async function verifyQueueCapacityOrThrow(): Promise<void> {
  * Close queue connections (useful for graceful shutdown).
  */
 export async function closeQueue(): Promise<void> {
-  console.log('[Queue Client] Closing queue connections...');
-  await initPromise; // Ensure initialization finished before closing
-  
   const promises = [];
   if (testQueue) promises.push(testQueue.close());
   if (jobQueue) promises.push(jobQueue.close());
+  if (monitorExecution) promises.push(monitorExecution.close());
+  if (heartbeatPingNotificationQueue) promises.push(heartbeatPingNotificationQueue.close());
+  if (jobSchedulerQueue) promises.push(jobSchedulerQueue.close());
+  if (monitorSchedulerQueue) promises.push(monitorSchedulerQueue.close());
   if (redisClient) promises.push(redisClient.quit());
-  
-  await Promise.all(promises).catch(err => console.error('[Queue Client] Error during queue closing:', err));
-  
-  testQueue = null;
-  jobQueue = null;
-  redisClient = null;
-  initPromise = null;
-  console.log('[Queue Client] Queue connections closed.');
+
+  if (monitorExecutionEvents) promises.push(monitorExecutionEvents.close());
+
+  try {
+    await Promise.all(promises);
+    console.log('[Queue Client] All queues and events closed successfully.');
+  } catch (error) {
+    console.error('[Queue Client] Error closing queues and events:', error);
+  } finally {
+    testQueue = null;
+    jobQueue = null;
+    monitorExecution = null;
+    heartbeatPingNotificationQueue = null;
+    jobSchedulerQueue = null;
+    monitorSchedulerQueue = null;
+    redisClient = null;
+    initPromise = null;
+    monitorExecutionEvents = null;
+  }
 }
 
 /**
@@ -411,3 +494,46 @@ export async function setQueueCapacityLimit(limit: number): Promise<void> {
     await redis.quit();
   }
 }
+
+/**
+ * Add a monitor execution task to the MONITOR_EXECUTION_QUEUE.
+ */
+export async function addMonitorExecutionJobToQueue(task: MonitorJobData): Promise<string> {
+  const { monitorExecutionQueue } = await getQueues();
+  const job = await monitorExecutionQueue.add(
+    `monitor-execution-${task.monitorId}`, 
+    task,
+    {
+      jobId: task.monitorId, // Use monitorId as job ID to prevent duplicates if job already in queue
+      removeOnComplete: true, // Auto-remove successful monitor jobs
+      removeOnFail: { count: 10 }, // Keep last 10 failed jobs for debugging
+    }
+  );
+  return job.id!;
+}
+
+export interface HeartbeatPingNotificationData {
+    monitorId: string;
+    type: 'recovery' | 'failure';
+    reason: string;
+    metadata?: Record<string, unknown>;
+}
+
+export async function addHeartbeatPingNotificationJob(data: HeartbeatPingNotificationData): Promise<string> {
+    const { heartbeatPingNotificationQueue } = await getQueues();
+    const job = await heartbeatPingNotificationQueue.add(`heartbeat-notification-${data.monitorId}-${Date.now()}`, data, {
+        removeOnComplete: true,
+        removeOnFail: { count: 10 },
+        attempts: 5,
+        backoff: {
+            type: 'exponential',
+            delay: 5000,
+        }
+    });
+    console.log(`[Queue Client] Added heartbeat ping notification job for monitor ${data.monitorId} to queue.`);
+    return job.id!;
+}
+
+
+
+export { getQueues };

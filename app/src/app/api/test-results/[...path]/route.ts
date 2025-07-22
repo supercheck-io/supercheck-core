@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db/client";
-import { reports } from "@/db/schema";
+import { db } from "@/utils/db";
+import { reports } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { notFound } from "next/navigation";
@@ -161,13 +161,12 @@ export async function GET(request: Request) {
   }
   
   try {
-    const dbInstance = await db();
     
     // Add debugging log to show full path information
     console.log(`[TEST-RESULTS API] Processing request for path: ${path.join('/')} (entityId: ${entityId})`);
     
     // Query the reports table to get the s3Url for this entity
-    const reportResult = await dbInstance.query.reports.findFirst({
+    const reportResult = await db.query.reports.findFirst({
       where: eq(reports.entityId, entityId),
       columns: {
         s3Url: true,
@@ -187,11 +186,64 @@ export async function GET(request: Request) {
     
     if (!reportResult.s3Url) {
       console.log(`[TEST-RESULTS API] Report missing s3Url. Status: ${reportResult.status}`);
+      
       if (reportResult.status === 'running') {
         return NextResponse.json({ 
           error: "Report not ready", 
           details: "The test is still running. Please wait for it to complete."
         }, { status: 202 });
+      }
+      
+      // Check if this is likely a timeout error for failed executions
+      if (reportResult.status === 'failed') {
+        console.log(`[TEST-RESULTS API] Failed execution detected for ${entityId}, entity type: ${reportResult.entityType}`);
+        
+        // For failed test executions without reports, it's very likely a timeout
+        // since script validation errors and other issues usually still generate some output
+        if (reportResult.entityType === 'test') {
+          // Assume test timeout - return structured timeout error information
+          console.log(`[TEST-RESULTS API] Assuming test timeout for failed test ${entityId} with no report`);
+          
+          return NextResponse.json({
+            error: "Test execution timeout",
+            message: "Test execution timed out after 2 minutes",
+            details: "Execution timed out after 2 minutes", 
+            timeoutInfo: {
+              isTimeout: true,
+              timeoutType: 'test',
+              timeoutDurationMs: 120000, // 2 minutes
+              timeoutDurationMinutes: 2
+            },
+            entityType: reportResult.entityType,
+            status: reportResult.status
+          }, { status: 408 }); // 408 Request Timeout
+        } else if (reportResult.entityType === 'job') {
+          // Assume job timeout
+          console.log(`[TEST-RESULTS API] Assuming job timeout for failed job ${entityId} with no report`);
+          
+          return NextResponse.json({
+            error: "Job execution timeout",
+            message: "Job execution timed out after 15 minutes",
+            details: "Execution timed out after 15 minutes",
+            timeoutInfo: {
+              isTimeout: true,
+              timeoutType: 'job',
+              timeoutDurationMs: 900000, // 15 minutes
+              timeoutDurationMinutes: 15
+            },
+            entityType: reportResult.entityType,
+            status: reportResult.status
+          }, { status: 408 }); // 408 Request Timeout
+        }
+        
+        // Return general failed execution error for other entity types
+        return NextResponse.json({
+          error: "Execution failed",
+          message: "The execution failed without generating a report",
+          details: "The execution completed but no report was generated",
+          entityType: reportResult.entityType,
+          status: reportResult.status
+        }, { status: 500 });
       }
       
       return notFound();

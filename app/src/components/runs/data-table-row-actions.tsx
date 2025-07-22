@@ -126,7 +126,7 @@ export function DataTableRowActions<TData>({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Run</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete this run. This action cannot be undone.
             </AlertDialogDescription>

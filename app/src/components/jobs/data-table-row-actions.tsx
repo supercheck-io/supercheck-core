@@ -130,10 +130,11 @@ export function DataTableRowActions<TData>({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Job</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the job &quot;{job.name}&quot;. This
-              action cannot be undone.
+              This will permanently delete the job <span className="font-semibold">&quot;{job.name}&quot;</span> This action cannot be undone. 
+              <br /><br />
+              <strong>Note:</strong> All the runs related to this job will also be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

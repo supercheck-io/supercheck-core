@@ -1,10 +1,9 @@
-import * as React from "react";
-import type { Column } from "@tanstack/react-table";
-import { Check, PlusCircle } from "lucide-react";
+import { CheckIcon, PlusCircle } from "lucide-react";
+import { Column } from "@tanstack/react-table";
 
-import { cn } from "~/lib/utils";
-import { Badge } from "~/components/ui/badge";
-import { Button } from "~/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -19,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Separator } from "~/components/ui/separator";
+import { Separator } from "@/components/ui/separator";
 
 interface DataTableFacetedFilterProps<TData, TValue> {
   column?: Column<TData, TValue>;
@@ -28,6 +27,7 @@ interface DataTableFacetedFilterProps<TData, TValue> {
     label: string;
     value: string;
     icon?: React.ComponentType<{ className?: string }>;
+    color?: string;
   }[];
 }
 
@@ -36,26 +36,14 @@ export function DataTableFacetedFilter<TData, TValue>({
   title,
   options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
-  const [facets, setFacets] = React.useState<Map<string, number> | undefined>(
-    undefined
-  );
-  const [selectedValues, setSelectedValues] = React.useState<Set<string>>(
-    new Set()
-  );
-
-  React.useEffect(() => {
-    if (column) {
-      setFacets(column.getFacetedUniqueValues());
-      const filterValue = column.getFilterValue() as string[] | undefined;
-      setSelectedValues(new Set(filterValue || []));
-    }
-  }, [column]);
+  const facets = column?.getFacetedUniqueValues();
+  const selectedValues = new Set(column?.getFilterValue() as string[]);
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 border-dashed">
-          <PlusCircle />
+          <PlusCircle className="mr-2 h-4 w-4" />
           {title}
           {selectedValues?.size > 0 && (
             <>
@@ -104,17 +92,15 @@ export function DataTableFacetedFilter<TData, TValue>({
                   <CommandItem
                     key={option.value}
                     onSelect={() => {
-                      const newSelectedValues = new Set(selectedValues);
                       if (isSelected) {
-                        newSelectedValues.delete(option.value);
+                        selectedValues.delete(option.value);
                       } else {
-                        newSelectedValues.add(option.value);
+                        selectedValues.add(option.value);
                       }
-                      const filterValues = Array.from(newSelectedValues);
+                      const filterValues = Array.from(selectedValues);
                       column?.setFilterValue(
                         filterValues.length ? filterValues : undefined
                       );
-                      setSelectedValues(newSelectedValues);
                     }}
                   >
                     <div
@@ -125,14 +111,19 @@ export function DataTableFacetedFilter<TData, TValue>({
                           : "opacity-50 [&_svg]:invisible"
                       )}
                     >
-                      <Check />
+                      <CheckIcon className={cn("h-4 w-4")} />
                     </div>
                     {option.icon && (
-                      <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                      <option.icon
+                        className={cn(
+                          "mr-2 h-4 w-4 flex-shrink-0",
+                          option.color ?? "text-foreground"
+                        )}
+                      />
                     )}
-                    <span>{option.label}</span>
+                    <span className="truncate flex-1">{option.label}</span>
                     {facets?.get(option.value) && (
-                      <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">
+                      <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs flex-shrink-0">
                         {facets.get(option.value)}
                       </span>
                     )}
@@ -145,10 +136,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                 <CommandSeparator />
                 <CommandGroup>
                   <CommandItem
-                    onSelect={() => {
-                      column?.setFilterValue(undefined);
-                      setSelectedValues(new Set());
-                    }}
+                    onSelect={() => column?.setFilterValue(undefined)}
                     className="justify-center text-center"
                   >
                     Clear filters

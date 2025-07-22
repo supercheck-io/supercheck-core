@@ -1,10 +1,17 @@
-import type { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef } from "@tanstack/react-table";
+import { Badge } from "@/components/ui/badge";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
-import type { Test } from "./schema";
-import { CalendarIcon, ClockIcon } from "lucide-react";
+import { Test } from "./schema";
 import { UUIDField } from "@/components/ui/uuid-field";
 import { toast } from "sonner";
+import { useState } from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { CalendarIcon, ClockIcon } from "lucide-react";
 
 // Type definition for the extended meta object used in this table
 interface TestsTableMeta {
@@ -15,21 +22,177 @@ interface TestsTableMeta {
 
 import { priorities, types } from "./data";
 
+// Separate component for title with popover
+function TitleWithPopover({ title }: { title: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Check if text is likely to be truncated (rough estimate)
+  const isTruncated = title.length > 25; // Approximate character limit for 200px width
+
+  if (!isTruncated) {
+    return (
+      <div className="flex space-x-2">
+        <span className="max-w-[160px] truncate">
+          {title}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div
+          className="flex space-x-2 cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          <span className="max-w-[160px] truncate">
+            {title}
+          </span>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+        <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+            {title}
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Separate component for description with popover
+function DescriptionWithPopover({ description }: { description: string | null }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const displayText = description || "No description provided";
+  const isTruncated = displayText.length > 25; // Approximate character limit
+
+  if (!isTruncated) {
+    return (
+      <div className="max-w-[200px] truncate">
+        {displayText}
+      </div>
+    );
+  }
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div
+          className="max-w-[160px] truncate cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          {displayText}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+        <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+          {displayText}
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Separate component for tags cell to fix React hooks issue
+const TagsCell = ({ tags }: { tags: Array<{ id: string; name: string; color: string | null }> }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!tags || tags.length === 0) {
+    return (
+      <div className="text-muted-foreground text-sm">
+        No tags
+      </div>
+    );
+  }
+
+  const displayTags = tags.slice(0, 2);
+  const remainingCount = tags.length - 2;
+
+  // Only show popover if there are more than 2 tags
+  if (tags.length <= 2) {
+    return (
+      <div className="flex items-center gap-1 min-h-[24px]">
+        {tags.map((tag) => (
+          <Badge
+            key={tag.id}
+            variant="secondary"
+            className="text-xs whitespace-nowrap flex-shrink-0"
+            style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
+          >
+            {tag.name}
+          </Badge>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div
+          className="flex items-center gap-1 min-h-[24px] cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          {displayTags.map((tag) => (
+            <Badge
+              key={tag.id}
+              variant="secondary"
+              className="text-xs whitespace-nowrap flex-shrink-0"
+              style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
+            >
+              {tag.name}
+            </Badge>
+          ))}
+          {remainingCount > 0 && (
+            <Badge variant="secondary" className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+              +{remainingCount}
+            </Badge>
+          )}
+        </div>
+      </PopoverTrigger>
+
+      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+        <div className="flex justify-center flex-wrap gap-1">
+          {tags.map((tag) => (
+            <Badge
+              key={tag.id}
+              variant="secondary"
+              className="text-xs"
+              style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : {}}
+            >
+              {tag.name}
+            </Badge>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export const columns: ColumnDef<Test>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader className="ml-2"  column={column} title="ID" />
+      <DataTableColumnHeader className="ml-2" column={column} title="Test ID" />
     ),
-    cell: ({ row }) => (
-      <div className="w-[120px] ml-2">
-        <UUIDField 
-          value={row.getValue("id")} 
-          maxLength={24} 
-          onCopy={() => toast.success("Test ID copied to clipboard")}
-        />
-      </div>
-    ),
+    cell: ({ row }) => {
+      const id = row.getValue("id") as string;
+
+      return (
+        <div className="w-[90px]">
+          <UUIDField
+            value={id}
+            maxLength={24}
+            onCopy={() => toast.success("Test ID copied to clipboard")}
+          />
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: false,
   },
@@ -39,13 +202,9 @@ export const columns: ColumnDef<Test>[] = [
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => {
-      return (
-        <div className="flex space-x-2">
-          <span className="max-w-[200px] truncate">
-            {row.getValue("title")}
-          </span>
-        </div>
-      );
+      const title = row.getValue("title") as string;
+
+      return <TitleWithPopover title={title} />;
     },
   },
   {
@@ -55,11 +214,8 @@ export const columns: ColumnDef<Test>[] = [
     ),
     cell: ({ row }) => {
       const description = row.getValue("description") as string | null;
-      return (
-        <div className="max-w-[200px] truncate">
-          {description || "No description provided"}
-        </div>
-      );
+
+      return <DescriptionWithPopover description={description} />;
     },
   },
   {
@@ -85,6 +241,7 @@ export const columns: ColumnDef<Test>[] = [
       return value.includes(row.getValue(id));
     },
   },
+
   {
     accessorKey: "priority",
     header: ({ column }) => (
@@ -103,7 +260,7 @@ export const columns: ColumnDef<Test>[] = [
         <div className="flex items-center w-[100px]">
           {priority.icon && (
             <priority.icon
-              className={`mr-2 h-4 w-4 text-muted-foreground ${priority.color}`}
+              className={`mr-2 h-4 w-4 ${priority.color}`}
             />
           )}
           <span>{priority.label}</span>
@@ -114,6 +271,25 @@ export const columns: ColumnDef<Test>[] = [
       return value.includes(row.getValue(id));
     },
   },
+
+  {
+    accessorKey: "tags",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Tags" />
+    ),
+    cell: ({ row }) => {
+      const tags = row.getValue("tags") as Array<{ id: string; name: string; color: string | null }>;
+      return <TagsCell tags={tags} />;
+    },
+    filterFn: (row, id, value: string[]) => {
+      const tags = row.getValue(id) as Array<{ id: string; name: string; color: string | null }>;
+      if (!tags || tags.length === 0) return false;
+      return value.some(filterTag =>
+        tags.some(tag => tag.name.toLowerCase().includes(filterTag.toLowerCase()))
+      );
+    },
+  },
+
   {
     accessorKey: "createdAt",
     header: ({ column }) => (
@@ -163,6 +339,7 @@ export const columns: ColumnDef<Test>[] = [
         </div>
       );
     },
+
   },
   {
     id: "actions",

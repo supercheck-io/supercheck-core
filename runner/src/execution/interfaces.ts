@@ -34,6 +34,10 @@ export interface TestExecutionResult {
   duration?: string;
   stdout?: string;
   stderr?: string;
+  // Additional properties for notifications
+  totalTests?: number;
+  passedTests?: number;
+  failedTests?: number;
 }
 
 // Task data for the test execution queue
@@ -51,7 +55,10 @@ export interface JobExecutionTask {
   testScripts: TestScript[];
   runId: string; // Required run ID to distinguish parallel executions of the same job
   originalJobId?: string; // The original job ID from the 'jobs' table that should be updated
+  trigger: JobTrigger; // Add trigger property
 }
+
+export type JobTrigger = 'manual' | 'remote' | 'schedule'; // Define allowed trigger values
 
 // Optional: Interface for database report metadata storage
 export interface ReportMetadata {
@@ -62,4 +69,18 @@ export interface ReportMetadata {
   s3Url?: string; // Explicitly store the final S3 URL
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+// Interface for Monitor Job Data (mirroring DTO in runner)
+export interface MonitorJobData {
+  monitorId: string;
+  type: "http_request" | "website" | "ping_host" | "port_check" | "heartbeat" | "ssl";
+  target: string;
+  config?: any;
+  frequencyMinutes?: number; 
+}
+
+export enum TestRunStatus {
+  RUNNING = 'running',
+  // ... existing code ...
 } 

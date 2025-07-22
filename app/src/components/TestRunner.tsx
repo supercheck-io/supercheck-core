@@ -121,7 +121,7 @@ export default function TestRunner() {
       // isLoading remains true while polling
 
     } catch (err) {
-      console.error('Error running test:', err);
+      console.error('Error running script:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
       setIsLoading(false);
     }
@@ -141,7 +141,7 @@ export default function TestRunner() {
       </Button>
 
       {isLoading && runId && (
-          <p>Executing Test (Run ID: {runId})... Status: {runStatus?.status || 'pending'}</p>
+          <p>Executing Script (Run ID: {runId})... Status: {runStatus?.status || 'pending'}</p>
       )}
 
       {error && <p style={{ color: 'red' }}>Error: {error}</p>}

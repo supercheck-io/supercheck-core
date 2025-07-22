@@ -1,26 +1,18 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
 import { jobStatuses } from "./data";
 import { Job, Test } from "./schema";
 import { CalendarIcon, ClockIcon, TimerIcon, Edit } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -41,55 +33,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { getJobs } from "@/actions/get-jobs";
+// import { getJobs } from "@/actions/get-jobs"; // Replaced with API call
 import { useJobContext } from "./job-context";
 import { formatDistanceToNow } from "date-fns";
 import { UUIDField } from "@/components/ui/uuid-field";
-import { cn } from "@/lib/utils";
+import { Bell, BellOff, CheckCircle, XCircle, Clock, Copy } from "lucide-react";
+import { UrlTriggerTooltip } from "./url-trigger-tooltip";
+import { JobTestDataTable } from "./job-test-data-table";
+import { createJobTestColumns } from "./job-test-columns";
 
 // Helper function to map incoming types to the valid Test["type"]
 function mapToTestType(type: string | undefined): Test["type"] {
   switch (type) {
     case "browser":
     case "api":
-    case "multistep":
+    case "custom":
     case "database":
       return type; // Already valid
-    case "ui":
-      return "browser"; // Map ui to browser
-    case "integration":
-      return "multistep"; // Map integration to multistep
-    // Map other legacy/incoming types or default
-    case "performance":
-    case "security":
     default:
-      return "api"; // Default to api
+      return "browser"; // Default to api
   }
 }
 
-// Custom TableRow without hover effect for job sheet
-const JobSheetTableRow = React.forwardRef<
-  HTMLTableRowElement,
-  React.HTMLAttributes<HTMLTableRowElement>
->(({ className, ...props }, ref) => {
-  return (
-    <tr
-      ref={ref}
-      data-slot="table-row"
-      className={cn(
-        "data-[state=selected]:bg-muted border-b transition-colors",
-        className
-      )}
-      {...props}
-    />
-  );
-});
-JobSheetTableRow.displayName = "JobSheetTableRow";
-
 export default function Jobs() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -97,33 +67,83 @@ export default function Jobs() {
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const {} = useJobContext();
   const [isLoading, setIsLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Set mounted to true after initial render
+  useEffect(() => {
+    setMounted(true);
+    return () => {
+      setMounted(false);
+    };
+  }, []);
+
+  // Safe state setters that only run when component is mounted
+  const safeSetSelectedJob = useCallback((job: Job | null) => {
+    if (mounted) {
+      setSelectedJob(job);
+    }
+  }, [mounted]);
+
+  const safeSetIsSheetOpen = useCallback((open: boolean) => {
+    if (mounted) {
+      setIsSheetOpen(open);
+    }
+  }, [mounted]);
+
+  const safeSetSelectedTest = useCallback((test: Test | null) => {
+    if (mounted) {
+      setSelectedTest(test);
+    }
+  }, [mounted]);
+
+  // Handle job selection with URL update
+  const handleJobSelect = (job: Job) => {
+    // Update URL first, let useEffect handle the state
+    const params = new URLSearchParams(searchParams);
+    params.set('job', job.id);
+    router.push(`/jobs?${params.toString()}`, { scroll: false });
+  };
+
+  // Handle job sheet close
+  const handleJobSheetClose = () => {
+    // Update URL first, let useEffect handle the state
+    const params = new URLSearchParams(searchParams);
+    params.delete('job');
+    const newUrl = params.toString() ? `/jobs?${params.toString()}` : '/jobs';
+    router.push(newUrl, { scroll: false });
+  };
 
   // Fetch jobs from the database on component mount
   useEffect(() => {
     async function fetchJobs() {
       setIsLoading(true);
       try {
-        const response = await getJobs();
-        if (response.success && response.jobs) {
-          const typedJobs = response.jobs.map((job) => ({
+        const response = await fetch('/api/jobs');
+        const data = await response.json();
+        
+        if (response.ok && data.success && data.jobs) {
+          const typedJobs = data.jobs.map((job: Record<string, unknown>) => ({
             ...job,
             status: job.status as Job["status"],
             description: job.description || null,
             cronSchedule: job.cronSchedule || null,
-            tests: job.tests.map((test) => ({
-              ...test,
-              type: test.type as Test["type"],
-              description: test.description || null,
-              status: (test.status || "pending") as Test["status"],
-              lastRunAt: test.lastRunAt || null,
-              duration: test.duration || null,
-            })),
+            tests: Array.isArray(job.tests) 
+              ? job.tests.map((test: Record<string, unknown>) => ({
+                  ...test,
+                  type: test.type as Test["type"],
+                  description: test.description || null,
+                  status: (test.status || "pending") as Test["status"],
+                  lastRunAt: test.lastRunAt || null,
+                  duration: test.duration || null,
+                }))
+              : [],
+            alertConfig: job.alertConfig as Record<string, unknown>,
           }));
-          setJobs(typedJobs);
+          setJobs(typedJobs as Job[]);
         } else {
-          console.error("Failed to fetch jobs:", response.error);
+          console.error("Failed to fetch jobs:", data.error);
           toast.error("Failed to fetch jobs", {
-            description: response.error || "An unknown error occurred",
+            description: data.error || "An unknown error occurred",
           });
         }
       } catch (error) {
@@ -141,6 +161,29 @@ export default function Jobs() {
 
     fetchJobs();
   }, []);
+
+  // Handle URL parameter changes (for direct navigation to job details)
+  useEffect(() => {
+    const jobId = searchParams.get('job');
+    
+    if (jobId && jobs.length > 0) {
+      const job = jobs.find(j => j.id === jobId);
+      if (job) {
+        safeSetSelectedJob(job);
+        safeSetIsSheetOpen(true);
+      } else {
+        // Job not found, remove from URL
+        const params = new URLSearchParams(searchParams);
+        params.delete('job');
+        const newUrl = params.toString() ? `/jobs?${params.toString()}` : '/jobs';
+        router.replace(newUrl, { scroll: false });
+      }
+    } else if (!jobId && isSheetOpen) {
+      // URL doesn't have job ID but sheet is open, close it
+      safeSetIsSheetOpen(false);
+      safeSetSelectedJob(null);
+    }
+  }, [searchParams, jobs, isSheetOpen, router, safeSetSelectedJob, safeSetIsSheetOpen]);
 
   // Edit an existing test
   const handleEditTest = () => {
@@ -162,10 +205,10 @@ export default function Jobs() {
       };
 
       // Update the selected job
-      setSelectedJob(updatedJob);
+      safeSetSelectedJob(updatedJob);
 
       // Reset the selected test
-      setSelectedTest(null);
+      safeSetSelectedTest(null);
 
       // Close the dialog
       setIsEditTestDialogOpen(false);
@@ -174,7 +217,7 @@ export default function Jobs() {
 
   // Format date for display
   const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "N/A";
+    if (!dateString) return "No date";
 
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -188,7 +231,7 @@ export default function Jobs() {
 
   // Format relative date (e.g., "2 hours ago")
   const formatRelativeDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "N/A";
+    if (!dateString) return "No date";
 
     try {
       const date = new Date(dateString);
@@ -231,8 +274,8 @@ export default function Jobs() {
 
     // If the deleted job is currently selected, close the sheet
     if (selectedJob && selectedJob.id === jobId) {
-      setIsSheetOpen(false);
-      setSelectedJob(null);
+      safeSetIsSheetOpen(false);
+      safeSetSelectedJob(null);
     }
   };
 
@@ -248,47 +291,106 @@ export default function Jobs() {
     return job.updatedAt;
   };
 
+  // Don't render until component is mounted
+  if (!mounted) {
+    return (
+      <div className="flex h-full flex-col space-y-4 p-2 mt-6 w-full max-w-full overflow-x-hidden">
+        <DataTableSkeleton columns={6} rows={3} />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full flex-col space-y-4 p-4 w-full max-w-full overflow-x-hidden">
+    <div className="flex h-full flex-col space-y-4 p-2 mt-6 w-full max-w-full overflow-x-hidden">
       <DataTable
         data={jobs}
         columns={columns}
         isLoading={isLoading}
         onRowClick={(row) => {
-          setSelectedJob(row.original);
-          setIsSheetOpen(true);
+          handleJobSelect(row.original);
         }}
         meta={{
           onDeleteJob: handleDeleteJob,
         }}
       />
 
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="xl:max-w-[800px] lg:max-w-[700px] md:max-w-[600px] sm:max-w-[500px] overflow-y-auto p-6">
+      <Sheet open={isSheetOpen} onOpenChange={(open) => {
+        if (!open) {
+          handleJobSheetClose();
+        }
+      }}>
+        <SheetContent className="xl:max-w-[950px] lg:max-w-[800px] md:max-w-[700px] sm:max-w-[600px] overflow-y-auto p-8">
           {selectedJob && (
             <>
               <SheetHeader>
-                <div className="flex items-center justify-between -ml-4">
-                  <SheetTitle className="text-xl font-semibold">
+                <div className="flex items-center justify-between">
+                  <SheetTitle className="text-2xl font-semibold">
                     Job Details
                   </SheetTitle>
-                  <div className="flex space-x-4">
+                  <div className="flex items-center space-x-2">
+                    {/* Alert Status Icon */}
+                    <div className="relative group">
+                      <div
+                        className={`flex items-center justify-center h-10 w-10 rounded-full ${
+                          selectedJob.alertConfig?.enabled
+                            ? 'bg-green-100 dark:bg-green-900/30'
+                            : 'bg-gray-100 dark:bg-gray-700/30'
+                        }`}
+                      >
+                        {selectedJob.alertConfig?.enabled ? (
+                          <Bell className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <BellOff className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        )}
+                      </div>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                        {selectedJob.alertConfig?.enabled ? "Alerts enabled" : "Alerts disabled"}
+                      </div>
+                    </div>
+                    {selectedJob.alertConfig?.enabled && (
+                      <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                        {selectedJob.alertConfig.alertOnSuccess && (
+                          <div className="relative group">
+                            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-500" />
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                              Job success alert
+                            </div>
+                          </div>
+                        )}
+                        {selectedJob.alertConfig.alertOnFailure && (
+                          <div className="relative group">
+                            <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                              Job failure alert
+                            </div>
+                          </div>
+                        )}
+                        {selectedJob.alertConfig.alertOnTimeout && (
+                          <div className="relative group">
+                            <Clock className="h-4 w-4 text-orange-600 dark:text-orange-500" />
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                              Job timeout alert
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() =>
                         router.push(`/jobs/edit/${selectedJob.id}`)
                       }
-                      
+                      className="ml-2"
                     >
-                      <Edit className="h-4 w-4 mr-2" />
+                      <Edit className="h-4 w-4 mr-2 " />
                       Edit Job
                     </Button>
                   </div>
                 </div>
               </SheetHeader>
 
-              <div className="mt-6 space-y-6">
+              <div className="space-y-2">
                 {/* Job ID and Name */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-card p-4 rounded-lg border border-border/40">
                   <div className="space-y-1">
@@ -317,7 +419,11 @@ export default function Jobs() {
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="details">Details</TabsTrigger>
                     <TabsTrigger value="tests">
-                      Tests ({selectedJob.tests?.length || 0})
+                      Tests 
+                    <code className="font-mono text-xs font-semibold px-2 py-0.5 bg-card rounded-sm ml-2">
+                       {selectedJob.tests?.length || 0}
+                    </code>
+                   
                     </TabsTrigger>
                   </TabsList>
 
@@ -354,11 +460,12 @@ export default function Jobs() {
                         <div className="flex items-center space-x-2">
                           <TimerIcon className="h-4 w-4 text-muted-foreground" />
                           <span className="text-sm">
-                            {selectedJob.cronSchedule || "Not scheduled"}
+                            {selectedJob.cronSchedule || "None"}
                           </span>
                         </div>
                       </div>
                     </div>
+
 
                     {/* Description */}
                     <div className="space-y-2 bg-card p-4 rounded-lg border border-border/40">
@@ -423,72 +530,59 @@ export default function Jobs() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Remote API Trigger */}
+                    <div className="space-y-4 bg-card p-4 rounded-lg border border-border/40">
+                      <div className="flex items-center gap-2">
+                        {/* <Key className="h-4 w-4 text-muted-foreground" /> */}
+                        <h3 className="text-xs font-medium text-muted-foreground">CI/CD Remote Job Trigger</h3>
+                        <UrlTriggerTooltip jobId={selectedJob.id} />
+                      </div>
+                      
+                      <div className="space-y-3">
+            
+                        <div className="space-y-2">
+                          {/* <h4 className="text-sm font-medium">Curl</h4> */}
+                          <div className="relative">
+                            <pre className="p-3 bg-muted rounded text-xs overflow-x-auto">
+{`curl -X POST "${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/jobs/${selectedJob.id}/trigger" \\
+-H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json"`}   
+  
+                            </pre>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="absolute top-2 right-2"
+                              onClick={() => {
+                                const curlCommand = `curl -X POST "${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/jobs/${selectedJob.id}/trigger" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json"`;
+                                navigator.clipboard.writeText(curlCommand);
+                                toast.success("Curl command copied to clipboard");
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        
+
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <p><strong>Note:</strong> You need to create an API key first in the job settings and replace <i> YOUR_API_KEY</i> with actual API key.</p>
+                          <p><strong>Response:</strong> Returns JSON with job execution details and run ID.</p>
+                          {/* <p><strong>Rate Limits:</strong> API keys have configurable rate limits and expiration.</p> */}
+                        </div>
+                      </div>
+                    </div>
                   </TabsContent>
 
                   <TabsContent value="tests" className="py-4 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-xs font-medium text-muted-foreground">Tests</h3>
-                    </div>
-
                     {selectedJob.tests && selectedJob.tests.length > 0 ? (
-                      <div
-                        className={cn(
-                          "overflow-y-auto border rounded-md",
-                          selectedJob.tests.length > 5 && "max-h-[350px]",
-                        )}
-                      >
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-[120px] sticky top-0 bg-background">
-                                ID
-                              </TableHead>
-                              <TableHead className="w-[200px] sticky top-0 bg-background">
-                                Name
-                              </TableHead>
-                              <TableHead className="w-[100px] sticky top-0 bg-background">
-                                Type
-                              </TableHead>
-                              <TableHead className="sticky top-0 bg-background">
-                                Description
-                              </TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {selectedJob.tests?.map((test) => (
-                              <JobSheetTableRow key={test.id}>
-                                <TableCell
-                                  className="font-mono text-sm truncate"
-                                  title={test.id}
-                                >
-                                  {test.id.substring(0, 8)}...
-                                </TableCell>
-                                <TableCell
-                                  className="truncate"
-                                  title={test.name}
-                                >
-                                  {test.name.length > 40
-                                    ? test.name.substring(0, 40) + "..."
-                                    : test.name}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline">{test.type}</Badge>
-                                </TableCell>
-                                <TableCell
-                                  className="truncate"
-                                  title={test.description || ""}
-                                >
-                                  {test.description &&
-                                  test.description.length > 40
-                                    ? test.description.substring(0, 40) +
-                                      "..."
-                                    : test.description || "No description provided"}
-                                </TableCell>
-                              </JobSheetTableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
+                      <JobTestDataTable
+                        columns={createJobTestColumns()}
+                        data={selectedJob.tests}
+                        className="border-0"
+                      />
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
                         No tests configured for this job.
@@ -585,8 +679,8 @@ export default function Jobs() {
                               {/* Only show valid Test['type'] options */}
                               <SelectItem value="browser">Browser</SelectItem>
                               <SelectItem value="api">API</SelectItem>
-                              <SelectItem value="multistep">
-                                Multistep
+                              <SelectItem value="custom">
+                                Custom
                               </SelectItem>
                               <SelectItem value="database">Database</SelectItem>
                             </SelectContent>

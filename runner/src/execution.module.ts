@@ -7,17 +7,16 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { ExecutionService } from './execution/services/execution.service';
 import { S3Service } from './execution/services/s3.service';
 import { DbService, DB_PROVIDER_TOKEN } from './execution/services/db.service';
-import { ValidationService } from './execution/services/validation.service';
 import { RedisService } from './execution/services/redis.service';
 import { TestExecutionProcessor } from './execution/processors/test-execution.processor';
 import { JobExecutionProcessor } from './execution/processors/job-execution.processor';
+import { NotificationModule } from './notification/notification.module';
 import * as schema from './db/schema';
 
 // Import constants from constants file
 import { 
   TEST_EXECUTION_QUEUE, 
   JOB_EXECUTION_QUEUE,
-  MAX_CONCURRENT_TESTS
 } from './execution/constants';
 
 // Define common job options with TTL settings
@@ -54,18 +53,17 @@ const drizzleProvider: Provider = {
 
 @Module({
   imports: [
+    NotificationModule,
     BullModule.registerQueue(
       {
         name: TEST_EXECUTION_QUEUE,
         defaultJobOptions
         // Note: Worker concurrency is controlled by the processor options
-        // MAX_CONCURRENT_TESTS is used by the job processors internally
       },
       {
         name: JOB_EXECUTION_QUEUE,
         defaultJobOptions
         // Note: Worker concurrency is controlled by the processor options
-        // MAX_CONCURRENT_TESTS is used by the job processors internally
       }
     ),
   ],
@@ -76,10 +74,10 @@ const drizzleProvider: Provider = {
     ExecutionService,
     S3Service,
     DbService,
-    ValidationService,
     RedisService,
     TestExecutionProcessor,
     JobExecutionProcessor,
   ],
+  exports: [drizzleProvider, DbService]
 })
 export class ExecutionModule {}

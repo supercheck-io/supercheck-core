@@ -10,8 +10,8 @@ import {
   testsInsertSchema,
   type TestPriority,
   type TestType,
-} from "@/db/schema";
-import { getDb } from "@/db/client";
+} from "@/db/schema/schema";
+import { db } from "@/utils/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import crypto from "crypto";
@@ -39,7 +39,6 @@ export async function saveTest(
 ): Promise<{ id: string; success: boolean; error?: string }> {
   try {
     const validatedData = saveTestWithIdSchema.parse(data);
-    const db = await getDb();
 
     // Ensure script is properly base64 encoded
     let scriptToSave = validatedData.script || "";

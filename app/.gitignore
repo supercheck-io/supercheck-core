@@ -46,4 +46,4 @@ public/artifacts/*
 test-results/*
 
 # db
-src/db/supertest.db
+src/db/supercheck.db

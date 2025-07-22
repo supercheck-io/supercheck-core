@@ -13,9 +13,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { SaveIcon, Trash2 } from "lucide-react";
+import { SaveIcon, Trash2, Loader2 } from "lucide-react";
 import { updateJob } from "@/actions/update-job";
-import { getJob } from "@/actions/get-jobs";
+// import { getJob } from "@/actions/get-jobs"; // Replaced with API call
 import { deleteJob } from "@/actions/delete-job";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -41,8 +41,27 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import TestSelector from "./test-selector";
-import CronScheduler from "./CronScheduler";
-import { Info } from "lucide-react";
+import CronScheduler from "./cron-scheduler";
+
+import NextRunDisplay from "./next-run-display";
+import { AlertSettings } from "@/components/alerts/alert-settings";
+import { CicdSettings } from "./cicd-settings";
+import { EditJobSkeleton } from "./edit-job-skeleton";
+import { UrlTriggerTooltip } from "./url-trigger-tooltip";
+
+
+interface AlertConfiguration {
+  enabled: boolean;
+  notificationProviders: string[];
+  alertOnFailure: boolean;
+  alertOnRecovery?: boolean;
+  alertOnSslExpiration?: boolean;
+  alertOnSuccess?: boolean;
+  alertOnTimeout?: boolean;
+  failureThreshold: number;
+  recoveryThreshold: number;
+  customMessage?: string;
+}
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
@@ -71,6 +90,30 @@ export default function EditJob({ jobId }: EditJobProps) {
     description: "",
     cronSchedule: ""
   });
+  const [alertConfig, setAlertConfig] = useState<AlertConfiguration>({
+    enabled: false,
+    notificationProviders: [],
+    alertOnFailure: true,
+    alertOnSuccess: false,
+    alertOnTimeout: true,
+    failureThreshold: 1,
+    recoveryThreshold: 1,
+    customMessage: "",
+  });
+  const [currentStep, setCurrentStep] = useState<'job' | 'alerts' | 'cicd'>('job');
+
+  const [initialAlertConfig, setInitialAlertConfig] = useState<AlertConfiguration>({
+    enabled: false,
+    notificationProviders: [],
+    alertOnFailure: true,
+    alertOnSuccess: false,
+    alertOnTimeout: true,
+    failureThreshold: 1,
+    recoveryThreshold: 1,
+    customMessage: "",
+  });
+  const [apiKeysChanged, setApiKeysChanged] = useState(false);
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
@@ -88,47 +131,80 @@ export default function EditJob({ jobId }: EditJobProps) {
   const loadJob = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await getJob(jobId);
+      const response = await fetch(`/api/jobs/${jobId}`);
+      const data = await response.json();
 
-      if (!response.success || !response.job) {
+      if (!response.ok || data.error) {
         // This check is now handled by the server component
         // But we'll still handle it here for robustness
         toast.error("Error", {
-          description: "Job not found. Redirecting to jobs list.",
+          description: data.error || "Job not found. Redirecting to jobs list.",
         });
         router.push("/jobs");
         return;
       }
 
-      const jobData = response.job;
+      const jobData = data;
       
       // Set form values
-      form.reset({
+      const formValues = {
         name: jobData.name,
         description: jobData.description || "",
         cronSchedule: jobData.cronSchedule || "",
-      });
+      };
+      
+      form.reset(formValues);
       
       // Store initial values for comparison
-      setInitialValues({
-        name: jobData.name,
-        description: jobData.description || "",
-        cronSchedule: jobData.cronSchedule || ""
-      });
+      setInitialValues(formValues);
 
       // Map the tests to the format expected by TestSelector
-      const tests = jobData.tests.map((test) => ({
+      const tests = jobData.tests.map((test: Record<string, unknown>) => ({
         id: test.id,
         name: test.name,
         description: test.description || null,
-        type: test.type as "browser" | "api" | "multistep" | "database",
+        type: test.type as "browser" | "api" | "custom" | "database",
         status: "running" as const,
         lastRunAt: null,
         duration: null,
+        tags: test.tags || [], // <-- Ensure tags are included
       }));
 
       setSelectedTests(tests);
       setOriginalSelectedTests(tests);
+
+      // Load alert configuration if it exists
+      const alertConfigData: AlertConfiguration = {
+        enabled: false,
+        notificationProviders: [],
+        alertOnFailure: true,
+        alertOnSuccess: false,
+        alertOnTimeout: true,
+        failureThreshold: 1,
+        recoveryThreshold: 1,
+        customMessage: "",
+      };
+
+      if (jobData.alertConfig && typeof jobData.alertConfig === 'object') {
+        const alertConfig = jobData.alertConfig as Record<string, unknown>; // Safe cast since we checked it's an object
+        alertConfigData.enabled = Boolean(alertConfig.enabled);
+        alertConfigData.notificationProviders = Array.isArray(alertConfig.notificationProviders) ? (alertConfig.notificationProviders as string[]) : [];
+        alertConfigData.alertOnFailure = alertConfig.alertOnFailure !== undefined ? Boolean(alertConfig.alertOnFailure) : true;
+        alertConfigData.alertOnSuccess = Boolean(alertConfig.alertOnSuccess);
+        alertConfigData.alertOnTimeout = alertConfig.alertOnTimeout !== undefined ? Boolean(alertConfig.alertOnTimeout) : true;
+        alertConfigData.failureThreshold = typeof alertConfig.failureThreshold === 'number' ? alertConfig.failureThreshold : 1;
+        alertConfigData.recoveryThreshold = typeof alertConfig.recoveryThreshold === 'number' ? alertConfig.recoveryThreshold : 1;
+        alertConfigData.customMessage = typeof alertConfig.customMessage === 'string' ? alertConfig.customMessage : "";
+      }
+
+      setAlertConfig(alertConfigData);
+      setInitialAlertConfig(alertConfigData);
+
+
+      
+      // Reset form changed state after successful load
+      setFormChanged(false);
+      setApiKeysChanged(false);
     } catch (error) {
       console.error("Error loading job:", error);
       toast.error("Error", {
@@ -144,8 +220,8 @@ export default function EditJob({ jobId }: EditJobProps) {
     loadJob();
   }, [loadJob]);
 
-  // Handle form submission
-  const onSubmit = form.handleSubmit(async (values: FormData) => {
+  // Handle form submission for job details
+  const handleJobNext = form.handleSubmit(async () => {
     setSubmissionAttempted(true);
     
     try {
@@ -157,22 +233,69 @@ export default function EditJob({ jobId }: EditJobProps) {
         return;
       }
 
+      // Prepare job data for next step
+      setCurrentStep('alerts');
+    } catch (error) {
+      console.error("Error preparing job data:", error);
+      toast.error("Error", {
+        description: "Failed to prepare job data. Please try again.",
+      });
+    }
+  });
+
+  // Handle final submission with alerts
+  const handleFinalSubmit = async () => {
+    try {
+      // Validate alert configuration before proceeding
+      if (alertConfig.enabled) {
+        // Check if at least one notification provider is selected
+        if (!alertConfig.notificationProviders || alertConfig.notificationProviders.length === 0) {
+          toast.error("Validation Error", {
+            description: "At least one notification channel must be selected when alerts are enabled",
+          });
+          return;
+        }
+
+        // Check notification channel limit
+        const maxJobChannels = parseInt(process.env.NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS || '10', 10);
+        if (alertConfig.notificationProviders.length > maxJobChannels) {
+          toast.error("Validation Error", {
+            description: `You can only select up to ${maxJobChannels} notification channels`,
+          });
+          return;
+        }
+
+        // Check if at least one alert type is selected
+        const alertTypesSelected = [
+          alertConfig.alertOnFailure,
+          alertConfig.alertOnSuccess,
+          alertConfig.alertOnTimeout
+        ].some(Boolean);
+
+        if (!alertTypesSelected) {
+          toast.error("Validation Error", {
+            description: "At least one alert type must be selected when alerts are enabled",
+          });
+          return;
+        }
+      }
+
       setIsSubmitting(true);
 
-      // Prepare job data for submission
-      const jobData = {
-        id: jobId,
-        name: values.name.trim(),
-        description: values.description.trim(),
-        cronSchedule: values.cronSchedule?.trim() || "",
-        tests: selectedTests.map((test) => ({ id: test.id })),
+      const finalJobData = {
+        jobId: jobId,
+        name: watchedValues.name,
+        description: watchedValues.description,
+        tests: selectedTests.map(test => ({ id: test.id })),
+        cronSchedule: watchedValues.cronSchedule,
+        alertConfig: alertConfig,
       };
 
       // Submit the job data
-      const response = await updateJob(jobId, jobData);
+      const response = await updateJob(finalJobData);
 
       if (!response.success) {
-        throw new Error(response.error || "Failed to update job");
+        throw new Error(typeof response.error === 'string' ? response.error : "Failed to update job");
       }
 
       toast.success("Success", {
@@ -191,7 +314,7 @@ export default function EditJob({ jobId }: EditJobProps) {
     } finally {
       setIsSubmitting(false);
     }
-  });
+  };
 
   // Handle the selection of tests from the TestSelector component
   const handleTestsSelected = (tests: Test[]) => {
@@ -200,30 +323,43 @@ export default function EditJob({ jobId }: EditJobProps) {
 
   // Check if the form has changed
   useEffect(() => {
-    // Compare current form values with initial values
-    const currentName = watchedValues.name;
-    const currentDescription = watchedValues.description;
+    if (isLoading) return;
+
+    const currentName = watchedValues.name || "";
+    const currentDescription = watchedValues.description || "";
     const currentCronSchedule = watchedValues.cronSchedule || "";
-    
-    // Check if any form field has changed
-    const formFieldsChanged = 
+
+    const formFieldsChanged =
       currentName !== initialValues.name ||
       currentDescription !== initialValues.description ||
       currentCronSchedule !== initialValues.cronSchedule;
-    
-    // Compare selected tests with original tests
+
     const testsChanged = !(
       selectedTests.length === originalSelectedTests.length &&
-      selectedTests.every(test => 
+      selectedTests.every(test =>
         originalSelectedTests.some(origTest => origTest.id === test.id)
       ) &&
-      originalSelectedTests.every(origTest => 
+      originalSelectedTests.every(origTest =>
         selectedTests.some(test => test.id === origTest.id)
       )
     );
-    
-    setFormChanged(formFieldsChanged || testsChanged);
-  }, [watchedValues, initialValues, selectedTests, originalSelectedTests]);
+
+    const alertConfigChanged = (
+      initialAlertConfig.enabled !== alertConfig.enabled ||
+      JSON.stringify(initialAlertConfig.notificationProviders.sort()) !== JSON.stringify(alertConfig.notificationProviders.sort()) ||
+      initialAlertConfig.alertOnFailure !== alertConfig.alertOnFailure ||
+      initialAlertConfig.alertOnSuccess !== alertConfig.alertOnSuccess ||
+      initialAlertConfig.alertOnTimeout !== alertConfig.alertOnTimeout ||
+      initialAlertConfig.failureThreshold !== alertConfig.failureThreshold ||
+      initialAlertConfig.recoveryThreshold !== alertConfig.recoveryThreshold ||
+      (initialAlertConfig.customMessage || "") !== (alertConfig.customMessage || "")
+    );
+
+    const hasChanges = formFieldsChanged || testsChanged || alertConfigChanged || apiKeysChanged;
+    if (formChanged !== hasChanges) {
+      setFormChanged(hasChanges);
+    }
+  }, [watchedValues, selectedTests, originalSelectedTests, alertConfig, initialAlertConfig, initialValues, isLoading, formChanged, apiKeysChanged]);
 
   // Handle job deletion
   const handleDeleteJob = async () => {
@@ -262,15 +398,101 @@ export default function EditJob({ jobId }: EditJobProps) {
   };
 
   if (isLoading) {
+    return <EditJobSkeleton />;
+  }
+
+  // Step 2: Alert Settings
+  if (currentStep === 'alerts') {
     return (
-      <div className="flex items-center justify-center h-60">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Alert Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></CardTitle>
+            <CardDescription>
+              Configure alert notifications for this job
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <AlertSettings
+              value={alertConfig}
+              onChange={(config) => setAlertConfig({
+                enabled: config.enabled,
+                notificationProviders: config.notificationProviders,
+                alertOnFailure: config.alertOnFailure,
+                alertOnSuccess: config.alertOnSuccess || false,
+                alertOnTimeout: config.alertOnTimeout || false,
+                failureThreshold: config.failureThreshold,
+                recoveryThreshold: config.recoveryThreshold,
+                customMessage: config.customMessage || "",
+              })}
+              context="job"
+            />
+            <div className="flex justify-end space-x-4 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep('job')}
+                type="button"
+              >
+                Back
+              </Button>
+              <Button
+                onClick={() => setCurrentStep('cicd')}
+                type="button"
+              >
+                Next: CI/CD Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Step 3: CI/CD Settings
+  if (currentStep === 'cicd') {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>CI/CD Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span> <UrlTriggerTooltip jobId={jobId} /></CardTitle>
+            <CardDescription>
+              Configure API keys to trigger job remotely from your CI/CD pipelines
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <CicdSettings
+              jobId={jobId}
+              onChange={() => setApiKeysChanged(true)}
+            />
+            <div className="flex justify-end space-x-4 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep('alerts')}
+                type="button"
+              >
+                Back
+              </Button>
+              <Button
+                onClick={handleFinalSubmit}
+                disabled={isSubmitting || !formChanged}
+                className="flex items-center"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <SaveIcon className="mr-2 h-4 w-4" />
+                )}
+                {isSubmitting ? "Updating..." : "Update Job"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
           <div>
@@ -282,10 +504,11 @@ export default function EditJob({ jobId }: EditJobProps) {
           <div className="flex space-x-2">
             <Button
               type="button"
-              variant="destructive"
+              variant="outline"
               onClick={() => setShowDeleteDialog(true)}
               disabled={isSubmitting || isDeleting}
               size="sm"
+              className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
@@ -294,7 +517,7 @@ export default function EditJob({ jobId }: EditJobProps) {
         </CardHeader>
         <CardContent className="space-y-6">
           <Form {...form}>
-            <form onSubmit={onSubmit} className="space-y-6">
+            <form onSubmit={handleJobNext} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <FormField
@@ -349,8 +572,8 @@ export default function EditJob({ jobId }: EditJobProps) {
                     }) => (
                       <FormItem>
                         <FormLabel className="mb-6">
-                          Cron Schedule{" "}
-                          <span className="text-gray-500">(optional)</span>
+                          Cron Schedule (UTC){" "}
+                          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span>
                         </FormLabel>
                         <FormControl>
                           <CronScheduler 
@@ -358,9 +581,9 @@ export default function EditJob({ jobId }: EditJobProps) {
                             onChange={field.onChange}
                           />
                         </FormControl>
+                        <NextRunDisplay cronExpression={field.value} />
                         <p className="text-xs text-muted-foreground mt-4 flex items-center">
-                          <Info className="h-3 w-3 mr-1" />
-                          <span>Leave empty for manual execution.</span>
+                         <span>Leave empty for manual execution</span>
                         </p>
                         <FormMessage />
                       </FormItem>
@@ -378,20 +601,17 @@ export default function EditJob({ jobId }: EditJobProps) {
 
               <div className="flex justify-end space-x-4 mt-6">
                 <Button
-                  type="button"
                   variant="outline"
                   onClick={() => router.push("/jobs")}
-                  disabled={isSubmitting}
+                  type="button"
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="submit" 
-                  className="flex items-center"
-                  disabled={isSubmitting || !formChanged}
+                <Button
+                  type="submit"
+                  onClick={handleJobNext}
                 >
-                  <SaveIcon className="h-4 w-4 mr-2" />
-                  {isSubmitting ? "Updating..." : "Update"}
+                  Next: Alert Settings
                 </Button>
               </div>
             </form>
@@ -402,9 +622,11 @@ export default function EditJob({ jobId }: EditJobProps) {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Job</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete the job. This action cannot be undone.
+              <br /><br />
+              <strong>Note:</strong> All the runs related to this job will also be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

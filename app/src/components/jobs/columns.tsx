@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { CalendarIcon, TimerIcon, Loader2, Zap } from "lucide-react";
+import {  TimerIcon, Loader2, Zap, Clock } from "lucide-react";
 import { useRef, useCallback, useEffect } from "react";
 
 import type { Job } from "./schema";
@@ -10,12 +10,95 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useJobContext, JobStatusDisplay } from "./job-context";
 import { UUIDField } from "@/components/ui/uuid-field";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useState } from "react";
 
 // Type definition for the extended meta object used in this table
 interface JobsTableMeta {
   onDeleteJob?: (id: string) => void;
   globalFilterColumns?: string[];
   // Include other potential properties from the base TableMeta if needed
+}
+
+
+
+// Separate component for name with popover
+function NameWithPopover({ name }: { name: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // Check if text is likely to be truncated (rough estimate)
+  const isTruncated = name.length > 20; // Approximate character limit for 200px width
+  
+  if (!isTruncated) {
+    return (
+      <div className="flex space-x-2">
+        <span className="max-w-[160px] truncate">
+          {name}
+        </span>
+      </div>
+    );
+  }
+  
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div 
+          className="flex space-x-2 cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          <span className="max-w-[160px] truncate">
+            {name}
+          </span>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            {name}
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Separate component for description with popover
+function DescriptionWithPopover({ description }: { description: string | null }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const displayText = description || "No description provided";
+  const isTruncated = displayText.length > 30; // Approximate character limit
+
+  if (!isTruncated) {
+    return (
+      <div className="max-w-[200px] truncate">
+        {displayText}
+      </div>
+    );
+  }
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div
+          className="max-w-[160px] truncate cursor-pointer"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          {displayText}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
+        <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+          {displayText}
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 // Create a proper React component for the run button
@@ -83,13 +166,34 @@ function RunButton({ job }: { job: Job }) {
         body: JSON.stringify({
           jobId: job.id,
           tests: testData,
+          trigger: "manual", // Add trigger value
         }),
         cache: "no-store",
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to run job: ${response.status} ${errorText}`);
+        // Handle the error directly without throwing
+        let errorMessage = "Unknown error";
+        
+        if (response.status === 429) {
+          errorMessage = "Queue capacity limit reached. Please try again later.";
+        } else {
+          // Use the original error message but trim it to be more concise
+          errorMessage = errorText.replace("Failed to run job: ", "");
+          
+          // Limit the length of the error message
+          if (errorMessage.length > 100) {
+            errorMessage = errorMessage.substring(0, 100) + "...";
+          }
+        }
+        
+        toast.error("Error running job", {
+          description: errorMessage
+        });
+        
+        setJobRunning(false, job.id);
+        return; // Exit early without throwing
       }
 
       const data = await response.json();
@@ -108,23 +212,16 @@ function RunButton({ job }: { job: Job }) {
     } catch (error) {
       console.error("[RunButton] Error running job:", error);
       
-      // Get error message directly from the response if possible
-      let errorMessage = "Unknown error";
+      // This catch block now only handles network errors, parsing errors, etc.
+      // HTTP errors are handled above
+      let errorMessage = "Network error occurred while running the job.";
       
       if (error instanceof Error) {
-        const message = error.message;
+        errorMessage = error.message;
         
-        // Try to extract the more specific error message from the JSON string
-        if (message.includes('429')) {
-          errorMessage = "Queue capacity limit reached. Please try again later.";
-        } else {
-          // Use the original error message but trim it to be more concise
-          errorMessage = message.replace("Failed to run job: ", "");
-          
-          // Limit the length of the error message
-          if (errorMessage.length > 100) {
-            errorMessage = errorMessage.substring(0, 100) + "...";
-          }
+        // Limit the length of the error message
+        if (errorMessage.length > 100) {
+          errorMessage = errorMessage.substring(0, 100) + "...";
         }
       }
       
@@ -142,7 +239,7 @@ function RunButton({ job }: { job: Job }) {
       size="sm"
       variant="default"
       className={cn(
-        "bg-[hsl(221.2,83.2%,53.3%)] hover:bg-[hsl(221.2,83.2%,48%)]",
+        "bg-[hsl(212,83%,53%)] hover:bg-[hsl(212,83%,48%)] dark:bg-[hsl(221,83%,53%)] dark:hover:bg-[hsl(221,83%,48%)]",
         "text-white",
         "flex items-center justify-center",
         "h-7 px-1 rounded-md",
@@ -179,7 +276,7 @@ function RunButton({ job }: { job: Job }) {
 export const columns: ColumnDef<Job>[] = [
   {
     id: "run",
-    header: () => <div className="ml-2">Run</div>,
+    header: () => <div className="ml-2">Trigger</div>,
     cell: ({ row }) => {
       const job = row.original;
       return <RunButton job={job} />;
@@ -190,17 +287,21 @@ export const columns: ColumnDef<Job>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="ID" />
+      <DataTableColumnHeader column={column} title="Job ID" />
     ),
-    cell: ({ row }) => (
-      <div className="w-[120px] ml-2">
-        <UUIDField 
-          value={row.getValue("id")} 
-          maxLength={24} 
-          onCopy={() => toast.success("ID copied to clipboard")}
-        />
-      </div>
-    ),
+    cell: ({ row }) => {
+      const id = row.getValue("id") as string;
+      
+      return (
+        <div className="w-[90px]">
+          <UUIDField
+            value={id}
+            maxLength={24}
+            onCopy={() => toast.success("ID copied to clipboard")}
+          />
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: false,
   },
@@ -210,13 +311,9 @@ export const columns: ColumnDef<Job>[] = [
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => {
-      return (
-        <div className="flex space-x-2">
-          <span className="max-w-[200px] truncate">
-            {row.getValue("name")}
-          </span>
-        </div>
-      );
+      const name = row.getValue("name") as string;
+      
+      return <NameWithPopover name={name} />;
     },
   },
   {
@@ -226,9 +323,23 @@ export const columns: ColumnDef<Job>[] = [
     ),
     cell: ({ row }) => {
       const description = row.getValue("description") as string | null;
+      
+      return <DescriptionWithPopover description={description} />;
+    },
+  },
+  {
+    accessorKey: "cronSchedule",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Schedule" />
+    ),
+    cell: ({ row }) => {
+      const cronSchedule = row.getValue("cronSchedule") as string | null;
       return (
-        <div className="max-w-[200px] truncate">
-          {description || "No description provided"}
+        <div className="flex items-center max-w-[120px]">
+          <TimerIcon className={`${cronSchedule ? "text-sky-500" : "text-muted-foreground"} mr-2 h-4 w-4 flex-shrink-0`} />
+          <span className={`${cronSchedule ? "text-foreground" : "text-muted-foreground"} truncate`}>
+            {cronSchedule || "None"}
+          </span>
         </div>
       );
     },
@@ -249,21 +360,6 @@ export const columns: ColumnDef<Job>[] = [
     },
   },
   {
-    accessorKey: "cronSchedule",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Schedule" />
-    ),
-    cell: ({ row }) => {
-      const cronSchedule = row.getValue("cronSchedule") as string | null;
-      return (
-        <div className="flex items-center">
-          <TimerIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-          <span>{cronSchedule || "Not scheduled"}</span>
-        </div>
-      );
-    },
-  },
-  {
     accessorKey: "lastRunAt",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Last Run" />
@@ -274,19 +370,64 @@ export const columns: ColumnDef<Job>[] = [
         return <div className="text-muted-foreground">Never</div>;
       }
       return (
-        <div className="flex items-center">
-          <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-          <span>
-            {new Date(lastRunAt).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
+        <div className="flex flex-col">
+          <div className="flex items-center">
+            <Clock className="mr-2 h-4 w-4 text-muted-foreground self-center" />
+            <div className="flex items-center">
+              <span>
+                {new Date(lastRunAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            </div>
+            <span className="text-muted-foreground ml-1 text-xs">
+              {new Date(lastRunAt).toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "nextRunAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Next Run" />
+    ),
+    cell: ({ row }) => {
+      const nextRunAt = row.getValue("nextRunAt") as string | null;
+      const cronSchedule = row.getValue("cronSchedule") as string | null;
+      
+      if (!cronSchedule || !nextRunAt) {
+        return <div className="text-muted-foreground">Never</div>;
+      }
+      
+      return (
+        <div className="flex flex-col">
+          <div className="flex items-center">
+          <Clock className="mr-2 h-4 w-4 text-muted-foreground self-center" />
+          <div className="flex items-center">
+            <span>
+              {new Date(nextRunAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </span>
+          </div>
+            <span className="text-muted-foreground ml-1 text-xs">
+            {new Date(nextRunAt).toLocaleTimeString("en-US", {
               hour: "2-digit",
               minute: "2-digit",
             })}
           </span>
-        </div>
-      );
+          </div>
+          </div>
+        );
     },
   },
   {

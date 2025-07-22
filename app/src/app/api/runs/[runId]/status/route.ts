@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db/client";
-import { runs, reports, ReportType } from "@/db/schema";
+import { db } from "@/utils/db";
+import { runs, reports, ReportType } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 
-export async function GET(request: Request) {
-  // Extract runId from the URL path
-  const url = new URL(request.url);
-  const pathParts = url.pathname.split('/');
-  const runId = pathParts[pathParts.length - 2]; // Get the second-to-last segment (before "status")
+export async function GET(
+  request: Request, 
+  context: { params: Promise<{ runId: string }> }
+) {
+  const params = await context.params;
+  const runId = params.runId;
 
   if (!runId) {
     return NextResponse.json({ error: "Run ID is required" }, { status: 400 });
   }
 
   try {
-    const dbInstance = await db();
-    const runResult = await dbInstance.query.runs.findFirst({
+    const runResult = await db.query.runs.findFirst({
       where: eq(runs.id, runId),
     });
 
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     }
 
     // Fetch report details for this run
-    const reportResult = await dbInstance.query.reports.findFirst({
+    const reportResult = await db.query.reports.findFirst({
       where: and(
         eq(reports.entityId, runId),
         eq(reports.entityType, 'job' as ReportType)

@@ -8,7 +8,6 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 import { S3Service } from './s3.service';
 import { DbService } from './db.service';
-import { ValidationService } from './validation.service';
 import { RedisService } from './redis.service';
 import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema';
@@ -41,7 +40,7 @@ export function toCLIPath(inputPath: string): string {
 // Generates a temporary directory path for a given execution ID
 export function getTemporaryRunPath(runId: string): string {
   // Use os.tmpdir() for a system-appropriate temporary directory
-  const basePath = path.join(os.tmpdir(), 'supertest-runs');
+  const basePath = path.join(os.tmpdir(), 'supercheck-runs');
   return path.join(basePath, runId);
 }
 
@@ -128,6 +127,7 @@ interface PlaywrightExecutionResult {
 export class ExecutionService {
     private readonly logger = new Logger(ExecutionService.name);
     private readonly testExecutionTimeoutMs: number;
+    private readonly jobExecutionTimeoutMs: number;
     private readonly playwrightConfigPath: string;
     private readonly baseLocalRunDir: string;
 
@@ -135,10 +135,12 @@ export class ExecutionService {
         private configService: ConfigService,
         private s3Service: S3Service,
         private dbService: DbService,
-        private validationService: ValidationService,
         private redisService: RedisService,
     ) {
-        this.testExecutionTimeoutMs = this.configService.get<number>('TEST_EXECUTION_TIMEOUT_MS', 900000);
+        // Set timeouts: 2 minutes for tests, 15 minutes for jobs (as per user request)
+        this.testExecutionTimeoutMs = this.configService.get<number>('TEST_EXECUTION_TIMEOUT_MS', 120000); // 2 minutes
+        this.jobExecutionTimeoutMs = this.configService.get<number>('JOB_EXECUTION_TIMEOUT_MS', 900000); // 15 minutes
+        
         // Determine Playwright config path
         const configPath = path.join(process.cwd(), 'playwright.config.js');
         if (!existsSync(configPath)) {
@@ -148,7 +150,8 @@ export class ExecutionService {
         this.playwrightConfigPath = configPath;
 
         this.baseLocalRunDir = path.join(process.cwd(), 'playwright-reports');
-        this.logger.log(`Test execution timeout set to: ${this.testExecutionTimeoutMs}ms`);
+        this.logger.log(`Test execution timeout set to: ${this.testExecutionTimeoutMs}ms (${this.testExecutionTimeoutMs / 1000}s)`);
+        this.logger.log(`Job execution timeout set to: ${this.jobExecutionTimeoutMs}ms (${this.jobExecutionTimeoutMs / 1000}s)`);
         this.logger.log(`Base local run directory: ${this.baseLocalRunDir}`);
         this.logger.log(`Using Playwright config (relative): ${path.relative(process.cwd(), this.playwrightConfigPath)}`);
 
@@ -203,8 +206,8 @@ export class ExecutionService {
                 throw new Error(`Failed to prepare test: ${error.message}`);
             }
 
-            // 4. Execute the test script using the native Playwright runner
-            this.logger.log(`[${testId}] Executing test script...`);
+            // 4. Execute the test script using the native Playwright runner with timeout
+            this.logger.log(`[${testId}] Executing test script with ${this.testExecutionTimeoutMs}ms timeout...`);
             // Pass the directory path to the runner (the runner will find the .spec.js file inside)
             const execResult = await this._executePlaywrightNativeRunner(testDirPath, false);
 
@@ -429,7 +432,7 @@ export class ExecutionService {
      * Uses the native Playwright test runner and HTML reporter.
      */
     async runJob(task: JobExecutionTask): Promise<TestExecutionResult> {
-        const { runId, testScripts, originalJobId } = task;
+        const { runId, testScripts, originalJobId, trigger } = task;
         const entityType = 'job';
         this.logger.log(`[${runId}] Starting job execution with ${testScripts.length} tests.`);
 
@@ -490,7 +493,7 @@ export class ExecutionService {
             this.logger.log(`[${runId}] Prepared ${testScripts.length} individual test spec files.`);
 
             // 4. Execute ALL tests in the runDir using the native runner
-            this.logger.log(`[${runId}] Executing all test specs in directory via Playwright runner...`);
+            this.logger.log(`[${runId}] Executing all test specs in directory via Playwright runner (timeout: ${this.jobExecutionTimeoutMs}ms)...`);
             // Pass isJob=true so the helper knows to execute the directory
             const execResult = await this._executePlaywrightNativeRunner(runDir, true);
             overallSuccess = execResult.success;
@@ -721,7 +724,9 @@ export class ExecutionService {
                 // Standard location for Playwright HTML report
                 PLAYWRIGHT_HTML_REPORT: playwrightReportDir,
                 // Add timestamp to prevent caching issues
-                PLAYWRIGHT_TIMESTAMP: Date.now().toString()
+                PLAYWRIGHT_TIMESTAMP: Date.now().toString(),
+                // Set the default theme to dark for HTML reports
+                PLAYWRIGHT_HTML_REPORT_THEME: 'dark'
             };
             
             this.logger.debug(`Executing playwright with execution ID: ${executionId}`);
@@ -765,36 +770,37 @@ export class ExecutionService {
             this.logger.log(`Running Playwright directly with command: ${command} ${args.join(' ')} and env vars:`, envVars);
             
             // Execute the command with environment variables, ensuring correct CWD
-            const { success, stdout, stderr } = await this._executeCommand(command, args, {
+            const execResult = await this._executeCommand(command, args, {
                 env: { ...process.env, ...envVars }, 
                 cwd: serviceRoot, // Run playwright from service root
                 shell: isWindows, // Use shell on Windows for proper command execution
+                timeout: isJob ? this.jobExecutionTimeoutMs : this.testExecutionTimeoutMs, // Apply timeout
             });
             
             // Improve error reporting
             let extractedError: string | null = null;
-            if (!success) {
+            if (!execResult.success) {
                 // Prioritize stderr if it contains meaningful info, otherwise use stdout
-                if (stderr && stderr.trim().length > 0 && !stderr.toLowerCase().includes('deprecationwarning')) {
-                    extractedError = stderr.trim();
-                } else if (stdout) {
+                if (execResult.stderr && execResult.stderr.trim().length > 0 && !execResult.stderr.toLowerCase().includes('deprecationwarning')) {
+                    extractedError = execResult.stderr.trim();
+                } else if (execResult.stdout) {
                     // Look for common Playwright failure summaries in stdout
-                    const failureMatch = stdout.match(/(\d+ failed)/);
+                    const failureMatch = execResult.stdout.match(/(\d+ failed)/);
                     if (failureMatch) {
                          extractedError = `${failureMatch[1]} - Check report/logs for details.`;
                     } else {
-                        extractedError = 'Test execution failed. Check report/logs.'; // Fallback if stderr is empty/unhelpful
+                        extractedError = 'Script execution failed. Check report/logs.'; // Fallback if stderr is empty/unhelpful
                     }
                 } else {
-                     extractedError = 'Test execution failed with no error message.'; // Absolute fallback
+                    extractedError = 'Script execution failed with no error message.'; // Absolute fallback
                 }
             }
             
             return {
-                success,
+                success: execResult.success,
                 error: extractedError, // Use the extracted error message
-                stdout,
-                stderr
+                stdout: execResult.stdout,
+                stderr: execResult.stderr
             };
         } catch (error) {
             return {
@@ -807,7 +813,7 @@ export class ExecutionService {
     }
 
     /**
-     * Helper method to execute a command with proper error handling
+     * Helper method to execute a command with proper error handling and timeout
      */
     private async _executeCommand(
         command: string, 
@@ -816,6 +822,7 @@ export class ExecutionService {
             env?: Record<string, string | undefined>; 
             cwd?: string; 
             shell?: boolean;
+            timeout?: number; // Add timeout option
         } = {}
     ): Promise<{success: boolean, stdout: string, stderr: string}> {
         return new Promise((resolve) => {
@@ -829,6 +836,30 @@ export class ExecutionService {
                 let stdout = '';
                 let stderr = '';
                 const MAX_BUFFER = 10 * 1024 * 1024; // 10MB buffer limit
+                let resolved = false;
+                let timeoutHandle: NodeJS.Timeout | undefined;
+
+                // Set up timeout if specified
+                if (options.timeout && options.timeout > 0) {
+                    timeoutHandle = setTimeout(() => {
+                        if (!resolved) {
+                            resolved = true;
+                            this.logger.warn(`Command execution timed out after ${options.timeout}ms: ${command} ${args.join(' ')}`);
+                            childProcess.kill('SIGKILL');
+                            resolve({
+                                success: false,
+                                stdout: stdout + '\n[EXECUTION TIMEOUT]',
+                                stderr: stderr + `\n[ERROR] Execution timed out after ${options.timeout}ms`
+                            });
+                        }
+                    }, options.timeout);
+                }
+
+                const cleanup = () => {
+                    if (timeoutHandle) {
+                        clearTimeout(timeoutHandle);
+                    }
+                };
 
                 childProcess.stdout.on('data', (data) => {
                     const chunk = data.toString();
@@ -849,30 +880,38 @@ export class ExecutionService {
                     }
                     this.logger.debug(`STDERR: ${chunk.trim()}`);
                 });
-    
-                childProcess.on('error', (error) => {
-                    this.logger.error(`Command error: ${error.message}`, error.stack);
-                    resolve({
-                        success: false,
-                        stdout,
-                        stderr: `Command error: ${error.message}\n${error.stack || ''}`
-                    });
-                });
-    
+
                 childProcess.on('close', (code) => {
-                    this.logger.log(`Command exited with code: ${code}`);
-                    resolve({
-                        success: code === 0,
-                        stdout,
-                        stderr
-                    });
+                    if (!resolved) {
+                        resolved = true;
+                        cleanup();
+                        this.logger.debug(`Command completed with exit code: ${code}`);
+                        resolve({
+                            success: code === 0,
+                            stdout,
+                            stderr,
+                        });
+                    }
+                });
+
+                childProcess.on('error', (error) => {
+                    if (!resolved) {
+                        resolved = true;
+                        cleanup();
+                        this.logger.error(`Command execution failed: ${error.message}`);
+                        resolve({
+                            success: false,
+                            stdout,
+                            stderr: stderr + `\n[ERROR] ${error.message}`,
+                        });
+                    }
                 });
             } catch (error) {
-                this.logger.error(`Failed to execute command: ${error.message}`, error.stack);
+                this.logger.error(`Failed to spawn command: ${error instanceof Error ? error.message : String(error)}`);
                 resolve({
                     success: false,
                     stdout: '',
-                    stderr: `Command setup error: ${error.message}\n${error.stack || ''}`
+                    stderr: `Failed to spawn command: ${error instanceof Error ? error.message : String(error)}`,
                 });
             }
         });

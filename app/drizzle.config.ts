@@ -2,17 +2,17 @@ import "dotenv/config";
 import { defineConfig } from "drizzle-kit";
 
 // Log the database connection configuration for debugging
-const dbHost = process.env.DB_HOST || "postgres";
+const dbHost = process.env.DB_HOST || "localhost";
 const dbPort = parseInt(process.env.DB_PORT || "5432");
 const dbUser = process.env.DB_USER || "postgres";
-const dbPassword = process.env.DB_PASSWORD || "postgrespassword";
-const dbName = process.env.DB_NAME || "supertest";
+const dbPassword = process.env.DB_PASSWORD || "postgres";
+const dbName = process.env.DB_NAME || "supercheck";
 
 console.log(`Database connection config: ${dbHost}:${dbPort} as ${dbUser}`);
 
 export default defineConfig({
   out: "./src/db/migrations",
-  schema: "./src/db/schema.ts",
+  schema: ["./src/db/schema/schema.ts", "./src/db/schema/auth-schema.ts"],
   dialect: "postgresql",
   dbCredentials: {
     host: dbHost,

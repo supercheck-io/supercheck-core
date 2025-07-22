@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "../db/client";
-import { tests, jobTests } from "../db/schema";
+import { db } from "../utils/db";
+import { tests, jobTests } from "../db/schema/schema";
 import { eq, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -16,10 +16,8 @@ export async function deleteTest(testId: string) {
       };
     }
 
-    const dbInstance = await db();
-
     // Check if the test is associated with any jobs
-    const jobCountResult = await dbInstance
+    const jobCountResult = await db
       .select({ count: count() })
       .from(jobTests)
       .where(eq(jobTests.testId, testId));
@@ -36,7 +34,7 @@ export async function deleteTest(testId: string) {
     }
 
     // Delete the test if not associated with any jobs
-    const result = await dbInstance.delete(tests).where(eq(tests.id, testId)).returning();
+    const result = await db.delete(tests).where(eq(tests.id, testId)).returning();
 
     if (result.length === 0) {
       return {

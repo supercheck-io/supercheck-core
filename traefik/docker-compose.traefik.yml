@@ -1,0 +1,223 @@
+version: '3.8'
+
+networks:
+  traefik-public:
+    external: true
+  supercheck-network:
+    driver: bridge
+
+services:
+  # Traefik Reverse Proxy
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/acme.json:/acme.json
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - traefik-public
+      - supercheck-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$10$$8K1p/a0dL1LXMIgoEDFrwOfgqwAG6qYxR9V6JYfYHjqHjqHjqHjqH"  # admin:admin
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=your-email@example.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16.2
+    container_name: supercheck-postgres
+    environment:
+      - POSTGRES_DB=supercheck
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - supercheck-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7.2
+    container_name: supercheck-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - supercheck-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: supercheck-minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    networks:
+      - supercheck-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # App (Next.js Frontend) - Handles migrations internally
+  app:
+    image: ghcr.io/krish-kant/supercheck/app:latest
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=supercheck
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # App Configuration
+      - NEXT_PUBLIC_APP_URL=https://supercheck.localhost
+      - NODE_ENV=production
+      - RUNNING_CAPACITY=5
+      - QUEUED_CAPACITY=50
+      - TEST_EXECUTION_TIMEOUT_MS=900000
+      - TRACE_RECOVERY_INTERVAL_MS=300000
+      
+      # AWS S3 / MinIO Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://minio:9000
+      - S3_JOB_BUCKET_NAME=playwright-job-artifacts
+      - S3_FORCE_PATH_STYLE=true
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+      
+      # Scheduler Configuration
+      - DISABLE_JOB_SCHEDULER=false
+      - DISABLE_MONITOR_SCHEDULER=false
+    volumes:
+      - ./app/public/tests:/app/public/tests
+      - ./app/public/test-results:/app/public/test-results
+      - ./app/public/artifacts:/app/public/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - supercheck-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`supercheck.localhost`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.app-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.app.middlewares=app-headers"
+      - "traefik.http.middlewares.app-rate-limit.ratelimit.average=100"
+      - "traefik.http.middlewares.app-rate-limit.ratelimit.burst=200"
+      - "traefik.http.routers.app.middlewares=app-rate-limit"
+
+  # Worker (NestJS Runner) - 2 replicas
+  worker:
+    image: ghcr.io/krish-kant/supercheck/worker:latest
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=supercheck
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # App Configuration
+      - NEXT_PUBLIC_APP_URL=https://supercheck.localhost
+      - NODE_ENV=production
+      - RUNNING_CAPACITY=5
+      - QUEUED_CAPACITY=50
+      - TEST_EXECUTION_TIMEOUT_MS=900000
+      - TRACE_RECOVERY_INTERVAL_MS=300000
+      
+      # AWS S3 / MinIO Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://minio:9000
+      - S3_JOB_BUCKET_NAME=playwright-job-artifacts
+      - S3_FORCE_PATH_STYLE=true
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+      
+      # Scheduler Configuration
+      - DISABLE_JOB_SCHEDULER=false
+      - DISABLE_MONITOR_SCHEDULER=false
+    volumes:
+      - ./runner/playwright-reports:/app/playwright-reports
+      - ./runner/report:/app/report
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - supercheck-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data: 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/db/client';
-import { reports } from '@/db/schema';
+import { db } from '@/utils/db';
+import { reports } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
 import { Queue } from 'bullmq';
 import { TEST_EXECUTION_QUEUE } from '@/lib/queue';
@@ -18,9 +18,18 @@ const createSSEMessage = (data: Record<string, unknown>) => {
  */
 const getRedisConnection = async (): Promise<Redis> => {
   console.log(`Creating Redis connection for SSE endpoint`);
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
   
-  const redis = new Redis(redisUrl, {
+  // Read directly from process.env (same as main queue system)
+  const host = process.env.REDIS_HOST || 'localhost';
+  const port = parseInt(process.env.REDIS_PORT || '6379');
+  const password = process.env.REDIS_PASSWORD;
+  
+  console.log(`[SSE Redis Client] Connecting to Redis at ${host}:${port}`);
+  
+  const redis = new Redis({
+    host,
+    port,
+    password: password || undefined,
     maxRetriesPerRequest: null, // Required for BullMQ
     enableReadyCheck: false,    // Speed up connection
   });
@@ -45,7 +54,6 @@ export async function GET(request: Request) {
     async start(controller) {
       try {
         // Check if we already have a result for this test
-        const db = await getDb();
         
         // Get the specific report by test ID
         const report = await db.query.reports.findFirst({

@@ -23,15 +23,31 @@ export function UUIDField({
       ? `${value.substring(0, maxLength)}...`
       : value;
 
-  return (
-    <div
-      className={cn(
-        "group relative inline-flex items-center w-full",
-        className
-      )}
-    >
-      <span className="truncate pr-0">{displayValue}</span>
-      <CopyButton value={value} onCopy={onCopy} className="ml-1" />
-    </div>
+  const isTruncated = maxLength && value.length > maxLength;
+
+  if (!isTruncated) {
+    return (
+      <div
+        className={cn(
+          "group relative inline-flex items-center w-full",
+          className
+        )}
+      >
+        <code className="font-mono text-xs bg-muted/60 dark:bg-muted px-1.5 p-1 rounded pr-1 truncate ">{displayValue}</code>
+        <CopyButton value={value} onCopy={onCopy} className="ml-1" />
+      </div>
+    );
+  }
+
+  return (    
+          <div
+            className={cn(
+              "group relative inline-flex items-center w-full",
+              className
+            )}
+          >
+            <code className="font-mono text-xs bg-muted/60 dark:bg-muted px-2 p-1 rounded-sm pr-1 truncate ">{displayValue}</code>
+            <CopyButton value={value} onCopy={onCopy} className="ml-1" />
+          </div>   
   );
 }

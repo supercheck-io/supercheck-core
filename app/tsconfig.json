@@ -1,4 +1,6 @@
 {
+  // Note: Node.js types are available via @types/node in devDependencies
+  // The IDE may show an error but TypeScript compilation works correctly
   "compilerOptions": {
     "target": "ES2017",
     "lib": [
@@ -8,6 +10,7 @@
     ],
     "allowJs": true,
     "skipLibCheck": true,
+    "typeRoots": ["./node_modules/@types"],
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,

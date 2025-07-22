@@ -1,24 +1,59 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RunResponse } from "@/actions/get-runs";
-import { Badge } from "@/components/ui/badge";
-import { UUIDField } from "@/components/ui/uuid-field";
-import { runStatuses } from "./data";
+import { runStatuses, triggerTypes } from "./data";
 import { toast } from "sonner";
 import { ReportViewer } from "@/components/shared/report-viewer";
 import { formatDistanceToNow } from "date-fns";
-import { CalendarIcon, ClockIcon } from "lucide-react";
+import { 
+  ClockIcon, 
+  ChevronLeft,
+  CalendarClock,
+  Copy,
+  Calendar,
+  Trash2,
+  Code2,
+  CalendarDays
+} from "lucide-react";
 import { RunStatusListener } from "./run-status-listener";
-import { TestRunStatus } from "@/db/schema";
+import { TestRunStatus } from "@/db/schema/schema";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-interface RunDetailsProps {
-  run: RunResponse;
-}
+// Type based on the actual API response from /api/runs/[runId]
+type RunResponse = {
+  id: string;
+  jobId: string;
+  jobName?: string;
+  status: string;
+  duration?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  logs?: string | null;
+  errorDetails?: string | null;
+  reportUrl?: string | null;
+  timestamp?: string;
+  testCount?: number;
+  trigger?: string;
+};
 
-export function RunDetails({ run }: RunDetailsProps) {
+export function RunDetails({ run }: { run: RunResponse }) {
+  const router = useRouter();
   const [reportUrl, setReportUrl] = useState('');
   const [duration, setDuration] = useState<string | undefined>(run.duration || undefined);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Helper to validate status is one of the allowed values
   const mapStatusForDisplay = (status: string): TestRunStatus => {
@@ -90,20 +125,7 @@ export function RunDetails({ run }: RunDetailsProps) {
     return durationStr;
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusInfo = runStatuses.find((s) => s.value === status);
-    if (!statusInfo) return null;
-
-    return (
-      <Badge
-        variant="outline"
-        className={`${statusInfo.color} text-[16px] font-medium px-2 py-1`}
-      >
-        {statusInfo.icon && <statusInfo.icon className="mr-1 h-3 w-3" />}
-        {statusInfo.label}
-      </Badge>
-    );
-  };
+ 
 
   // Handle status updates from SSE
   const handleStatusUpdate = (status: string, newReportUrl?: string, newDuration?: string) => {
@@ -127,8 +149,45 @@ export function RunDetails({ run }: RunDetailsProps) {
     }
   };
 
+  const statusInfo = runStatuses.find((s) => s.value === currentStatus);
+  
+  const handleDeleteRun = async () => {
+    setIsDeleting(true);
+    try {
+      // Use a simpler direct DELETE request to the [id] route
+      const response = await fetch(`/api/runs/${encodeURIComponent(run.id)}`, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Failed to delete run (status ${response.status})`);
+      }
+      
+      toast.success('Run deleted successfully');
+      
+      // Close dialog first
+      setShowDeleteDialog(false);
+      
+      // Use router for navigation without full page refresh
+      router.push('/runs');
+    } catch (error) {
+      console.error('Error deleting run:', error);
+      toast.error('Failed to delete run', {
+        description: error instanceof Error ? error.message : 'An unknown error occurred'
+      });
+      setShowDeleteDialog(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
-    <div className="container mx-auto space-y-4 p-4">
+    <div className=" py-4 px-4 h-full overflow-hidden">
       {/* Status listener for real-time updates */}
       <RunStatusListener 
         runId={run.id} 
@@ -136,74 +195,181 @@ export function RunDetails({ run }: RunDetailsProps) {
         onStatusUpdate={handleStatusUpdate}
       />
       
-      <div className="bg-card rounded-lg border overflow-hidden">
-        <div className="p-6">
-          {/* Flex container for heading and details */}
-          <div className="flex items-start justify-between"> 
-            {/* Left side: Heading and time */}
-            <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                Job Run Details
-                {getStatusBadge(currentStatus)}
+      {/* Main header similar to monitor details */}
+      <div className="border rounded-lg p-4 mb-4 shadow-sm bg-card ">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="icon"
+              className="h-7 w-7"
+              asChild
+            >
+              <Link href="/runs">
+                <ChevronLeft className="h-3.5 w-3.5" />
+                <span className="sr-only">Back to runs</span>
+              </Link>
+            </Button>
+            <div>
+              <h1 className="text-2xl font-semibold flex items-center gap-2">
+                {run.jobName && run.jobName.length > 40 ? run.jobName.slice(0, 40) + "..." : run.jobName || "Unknown Job"}
               </h1>
-              <div className="flex gap-3">
-                <div className="text-sm text-muted-foreground flex items-center gap-1 ml-1">
-                  <CalendarIcon className="h-3 w-3" />
-                  <span>
-                    {(run.startedAt || run.timestamp)
-                      ? formatDistanceToNow(new Date(run.startedAt || run.timestamp || ''), {
-                          addSuffix: true,
-                        })
-                      : "Unknown time"}
-                  </span>
-                </div>
-                {duration && (
-                  <div className="text-sm text-muted-foreground flex items-center gap-1 ml-1">
-                    <ClockIcon className="h-3 w-3" />
-                    <span>{formatDuration(duration)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right side: Run ID and Job Details */}
-            <div className="flex flex-row gap-6">
-              <div>
-                <span className="text-xs font-medium text-muted-foreground block">Run ID</span>
-                <UUIDField 
-                  value={run.id} 
-                  className="text-sm font-medium font-mono"
-                  onCopy={() => toast.success("Run ID copied to clipboard")}
-                />
-              </div>
               
-              <div>
-                <span className="text-xs font-medium text-muted-foreground block">Job</span>
-                <div className="font-medium max-w-[300px] truncate overflow-hidden text-ellipsis whitespace-nowrap">{run.jobName || "Unknown Job"}</div>
-                <UUIDField 
-                  value={run.jobId} 
-                  className="text-xs text-muted-foreground font-mono"
-                  onCopy={() => toast.success("Job ID copied to clipboard")}
-                />
-              </div>
             </div>
-          </div> {/* End of flex container */}
+          </div>
+          <Button 
+            variant="outline"
+            size="sm"
+            className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+          
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete
+          </Button>
         </div>
 
-        {/* Use the shared ReportViewer component */}
-        <div className="w-full border-t">
+        {/* Status cards - similar to monitor details but with appropriate content */}
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2 mt-2">
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
+            {statusInfo && (
+              <statusInfo.icon className={`h-6 w-6 min-w-6 mr-2 ${statusInfo.color}`} />
+            )}
+            <div className="min-w-0 w-full">
+              <div className="text-xs font-medium text-muted-foreground">Status</div>
+              <div className="text-sm font-semibold truncate">{statusInfo?.label || 'Unknown'}</div>
+            </div>
+          </div>
+
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
+            {(() => {
+              const triggerType = triggerTypes.find((t) => t.value === run.trigger);
+              const Icon = triggerType?.icon || Code2;
+              const color = triggerType?.color || "text-gray-500";
+              const label = triggerType?.label || "Unknown";
+              
+              return (
+                <>
+                  <Icon className={`h-6 w-6 min-w-6 mr-2 ${color}`} />
+                  <div className="min-w-0 w-full">
+                    <div className="text-xs font-medium text-muted-foreground">Trigger</div>
+                    <div className="text-sm font-semibold truncate">{label}</div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
+            <Code2 className="h-6 w-6 min-w-6 mr-2 text-blue-500" />
+            <div className="min-w-0 w-full">
+              <div className="text-xs font-medium text-muted-foreground">Tests Executed</div>
+              <div className="text-sm font-semibold truncate">
+                {run.testCount}
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
+            <ClockIcon className="h-6 w-6 min-w-6 mr-2 text-orange-400" />
+            <div className="min-w-0 w-full">
+              <div className="text-xs font-medium text-muted-foreground">Duration</div>
+              <div className="text-sm font-semibold truncate">{formatDuration(duration)}</div>
+            </div>
+          </div>
+   
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
+            <CalendarDays className="h-6 w-6 min-w-6 mr-2 text-purple-500" />
+            <div className="min-w-0 w-full">
+              <div className="text-xs font-medium text-muted-foreground">Completed</div>
+              <div className="text-sm font-semibold truncate">
+                {run.completedAt ? 
+                  formatDistanceToNow(new Date(run.completedAt), { addSuffix: true }) : 
+                  currentStatus === "running" ? "In Progress" : "Unknown"}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
+            <Calendar className="h-6 w-6 min-w-6 mr-2 text-amber-400" />
+            <div className="min-w-0 w-full">
+              <div className="text-xs font-medium text-muted-foreground">Run Date</div>
+              <div className="text-sm font-semibold truncate">
+                {run.startedAt ? new Date(run.startedAt).toLocaleString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                }) : "Unknown"}
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
+            <CalendarClock className="h-6 w-6 min-w-6 mr-2 text-sky-400" />
+            <div className="min-w-0 w-full">
+              <div className="flex justify-between items-center">
+                <div className="text-xs font-medium text-muted-foreground">Job ID</div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-5 w-5 p-0 ml-1"
+                  onClick={() => {
+                    navigator.clipboard.writeText(run.jobId);
+                    toast.success("Job ID copied");
+                  }}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="text-sm font-semibold truncate">{run.jobId}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Report viewer */}
+      <div className="bg-card rounded-lg border overflow-hidden">
+        <div className="w-full h-full">
           <ReportViewer
             reportUrl={reportUrl}
             isRunning={currentStatus === "running"}
             backToLabel="Back to Runs"
             backToUrl="/runs"
-            containerClassName="w-full h-[calc(100vh-220px)] relative"
-            iframeClassName="w-full h-full border-0"
+            containerClassName="w-full h-[calc(100vh-270px)] relative"
+            iframeClassName="w-full h-full border-0 rounded-lg"
             darkMode={false}
             hideEmptyMessage={true}
           />
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Run</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the run. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteRun();
+              }}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

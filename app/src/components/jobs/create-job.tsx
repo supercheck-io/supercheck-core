@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Test } from "./schema";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,9 @@ import {
 } from "@/components/form";
 import { ControllerRenderProps } from "react-hook-form";
 import TestSelector from "./test-selector";
-import CronScheduler from "./CronScheduler";
-import { Info } from "lucide-react";
+import CronScheduler from "./cron-scheduler";
+import { Loader2 } from "lucide-react";
+import NextRunDisplay from "./next-run-display";
 
 const jobFormSchema = z.object({
   name: z.string().min(1, "Job name is required"),
@@ -40,102 +41,84 @@ const jobFormSchema = z.object({
 
 type FormData = z.infer<typeof jobFormSchema>;
 
-export default function CreateJob() {
+interface CreateJobProps {
+  hideAlerts?: boolean;
+  onSave?: (data: Record<string, unknown>) => void;
+  onCancel?: () => void;
+  initialValues?: {
+    name?: string;
+    description?: string;
+    cronSchedule?: string;
+  };
+  selectedTests?: Test[];
+  setSelectedTests?: (tests: Test[]) => void;
+}
+
+export function CreateJob({ 
+  hideAlerts = false, 
+  onSave, 
+  onCancel, 
+  initialValues = {}, 
+  selectedTests = [], // Default to empty array
+  setSelectedTests 
+}: CreateJobProps) {
   const router = useRouter();
-  const [selectedTests, setSelectedTests] = useState<Test[]>([]);
-  const [submissionAttempted, setSubmissionAttempted] = useState(false);
-  const [formChanged, setFormChanged] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(jobFormSchema),
     defaultValues: {
-      name: "",
-      description: "",
-      cronSchedule: "",
+      name: initialValues.name || "",
+      description: initialValues.description || "",
+      cronSchedule: initialValues.cronSchedule || "",
     },
   });
-  
-  // Watch form values for changes
-  const watchedValues = form.watch();
 
   // Handle form submission
   const onSubmit = form.handleSubmit(async (values: FormData) => {
-    setSubmissionAttempted(true);
-
-    // Ensure cronSchedule is a valid cron string or empty, default to '*' if empty but intended
-    // react-js-cron defaults to '*' when initialized empty, let's reflect that maybe?
-    // Or ensure it's explicitly empty string if user clears it.
-    // For now, we trim and use empty string if cleared.
-    const cronValue = values.cronSchedule?.trim() || ""; 
-
+    setIsSubmitting(true);
     try {
-      // Validate that at least one test is selected
-      if (selectedTests.length === 0) {
-        toast.error("Validation Error", {
-          description: "Please select at least one test for the job",
-        });
-        return;
-      }
-
-      // Create job data object
       const jobData = {
         name: values.name.trim(),
         description: values.description.trim(),
-        cronSchedule: cronValue, // Use the processed cron value
-        tests: selectedTests.map((test) => ({ id: test.id })),
+        cronSchedule: values.cronSchedule?.trim() || "",
+        tests: Array.isArray(selectedTests) ? selectedTests : [], // Ensure array
       };
 
-      console.log("Submitting job data:", jobData);
+      if (onSave) {
+        onSave(jobData);
+        return;
+      }
 
-      // Save the job to the database
       const response = await createJob(jobData);
-
       if (response.success) {
         toast.success("Success", {
           description: `Job \"${jobData.name}\" has been created.`,
         });
-
-        // Navigate to the jobs page
         router.push("/jobs");
       } else {
         console.error("Failed to create job:", response.error);
         toast.error("Failed to create job", {
-          description: response.error || "An unknown error occurred",
+          description: typeof response.error === 'string' ? response.error : "An unknown error occurred",
         });
       }
     } catch (error) {
       console.error("Error creating job:", error);
       toast.error("Error", {
-        description:
-          error instanceof Error ? error.message : "An unknown error occurred",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   });
 
-  // Handle the selection of tests from the TestSelector component
-  const handleTestsSelected = (tests: Test[]) => {
-    setSelectedTests(tests);
-  };
-
-  // Track form changes
-  useEffect(() => {
-    // Check if form fields have values
-    const formHasValues = 
-      (watchedValues.name && watchedValues.name.trim() !== "") || 
-      (watchedValues.description && watchedValues.description.trim() !== "") || 
-      (watchedValues.cronSchedule && watchedValues.cronSchedule.trim() !== "");
-    
-    // Form is considered changed if either fields have values or tests are selected
-    setFormChanged(formHasValues || selectedTests.length > 0);
-  }, [watchedValues, selectedTests]);
-
   return (
-    <div className="space-y-4 p-8">
+    <div className="space-y-4 p-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
           <div>
             <CardTitle>Create New Job</CardTitle>
-            <CardDescription className="mt-2">Configure a new automated job</CardDescription>
+            <CardDescription className="mt-2">Configure a new automated or manual job</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -194,8 +177,8 @@ export default function CreateJob() {
                     }) => (
                       <FormItem>
                         <FormLabel className="mb-6">
-                          Cron Schedule{" "}
-                          <span className="text-gray-500">(optional)</span>
+                          Cron Schedule (UTC){" "}
+                          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span>
                         </FormLabel>
                         <FormControl>
                           <CronScheduler 
@@ -203,9 +186,9 @@ export default function CreateJob() {
                             onChange={field.onChange}
                           />
                         </FormControl>
+                        <NextRunDisplay cronExpression={field.value} />
                         <p className="text-xs text-muted-foreground mt-4 flex items-center">
-                          <Info className="h-3 w-3 mr-1" />
-                          <span>Leave empty for manual execution.</span>
+                         <span>Leave empty for manual execution</span>
                         </p>
                         <FormMessage />
                       </FormItem>
@@ -214,29 +197,37 @@ export default function CreateJob() {
                 </div>
               </div>
 
-              {/* Use the TestSelector component */}
+              {/* Test Selector - now guaranteed to receive an array */}
               <TestSelector
                 selectedTests={selectedTests}
-                onTestsSelected={handleTestsSelected}
-                emptyStateMessage="No tests selected"
-                required={submissionAttempted && selectedTests.length === 0}
+                onTestsSelected={setSelectedTests || (() => {})}
+                buttonLabel="Select Tests"
+                required={true}
               />
 
               <div className="flex justify-end space-x-4 mt-6">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => router.push("/jobs")}
+                  onClick={() => {
+                    if (onCancel) onCancel();
+                    else router.push("/jobs");
+                  }}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button 
                   type="submit" 
                   className="flex items-center"
-                  disabled={!formChanged}
+                  disabled={isSubmitting || (hideAlerts && selectedTests.length === 0)}
                 >
-                  <SaveIcon className="h-4 w-4 mr-2" />
-                  Create
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <SaveIcon className="h-4 w-4 mr-2" />
+                  )}
+                  {isSubmitting ? "Processing..." : "Next: Alert Settings"}
                 </Button>
               </div>
             </form>
@@ -246,3 +237,6 @@ export default function CreateJob() {
     </div>
   );
 }
+
+// Default export for backward compatibility
+export default CreateJob;
