@@ -1,6 +1,6 @@
-# Supertest Deployment Guide
+# Deployment and Migration Guide
 
-This guide explains how to deploy the Supertest monitoring and testing platform using Docker Compose with published images from GitHub Container Registry.
+This guide explains how to deploy the Supertest monitoring and testing platform using Docker Compose with published images from GitHub Container Registry, including database migration setup.
 
 ## 🚀 Quick Start
 
@@ -72,6 +72,74 @@ docker-compose logs -f worker
 - **Ports**: 9000 (API), 9001 (Console)
 - **Purpose**: S3-compatible storage for test artifacts
 - **Credentials**: minioadmin/minioadmin
+
+## 🗄️ Database Migration Setup
+
+### Architecture
+
+The migration setup follows the best practice of separating migration concerns from application concerns:
+
+1. **Migration Service**: A dedicated container that runs migrations using DrizzleKit
+2. **App Service**: The Next.js application that starts after migrations complete
+3. **Worker Service**: The NestJS worker that starts after migrations complete
+
+### Flow
+
+```
+PostgreSQL → Migration Service → App + Worker Services
+```
+
+1. PostgreSQL starts and becomes healthy
+2. Migration service runs and applies all pending migrations
+3. App and Worker services start only after migrations complete successfully
+
+### Files
+
+- `Dockerfile.migrate`: Dedicated migration container with only necessary dependencies
+- `app/scripts/migrate.sh`: Migration script that handles database setup and migration application
+- `docker-compose.yml`: Updated to include migration service with proper dependencies
+- `.github/workflows/docker-build.yml`: GitHub Actions workflow for building and pushing images
+
+### Images
+
+- `ghcr.io/krish-kant/supercheck/migrate:latest`: Migration service image
+- `ghcr.io/krish-kant/supercheck/app:latest`: Application image
+- `ghcr.io/krish-kant/supercheck/worker:latest`: Worker image
+
+### Benefits
+
+✅ **Separation of Concerns**: Migration logic is isolated from application logic
+✅ **Reliable Startup**: Apps only start after migrations complete successfully  
+✅ **Lightweight Images**: App containers don't include dev dependencies
+✅ **Better Error Handling**: Migration failures are clearly separated from app failures
+✅ **Production Ready**: Follows Docker Compose best practices
+✅ **Multi-Architecture Support**: Images built for both AMD64 and ARM64 platforms
+
+### Usage
+
+#### Start the full stack with migrations:
+```bash
+docker-compose up --build
+```
+
+#### Run only migrations:
+```bash
+docker-compose up migration
+```
+
+#### Test migration setup:
+```bash
+./test-migration-setup.sh
+```
+
+### Migration Script Features
+
+- ✅ Waits for database to be ready
+- ✅ Creates database if it doesn't exist
+- ✅ Applies migrations in order
+- ✅ Verifies all required tables exist
+- ✅ Comprehensive error handling and retry logic
+- ✅ Detailed logging for debugging
 
 ## 🔧 Configuration
 
@@ -230,7 +298,7 @@ Create a GitHub Actions workflow to automatically build and publish images:
    git push origin main
    ```
 
-2. **Trigger the workflow**:
+4. **Trigger the workflow**:
    ```bash
    # Push to main branch to trigger build
    git push origin main
@@ -426,6 +494,23 @@ docker-compose exec postgres pg_dump -U postgres supertest > backup.sql
 # Restore PostgreSQL
 docker-compose exec -T postgres psql -U postgres supertest < backup.sql
 ```
+
+### Migration Troubleshooting
+
+#### Migration fails
+Check the migration service logs:
+```bash
+docker-compose logs migration
+```
+
+#### Database connection issues
+Verify PostgreSQL is running and healthy:
+```bash
+docker-compose logs postgres
+```
+
+#### Migration script issues
+The migration script includes comprehensive error handling and retry logic. Check the script logs for detailed error messages.
 
 ## 🛠️ Development Setup
 
@@ -817,192 +902,31 @@ docker service scale supertest_worker=5
    docker login ghcr.io -u $GITHUB_USERNAME
    ```
 
-2. **Services not starting**
+4. **Services not starting**
    ```bash
    docker-compose down
    docker-compose up -d
    ```
 
-3. **Database connection issues**
+5. **Database connection issues**
    ```bash
    docker-compose exec postgres pg_isready -U postgres
    ```
 
-4. **Redis connection issues**
+6. **Redis connection issues**
    ```bash
    docker-compose exec redis redis-cli ping
    ```
 
-5. **MinIO not accessible**
+7. **MinIO not accessible**
    ```bash
    docker-compose exec minio mc ready local
    ```
 
-6. **Worker not processing jobs**
+8. **Worker not processing jobs**
    ```bash
    docker-compose logs worker
    docker-compose exec worker npm run start:prod
-   ```
-
-7. **Docker build fails with npm dependency conflicts**
-   ```bash
-   # Check if the issue is resolved in the Dockerfile
-   # The Dockerfile now uses --legacy-peer-deps flag
-   
-   # If still having issues, try building with force flag
-   docker build --no-cache -t supertest-app:latest .
-   
-   # Or try building with different npm flags
-   # Edit Dockerfile to use: RUN npm install --legacy-peer-deps
-   ```
-
-8. **Docker build fails with "npm ci" error**
-   ```bash
-   # The error: "npm ci can only install with an existing package-lock.json"
-   # Solution: Use npm install instead of npm ci
-   # The Dockerfile has been updated to use: RUN npm install --legacy-peer-deps --force
-   
-   # If you prefer npm ci, ensure package-lock.json exists:
-   npm install
-   git add package-lock.json
-   git commit -m "Add package-lock.json"
-   ```
-
-9. **Docker build fails with "Override conflicts with direct dependency"**
-   ```bash
-   # The error: "Override for typescript@^5 conflicts with direct dependency"
-   # Solution: Remove conflicting overrides from package.json
-   # Keep only necessary overrides for React types
-   
-   # Update package.json overrides to:
-   # "overrides": {
-   #   "@types/react": "19.1.2",
-   #   "@types/react-dom": "19.1.2"
-   # }
-   ```
-
-10. **TypeScript version conflicts**
-   ```bash
-   # Check package.json overrides section
-   # Ensure TypeScript version is compatible with all dependencies
-   
-   # Update package.json overrides if needed:
-   # "overrides": {
-   #   "typescript": "5.7.3",
-   #   "react": "19.1.0",
-   #   "react-dom": "19.1.0"
-   # }
-   ```
-
-11. **Docker build fails with ".next/standalone not found"**
-   ```bash
-   # The error: "/app/.next/standalone": not found
-   # Solution: Add output: 'standalone' to next.config.ts
-   
-   # Update next.config.ts:
-   # const nextConfig: NextConfig = {
-   #   output: 'standalone',
-   #   // ... other config
-   # };
-   ```
-
-12. **Worker build fails with Node.js version issues**
-   ```bash
-   # The error: "Unsupported engine" for Node.js 18
-   # Solution: Update Dockerfile to use Node.js 20
-   
-   # Update runner/Dockerfile:
-   # FROM node:20-alpine AS deps
-   # FROM node:20-alpine AS runner
-   # RUN npm install --legacy-peer-deps --force
-   ```
-
-13. **Worker build fails with Playwright installation**
-   ```bash
-   # The error: "apt-get: not found" on Alpine Linux
-   # Solution: Install system dependencies first and use chromium only
-   
-   # Update runner/Dockerfile:
-   # RUN apk add --no-cache chromium nss freetype ... (all dependencies)
-   # RUN npx playwright install chromium
-   ```
-
-14. **Worker build fails with user creation**
-   ```bash
-   # The error: "passwd: password for nodejs is unchanged" (interactive prompt)
-   # Solution: Use -D flag to create user without password
-   
-   # Update runner/Dockerfile:
-   # RUN adduser -D -u 1001 -G nodejs -s /bin/bash nodejs
-   ```
-
-15. **Job execution "fetch failed" errors**
-   ```bash
-   # The error: "Failed to queue job execution: fetch failed"
-   # Solution: Set NEXT_PUBLIC_APP_URL to correct internal container address
-   
-   # Update container environment:
-   # -e NEXT_PUBLIC_APP_URL=http://supertest-app:3000
-   
-   # Ensure all containers are on the same Docker network
-   # docker network create supertest-network
-   # docker network connect supertest-network supertest-app
-   ```
-
-16. **Redis connection issues**
-   ```bash
-   # The error: "connect ECONNREFUSED 127.0.0.1:6379"
-   # Solution: Use REDIS_HOST and REDIS_PORT instead of REDIS_URL
-   
-   # Update container environment:
-   # -e REDIS_HOST=supertest-redis
-   # -e REDIS_PORT=6379
-   
-   # Check Redis container status:
-   # docker ps | grep redis
-   
-   # Verify network connectivity:
-   # docker network inspect supertest-network
-   ```
-
-17. **Worker jobs not processing**
-   ```bash
-   # The error: Worker not processing jobs, Redis connection errors
-   # Solution: Update worker container with correct Redis configuration
-   
-   # Stop and restart worker with correct environment:
-   # docker stop supertest-worker && docker rm supertest-worker
-   # docker run -d --name supertest-worker --network supertest-network \
-   #   -e DATABASE_URL=postgresql://postgres:postgres@postgres-supercheck:5432/supercheck \
-   #   -e REDIS_HOST=supertest-redis \
-   #   -e REDIS_PORT=6379 \
-   #   supertest-worker:latest
-   
-   # Check worker logs:
-   # docker logs supertest-worker | grep -E "(Processor|Job|Redis)"
-   ```
-
-18. **Playwright browser installation errors**
-   ```bash
-   # The error: "error while loading shared libraries: libglib-2.0.so.0"
-   # Solution: Install system dependencies in the final Docker stage
-   
-   # Update runner/Dockerfile to install dependencies in runner stage:
-   # RUN apt-get update && apt-get install -y \
-   #     libglib2.0-0 libnss3 libnspr4 libatk1.0-0 \
-   #     libatk-bridge2.0-0 libcups2 libdrm2 libdbus-1-3 \
-   #     libxcb1 libxkbcommon0 libx11-6 libxcomposite1 \
-   #     libxdamage1 libxext6 libxfixes3 libxrandr2 \
-   #     libgbm1 libpango-1.0-0 libcairo2 libasound2 \
-   #     libatspi2.0-0 libgtk-3-0 libgdk-pixbuf2.0-0 \
-   #     libxss1 libxshmfence1
-   
-   # Use Debian-based image (node:20-slim) instead of Alpine
-   # FROM node:20-slim AS deps
-   # FROM node:20-slim AS runner
-   
-   # Check browser installation:
-   # docker exec supertest-worker ldd /app/playwright-browsers/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell
    ```
 
 ### Log Analysis
@@ -1024,4 +948,5 @@ docker stats
 - [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [Redis Documentation](https://redis.io/documentation)
-- [MinIO Documentation](https://docs.min.io/) 
+- [MinIO Documentation](https://docs.min.io/)
+- [DrizzleKit Documentation](https://orm.drizzle.team/kit-docs/) 

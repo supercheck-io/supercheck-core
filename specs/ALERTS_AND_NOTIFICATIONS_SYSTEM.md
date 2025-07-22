@@ -1,13 +1,28 @@
-# Alerts and Notifications System Breakdown
+# Alerts and Notifications System
 
-This document provides a detailed end-to-end explanation of the alerting and notification system for both monitors and jobs, including the latest improvements for threshold logic.
+This document provides a comprehensive overview of the alerts and notifications system, including configuration, implementation, and best practices.
 
-## High-Level Overview
+## Table of Contents
+
+1. [System Overview](#system-overview)
+2. [Alert Configuration Validation](#alert-configuration-validation)
+3. [Monitor Alerting Flow](#monitor-alerting-flow)
+4. [Job Alerting Flow](#job-alerting-flow)
+5. [Threshold Logic](#threshold-logic)
+6. [Notification Provider Types](#notification-provider-types)
+7. [Notification Provider Creation](#notification-provider-creation)
+8. [Notification Channel Limits](#notification-channel-limits)
+9. [Database Schema](#database-schema)
+10. [Alert History and Monitoring](#alert-history-and-monitoring)
+11. [Error Handling and Resilience](#error-handling-and-resilience)
+12. [Configuration Best Practices](#configuration-best-practices)
+
+## System Overview
 
 The system is architecturally divided into two main components:
 
-1.  **`app` (Next.js Frontend):** The user-facing application where users configure monitors, jobs, and their respective alert settings. It includes the API endpoints that the frontend consumes.
-2.  **`runner` (NestJS Backend):** A background worker service responsible for scheduling and executing monitors and jobs, evaluating alert conditions, and dispatching notifications through various providers.
+1. **`app` (Next.js Frontend):** The user-facing application where users configure monitors, jobs, and their respective alert settings. It includes the API endpoints that the frontend consumes.
+2. **`runner` (NestJS Backend):** A background worker service responsible for scheduling and executing monitors and jobs, evaluating alert conditions, and dispatching notifications through various providers.
 
 The two services communicate via a **Redis**-backed message queue (**BullMQ**), which allows the `app` to offload long-running tasks to the `runner` asynchronously.
 
@@ -37,7 +52,7 @@ Validation is implemented at multiple levels:
 
 The system no longer supports default notification providers. Each notification provider must be explicitly configured and selected for each monitor or job. This ensures users have full control over their alert configurations and prevents confusion about which providers are being used.
 
-## I. Monitor Alerting Flow
+## Monitor Alerting Flow
 
 The monitor alerting flow is a sophisticated process designed to be robust and scalable. It can be broken down into the following stages:
 
@@ -134,7 +149,7 @@ graph TD
     style runner fill:#f1f1f1,stroke:#333
 ```
 
-## II. Job Alerting Flow
+## Job Alerting Flow
 
 Job alerting follows a similar pattern but is triggered by the completion of a test job rather than a scheduled monitor.
 
@@ -155,7 +170,7 @@ Job alerting follows a similar pattern but is triggered by the completion of a t
 - **Configuration:** Stored on the `jobs` table instead of the `monitors` table.
 - **Data Source:** Job alerting uses `runs` table for threshold calculation, while monitor alerting uses `monitor_results` table.
 
-## III. Threshold Logic Explained
+## Threshold Logic
 
 The threshold logic prevents alert spam by ensuring alerts are only sent after a specified number of consecutive failures or successes.
 
@@ -185,20 +200,7 @@ The threshold logic prevents alert spam by ensuring alerts are only sent after a
 - **Configurable Sensitivity:** Different thresholds for different types of monitors/jobs
 - **Recovery Detection:** Separate thresholds for failure and recovery alerts
 
-## IV. Database Schema
-
-The core tables supporting this system are:
-
-- **`monitors`**: Stores monitor configurations, including the `alertConfig` JSONB field.
-- **`jobs`**: Stores job configurations, also with an `alertConfig` field.
-- **`notification_providers`**: Stores the configuration for each notification channel (e.g., Slack webhook URL, SMTP server details).
-- **`monitor_notification_settings`**: A many-to-many join table linking `monitors` to `notification_providers`.
-- **`job_notification_settings`**: A many-to-many join table linking `jobs` to `notification_providers`.
-- **`alert_history`**: Stores a log of all sent alerts with their status and any error messages.
-- **`monitor_results`**: Stores individual monitor check results used for threshold calculations.
-- **`runs`**: Stores job execution results used for threshold calculations.
-
-## V. Notification Provider Types
+## Notification Provider Types
 
 The system supports multiple notification provider types:
 
@@ -227,7 +229,381 @@ The system supports multiple notification provider types:
 - **Use Case:** Gaming communities, developer teams
 - **Features:** Rich embeds, custom formatting
 
-## VI. Alert History and Monitoring
+## Notification Provider Creation
+
+### Supported Provider Types
+
+The system supports the following notification provider types:
+
+- **email**: SMTP-based email notifications
+- **slack**: Slack webhook notifications
+- **webhook**: Generic HTTP webhook notifications
+- **telegram**: Telegram bot notifications
+- **discord**: Discord webhook notifications
+
+### Database Schema
+
+#### Notification Providers Table
+
+```sql
+CREATE TABLE notification_providers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organization(id) ON DELETE CASCADE,
+  created_by_user_id UUID REFERENCES user(id) ON DELETE NO ACTION,
+  name VARCHAR(255) NOT NULL,
+  type VARCHAR(50) NOT NULL,
+  config JSONB NOT NULL,
+  is_enabled BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### Required Fields
+
+- **name**: Human-readable name for the provider (e.g., "Production Slack Alerts")
+- **type**: One of the supported provider types
+- **config**: JSON configuration specific to the provider type
+- **organizationId**: The organization this provider belongs to
+- **createdByUserId**: The user who created this provider
+
+### API Endpoints
+
+#### Create Notification Provider
+
+**Endpoint**: `POST /api/notification-providers`
+
+**Request Body**:
+```json
+{
+  "name": "Production Slack Alerts",
+  "type": "slack",
+  "config": {
+    "webhookUrl": "https://hooks.slack.com/services/...",
+    "channel": "#alerts",
+    "isDefault": false
+  },
+  "organizationId": "uuid",
+  "createdByUserId": "uuid"
+}
+```
+
+**Response**:
+```json
+{
+  "id": "uuid",
+  "name": "Production Slack Alerts",
+  "type": "slack",
+  "config": {
+    "webhookUrl": "https://hooks.slack.com/services/...",
+    "channel": "#alerts",
+    "isDefault": false
+  },
+  "organizationId": "uuid",
+  "createdByUserId": "uuid",
+  "isEnabled": true,
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Get Notification Providers
+
+**Endpoint**: `GET /api/notification-providers`
+
+**Response**:
+```json
+[
+  {
+    "id": "uuid",
+    "name": "Production Slack Alerts",
+    "type": "slack",
+    "config": { ... },
+    "organizationId": "uuid",
+    "createdByUserId": "uuid",
+    "isEnabled": true,
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z",
+    "lastUsed": "2024-01-01T12:00:00Z"
+  }
+]
+```
+
+### Provider-Specific Configuration
+
+#### Email Provider
+
+```json
+{
+  "type": "email",
+  "config": {
+    "smtpHost": "smtp.gmail.com",
+    "smtpPort": 587,
+    "smtpUser": "alerts@company.com",
+    "smtpPassword": "password",
+    "smtpSecure": false,
+    "fromEmail": "alerts@company.com",
+    "toEmail": "team@company.com",
+    "isDefault": false
+  }
+}
+```
+
+#### Slack Provider
+
+```json
+{
+  "type": "slack",
+  "config": {
+    "webhookUrl": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+    "channel": "#alerts",
+    "isDefault": false
+  }
+}
+```
+
+#### Webhook Provider
+
+```json
+{
+  "type": "webhook",
+  "config": {
+    "url": "https://api.company.com/webhooks/alerts",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer token",
+      "Content-Type": "application/json"
+    },
+    "bodyTemplate": "{\"alert\": \"{{message}}\", \"timestamp\": \"{{timestamp}}\"}",
+    "isDefault": false
+  }
+}
+```
+
+#### Telegram Provider
+
+```json
+{
+  "type": "telegram",
+  "config": {
+    "botToken": "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz",
+    "chatId": "123456789",
+    "isDefault": false
+  }
+}
+```
+
+#### Discord Provider
+
+```json
+{
+  "type": "discord",
+  "config": {
+    "discordWebhookUrl": "https://discord.com/api/webhooks/...",
+    "isDefault": false
+  }
+}
+```
+
+### Frontend Integration
+
+#### Form Validation
+
+The frontend should validate:
+
+1. **Name**: Required, max 255 characters
+2. **Type**: Must be one of the supported types
+3. **Config**: Must contain required fields for the selected type
+4. **Organization**: Must be a valid organization ID
+5. **Created By User**: Must be a valid user ID
+
+#### Error Handling
+
+Common validation errors:
+
+- Missing required fields
+- Invalid provider type
+- Invalid configuration for the selected type
+- Organization not found
+- User not found
+- Duplicate provider name within organization
+
+#### Success Flow
+
+1. User fills out the notification provider form
+2. Frontend validates the input
+3. Frontend sends POST request to `/api/notification-providers`
+4. Backend validates the data using `notificationProvidersInsertSchema`
+5. Backend inserts the provider into the database
+6. Backend returns the created provider with status 201
+7. Frontend shows success message and redirects to providers list
+
+### Usage in Alerts
+
+Once created, notification providers can be:
+
+1. **Assigned to monitors** via the `monitorNotificationSettings` table
+2. **Assigned to jobs** via the `jobNotificationSettings` table
+3. **Referenced in alert configurations** via the `alerts` table
+
+#### Monitor Integration
+
+```sql
+INSERT INTO monitor_notification_settings (monitor_id, notification_provider_id)
+VALUES ('monitor-uuid', 'provider-uuid');
+```
+
+#### Job Integration
+
+```sql
+INSERT INTO job_notification_settings (job_id, notification_provider_id)
+VALUES ('job-uuid', 'provider-uuid');
+```
+
+## Notification Channel Limits
+
+### Environment Variables
+
+**Required Environment Variables:**
+- `MAX_JOB_NOTIFICATION_CHANNELS` - Maximum channels for jobs (default: 10)
+- `MAX_MONITOR_NOTIFICATION_CHANNELS` - Maximum channels for monitors (default: 10)
+- `NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS` - Frontend limit for jobs (default: 10)
+- `NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS` - Frontend limit for monitors (default: 10)
+
+### Implementation Details
+
+#### 1. Environment Variable Configuration
+
+**Files Modified:**
+- All API routes and components now use environment variables instead of hardcoded constants
+- Frontend components use `NEXT_PUBLIC_` prefixed variables
+- Backend API routes use non-prefixed variables
+
+#### 2. Frontend Validation
+
+**Files Modified:**
+- `app/src/components/alerts/alert-settings.tsx`
+- `app/src/components/jobs/job-creation-wizard.tsx`
+- `app/src/components/jobs/edit-job.tsx`
+- `app/src/components/monitors/monitor-form.tsx`
+- `app/src/components/monitors/monitor-creation-wizard.tsx`
+
+**Changes:**
+- Added toast error message when trying to select more than the configured limit
+- Added channel count display showing "X of Y channels selected"
+- Updated `toggleProvider` function to check limit before adding channels
+- **New UI Features:**
+  - 4-column grid layout for notification channels
+  - Pagination with 8 items per page (4 columns × 2 rows)
+  - Page navigation with previous/next buttons
+  - Automatic page reset when providers change
+
+#### 3. Server-Side Validation
+
+**Files Modified:**
+- `app/src/app/api/jobs/route.ts`
+- `app/src/app/api/jobs/[id]/route.ts`
+- `app/src/app/api/monitors/route.ts`
+- `app/src/app/api/monitors/[id]/route.ts`
+- `app/src/actions/update-job.ts`
+
+**Changes:**
+- Added validation to check notification provider count before saving
+- Returns 400 error with descriptive message when limit is exceeded
+- Validation applies to both creation and update operations
+- Uses environment variables for configurable limits
+
+#### 4. User Experience Features
+
+**Toast Messages:**
+- "Channel limit reached" with description showing the configured limit
+- Appears when user tries to select more than the allowed channels
+
+**UI Indicators:**
+- Channel count display: "X of Y channels selected"
+- **Removed:** "Maximum X channels allowed" text as requested
+- **New:** 4-column grid layout with pagination
+- **New:** Page navigation with current page indicator
+
+**Pagination Features:**
+- 8 items per page (4 columns × 2 rows)
+- Previous/Next navigation buttons
+- Current page indicator
+- Automatic reset to page 1 when providers change
+- Disabled state for navigation buttons when at limits
+
+### Validation Flow
+
+1. **Frontend Validation:**
+   - Real-time validation in AlertSettings component
+   - Toast error when trying to exceed limit
+   - Form submission validation in wizards and edit forms
+   - Uses `NEXT_PUBLIC_` environment variables
+
+2. **Server-Side Validation:**
+   - API route validation before database operations
+   - Consistent error messages across all endpoints
+   - Validation for both jobs and monitors
+   - Uses non-prefixed environment variables
+
+3. **Database Level:**
+   - Schema documentation indicates configurable limits
+   - No database constraints (relying on application-level validation)
+
+### Error Messages
+
+**Frontend Toast:**
+```
+"Channel limit reached"
+"You can only select up to X notification channels"
+```
+
+**API Error Response:**
+```json
+{
+  "error": "You can only select up to X notification channels"
+}
+```
+
+### UI Improvements
+
+#### Grid Layout
+- **4 columns** on extra-large screens (xl:grid-cols-4)
+- **3 columns** on large screens (lg:grid-cols-3)
+- **2 columns** on small screens (sm:grid-cols-2)
+- **1 column** on mobile (grid-cols-1)
+
+#### Pagination
+- **8 items per page** (4 columns × 2 rows)
+- **Navigation buttons** with chevron icons
+- **Page indicator** showing "Page X of Y"
+- **Disabled states** for navigation when at limits
+- **Auto-reset** to page 1 when providers change
+
+### Benefits
+
+1. **Configurable Limits:** Different limits for jobs vs monitors
+2. **Environment-Based:** Easy to configure per environment
+3. **Better UX:** 4-column layout and pagination for better organization
+4. **Performance:** Limits the number of notifications sent per alert
+5. **User Experience:** Prevents overwhelming users with too many channels
+6. **System Stability:** Reduces load on notification services
+7. **Cost Control:** Limits potential costs from excessive notifications
+
+## Database Schema
+
+The core tables supporting this system are:
+
+- **`monitors`**: Stores monitor configurations, including the `alertConfig` JSONB field.
+- **`jobs`**: Stores job configurations, also with an `alertConfig` field.
+- **`notification_providers`**: Stores the configuration for each notification channel (e.g., Slack webhook URL, SMTP server details).
+- **`monitor_notification_settings`**: A many-to-many join table linking `monitors` to `notification_providers`.
+- **`job_notification_settings`**: A many-to-many join table linking `jobs` to `notification_providers`.
+- **`alert_history`**: Stores a log of all sent alerts with their status and any error messages.
+- **`monitor_results`**: Stores individual monitor check results used for threshold calculations.
+- **`runs`**: Stores job execution results used for threshold calculations.
+
+## Alert History and Monitoring
 
 ### Alert History Table
 
@@ -256,7 +632,7 @@ CREATE TABLE alert_history (
 - **Analytics:** Monitor alert patterns and success rates
 - **Compliance:** Maintain records for regulatory requirements
 
-## VII. Error Handling and Resilience
+## Error Handling and Resilience
 
 ### Notification Service Error Handling
 
@@ -275,7 +651,7 @@ The notification system includes comprehensive error handling:
 - **Multiple Providers:** Redundancy through multiple notification channels
 - **Graceful Degradation:** System continues to function even if some providers fail
 
-## VIII. Configuration Best Practices
+## Configuration Best Practices
 
 ### Alert Configuration
 
@@ -306,7 +682,55 @@ The notification system includes comprehensive error handling:
    - Enable `alertOnRecovery` for important services
    - Enable `alertOnSslExpiration` for HTTPS monitors
 
-## IX. Future Enhancements
+### Security Considerations
+
+1. **API Keys and Tokens**: Store sensitive configuration in encrypted form
+2. **Organization Isolation**: Providers are scoped to organizations
+3. **User Permissions**: Only organization members can create providers
+4. **Rate Limiting**: Implement rate limiting for webhook calls
+5. **Validation**: Validate all webhook URLs and API endpoints
+
+## Testing
+
+### Unit Tests
+
+- Test provider creation with valid data
+- Test validation errors for invalid data
+- Test provider type-specific configuration validation
+
+### Integration Tests
+
+- Test end-to-end provider creation flow
+- Test provider usage in monitor alerts
+- Test provider usage in job notifications
+
+### Manual Testing
+
+1. Create providers of each supported type
+2. Test webhook delivery to external services
+3. Verify email delivery through SMTP
+4. Test Slack/Discord message formatting
+5. Verify Telegram bot message delivery
+
+## Troubleshooting
+
+### Common Issues
+
+1. **SMTP Connection Failed**: Check SMTP settings and credentials
+2. **Webhook Delivery Failed**: Verify URL and authentication
+3. **Slack Message Not Delivered**: Check webhook URL and channel permissions
+4. **Telegram Bot Not Responding**: Verify bot token and chat ID
+5. **Discord Webhook Error**: Check webhook URL and permissions
+
+### Debug Steps
+
+1. Check application logs for error messages
+2. Verify provider configuration in database
+3. Test webhook endpoints manually
+4. Check network connectivity to external services
+5. Verify API keys and tokens are valid
+
+## Future Enhancements
 
 ### Planned Features
 
@@ -327,75 +751,12 @@ The notification system includes comprehensive error handling:
 4. **Multi-tenant Alerting:** Support for different alert configurations per organization
 5. **Alert Integration:** Integrate with external incident management systems
 
-This document provides a solid foundation for understanding the current system and planning future improvements.
+### Provider Enhancements
 
-## X. Complete System Overview
+1. **Provider Templates:** Pre-configured templates for common services
+2. **Provider Testing:** Built-in test functionality for each provider type
+3. **Provider Analytics:** Track delivery success rates and response times
+4. **Provider Scheduling:** Configure different providers for different times
+5. **Provider Escalation:** Chain multiple providers for critical alerts
 
-### How All Features Work Together
-
-The alerting system combines multiple sophisticated features to provide intelligent, reliable notifications:
-
-1. **Threshold Logic** prevents false alarms by requiring consecutive failures/successes
-2. **Alert History** provides complete audit trail and debugging capabilities
-3. **Multi-Provider Support** ensures reliable delivery through redundancy
-4. **Validation** ensures proper configuration before alerts are sent
-
-### Complete Alert Flow Example
-
-**Scenario:** Monitor with `failureThreshold: 3`, checking every 5 minutes
-
-```mermaid
-timeline
-    title Complete Alert Flow Example
-    section 10:00 AM
-        Monitor Down : No Alert (1 consecutive < threshold)
-    section 10:05 AM
-        Still Down : No Alert (2 consecutive < threshold)
-    section 10:10 AM
-        Still Down : Regular Alert Sent (3 consecutive = threshold)
-    section 10:15 AM
-        Still Down : No Alert (threshold already met)
-    section 10:20 AM
-        Still Down : No Alert (threshold already met)
-    section 10:25 AM
-        Still Down : No Alert (threshold already met)
-    section 10:30 AM
-        Still Down : No Alert (threshold already met)
-    section 10:35 AM
-        Still Down : No Alert (threshold already met)
-    section 11:00 AM
-        Still Down : No Alert (threshold already met)
-    section 11:05 AM
-        Monitor Up : Recovery Alert Sent (1 consecutive = threshold)
-```
-
-### System Benefits
-
-- **Intelligent Alerting:** Only sends alerts when thresholds are met
-- **Complete Audit Trail:** All alerts are logged with status and errors
-- **Flexible Configuration:** Rich alert configuration options for different scenarios
-- **Multi-Provider Support:** Send alerts to multiple channels simultaneously
-- **Error Handling:** Robust error handling with detailed logging
-- **Validation:** Ensures proper configuration before alerts are sent
-
-### Configuration Best Practices
-
-1. **Threshold Settings:**
-   - Use `failureThreshold: 2-3` for most monitors to avoid false alarms
-   - Use `recoveryThreshold: 1-2` for quick recovery notifications
-   - Adjust based on monitor frequency and criticality
-
-2. **Notification Providers:**
-   - Configure multiple providers for redundancy
-   - Use different providers for different alert types
-   - Test provider configurations regularly
-
-3. **Alert Types:**
-   - Enable `alertOnFailure` for most monitors
-   - Enable `alertOnRecovery` for important services
-   - Enable `alertOnSslExpiration` for HTTPS monitors
-
-4. **Monitoring and Maintenance:**
-   - Regularly review alert history for patterns
-   - Monitor notification provider success rates
-   - Update alert configurations based on system behavior 
+This document provides a solid foundation for understanding the current system and planning future improvements. 
