@@ -1,15 +1,16 @@
 #!/bin/bash
 
 # Docker Images Management Script for Supercheck
-# This script helps build, push, and pull Docker images
+# Builds multi-architecture images (linux/amd64, linux/arm64) by default
 
 set -e
 
 # Configuration
-GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-"your-username/supercheck"}
+GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-"krish-kant/supercheck"}
 REGISTRY="ghcr.io"
 APP_IMAGE="$REGISTRY/$GITHUB_REPOSITORY/app"
 WORKER_IMAGE="$REGISTRY/$GITHUB_REPOSITORY/worker"
+MIGRATION_IMAGE="$REGISTRY/$GITHUB_REPOSITORY/migrate"
 
 # Colors for output
 RED='\033[0;31m'
@@ -43,162 +44,121 @@ check_docker() {
     fi
 }
 
-# Function to build images locally
-build_images() {
-    print_status "Building Docker images..."
+# Function to setup buildx for multi-architecture builds
+setup_buildx() {
+    print_status "Setting up Docker Buildx for multi-architecture builds..."
     
-    # Build app image
-    print_status "Building app image..."
-    docker build -t $APP_IMAGE:latest ./app
-    print_success "App image built successfully"
-    
-    # Build worker image
-    print_status "Building worker image..."
-    docker build -t $WORKER_IMAGE:latest ./runner
-    print_success "Worker image built successfully"
-    
-    print_success "All images built successfully!"
-}
-
-# Function to push images to GitHub Container Registry
-push_images() {
-    print_status "Pushing images to GitHub Container Registry..."
-    
-    # Check if logged in to GHCR
-    if ! docker images | grep -q "$REGISTRY"; then
-        print_warning "You may need to login to GitHub Container Registry first:"
-        echo "echo \$GITHUB_TOKEN | docker login ghcr.io -u \$GITHUB_USERNAME --password-stdin"
-    fi
-    
-    # Push app image
-    print_status "Pushing app image..."
-    docker push $APP_IMAGE:latest
-    print_success "App image pushed successfully"
-    
-    # Push worker image
-    print_status "Pushing worker image..."
-    docker push $WORKER_IMAGE:latest
-    print_success "Worker image pushed successfully"
-    
-    print_success "All images pushed successfully!"
-}
-
-# Function to pull images from GitHub Container Registry
-pull_images() {
-    print_status "Pulling images from GitHub Container Registry..."
-    
-    # Pull app image
-    print_status "Pulling app image..."
-    docker pull $APP_IMAGE:latest
-    print_success "App image pulled successfully"
-    
-    # Pull worker image
-    print_status "Pulling worker image..."
-    docker pull $WORKER_IMAGE:latest
-    print_success "Worker image pulled successfully"
-    
-    print_success "All images pulled successfully!"
-}
-
-# Function to tag images with version
-tag_images() {
-    local version=$1
-    if [ -z "$version" ]; then
-        print_error "Please provide a version tag"
-        echo "Usage: $0 tag <version>"
+    # Check if buildx is available
+    if ! docker buildx version > /dev/null 2>&1; then
+        print_error "Docker Buildx is not available. Please upgrade Docker to a version that supports buildx."
         exit 1
     fi
     
-    print_status "Tagging images with version $version..."
-    
-    # Tag app image
-    docker tag $APP_IMAGE:latest $APP_IMAGE:$version
-    print_success "App image tagged as $version"
-    
-    # Tag worker image
-    docker tag $WORKER_IMAGE:latest $WORKER_IMAGE:$version
-    print_success "Worker image tagged as $version"
-    
-    print_success "All images tagged successfully!"
-}
-
-# Function to show image information
-show_images() {
-    print_status "Current Docker images:"
-    echo ""
-    docker images | grep -E "($APP_IMAGE|$WORKER_IMAGE)" || print_warning "No Supercheck images found locally"
-    echo ""
-    print_status "Image URLs:"
-    echo "App: $APP_IMAGE:latest"
-    echo "Worker: $WORKER_IMAGE:latest"
-}
-
-# Function to clean up images
-clean_images() {
-    print_warning "This will remove all Supercheck Docker images. Are you sure? (y/N)"
-    read -r response
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        print_status "Removing Supercheck Docker images..."
-        docker rmi $(docker images | grep -E "($APP_IMAGE|$WORKER_IMAGE)" | awk '{print $3}') 2>/dev/null || print_warning "No images to remove"
-        print_success "Cleanup completed!"
-    else
-        print_status "Cleanup cancelled"
+    # Remove existing builder if it exists and has issues
+    if docker buildx inspect multiarch-builder > /dev/null 2>&1; then
+        print_status "Removing existing multi-architecture builder..."
+        docker buildx rm multiarch-builder 2>/dev/null || true
     fi
+    
+    # Try to create builder with docker-container driver
+    print_status "Creating multi-architecture builder with docker-container driver..."
+    if docker buildx create --name multiarch-builder --driver docker-container --use 2>/dev/null; then
+        print_status "Using docker-container driver..."
+        # Bootstrap the builder
+        print_status "Bootstrapping the builder..."
+        if docker buildx inspect --bootstrap; then
+            print_success "Buildx setup completed successfully!"
+            return 0
+        fi
+    fi
+    
+    # If docker-container fails, try with containerd driver
+    print_warning "docker-container driver failed, trying containerd driver..."
+    if docker buildx create --name multiarch-builder --driver containerd --use 2>/dev/null; then
+        print_status "Using containerd driver..."
+        print_success "Buildx setup completed with containerd driver!"
+        return 0
+    fi
+    
+    # No fallback - multi-arch buildx is required
+    print_error "All buildx drivers failed. Multi-architecture buildx setup is required."
+    return 1
+}
+
+# Function to build multi-architecture images
+build_multiarch_images() {
+    print_status "Building multi-architecture Docker images..."
+    
+    # Setup buildx
+    if ! setup_buildx; then
+        print_error "Multi-architecture buildx setup failed. Cannot proceed with multi-arch build."
+        exit 1
+    fi
+    
+    # Build and push app image for multiple architectures
+    print_status "Building app image for multiple architectures..."
+    if docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $APP_IMAGE:latest \
+        --push ./app; then
+        print_success "App multi-architecture image built and pushed successfully"
+    else
+        print_error "Failed to build app image"
+        exit 1
+    fi
+    
+    # Build and push worker image for multiple architectures
+    print_status "Building worker image for multiple architectures..."
+    if docker buildx build --platform linux/amd64,linux/arm64 \
+        -t $WORKER_IMAGE:latest \
+        --push ./runner; then
+        print_success "Worker multi-architecture image built and pushed successfully"
+    else
+        print_error "Failed to build worker image"
+        exit 1
+    fi
+    
+    # Build and push migration image for multiple architectures
+    print_status "Building migration image for multiple architectures..."
+    if docker buildx build --platform linux/amd64,linux/arm64 \
+        -f Dockerfile.migrate \
+        --target migrate \
+        -t $MIGRATION_IMAGE:latest \
+        --push .; then
+        print_success "Migration multi-architecture image built and pushed successfully"
+    else
+        print_error "Failed to build migration image"
+        exit 1
+    fi
+    
+    print_success "All multi-architecture images built and pushed successfully!"
 }
 
 # Function to show help
 show_help() {
-    echo "Supercheck Docker Images Management Script"
+    echo "Docker Images Management Script for Supercheck"
     echo ""
-    echo "Usage: $0 <command> [options]"
+    echo "Usage: $0"
     echo ""
-    echo "Commands:"
-    echo "  build              Build images locally"
-    echo "  push               Push images to GitHub Container Registry"
-    echo "  pull               Pull images from GitHub Container Registry"
-    echo "  tag <version>      Tag images with specific version"
-    echo "  show               Show current images and URLs"
-    echo "  clean              Remove all Supercheck images"
-    echo "  help               Show this help message"
+    echo "This script builds and pushes multi-architecture Docker images:"
+    echo "  - Supports linux/amd64 and linux/arm64"
+    echo "  - Automatically pushes to GitHub Container Registry"
+    echo "  - Requires Docker Buildx support"
+    echo "  - Works on Apple Silicon, Intel, AMD, ARM servers"
     echo ""
     echo "Environment Variables:"
-    echo "  GITHUB_REPOSITORY  Your GitHub repository (default: your-username/supercheck)"
+    echo "  GITHUB_REPOSITORY: GitHub repository (default: krish-kant/supercheck)"
     echo ""
-    echo "Examples:"
-    echo "  $0 build"
-    echo "  $0 push"
-    echo "  $0 tag v1.0.0"
-    echo "  GITHUB_REPOSITORY=myorg/supercheck $0 pull"
+    echo "Images:"
+    echo "  - ghcr.io/krish-kant/supercheck/app:latest"
+    echo "  - ghcr.io/krish-kant/supercheck/worker:latest"
+    echo "  - ghcr.io/krish-kant/supercheck/migrate:latest"
 }
 
 # Main script logic
-check_docker
+if [ "$1" = "help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    show_help
+    exit 0
+fi
 
-case "${1:-help}" in
-    build)
-        build_images
-        ;;
-    push)
-        push_images
-        ;;
-    pull)
-        pull_images
-        ;;
-    tag)
-        tag_images "$2"
-        ;;
-    show)
-        show_images
-        ;;
-    clean)
-        clean_images
-        ;;
-    help|--help|-h)
-        show_help
-        ;;
-    *)
-        print_error "Unknown command: $1"
-        show_help
-        exit 1
-        ;;
-esac 
+check_docker
+build_multiarch_images 

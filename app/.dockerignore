@@ -10,11 +10,12 @@ out/
 
 # Production
 build
+dist
 
 # Misc
 .DS_Store
-*.tsbuildinfo
-next-env.d.ts
+*.tgz
+*.tar.gz
 
 # Debug
 npm-debug.log*
@@ -23,12 +24,14 @@ yarn-error.log*
 
 # Local env files
 .env*.local
+.env
 
 # Vercel
 .vercel
 
 # TypeScript
 *.tsbuildinfo
+next-env.d.ts
 
 # IDE
 .vscode
@@ -91,33 +94,27 @@ jspm_packages/
 .cache
 .parcel-cache
 
-# next.js build output
+# Next.js build output
 .next
 
-# nuxt.js build output
+# Nuxt.js build / generate output
 .nuxt
+dist
 
-# vuepress build output
-.vuepress/dist
+# Storybook build outputs
+.out
+.storybook-out
 
-# Serverless directories
-.serverless/
+# Temporary folders
+tmp/
+temp/
 
-# FuseBox cache
-.fusebox/
+# Playwright
+playwright-report/
+test-results/
+playwright/.cache/
 
-# DynamoDB Local files
-.dynamodb/
-
-# TernJS port file
-.tern-port
-
-# Stores VSCode versions used for testing VSCode extensions
-.vscode-test
-
-# yarn v2
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.* 
+# Test artifacts
+public/test-results/
+public/artifacts/
+public/tests/ 

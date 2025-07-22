@@ -99,7 +99,16 @@ export class S3Service implements OnModuleInit {
           );
           this.logger.log(`Bucket '${bucketName}' created successfully.`);
         } catch (createError: any) {
-          this.logger.error(`Failed to create bucket '${bucketName}': ${createError.message}`, createError.stack);
+          // Handle the case where bucket was created by another process
+          if (createError.name === 'BucketAlreadyOwnedByYou' || 
+              createError.message?.includes('already own it') ||
+              createError.message?.includes('already exists') ||
+              createError.message?.includes('The specified bucket does not exist') ||
+              createError.message?.includes('Your previous request to create the named bucket succeeded')) {
+            this.logger.log(`Bucket '${bucketName}' already exists (created by another process).`);
+          } else {
+            this.logger.error(`Failed to create bucket '${bucketName}': ${createError.message}`, createError.stack);
+          }
         }
       } else {
         this.logger.error(`Error checking bucket '${bucketName}' existence: ${error.message}`, error.stack);

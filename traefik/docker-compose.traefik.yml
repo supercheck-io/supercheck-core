@@ -93,22 +93,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Database Migration Service
-  migration:
-    image: postgres:16.2
-    environment:
-      - PGPASSWORD=postgres
-    volumes:
-      - ./app/src/db/migrations:/migrations
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: ["sh", "-c", "sleep 5 && psql -h postgres -U postgres -d supercheck -f /migrations/0000_cynical_rage.sql && psql -h postgres -U postgres -d supercheck -f /migrations/0001_flashy_spectrum.sql"]
-    networks:
-      - supercheck-network
-    restart: "no"
-
-  # App (Next.js Frontend)
+  # App (Next.js Frontend) - Handles migrations internally
   app:
     image: ghcr.io/krish-kant/supercheck/app:latest
     environment:
@@ -150,8 +135,6 @@ services:
       - ./app/public/test-results:/app/public/test-results
       - ./app/public/artifacts:/app/public/artifacts
     depends_on:
-      migration:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
