@@ -1,4 +1,4 @@
-name: Build Multi-Architecture Docker Images
+name: Build Multi-Architecture Docker Images (PAT)
 
 on:
   push:
@@ -26,34 +26,21 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GitHub Container Registry with PAT
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Fallback login with repository owner
-        if: failure()
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.PAT_TOKEN }}
 
       - name: Check registry access
         run: |
-          echo "Testing registry access..."
+          echo "Testing registry access with PAT..."
           echo "Registry: ${{ env.REGISTRY }}"
           echo "Username: ${{ github.actor }}"
           echo "Repository: ${{ github.repository }}"
           echo "Event: ${{ github.event_name }}"
           echo "Ref: ${{ github.ref }}"
-          
-          # Test if we can access the registry
-          echo "Testing Docker login..."
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin || echo "Login failed, will try fallback"
 
       - name: Extract metadata
         id: meta
@@ -81,7 +68,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: type=image,dest=/tmp/app-image.tar
 
       - name: Build and push worker image
         uses: docker/build-push-action@v5
@@ -94,7 +80,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: type=image,dest=/tmp/worker-image.tar
 
       - name: Output image names
         run: |
