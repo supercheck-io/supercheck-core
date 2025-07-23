@@ -1,7 +1,7 @@
 services:
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:latest
+    image: ghcr.io/krish-kant/supercheck/app:monitoring-4d6c935
     ports:
       - "3000:3000"
     environment:
@@ -77,7 +77,7 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:latest
+    image: ghcr.io/krish-kant/supercheck/worker:monitoring-4d6c935
     environment:
       # Database Configuration
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
