@@ -18,7 +18,6 @@ import {
   NotepadText,
   FileCode,
   Calendar as CalendarIcon,
-  SquarePlus,
 } from "lucide-react"
 
 import {
@@ -29,7 +28,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from "@/components/ui/command"
 import {
   Dialog,
