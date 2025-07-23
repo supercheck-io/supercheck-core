@@ -55,11 +55,11 @@ RUN --mount=type=cache,target=/root/.npm \
 
 # Install Playwright and download browser binaries with caching
 RUN --mount=type=cache,target=/root/.npm \
-    npm install -D @playwright/test@latest
+    npm install -D @playwright/test@latest playwright
 
 # Install Playwright browsers with proper caching
 RUN --mount=type=cache,target=/root/.cache/ms-playwright \
-    npx playwright install chromium --with-deps
+    npm exec playwright install chromium --with-deps
 
 # Copy Playwright browsers to a known location for the final stage
 RUN mkdir -p /app/playwright-browsers && \

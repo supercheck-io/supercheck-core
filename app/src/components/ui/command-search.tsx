@@ -7,7 +7,7 @@ import {
   Settings,
   Activity,
   Globe,
-  Code,
+  Code2,
   Terminal,
   SearchIcon,
   BellRing,
@@ -18,6 +18,7 @@ import {
   NotepadText,
   FileCode,
   Calendar as CalendarIcon,
+  SquarePlus,
 } from "lucide-react"
 
 import {
@@ -93,7 +94,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
     }
   }, [router])
 
-  // Enhanced keyboard shortcuts
+  // Command palette toggle only
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
@@ -105,86 +106,11 @@ export function CommandSearch({ className }: CommandSearchProps) {
         setOpen((open) => !open)
         return
       }
-      
-      // Remove manual ArrowUp, ArrowDown, and Enter handling here
-      // Let cmdk handle navigation and selection
-      
-      // Individual shortcuts - only when command palette is closed
-      if (!open && metaKey && e.altKey && !e.shiftKey) {
-        switch (e.key.toLowerCase()) {
-          case "d":
-            e.preventDefault()
-            handleCommand("home")
-            break
-          case "m":
-            e.preventDefault()
-            handleCommand("monitors")
-            break
-          case "t":
-            e.preventDefault()
-            handleCommand("tests")
-            break
-          case "j":
-            e.preventDefault()
-            handleCommand("jobs")
-            break
-          case "r":
-            e.preventDefault()
-            handleCommand("runs")
-            break
-          case "a":
-            e.preventDefault()
-            handleCommand("alerts")
-            break
-          case "s":
-            e.preventDefault()
-            handleCommand("settings")
-            break
-        }
-      }
-      
-      // Shift + Cmd shortcuts for creation - only when command palette is closed
-      if (!open && metaKey && e.altKey && e.shiftKey) {
-        switch (e.key.toLowerCase()) {
-          case "h":
-            e.preventDefault()
-            handleCommand("create-monitor-http")
-            break
-          case "w":
-            e.preventDefault()
-            handleCommand("create-monitor-website")
-            break
-          case "p":
-            e.preventDefault()
-            handleCommand("create-monitor-ping")
-            break
-          case "o":
-            e.preventDefault()
-            handleCommand("create-monitor-port")
-            break
-          case "b":
-            e.preventDefault()
-            handleCommand("create-monitor-heartbeat")
-            break
-          case "t":
-            e.preventDefault()
-            handleCommand("create-test-browser")
-            break
-          case "a":
-            e.preventDefault()
-            handleCommand("create-test-api")
-            break
-          case "j":
-            e.preventDefault()
-            handleCommand("create-job")
-            break
-        }
-      }
     }
 
     document.addEventListener("keydown", down)
     return () => document.removeEventListener("keydown", down)
-  }, [open, handleCommand])
+  }, [open])
 
   return (
     <div className={className}>
@@ -216,34 +142,28 @@ export function CommandSearch({ className }: CommandSearchProps) {
               
               <CommandGroup heading="Navigation">
                 <CommandItem onSelect={() => handleCommand("home")}>
-                  <ChartColumn className="mr-2 h-4 w-4 text-slate-500" />
+                  <ChartColumn className="mr-2 h-4 w-4" />
                   <span>Dashboard</span>
-                  <CommandShortcut>⌘⌥D</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("monitors")}>
-                  <Globe className="mr-2 h-4 w-4 text-blue-500" />
+                  <Globe className="mr-2 h-4 w-4" />
                   <span>Monitors</span>
-                  <CommandShortcut>⌘⌥M</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("tests")}>
-                  <Code className="mr-2 h-4 w-4 text-green-500" />
+                  <Code2 className="mr-2 h-4 w-4" />
                   <span>Tests</span>
-                  <CommandShortcut>⌘⌥T</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("jobs")}>
-                  <CalendarClock className="mr-2 h-4 w-4 text-orange-500" />
+                  <CalendarClock className="mr-2 h-4 w-4" />
                   <span>Jobs</span>
-                  <CommandShortcut>⌘⌥J</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("runs")}>
-                  <NotepadText className="mr-2 h-4 w-4 text-purple-500" />
+                  <NotepadText className="mr-2 h-4 w-4" />
                   <span>Runs</span>
-                  <CommandShortcut>⌘⌥R</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("alerts")}>
-                  <BellRing className="mr-2 h-4 w-4 text-red-500" />
+                  <BellRing className="mr-2 h-4 w-4" />
                   <span>Alerts</span>
-                  <CommandShortcut>⌘⌥A</CommandShortcut>
                 </CommandItem>
               </CommandGroup>
 
@@ -251,29 +171,24 @@ export function CommandSearch({ className }: CommandSearchProps) {
 
               <CommandGroup heading="Create Monitors">
                 <CommandItem onSelect={() => handleCommand("create-monitor-http")}>
-                  <Globe className="mr-2 h-4 w-4 text-cyan-500" />
+                  <Globe className="mr-2 h-4 w-4" />
                   <span>HTTP Monitor</span>
-                  <CommandShortcut>⌘⇧⌥H</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-website")}>
-                  <LaptopMinimal className="mr-2 h-4 w-4 text-blue-500" />
+                  <LaptopMinimal className="mr-2 h-4 w-4" />
                   <span>Website Monitor</span>
-                  <CommandShortcut>⌘⇧⌥W</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-ping")}>
-                  <Terminal className="mr-2 h-4 w-4 text-orange-500" />
+                  <Terminal className="mr-2 h-4 w-4" />
                   <span>Ping Monitor</span>
-                  <CommandShortcut>⌘⇧⌥P</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-port")}>
-                  <Network className="mr-2 h-4 w-4 text-gray-500" />
+                  <Network className="mr-2 h-4 w-4" />
                   <span>Port Monitor</span>
-                  <CommandShortcut>⌘⇧⌥O</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-monitor-heartbeat")}>
-                  <Activity className="mr-2 h-4 w-4 text-red-500" />
+                  <Activity className="mr-2 h-4 w-4" />
                   <span>Heartbeat Monitor</span>
-                  <CommandShortcut>⌘⇧⌥B</CommandShortcut>
                 </CommandItem>
               </CommandGroup>
 
@@ -281,19 +196,16 @@ export function CommandSearch({ className }: CommandSearchProps) {
 
               <CommandGroup heading="Create Tests">
                 <CommandItem onSelect={() => handleCommand("create-test-browser")}>
-                  <LaptopMinimal className="mr-2 h-4 w-4 text-blue-500" />
+                  <LaptopMinimal className="mr-2 h-4 w-4" />
                   <span>Browser Test</span>
-                  <CommandShortcut>⌘⇧⌥T</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-test-api")}>
-                  <FileCode className="mr-2 h-4 w-4 text-green-500" />
+                  <FileCode className="mr-2 h-4 w-4" />
                   <span>API Test</span>
-                  <CommandShortcut>⌘⇧⌥A</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-job")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   <span>Automation Job</span>
-                  <CommandShortcut>⌘⇧⌥J</CommandShortcut>
                 </CommandItem>
               </CommandGroup>
 
@@ -303,7 +215,6 @@ export function CommandSearch({ className }: CommandSearchProps) {
                 <CommandItem onSelect={() => handleCommand("settings")}>
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Settings</span>
-                  <CommandShortcut>⌘⌥S</CommandShortcut>
                 </CommandItem>
               
               </CommandGroup>
