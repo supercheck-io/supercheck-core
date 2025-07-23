@@ -40,8 +40,12 @@ services:
       - DISABLE_JOB_SCHEDULER=false
       - DISABLE_MONITOR_SCHEDULER=false
       
+      # Better Auth Configuration
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-your-super-secret-key-change-this-in-production}
+      
       # Migration Configuration
       # Migrations are always run on app startup
+    # Use default CMD from Dockerfile which runs migrations then starts server
     volumes:
       - ./app/public/tests:/app/public/tests
       - ./app/public/test-results:/app/public/test-results
@@ -55,11 +59,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "sh", "-c", "ps aux | grep next-server | grep -v grep"]
+      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3000, path: '/', timeout: 5000}, (res) => process.exit(res.statusCode < 400 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 120s  # Increased to allow for migrations
     networks:
       - supercheck-network
     deploy:
@@ -109,23 +113,29 @@ services:
       # Scheduler Configuration
       - DISABLE_JOB_SCHEDULER=false
       - DISABLE_MONITOR_SCHEDULER=false
+      
+      # Playwright Configuration
+      - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+    # Use default CMD from Dockerfile
     volumes:
       - ./runner/playwright-reports:/app/playwright-reports
       - ./runner/report:/app/report
     depends_on:
       postgres:
         condition: service_healthy
+      app:
+        condition: service_healthy  # Wait for app to complete migrations
       redis:
         condition: service_healthy
       minio:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "timeout", "5", "bash", "-c", "exec 3<>/dev/tcp/localhost/3001 && exit 0"]
+      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3001, path: '/health', timeout: 5000}, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     networks:
       - supercheck-network
     deploy:
@@ -154,7 +164,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 15
+      start_period: 30s
     networks:
       - supercheck-network
     deploy:

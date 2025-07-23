@@ -2,9 +2,34 @@ import { NextResponse } from 'next/server';
 import { db } from '@/utils/db';
 import { runs } from '@/db/schema/schema';
 import { eq } from 'drizzle-orm';
-import { Queue } from 'bullmq';
 import { JOB_EXECUTION_QUEUE } from '@/lib/queue';
 import Redis from 'ioredis';
+
+// Dynamic import for BullMQ to avoid webpack warnings
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Queue: any;
+
+// Function to dynamically import BullMQ
+const getBullMQQueue = async () => {
+  if (!Queue && typeof window === 'undefined') {
+    const { Queue: BullQueue } = await import('bullmq');
+    Queue = BullQueue;
+  }
+  return Queue;
+};
+
+// Type for BullMQ Job
+interface BullJob {
+  id?: string;
+  name?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data?: any;
+  getState(): Promise<string>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  progress: Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  returnvalue: Promise<any>;
+}
 
 /**
  * Helper function to create SSE message
@@ -79,7 +104,8 @@ export async function GET(request: Request) {
 
         // Get Redis connection and create the Bull queue
         const connection = await getRedisConnection();
-        const jobQueue = new Queue(JOB_EXECUTION_QUEUE, { connection });
+        const QueueClass = await getBullMQQueue();
+        const jobQueue = new QueueClass(JOB_EXECUTION_QUEUE, { connection });
         
         // Handle disconnection
         const cleanup = async () => {
@@ -138,7 +164,7 @@ export async function GET(request: Request) {
           console.log(`[SSE] Found ${activeJobs.length} active jobs in the queue`);
           
           // Find job matching our runId in the data object
-          for (const activeJob of activeJobs) {
+          for (const activeJob of activeJobs as BullJob[]) {
             const data = activeJob.data || {};
             if (data.runId === runId || activeJob.name === runId) {
               console.log(`[SSE] Found matching job with ID ${activeJob.id} and name ${activeJob.name} for runId ${runId}`);
@@ -200,7 +226,7 @@ export async function GET(request: Request) {
                 // Still not found, check active jobs again
                 const activeJobs = await jobQueue.getJobs(['active', 'delayed', 'wait', 'waiting']);
                 
-                for (const activeJob of activeJobs) {
+                for (const activeJob of activeJobs as BullJob[]) {
                   const data = activeJob.data || {};
                   if (data.runId === runId || activeJob.name === runId) {
                     job = activeJob;

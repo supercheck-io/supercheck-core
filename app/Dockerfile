@@ -1,5 +1,15 @@
-# Use platform-agnostic base image
+# Use platform-agnostic base image with LTS version for better availability
 FROM node:20-slim AS base
+
+# Install system dependencies in base stage for better layer caching
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    bash \
+    ca-certificates \
+    cron \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -8,8 +18,9 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install only production dependencies
-RUN npm ci --only=production --legacy-peer-deps
+# Install production dependencies with better caching
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --only=production --legacy-peer-deps --no-audit --no-fund
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -17,28 +28,29 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Install dev dependencies for build
-RUN npm ci --legacy-peer-deps
+# Install dev dependencies for build with caching
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --legacy-peer-deps --no-audit --no-fund
 
 # Build the Next.js application
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+ENV NODE_ENV=production
 
-# Build with standalone output
+# Build with standalone output and static optimization
+# Use a build-time placeholder secret that will be overridden at runtime
+ENV BETTER_AUTH_SECRET=build-time-placeholder-will-be-overridden-at-runtime
 RUN npm run build
 
+# Clear the build-time secret for security
+ENV BETTER_AUTH_SECRET=
+
 # Production image, copy all the files and run next
-FROM node:20-slim AS runner
+FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-
-# Install PostgreSQL client tools and bash for database migrations
-RUN apt-get update && apt-get install -y \
-    postgresql-client \
-    bash \
-    && rm -rf /var/lib/apt/lists/*
 
 # Create user
 RUN groupadd --system --gid 1001 nodejs && \
@@ -49,9 +61,9 @@ RUN mkdir -p /home/nextjs/.npm && \
     chown -R nextjs:nodejs /home/nextjs && \
     chown -R nextjs:nodejs /app
 
-# Copy only necessary files for execution
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/public ./public
+# Copy only necessary files for execution with proper ownership
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # Copy standalone build
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
@@ -60,16 +72,19 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Copy migration files and scripts
 COPY --from=builder --chown=nextjs:nodejs /app/src/db ./src/db
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
-RUN chmod +x ./scripts/migrate.sh
+COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.json ./drizzle.config.json
+
+# Make scripts executable
+RUN chmod +x ./scripts/start-simple.sh ./scripts/migrate-simple.js
+
+# Verify scripts are copied correctly
+RUN ls -la ./scripts/ && echo "Scripts directory contents:" && cat ./scripts/start-simple.sh | head -10
 
 # Set npm to not use cache and set proper environment
 RUN mkdir -p /tmp/.npm && \
-    chown -R nextjs:nodejs /tmp/.npm
-
-# Clean up unnecessary files to reduce image size
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    npm cache clean --force && \
-    rm -rf /root/.npm /root/.cache
+    chown -R nextjs:nodejs /tmp/.npm && \
+    chown -R nextjs:nodejs /app
 
 USER nextjs
 
@@ -82,10 +97,10 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Copy startup script
-COPY --from=builder --chown=nextjs:nodejs /app/scripts/start.sh ./start.sh
-RUN chmod +x ./start.sh
+# Add health check for migration completion
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD node -e "const postgres = require('postgres'); const client = postgres(process.env.DATABASE_URL); client\`SELECT 1\`.then(() => process.exit(0)).catch(() => process.exit(1));"
 
-# Use startup script that handles migrations
-CMD ["./start.sh"]
+# Use the simplified start script which handles migrations and startup
+CMD ["./scripts/start-simple.sh"]
  

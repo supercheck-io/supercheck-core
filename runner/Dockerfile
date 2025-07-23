@@ -1,26 +1,8 @@
-# Use platform-agnostic base image for deps stage
-FROM node:20-slim AS deps
-WORKDIR /app
+# Use platform-agnostic base image with LTS version for better availability
+FROM node:20-slim AS base
 
-# Copy package files
-COPY package.json package-lock.json* ./
-
-# Install only production dependencies
-RUN npm ci --only=production --legacy-peer-deps
-
-# Build stage with dev dependencies
-FROM deps AS builder
-WORKDIR /app
-COPY . .
-
-# Install dev dependencies for build
-RUN npm ci --legacy-peer-deps
-
-# Install system dependencies required for Playwright browsers
+# Install base system dependencies once
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
     libglib2.0-0 \
     libnss3 \
     libnspr4 \
@@ -46,22 +28,49 @@ RUN apt-get update && apt-get install -y \
     libgdk-pixbuf2.0-0 \
     libxss1 \
     libxshmfence1 \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Install Playwright and download browser binaries
-RUN npm install -D @playwright/test@latest
-RUN npx playwright install chromium --with-deps
+# Dependencies stage
+FROM base AS deps
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install production dependencies with caching
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --only=production --legacy-peer-deps --no-audit --no-fund
+
+# Build stage with dev dependencies
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Install dev dependencies for build with caching
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --legacy-peer-deps --no-audit --no-fund
+
+# Install Playwright and download browser binaries with caching
+RUN --mount=type=cache,target=/root/.npm \
+    npm install -D @playwright/test@latest
+
+# Install Playwright browsers with proper caching
+RUN --mount=type=cache,target=/root/.cache/ms-playwright \
+    npx playwright install chromium --with-deps
 
 # Copy Playwright browsers to a known location for the final stage
 RUN mkdir -p /app/playwright-browsers && \
-    cp -r /root/.cache/ms-playwright /app/playwright-browsers/ && \
-    rm -rf /root/.cache/ms-playwright
+    cp -r /root/.cache/ms-playwright /app/playwright-browsers/ 2>/dev/null || \
+    echo "Browser cache not found, will be downloaded in final stage"
 
 # Build the NestJS application
 RUN npm run build
 
-# Production image, copy all the files and run next
-FROM node:20-slim AS runner
+# Production image using the same base with dependencies already installed
+FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -70,55 +79,34 @@ ENV NODE_ENV=production
 RUN groupadd --system --gid 1001 nodejs && \
     useradd --system --uid 1001 --gid nodejs nodejs
 
-# Copy only necessary files
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/playwright.config.js ./
+# Copy only necessary files with proper ownership
+COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
+COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/playwright.config.js ./
 
-# Copy Playwright browsers from deps stage
+# Copy Playwright browsers from builder stage
 COPY --from=builder --chown=nodejs:nodejs /app/playwright-browsers /app/playwright-browsers
 
-# Install system dependencies required for Playwright browsers in the final stage
-RUN apt-get update && apt-get install -y \
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxcb1 \
-    libxkbcommon0 \
-    libx11-6 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    libatspi2.0-0 \
-    libgtk-3-0 \
-    libgdk-pixbuf2.0-0 \
-    libxss1 \
-    libxshmfence1 \
-    && rm -rf /var/lib/apt/lists/*
-
 # Create directories for test execution
-RUN mkdir -p playwright-reports && \
-    chown -R nodejs:nodejs playwright-reports
+RUN mkdir -p playwright-reports report && \
+    chown -R nodejs:nodejs playwright-reports report /app
 
 # Set Playwright browser cache path
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers/ms-playwright
+# Fallback to system installation if browsers not found
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 
-# Clean up unnecessary files to reduce image size
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    npm cache clean --force && \
-    rm -rf /root/.npm /root/.cache
+# Install browsers if not copied from builder (fallback)
+RUN if [ ! -d "/app/playwright-browsers/ms-playwright" ]; then \
+        echo "Installing Playwright browsers as fallback..." && \
+        npm install -D @playwright/test@latest && \
+        npx playwright install chromium --with-deps; \
+    fi
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD node -e "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3001, path: '/health', timeout: 5000}, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();"
 
 USER nodejs
 
