@@ -41,7 +41,7 @@ COPY package.json package-lock.json* ./
 
 # Install production dependencies with caching
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --only=production --legacy-peer-deps --no-audit --no-fund
+    npm ci --omit=dev --legacy-peer-deps --no-audit --no-fund
 
 # Build stage with dev dependencies
 FROM base AS builder
