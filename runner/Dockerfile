@@ -53,10 +53,6 @@ COPY . .
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --legacy-peer-deps --no-audit --no-fund
 
-# Install Playwright and download browser binaries with caching
-RUN --mount=type=cache,target=/root/.npm \
-    npm install -D @playwright/test@latest playwright
-
 # Install Playwright browsers with proper caching
 RUN --mount=type=cache,target=/root/.cache/ms-playwright \
     npm exec playwright install chromium --with-deps
@@ -101,7 +97,6 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 # Install browsers if not copied from builder (fallback)
 RUN if [ ! -d "/app/playwright-browsers/ms-playwright" ]; then \
         echo "Installing Playwright browsers as fallback..." && \
-        npm install -D @playwright/test@latest && \
         npx playwright install chromium --with-deps; \
     fi
 

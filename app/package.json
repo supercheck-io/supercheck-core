@@ -65,6 +65,7 @@
     "nodemailer": "^7.0.3",
     "oracledb": "^6.9.0",
     "pg": "^8.16.3",
+    "playwright": "^1.52.0",
     "postgres": "^3.4.5",
     "react": "19.1.0",
     "react-day-picker": "^8.10.1",
@@ -83,8 +84,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@playwright/test": "^1.51.0",
     "@tailwindcss/postcss": "^4",
+    "@playwright/test": "^1.52.0",
     "@types/mssql": "^9.1.7",
     "@types/node": "^20",
     "@types/pg": "^8.11.13",
