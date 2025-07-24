@@ -1,9 +1,40 @@
 services:
+  # Traefik Reverse Proxy with HTTPS
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-hello@meditationblue.com}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-letsencrypt:/letsencrypt
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:-supercheck.meditationblue.com}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=myresolver"
+      - "traefik.http.routers.traefik.service=api@internal"
+    networks:
+      - supercheck-network
+    restart: unless-stopped
+
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:monitoring-5491209
-    ports:
-      - "3000:3000"
+    image: ghcr.io/krish-kant/supercheck/app:monitoring-e81b65a
+    expose:
+      - "3000"
     environment:
       # Database Configuration
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
@@ -20,7 +51,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-supersecure-redis-password-change-this}@redis:6379
       
       # App Configuration
-      - NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+      - NEXT_PUBLIC_APP_URL=https://${DOMAIN:-supercheck.meditationblue.com}
       - NODE_ENV=production
       - RUNNING_CAPACITY=5
       - QUEUED_CAPACITY=50
@@ -82,6 +113,12 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s  # Increased to allow for migrations
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`${DOMAIN:-supercheck.meditationblue.com}`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=myresolver"
+      - "traefik.http.services.app.loadbalancer.server.port=3000"
     networks:
       - supercheck-network
     deploy:
@@ -95,7 +132,7 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:monitoring-5491209
+    image: ghcr.io/krish-kant/supercheck/worker:monitoring-e81b65a
     environment:
       # Database Configuration
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
@@ -112,7 +149,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-supersecure-redis-password-change-this}@redis:6379
       
       # App Configuration
-      - NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+      - NEXT_PUBLIC_APP_URL=https://${DOMAIN:-supercheck.meditationblue.com}
       - NODE_ENV=production
       - RUNNING_CAPACITY=5
       - QUEUED_CAPACITY=50
@@ -280,6 +317,8 @@ volumes:
   worker-playwright-reports:
     driver: local
   worker-reports:
+    driver: local
+  traefik-letsencrypt:
     driver: local
 
 networks:
