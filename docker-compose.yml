@@ -59,7 +59,7 @@ services:
       
       # Resend Configuration (Fallback email delivery method)
       - RESEND_API_KEY=${RESEND_API_KEY:-}
-      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-notification@meditationblue.com}
       
       # Migration Configuration
       # Migrations are always run on app startup
