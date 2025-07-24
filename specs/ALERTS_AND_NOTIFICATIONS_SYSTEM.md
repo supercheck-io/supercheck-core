@@ -1,6 +1,6 @@
 # Alerts and Notifications System
 
-This document provides a comprehensive overview of the alerts and notifications system, including configuration, implementation, and best practices.
+This document provides a comprehensive overview of the alerts and notifications system in Supertest, including configuration, implementation, and best practices for monitoring alerts and job notifications.
 
 ## Table of Contents
 
@@ -19,12 +19,12 @@ This document provides a comprehensive overview of the alerts and notifications 
 
 ## System Overview
 
-The system is architecturally divided into two main components:
+The Supertest alerts and notifications system is built on a distributed architecture with two main components:
 
-1. **`app` (Next.js Frontend):** The user-facing application where users configure monitors, jobs, and their respective alert settings. It includes the API endpoints that the frontend consumes.
-2. **`runner` (NestJS Backend):** A background worker service responsible for scheduling and executing monitors and jobs, evaluating alert conditions, and dispatching notifications through various providers.
+1. **`app` (Next.js Frontend):** The user-facing application where users configure monitors, jobs, and their respective alert settings. It includes the API endpoints for alert configuration and notification provider management.
+2. **`runner` (NestJS Worker Service):** A background worker service responsible for executing monitors and jobs, evaluating alert conditions, and dispatching notifications through configured providers.
 
-The two services communicate via a **Redis**-backed message queue (**BullMQ**), which allows the `app` to offload long-running tasks to the `runner` asynchronously.
+The services communicate via **Redis** and **BullMQ** for reliable message queuing, with **PostgreSQL** storing all configuration and audit data. The system supports multiple notification channels including email, Slack, webhooks, Telegram, Discord, and Microsoft Teams.
 
 ## Alert Configuration Validation
 
@@ -205,9 +205,15 @@ The threshold logic prevents alert spam by ensuring alerts are only sent after a
 The system supports multiple notification provider types:
 
 ### Email
-- **Configuration:** SMTP server details, from/to addresses
-- **Use Case:** Traditional email notifications
-- **Features:** HTML formatting, custom subjects
+- **Configuration:** Environment-based SMTP and Resend configuration
+- **Use Case:** Professional email notifications with automatic fallback
+- **Features:** 
+  - Dual delivery methods (SMTP primary, Resend fallback)
+  - Professional HTML templates with responsive design
+  - Automatic fallback for enhanced reliability
+  - Batch processing for multiple recipients
+  - Environment-controlled enable/disable toggles
+  - Security-focused configuration (no hardcoded credentials)
 
 ### Slack
 - **Configuration:** Webhook URL, channel name
@@ -229,17 +235,23 @@ The system supports multiple notification provider types:
 - **Use Case:** Gaming communities, developer teams
 - **Features:** Rich embeds, custom formatting
 
+### Microsoft Teams
+- **Configuration:** Webhook URL
+- **Use Case:** Corporate team communication, business alerts
+- **Features:** MessageCard format, action buttons, rich formatting
+
 ## Notification Provider Creation
 
 ### Supported Provider Types
 
 The system supports the following notification provider types:
 
-- **email**: SMTP-based email notifications
+- **email**: Dual-method email notifications (SMTP + Resend fallback)
 - **slack**: Slack webhook notifications
 - **webhook**: Generic HTTP webhook notifications
 - **telegram**: Telegram bot notifications
 - **discord**: Discord webhook notifications
+- **teams**: Microsoft Teams webhook notifications
 
 ### Database Schema
 
@@ -333,21 +345,52 @@ CREATE TABLE notification_providers (
 
 #### Email Provider
 
+The email notification system supports dual delivery methods with automatic fallback between SMTP and Resend for enhanced reliability.
+
 ```json
 {
   "type": "email",
   "config": {
-    "smtpHost": "smtp.gmail.com",
-    "smtpPort": 587,
-    "smtpUser": "alerts@company.com",
-    "smtpPassword": "password",
-    "smtpSecure": false,
-    "fromEmail": "alerts@company.com",
-    "toEmail": "team@company.com",
+    "emails": "admin@company.com, team@company.com, alerts@company.com",
     "isDefault": false
   }
 }
 ```
+
+#### Email Provider Configuration
+
+The system uses environment variables for email configuration and supports both SMTP and Resend delivery methods:
+
+**SMTP Configuration (Primary Method):**
+- `SMTP_ENABLED` - Enable/disable SMTP delivery (default: true)
+- `SMTP_HOST` - SMTP server hostname (e.g., "smtp.gmail.com")
+- `SMTP_PORT` - SMTP server port (default: 587)
+- `SMTP_USER` - SMTP username/email
+- `SMTP_PASSWORD` - SMTP password or app password
+- `SMTP_SECURE` - "true" for SSL (port 465), "false" for STARTTLS (default: false)
+- `SMTP_FROM_EMAIL` - Sender email address (optional, defaults to SMTP_USER)
+
+**Resend Configuration (Fallback Method):**
+- `RESEND_ENABLED` - Enable/disable Resend delivery (default: true)
+- `RESEND_API_KEY` - Resend service API key
+- `RESEND_FROM_EMAIL` - Sender email address for Resend (must be from verified domain)
+
+#### Email Delivery Behavior
+
+1. **Primary Delivery**: The system first attempts to send emails via SMTP if configured and enabled
+2. **Fallback Delivery**: If SMTP fails or is disabled, the system automatically falls back to Resend
+3. **Dual Redundancy**: Both methods can be enabled simultaneously for maximum reliability
+4. **Professional Templates**: All emails use responsive HTML templates with consistent branding
+5. **Batch Processing**: Resend emails are sent in batches of up to 10 recipients for optimal performance
+
+#### Email Template Features
+
+- **Responsive Design**: Professional HTML templates that work across all email clients
+- **Status Icons**: Visual indicators for different alert types (failure, recovery, SSL expiration)
+- **Color-Coded Badges**: Status badges with appropriate colors for quick identification
+- **Detailed Information**: Comprehensive alert details in a structured table format
+- **Dashboard Links**: Direct links to relevant dashboard sections for easy navigation
+- **Plain Text Fallback**: Automatic plain text versions for clients that don't support HTML
 
 #### Slack Provider
 
@@ -405,6 +448,18 @@ CREATE TABLE notification_providers (
 }
 ```
 
+#### Microsoft Teams Provider
+
+```json
+{
+  "type": "teams",
+  "config": {
+    "teamsWebhookUrl": "https://your-org.webhook.office.com/webhookb2/...",
+    "isDefault": false
+  }
+}
+```
+
 ### Frontend Integration
 
 #### Form Validation
@@ -427,6 +482,49 @@ Common validation errors:
 - Organization not found
 - User not found
 - Duplicate provider name within organization
+
+#### Email Provider Testing
+
+The system includes comprehensive testing for email providers:
+
+**Test API Endpoint**: `POST /api/notification-providers/test`
+
+```json
+{
+  "type": "email",
+  "config": {
+    "emails": "test@example.com"
+  }
+}
+```
+
+**Test Response**:
+```json
+{
+  "success": true,
+  "message": "Email connection successful via SMTP and Resend. Test email sent to test@example.com.",
+  "details": {
+    "smtp": {
+      "success": true,
+      "message": "SMTP connection successful",
+      "error": ""
+    },
+    "resend": {
+      "success": true,
+      "message": "Resend connection successful (ID: abc123)",
+      "error": ""
+    }
+  }
+}
+```
+
+**Test Features**:
+- Tests both SMTP and Resend connections
+- Sends actual test emails to verify delivery
+- Provides detailed results for each method
+- Validates email address format
+- Respects environment variable settings
+- Security checks prevent localhost connections
 
 #### Success Flow
 
@@ -464,7 +562,19 @@ VALUES ('job-uuid', 'provider-uuid');
 
 ### Environment Variables
 
-**Required Environment Variables:**
+**Email Notification Environment Variables:**
+- `SMTP_ENABLED` - Enable/disable SMTP delivery (default: true)
+- `SMTP_HOST` - SMTP server hostname
+- `SMTP_PORT` - SMTP server port (default: 587)
+- `SMTP_USER` - SMTP username/email
+- `SMTP_PASSWORD` - SMTP password or app password
+- `SMTP_SECURE` - "true" for SSL, "false" for STARTTLS (default: false)
+- `SMTP_FROM_EMAIL` - Sender email address (optional, defaults to SMTP_USER)
+- `RESEND_ENABLED` - Enable/disable Resend delivery (default: true)
+- `RESEND_API_KEY` - Resend service API key
+- `RESEND_FROM_EMAIL` - Sender email address for Resend (must be from verified domain)
+
+**Notification Channel Limits:**
 - `MAX_JOB_NOTIFICATION_CHANNELS` - Maximum channels for jobs (default: 10)
 - `MAX_MONITOR_NOTIFICATION_CHANNELS` - Maximum channels for monitors (default: 10)
 - `NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS` - Frontend limit for jobs (default: 10)
@@ -664,11 +774,35 @@ The notification system includes comprehensive error handling:
    - Configure multiple providers for redundancy
    - Use different providers for different alert types
    - Test provider configurations regularly
+   - **Email-specific**: Enable both SMTP and Resend for maximum reliability
 
 3. **Custom Messages:**
    - Include relevant context in custom messages
    - Use variables like `{monitor_name}`, `{target_url}`
    - Keep messages concise but informative
+
+### Email Configuration Best Practices
+
+1. **Dual Method Setup:**
+   - Configure both SMTP and Resend for automatic fallback
+   - Use environment variables for secure credential management
+   - Test both methods during initial setup
+
+2. **Environment Variables:**
+   - Set `SMTP_ENABLED=true` and `RESEND_ENABLED=true` for dual redundancy
+   - Use `SMTP_ENABLED=false` to disable SMTP and use only Resend
+   - Use `RESEND_ENABLED=false` to disable Resend and use only SMTP
+
+3. **Security Considerations:**
+   - Store sensitive credentials in environment variables, not configuration
+   - Use verified domains for sender addresses
+   - Regularly rotate API keys and passwords
+   - Monitor delivery logs for suspicious activity
+
+4. **Performance Optimization:**
+   - Use batch processing for multiple recipients
+   - Configure appropriate timeouts for SMTP connections
+   - Monitor rate limits for Resend service
 
 ### Monitor Configuration
 
@@ -707,8 +841,13 @@ The notification system includes comprehensive error handling:
 ### Manual Testing
 
 1. Create providers of each supported type
-2. Test webhook delivery to external services
-3. Verify email delivery through SMTP
+2. **Email Provider Testing**:
+   - Use the `/api/notification-providers/test` endpoint
+   - Test both SMTP and Resend delivery methods
+   - Verify professional HTML email templates
+   - Test multiple recipient email addresses
+   - Verify fallback behavior when one method fails
+3. Test webhook delivery to external services
 4. Test Slack/Discord message formatting
 5. Verify Telegram bot message delivery
 
@@ -716,19 +855,40 @@ The notification system includes comprehensive error handling:
 
 ### Common Issues
 
-1. **SMTP Connection Failed**: Check SMTP settings and credentials
-2. **Webhook Delivery Failed**: Verify URL and authentication
-3. **Slack Message Not Delivered**: Check webhook URL and channel permissions
-4. **Telegram Bot Not Responding**: Verify bot token and chat ID
-5. **Discord Webhook Error**: Check webhook URL and permissions
+1. **Email Delivery Failed**: 
+   - Check both SMTP and Resend configurations
+   - Verify `SMTP_ENABLED` and `RESEND_ENABLED` environment variables
+   - Ensure email addresses are properly formatted
+   - Check API keys and credentials
+   - Verify from email domains are authorized
+2. **SMTP Connection Failed**: 
+   - Verify SMTP host, port, and authentication credentials
+   - Check firewall and network connectivity
+   - Ensure SMTP_SECURE setting matches server requirements
+   - Verify SMTP_FROM_EMAIL domain is authorized
+3. **Resend Delivery Failed**:
+   - Verify RESEND_API_KEY is valid and active
+   - Ensure RESEND_FROM_EMAIL is from a verified domain
+   - Check Resend service status and rate limits
+   - Verify recipient email addresses are valid
+4. **Webhook Delivery Failed**: Verify URL and authentication
+5. **Slack Message Not Delivered**: Check webhook URL and channel permissions
+6. **Telegram Bot Not Responding**: Verify bot token and chat ID
+7. **Discord Webhook Error**: Check webhook URL and permissions
 
 ### Debug Steps
 
 1. Check application logs for error messages
 2. Verify provider configuration in database
-3. Test webhook endpoints manually
-4. Check network connectivity to external services
-5. Verify API keys and tokens are valid
+3. **Email-specific debugging**:
+   - Use the test API endpoint to verify both SMTP and Resend connections
+   - Check environment variables: `SMTP_ENABLED`, `RESEND_ENABLED`
+   - Verify SMTP credentials and Resend API key
+   - Check email domain authorization and DNS settings
+   - Review logs for specific error messages from each delivery method
+4. Test webhook endpoints manually
+5. Check network connectivity to external services
+6. Verify API keys and tokens are valid
 
 ## Future Enhancements
 

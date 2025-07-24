@@ -88,9 +88,10 @@ COPY --from=builder --chown=nodejs:nodejs /app/playwright.config.js ./
 # Copy Playwright browsers from builder stage
 COPY --from=builder --chown=nodejs:nodejs /app/playwright-browsers /app/playwright-browsers
 
-# Create directories for test execution
+# Create directories for test execution with proper permissions
 RUN mkdir -p playwright-reports report && \
-    chown -R nodejs:nodejs playwright-reports report /app
+    chown -R nodejs:nodejs playwright-reports report /app && \
+    chmod -R 755 playwright-reports report
 
 # Set Playwright browser cache path
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers/ms-playwright

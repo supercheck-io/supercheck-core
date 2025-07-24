@@ -16,7 +16,8 @@ services:
       # Redis Configuration
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-supersecure-redis-password-change-this}@redis:6379
       
       # App Configuration
       - NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
@@ -42,6 +43,23 @@ services:
       
       # Better Auth Configuration
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-your-super-secret-key-change-this-in-production}
+      
+      # Email Configuration for Notifications
+      # Control which email services are enabled
+      - SMTP_ENABLED=${SMTP_ENABLED:-true}
+      - RESEND_ENABLED=${RESEND_ENABLED:-true}
+      
+      # SMTP Configuration (Primary email delivery method)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-}
+      
+      # Resend Configuration (Fallback email delivery method)
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-}
       
       # Migration Configuration
       # Migrations are always run on app startup
@@ -90,7 +108,8 @@ services:
       # Redis Configuration
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-supersecure-redis-password-change-this}@redis:6379
       
       # App Configuration
       - NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
@@ -114,12 +133,30 @@ services:
       - DISABLE_JOB_SCHEDULER=false
       - DISABLE_MONITOR_SCHEDULER=false
       
+      # Email Configuration for Notifications
+      # Control which email services are enabled
+      - SMTP_ENABLED=${SMTP_ENABLED:-true}
+      - RESEND_ENABLED=${RESEND_ENABLED:-true}
+      
+      # SMTP Configuration (Primary email delivery method)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-}
+      
+      # Resend Configuration (Fallback email delivery method)
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-}
+      
       # Playwright Configuration
       - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
     # Use default CMD from Dockerfile
     volumes:
-      - ./runner/playwright-reports:/app/playwright-reports
-      - ./runner/report:/app/report
+      # Use named volumes instead of bind mounts to avoid permission issues
+      - worker-playwright-reports:/app/playwright-reports
+      - worker-reports:/app/report
     depends_on:
       postgres:
         condition: service_healthy
@@ -177,17 +214,18 @@ services:
           cpus: '0.25'
           memory: 512M
 
-  # Redis (for job queues) - No persistence to avoid RDB format issues
+  # Redis (for job queues) - Secured with authentication
   redis:
     image: redis:latest
-    ports:
-      - "6379:6379"
-    command: sh -c "rm -rf /data/* && redis-server --maxmemory 256mb --maxmemory-policy noeviction --save '' --appendonly no"
+    # Removed public port exposure for security - only accessible within Docker network
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
+    command: sh -c "rm -rf /data/* && redis-server --requirepass \"${REDIS_PASSWORD:-supersecure-redis-password-change-this}\" --maxmemory 256mb --maxmemory-policy noeviction --save '' --appendonly no --protected-mode yes --bind 0.0.0.0"
     volumes:
       - redis-data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-supersecure-redis-password-change-this}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -238,6 +276,10 @@ volumes:
   redis-data:
     driver: local
   minio-data:
+    driver: local
+  worker-playwright-reports:
+    driver: local
+  worker-reports:
     driver: local
 
 networks:

@@ -168,5 +168,17 @@ docker buildx imagetools inspect ghcr.io/krish-kant/supercheck/app:latest
 3. **Migration Order**: App service handles migrations before worker services start
 4. **Resource Limits**: Configured resource limits prevent OOM issues
 5. **Dependency Management**: Proper service dependencies ensure correct startup order
+6. **Security**: Follow SECURITY.md for production security configurations
+
+## Security
+
+⚠️ **IMPORTANT**: Before deploying to production, read and follow the [SECURITY.md](./SECURITY.md) guide.
+
+### Key Security Points:
+- Redis authentication is required (set `REDIS_PASSWORD`)
+- Redis is not publicly accessible (no port exposure)
+- Email credentials are environment-variable only
+- Change all default passwords and secrets
+- Regular security updates are essential
 
 

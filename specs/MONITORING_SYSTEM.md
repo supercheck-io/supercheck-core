@@ -1,6 +1,6 @@
 # Monitoring System
 
-This document provides a comprehensive overview of the monitoring system, including architecture, fixes, implementation details, and best practices.
+This document provides a comprehensive overview of the Supertest monitoring system, including architecture, queue management, heartbeat monitoring, scheduling implementation, and troubleshooting guides for production deployments.
 
 ## Table of Contents
 
@@ -20,15 +20,15 @@ This document provides a comprehensive overview of the monitoring system, includ
 The monitoring system provides real-time monitoring capabilities for HTTP endpoints, ping monitoring, port checking, and multi-channel alerting. It's built with Next.js, NestJS, and PostgreSQL using BullMQ and Redis for job processing.
 
 ### Key Features
-- **HTTP Request Monitoring**: Monitor REST APIs, websites, and web services
-- **Ping Host Monitoring**: Monitor server availability and network connectivity  
-- **Port Check Monitoring**: Verify if specific ports are open and accessible
-- **Heartbeat Monitoring**: Passive monitoring with explicit status signaling
-- **Real-time Status Updates**: Live status updates via Server-Sent Events (SSE)
-- **Multi-Channel Alerting**: Email, Slack, Webhook, Telegram, Discord
-- **Smart Alert Logic**: Only sends alerts on status changes (up/down transitions)
-- **Professional Templates**: Rich HTML emails and formatted messages
-- **Alert History**: Complete audit trail of all sent notifications
+- **HTTP Request Monitoring**: Monitor REST APIs, websites, and web services with custom headers, authentication, and body validation
+- **Ping Host Monitoring**: Monitor server availability and network connectivity using ICMP pings
+- **Port Check Monitoring**: Verify if specific TCP/UDP ports are open and accessible
+- **Heartbeat Monitoring**: Passive monitoring where external services ping Supertest endpoints
+- **Real-time Status Updates**: Live status updates via Server-Sent Events (SSE) for immediate feedback
+- **Multi-Channel Alerting**: Supports email, Slack, webhooks, Telegram, Discord, and Microsoft Teams
+- **Threshold-Based Alerting**: Configurable failure/recovery thresholds to prevent alert spam
+- **Professional Templates**: Rich HTML emails and formatted messages with full context
+- **Complete Audit Trail**: Alert history with delivery status and error tracking
 
 ## Architecture
 

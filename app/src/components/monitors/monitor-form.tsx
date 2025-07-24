@@ -469,27 +469,66 @@ export function MonitorForm({
         timeoutSeconds: 5, // Default timeout for ping
       };
     } else if (data.type === "heartbeat") {
-      // Generate unique heartbeat token for new monitors, keep existing for edits
-      const heartbeatToken = editMode && data.target ? data.target : crypto.randomUUID();
-      
-      // For heartbeat monitors, target is the unique token
-      apiData.target = heartbeatToken;
-      
-      // Heartbeat monitors should check at expected interval + grace period
-      // This ensures they only check when a ping could actually be overdue
-      const expectedIntervalMinutes = data.heartbeatConfig_expectedInterval || 60;
-      const gracePeriodMinutes = data.heartbeatConfig_gracePeriod || 10;
-      const checkFrequencyMinutes = expectedIntervalMinutes + gracePeriodMinutes;
-      
-      apiData.frequencyMinutes = checkFrequencyMinutes;
-      
-      apiData.config = {
-        expectedIntervalMinutes: expectedIntervalMinutes,
-        gracePeriodMinutes: gracePeriodMinutes,
-        heartbeatUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${heartbeatToken}`,
-        // Add check type to distinguish heartbeat checking logic
-        checkType: 'heartbeat_missed_ping',
-      };
+      try {
+        // Generate unique heartbeat token for new monitors, keep existing for edits
+        // Use a fallback UUID generation method for better browser compatibility
+        const generateUUID = () => {
+          try {
+            // Try modern crypto.randomUUID() first
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+              return crypto.randomUUID();
+            }
+          } catch {
+            console.warn('crypto.randomUUID() not available, using fallback');
+          }
+          
+          // Fallback to custom UUID generation
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+        };
+        
+        const heartbeatToken = editMode && data.target ? data.target : generateUUID();
+        
+        // For heartbeat monitors, target is the unique token
+        apiData.target = heartbeatToken;
+        
+        // Heartbeat monitors should check at expected interval + grace period
+        // This ensures they only check when a ping could actually be overdue
+        const expectedIntervalMinutes = data.heartbeatConfig_expectedInterval || 60;
+        const gracePeriodMinutes = data.heartbeatConfig_gracePeriod || 10;
+        const checkFrequencyMinutes = expectedIntervalMinutes + gracePeriodMinutes;
+        
+        apiData.frequencyMinutes = checkFrequencyMinutes;
+        
+        // Get the app URL with proper fallback
+        const getAppUrl = () => {
+          try {
+            if (typeof window !== 'undefined') {
+              // Client-side: use current origin
+              return window.location.origin;
+            }
+            // Server-side or fallback
+            return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          } catch {
+            console.warn('Failed to determine app URL, using fallback');
+            return 'http://localhost:3000';
+          }
+        };
+
+        apiData.config = {
+          expectedIntervalMinutes: expectedIntervalMinutes,
+          gracePeriodMinutes: gracePeriodMinutes,
+          heartbeatUrl: `${getAppUrl()}/api/heartbeat/${heartbeatToken}`,
+          // Add check type to distinguish heartbeat checking logic
+          checkType: 'heartbeat_missed_ping',
+        };
+      } catch (heartbeatError) {
+        console.error('Error processing heartbeat configuration:', heartbeatError);
+        throw new Error(`Failed to configure heartbeat monitor: ${heartbeatError instanceof Error ? heartbeatError.message : String(heartbeatError)}`);
+      }
     }
 
     try {

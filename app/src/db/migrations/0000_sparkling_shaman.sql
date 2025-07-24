@@ -53,7 +53,6 @@ CREATE TABLE "apikey" (
 	"prefix" text,
 	"key" text NOT NULL,
 	"user_id" uuid NOT NULL,
-	"type" varchar(50) DEFAULT 'job-trigger' NOT NULL,
 	"job_id" uuid,
 	"refill_interval" text,
 	"refill_amount" text,
@@ -203,6 +202,7 @@ CREATE TABLE "monitors" (
 	"last_check_at" timestamp,
 	"last_status_change_at" timestamp,
 	"muted_until" timestamp,
+	"scheduled_job_id" varchar(255),
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now()
 );
@@ -211,7 +211,7 @@ CREATE TABLE "notification_providers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid,
 	"created_by_user_id" uuid,
-	"name" varchar(255) DEFAULT 'Default Provider' NOT NULL,
+	"name" varchar(255) NOT NULL,
 	"type" varchar(50) NOT NULL,
 	"config" jsonb NOT NULL,
 	"is_enabled" boolean DEFAULT true NOT NULL,
@@ -272,6 +272,7 @@ CREATE TABLE "runs" (
 	"artifact_paths" jsonb,
 	"logs" text,
 	"error_details" text,
+	"trigger" varchar(50) DEFAULT 'manual' NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now()
 );
@@ -306,6 +307,13 @@ CREATE TABLE "team" (
 	"organization_id" uuid NOT NULL,
 	"created_at" timestamp NOT NULL,
 	"updated_at" timestamp
+);
+--> statement-breakpoint
+CREATE TABLE "test_tags" (
+	"test_id" uuid NOT NULL,
+	"tag_id" uuid NOT NULL,
+	"assigned_at" timestamp DEFAULT now(),
+	CONSTRAINT "test_tags_test_id_tag_id_pk" PRIMARY KEY("test_id","tag_id")
 );
 --> statement-breakpoint
 CREATE TABLE "tests" (
@@ -390,6 +398,8 @@ ALTER TABLE "session" ADD CONSTRAINT "session_active_organization_id_organizatio
 ALTER TABLE "tags" ADD CONSTRAINT "tags_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tags" ADD CONSTRAINT "tags_created_by_user_id_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team" ADD CONSTRAINT "team_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "test_tags" ADD CONSTRAINT "test_tags_test_id_tests_id_fk" FOREIGN KEY ("test_id") REFERENCES "public"."tests"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "test_tags" ADD CONSTRAINT "test_tags_tag_id_tags_id_fk" FOREIGN KEY ("tag_id") REFERENCES "public"."tags"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tests" ADD CONSTRAINT "tests_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tests" ADD CONSTRAINT "tests_created_by_user_id_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "reports_entity_type_id_idx" ON "reports" USING btree ("entity_type","entity_id");--> statement-breakpoint

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the implementation and improvements made to the job trigger system, which now supports three distinct trigger types: `manual`, `remote`, and `schedule`.
+This document outlines the comprehensive job trigger system in Supertest, which supports three distinct trigger types: `manual`, `remote`, and `schedule`. The system provides full traceability and control over how jobs are initiated and executed.
 
 ## Trigger Types
 
@@ -31,11 +31,19 @@ ALTER TABLE "runs" ADD COLUMN "trigger" varchar(50) DEFAULT 'manual' NOT NULL;
 ```
 
 ### Schema Definitions
+
+As defined in the current database schema:
+
 ```typescript
 export type JobTrigger = 
-  | "manual"
-  | "remote" 
-  | "schedule";
+  | "manual"   // User-initiated from web interface
+  | "remote"   // API key triggered execution  
+  | "schedule" // Cron-based automated execution
+```
+
+The `runs` table includes:
+```sql
+trigger: varchar("trigger", { length: 50 }).$type<JobTrigger>().notNull().default("manual")
 ```
 
 ## API Changes

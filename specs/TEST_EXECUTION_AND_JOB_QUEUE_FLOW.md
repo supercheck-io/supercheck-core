@@ -1,6 +1,6 @@
 # Test Execution and Job Queue Flow
 
-This document explains the end-to-end flow of test execution and job processing in the application, including how tests are queued, executed, and reported.
+This document explains the comprehensive end-to-end flow of test execution and job processing in Supertest, including queue management, parallel execution, capacity limits, and reporting mechanisms for both single tests and multi-test jobs.
 
 ## System Architecture
 

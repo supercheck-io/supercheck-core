@@ -1,6 +1,6 @@
 # API Key System
 
-This document provides a comprehensive overview of the API key system, including authentication fixes, job association improvements, and testing procedures.
+This document provides a comprehensive overview of the Supertest API key system, including authentication implementation, job-specific access control, and testing procedures for remote job triggering.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This document provides a comprehensive overview of the API key system, including
 
 ## System Overview
 
-The API key system provides secure access to job triggering functionality. It has undergone several improvements to address authentication issues and improve job association.
+The Supertest API key system provides secure, programmatic access to job triggering functionality through a robust authentication and authorization mechanism. Each API key is directly associated with a specific job and provides scoped access for remote execution.
 
 ### Key Features
 - **Secure Authentication**: Session-based validation with direct database operations
@@ -65,26 +65,28 @@ Restructured the API key system to:
 2. **API keys belong to specific jobs** (added `jobId` field)
 3. **Permissions field kept but not used** (maintained for future flexibility)
 
-## Database Schema Changes
+## Database Schema
 
-### Before
+The current API key schema as defined in the codebase:
+
 ```sql
 CREATE TABLE "apikey" (
-  "id" uuid PRIMARY KEY,
-  "user_id" uuid NOT NULL REFERENCES "user"("id") ON DELETE cascade,
-  "permissions" text, -- JSON string with job permissions
-  -- other fields...
-);
-```
-
-### After
-```sql
-CREATE TABLE "apikey" (
-  "id" uuid PRIMARY KEY,
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "name" text,
+  "start" text,        -- First 8 characters of the key for display
+  "prefix" text,       -- Key prefix (e.g., "job")
+  "key" text NOT NULL, -- Full API key value
   "user_id" uuid NOT NULL REFERENCES "user"("id") ON DELETE no action,
   "job_id" uuid REFERENCES "jobs"("id") ON DELETE cascade,
-  "permissions" text, -- Kept for future use but not currently used
-  -- other fields...
+  "enabled" boolean DEFAULT true,
+  "expires_at" timestamp,
+  "created_at" timestamp NOT NULL,
+  "updated_at" timestamp NOT NULL,
+  "permissions" text,  -- JSON string, maintained for future use
+  -- Rate limiting fields
+  "rate_limit_enabled" boolean DEFAULT true,
+  "rate_limit_time_window" text DEFAULT '60',
+  "rate_limit_max" text DEFAULT '100'
 );
 ```
 
