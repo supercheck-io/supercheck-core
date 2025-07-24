@@ -1,14 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 export interface NotificationProvider {
   id: string;
-  type: 'email' | 'slack' | 'webhook' | 'telegram' | 'discord';
+  type: 'email' | 'slack' | 'webhook' | 'telegram' | 'discord' | 'teams';
   config: Record<string, any>;
 }
 
 export interface NotificationPayload {
-  type: 'monitor_failure' | 'monitor_recovery' | 'job_failed' | 'job_success' | 'job_timeout' | 'ssl_expiring';
+  type:
+    | 'monitor_failure'
+    | 'monitor_recovery'
+    | 'job_failed'
+    | 'job_success'
+    | 'job_timeout'
+    | 'ssl_expiring';
   title: string;
   message: string;
   targetName: string;
@@ -61,15 +68,22 @@ export class NotificationService {
     this.logger.log('NotificationService initialized');
   }
 
-  async sendNotification(provider: NotificationProvider, payload: NotificationPayload): Promise<boolean> {
-    this.logger.log(`Sending notification via ${provider.type} for ${payload.type}: ${payload.title}`);
+  async sendNotification(
+    provider: NotificationProvider,
+    payload: NotificationPayload,
+  ): Promise<boolean> {
+    this.logger.log(
+      `Sending notification via ${provider.type} for ${payload.type}: ${payload.title}`,
+    );
 
     let success = false;
 
     try {
       // Validate provider configuration
       if (!this.validateProviderConfig(provider)) {
-        this.logger.error(`Invalid configuration for provider ${provider.id} (${provider.type})`);
+        this.logger.error(
+          `Invalid configuration for provider ${provider.id} (${provider.type})`,
+        );
         return false;
       }
 
@@ -80,33 +94,68 @@ export class NotificationService {
       // Send the actual notification
       switch (provider.type) {
         case 'email':
-          success = await this.sendEmailNotification(provider.config, formattedNotification, enhancedPayload);
+          success = await this.sendEmailNotification(
+            provider.config,
+            formattedNotification,
+            enhancedPayload,
+          );
           break;
         case 'slack':
-          success = await this.sendSlackNotification(provider.config, formattedNotification, enhancedPayload);
+          success = await this.sendSlackNotification(
+            provider.config,
+            formattedNotification,
+            enhancedPayload,
+          );
           break;
         case 'webhook':
-          success = await this.sendWebhookNotification(provider.config, formattedNotification, enhancedPayload);
+          success = await this.sendWebhookNotification(
+            provider.config,
+            formattedNotification,
+            enhancedPayload,
+          );
           break;
         case 'telegram':
-          success = await this.sendTelegramNotification(provider.config, formattedNotification, enhancedPayload);
+          success = await this.sendTelegramNotification(
+            provider.config,
+            formattedNotification,
+            enhancedPayload,
+          );
           break;
         case 'discord':
-          success = await this.sendDiscordNotification(provider.config, formattedNotification, enhancedPayload);
+          success = await this.sendDiscordNotification(
+            provider.config,
+            formattedNotification,
+            enhancedPayload,
+          );
+          break;
+        case 'teams':
+          success = await this.sendTeamsNotification(
+            provider.config,
+            formattedNotification,
+            enhancedPayload,
+          );
           break;
         default:
-          this.logger.error(`Unsupported notification provider type: ${provider.type}`);
+          this.logger.error(
+            `Unsupported notification provider type: ${provider.type}`,
+          );
           success = false;
       }
 
       if (success) {
-        this.logger.log(`Successfully sent notification via ${provider.type} for ${payload.type}`);
+        this.logger.log(
+          `Successfully sent notification via ${provider.type} for ${payload.type}`,
+        );
       } else {
-        this.logger.error(`Failed to send notification via ${provider.type} for ${payload.type}`);
+        this.logger.error(
+          `Failed to send notification via ${provider.type} for ${payload.type}`,
+        );
       }
-
     } catch (error) {
-      this.logger.error(`Failed to send notification via ${provider.type}:`, error);
+      this.logger.error(
+        `Failed to send notification via ${provider.type}:`,
+        error,
+      );
       success = false;
     }
 
@@ -114,8 +163,11 @@ export class NotificationService {
   }
 
   private enhancePayload(payload: NotificationPayload): NotificationPayload {
-    const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    
+    const baseUrl =
+      process.env.APP_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      'http://localhost:3000';
+
     // Generate dashboard URLs for easy navigation
     let dashboardUrl: string;
     if (payload.type.includes('monitor')) {
@@ -128,9 +180,9 @@ export class NotificationService {
     } else {
       dashboardUrl = `${baseUrl}/alerts`;
     }
-    
+
     const targetUrl = payload.metadata?.target;
-    
+
     return {
       ...payload,
       metadata: {
@@ -138,11 +190,13 @@ export class NotificationService {
         dashboardUrl,
         targetUrl,
         timestamp: payload.timestamp.toISOString(),
-      }
+      },
     };
   }
 
-  private formatNotification(payload: NotificationPayload): FormattedNotification {
+  private formatNotification(
+    payload: NotificationPayload,
+  ): FormattedNotification {
     // Standardized formatting with professional appearance - no emojis for consistency
     const isMonitor = payload.type.includes('monitor');
     const isJob = payload.type.includes('job');
@@ -169,7 +223,9 @@ export class NotificationService {
     if (payload.metadata?.type) {
       fields.push({
         title: 'Type',
-        value: payload.metadata.type.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+        value: payload.metadata.type
+          .replace('_', ' ')
+          .replace(/\b\w/g, (l: string) => l.toUpperCase()),
         short: true,
       });
     }
@@ -240,13 +296,16 @@ export class NotificationService {
     try {
       switch (provider.type) {
         case 'email':
-          return !!(
-            provider.config.smtpHost &&
-            provider.config.smtpUser &&
-            provider.config.smtpPassword &&
-            provider.config.fromEmail &&
-            provider.config.toEmail
-          );
+          // Check if emails field exists and has valid email addresses
+          if (provider.config.emails) {
+            const emails = provider.config.emails.trim();
+            if (!emails) return false;
+
+            const emailList = emails.split(',').map((email) => email.trim());
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailList.every((email) => emailRegex.test(email));
+          }
+          return false;
         case 'slack':
           return !!provider.config.webhookUrl;
         case 'webhook':
@@ -255,6 +314,8 @@ export class NotificationService {
           return !!(provider.config.botToken && provider.config.chatId);
         case 'discord':
           return !!provider.config.discordWebhookUrl;
+        case 'teams':
+          return !!provider.config.teamsWebhookUrl;
         default:
           return false;
       }
@@ -264,7 +325,10 @@ export class NotificationService {
     }
   }
 
-  async sendNotificationToMultipleProviders(providers: NotificationProvider[], payload: NotificationPayload): Promise<{ success: number; failed: number }> {
+  async sendNotificationToMultipleProviders(
+    providers: NotificationProvider[],
+    payload: NotificationPayload,
+  ): Promise<{ success: number; failed: number }> {
     if (!providers || providers.length === 0) {
       this.logger.warn('No providers to send notifications to');
       return { success: 0, failed: 0 };
@@ -273,10 +337,12 @@ export class NotificationService {
     this.logger.log(`Sending notifications to ${providers.length} providers`);
 
     const results = await Promise.allSettled(
-      providers.map(provider => this.sendNotification(provider, payload))
+      providers.map((provider) => this.sendNotification(provider, payload)),
     );
 
-    const success = results.filter(result => result.status === 'fulfilled' && result.value).length;
+    const success = results.filter(
+      (result) => result.status === 'fulfilled' && result.value,
+    ).length;
     const failed = results.length - success;
 
     this.logger.log(`Notification sent: ${success} success, ${failed} failed`);
@@ -286,55 +352,239 @@ export class NotificationService {
       const provider = providers[index];
       if (result.status === 'fulfilled') {
         if (result.value) {
-          this.logger.debug(`Provider ${provider.id} (${provider.type}): Success`);
+          this.logger.debug(
+            `Provider ${provider.id} (${provider.type}): Success`,
+          );
         } else {
-          this.logger.warn(`Provider ${provider.id} (${provider.type}): Failed to send`);
+          this.logger.warn(
+            `Provider ${provider.id} (${provider.type}): Failed to send`,
+          );
         }
       } else {
-        this.logger.error(`Provider ${provider.id} (${provider.type}): Error - ${result.reason}`);
+        this.logger.error(
+          `Provider ${provider.id} (${provider.type}): Error - ${result.reason}`,
+        );
       }
     });
 
     return { success, failed };
   }
 
-  private async sendEmailNotification(config: any, formatted: FormattedNotification, payload: NotificationPayload): Promise<boolean> {
+  private async sendEmailNotification(
+    config: any,
+    formatted: FormattedNotification,
+    payload: NotificationPayload,
+  ): Promise<boolean> {
     try {
-      const transporter = nodemailer.createTransport({
-        host: config.smtpHost,
-        port: config.smtpPort || 587,
-        secure: config.smtpSecure || false,
-        auth: {
-          user: config.smtpUser,
-          pass: config.smtpPassword,
-        },
-      });
+      // Parse email addresses from config
+      const emailAddresses = this.parseEmailAddresses(config);
+      if (emailAddresses.length === 0) {
+        throw new Error('No valid email addresses found');
+      }
 
       const emailContent = this.formatEmailContent(formatted, payload);
-      
-      await transporter.sendMail({
-        from: config.fromEmail,
-        to: config.toEmail,
-        subject: formatted.title,
-        html: emailContent.html,
-        text: emailContent.text,
-      });
 
-      return true;
+      // Try SMTP first, then fallback to Resend
+      const smtpSuccess = await this.trySMTPDelivery(config, formatted, emailContent, emailAddresses);
+      if (smtpSuccess) {
+        this.logger.log(
+          `Email notification sent successfully via SMTP to ${emailAddresses.length} recipient(s)`,
+        );
+        return true;
+      }
+
+      // Fallback to Resend if SMTP fails
+      const resendSuccess = await this.tryResendDelivery(formatted, emailContent, emailAddresses);
+      if (resendSuccess) {
+        this.logger.log(
+          `Email notification sent successfully via Resend to ${emailAddresses.length} recipient(s)`,
+        );
+        return true;
+      }
+
+      this.logger.error('All email delivery methods failed (SMTP and Resend)');
+      return false;
     } catch (error) {
-      this.logger.error(`Failed to send email notification: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to send email notification: ${error.message}`,
+        error.stack,
+      );
       return false;
     }
   }
 
-  private async sendSlackNotification(config: any, formatted: FormattedNotification, payload: NotificationPayload): Promise<boolean> {
+  private parseEmailAddresses(config: any): string[] {
+    if (!config.emails) {
+      return [];
+    }
+
+    return config.emails
+      .split(',')
+      .map((email: string) => email.trim())
+      .filter((email: string) => email && this.isValidEmail(email));
+  }
+
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  private async trySMTPDelivery(
+    config: any,
+    formatted: FormattedNotification,
+    emailContent: { html: string; text: string },
+    emailAddresses: string[],
+  ): Promise<boolean> {
+    try {
+      const smtpEnabled = process.env.SMTP_ENABLED !== 'false'; // Default to enabled
+
+      if (!smtpEnabled) {
+        this.logger.debug('SMTP is disabled via SMTP_ENABLED environment variable');
+        return false;
+      }
+
+      let smtpConfig: any;
+
+      // Use environment variables for SMTP configuration
+      smtpConfig = {
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASSWORD,
+        },
+        tls: {
+          rejectUnauthorized: false, // For development
+        },
+        connectionTimeout: 10000, // 10 seconds
+        greetingTimeout: 5000,    // 5 seconds
+      };
+
+      // Check if all required SMTP environment variables are present
+      if (!smtpConfig.host || !smtpConfig.auth.user || !smtpConfig.auth.pass) {
+        this.logger.debug('SMTP environment variables not configured, skipping SMTP delivery');
+        return false;
+      }
+
+      const transporter = nodemailer.createTransport(smtpConfig);
+      
+      // Verify SMTP connection
+      await transporter.verify();
+      this.logger.debug('SMTP connection verified successfully');
+
+      // Send to all email addresses
+      const fromEmail =
+        process.env.SMTP_FROM_EMAIL ||
+        process.env.SMTP_USER ||
+        smtpConfig.auth.user;
+
+      const sendPromises = emailAddresses.map(email =>
+        transporter.sendMail({
+          from: fromEmail,
+          to: email,
+          subject: formatted.title,
+          html: emailContent.html,
+          text: emailContent.text,
+        })
+      );
+
+      await Promise.all(sendPromises);
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`SMTP delivery failed: ${errorMessage}`);
+      return false;
+    }
+  }
+
+  private async tryResendDelivery(
+    formatted: FormattedNotification,
+    emailContent: { html: string; text: string },
+    emailAddresses: string[],
+  ): Promise<boolean> {
+    try {
+      const resendApiKey = process.env.RESEND_API_KEY;
+      const resendFromEmail = process.env.RESEND_FROM_EMAIL;
+      const resendEnabled = process.env.RESEND_ENABLED !== 'false'; // Default to enabled
+
+      if (!resendEnabled) {
+        this.logger.debug('Resend is disabled via RESEND_ENABLED environment variable');
+        return false;
+      }
+
+      if (!resendApiKey) {
+        this.logger.debug('Resend API key not configured, skipping Resend delivery');
+        return false;
+      }
+
+      if (!resendFromEmail) {
+        this.logger.warn('RESEND_FROM_EMAIL not configured, using default from domain');
+      }
+
+      const resend = new Resend(resendApiKey);
+
+      // Validate from email format for Resend (must be from verified domain)
+      const fromEmail = resendFromEmail || 'notifications@yourdomain.com';
+
+      // Send emails in batches to respect rate limits
+      const batchSize = 10; // Resend allows up to 100 recipients per request
+      const batches: string[][] = [];
+      
+      for (let i = 0; i < emailAddresses.length; i += batchSize) {
+        batches.push(emailAddresses.slice(i, i + batchSize));
+      }
+
+      for (const batch of batches) {
+        try {
+          const result = await resend.emails.send({
+            from: fromEmail,
+            to: batch,
+            subject: formatted.title,
+            html: emailContent.html,
+            text: emailContent.text,
+            // Add headers for better deliverability
+            headers: {
+              'X-Entity-Ref-ID': `notification-${Date.now()}`,
+            },
+          });
+
+          if (result.error) {
+            const errorMessage = result.error?.message || result.error?.toString() || 'Unknown error';
+            this.logger.error(`Resend batch delivery failed: ${errorMessage}`, result.error);
+            return false;
+          }
+
+          this.logger.debug(`Resend batch sent successfully: ${result.data?.id}`);
+        } catch (batchError) {
+          const errorMessage = batchError instanceof Error ? batchError.message : String(batchError);
+          this.logger.error(`Resend batch error: ${errorMessage}`, batchError);
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Resend delivery failed: ${errorMessage}`, error);
+      return false;
+    }
+  }
+
+  private async sendSlackNotification(
+    config: any,
+    formatted: FormattedNotification,
+    payload: NotificationPayload,
+  ): Promise<boolean> {
     try {
       const webhookUrl = config.webhookUrl;
       if (!webhookUrl) {
         throw new Error('Slack webhook URL is required');
       }
 
-      this.logger.debug(`Sending Slack notification to: ${webhookUrl.substring(0, 50)}...`);
+      this.logger.debug(
+        `Sending Slack notification to: ${webhookUrl.substring(0, 50)}...`,
+      );
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
@@ -354,8 +604,8 @@ export class NotificationService {
               fields: formatted.fields,
               footer: formatted.footer,
               ts: formatted.timestamp,
-            }
-          ]
+            },
+          ],
         }),
         signal: controller.signal,
       });
@@ -363,8 +613,12 @@ export class NotificationService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const responseText = await response.text().catch(() => 'Unable to read response');
-        throw new Error(`Slack API returned ${response.status}: ${response.statusText}. Response: ${responseText}`);
+        const responseText = await response
+          .text()
+          .catch(() => 'Unable to read response');
+        throw new Error(
+          `Slack API returned ${response.status}: ${response.statusText}. Response: ${responseText}`,
+        );
       }
 
       this.logger.debug(`Slack notification sent successfully`);
@@ -373,17 +627,27 @@ export class NotificationService {
       if (error.name === 'AbortError') {
         this.logger.error(`Slack notification timed out after 10 seconds`);
       } else if (error.cause?.code === 'ECONNREFUSED') {
-        this.logger.error(`Failed to connect to Slack webhook URL - connection refused`);
+        this.logger.error(
+          `Failed to connect to Slack webhook URL - connection refused`,
+        );
       } else if (error.cause?.code === 'ENOTFOUND') {
-        this.logger.error(`Failed to resolve Slack webhook URL - DNS lookup failed`);
+        this.logger.error(
+          `Failed to resolve Slack webhook URL - DNS lookup failed`,
+        );
       } else {
-        this.logger.error(`Failed to send Slack notification: ${error.message}`);
+        this.logger.error(
+          `Failed to send Slack notification: ${error.message}`,
+        );
       }
       return false;
     }
   }
 
-  private async sendWebhookNotification(config: any, formatted: FormattedNotification, payload: NotificationPayload): Promise<boolean> {
+  private async sendWebhookNotification(
+    config: any,
+    formatted: FormattedNotification,
+    payload: NotificationPayload,
+  ): Promise<boolean> {
     try {
       const webhookUrl = config.url;
       if (!webhookUrl) {
@@ -394,7 +658,7 @@ export class NotificationService {
         ...formatted,
         originalPayload: payload,
         provider: 'webhook',
-        version: '1.0'
+        version: '1.0',
       };
 
       const controller = new AbortController();
@@ -413,8 +677,12 @@ export class NotificationService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const responseText = await response.text().catch(() => 'Unable to read response');
-        throw new Error(`Webhook returned ${response.status}: ${response.statusText}. Response: ${responseText}`);
+        const responseText = await response
+          .text()
+          .catch(() => 'Unable to read response');
+        throw new Error(
+          `Webhook returned ${response.status}: ${response.statusText}. Response: ${responseText}`,
+        );
       }
 
       return true;
@@ -422,13 +690,19 @@ export class NotificationService {
       if (error.name === 'AbortError') {
         this.logger.error(`Webhook notification timed out after 10 seconds`);
       } else {
-        this.logger.error(`Failed to send webhook notification: ${error.message}`);
+        this.logger.error(
+          `Failed to send webhook notification: ${error.message}`,
+        );
       }
       return false;
     }
   }
 
-  private async sendTelegramNotification(config: any, formatted: FormattedNotification, payload: NotificationPayload): Promise<boolean> {
+  private async sendTelegramNotification(
+    config: any,
+    formatted: FormattedNotification,
+    payload: NotificationPayload,
+  ): Promise<boolean> {
     try {
       const { botToken, chatId } = config;
       if (!botToken || !chatId) {
@@ -452,12 +726,19 @@ export class NotificationService {
 
       return response.ok;
     } catch (error) {
-      this.logger.error(`Failed to send Telegram notification: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to send Telegram notification: ${error.message}`,
+        error.stack,
+      );
       return false;
     }
   }
 
-  private async sendDiscordNotification(config: any, formatted: FormattedNotification, payload: NotificationPayload): Promise<boolean> {
+  private async sendDiscordNotification(
+    config: any,
+    formatted: FormattedNotification,
+    payload: NotificationPayload,
+  ): Promise<boolean> {
     try {
       const webhookUrl = config.discordWebhookUrl;
       if (!webhookUrl) {
@@ -480,7 +761,7 @@ export class NotificationService {
               title: formatted.title,
               description: formatted.message,
               color: parseInt(formatted.color.replace('#', ''), 16),
-              fields: formatted.fields.map(field => ({
+              fields: formatted.fields.map((field) => ({
                 name: field.title,
                 value: field.value,
                 inline: field.short || false,
@@ -489,8 +770,8 @@ export class NotificationService {
                 text: formatted.footer,
               },
               timestamp: new Date(formatted.timestamp * 1000).toISOString(),
-            }
-          ]
+            },
+          ],
         }),
         signal: controller.signal,
       });
@@ -498,8 +779,12 @@ export class NotificationService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const responseText = await response.text().catch(() => 'Unable to read response');
-        throw new Error(`Discord API returned ${response.status}: ${response.statusText}. Response: ${responseText}`);
+        const responseText = await response
+          .text()
+          .catch(() => 'Unable to read response');
+        throw new Error(
+          `Discord API returned ${response.status}: ${response.statusText}. Response: ${responseText}`,
+        );
       }
 
       return true;
@@ -507,42 +792,286 @@ export class NotificationService {
       if (error.name === 'AbortError') {
         this.logger.error(`Discord notification timed out after 10 seconds`);
       } else {
-        this.logger.error(`Failed to send Discord notification: ${error.message}`);
+        this.logger.error(
+          `Failed to send Discord notification: ${error.message}`,
+        );
       }
       return false;
     }
   }
 
-  private formatEmailContent(formatted: FormattedNotification, payload: NotificationPayload): { html: string; text: string } {
-    const fieldsHtml = formatted.fields.map(field => 
-      `<tr><td style="padding: 8px; font-weight: bold; vertical-align: top;">${field.title}:</td><td style="padding: 8px;">${field.value}</td></tr>`
-    ).join('');
+  private async sendTeamsNotification(
+    config: any,
+    formatted: FormattedNotification,
+    payload: NotificationPayload,
+  ): Promise<boolean> {
+    try {
+      const webhookUrl = config.teamsWebhookUrl;
+      if (!webhookUrl) {
+        throw new Error('Microsoft Teams webhook URL is required');
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      // Create Teams MessageCard format
+      const teamsPayload = {
+        "@type": "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "themeColor": formatted.color.replace('#', ''),
+        "title": formatted.title,
+        "summary": formatted.message,
+        "sections": [
+          {
+            "activityTitle": formatted.title,
+            "activitySubtitle": formatted.message,
+            "facts": formatted.fields.map((field) => ({
+              "name": field.title,
+              "value": field.value
+            }))
+          }
+        ],
+        "potentialAction": payload.metadata?.dashboardUrl ? [
+          {
+            "@type": "OpenUri",
+            "name": "View Dashboard",
+            "targets": [
+              {
+                "os": "default",
+                "uri": payload.metadata.dashboardUrl
+              }
+            ]
+          }
+        ] : undefined
+      };
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(teamsPayload),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const responseText = await response
+          .text()
+          .catch(() => 'Unable to read response');
+        throw new Error(
+          `Microsoft Teams API returned ${response.status}: ${response.statusText}. Response: ${responseText}`,
+        );
+      }
+
+      return true;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        this.logger.error(`Microsoft Teams notification timed out after 10 seconds`);
+      } else {
+        this.logger.error(
+          `Failed to send Microsoft Teams notification: ${error.message}`,
+        );
+      }
+      return false;
+    }
+  }
+
+  private formatEmailContent(
+    formatted: FormattedNotification,
+    payload: NotificationPayload,
+  ): { html: string; text: string } {
+    const fieldsHtml = formatted.fields
+      .map(
+        (field) =>
+          `<tr>
+            <td style="padding: 12px 16px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #f1f5f9; color: #475569; font-size: 14px; width: 140px;">
+              ${field.title}:
+            </td>
+            <td style="padding: 12px 16px; vertical-align: top; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 14px;">
+              ${field.value}
+            </td>
+          </tr>`,
+      )
+      .join('');
+
+    const statusIcon = this.getStatusIcon(payload.type);
+    const statusBadge = this.getStatusBadge(payload.type, formatted.color);
 
     const html = `
-      <html>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: ${formatted.color}; margin-bottom: 20px;">${formatted.title}</h2>
-            <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-              ${formatted.message.replace(/\n/g, '<br>')}
-            </div>
-            <table style="width: 100%; border-collapse: collapse;">
-              ${fieldsHtml}
-            </table>
-            <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-            <p style="font-size: 12px; color: #666; text-align: center;">${formatted.footer}</p>
-          </div>
+      <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+      <html xmlns="http://www.w3.org/1999/xhtml">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>${formatted.title}</title>
+          <!--[if mso]>
+          <noscript>
+            <xml>
+              <o:OfficeDocumentSettings>
+                <o:AllowPNG/>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+              </o:OfficeDocumentSettings>
+            </xml>
+          </noscript>
+          <![endif]-->
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #334155; background-color: #f8fafc;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f8fafc;">
+            <tr>
+              <td align="center" valign="top">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff;">
+                  <!-- Header -->
+                  <tr>
+                    <td style="background: #667eea; padding: 32px 24px; text-align: center;">
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                        <tr>
+                          <td align="center">
+                            <div style="background: rgba(255, 255, 255, 0.1); display: inline-block; padding: 12px; border-radius: 50%; margin-bottom: 16px;">
+                              ${statusIcon}
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td align="center">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">
+                              Supercheck Monitoring Alert
+                            </h1>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td align="center">
+                            <p style="color: #ffffff; margin: 8px 0 0 0; font-size: 16px; opacity: 0.9;">
+                              System Status Notification
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                  <!-- Alert Status -->
+                  <tr>
+                    <td style="padding: 24px; border-bottom: 1px solid #e2e8f0;">
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                        <tr>
+                          <td>
+                            <div style="margin-bottom: 16px;">
+                              ${statusBadge}
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <h2 style="color: #1e293b; margin: 0 0 8px 0; font-size: 20px; font-weight: bold;">
+                              ${formatted.title}
+                            </h2>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <div style="background: #f8fafc; border-left: 4px solid ${formatted.color}; padding: 16px 20px; margin-top: 16px;">
+                              <p style="margin: 0; color: #475569; font-size: 15px; line-height: 1.6;">
+                                ${formatted.message.replace(/\n/g, '<br>')}
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                  <!-- Details Table -->
+                  <tr>
+                    <td style="padding: 24px;">
+                      <h3 style="color: #1e293b; margin: 0 0 16px 0; font-size: 16px; font-weight: bold; text-transform: uppercase;">
+                        Alert Details
+                      </h3>
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: #ffffff; border: 1px solid #e2e8f0;">
+                        ${fieldsHtml}
+                      </table>
+                    </td>
+                  </tr>
+
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background: #f1f5f9; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+                      <p style="margin: 0 0 8px 0; color: #64748b; font-size: 13px;">
+                        ${formatted.footer}
+                      </p>
+                      <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                        This is an automated notification from your monitoring system.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
         </body>
       </html>
     `;
 
-    const text = `${formatted.title}\n\n${formatted.message}\n\n${formatted.fields.map(field => `${field.title}: ${field.value}`).join('\n')}\n\n${formatted.footer}`;
+    const text = `
+SUPERCHECK MONITORING ALERT
+${formatted.title}
+
+${formatted.message}
+
+ALERT DETAILS:
+${formatted.fields.map((field) => `${field.title}: ${field.value}`).join('\n')}
+
+${formatted.footer}
+
+This is an automated notification from your monitoring system.
+    `.trim();
 
     return { html, text };
   }
 
+  private getStatusIcon(alertType: string): string {
+    // Use Unicode symbols instead of SVG for better email client compatibility
+    switch (alertType) {
+      case 'monitor_failure':
+      case 'job_failed':
+        return '<span style="font-size: 24px; color: white; line-height: 1;">⚠️</span>';
+      case 'monitor_recovery':
+      case 'job_success':
+        return '<span style="font-size: 24px; color: white; line-height: 1;">✅</span>';
+      case 'ssl_expiration':
+        return '<span style="font-size: 24px; color: white; line-height: 1;">🔒</span>';
+      default:
+        return '<span style="font-size: 24px; color: white; line-height: 1;">ℹ️</span>';
+    }
+  }
+
+  private getStatusBadge(alertType: string, color: string): string {
+    const badgeText = this.getStatusBadgeText(alertType);
+    return `<span style="background: ${color}; color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${badgeText}</span>`;
+  }
+
+  private getStatusBadgeText(alertType: string): string {
+    switch (alertType) {
+      case 'monitor_failure':
+        return 'Monitor Down';
+      case 'monitor_recovery':
+        return 'Monitor Recovered';
+      case 'job_failed':
+        return 'Job Failed';
+      case 'job_success':
+        return 'Job Completed';
+      case 'ssl_expiration':
+        return 'SSL Warning';
+      default:
+        return 'Alert';
+    }
+  }
+
   private formatTelegramMessage(formatted: FormattedNotification): string {
-    const fieldsText = formatted.fields.map(field => `*${field.title}:* ${field.value}`).join('\n');
+    const fieldsText = formatted.fields
+      .map((field) => `*${field.title}:* ${field.value}`)
+      .join('\n');
     return `${formatted.title}\n\n${formatted.message}\n\n${fieldsText}`;
   }
 
@@ -560,4 +1089,4 @@ export class NotificationService {
         return '#6b7280'; // Gray
     }
   }
-} 
+}

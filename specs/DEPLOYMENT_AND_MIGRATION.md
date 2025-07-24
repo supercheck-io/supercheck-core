@@ -1,14 +1,15 @@
 # Deployment and Migration Guide
 
-This guide explains how to deploy the Supertest monitoring and testing platform using Docker Compose with published images from GitHub Container Registry, including database migration setup.
+This comprehensive guide explains how to deploy the Supertest monitoring and testing platform using Docker Compose with published images from GitHub Container Registry, including database migration setup, multi-architecture support, and production deployment strategies.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose installed
+- Docker and Docker Compose installed (or Docker with Compose plugin)
 - At least 4GB of available RAM
 - At least 10GB of available disk space
-- GitHub account with repository access
+- GitHub account with repository access (for private repositories)
+- Basic understanding of Docker containers and environment variables
 
 ### 1. Clone and Setup
 ```bash

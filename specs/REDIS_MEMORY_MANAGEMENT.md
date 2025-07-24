@@ -1,6 +1,6 @@
 # Redis Memory Management and Cleanup System
 
-This document outlines the sophisticated Redis memory management strategy implemented in the application to prevent unbounded memory growth and ensure optimal performance.
+This document outlines Supertest's sophisticated Redis memory management strategy designed to prevent unbounded memory growth, ensure optimal performance, and maintain system stability in production environments with high job throughput.
 
 ## Overview
 

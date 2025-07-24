@@ -42,14 +42,27 @@ const data = {
   },
   projects: [
     {
-      name: "MPT",
+      name: "ABC",
     },
     {
-      name: "FXH",
+      name: "DEF",
     },
     {
-      name: "BWI",
+      name: "GHI",
     },
+    {
+      name: "JKL",
+    },
+    {
+      name: "MNO",
+    },
+    {
+      name: "PQR",
+    },
+    {
+      name: "STU",
+    },
+    
   ], 
 
   Communicate: [

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { type NotificationProviderConfig } from "@/db/schema/schema";
 
 export async function POST(req: NextRequest) {
@@ -17,6 +18,8 @@ export async function POST(req: NextRequest) {
         return await testTelegramConnection(config);
       case 'discord':
         return await testDiscordConnection(config);
+      case 'teams':
+        return await testTeamsConnection(config);
       default:
         return NextResponse.json(
           { success: false, error: "Unsupported provider type" },
@@ -34,33 +37,116 @@ export async function POST(req: NextRequest) {
 
 async function testEmailConnection(config: NotificationProviderConfig) {
   try {
-    // Validate required fields
-    if (!config.smtpHost || !config.smtpUser || !config.smtpPassword) {
-      throw new Error("Missing required SMTP configuration (host, user, password)");
+    // Validate emails field (new format)
+    if (!config.emails || !config.emails.trim()) {
+      throw new Error("At least one email address is required");
+    }
+
+    // Validate email format
+    const emailList = config.emails.split(',').map(email => email.trim()).filter(email => email);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    for (const email of emailList) {
+      if (!emailRegex.test(email)) {
+        throw new Error(`Invalid email format: ${email}`);
+      }
+    }
+
+    const testResults = {
+      smtp: { success: false, message: '', error: '' },
+      resend: { success: false, message: '', error: '' }
+    };
+
+    // Try SMTP first
+    const smtpSuccess = await testSMTPConnection(emailList[0]);
+    testResults.smtp = smtpSuccess;
+
+    // Try Resend as fallback
+    const resendSuccess = await testResendConnection(emailList[0]);
+    testResults.resend = resendSuccess;
+
+    // Determine overall success
+    if (testResults.smtp.success || testResults.resend.success) {
+      const methods = [];
+      if (testResults.smtp.success) methods.push('SMTP');
+      if (testResults.resend.success) methods.push('Resend');
+      
+      return NextResponse.json({ 
+        success: true, 
+        message: `Email connection successful via ${methods.join(' and ')}. Test email sent to ${emailList[0]}.`,
+        details: testResults
+      });
+    } else {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `All email methods failed. SMTP: ${testResults.smtp.error}. Resend: ${testResults.resend.error}`,
+          details: testResults
+        },
+        { status: 400 }
+      );
+    }
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: `Email connection failed: ${error instanceof Error ? error.message : String(error)}` },
+      { status: 400 }
+    );
+  }
+}
+
+async function testSMTPConnection(testEmail: string): Promise<{ success: boolean; message: string; error: string }> {
+  try {
+    const smtpEnabled = process.env.SMTP_ENABLED !== 'false';
+
+    if (!smtpEnabled) {
+      return {
+        success: false,
+        message: '',
+        error: 'SMTP is disabled via SMTP_ENABLED environment variable'
+      };
+    }
+
+    // Use environment variables for SMTP configuration
+    const smtpConfig = {
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      user: process.env.SMTP_USER,
+      password: process.env.SMTP_PASSWORD,
+      secure: process.env.SMTP_SECURE === 'true',
+      fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
+    };
+
+    // Check if SMTP is configured
+    if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.password) {
+      return {
+        success: false,
+        message: '',
+        error: 'SMTP not configured (missing environment variables)'
+      };
     }
 
     // Prevent localhost connections for security
-    if (config.smtpHost === 'localhost' || config.smtpHost === '127.0.0.1') {
-      throw new Error("Localhost SMTP connections are not allowed. Please use a valid SMTP server.");
+    if (smtpConfig.host === 'localhost' || smtpConfig.host === '127.0.0.1') {
+      return {
+        success: false,
+        message: '',
+        error: 'Localhost SMTP connections are not allowed'
+      };
     }
 
-    const port = parseInt(String(config.smtpPort)) || 587;
     const transporter = nodemailer.createTransport({
-      host: config.smtpHost,
-      port: port,
-      secure: port === 465, // true for 465 (SSL), false for other ports like 587 (STARTTLS)
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
       auth: {
-        user: config.smtpUser,
-        pass: config.smtpPassword,
+        user: smtpConfig.user,
+        pass: smtpConfig.password,
       },
       tls: {
-        // Don't fail on invalid certs for testing
         rejectUnauthorized: false,
-        // Enable STARTTLS for port 587
-        ciphers: 'SSLv3'
       },
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 5000,    // 5 seconds
+      connectionTimeout: 10000,
+      greetingTimeout: 5000,
     });
 
     // Verify the connection with timeout
@@ -70,13 +156,83 @@ async function testEmailConnection(config: NotificationProviderConfig) {
         setTimeout(() => reject(new Error("Connection timeout after 10 seconds")), 10000)
       )
     ]);
-    
-    return NextResponse.json({ success: true, message: "Email connection successful" });
+
+    // Test sending email
+    await transporter.sendMail({
+      from: smtpConfig.fromEmail,
+      to: testEmail,
+      subject: 'Supercheck - SMTP Test Email',
+      text: 'This is a test email to verify your SMTP configuration is working correctly.',
+      html: '<p>This is a test email to verify your <strong>SMTP configuration</strong> is working correctly.</p>',
+    });
+
+    return {
+      success: true,
+      message: 'SMTP connection successful',
+      error: ''
+    };
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: `Email connection failed: ${error instanceof Error ? error.message : String(error)}` },
-      { status: 400 }
-    );
+    return {
+      success: false,
+      message: '',
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+async function testResendConnection(testEmail: string): Promise<{ success: boolean; message: string; error: string }> {
+  try {
+    const resendEnabled = process.env.RESEND_ENABLED !== 'false';
+
+    if (!resendEnabled) {
+      return {
+        success: false,
+        message: '',
+        error: 'Resend is disabled via RESEND_ENABLED environment variable'
+      };
+    }
+
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const resendFromEmail = process.env.RESEND_FROM_EMAIL;
+
+    if (!resendApiKey) {
+      return {
+        success: false,
+        message: '',
+        error: 'Resend not configured (missing RESEND_API_KEY)'
+      };
+    }
+
+    const resend = new Resend(resendApiKey);
+    const fromEmail = resendFromEmail || 'test@yourdomain.com';
+
+    const result = await resend.emails.send({
+      from: fromEmail,
+      to: [testEmail],
+      subject: 'Supercheck - Resend Test Email',
+      text: 'This is a test email to verify your Resend configuration is working correctly.',
+      html: '<p>This is a test email to verify your <strong>Resend configuration</strong> is working correctly.</p>',
+    });
+
+    if (result.error) {
+      return {
+        success: false,
+        message: '',
+        error: result.error.message
+      };
+    }
+
+    return {
+      success: true,
+      message: `Resend connection successful (ID: ${result.data?.id})`,
+      error: ''
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: '',
+      error: error instanceof Error ? error.message : String(error)
+    };
   }
 }
 
@@ -201,6 +357,55 @@ async function testDiscordConnection(config: NotificationProviderConfig) {
   } catch (error) {
     return NextResponse.json(
       { success: false, error: `Discord connection failed: ${error instanceof Error ? error.message : String(error)}` },
+      { status: 400 }
+    );
+  }
+}
+
+async function testTeamsConnection(config: NotificationProviderConfig) {
+  try {
+    if (!config.teamsWebhookUrl) {
+      throw new Error("Microsoft Teams webhook URL is required");
+    }
+
+    const response = await fetch(config.teamsWebhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        "@type": "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "themeColor": "0078D4",
+        "title": "Supercheck Connection Test",
+        "text": "Test message from Supercheck - Connection test successful!",
+        "sections": [
+          {
+            "activityTitle": "Test Notification",
+            "activitySubtitle": "This is a test notification to verify your Teams integration is working correctly.",
+            "facts": [
+              {
+                "name": "Status",
+                "value": "Connection Successful"
+              },
+              {
+                "name": "Source",
+                "value": "Supercheck Notification System"
+              }
+            ]
+          }
+        ]
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return NextResponse.json({ success: true, message: "Microsoft Teams connection successful" });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: `Microsoft Teams connection failed: ${error instanceof Error ? error.message : String(error)}` },
       { status: 400 }
     );
   }

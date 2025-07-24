@@ -2,9 +2,30 @@ import { NextResponse } from 'next/server';
 import { db } from '@/utils/db';
 import { reports } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
-import { Queue } from 'bullmq';
 import { TEST_EXECUTION_QUEUE } from '@/lib/queue';
 import Redis from 'ioredis';
+
+// Dynamic import for BullMQ to avoid webpack warnings
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Queue: any;
+if (typeof window === 'undefined') {
+  // Only import on server side
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Queue = require('bullmq').Queue;
+}
+
+// Type for BullMQ Job
+interface BullJob {
+  id?: string;
+  name?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data?: any;
+  getState(): Promise<string>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  progress: Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  returnvalue: Promise<any>;
+}
 
 /**
  * Helper function to create SSE message
@@ -126,7 +147,7 @@ export async function GET(request: Request) {
         
         // Get all Bull jobs for this test ID
         const jobs = await testQueue.getJobs(['waiting', 'active', 'completed', 'failed']);
-        const testJob = jobs.find(job => job.data.testId === testId);
+        const testJob = jobs.find((job: BullJob) => job.data.testId === testId);
         
         if (!testJob) {
           console.log(`[SSE] Test ${testId} not found in Bull queue`);
@@ -145,7 +166,7 @@ export async function GET(request: Request) {
           try {
             // Get all jobs again to find the latest state
             const updatedJobs = await testQueue.getJobs(['waiting', 'active', 'completed', 'failed']);
-            const updatedTestJob = updatedJobs.find(job => job.data.testId === testId);
+            const updatedTestJob = updatedJobs.find((job: BullJob) => job.data.testId === testId);
             
             if (!updatedTestJob) {
               return;

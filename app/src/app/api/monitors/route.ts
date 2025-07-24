@@ -41,17 +41,22 @@ export async function POST(req: NextRequest) {
 
     const rawData = await req.json();
     console.log("[MONITOR_CREATE] Raw data received:", rawData);
+    
+    // Special logging for heartbeat monitors
+    if (rawData.type === "heartbeat") {
+      console.log("[MONITOR_CREATE] Processing heartbeat monitor with config:", rawData.config);
+    }
 
     // Validate required fields
-    if (!rawData.name || !rawData.type || !rawData.target) {
+    if (!rawData.name || !rawData.type) {
       return NextResponse.json({ 
         error: "Missing required fields", 
-        details: "name, type, and target are required" 
+        details: "name and type are required" 
       }, { status: 400 });
     }
 
-    // Validate target - all monitor types require a target
-    if (!rawData.target) {
+    // Validate target - all monitor types require a target except heartbeat (where it's auto-generated)
+    if (rawData.type !== "heartbeat" && !rawData.target) {
       return NextResponse.json({ error: "Target is required for this monitor type" }, { status: 400 });
     }
 

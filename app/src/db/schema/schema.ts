@@ -526,29 +526,37 @@ export const testTags = pgTable(
   })
 );
 
-export type NotificationProviderType = "email" | "slack" | "webhook" | "telegram" | "discord";
+export type NotificationProviderType = "email" | "slack" | "webhook" | "telegram" | "discord" | "teams";
 /**
  * Holds the configuration details for different notification provider types.
  */
 export type NotificationProviderConfig = {
   name?: string;
   isDefault?: boolean;
-  smtpHost?: string;
-  smtpPort?: number;
-  smtpUser?: string;
-  smtpPassword?: string;
-  smtpSecure?: boolean;
-  fromEmail?: string;
-  toEmail?: string;
+  
+  // Email configuration - simplified field using environment variables for SMTP
+  emails?: string;
+  
+  // Slack configuration
   webhookUrl?: string;
   channel?: string;
+  
+  // Webhook configuration
   url?: string;
   method?: "GET" | "POST" | "PUT";
   headers?: Record<string, string>;
   bodyTemplate?: string;
+  
+  // Telegram configuration
   botToken?: string;
   chatId?: string;
+  
+  // Discord configuration
   discordWebhookUrl?: string;
+  
+  // Microsoft Teams configuration
+  teamsWebhookUrl?: string;
+  
   [key: string]: unknown;
 };
 

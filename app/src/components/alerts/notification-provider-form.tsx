@@ -10,45 +10,111 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { type NotificationProviderType, type NotificationProviderConfig } from "@/db/schema/schema";
+import { getUserFriendlyError, VALIDATION_PATTERNS, CHARACTER_LIMITS } from "@/lib/error-utils";
 
 const notificationProviderSchema = z.object({
-  type: z.enum(["email", "slack", "webhook", "telegram", "discord"] as const),
+  type: z.enum(["email", "slack", "webhook", "telegram", "discord", "teams"] as const),
   config: z.object({
     name: z.string().min(1, "Name is required"),
     
-    // Email fields
-    smtpHost: z.string().optional(),
-    smtpPort: z.number().optional(),
-    smtpUser: z.string().optional(),
-    smtpPassword: z.string().optional(),
-    smtpSecure: z.boolean().optional(),
-    fromEmail: z.string().optional(),
-    toEmail: z.string().optional(),
+    // Email fields - simplified to just email addresses
+    emails: z.string()
+      .max(CHARACTER_LIMITS.emails, `Email addresses cannot exceed ${CHARACTER_LIMITS.emails} characters`)
+      .optional()
+      .refine((emails) => {
+        if (!emails?.trim()) return true; // Optional field
+        
+        // Split by comma and validate each email
+        const emailList = emails.split(',').map(email => email.trim());
+        
+        return emailList.every(email => email === '' || VALIDATION_PATTERNS.email.test(email));
+      }, {
+        message: "Please enter valid email addresses separated by commas"
+      }),
     
     // Slack fields
-    webhookUrl: z.string().optional(),
-    channel: z.string().optional(),
+    webhookUrl: z.string()
+      .optional()
+      .refine((url) => {
+        if (!url) return true;
+        return VALIDATION_PATTERNS.slackWebhook.test(url);
+      }, {
+        message: "Please enter a valid Slack webhook URL"
+      }),
+    channel: z.string()
+      .optional()
+      .refine((channel) => {
+        if (!channel) return true;
+        return VALIDATION_PATTERNS.slackChannel.test(channel);
+      }, {
+        message: "Channel must start with # and contain only lowercase letters, numbers, hyphens, and underscores"
+      }),
     
     // Webhook fields
-    url: z.string().optional(),
+    url: z.string()
+      .optional()
+      .refine((url) => {
+        if (!url) return true;
+        try {
+          new URL(url);
+          return VALIDATION_PATTERNS.httpUrl.test(url);
+        } catch {
+          return false;
+        }
+      }, {
+        message: "Please enter a valid HTTP or HTTPS URL"
+      }),
     method: z.enum(["GET", "POST", "PUT"]).optional(),
     headers: z.record(z.string()).optional(),
-    bodyTemplate: z.string().optional(),
+    bodyTemplate: z.string()
+      .max(CHARACTER_LIMITS.bodyTemplate, `Body template cannot exceed ${CHARACTER_LIMITS.bodyTemplate} characters`)
+      .optional(),
     
     // Telegram fields
-    botToken: z.string().optional(),
-    chatId: z.string().optional(),
+    botToken: z.string()
+      .optional()
+      .refine((token) => {
+        if (!token) return true;
+        return VALIDATION_PATTERNS.telegramBotToken.test(token);
+      }, {
+        message: "Please enter a valid Telegram bot token (format: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz)"
+      }),
+    chatId: z.string()
+      .optional()
+      .refine((chatId) => {
+        if (!chatId) return true;
+        return VALIDATION_PATTERNS.telegramChatId.test(chatId);
+      }, {
+        message: "Please enter a valid chat ID (numeric value, may start with -)"
+      }),
     
     // Discord fields
-    discordWebhookUrl: z.string().optional(),
+    discordWebhookUrl: z.string()
+      .optional()
+      .refine((url) => {
+        if (!url) return true;
+        return VALIDATION_PATTERNS.discordWebhook.test(url);
+      }, {
+        message: "Please enter a valid Discord webhook URL"
+      }),
+    
+    // Microsoft Teams fields
+    teamsWebhookUrl: z.string()
+      .optional()
+      .refine((url) => {
+        if (!url) return true;
+        return VALIDATION_PATTERNS.teamsWebhook.test(url);
+      }, {
+        message: "Please enter a valid Microsoft Teams webhook URL"
+      }),
   }),
 }).refine((data) => {
   // Validate required fields based on type
   if (data.type === "email") {
-    return data.config.smtpHost && data.config.toEmail;
+    const emails = data.config.emails?.trim();
+    return emails && emails.length > 0;
   }
   if (data.type === "slack") {
     return data.config.webhookUrl;
@@ -61,6 +127,9 @@ const notificationProviderSchema = z.object({
   }
   if (data.type === "discord") {
     return data.config.discordWebhookUrl;
+  }
+  if (data.type === "teams") {
+    return data.config.teamsWebhookUrl;
   }
   return true;
 }, {
@@ -88,13 +157,7 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
       type: initialData.type,
       config: {
         name: initialData.config.name || "",
-        smtpHost: initialData.config.smtpHost || "",
-        smtpPort: initialData.config.smtpPort || 587,
-        smtpUser: initialData.config.smtpUser || "",
-        smtpPassword: initialData.config.smtpPassword || "",
-        smtpSecure: initialData.config.smtpSecure || false,
-        fromEmail: initialData.config.fromEmail || "",
-        toEmail: initialData.config.toEmail || "",
+        emails: initialData.config.emails || "",
         webhookUrl: initialData.config.webhookUrl || "",
         channel: initialData.config.channel || "",
         url: initialData.config.url || "",
@@ -104,18 +167,13 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
         botToken: initialData.config.botToken || "",
         chatId: initialData.config.chatId || "",
         discordWebhookUrl: initialData.config.discordWebhookUrl || "",
+        teamsWebhookUrl: initialData.config.teamsWebhookUrl || "",
       },
     } : {
       type: "email",
       config: {
         name: "",
-        smtpHost: "",
-        smtpPort: 587,
-        smtpUser: "",
-        smtpPassword: "",
-        smtpSecure: false,
-        fromEmail: "",
-        toEmail: "",
+        emails: "",
         webhookUrl: "",
         channel: "",
         url: "",
@@ -125,6 +183,7 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
         botToken: "",
         chatId: "",
         discordWebhookUrl: "",
+        teamsWebhookUrl: "",
       },
     },
   });
@@ -152,11 +211,14 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
       if (result.success) {
         toast.success(result.message || "Connection test successful!");
       } else {
-        toast.error(result.error || "Connection test failed. Please check your configuration.");
+        const friendlyError = getUserFriendlyError(result.error, data.type);
+        toast.error(friendlyError);
       }
     } catch (error) {
       console.error("Error testing connection:", error);
-      toast.error("Failed to test connection");
+      const currentData = form.getValues();
+      const friendlyError = getUserFriendlyError(error, currentData.type);
+      toast.error(friendlyError);
     } finally {
       setIsTesting(false);
     }
@@ -176,7 +238,8 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
       toast.success(initialData ? "Notification channel updated successfully" : "Notification channel created successfully");
     } catch (error) {
       console.error("Error saving notification provider:", error);
-      toast.error("Failed to save notification channel");
+      const friendlyError = getUserFriendlyError(error, data.type);
+      toast.error(friendlyError);
     } finally {
       setIsSubmitting(false);
     }
@@ -204,6 +267,7 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
                         <SelectItem value="webhook">Webhook</SelectItem>
                         <SelectItem value="telegram">Telegram</SelectItem>
                         <SelectItem value="discord">Discord</SelectItem>
+                        <SelectItem value="teams">Microsoft Teams</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -230,114 +294,26 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
             {selectedType === "email" && (
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Email Configuration</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="config.smtpHost"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>SMTP Host</FormLabel>
-                        <FormControl>
-                          <Input placeholder="smtp.gmail.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="config.smtpPort"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>SMTP Port</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="587" 
-                            {...field}
-                            value={field.value || ""}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 587)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="config.smtpUser"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>SMTP Username</FormLabel>
-                        <FormControl>
-                          <Input placeholder="your-email@gmail.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="config.smtpPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>SMTP Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="your-app-password" {...field} />
-                        </FormControl>
-                       
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="config.fromEmail"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>From Email</FormLabel>
-                        <FormControl>
-                          <Input placeholder="alerts@yourcompany.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="config.toEmail"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>To Email</FormLabel>
-                        <FormControl>
-                          <Input placeholder="admin@yourcompany.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
                 <FormField
                   control={form.control}
-                  name="config.smtpSecure"
+                  name="config.emails"
                   render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                      <div className="space-y-0.5">
-                        <FormLabel>Use TLS/SSL</FormLabel>
-                        <div className="text-sm text-muted-foreground">
-                          Enable secure connection (recommended)
-                        </div>
-                      </div>
+                    <FormItem>
+                      <FormLabel>Email Addresses</FormLabel>
                       <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
+                        <Textarea 
+                          placeholder="admin@yourcompany.com, team@yourcompany.com, alerts@yourcompany.com"
+                          className="min-h-[100px] resize-y"
+                          maxLength={CHARACTER_LIMITS.emails}
+                          {...field} 
                         />
                       </FormControl>
+                      <div className="text-sm text-muted-foreground">
+                        Enter email addresses separated by commas. Maximum {CHARACTER_LIMITS.emails} characters.
+                        <br />
+                        SMTP configuration will be managed through environment variables.
+                      </div>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -485,6 +461,29 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
                       <FormControl>
                         <Input placeholder="https://discord.com/api/webhooks/..." {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
+            {/* Microsoft Teams Configuration */}
+            {selectedType === "teams" && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Microsoft Teams Configuration</h3>
+                <FormField
+                  control={form.control}
+                  name="config.teamsWebhookUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Webhook URL</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://your-org.webhook.office.com/webhookb2/..." {...field} />
+                      </FormControl>
+                      <div className="text-sm text-muted-foreground">
+                        Create an Incoming Webhook connector in your Teams channel and paste the URL here.
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -9,21 +9,34 @@ import { randomUUID } from 'crypto';
 
 const execAsync = promisify(exec);
 
-// Helper function to execute a command and get the exitCode 
-async function execWithExitCode(command: string, options: any = {}): Promise<{stdout: string; stderr: string; exitCode: number}> {
+// Helper function to execute a command and get the exitCode
+async function execWithExitCode(
+  command: string,
+  options: any = {},
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
     const { stdout, stderr } = await execAsync(command, options);
-    return { 
-      stdout: stdout.toString(), 
-      stderr: stderr.toString(), 
-      exitCode: 0 
+    return {
+      stdout: stdout.toString(),
+      stderr: stderr.toString(),
+      exitCode: 0,
     }; // Success
   } catch (error) {
-    if (error.code !== undefined && error.stdout !== undefined && error.stderr !== undefined) {
-      return { 
-        stdout: typeof error.stdout === 'string' ? error.stdout : error.stdout.toString(), 
-        stderr: typeof error.stderr === 'string' ? error.stderr : error.stderr.toString(), 
-        exitCode: error.code 
+    if (
+      error.code !== undefined &&
+      error.stdout !== undefined &&
+      error.stderr !== undefined
+    ) {
+      return {
+        stdout:
+          typeof error.stdout === 'string'
+            ? error.stdout
+            : error.stdout.toString(),
+        stderr:
+          typeof error.stderr === 'string'
+            ? error.stderr
+            : error.stderr.toString(),
+        exitCode: error.code,
       };
     }
     throw error; // Re-throw if it's not the expected error format
@@ -57,7 +70,7 @@ export class TestExecutionService {
 
   private async _createTestFile(
     testParams: ExecutionParams,
-    tempDirPath: string
+    tempDirPath: string,
   ): Promise<string> {
     // Create a self-executing script that uses playwright directly instead of @playwright/test
     const script = `
@@ -107,9 +120,9 @@ const path = require('path');
     // Write the test file
     const testFile = path.join(tempDirPath, 'test.js');
     await fs.writeFile(testFile, script, 'utf8');
-    
+
     this.logger.log(`Created test file at ${testFile}`);
-    
+
     return testFile;
   }
 
@@ -131,10 +144,10 @@ const path = require('path');
     testFilePath: string,
     reportDir: string,
     testId: string,
-    extraEnv: Record<string, string> = {}
+    extraEnv: Record<string, string> = {},
   ): Promise<ExecutionResult> {
     const startTime = Date.now();
-    
+
     try {
       // Set up environment variables for the test execution
       const env = {
@@ -148,14 +161,17 @@ const path = require('path');
       this.logger.log(`Reports will be saved to: ${reportDir}`);
 
       // Execute the test file directly with Node instead of using Playwright Test
-      const { stdout, stderr, exitCode } = await execWithExitCode(`node "${testFilePath}"`, {
-        env,
-        cwd: process.cwd(),
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-      });
+      const { stdout, stderr, exitCode } = await execWithExitCode(
+        `node "${testFilePath}"`,
+        {
+          env,
+          cwd: process.cwd(),
+          maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        },
+      );
 
       const duration = Date.now() - startTime;
-      
+
       return {
         success: exitCode === 0,
         exitCode,
@@ -165,8 +181,11 @@ const path = require('path');
       };
     } catch (error) {
       const duration = Date.now() - startTime;
-      this.logger.error(`Failed to execute test: ${error.message}`, error.stack);
-      
+      this.logger.error(
+        `Failed to execute test: ${error.message}`,
+        error.stack,
+      );
+
       return {
         success: false,
         exitCode: 1,
@@ -180,7 +199,7 @@ const path = require('path');
   private async _executeCommand(
     command: string,
     args: string[] = [],
-    options: Record<string, any> = {}
+    options: Record<string, any> = {},
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const cmdString = `${command} ${args.join(' ')}`;
     try {
@@ -195,7 +214,7 @@ const path = require('path');
   private async _executeNode(
     testFilePath: string,
     reportDir: string,
-    testId: string
+    testId: string,
   ): Promise<ExecutionResult> {
     this.logger.log(`Executing Node script: ${testFilePath}`);
 
@@ -204,7 +223,7 @@ const path = require('path');
       const { stdout, stderr, exitCode } = await this._executeCommand(
         'node',
         [testFilePath],
-        { cwd: process.cwd() }
+        { cwd: process.cwd() },
       );
 
       // Check if there's a success.json file which our test script creates on success
@@ -228,7 +247,7 @@ const path = require('path');
         stdout: stdout,
         stderr: stderr,
         reportDir: reportDir,
-        screenshots: result.screenshots || []
+        screenshots: result.screenshots || [],
       };
     } catch (error) {
       this.logger.error(`Error executing Node script: ${error.message}`);
@@ -237,7 +256,7 @@ const path = require('path');
         exitCode: 1,
         stdout: '',
         stderr: error.message,
-        reportDir: reportDir
+        reportDir: reportDir,
       };
     }
   }
@@ -274,14 +293,16 @@ const path = require('path');
 
       // Execute the test with Node
       const result = await this._executeNode(testFilePath, reportDir, testId);
-      
+
       const duration = Date.now() - startTime;
-      this.logger.log(`Test execution completed in ${duration}ms, success: ${result.success}`);
-      
+      this.logger.log(
+        `Test execution completed in ${duration}ms, success: ${result.success}`,
+      );
+
       return {
         ...result,
         duration,
-        testId
+        testId,
       };
     } catch (error) {
       this.logger.error(`Error executing test: ${error.message}`);
@@ -292,7 +313,7 @@ const path = require('path');
         stdout: '',
         reportDir: '',
         duration: Date.now() - startTime,
-        testId: params.testId
+        testId: params.testId,
       };
     } finally {
       // Clean up temp directory
@@ -316,7 +337,7 @@ const path = require('path');
 
   private _generateNodeTestScript(params: ExecutionParams): string {
     const { code, url } = params;
-    
+
     return `
 const fs = require('fs');
 const path = require('path');
@@ -387,4 +408,4 @@ const { chromium } = require('@playwright/test');
 })();
 `;
   }
-} 
+}
