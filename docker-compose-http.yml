@@ -1,0 +1,287 @@
+services:
+  # App (Next.js Frontend) - Handles migrations internally
+  app:
+    image: ghcr.io/krish-kant/supercheck/app:monitoring-5491209
+    ports:
+      - "3000:3000"
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=supercheck
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-supersecure-redis-password-change-this}@redis:6379
+      
+      # App Configuration
+      - NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+      - NODE_ENV=production
+      - RUNNING_CAPACITY=5
+      - QUEUED_CAPACITY=50
+      - TEST_EXECUTION_TIMEOUT_MS=900000
+      - TRACE_RECOVERY_INTERVAL_MS=300000
+      
+      # AWS S3 / MinIO Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://minio:9000
+      - S3_JOB_BUCKET_NAME=playwright-job-artifacts
+      - S3_FORCE_PATH_STYLE=true
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+      
+      # Scheduler Configuration
+      - DISABLE_JOB_SCHEDULER=false
+      - DISABLE_MONITOR_SCHEDULER=false
+      
+      # Better Auth Configuration
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-your-super-secret-key-change-this-in-production}
+      
+      # Email Configuration for Notifications
+      # Control which email services are enabled
+      - SMTP_ENABLED=${SMTP_ENABLED:-true}
+      - RESEND_ENABLED=${RESEND_ENABLED:-true}
+      
+      # SMTP Configuration (Primary email delivery method)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-}
+      
+      # Resend Configuration (Fallback email delivery method)
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-notification@meditationblue.com}
+      
+      # Migration Configuration
+      # Migrations are always run on app startup
+    # Use default CMD from Dockerfile which runs migrations then starts server
+    volumes:
+      - ./app/public/tests:/app/public/tests
+      - ./app/public/test-results:/app/public/test-results
+      - ./app/public/artifacts:/app/public/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3000, path: '/', timeout: 5000}, (res) => process.exit(res.statusCode < 400 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s  # Increased to allow for migrations
+    networks:
+      - supercheck-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Worker (NestJS Runner) - 2 replicas
+  worker:
+    image: ghcr.io/krish-kant/supercheck/worker:monitoring-5491209
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=supercheck
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-supersecure-redis-password-change-this}@redis:6379
+      
+      # App Configuration
+      - NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+      - NODE_ENV=production
+      - RUNNING_CAPACITY=5
+      - QUEUED_CAPACITY=50
+      - TEST_EXECUTION_TIMEOUT_MS=900000
+      - TRACE_RECOVERY_INTERVAL_MS=300000
+      
+      # AWS S3 / MinIO Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://minio:9000
+      - S3_JOB_BUCKET_NAME=playwright-job-artifacts
+      - S3_FORCE_PATH_STYLE=true
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+      
+      # Scheduler Configuration
+      - DISABLE_JOB_SCHEDULER=false
+      - DISABLE_MONITOR_SCHEDULER=false
+      
+      # Email Configuration for Notifications
+      # Control which email services are enabled
+      - SMTP_ENABLED=${SMTP_ENABLED:-true}
+      - RESEND_ENABLED=${RESEND_ENABLED:-true}
+      
+      # SMTP Configuration (Primary email delivery method)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-}
+      
+      # Resend Configuration (Fallback email delivery method)
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-}
+      
+      # Playwright Configuration
+      - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+    # Use default CMD from Dockerfile
+    volumes:
+      # Use named volumes instead of bind mounts to avoid permission issues
+      - worker-playwright-reports:/app/playwright-reports
+      - worker-reports:/app/report
+    depends_on:
+      postgres:
+        condition: service_healthy
+      app:
+        condition: service_healthy  # Wait for app to complete migrations
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3001, path: '/health', timeout: 5000}, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - supercheck-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16.2
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=supercheck
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    networks:
+      - supercheck-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # Redis (for job queues) - Secured with authentication
+  redis:
+    image: redis:latest
+    # Removed public port exposure for security - only accessible within Docker network
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
+    command: sh -c "rm -rf /data/* && redis-server --requirepass \"${REDIS_PASSWORD:-supersecure-redis-password-change-this}\" --maxmemory 256mb --maxmemory-policy noeviction --save '' --appendonly no --protected-mode yes --bind 0.0.0.0"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-supersecure-redis-password-change-this}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - supercheck-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # MinIO (S3-compatible storage)
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supercheck-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local
+  worker-playwright-reports:
+    driver: local
+  worker-reports:
+    driver: local
+
+networks:
+  supercheck-network:
+    driver: bridge 
