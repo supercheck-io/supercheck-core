@@ -1,4 +1,4 @@
-import { CronExpression, parseExpression } from 'cron-parser';
+import { parseExpression } from 'cron-parser';
 
 /**
  * Calculates the next run date for a given cron expression.

@@ -11,6 +11,7 @@ import { DbModule } from '../db/db.module';
 import { NotificationModule } from '../notification/notification.module';
 import { MonitorAlertService } from './services/monitor-alert.service';
 import { HeartbeatPingNotificationProcessor } from './processors/heartbeat-ping-notification.processor';
+import { ValidationService } from '../common/validation/validation.service';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { HeartbeatPingNotificationProcessor } from './processors/heartbeat-ping-
     MonitorProcessor,
     MonitorAlertService,
     HeartbeatPingNotificationProcessor,
+    ValidationService,
   ],
   exports: [MonitorService],
 })

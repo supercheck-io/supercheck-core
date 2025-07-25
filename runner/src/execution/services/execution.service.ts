@@ -30,7 +30,6 @@ import {
 // Helper function to check if running on Windows
 export const isWindows = process.platform === 'win32';
 
-
 // Gets the content type based on file extension (simple version)
 export function getContentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();

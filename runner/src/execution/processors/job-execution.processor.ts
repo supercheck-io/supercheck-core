@@ -4,11 +4,7 @@ import { Logger } from '@nestjs/common';
 import { JOB_EXECUTION_QUEUE } from '../constants';
 import { ExecutionService } from '../services/execution.service';
 import { DbService } from '../services/db.service';
-import {
-  TestScript,
-  JobExecutionTask,
-  TestExecutionResult,
-} from '../interfaces';
+import { JobExecutionTask, TestExecutionResult } from '../interfaces';
 import {
   NotificationService,
   NotificationPayload,
@@ -16,20 +12,10 @@ import {
 import { AlertStatus, AlertType } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { jobs } from 'src/db/schema';
+import { ErrorHandler } from '../../common/utils/error-handler';
+import { JobExecutionError } from '../../common/errors/execution-error';
 
-// Define the expected structure of the job data
-// Match this with TestScript and JobExecutionTask from original project
-// interface TestScript {
-//   id: string;
-//   script: string;
-//   name?: string;
-// }
-
-// interface JobExecutionTask {
-//   jobId: string;
-//   testScripts: TestScript[];
-//   // Add other fields if necessary
-// }
+// Types are now imported from interfaces.ts which uses schema types
 
 @Processor(JOB_EXECUTION_QUEUE)
 export class JobExecutionProcessor extends WorkerHost {
@@ -77,7 +63,7 @@ export class JobExecutionProcessor extends WorkerHost {
       // Update the run status with duration first
       await this.dbService
         .updateRunStatus(runId, finalStatus, durationSeconds.toString())
-        .catch((err) =>
+        .catch((err: Error) =>
           this.logger.error(
             `[${runId}] Failed to update run status to ${finalStatus}: ${err.message}`,
           ),
@@ -94,7 +80,7 @@ export class JobExecutionProcessor extends WorkerHost {
         if (finalRunStatuses.length === 1 || allTerminal) {
           await this.dbService
             .updateJobStatus(originalJobId, [finalStatus])
-            .catch((err) =>
+            .catch((err: Error) =>
               this.logger.error(
                 `[${runId}] Failed to update job status (robust): ${err.message}`,
               ),
@@ -102,7 +88,7 @@ export class JobExecutionProcessor extends WorkerHost {
         } else {
           await this.dbService
             .updateJobStatus(originalJobId, finalRunStatuses)
-            .catch((err) =>
+            .catch((err: Error) =>
               this.logger.error(
                 `[${runId}] Failed to update job status: ${err.message}`,
               ),
@@ -127,21 +113,21 @@ export class JobExecutionProcessor extends WorkerHost {
       // The result object (TestExecutionResult) from the service is returned.
       // BullMQ will store this in Redis and trigger the 'completed' event.
       return result;
-    } catch (error) {
-      this.logger.error(
-        `[${runId}] Job execution job ID: ${job.id} failed. Error: ${error.message}`,
-        error.stack,
+    } catch (error: unknown) {
+      ErrorHandler.logError(
+        this.logger,
+        error,
+        `Job execution ${runId} (job ID: ${job.id})`,
+        { runId, jobId: job.id },
       );
 
       // Update database with error status
       const errorStatus = 'failed';
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
 
       // Update run status first
       await this.dbService
         .updateRunStatus(runId, errorStatus, '0')
-        .catch((err) =>
+        .catch((err: Error) =>
           this.logger.error(
             `[${runId}] Failed to update run error status: ${err.message}`,
           ),

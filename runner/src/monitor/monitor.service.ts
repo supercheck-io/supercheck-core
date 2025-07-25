@@ -17,6 +17,8 @@ import { PostgresJsDatabase } from 'drizzle-orm/postgres-js'; // Import specific
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
 import { eq, desc } from 'drizzle-orm';
 import { MonitorAlertService } from './services/monitor-alert.service';
+import { ValidationService } from '../common/validation/validation.service';
+
 
 // Placeholder for actual execution libraries (axios, ping, net, dns, playwright-runner)
 
@@ -70,6 +72,7 @@ export class MonitorService {
     private readonly dbService: DbService,
     private readonly httpService: HttpService,
     private readonly monitorAlertService: MonitorAlertService,
+    private readonly validationService: ValidationService,
   ) {}
 
   async executeMonitor(
@@ -129,11 +132,11 @@ export class MonitorService {
 
     try {
       switch (jobData.type) {
-        case MonitorType.HTTP_REQUEST:
+        case 'http_request':
           ({ status, details, responseTimeMs, isUp } =
             await this.executeHttpRequest(jobData.target, jobData.config));
           break;
-        case MonitorType.WEBSITE:
+        case 'website':
           // Website monitoring is essentially HTTP GET with simplified config
           const websiteConfig = {
             ...jobData.config,
@@ -181,16 +184,16 @@ export class MonitorService {
             }
           }
           break;
-        case MonitorType.PING_HOST:
+        case 'ping_host':
           ({ status, details, responseTimeMs, isUp } =
             await this.executePingHost(jobData.target, jobData.config));
           break;
-        case MonitorType.PORT_CHECK:
+        case 'port_check':
           ({ status, details, responseTimeMs, isUp } =
             await this.executePortCheck(jobData.target, jobData.config));
           break;
 
-        case MonitorType.HEARTBEAT:
+        case 'heartbeat':
           // Heartbeat monitors check for missed pings rather than actively pinging
           const heartbeatResult = await this.checkHeartbeatMissedPing(
             jobData.monitorId,

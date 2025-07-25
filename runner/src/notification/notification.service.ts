@@ -1,21 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { Resend } from 'resend';
+import { AlertType, NotificationProviderType } from '../db/schema';
 
 export interface NotificationProvider {
   id: string;
-  type: 'email' | 'slack' | 'webhook' | 'telegram' | 'discord' | 'teams';
+  type: NotificationProviderType;
   config: Record<string, any>;
 }
 
 export interface NotificationPayload {
-  type:
-    | 'monitor_failure'
-    | 'monitor_recovery'
-    | 'job_failed'
-    | 'job_success'
-    | 'job_timeout'
-    | 'ssl_expiring';
+  type: AlertType;
   title: string;
   message: string;
   targetName: string;

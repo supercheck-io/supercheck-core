@@ -1,7 +1,8 @@
-import { Module, OnModuleInit, Provider } from '@nestjs/common';
+import { Module, Provider } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { drizzle } from 'drizzle-orm/postgres-js';
+import * as postgres from 'postgres';
 
 // Import Services and Processors
 import { ExecutionService } from './execution/services/execution.service';
@@ -42,10 +43,6 @@ const drizzleProvider: Provider = {
       connectionString.substring(0, 30) + '...',
     );
 
-    // Import postgres directly here to avoid issues
-
-    const postgres = require('postgres');
-
     // Initialize the Postgres.js client
     const client = postgres(connectionString, { ssl: false });
 
@@ -81,6 +78,6 @@ const drizzleProvider: Provider = {
     TestExecutionProcessor,
     JobExecutionProcessor,
   ],
-  exports: [drizzleProvider, DbService],
+  exports: [drizzleProvider, DbService, RedisService],
 })
 export class ExecutionModule {}

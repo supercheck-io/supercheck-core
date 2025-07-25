@@ -1,27 +1,10 @@
 // Type for the result of a single monitor execution
 // This should align with the 'monitor_results' table in schema.ts
 
-// Based on app/src/db/schema/schema.ts
-export type MonitorResultStatus = 'up' | 'down' | 'error' | 'timeout';
+import { MonitorResultStatus, MonitorResultDetails } from '../../db/schema';
 
-export type MonitorResultDetails = {
-  statusCode?: number;
-  statusText?: string;
-  errorMessage?: string;
-  responseHeaders?: Record<string, string>;
-  responseBodySnippet?: string;
-  ipAddress?: string;
-  location?: string;
-  sslCertificate?: {
-    valid: boolean;
-    issuer?: string;
-    subject?: string;
-    validFrom?: string;
-    validTo?: string;
-    daysRemaining?: number;
-  };
-  [key: string]: any; // For other check-specific details
-};
+// Re-export types for compatibility
+export { MonitorResultStatus, MonitorResultDetails };
 
 export type MonitorExecutionResult = {
   monitorId: string;

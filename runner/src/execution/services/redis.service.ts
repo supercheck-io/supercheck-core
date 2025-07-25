@@ -92,6 +92,28 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Health check method for Redis connection
+   */
+  async ping(): Promise<string> {
+    return this.redisClient.ping();
+  }
+
+  /**
+   * Health check method for queue accessibility
+   */
+  async getQueueHealth(queueName: string): Promise<boolean> {
+    try {
+      // Try to get basic queue info
+      const key = `bull:${queueName}:waiting`;
+      await this.redisClient.llen(key);
+      return true;
+    } catch (error) {
+      this.logger.warn(`Queue health check failed for ${queueName}:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Sets up listeners for Bull queue events for logging and monitoring
    * Database updates are handled by the job execution processor to avoid race conditions
    */

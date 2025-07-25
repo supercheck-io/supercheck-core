@@ -52,7 +52,7 @@ export const columns: ColumnDef<Monitor>[] = [
       if (!isTruncated) {
         return (
           <div className="flex space-x-2">
-            <span className="max-w-[160px] truncate">
+            <span className="font-medium max-w-[160px] truncate">
               {name}
             </span>
           </div>
@@ -61,7 +61,7 @@ export const columns: ColumnDef<Monitor>[] = [
       
       return (
         <div className="flex space-x-2">
-          <span className="max-w-[160px] truncate" title={name}>
+          <span className="font-medium max-w-[160px] truncate" title={name}>
             {name}
           </span>
         </div>
