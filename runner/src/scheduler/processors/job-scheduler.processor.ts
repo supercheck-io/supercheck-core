@@ -1,7 +1,11 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { JOB_SCHEDULER_QUEUE, JOB_EXECUTION_QUEUE, JobExecutionTask } from '../constants';
+import {
+  JOB_SCHEDULER_QUEUE,
+  JOB_EXECUTION_QUEUE,
+  JobExecutionTask,
+} from '../constants';
 import { DbService } from '../../db/db.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -22,7 +26,9 @@ export class JobSchedulerProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>): Promise<any> {
-    this.logger.log(`Processing scheduled job trigger: ${job.name} (${job.id})`);
+    this.logger.log(
+      `Processing scheduled job trigger: ${job.name} (${job.id})`,
+    );
     await this.handleScheduledJobTrigger(job);
     return { success: true };
   }
@@ -76,7 +82,11 @@ export class JobSchedulerProcessor extends WorkerHost {
           this.logger.error(`Failed to calculate next run date: ${error}`);
         }
 
-        const updatePayload: { lastRunAt: Date; nextRunAt?: Date; status: 'running' } = {
+        const updatePayload: {
+          lastRunAt: Date;
+          nextRunAt?: Date;
+          status: 'running';
+        } = {
           lastRunAt: now,
           status: 'running',
         };
@@ -114,9 +124,14 @@ export class JobSchedulerProcessor extends WorkerHost {
       };
 
       await this.jobExecutionQueue.add(runId, task, jobOptions);
-      this.logger.log(`Created execution task for scheduled job ${jobId}, run ${runId}`);
+      this.logger.log(
+        `Created execution task for scheduled job ${jobId}, run ${runId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to process scheduled job trigger for job ${jobId}:`, error);
+      this.logger.error(
+        `Failed to process scheduled job trigger for job ${jobId}:`,
+        error,
+      );
       await this.handleError(jobId, error);
     }
   }
@@ -139,7 +154,10 @@ export class JobSchedulerProcessor extends WorkerHost {
         })
         .where(and(eq(runs.jobId, jobId), eq(runs.status, 'running')));
     } catch (dbError) {
-      this.logger.error(`Failed to update job/run status to error for job ${jobId}:`, dbError);
+      this.logger.error(
+        `Failed to update job/run status to error for job ${jobId}:`,
+        dbError,
+      );
     }
   }
 
@@ -152,4 +170,4 @@ export class JobSchedulerProcessor extends WorkerHost {
   onFailed(job: Job, error: any) {
     this.logger.error(`Scheduled job failed: ${job?.name}`, error);
   }
-} 
+}

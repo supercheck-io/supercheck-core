@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
 import { Queue, QueueEvents } from 'bullmq';
@@ -15,15 +20,15 @@ const REDIS_CLEANUP_BATCH_SIZE = 100; // Process keys in smaller batches to redu
 
 /**
  * Redis Service for application-wide Redis operations and Bull queue status management
- * 
+ *
  * This service combines direct Redis operations with Bull queue event management,
  * providing a unified interface for Redis-related functionality. It handles:
- * 
+ *
  * 1. Direct Redis client operations when needed
  * 2. Bull queue event monitoring for job and test status updates
  * 3. Database updates based on Bull queue events (completed, failed, etc.)
  * 4. Automated cleanup of Redis keys to prevent memory growth
- * 
+ *
  * The service eliminates the need for separate Redis pub/sub channels by using
  * Bull's built-in event system with proper TTL for automatic cleanup.
  */
@@ -39,14 +44,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     private configService: ConfigService,
     @InjectQueue(JOB_EXECUTION_QUEUE) private jobQueue: Queue,
     @InjectQueue(TEST_EXECUTION_QUEUE) private testQueue: Queue,
-    private dbService: DbService
+    private dbService: DbService,
   ) {
     const host = this.configService.get<string>('REDIS_HOST', 'localhost');
     const port = this.configService.get<number>('REDIS_PORT', 6379);
     const password = this.configService.get<string>('REDIS_PASSWORD');
 
     this.logger.log(`Initializing Redis connection to ${host}:${port}`);
-    
+
     this.redisClient = new Redis({
       host,
       port,
@@ -54,7 +59,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       maxRetriesPerRequest: null,
     });
 
-    this.redisClient.on('error', (err) => this.logger.error('Redis Error:', err));
+    this.redisClient.on('error', (err) =>
+      this.logger.error('Redis Error:', err),
+    );
     this.redisClient.on('connect', () => this.logger.log('Redis Connected'));
     this.redisClient.on('ready', () => this.logger.log('Redis Ready'));
 
@@ -69,7 +76,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.redisClient.ping();
       this.logger.log('Redis connection successful');
-      
+
       // Run initial cleanup on startup
       await this.performRedisCleanup();
     } catch (error) {
@@ -91,12 +98,12 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private initializeQueueListeners() {
     // Set up QueueEvents for job queue
     this.jobQueueEvents = new QueueEvents(JOB_EXECUTION_QUEUE, {
-      connection: this.jobQueue.opts.connection
+      connection: this.jobQueue.opts.connection,
     });
 
     // Set up QueueEvents for test queue
     this.testQueueEvents = new QueueEvents(TEST_EXECUTION_QUEUE, {
-      connection: this.testQueue.opts.connection
+      connection: this.testQueue.opts.connection,
     });
 
     // Job queue event listeners - only for logging and monitoring
@@ -142,15 +149,18 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   private setupRedisCleanup() {
     this.logger.log('Setting up periodic Redis cleanup task');
-    
+
     // Schedule cleanup every 12 hours - more frequent than before
-    this.cleanupInterval = setInterval(async () => {
-      try {
-        await this.performRedisCleanup();
-      } catch (error) {
-        this.logger.error('Error during scheduled Redis cleanup:', error);
-      }
-    }, 12 * 60 * 60 * 1000); // 12 hours
+    this.cleanupInterval = setInterval(
+      async () => {
+        try {
+          await this.performRedisCleanup();
+        } catch (error) {
+          this.logger.error('Error during scheduled Redis cleanup:', error);
+        }
+      },
+      12 * 60 * 60 * 1000,
+    ); // 12 hours
   }
 
   /**
@@ -158,22 +168,38 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   private async performRedisCleanup(): Promise<void> {
     this.logger.log('Running periodic Redis cleanup for queue data');
-    
+
     try {
       // 1. Clean up completed/failed jobs
-      await this.jobQueue.clean(REDIS_JOB_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-      await this.jobQueue.clean(REDIS_JOB_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-      await this.testQueue.clean(REDIS_JOB_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-      await this.testQueue.clean(REDIS_JOB_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-      
+      await this.jobQueue.clean(
+        REDIS_JOB_TTL * 1000,
+        REDIS_CLEANUP_BATCH_SIZE,
+        'completed',
+      );
+      await this.jobQueue.clean(
+        REDIS_JOB_TTL * 1000,
+        REDIS_CLEANUP_BATCH_SIZE,
+        'failed',
+      );
+      await this.testQueue.clean(
+        REDIS_JOB_TTL * 1000,
+        REDIS_CLEANUP_BATCH_SIZE,
+        'completed',
+      );
+      await this.testQueue.clean(
+        REDIS_JOB_TTL * 1000,
+        REDIS_CLEANUP_BATCH_SIZE,
+        'failed',
+      );
+
       // 2. Trim event streams to reduce memory usage
       await this.jobQueue.trimEvents(1000);
       await this.testQueue.trimEvents(1000);
-      
+
       // 3. Set TTL on orphaned keys
       await this.cleanupOrphanedKeys(JOB_EXECUTION_QUEUE);
       await this.cleanupOrphanedKeys(TEST_EXECUTION_QUEUE);
-      
+
       this.logger.log('Redis cleanup completed successfully');
     } catch (error) {
       this.logger.error('Error during Redis cleanup operations:', error);
@@ -189,34 +215,39 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       // Use scan instead of keys to reduce memory pressure
       let cursor = '0';
       let processedKeys = 0;
-      
+
       do {
         const [nextCursor, keys] = await this.redisClient.scan(
-          cursor, 
-          'MATCH', 
-          `bull:${queueName}:*`, 
-          'COUNT', 
-          '100'
+          cursor,
+          'MATCH',
+          `bull:${queueName}:*`,
+          'COUNT',
+          '100',
         );
-        
+
         cursor = nextCursor;
         processedKeys += keys.length;
-        
+
         // Process this batch of keys
         for (const key of keys) {
           // Skip keys that BullMQ manages automatically
-          if (key.includes(':active') || key.includes(':wait') || 
-              key.includes(':delayed') || key.includes(':failed') ||
-              key.includes(':completed')) {
+          if (
+            key.includes(':active') ||
+            key.includes(':wait') ||
+            key.includes(':delayed') ||
+            key.includes(':failed') ||
+            key.includes(':completed')
+          ) {
             continue;
           }
-          
+
           // Check if the key has a TTL set
           const ttl = await this.redisClient.ttl(key);
-          if (ttl === -1) { // -1 means key exists but no TTL is set
+          if (ttl === -1) {
+            // -1 means key exists but no TTL is set
             // Set appropriate TTL based on key type
             let expiryTime = REDIS_JOB_TTL;
-            
+
             if (key.includes(':events:')) {
               expiryTime = REDIS_EVENT_TTL;
             } else if (key.includes(':metrics')) {
@@ -224,37 +255,42 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
             } else if (key.includes(':meta')) {
               continue; // Skip meta keys as they should live as long as the app runs
             }
-            
+
             await this.redisClient.expire(key, expiryTime);
             this.logger.debug(`Set TTL of ${expiryTime}s for key: ${key}`);
           }
         }
       } while (cursor !== '0');
-      
-      this.logger.debug(`Processed ${processedKeys} Redis keys for queue: ${queueName}`);
+
+      this.logger.debug(
+        `Processed ${processedKeys} Redis keys for queue: ${queueName}`,
+      );
     } catch (error) {
-      this.logger.error(`Error cleaning up orphaned keys for ${queueName}:`, error);
+      this.logger.error(
+        `Error cleaning up orphaned keys for ${queueName}:`,
+        error,
+      );
     }
   }
 
   async onModuleDestroy() {
     this.logger.log('Closing Redis connection and cleanup resources');
-    
+
     // Clear the cleanup interval
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
     }
-    
+
     // Clean up queue event listeners
     if (this.jobQueueEvents) {
       await this.jobQueueEvents.close();
     }
-    
+
     if (this.testQueueEvents) {
       await this.testQueueEvents.close();
     }
-    
+
     // Close Redis connection
     await this.redisClient.quit();
   }
-} 
+}

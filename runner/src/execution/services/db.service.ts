@@ -2,7 +2,16 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from 'src/db/schema'; // Import the schema we copied
-import { reports, jobs, runs, JobStatus, TestRunStatus, alertHistory, AlertType, AlertStatus } from 'src/db/schema'; // Specifically import reports table
+import {
+  reports,
+  jobs,
+  runs,
+  JobStatus,
+  TestRunStatus,
+  alertHistory,
+  AlertType,
+  AlertStatus,
+} from 'src/db/schema'; // Specifically import reports table
 import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 import { ReportMetadata } from '../interfaces'; // Import our interface
 
@@ -14,8 +23,9 @@ export class DbService implements OnModuleInit {
   private readonly logger = new Logger(DbService.name);
 
   constructor(
-    @Inject(DB_PROVIDER_TOKEN) private dbInstance: PostgresJsDatabase<typeof schema>,
-    private configService: ConfigService
+    @Inject(DB_PROVIDER_TOKEN)
+    private dbInstance: PostgresJsDatabase<typeof schema>,
+    private configService: ConfigService,
   ) {
     this.logger.log('Drizzle ORM initialized.');
   }
@@ -40,34 +50,47 @@ export class DbService implements OnModuleInit {
    */
   async storeReportMetadata(metadata: ReportMetadata): Promise<void> {
     const { entityId, entityType, reportPath, status, s3Url } = metadata;
-    this.logger.debug(`Storing report metadata for ${entityType}/${entityId} with status ${status}`);
+    this.logger.debug(
+      `Storing report metadata for ${entityType}/${entityId} with status ${status}`,
+    );
 
     try {
-      const existing = await this.db.select()
+      const existing = await this.db
+        .select()
         .from(reports)
-        .where(and(
-          eq(reports.entityId, entityId),
-          eq(reports.entityType, entityType)
-        ))
+        .where(
+          and(
+            eq(reports.entityId, entityId),
+            eq(reports.entityType, entityType),
+          ),
+        )
         .limit(1);
 
       if (existing.length > 0) {
-        this.logger.debug(`Updating existing report metadata for ${entityType}/${entityId}`);
-        await this.db.update(reports)
+        this.logger.debug(
+          `Updating existing report metadata for ${entityType}/${entityId}`,
+        );
+        await this.db
+          .update(reports)
           .set({
             reportPath, // This is likely the S3 key now
             status,
             s3Url,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
-          .where(and(
-            eq(reports.entityId, entityId),
-            eq(reports.entityType, entityType)
-          ))
+          .where(
+            and(
+              eq(reports.entityId, entityId),
+              eq(reports.entityType, entityType),
+            ),
+          )
           .execute();
       } else {
-        this.logger.debug(`Inserting new report metadata for ${entityType}/${entityId}`);
-        await this.db.insert(reports)
+        this.logger.debug(
+          `Inserting new report metadata for ${entityType}/${entityId}`,
+        );
+        await this.db
+          .insert(reports)
           .values({
             entityId,
             entityType,
@@ -75,15 +98,20 @@ export class DbService implements OnModuleInit {
             status,
             s3Url,
             createdAt: new Date(),
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
           .execute();
       }
-      this.logger.log(`Successfully stored report metadata for ${entityType}/${entityId}`);
+      this.logger.log(
+        `Successfully stored report metadata for ${entityType}/${entityId}`,
+      );
     } catch (error) {
-      this.logger.error(`Error storing report metadata for ${entityType}/${entityId}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error storing report metadata for ${entityType}/${entityId}: ${error.message}`,
+        error.stack,
+      );
       // Decide whether to re-throw or just log
-      // throw error; 
+      // throw error;
     }
   }
 
@@ -94,7 +122,7 @@ export class DbService implements OnModuleInit {
    */
   async updateJobStatus(
     jobId: string,
-    runStatuses: ('pending' | 'running' | 'passed' | 'failed' | 'error')[]
+    runStatuses: ('pending' | 'running' | 'passed' | 'failed' | 'error')[],
   ): Promise<void> {
     try {
       // Determine the aggregate job status
@@ -112,11 +140,14 @@ export class DbService implements OnModuleInit {
       }
 
       this.logger.log(
-        `Updating job ${jobId} status based on ${runStatuses.length} runs. Final status: ${jobStatus}`
+        `Updating job ${jobId} status based on ${runStatuses.length} runs. Final status: ${jobStatus}`,
       );
-      await this.db.update(jobs).set({
-        status: jobStatus,
-      }).where(eq(jobs.id, jobId));
+      await this.db
+        .update(jobs)
+        .set({
+          status: jobStatus,
+        })
+        .where(eq(jobs.id, jobId));
     } catch (error) {
       this.logger.error(`Failed to update job status for ${jobId}:`, error);
     }
@@ -131,21 +162,23 @@ export class DbService implements OnModuleInit {
   async updateRunStatus(
     runId: string,
     status: TestRunStatus,
-    duration?: string
+    duration?: string,
   ): Promise<void> {
-    this.logger.debug(`Updating run ${runId} with status ${status} and duration ${duration}`);
-    
+    this.logger.debug(
+      `Updating run ${runId} with status ${status} and duration ${duration}`,
+    );
+
     try {
       const now = new Date();
       const updateData: any = {
         status,
       };
-      
+
       // Add duration if provided - convert string duration to seconds (integer)
       if (duration) {
         // Extract just the seconds as integer
         let durationSeconds = 0;
-        
+
         if (duration.includes('m')) {
           // Format like "1m 30s"
           const minutes = parseInt(duration.split('m')[0].trim(), 10) || 0;
@@ -154,28 +187,34 @@ export class DbService implements OnModuleInit {
           durationSeconds = minutes * 60 + seconds;
         } else {
           // Format like "45s" or just number
-          const secondsMatch = duration.match(/(\d+)s/) || duration.match(/^(\d+)$/);
+          const secondsMatch =
+            duration.match(/(\d+)s/) || duration.match(/^(\d+)$/);
           durationSeconds = secondsMatch ? parseInt(secondsMatch[1], 10) : 0;
         }
-        
+
         // Store both the numeric seconds and the formatted string
         updateData.duration = durationSeconds;
       }
-      
+
       // Add completedAt timestamp for terminal statuses
       if (['failed', 'passed', 'error'].includes(status)) {
         updateData.completedAt = now;
       }
-      
+
       // Update the database
       await this.dbInstance
         .update(runs)
         .set(updateData)
         .where(eq(runs.id, runId));
-      
-      this.logger.log(`Successfully updated run ${runId} with status ${status}`);
+
+      this.logger.log(
+        `Successfully updated run ${runId} with status ${status}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to update run status: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to update run status: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -208,7 +247,9 @@ export class DbService implements OnModuleInit {
       });
       return lastRun;
     } catch (error) {
-      this.logger.error(`Failed to get last run for job ${jobId}: ${error.message}`);
+      this.logger.error(
+        `Failed to get last run for job ${jobId}: ${error.message}`,
+      );
       return null;
     }
   }
@@ -224,13 +265,15 @@ export class DbService implements OnModuleInit {
       }
 
       const providers = await this.db.query.notificationProviders.findMany({
-        where: (notificationProviders, { inArray }) => 
+        where: (notificationProviders, { inArray }) =>
           inArray(notificationProviders.id, providerIds),
       });
-      
+
       return providers || [];
     } catch (error) {
-      this.logger.error(`Failed to get notification providers: ${error.message}`);
+      this.logger.error(
+        `Failed to get notification providers: ${error.message}`,
+      );
       return [];
     }
   }
@@ -262,10 +305,15 @@ export class DbService implements OnModuleInit {
         target: jobName,
         targetType: 'job',
       });
-      
-      this.logger.log(`Successfully saved alert history for job ${jobId} with status: ${status}`);
+
+      this.logger.log(
+        `Successfully saved alert history for job ${jobId} with status: ${status}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to save alert history for job ${jobId}:`, error);
+      this.logger.error(
+        `Failed to save alert history for job ${jobId}:`,
+        error,
+      );
       throw new Error('Internal Server Error');
     }
   }
@@ -288,19 +336,29 @@ export class DbService implements OnModuleInit {
 
       return runs;
     } catch (error) {
-      this.logger.error(`Failed to get recent runs for job ${jobId}: ${error.message}`);
+      this.logger.error(
+        `Failed to get recent runs for job ${jobId}: ${error.message}`,
+      );
       return [];
     }
   }
 
-  async getRunStatusesForJob(jobId: string): Promise<('pending' | 'running' | 'passed' | 'failed' | 'error')[]> {
+  async getRunStatusesForJob(
+    jobId: string,
+  ): Promise<('pending' | 'running' | 'passed' | 'failed' | 'error')[]> {
     try {
       const result = await this.db
         .select({ status: runs.status })
         .from(runs)
         .where(eq(runs.jobId, jobId));
-      
-      return result.map(r => r.status).filter(s => s !== null) as ('pending' | 'running' | 'passed' | 'failed' | 'error')[];
+
+      return result.map((r) => r.status).filter((s) => s !== null) as (
+        | 'pending'
+        | 'running'
+        | 'passed'
+        | 'failed'
+        | 'error'
+      )[];
     } catch (error) {
       this.logger.error(`Failed to get run statuses for job ${jobId}:`, error);
       return [];

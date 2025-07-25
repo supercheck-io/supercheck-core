@@ -30,26 +30,6 @@ import {
 // Helper function to check if running on Windows
 export const isWindows = process.platform === 'win32';
 
-/**
- * Converts a path to a properly formatted CLI path based on the operating system.
- * Handles escaping special characters and spaces.
- */
-export function toCLIPath(inputPath: string): string {
-  // Get absolute path
-  const absolutePath = path.isAbsolute(inputPath)
-    ? inputPath
-    : path.resolve(process.cwd(), inputPath);
-
-  // Return the properly formatted path for CLI usage
-  return absolutePath.replace(/([\\\\])/g, '\\\\$1');
-}
-
-// Generates a temporary directory path for a given execution ID
-export function getTemporaryRunPath(runId: string): string {
-  // Use os.tmpdir() for a system-appropriate temporary directory
-  const basePath = path.join(os.tmpdir(), 'supercheck-runs');
-  return path.join(basePath, runId);
-}
 
 // Gets the content type based on file extension (simple version)
 export function getContentType(filePath: string): string {
@@ -194,26 +174,33 @@ export class ExecutionService {
     try {
       // Create the base directory if it doesn't exist
       await fs.mkdir(this.baseLocalRunDir, { recursive: true });
-      
+
       // Test write permissions by creating and removing a test file
       const testFile = path.join(this.baseLocalRunDir, '.permission-test');
       await fs.writeFile(testFile, 'test', { mode: 0o644 });
       await fs.unlink(testFile);
-      
-      this.logger.log(`Base directory permissions verified: ${this.baseLocalRunDir}`);
+
+      this.logger.log(
+        `Base directory permissions verified: ${this.baseLocalRunDir}`,
+      );
     } catch (error: any) {
       this.logger.error(
         `Failed to create or verify permissions for base directory ${this.baseLocalRunDir}: ${error.message}`,
         error.stack,
       );
-      
+
       // Try to fix permissions if possible (works when container has sufficient privileges)
-      try {
-        const { execSync } = require('child_process');
-        execSync(`chmod -R 755 ${this.baseLocalRunDir}`, { stdio: 'ignore' });
-        this.logger.log(`Attempted to fix permissions for ${this.baseLocalRunDir}`);
-      } catch (chmodError) {
-        this.logger.warn(`Could not fix permissions: ${chmodError.message}`);
+      // Skip on Windows as chmod doesn't exist
+      if (!isWindows) {
+        try {
+          const { execSync } = require('child_process');
+          execSync(`chmod -R 755 ${this.baseLocalRunDir}`, { stdio: 'ignore' });
+          this.logger.log(
+            `Attempted to fix permissions for ${this.baseLocalRunDir}`,
+          );
+        } catch (chmodError) {
+          this.logger.warn(`Could not fix permissions: ${chmodError.message}`);
+        }
       }
     }
   }
@@ -221,40 +208,49 @@ export class ExecutionService {
   /**
    * Creates a run directory with proper permissions and enhanced error handling
    */
-  private async createRunDirectoryWithPermissions(runDir: string, entityId: string): Promise<void> {
+  private async createRunDirectoryWithPermissions(
+    runDir: string,
+    entityId: string,
+  ): Promise<void> {
     try {
       await fs.mkdir(runDir, { recursive: true });
-      this.logger.debug(`[${entityId}] Successfully created run directory: ${runDir}`);
+      this.logger.debug(
+        `[${entityId}] Successfully created run directory: ${runDir}`,
+      );
     } catch (error: any) {
       if (error.code === 'EACCES') {
         this.logger.error(
           `[${entityId}] Permission denied when creating directory ${runDir}. ` +
-          `This usually happens when the mounted volume has incorrect ownership. ` +
-          `Container user: nodejs (UID 1001), Error: ${error.message}`,
+            `This usually happens when the mounted volume has incorrect ownership. ` +
+            `Container user: nodejs (UID 1001), Error: ${error.message}`,
         );
-        
+
         // Try alternative approaches
         try {
           // Check if parent directory exists and is writable
           const parentDir = path.dirname(runDir);
           await fs.access(parentDir, fs.constants.F_OK | fs.constants.W_OK);
-          
+
           // Try creating with explicit permissions
           await fs.mkdir(runDir, { recursive: true, mode: 0o755 });
-          this.logger.log(`[${entityId}] Successfully created directory with explicit permissions`);
+          this.logger.log(
+            `[${entityId}] Successfully created directory with explicit permissions`,
+          );
         } catch (fallbackError: any) {
           this.logger.error(
             `[${entityId}] All attempts to create directory failed. ` +
-            `Please ensure the host directory has correct ownership (UID 1001) or is writable by the container. ` +
-            `Fallback error: ${fallbackError.message}`,
+              `Please ensure the host directory has correct ownership (UID 1001) or is writable by the container. ` +
+              `Fallback error: ${fallbackError.message}`,
           );
           throw new Error(
             `Unable to create test execution directory: ${error.message}. ` +
-            `Please check Docker volume mount permissions for playwright-reports directory.`
+              `Please check Docker volume mount permissions for playwright-reports directory.`,
           );
         }
       } else {
-        this.logger.error(`[${entityId}] Unexpected error creating directory ${runDir}: ${error.message}`);
+        this.logger.error(
+          `[${entityId}] Unexpected error creating directory ${runDir}: ${error.message}`,
+        );
         throw error;
       }
     }
@@ -1353,12 +1349,68 @@ export class ExecutionService {
           }
         }
 
+        // Add dark theme support for all HTML files
+        // Inject theme parameter and localStorage setting for consistent dark theme
+        if (content.includes('<html') || content.includes('<head')) {
+          // Add theme parameter to current URL if it's a trace viewer or has links
+          if (!content.includes('theme=dark')) {
+            // Inject script to force dark theme for trace viewer
+            const themeScript = `
+<script>
+  // Force dark theme for Playwright trace viewer
+  (function() {
+    // Set theme in URL parameters
+    if (window.location.search && !window.location.search.includes('theme=')) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('theme', 'dark');
+      window.history.replaceState({}, '', url.toString());
+    } else if (!window.location.search) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('theme', 'dark');
+      window.history.replaceState({}, '', url.toString());
+    }
+    
+    // Set localStorage theme preference
+    try {
+      localStorage.setItem('theme', 'dark');
+      localStorage.setItem('theme-choice', 'dark');
+    } catch (e) {
+      console.log('Could not set localStorage theme preference:', e);
+    }
+    
+    // Set data attributes on document for immediate theme application
+    if (document.documentElement) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.documentElement.setAttribute('data-theme-choice', 'dark');
+    }
+  })();
+</script>`;
+
+            // Try to inject before closing </head> tag, or before closing </html> tag as fallback
+            if (content.includes('</head>')) {
+              content = content.replace('</head>', themeScript + '\n</head>');
+              modified = true;
+            } else if (content.includes('</html>')) {
+              content = content.replace('</html>', themeScript + '\n</html>');
+              modified = true;
+            } else if (content.includes('<html')) {
+              // If no head or html closing tags, inject after opening html tag
+              content = content.replace(/<html[^>]*>/, '$&\n' + themeScript);
+              modified = true;
+            }
+          }
+        }
+
         // Only save the file if we made changes
         if (modified) {
           await fs.writeFile(filePath, content, 'utf8');
-          this.logger.log(`Successfully processed trace paths in ${filePath}`);
+          this.logger.log(
+            `Successfully processed trace paths and theme in ${filePath}`,
+          );
         } else {
-          this.logger.log(`No trace path replacements needed in ${filePath}`);
+          this.logger.log(
+            `No trace path replacements or theme injection needed in ${filePath}`,
+          );
         }
       };
 

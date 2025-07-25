@@ -19,4 +19,4 @@ export class DbService implements OnModuleInit {
       throw error;
     }
   }
-} 
+}

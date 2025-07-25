@@ -2,14 +2,21 @@ import { Injectable, Logger, Inject } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios'; // Import HttpService
 import { AxiosError, Method } from 'axios'; // Import Method from axios
 import { firstValueFrom } from 'rxjs'; // To convert Observable to Promise
-import { MonitorJobDataDto, MonitorConfig, MonitorType } from './dto/monitor-job.dto';
-import { MonitorExecutionResult, MonitorResultStatus, MonitorResultDetails } from './types/monitor-result.type';
+import {
+  MonitorJobDataDto,
+  MonitorConfig,
+  MonitorType,
+} from './dto/monitor-job.dto';
+import {
+  MonitorExecutionResult,
+  MonitorResultStatus,
+  MonitorResultDetails,
+} from './types/monitor-result.type';
 import { DbService } from '../db/db.service';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js'; // Import specific Drizzle type
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
 import { eq, desc } from 'drizzle-orm';
 import { MonitorAlertService } from './services/monitor-alert.service';
-
 
 // Placeholder for actual execution libraries (axios, ping, net, dns, playwright-runner)
 
@@ -19,14 +26,17 @@ import { MonitorAlertService } from './services/monitor-alert.service';
 // }
 
 // Helper function to check status codes against a flexible string pattern
-function isExpectedStatus(actualStatus: number, expectedCodesString?: string): boolean {
+function isExpectedStatus(
+  actualStatus: number,
+  expectedCodesString?: string,
+): boolean {
   if (!expectedCodesString || expectedCodesString.trim() === '') {
     // Default to 2xx if no specific codes are provided
     return actualStatus >= 200 && actualStatus < 300;
   }
 
-  const parts = expectedCodesString.split(',').map(part => part.trim());
-  
+  const parts = expectedCodesString.split(',').map((part) => part.trim());
+
   for (const part of parts) {
     // Handle patterns like "2xx", "3xx", "4xx", "5xx"
     if (part.endsWith('xx')) {
@@ -48,7 +58,7 @@ function isExpectedStatus(actualStatus: number, expectedCodesString?: string): b
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -62,8 +72,12 @@ export class MonitorService {
     private readonly monitorAlertService: MonitorAlertService,
   ) {}
 
-  async executeMonitor(jobData: MonitorJobDataDto): Promise<MonitorExecutionResult | null> {
-    this.logger.log(`Executing monitor ${jobData.monitorId} of type ${jobData.type} for target ${jobData.target}`);
+  async executeMonitor(
+    jobData: MonitorJobDataDto,
+  ): Promise<MonitorExecutionResult | null> {
+    this.logger.log(
+      `Executing monitor ${jobData.monitorId} of type ${jobData.type} for target ${jobData.target}`,
+    );
 
     // Check if monitor is paused before execution
     try {
@@ -72,7 +86,9 @@ export class MonitorService {
       });
 
       if (!monitor) {
-        this.logger.warn(`Monitor ${jobData.monitorId} not found in database, skipping execution`);
+        this.logger.warn(
+          `Monitor ${jobData.monitorId} not found in database, skipping execution`,
+        );
         return {
           monitorId: jobData.monitorId,
           status: 'error',
@@ -85,7 +101,9 @@ export class MonitorService {
       }
 
       if (monitor.status === 'paused') {
-        this.logger.log(`Monitor ${jobData.monitorId} is paused, skipping execution`);
+        this.logger.log(
+          `Monitor ${jobData.monitorId} is paused, skipping execution`,
+        );
         return {
           monitorId: jobData.monitorId,
           status: 'error',
@@ -97,43 +115,53 @@ export class MonitorService {
         };
       }
     } catch (dbError) {
-      this.logger.error(`Failed to check monitor status for ${jobData.monitorId}: ${dbError.message}`);
+      this.logger.error(
+        `Failed to check monitor status for ${jobData.monitorId}: ${dbError.message}`,
+      );
       // Continue with execution if we can't verify status
     }
 
     let status: MonitorResultStatus = 'error';
     let details: MonitorResultDetails = {};
     let responseTimeMs: number | undefined;
-    let isUp = false; 
+    let isUp = false;
     let executionError: string | undefined;
 
     try {
       switch (jobData.type) {
         case MonitorType.HTTP_REQUEST:
-          ({ status, details, responseTimeMs, isUp } = await this.executeHttpRequest(jobData.target, jobData.config));
+          ({ status, details, responseTimeMs, isUp } =
+            await this.executeHttpRequest(jobData.target, jobData.config));
           break;
         case MonitorType.WEBSITE:
           // Website monitoring is essentially HTTP GET with simplified config
           const websiteConfig = {
             ...jobData.config,
             method: 'GET' as const,
-            expectedStatusCodes: jobData.config?.expectedStatusCodes || '200-299',
+            expectedStatusCodes:
+              jobData.config?.expectedStatusCodes || '200-299',
           };
-          ({ status, details, responseTimeMs, isUp } = await this.executeHttpRequest(jobData.target, websiteConfig));
-          
+          ({ status, details, responseTimeMs, isUp } =
+            await this.executeHttpRequest(jobData.target, websiteConfig));
+
           // If SSL checking is enabled and the website check was successful, also check SSL
-          if (jobData.config?.enableSslCheck && isUp && jobData.target.startsWith('https://')) {
+          if (
+            jobData.config?.enableSslCheck &&
+            isUp &&
+            jobData.target.startsWith('https://')
+          ) {
             try {
               const sslResult = await this.executeSslCheck(jobData.target, {
-                daysUntilExpirationWarning: jobData.config.sslDaysUntilExpirationWarning || 30,
+                daysUntilExpirationWarning:
+                  jobData.config.sslDaysUntilExpirationWarning || 30,
                 timeoutSeconds: jobData.config.timeoutSeconds || 10,
               });
-              
+
               // Merge SSL certificate info into the website check details
               if (sslResult.details?.sslCertificate) {
                 details.sslCertificate = sslResult.details.sslCertificate;
               }
-              
+
               // If SSL check failed but website was up, show warning
               if (!sslResult.isUp && sslResult.details?.warningMessage) {
                 details.sslWarning = sslResult.details.warningMessage;
@@ -141,27 +169,38 @@ export class MonitorService {
                 // If SSL check completely failed, mark the overall check as down
                 status = sslResult.status;
                 isUp = false;
-                details.errorMessage = sslResult.details?.errorMessage || 'SSL certificate check failed';
+                details.errorMessage =
+                  sslResult.details?.errorMessage ||
+                  'SSL certificate check failed';
               }
             } catch (sslError) {
-              this.logger.warn(`SSL check failed for website monitor ${jobData.monitorId}: ${sslError.message}`);
+              this.logger.warn(
+                `SSL check failed for website monitor ${jobData.monitorId}: ${sslError.message}`,
+              );
               details.sslWarning = `SSL check failed: ${sslError.message}`;
             }
           }
           break;
         case MonitorType.PING_HOST:
-          ({ status, details, responseTimeMs, isUp } = await this.executePingHost(jobData.target, jobData.config));
+          ({ status, details, responseTimeMs, isUp } =
+            await this.executePingHost(jobData.target, jobData.config));
           break;
         case MonitorType.PORT_CHECK:
-          ({ status, details, responseTimeMs, isUp } = await this.executePortCheck(jobData.target, jobData.config));
+          ({ status, details, responseTimeMs, isUp } =
+            await this.executePortCheck(jobData.target, jobData.config));
           break;
 
         case MonitorType.HEARTBEAT:
           // Heartbeat monitors check for missed pings rather than actively pinging
-          const heartbeatResult = await this.checkHeartbeatMissedPing(jobData.monitorId, jobData.config);
+          const heartbeatResult = await this.checkHeartbeatMissedPing(
+            jobData.monitorId,
+            jobData.config,
+          );
           if (heartbeatResult === null) {
             // No result to record - heartbeat is still within acceptable range
-            this.logger.log(`Heartbeat monitor ${jobData.monitorId} is within acceptable range, skipping result recording`);
+            this.logger.log(
+              `Heartbeat monitor ${jobData.monitorId} is within acceptable range, skipping result recording`,
+            );
             return null; // Signal to skip result recording
           }
           ({ status, details, responseTimeMs, isUp } = heartbeatResult);
@@ -174,11 +213,15 @@ export class MonitorService {
           isUp = false;
       }
     } catch (error) {
-      this.logger.error(`Error executing monitor ${jobData.monitorId}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error executing monitor ${jobData.monitorId}: ${error.message}`,
+        error.stack,
+      );
       executionError = error.message;
       status = 'error';
       isUp = false;
-      if (details) { // Ensure details is defined before assigning to it
+      if (details) {
+        // Ensure details is defined before assigning to it
         details.errorMessage = error.message;
       } else {
         details = { errorMessage: error.message };
@@ -194,46 +237,58 @@ export class MonitorService {
       isUp,
       error: executionError,
     };
-    
+
     // The service now returns the result instead of saving it.
     // The processor will handle sending this result back to the Next.js app.
-    this.logger.log(`Execution finished for monitor ${jobData.monitorId}, Status: ${status}, IsUp: ${isUp}`);
+    this.logger.log(
+      `Execution finished for monitor ${jobData.monitorId}, Status: ${status}, IsUp: ${isUp}`,
+    );
     return result;
   }
 
   async saveMonitorResult(resultData: MonitorExecutionResult): Promise<void> {
     try {
       const monitor = await this.getMonitorById(resultData.monitorId);
-      
+
       if (monitor) {
         const previousStatus = monitor.status;
-        
+
         await this.saveMonitorResultToDb(resultData);
-        await this.updateMonitorStatus(resultData.monitorId, resultData.isUp ? 'up' : 'down', resultData.checkedAt);
-        
+        await this.updateMonitorStatus(
+          resultData.monitorId,
+          resultData.isUp ? 'up' : 'down',
+          resultData.checkedAt,
+        );
+
         const currentStatus = resultData.isUp ? 'up' : 'down';
-        const isStatusChange = previousStatus !== currentStatus && previousStatus !== 'paused';
-        
-        this.logger.log(`Saved result for monitor ${resultData.monitorId}: ${currentStatus}. Status changed: ${isStatusChange}`);
+        const isStatusChange =
+          previousStatus !== currentStatus && previousStatus !== 'paused';
+
+        this.logger.log(
+          `Saved result for monitor ${resultData.monitorId}: ${currentStatus}. Status changed: ${isStatusChange}`,
+        );
 
         if (isStatusChange && monitor.alertConfig?.enabled) {
           // Get recent monitor results to check thresholds
           const recentResults = await this.getRecentMonitorResults(
-            resultData.monitorId, 
-            Math.max(monitor.alertConfig.failureThreshold || 1, monitor.alertConfig.recoveryThreshold || 1)
+            resultData.monitorId,
+            Math.max(
+              monitor.alertConfig.failureThreshold || 1,
+              monitor.alertConfig.recoveryThreshold || 1,
+            ),
           );
-          
+
           // Calculate consecutive statuses
           let consecutiveFailures = 0;
           let consecutiveSuccesses = 0;
-          
+
           // Count current result
           if (currentStatus === 'down') {
             consecutiveFailures = 1;
           } else if (currentStatus === 'up') {
             consecutiveSuccesses = 1;
           }
-          
+
           // Count previous results until we hit a different status
           for (const result of recentResults) {
             if (currentStatus === 'down' && result.isUp === false) {
@@ -248,48 +303,72 @@ export class MonitorService {
           }
 
           // Check threshold conditions
-          const shouldSendFailureAlert = monitor.alertConfig.alertOnFailure && 
-            currentStatus === 'down' && 
+          const shouldSendFailureAlert =
+            monitor.alertConfig.alertOnFailure &&
+            currentStatus === 'down' &&
             consecutiveFailures >= (monitor.alertConfig.failureThreshold || 1);
-          
-          const shouldSendRecoveryAlert = monitor.alertConfig.alertOnRecovery && 
-            currentStatus === 'up' && 
-            previousStatus === 'down' && 
-            consecutiveSuccesses >= (monitor.alertConfig.recoveryThreshold || 1);
+
+          const shouldSendRecoveryAlert =
+            monitor.alertConfig.alertOnRecovery &&
+            currentStatus === 'up' &&
+            previousStatus === 'down' &&
+            consecutiveSuccesses >=
+              (monitor.alertConfig.recoveryThreshold || 1);
 
           if (shouldSendFailureAlert || shouldSendRecoveryAlert) {
             const type = currentStatus === 'up' ? 'recovery' : 'failure';
-            const reason = resultData.details?.errorMessage || (type === 'failure' ? 'Monitor is down' : 'Monitor has recovered');
+            const reason =
+              resultData.details?.errorMessage ||
+              (type === 'failure'
+                ? 'Monitor is down'
+                : 'Monitor has recovered');
             const metadata = {
-                responseTime: resultData.responseTimeMs,
-                consecutiveFailures,
-                consecutiveSuccesses,
+              responseTime: resultData.responseTimeMs,
+              consecutiveFailures,
+              consecutiveSuccesses,
             };
-            
+
             await this.monitorAlertService.sendNotification(
-                resultData.monitorId,
-                type,
-                reason,
-                metadata
+              resultData.monitorId,
+              type,
+              reason,
+              metadata,
             );
-            this.logger.log(`Delegated notification for monitor ${resultData.monitorId}`);
+            this.logger.log(
+              `Delegated notification for monitor ${resultData.monitorId}`,
+            );
           }
         }
       }
     } catch (error) {
-      this.logger.error(`Failed to save result for monitor ${resultData.monitorId}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to save result for monitor ${resultData.monitorId}: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
-  private async executeHttpRequest(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
-    this.logger.debug(`HTTP Request: ${target}, Method: ${config?.method || 'GET'}, Config: ${JSON.stringify(config)}`);
-    
+  private async executeHttpRequest(
+    target: string,
+    config?: MonitorConfig,
+  ): Promise<{
+    status: MonitorResultStatus;
+    details: MonitorResultDetails;
+    responseTimeMs?: number;
+    isUp: boolean;
+  }> {
+    this.logger.debug(
+      `HTTP Request: ${target}, Method: ${config?.method || 'GET'}, Config: ${JSON.stringify(config)}`,
+    );
+
     let responseTimeMs: number | undefined;
     let details: MonitorResultDetails = {};
     let status: MonitorResultStatus = 'error';
     let isUp = false;
 
-    const timeout = config?.timeoutSeconds ? config.timeoutSeconds * 1000 : 10000; // Default 10s timeout
+    const timeout = config?.timeoutSeconds
+      ? config.timeoutSeconds * 1000
+      : 10000; // Default 10s timeout
     const httpMethod = (config?.method || 'GET').toUpperCase() as Method;
 
     // Use high-resolution timer for more accurate timing
@@ -303,7 +382,7 @@ export class MonitorService {
         // Default headers
         headers: {
           'User-Agent': 'SuperTest-Monitor/1.0',
-          ...config?.headers
+          ...config?.headers,
         },
         // Disable automatic decompression to get more accurate timing
         decompress: false,
@@ -315,22 +394,78 @@ export class MonitorService {
         validateStatus: () => true, // Accept all status codes, we'll handle validation
       };
 
+      // Handle proxy configuration for corporate networks
+      const shouldUseProxy = this.shouldUseProxy(target);
+      if (
+        shouldUseProxy &&
+        (process.env.HTTP_PROXY || process.env.HTTPS_PROXY)
+      ) {
+        const proxyUrl = target.startsWith('https://')
+          ? process.env.HTTPS_PROXY || process.env.HTTP_PROXY
+          : process.env.HTTP_PROXY || process.env.HTTPS_PROXY;
+
+        if (proxyUrl) {
+          try {
+            const proxyUrlObj = new URL(proxyUrl);
+            requestConfig.proxy = {
+              protocol: proxyUrlObj.protocol.replace(':', ''),
+              host: proxyUrlObj.hostname,
+              port: parseInt(
+                proxyUrlObj.port ||
+                  (proxyUrlObj.protocol === 'https:' ? '443' : '80'),
+              ),
+            };
+
+            // Handle proxy authentication
+            if (proxyUrlObj.username && proxyUrlObj.password) {
+              requestConfig.proxy.auth = {
+                username: decodeURIComponent(proxyUrlObj.username),
+                password: decodeURIComponent(proxyUrlObj.password),
+              };
+            }
+
+            this.logger.debug(
+              `Using proxy: ${proxyUrlObj.protocol}//${proxyUrlObj.hostname}:${proxyUrlObj.port} for ${target}`,
+            );
+          } catch (proxyError) {
+            this.logger.warn(
+              `Invalid proxy URL format: ${proxyUrl}. Proceeding without proxy.`,
+            );
+          }
+        }
+      } else if (!shouldUseProxy) {
+        this.logger.debug(
+          `Bypassing proxy for ${target} (matches NO_PROXY rules)`,
+        );
+      }
+
       // Handle authentication
       if (config?.auth) {
-        if (config.auth.type === 'basic' && config.auth.username && config.auth.password) {
+        if (
+          config.auth.type === 'basic' &&
+          config.auth.username &&
+          config.auth.password
+        ) {
           requestConfig.auth = {
             username: config.auth.username,
-            password: config.auth.password
+            password: config.auth.password,
           };
         } else if (config.auth.type === 'bearer' && config.auth.token) {
-          requestConfig.headers['Authorization'] = `Bearer ${config.auth.token}`;
+          requestConfig.headers['Authorization'] =
+            `Bearer ${config.auth.token}`;
         }
       }
 
       // Handle request body for methods that support it
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(httpMethod) && config?.body) {
+      if (
+        ['POST', 'PUT', 'PATCH', 'DELETE'].includes(httpMethod) &&
+        config?.body
+      ) {
         // Set content type if not already set
-        if (!requestConfig.headers['Content-Type'] && !requestConfig.headers['content-type']) {
+        if (
+          !requestConfig.headers['Content-Type'] &&
+          !requestConfig.headers['content-type']
+        ) {
           // Try to detect content type
           try {
             JSON.parse(config.body);
@@ -341,11 +476,14 @@ export class MonitorService {
         }
 
         // Attempt to parse body as JSON if content type suggests it, otherwise send as is
-        const contentType = requestConfig.headers['Content-Type'] || requestConfig.headers['content-type'] || '';
+        const contentType =
+          requestConfig.headers['Content-Type'] ||
+          requestConfig.headers['content-type'] ||
+          '';
         if (contentType.includes('application/json')) {
-        try {
-          requestConfig.data = JSON.parse(config.body);
-        } catch (e) {
+          try {
+            requestConfig.data = JSON.parse(config.body);
+          } catch (e) {
             // If JSON parsing fails but content type is JSON, still send as string
             requestConfig.data = config.body;
           }
@@ -355,7 +493,7 @@ export class MonitorService {
       }
 
       const response = await firstValueFrom(
-        this.httpService.request(requestConfig)
+        this.httpService.request(requestConfig),
       );
 
       // Calculate response time in milliseconds with high precision
@@ -374,13 +512,23 @@ export class MonitorService {
         isUp = true;
 
         if (config?.keywordInBody) {
-          const bodyString = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+          const bodyString =
+            typeof response.data === 'string'
+              ? response.data
+              : JSON.stringify(response.data);
           const keywordFound = bodyString.includes(config.keywordInBody);
-          if ((config.keywordInBodyShouldBePresent === undefined || config.keywordInBodyShouldBePresent === true) && !keywordFound) {
+          if (
+            (config.keywordInBodyShouldBePresent === undefined ||
+              config.keywordInBodyShouldBePresent === true) &&
+            !keywordFound
+          ) {
             status = 'down';
             isUp = false;
             details.errorMessage = `Keyword '${config.keywordInBody}' not found in response.`;
-          } else if (config.keywordInBodyShouldBePresent === false && keywordFound) {
+          } else if (
+            config.keywordInBodyShouldBePresent === false &&
+            keywordFound
+          ) {
             status = 'down';
             isUp = false;
             details.errorMessage = `Keyword '${config.keywordInBody}' was found in response but should be absent.`;
@@ -391,12 +539,11 @@ export class MonitorService {
         isUp = false;
         details.errorMessage = `Received status code: ${response.status}, expected: ${config?.expectedStatusCodes || '200-299'}`;
       }
-
     } catch (error) {
       // Calculate response time even for errors to track timeout scenarios
       const errorTime = process.hrtime.bigint();
       responseTimeMs = Math.round(Number(errorTime - startTime) / 1000000);
-      
+
       if (error instanceof AxiosError) {
         this.logger.warn(`HTTP Request to ${target} failed: ${error.message}`);
         details.errorMessage = error.message;
@@ -404,38 +551,63 @@ export class MonitorService {
           details.statusCode = error.response.status;
           details.statusText = error.response.statusText;
         }
-        if (error.code === 'ECONNABORTED' || error.message.toLowerCase().includes('timeout')) {
+        if (
+          error.code === 'ECONNABORTED' ||
+          error.message.toLowerCase().includes('timeout')
+        ) {
           status = 'timeout';
           isUp = false;
           responseTimeMs = timeout; // Set to timeout value for timeout errors
         } else {
           // Check if the received status is unexpected, even on an AxiosError path
-          if (error.response && !isExpectedStatus(error.response.status, config?.expectedStatusCodes)) {
+          if (
+            error.response &&
+            !isExpectedStatus(
+              error.response.status,
+              config?.expectedStatusCodes,
+            )
+          ) {
             status = 'down';
-            details.errorMessage = details.errorMessage ? `${details.errorMessage}. ` : '';
+            details.errorMessage = details.errorMessage
+              ? `${details.errorMessage}. `
+              : '';
             details.errorMessage += `Received status code: ${error.response.status}, expected: ${config?.expectedStatusCodes || '200-299'}`;
-          } else if (!error.response) { // Network error, no response from server
-             status = 'down'; // Or 'error' as per preference
+          } else if (!error.response) {
+            // Network error, no response from server
+            status = 'down'; // Or 'error' as per preference
           }
-          isUp = false; 
+          isUp = false;
         }
       } else {
-        this.logger.error(`Unexpected error during HTTP Request to ${target}: ${error.message}`, error.stack);
+        this.logger.error(
+          `Unexpected error during HTTP Request to ${target}: ${error.message}`,
+          error.stack,
+        );
         details.errorMessage = error.message || 'An unexpected error occurred';
         status = 'error';
         isUp = false;
         responseTimeMs = timeout; // Set to timeout for unexpected errors
       }
     }
-    
-    this.logger.debug(`HTTP Request completed: ${target}, Status: ${status}, Response Time: ${responseTimeMs}ms`);
-    return { status, details, responseTimeMs, isUp }; 
+
+    this.logger.debug(
+      `HTTP Request completed: ${target}, Status: ${status}, Response Time: ${responseTimeMs}ms`,
+    );
+    return { status, details, responseTimeMs, isUp };
   }
 
-  private async executePingHost(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
+  private async executePingHost(
+    target: string,
+    config?: MonitorConfig,
+  ): Promise<{
+    status: MonitorResultStatus;
+    details: MonitorResultDetails;
+    responseTimeMs?: number;
+    isUp: boolean;
+  }> {
     const timeout = (config?.timeoutSeconds || 5) * 1000; // Default 5s timeout for ping
     this.logger.debug(`Ping Host: ${target}, Timeout: ${timeout}ms`);
-    
+
     const startTime = process.hrtime.bigint();
     let status: MonitorResultStatus = 'error';
     let details: MonitorResultDetails = {};
@@ -445,14 +617,18 @@ export class MonitorService {
     try {
       const { spawn } = await import('child_process');
       const isWindows = process.platform === 'win32';
-      
+
       // Use appropriate ping command based on OS
       const pingCommand = isWindows ? 'ping' : 'ping';
-      const pingArgs = isWindows 
-        ? ['-n', '1', '-w', timeout.toString(), target]  // Windows: -n count, -w timeout in ms
+      const pingArgs = isWindows
+        ? ['-n', '1', '-w', timeout.toString(), target] // Windows: -n count, -w timeout in ms
         : ['-c', '1', '-W', Math.ceil(timeout / 1000).toString(), target]; // Linux/Mac: -c count, -W timeout in seconds
 
-      const pingResult = await new Promise<{stdout: string, stderr: string, code: number}>((resolve, reject) => {
+      const pingResult = await new Promise<{
+        stdout: string;
+        stderr: string;
+        code: number;
+      }>((resolve, reject) => {
         const process = spawn(pingCommand, pingArgs);
         let stdout = '';
         let stderr = '';
@@ -510,9 +686,9 @@ export class MonitorService {
           packetsSent: 1,
           packetsReceived: 1,
           packetLoss: 0,
-          output: output.trim()
+          output: output.trim(),
         };
-        
+
         // Use parsed response time if available, otherwise use our measured time
         responseTimeMs = parsedResponseTime || responseTimeMs;
       } else {
@@ -522,16 +698,15 @@ export class MonitorService {
           errorMessage: `Ping failed with exit code ${pingResult.code}`,
           stderr: pingResult.stderr,
           stdout: pingResult.stdout,
-          responseTimeMs
+          responseTimeMs,
         };
       }
-
     } catch (error) {
       const errorTime = process.hrtime.bigint();
       responseTimeMs = Math.round(Number(errorTime - startTime) / 1000000);
-      
+
       this.logger.warn(`Ping to ${target} failed: ${error.message}`);
-      
+
       if (error.message.includes('timeout')) {
         status = 'timeout';
         details.errorMessage = `Ping timeout after ${timeout}ms`;
@@ -539,27 +714,39 @@ export class MonitorService {
         status = 'error';
         details.errorMessage = error.message;
       }
-      
+
       isUp = false;
       details.responseTimeMs = responseTimeMs;
     }
-    
-    this.logger.debug(`Ping completed: ${target}, Status: ${status}, Response Time: ${responseTimeMs}ms`);
+
+    this.logger.debug(
+      `Ping completed: ${target}, Status: ${status}, Response Time: ${responseTimeMs}ms`,
+    );
     return { status, details, responseTimeMs, isUp };
   }
 
-  private async executePortCheck(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
+  private async executePortCheck(
+    target: string,
+    config?: MonitorConfig,
+  ): Promise<{
+    status: MonitorResultStatus;
+    details: MonitorResultDetails;
+    responseTimeMs?: number;
+    isUp: boolean;
+  }> {
     const port = config?.port;
     const protocol = config?.protocol || 'tcp';
     const timeout = (config?.timeoutSeconds || 10) * 1000; // Convert to milliseconds
-    
-    this.logger.debug(`Port Check: ${target}, Port: ${port}, Protocol: ${protocol}, Timeout: ${timeout}ms`);
-    
+
+    this.logger.debug(
+      `Port Check: ${target}, Port: ${port}, Protocol: ${protocol}, Timeout: ${timeout}ms`,
+    );
+
     if (!port) {
-      return { 
-        status: 'error', 
-        isUp: false, 
-        details: { errorMessage: 'Port not provided for port_check'} 
+      return {
+        status: 'error',
+        isUp: false,
+        details: { errorMessage: 'Port not provided for port_check' },
       };
     }
 
@@ -573,10 +760,10 @@ export class MonitorService {
       if (protocol === 'tcp') {
         // TCP port check using net module
         const net = await import('net');
-        
+
         await new Promise<void>((resolve, reject) => {
           const socket = new net.Socket();
-          
+
           const timeoutHandle = setTimeout(() => {
             socket.destroy();
             reject(new Error(`Connection timeout after ${timeout}ms`));
@@ -600,20 +787,19 @@ export class MonitorService {
         responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
         status = 'up';
         isUp = true;
-        details = { 
-          port, 
-          protocol, 
+        details = {
+          port,
+          protocol,
           connectionSuccessful: true,
-          responseTimeMs 
+          responseTimeMs,
         };
-
       } else if (protocol === 'udp') {
         // UDP port check using dgram module
         const dgram = await import('dgram');
-        
+
         await new Promise<void>((resolve, reject) => {
           const client = dgram.createSocket('udp4');
-          
+
           const timeoutHandle = setTimeout(() => {
             client.close();
             // For UDP, timeout doesn't necessarily mean the port is closed
@@ -623,7 +809,7 @@ export class MonitorService {
 
           // Send a small test packet
           const message = Buffer.from('ping');
-          
+
           client.send(message, port, target, (error) => {
             if (error) {
               clearTimeout(timeoutHandle);
@@ -650,27 +836,29 @@ export class MonitorService {
         responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
         status = 'up';
         isUp = true;
-        details = { 
-          port, 
-          protocol, 
+        details = {
+          port,
+          protocol,
           packetSent: true,
           responseTimeMs,
-          note: 'UDP port appears reachable (no ICMP error received)'
+          note: 'UDP port appears reachable (no ICMP error received)',
         };
       }
-
     } catch (error) {
       const endTime = process.hrtime.bigint();
       responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
-      
-      this.logger.warn(`Port Check to ${target}:${port} (${protocol}) failed: ${error.message}`);
-      
+
+      this.logger.warn(
+        `Port Check to ${target}:${port} (${protocol}) failed: ${error.message}`,
+      );
+
       if (error.message.includes('timeout')) {
         status = 'timeout';
         details.errorMessage = `Connection timeout after ${timeout}ms`;
       } else if (error.code === 'ECONNREFUSED') {
         status = 'down';
-        details.errorMessage = 'Connection refused - port is closed or service not running';
+        details.errorMessage =
+          'Connection refused - port is closed or service not running';
       } else if (error.code === 'EHOSTUNREACH') {
         status = 'down';
         details.errorMessage = 'Host unreachable';
@@ -681,20 +869,32 @@ export class MonitorService {
         status = 'error';
         details.errorMessage = error.message;
       }
-      
+
       isUp = false;
       details.port = port;
       details.protocol = protocol;
       details.responseTimeMs = responseTimeMs;
     }
-    
-    this.logger.debug(`Port Check completed: ${target}:${port} (${protocol}), Status: ${status}, Response Time: ${responseTimeMs}ms`);
+
+    this.logger.debug(
+      `Port Check completed: ${target}:${port} (${protocol}), Status: ${status}, Response Time: ${responseTimeMs}ms`,
+    );
     return { status, details, responseTimeMs, isUp };
   }
 
-  private async checkHeartbeatMissedPing(monitorId: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean} | null> {
-    this.logger.debug(`Checking heartbeat missed ping for monitor ${monitorId}`);
-    
+  private async checkHeartbeatMissedPing(
+    monitorId: string,
+    config?: MonitorConfig,
+  ): Promise<{
+    status: MonitorResultStatus;
+    details: MonitorResultDetails;
+    responseTimeMs?: number;
+    isUp: boolean;
+  } | null> {
+    this.logger.debug(
+      `Checking heartbeat missed ping for monitor ${monitorId}`,
+    );
+
     let details: MonitorResultDetails = {};
     let status: MonitorResultStatus = 'down'; // Default to down for heartbeat checks
     let isUp = false; // Default to false - we only create entries for failures
@@ -704,10 +904,10 @@ export class MonitorService {
       const expectedIntervalMinutes = config?.expectedIntervalMinutes || 60;
       const gracePeriodMinutes = config?.gracePeriodMinutes || 10;
       const lastPingAt = config?.lastPingAt;
-      
+
       const now = new Date();
       const totalWaitMinutes = expectedIntervalMinutes + gracePeriodMinutes;
-      
+
       // Get monitor from database to check creation time and get latest ping info
       const monitor = await this.dbService.db.query.monitors.findFirst({
         where: (monitors, { eq }) => eq(monitors.id, monitorId),
@@ -718,14 +918,19 @@ export class MonitorService {
       }
 
       const createdAt = new Date(monitor.createdAt!);
-      const minutesSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-      
+      const minutesSinceCreation =
+        (now.getTime() - createdAt.getTime()) / (1000 * 60);
+
       let isOverdue = false;
-      let overdueMessage = "";
+      let overdueMessage = '';
       let currentLastPingAt = lastPingAt;
 
       // Check if there's a more recent ping in the monitor config
-      if (monitor.config && typeof monitor.config === 'object' && 'lastPingAt' in monitor.config) {
+      if (
+        monitor.config &&
+        typeof monitor.config === 'object' &&
+        'lastPingAt' in monitor.config
+      ) {
         const configLastPing = (monitor.config as any).lastPingAt;
         if (configLastPing) {
           currentLastPingAt = configLastPing;
@@ -739,21 +944,26 @@ export class MonitorService {
           overdueMessage = `No initial ping received within ${totalWaitMinutes} minutes of creation (${Math.round(minutesSinceCreation)} minutes ago)`;
         } else {
           // Still within grace period for initial ping - don't create a result entry
-          this.logger.debug(`Monitor ${monitorId} still within grace period, skipping result creation`);
+          this.logger.debug(
+            `Monitor ${monitorId} still within grace period, skipping result creation`,
+          );
           return null; // Signal to not create a result entry
         }
       } else {
         // Check if last ping is too old
         const lastPing = new Date(currentLastPingAt);
-        const minutesSinceLastPing = (now.getTime() - lastPing.getTime()) / (1000 * 60);
-        
+        const minutesSinceLastPing =
+          (now.getTime() - lastPing.getTime()) / (1000 * 60);
+
         if (minutesSinceLastPing > totalWaitMinutes) {
           isOverdue = true;
           overdueMessage = `Last ping was ${Math.round(minutesSinceLastPing)} minutes ago, expected every ${expectedIntervalMinutes} minutes (grace period: ${gracePeriodMinutes} minutes)`;
         } else {
           // Ping is recent enough - don't create a result entry
           // Success entries are only created when actual pings are received
-          this.logger.debug(`Monitor ${monitorId} ping is recent enough, skipping result creation`);
+          this.logger.debug(
+            `Monitor ${monitorId} ping is recent enough, skipping result creation`,
+          );
           return null; // Signal to not create a result entry
         }
       }
@@ -769,19 +979,26 @@ export class MonitorService {
           lastPingAt: currentLastPingAt || null,
           checkType: 'missed_heartbeat',
           totalWaitMinutes,
-          ...(currentLastPingAt ? {
-            minutesSinceLastPing: Math.round((now.getTime() - new Date(currentLastPingAt).getTime()) / (1000 * 60))
-          } : {
-            minutesSinceCreation: Math.round(minutesSinceCreation)
-          }),
+          ...(currentLastPingAt
+            ? {
+                minutesSinceLastPing: Math.round(
+                  (now.getTime() - new Date(currentLastPingAt).getTime()) /
+                    (1000 * 60),
+                ),
+              }
+            : {
+                minutesSinceCreation: Math.round(minutesSinceCreation),
+              }),
         };
       } else {
         // Should not reach here based on logic above, but safety fallback
         return null;
       }
-
     } catch (error) {
-      this.logger.error(`Error checking heartbeat for monitor ${monitorId}:`, error);
+      this.logger.error(
+        `Error checking heartbeat for monitor ${monitorId}:`,
+        error,
+      );
       status = 'error';
       isUp = false;
       details = {
@@ -793,12 +1010,22 @@ export class MonitorService {
     return { status, details, responseTimeMs, isUp };
   }
 
-  private async executeSslCheck(target: string, config?: MonitorConfig): Promise<{status: MonitorResultStatus, details: MonitorResultDetails, responseTimeMs?: number, isUp: boolean}> {
+  private async executeSslCheck(
+    target: string,
+    config?: MonitorConfig,
+  ): Promise<{
+    status: MonitorResultStatus;
+    details: MonitorResultDetails;
+    responseTimeMs?: number;
+    isUp: boolean;
+  }> {
     const timeout = (config?.timeoutSeconds || 10) * 1000; // Convert to milliseconds
     const daysUntilExpirationWarning = config?.daysUntilExpirationWarning || 30;
-    
-    this.logger.debug(`SSL Check: ${target}, Timeout: ${timeout}ms, Warning threshold: ${daysUntilExpirationWarning} days`);
-    
+
+    this.logger.debug(
+      `SSL Check: ${target}, Timeout: ${timeout}ms, Warning threshold: ${daysUntilExpirationWarning} days`,
+    );
+
     const startTime = process.hrtime.bigint();
     let status: MonitorResultStatus = 'error';
     let details: MonitorResultDetails = {};
@@ -808,14 +1035,16 @@ export class MonitorService {
     try {
       const tls = await import('tls');
       const { URL } = await import('url');
-      
+
       // Parse target to extract hostname and port
       let hostname = target;
       let port = 443; // Default HTTPS port
-      
+
       try {
         // Try to parse as URL first
-        const url = new URL(target.startsWith('http') ? target : `https://${target}`);
+        const url = new URL(
+          target.startsWith('http') ? target : `https://${target}`,
+        );
         hostname = url.hostname;
         port = parseInt(url.port) || 443;
       } catch {
@@ -832,25 +1061,28 @@ export class MonitorService {
         authorized: boolean;
         authorizationError?: Error;
       }>((resolve, reject) => {
-        const socket = tls.connect({
-          host: hostname,
-          port: port,
-          timeout: timeout,
-          rejectUnauthorized: false, // We want to check the cert even if it's invalid
-          servername: hostname, // SNI support for proper certificate validation
-          secureProtocol: 'TLS_method', // Use modern TLS
-        }, () => {
-          const cert = socket.getPeerCertificate(true);
-          const authorized = socket.authorized;
-          const authorizationError = socket.authorizationError;
-          
-          socket.destroy();
-          resolve({
-            certificate: cert,
-            authorized,
-            authorizationError
-          });
-        });
+        const socket = tls.connect(
+          {
+            host: hostname,
+            port: port,
+            timeout: timeout,
+            rejectUnauthorized: false, // We want to check the cert even if it's invalid
+            servername: hostname, // SNI support for proper certificate validation
+            secureProtocol: 'TLS_method', // Use modern TLS
+          },
+          () => {
+            const cert = socket.getPeerCertificate(true);
+            const authorized = socket.authorized;
+            const authorizationError = socket.authorizationError;
+
+            socket.destroy();
+            resolve({
+              certificate: cert,
+              authorized,
+              authorizationError,
+            });
+          },
+        );
 
         socket.on('error', (error) => {
           socket.destroy();
@@ -875,20 +1107,22 @@ export class MonitorService {
       responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
 
       const cert = certificateInfo.certificate;
-      
+
       if (!cert || !cert.valid_from || !cert.valid_to) {
         status = 'error';
         isUp = false;
         details = {
           errorMessage: 'No valid certificate found',
-          responseTimeMs
+          responseTimeMs,
         };
       } else {
         const validFrom = new Date(cert.valid_from);
         const validTo = new Date(cert.valid_to);
         const now = new Date();
-        const daysRemaining = Math.ceil((validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        
+        const daysRemaining = Math.ceil(
+          (validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
         const sslCertificate = {
           valid: certificateInfo.authorized,
           issuer: cert.issuer?.CN || 'Unknown',
@@ -907,7 +1141,7 @@ export class MonitorService {
           details = {
             errorMessage: 'Certificate is not yet valid',
             sslCertificate,
-            responseTimeMs
+            responseTimeMs,
           };
         } else if (now > validTo) {
           status = 'down';
@@ -915,7 +1149,7 @@ export class MonitorService {
           details = {
             errorMessage: 'Certificate has expired',
             sslCertificate,
-            responseTimeMs
+            responseTimeMs,
           };
         } else if (daysRemaining <= daysUntilExpirationWarning) {
           status = 'up'; // Still up but warning
@@ -923,29 +1157,29 @@ export class MonitorService {
           details = {
             warningMessage: `Certificate expires in ${daysRemaining} days`,
             sslCertificate,
-            responseTimeMs
+            responseTimeMs,
           };
         } else {
           status = 'up';
           isUp = true;
           details = {
             sslCertificate,
-            responseTimeMs
+            responseTimeMs,
           };
         }
 
         // Add authorization details
         if (!certificateInfo.authorized && certificateInfo.authorizationError) {
-          details.authorizationError = certificateInfo.authorizationError.message;
+          details.authorizationError =
+            certificateInfo.authorizationError.message;
         }
       }
-
     } catch (error) {
       const endTime = process.hrtime.bigint();
       responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
-      
+
       this.logger.warn(`SSL Check to ${target} failed: ${error.message}`);
-      
+
       if (error.message.includes('timeout')) {
         status = 'timeout';
         details.errorMessage = `SSL connection timeout after ${timeout}ms`;
@@ -960,10 +1194,12 @@ export class MonitorService {
         details.errorMessage = 'Host not found';
       } else if (error.message.includes('handshake')) {
         status = 'down';
-        details.errorMessage = 'SSL handshake failed - certificate or TLS configuration issue';
+        details.errorMessage =
+          'SSL handshake failed - certificate or TLS configuration issue';
       } else if (error.message.includes('alert')) {
         status = 'down';
-        details.errorMessage = 'SSL/TLS protocol error - server rejected connection';
+        details.errorMessage =
+          'SSL/TLS protocol error - server rejected connection';
       } else if (error.code === 'DEPTH_ZERO_SELF_SIGNED_CERT') {
         status = 'down';
         details.errorMessage = 'Self-signed certificate';
@@ -977,12 +1213,14 @@ export class MonitorService {
         status = 'error';
         details.errorMessage = `SSL check failed: ${error.message}`;
       }
-      
+
       isUp = false;
       details.responseTimeMs = responseTimeMs;
     }
-    
-    this.logger.debug(`SSL Check completed: ${target}, Status: ${status}, Response Time: ${responseTimeMs}ms`);
+
+    this.logger.debug(
+      `SSL Check completed: ${target}, Status: ${status}, Response Time: ${responseTimeMs}ms`,
+    );
     return { status, details, responseTimeMs, isUp };
   }
 
@@ -992,7 +1230,9 @@ export class MonitorService {
     });
   }
 
-  private async saveMonitorResultToDb(resultData: MonitorExecutionResult): Promise<void> {
+  private async saveMonitorResultToDb(
+    resultData: MonitorExecutionResult,
+  ): Promise<void> {
     try {
       await this.dbService.db.insert(schema.monitorResults).values({
         monitorId: resultData.monitorId,
@@ -1003,29 +1243,44 @@ export class MonitorService {
         isUp: resultData.isUp,
       });
     } catch (error) {
-      this.logger.error(`Failed to save monitor result for ${resultData.monitorId}: ${error.message}`);
+      this.logger.error(
+        `Failed to save monitor result for ${resultData.monitorId}: ${error.message}`,
+      );
     }
   }
 
-  private async updateMonitorStatus(monitorId: string, status: 'up' | 'down', checkedAt: Date): Promise<void> {
+  private async updateMonitorStatus(
+    monitorId: string,
+    status: 'up' | 'down',
+    checkedAt: Date,
+  ): Promise<void> {
     try {
       await this.dbService.db
         .update(schema.monitors)
-        .set({ 
+        .set({
           status: status,
           lastCheckAt: checkedAt,
-          lastStatusChangeAt: status !== (await this.getMonitorById(monitorId))?.status ? checkedAt : undefined,
-         })
+          lastStatusChangeAt:
+            status !== (await this.getMonitorById(monitorId))?.status
+              ? checkedAt
+              : undefined,
+        })
         .where(eq(schema.monitors.id, monitorId));
     } catch (error) {
-      this.logger.error(`Failed to update monitor status for ${monitorId}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to update monitor status for ${monitorId}: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
   /**
    * Get recent monitor results for threshold checking
    */
-  private async getRecentMonitorResults(monitorId: string, limit: number): Promise<any[]> {
+  private async getRecentMonitorResults(
+    monitorId: string,
+    limit: number,
+  ): Promise<any[]> {
     try {
       const results = await this.dbService.db.query.monitorResults.findMany({
         where: eq(schema.monitorResults.monitorId, monitorId),
@@ -1034,8 +1289,89 @@ export class MonitorService {
       });
       return results || [];
     } catch (error) {
-      this.logger.error(`Failed to get recent monitor results: ${error.message}`);
+      this.logger.error(
+        `Failed to get recent monitor results: ${error.message}`,
+      );
       return [];
     }
   }
-} 
+
+  /**
+   * Determines if a target URL should use proxy based on NO_PROXY environment variable
+   */
+  private shouldUseProxy(target: string): boolean {
+    const noProxy = process.env.NO_PROXY || process.env.no_proxy;
+    if (!noProxy) {
+      return true;
+    }
+
+    try {
+      const targetUrl = new URL(target);
+      const hostname = targetUrl.hostname.toLowerCase();
+      const port = targetUrl.port;
+
+      // Split NO_PROXY by comma and check each pattern
+      const noProxyPatterns = noProxy
+        .split(',')
+        .map((pattern) => pattern.trim().toLowerCase());
+
+      for (const pattern of noProxyPatterns) {
+        if (!pattern) continue;
+
+        // Handle different NO_PROXY patterns
+        if (pattern === '*') {
+          return false; // Wildcard - no proxy for anything
+        }
+
+        // Handle localhost patterns
+        if (
+          pattern === 'localhost' &&
+          (hostname === 'localhost' || hostname === '127.0.0.1')
+        ) {
+          return false;
+        }
+
+        // Handle IP ranges (simple cases)
+        if (pattern.startsWith('127.') && hostname.startsWith('127.')) {
+          return false;
+        }
+        if (pattern.startsWith('192.168.') && hostname.startsWith('192.168.')) {
+          return false;
+        }
+        if (pattern.startsWith('10.') && hostname.startsWith('10.')) {
+          return false;
+        }
+
+        // Handle exact hostname match
+        if (pattern === hostname) {
+          return false;
+        }
+
+        // Handle domain suffix match (e.g., .company.com)
+        if (pattern.startsWith('.') && hostname.endsWith(pattern)) {
+          return false;
+        }
+
+        // Handle hostname:port pattern
+        if (pattern.includes(':')) {
+          const [patternHost, patternPort] = pattern.split(':');
+          if (patternHost === hostname && patternPort === port) {
+            return false;
+          }
+        }
+
+        // Handle subdomain pattern (company.com matches subdomain.company.com)
+        if (hostname.endsWith('.' + pattern) || hostname === pattern) {
+          return false;
+        }
+      }
+
+      return true; // Use proxy if no patterns match
+    } catch (error) {
+      this.logger.warn(
+        `Error parsing target URL for proxy detection: ${error.message}`,
+      );
+      return true; // Default to using proxy on parse errors
+    }
+  }
+}

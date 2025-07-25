@@ -11,21 +11,21 @@ export enum MonitorType {
 }
 
 export interface MonitorConfig {
-  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
   headers?: Record<string, string>;
-  body?: string; 
+  body?: string;
   expectedStatusCodes?: string;
-  keywordInBody?: string; 
-  keywordInBodyShouldBePresent?: boolean; 
-  responseBodyJsonPath?: { path: string; expectedValue: any }; 
+  keywordInBody?: string;
+  keywordInBodyShouldBePresent?: boolean;
+  responseBodyJsonPath?: { path: string; expectedValue: any };
   auth?: {
-    type: "none" | "basic" | "bearer";
+    type: 'none' | 'basic' | 'bearer';
     username?: string;
     password?: string;
     token?: string;
   };
   port?: number;
-  protocol?: "tcp" | "udp";
+  protocol?: 'tcp' | 'udp';
   expectedIntervalMinutes?: number;
   gracePeriodMinutes?: number;
   heartbeatUrl?: string;
@@ -49,4 +49,4 @@ export class MonitorJobDataDto {
   target: string; // From monitors.target
   config?: MonitorConfig; // From monitors.config
   frequencyMinutes?: number; // From monitors.frequencyMinutes, for scheduling decisions
-} 
+}

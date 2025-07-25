@@ -385,7 +385,12 @@ export class NotificationService {
       const emailContent = this.formatEmailContent(formatted, payload);
 
       // Try SMTP first, then fallback to Resend
-      const smtpSuccess = await this.trySMTPDelivery(config, formatted, emailContent, emailAddresses);
+      const smtpSuccess = await this.trySMTPDelivery(
+        config,
+        formatted,
+        emailContent,
+        emailAddresses,
+      );
       if (smtpSuccess) {
         this.logger.log(
           `Email notification sent successfully via SMTP to ${emailAddresses.length} recipient(s)`,
@@ -394,7 +399,11 @@ export class NotificationService {
       }
 
       // Fallback to Resend if SMTP fails
-      const resendSuccess = await this.tryResendDelivery(formatted, emailContent, emailAddresses);
+      const resendSuccess = await this.tryResendDelivery(
+        formatted,
+        emailContent,
+        emailAddresses,
+      );
       if (resendSuccess) {
         this.logger.log(
           `Email notification sent successfully via Resend to ${emailAddresses.length} recipient(s)`,
@@ -439,7 +448,9 @@ export class NotificationService {
       const smtpEnabled = process.env.SMTP_ENABLED !== 'false'; // Default to enabled
 
       if (!smtpEnabled) {
-        this.logger.debug('SMTP is disabled via SMTP_ENABLED environment variable');
+        this.logger.debug(
+          'SMTP is disabled via SMTP_ENABLED environment variable',
+        );
         return false;
       }
 
@@ -458,17 +469,19 @@ export class NotificationService {
           rejectUnauthorized: false, // For development
         },
         connectionTimeout: 10000, // 10 seconds
-        greetingTimeout: 5000,    // 5 seconds
+        greetingTimeout: 5000, // 5 seconds
       };
 
       // Check if all required SMTP environment variables are present
       if (!smtpConfig.host || !smtpConfig.auth.user || !smtpConfig.auth.pass) {
-        this.logger.debug('SMTP environment variables not configured, skipping SMTP delivery');
+        this.logger.debug(
+          'SMTP environment variables not configured, skipping SMTP delivery',
+        );
         return false;
       }
 
       const transporter = nodemailer.createTransport(smtpConfig);
-      
+
       // Verify SMTP connection
       await transporter.verify();
       this.logger.debug('SMTP connection verified successfully');
@@ -479,20 +492,21 @@ export class NotificationService {
         process.env.SMTP_USER ||
         smtpConfig.auth.user;
 
-      const sendPromises = emailAddresses.map(email =>
+      const sendPromises = emailAddresses.map((email) =>
         transporter.sendMail({
           from: fromEmail,
           to: email,
           subject: formatted.title,
           html: emailContent.html,
           text: emailContent.text,
-        })
+        }),
       );
 
       await Promise.all(sendPromises);
       return true;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.warn(`SMTP delivery failed: ${errorMessage}`);
       return false;
     }
@@ -509,17 +523,23 @@ export class NotificationService {
       const resendEnabled = process.env.RESEND_ENABLED !== 'false'; // Default to enabled
 
       if (!resendEnabled) {
-        this.logger.debug('Resend is disabled via RESEND_ENABLED environment variable');
+        this.logger.debug(
+          'Resend is disabled via RESEND_ENABLED environment variable',
+        );
         return false;
       }
 
       if (!resendApiKey) {
-        this.logger.debug('Resend API key not configured, skipping Resend delivery');
+        this.logger.debug(
+          'Resend API key not configured, skipping Resend delivery',
+        );
         return false;
       }
 
       if (!resendFromEmail) {
-        this.logger.warn('RESEND_FROM_EMAIL not configured, using default from domain');
+        this.logger.warn(
+          'RESEND_FROM_EMAIL not configured, using default from domain',
+        );
       }
 
       const resend = new Resend(resendApiKey);
@@ -530,7 +550,7 @@ export class NotificationService {
       // Send emails in batches to respect rate limits
       const batchSize = 10; // Resend allows up to 100 recipients per request
       const batches: string[][] = [];
-      
+
       for (let i = 0; i < emailAddresses.length; i += batchSize) {
         batches.push(emailAddresses.slice(i, i + batchSize));
       }
@@ -550,14 +570,25 @@ export class NotificationService {
           });
 
           if (result.error) {
-            const errorMessage = result.error?.message || result.error?.toString() || 'Unknown error';
-            this.logger.error(`Resend batch delivery failed: ${errorMessage}`, result.error);
+            const errorMessage =
+              result.error?.message ||
+              result.error?.toString() ||
+              'Unknown error';
+            this.logger.error(
+              `Resend batch delivery failed: ${errorMessage}`,
+              result.error,
+            );
             return false;
           }
 
-          this.logger.debug(`Resend batch sent successfully: ${result.data?.id}`);
+          this.logger.debug(
+            `Resend batch sent successfully: ${result.data?.id}`,
+          );
         } catch (batchError) {
-          const errorMessage = batchError instanceof Error ? batchError.message : String(batchError);
+          const errorMessage =
+            batchError instanceof Error
+              ? batchError.message
+              : String(batchError);
           this.logger.error(`Resend batch error: ${errorMessage}`, batchError);
           return false;
         }
@@ -565,7 +596,8 @@ export class NotificationService {
 
       return true;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.warn(`Resend delivery failed: ${errorMessage}`, error);
       return false;
     }
@@ -816,33 +848,35 @@ export class NotificationService {
 
       // Create Teams MessageCard format
       const teamsPayload = {
-        "@type": "MessageCard",
-        "@context": "http://schema.org/extensions",
-        "themeColor": formatted.color.replace('#', ''),
-        "title": formatted.title,
-        "summary": formatted.message,
-        "sections": [
+        '@type': 'MessageCard',
+        '@context': 'http://schema.org/extensions',
+        themeColor: formatted.color.replace('#', ''),
+        title: formatted.title,
+        summary: formatted.message,
+        sections: [
           {
-            "activityTitle": formatted.title,
-            "activitySubtitle": formatted.message,
-            "facts": formatted.fields.map((field) => ({
-              "name": field.title,
-              "value": field.value
-            }))
-          }
+            activityTitle: formatted.title,
+            activitySubtitle: formatted.message,
+            facts: formatted.fields.map((field) => ({
+              name: field.title,
+              value: field.value,
+            })),
+          },
         ],
-        "potentialAction": payload.metadata?.dashboardUrl ? [
-          {
-            "@type": "OpenUri",
-            "name": "View Dashboard",
-            "targets": [
+        potentialAction: payload.metadata?.dashboardUrl
+          ? [
               {
-                "os": "default",
-                "uri": payload.metadata.dashboardUrl
-              }
+                '@type': 'OpenUri',
+                name: 'View Dashboard',
+                targets: [
+                  {
+                    os: 'default',
+                    uri: payload.metadata.dashboardUrl,
+                  },
+                ],
+              },
             ]
-          }
-        ] : undefined
+          : undefined,
       };
 
       const response = await fetch(webhookUrl, {
@@ -868,7 +902,9 @@ export class NotificationService {
       return true;
     } catch (error) {
       if (error.name === 'AbortError') {
-        this.logger.error(`Microsoft Teams notification timed out after 10 seconds`);
+        this.logger.error(
+          `Microsoft Teams notification timed out after 10 seconds`,
+        );
       } else {
         this.logger.error(
           `Failed to send Microsoft Teams notification: ${error.message}`,

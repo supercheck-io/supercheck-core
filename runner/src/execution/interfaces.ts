@@ -45,7 +45,7 @@ export interface TestExecutionTask {
   testId: string;
   // Consider passing the code directly instead of a path
   // as the worker service doesn't share the filesystem
-  code: string; 
+  code: string;
   // testPath: string; // Original field - needs adaptation
 }
 
@@ -63,9 +63,9 @@ export type JobTrigger = 'manual' | 'remote' | 'schedule'; // Define allowed tri
 // Optional: Interface for database report metadata storage
 export interface ReportMetadata {
   entityId: string;
-  entityType: "test" | "job";
+  entityType: 'test' | 'job';
   reportPath: string; // This might be the S3 key/path
-  status: "running" | "passed" | "failed" | "error";
+  status: 'running' | 'passed' | 'failed' | 'error';
   s3Url?: string; // Explicitly store the final S3 URL
   createdAt?: Date;
   updatedAt?: Date;
@@ -74,13 +74,19 @@ export interface ReportMetadata {
 // Interface for Monitor Job Data (mirroring DTO in runner)
 export interface MonitorJobData {
   monitorId: string;
-  type: "http_request" | "website" | "ping_host" | "port_check" | "heartbeat" | "ssl";
+  type:
+    | 'http_request'
+    | 'website'
+    | 'ping_host'
+    | 'port_check'
+    | 'heartbeat'
+    | 'ssl';
   target: string;
   config?: any;
-  frequencyMinutes?: number; 
+  frequencyMinutes?: number;
 }
 
 export enum TestRunStatus {
   RUNNING = 'running',
   // ... existing code ...
-} 
+}
