@@ -67,6 +67,10 @@ x-common-env: &common-env
   RESEND_API_KEY: ${RESEND_API_KEY:-re_xxxxxxxxxxxxxxx}
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notifications@meditationblue.com}
 
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  BETTER_AUTH_URL: http://localhost:3000
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-7pQ4ME2JCMxhcinoTtvUYpque24t2uh1}
+
 services:
   # App (Next.js Frontend) - Handles migrations internally
   app:
@@ -76,12 +80,6 @@ services:
     environment:
       <<: *common-env
       # App-specific configuration
-      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-7pQ4ME2JCMxhcinoTtvUYpque24t2uh1}
-      BETTER_AUTH_URL: http://127.0.0.1:3000
-      # Migration Configuration
-      # Migrations are always run on app startup
-    # Use default CMD from Dockerfile which runs migrations then starts server
     volumes:
       - ./app/public/tests:/app/public/tests
       - ./app/public/test-results:/app/public/test-results
@@ -117,11 +115,6 @@ services:
     environment:
       <<: *common-env
       # Worker-specific configuration
-      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
-      BETTER_AUTH_URL: http://127.0.0.1:3000
-      # Note: RUNNING_CAPACITY is 2 for worker vs 5 for app per your .env
-      RUNNING_CAPACITY: 2
-    # Use default CMD from Dockerfile
     volumes:
       # Use named volumes instead of bind mounts to avoid permission issues
       - worker-playwright-reports:/app/playwright-reports

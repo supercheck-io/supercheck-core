@@ -78,9 +78,20 @@ export class S3Service implements OnModuleInit {
   }
 
   async onModuleInit() {
-    // Ensure both buckets exist
-    await this.ensureBucketExists(this.jobBucketName);
-    await this.ensureBucketExists(this.testBucketName);
+    this.logger.log('S3Service onModuleInit() called - starting bucket initialization');
+    try {
+      // Ensure both buckets exist
+      this.logger.log(`Ensuring job bucket exists: ${this.jobBucketName}`);
+      await this.ensureBucketExists(this.jobBucketName);
+      
+      this.logger.log(`Ensuring test bucket exists: ${this.testBucketName}`);
+      await this.ensureBucketExists(this.testBucketName);
+      
+      this.logger.log('S3Service bucket initialization completed successfully');
+    } catch (error) {
+      this.logger.error(`S3Service onModuleInit() failed: ${getErrorMessage(error)}`, getErrorStack(error));
+      // Don't throw - let the service continue even if bucket creation fails
+    }
   }
 
   /**
@@ -176,6 +187,7 @@ export class S3Service implements OnModuleInit {
               `Failed to create bucket '${bucketName}': ${getErrorMessage(createError)}`,
               getErrorStack(createError),
             );
+            // Don't re-throw - let the service continue
           }
         }
       } else {
@@ -183,6 +195,7 @@ export class S3Service implements OnModuleInit {
           `Error checking bucket '${bucketName}' existence: ${getErrorMessage(error)}`,
           getErrorStack(error),
         );
+        // Don't re-throw - let the service continue
       }
     }
   }
@@ -301,13 +314,29 @@ export class S3Service implements OnModuleInit {
       );
       this.logger.log(`[S3 UPLOAD] Verified bucket '${targetBucket}' exists.`);
     } catch (error) {
-      this.logger.error(
-        `[S3 UPLOAD] Bucket verification failed: ${getErrorMessage(error)}`,
-        getErrorStack(error),
+      this.logger.warn(
+        `[S3 UPLOAD] Bucket '${targetBucket}' verification failed, attempting to create it: ${getErrorMessage(error)}`,
       );
-      throw new Error(
-        `S3 bucket verification failed: ${getErrorMessage(error)}`,
-      );
+      
+      // Try to create the bucket as a fallback
+      try {
+        await this.withRetry(
+          () =>
+            this.s3Client.send(
+              new CreateBucketCommand({ Bucket: targetBucket }),
+            ),
+          `Create bucket ${targetBucket} as fallback`,
+        );
+        this.logger.log(`[S3 UPLOAD] Successfully created bucket '${targetBucket}' as fallback.`);
+      } catch (createError) {
+        this.logger.error(
+          `[S3 UPLOAD] Failed to create bucket '${targetBucket}' as fallback: ${getErrorMessage(createError)}`,
+          getErrorStack(createError),
+        );
+        throw new Error(
+          `S3 bucket verification and creation failed: ${getErrorMessage(error)}`,
+        );
+      }
     }
 
     const uploadedKeys: string[] = [];
