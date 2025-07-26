@@ -106,7 +106,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:monitoring-e81b65a
+    image: ghcr.io/krish-kant/supercheck/app:monitoring-4d83a49
     expose:
       - "3000"
     environment:
@@ -155,7 +155,7 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:monitoring-e81b65a
+    image: ghcr.io/krish-kant/supercheck/worker:monitoring-4d83a49
     environment:
       <<: *common-env
       # Worker-specific configuration
@@ -202,6 +202,9 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=supercheck
+      # PostgreSQL Performance Tuning for 8GB server
+      - POSTGRES_INITDB_ARGS=--data-checksums
+      - PGDATA=/var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
@@ -218,11 +221,11 @@ services:
     deploy:
       resources:
         limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
           cpus: '0.5'
           memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 512M
 
   # Redis (for job queues) - Secured with authentication
   redis:
@@ -230,7 +233,9 @@ services:
     # Removed public port exposure for security - only accessible within Docker network
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
-    command: sh -c "rm -rf /data/* && redis-server --requirepass \"${REDIS_PASSWORD:-supersecure-redis-password-change-this}\" --maxmemory 256mb --maxmemory-policy noeviction --save '' --appendonly no --protected-mode yes --bind 0.0.0.0"
+    command: sh -c "rm -rf /data/* && redis-server --requirepass \"${REDIS_PASSWORD:-supersecure-redis-password-change-this}\" --maxmemory 512mb --maxmemory-policy allkeys-lru --save '' --appendonly no --protected-mode yes --bind 0.0.0.0 --tcp-keepalive 300"
+    sysctls:
+      - vm.overcommit_memory=1
     volumes:
       - redis-data:/data
     restart: unless-stopped
@@ -245,11 +250,11 @@ services:
     deploy:
       resources:
         limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
           cpus: '0.25'
           memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
 
   # MinIO (S3-compatible storage)
   minio:

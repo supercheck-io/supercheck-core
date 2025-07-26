@@ -97,10 +97,6 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Add health check for migration completion
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD node -e "const postgres = require('postgres'); const client = postgres(process.env.DATABASE_URL); client\`SELECT 1\`.then(() => process.exit(0)).catch(() => process.exit(1));"
-
 # Use the simplified start script which handles migrations and startup
 CMD ["./scripts/start-simple.sh"]
  
