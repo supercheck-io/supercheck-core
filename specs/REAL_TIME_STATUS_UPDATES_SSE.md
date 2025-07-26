@@ -1,10 +1,10 @@
 # Real-Time Status Updates with Server-Sent Events (SSE)
 
-This document outlines the comprehensive Server-Sent Events (SSE) implementation in Supertest for real-time status updates, providing live feedback for test execution, job processing, and queue statistics without client-side polling.
+This document outlines the comprehensive Server-Sent Events (SSE) implementation in Supertest for real-time status updates, providing live feedback for test execution, job processing, and queue statistics using Redis pub/sub events.
 
 ## Overview
 
-The application uses Server-Sent Events (SSE) to provide real-time status updates for test and job execution. This enables users to see live progress without polling the server, creating a responsive and engaging user experience.
+The application uses Server-Sent Events (SSE) to provide real-time status updates for test and job execution. This enables users to see live progress without polling the server, creating a responsive and engaging user experience. The system now uses Redis pub/sub events for immediate status updates instead of database polling.
 
 ## Architecture
 
@@ -19,31 +19,42 @@ flowchart TB
     end
     
     subgraph "API Layer"
-        B1[/api/test-status/sse/[testId]]
-        B2[/api/job-status/sse/[jobId]]
+        B1[/api/test-status/events/[testId]]
+        B2[/api/job-status/events/[jobId]]
         B3[SSE Stream Handler]
     end
     
+    subgraph "Redis Pub/Sub"
+        C1[Redis Channels]
+        C2[test:${testId}:status]
+        C3[test:${testId}:complete]
+        C4[job:${jobId}:status]
+        C5[job:${jobId}:complete]
+    end
+    
     subgraph "Queue System"
-        C1[Redis/BullMQ]
-        C2[Job Status Events]
+        D1[Redis/BullMQ]
+        D2[Job Status Events]
     end
     
     subgraph "Database"
-        D1[(PostgreSQL)]
-        D2[Status Updates]
+        E1[(PostgreSQL)]
+        E2[Status Updates]
     end
     
     A1 -->|Initiate Test/Job| A2
     A2 -->|Connect to SSE| B1
     A2 -->|Connect to SSE| B2
-    B1 -->|Poll Queue Status| C1
-    B2 -->|Poll Queue Status| C1
-    B3 -->|Check DB Status| D1
-    C1 -->|Job Events| B3
-    D1 -->|Status Data| B3
+    B1 -->|Subscribe to Redis Channels| C1
+    B2 -->|Subscribe to Redis Channels| C1
+    D1 -->|Publish Events| C2
+    D1 -->|Publish Events| C3
+    D1 -->|Publish Events| C4
+    D1 -->|Publish Events| C5
+    C1 -->|SSE Messages| B3
     B3 -->|SSE Messages| A2
     A2 -->|Update UI| A3
+    E1 -->|Fallback Check| B3
 ```
 
 ### 2. SSE Implementation Components
@@ -54,7 +65,7 @@ The frontend establishes SSE connections for real-time updates:
 
 ```typescript
 // Test status SSE connection
-const eventSource = new EventSource(`/api/test-status/sse/${testId}`);
+const eventSource = new EventSource(`/api/test-status/events/${testId}`);
 
 eventSource.onmessage = (event) => {
   try {
@@ -99,7 +110,7 @@ For job execution, the system uses a similar pattern:
 
 ```typescript
 // Job status SSE connection
-const eventSource = new EventSource(`/api/job-status/sse/${runId}`);
+const eventSource = new EventSource(`/api/job-status/events/${runId}`);
 
 eventSource.onmessage = (event) => {
   try {
@@ -158,7 +169,7 @@ eventSource.onmessage = (event) => {
 ### 1. Test Status SSE Endpoint
 
 ```typescript
-// app/src/app/api/test-status/sse/[testId]/route.ts
+// app/src/app/api/test-status/events/[testId]/route.ts
 export async function GET(request: Request) {
   // Extract testId from the URL path
   const url = new URL(request.url);
@@ -194,9 +205,8 @@ export async function GET(request: Request) {
           return;
         }
 
-        // Get Redis connection and create the Bull queue
-        const connection = await getRedisConnection();
-        const testQueue = new Queue(TEST_EXECUTION_QUEUE, { connection });
+        // Get Redis connection for pub/sub
+        const subscriber = await getRedisConnection();
         
         // Handle disconnection
         const cleanup = async () => {
@@ -205,7 +215,7 @@ export async function GET(request: Request) {
             controller.close();
             console.log(`[SSE] Client disconnected for test ${testId}`);
             try {
-              await connection.disconnect();
+              await subscriber.disconnect();
             } catch (err) {
               console.error(`Error disconnecting Redis: ${err instanceof Error ? err.message : String(err)}`);
             }
@@ -240,72 +250,95 @@ export async function GET(request: Request) {
           controller.enqueue(encoder.encode(createSSEMessage({ status: 'waiting' })));
         }
         
-        // Get all Bull jobs for this test ID
-        const jobs = await testQueue.getJobs(['waiting', 'active', 'completed', 'failed']);
-        const testJob = jobs.find(job => job.data.testId === testId);
+        // Subscribe to Redis channels for test status updates
+        const testStatusChannel = `test:${testId}:status`;
+        const testCompleteChannel = `test:${testId}:complete`;
         
-        if (!testJob) {
-          console.log(`[SSE] Test ${testId} not found in Bull queue`);
-          return;
-        }
+        console.log(`[SSE] Subscribing to channels: ${testStatusChannel}, ${testCompleteChannel}`);
         
-        // Set up polling to check test status from Bull queue
-        const pollInterval = setInterval(async () => {
+        // Subscribe to status updates
+        await subscriber.subscribe(testStatusChannel, testCompleteChannel);
+        
+        // Handle messages from Redis pub/sub
+        subscriber.on('message', async (channel, message) => {
+          if (connectionClosed) return;
+          
+          try {
+            const data = JSON.parse(message);
+            console.log(`[SSE] Received message on channel ${channel}:`, data);
+            
+            if (channel === testCompleteChannel) {
+              // Test completed, send final status and close connection
+              controller.enqueue(encoder.encode(createSSEMessage({
+                status: data.status,
+                testId: data.testId,
+                reportPath: data.reportPath,
+                s3Url: data.s3Url,
+                error: data.error
+              })));
+              
+              connectionClosed = true;
+              clearInterval(pingInterval);
+              await cleanup();
+              controller.close();
+            } else if (channel === testStatusChannel) {
+              // Status update
+              controller.enqueue(encoder.encode(createSSEMessage({
+                status: data.status,
+                testId: data.testId,
+                reportPath: data.reportPath,
+                s3Url: data.s3Url,
+                error: data.error
+              })));
+            }
+          } catch (parseError) {
+            console.error(`[SSE] Error parsing message from channel ${channel}:`, parseError);
+          }
+        });
+        
+        // Set up a fallback mechanism to check database periodically (less frequent)
+        // This is only for cases where Redis pub/sub might miss events
+        const fallbackInterval = setInterval(async () => {
           if (connectionClosed) {
-            clearInterval(pollInterval);
+            clearInterval(fallbackInterval);
             return;
           }
           
           try {
-            // Get all jobs again to find the latest state
-            const updatedJobs = await testQueue.getJobs(['waiting', 'active', 'completed', 'failed']);
-            const updatedTestJob = updatedJobs.find(job => job.data.testId === testId);
-            
-            if (!updatedTestJob) {
-              return;
-            }
-            
-            // Get job state
-            const state = await updatedTestJob.getState();
-            const progress = JSON.stringify(await updatedTestJob.progress);
-            
-            // Map Bull states to our application states
-            let status = state;
-            if (state === 'completed') {
-              const result = await updatedTestJob.returnvalue;
-              status = result?.success === true ? 'completed' : 'failed';
-            }
-            
-            // Get latest report data from DB
-            const updatedReport = await db.query.reports.findFirst({
+            // Check database for terminal status (less frequent than before)
+            const dbReport = await db.query.reports.findFirst({
               where: and(
                 eq(reports.entityType, 'test'),
                 eq(reports.entityId, testId)
               ),
             });
             
-            controller.enqueue(encoder.encode(createSSEMessage({ 
-              status,
-              testId,
-              progress,
-              reportPath: updatedReport?.reportPath,
-              s3Url: updatedReport?.s3Url,
-              error: undefined,
-              ...(updatedTestJob.returnvalue || {})
-            })));
-            
-            // If terminal state, close connection
-            if (['completed', 'failed'].includes(state)) {
-              console.log(`[SSE] Test ${testId} reached terminal state ${status}, closing connection`);
+            if (dbReport && ['completed', 'failed'].includes(dbReport.status)) {
+              console.log(`[SSE] Fallback: Test ${testId} has terminal status ${dbReport.status} in database`);
+              
+              controller.enqueue(encoder.encode(createSSEMessage({ 
+                status: dbReport.status,
+                testId: dbReport.entityId,
+                reportPath: dbReport.reportPath,
+                s3Url: dbReport.s3Url,
+                error: undefined
+              })));
+              
               connectionClosed = true;
-              clearInterval(pollInterval);
+              clearInterval(fallbackInterval);
               await cleanup();
               controller.close();
             }
-          } catch (pollError) {
-            console.error(`[SSE] Error polling test ${testId} status:`, pollError);
+          } catch (fallbackError) {
+            console.error(`[SSE] Error in fallback check for test ${testId}:`, fallbackError);
           }
-        }, 1000); // Poll every second
+        }, 30000); // Check every 30 seconds instead of every second
+        
+        // Clean up fallback interval on close
+        request.signal.addEventListener('abort', () => {
+          clearInterval(fallbackInterval);
+        });
+        
       } catch (err) {
         console.error('[SSE] Error in SSE stream:', err);
         controller.enqueue(encoder.encode(createSSEMessage({ 
@@ -332,7 +365,7 @@ export async function GET(request: Request) {
 ### 2. Job Status SSE Endpoint
 
 ```typescript
-// app/src/app/api/job-status/sse/[jobId]/route.ts
+// app/src/app/api/job-status/events/[jobId]/route.ts
 export async function GET(request: Request) {
   // Extract jobId from the URL path
   const url = new URL(request.url);
@@ -370,9 +403,8 @@ export async function GET(request: Request) {
           return;
         }
 
-        // Get Redis connection and create the Bull queue
-        const connection = await getRedisConnection();
-        const jobQueue = new Queue(JOB_EXECUTION_QUEUE, { connection });
+        // Get Redis connection for pub/sub
+        const subscriber = await getRedisConnection();
         
         // Handle disconnection
         const cleanup = async () => {
@@ -381,7 +413,7 @@ export async function GET(request: Request) {
             controller.close();
             console.log(`[SSE] Client disconnected for job ${jobId}`);
             try {
-              await connection.disconnect();
+              await subscriber.disconnect();
             } catch (err) {
               console.error(`Error disconnecting Redis: ${err instanceof Error ? err.message : String(err)}`);
             }
@@ -418,32 +450,72 @@ export async function GET(request: Request) {
           controller.enqueue(encoder.encode(createSSEMessage({ status: 'waiting' })));
         }
         
-        // Get the Bull job to watch for events
-        let job = await jobQueue.getJob(runId);
+        // Subscribe to Redis channels for job status updates
+        const jobStatusChannel = `job:${runId}:status`;
+        const jobCompleteChannel = `job:${runId}:complete`;
         
-        if (!job) {
-          console.log(`[SSE] Job ${runId} not found in Bull queue`);
-          // Even if job not found in Bull, keep the connection alive
-          // as it might be added later or already completed
-          return;
-        }
+        console.log(`[SSE] Subscribing to channels: ${jobStatusChannel}, ${jobCompleteChannel}`);
         
-        // Set up polling to check job status from Bull queue and database
-        const pollInterval = setInterval(async () => {
+        // Subscribe to status updates
+        await subscriber.subscribe(jobStatusChannel, jobCompleteChannel);
+        
+        // Handle messages from Redis pub/sub
+        subscriber.on('message', async (channel, message) => {
+          if (connectionClosed) return;
+          
+          try {
+            const data = JSON.parse(message);
+            console.log(`[SSE] Received message on channel ${channel}:`, data);
+            
+            if (channel === jobCompleteChannel) {
+              // Job completed, send final status and close connection
+              controller.enqueue(encoder.encode(createSSEMessage({
+                status: data.status,
+                runId: data.runId,
+                duration: data.duration,
+                startedAt: data.startedAt,
+                completedAt: data.completedAt,
+                errorDetails: data.errorDetails,
+                artifactPaths: data.artifactPaths
+              })));
+              
+              connectionClosed = true;
+              clearInterval(pingInterval);
+              await cleanup();
+              controller.close();
+            } else if (channel === jobStatusChannel) {
+              // Status update
+              controller.enqueue(encoder.encode(createSSEMessage({
+                status: data.status,
+                runId: data.runId,
+                duration: data.duration,
+                startedAt: data.startedAt,
+                completedAt: data.completedAt,
+                errorDetails: data.errorDetails,
+                artifactPaths: data.artifactPaths
+              })));
+            }
+          } catch (parseError) {
+            console.error(`[SSE] Error parsing message from channel ${channel}:`, parseError);
+          }
+        });
+        
+        // Set up a fallback mechanism to check database periodically (less frequent)
+        // This is only for cases where Redis pub/sub might miss events
+        const fallbackInterval = setInterval(async () => {
           if (connectionClosed) {
-            clearInterval(pollInterval);
+            clearInterval(fallbackInterval);
             return;
           }
           
           try {
-            // Get fresh database run status first (more reliable than queue)
+            // Check database for terminal status (less frequent than before)
             const dbRun = await db.query.runs.findFirst({
               where: eq(runs.id, runId),
             });
             
-            // If run shows terminal status in DB, use that status
             if (dbRun && ['completed', 'failed', 'passed', 'error'].includes(dbRun.status)) {
-              console.log(`[SSE] Run ${runId} has terminal status ${dbRun.status} in database, sending update`);
+              console.log(`[SSE] Fallback: Run ${runId} has terminal status ${dbRun.status} in database`);
               
               controller.enqueue(encoder.encode(createSSEMessage({ 
                 status: dbRun.status,
@@ -455,62 +527,21 @@ export async function GET(request: Request) {
                 artifactPaths: dbRun.artifactPaths
               })));
               
-              // Close connection for terminal status
               connectionClosed = true;
-              clearInterval(pollInterval);
+              clearInterval(fallbackInterval);
               await cleanup();
               controller.close();
-              return;
             }
-            
-            // Get fresh job from queue
-            job = await jobQueue.getJob(runId);
-            
-            // If we have a job from the queue, process its state
-            if (job) {
-              // Get job state
-              const state = await job.getState();
-              const progress = JSON.stringify(await job.progress);
-              
-              // Map Bull states to our application states
-              let status = state;
-              if (state === 'completed') {
-                // Check result to determine if passed or failed
-                const result = await job.returnvalue;
-                status = result?.success === true ? 'passed' : 'failed';
-              }
-              
-              // Send status update based on Bull job state
-              controller.enqueue(encoder.encode(createSSEMessage({ 
-                status,
-                runId,
-                progress,
-                duration: dbRun?.duration || null,
-                ...(job.returnvalue || {})
-              })));
-              
-              // If terminal state, close connection
-              if (['completed', 'failed'].includes(state)) {
-                console.log(`[SSE] Job ${runId} reached terminal state ${status}, closing connection`);
-                connectionClosed = true;
-                clearInterval(pollInterval);
-                await cleanup();
-                controller.close();
-              }
-            } else if (dbRun) {
-              // If we have a database run but no job in the queue, send the database status
-              controller.enqueue(encoder.encode(createSSEMessage({ 
-                status: dbRun.status,
-                runId: dbRun.id,
-                duration: dbRun.duration,
-                startedAt: dbRun.startedAt,
-                completedAt: dbRun.completedAt
-              })));
-            }
-          } catch (pollError) {
-            console.error(`[SSE] Error polling job ${runId} status:`, pollError);
+          } catch (fallbackError) {
+            console.error(`[SSE] Error in fallback check for job ${runId}:`, fallbackError);
           }
-        }, 1000); // Poll every second
+        }, 30000); // Check every 30 seconds instead of every second
+        
+        // Clean up fallback interval on close
+        request.signal.addEventListener('abort', () => {
+          clearInterval(fallbackInterval);
+        });
+        
       } catch (err) {
         console.error('[SSE] Error in SSE stream:', err);
         controller.enqueue(encoder.encode(createSSEMessage({ 
@@ -534,6 +565,46 @@ export async function GET(request: Request) {
 }
 ```
 
+## Redis Pub/Sub Channels
+
+### 1. Test Status Channels
+
+The system uses the following Redis channels for test status updates:
+
+- **`test:${testId}:status`** - For intermediate status updates during test execution
+- **`test:${testId}:complete`** - For final completion status when test finishes
+
+### 2. Job Status Channels
+
+For job execution status:
+
+- **`job:${runId}:status`** - For intermediate status updates during job execution
+- **`job:${runId}:complete`** - For final completion status when job finishes
+
+### 3. Publishing Events
+
+The queue processors publish events to these channels when status changes occur:
+
+```typescript
+// Example of publishing test status events
+const redis = await getRedisConnection();
+await redis.publish(`test:${testId}:status`, JSON.stringify({
+  status: 'running',
+  testId: testId,
+  reportPath: reportPath,
+  s3Url: s3Url
+}));
+
+// Example of publishing test completion events
+await redis.publish(`test:${testId}:complete`, JSON.stringify({
+  status: 'completed',
+  testId: testId,
+  reportPath: reportPath,
+  s3Url: s3Url,
+  error: undefined
+}));
+```
+
 ## Helper Functions
 
 ### 1. SSE Message Creation
@@ -551,47 +622,30 @@ const createSSEMessage = (data: Record<string, unknown>) => {
 
 ```typescript
 /**
- * Get or create Redis connection using environment variables.
+ * Get or create Redis connection for SSE pub/sub
  */
-export async function getRedisConnection(): Promise<Redis> {
-  if (redisClient && redisClient.status === 'ready') {
-    return redisClient;
-  }
-
-  if (redisClient) {
-    try { await redisClient.quit(); } catch (e) { console.error('Error quitting old Redis client', e); }
-    redisClient = null;
-  }
-
-  // Read directly from process.env
+const getRedisConnection = async (): Promise<Redis> => {
+  console.log(`Creating Redis connection for SSE endpoint`);
+  
   const host = process.env.REDIS_HOST || 'localhost';
   const port = parseInt(process.env.REDIS_PORT || '6379');
   const password = process.env.REDIS_PASSWORD;
-
-  console.log(`[Queue Client] Connecting to Redis at ${host}:${port}`);
   
-  const connectionOpts: RedisOptions = {
+  console.log(`[SSE Redis Client] Connecting to Redis at ${host}:${port}`);
+  
+  const redis = new Redis({
     host,
     port,
     password: password || undefined,
-    maxRetriesPerRequest: null, // Required for BullMQ
-    enableReadyCheck: false, // Avoid ready check for client connection
-    retryStrategy: (times: number) => {
-      const delay = Math.min(times * 100, 3000); // Exponential backoff capped at 3s
-      console.warn(`[Queue Client] Redis connection retry ${times}, delaying ${delay}ms`);
-      return delay;
-    }
-  };
-
-  redisClient = new Redis(connectionOpts);
-
-  redisClient.on('error', (err) => console.error('[Queue Client] Redis Error:', err));
-  redisClient.on('connect', () => console.log('[Queue Client] Redis Connected'));
-  redisClient.on('ready', () => console.log('[Queue Client] Redis Ready'));
-  redisClient.on('close', () => console.log('[Queue Client] Redis Closed'));
-
-  return redisClient;
-}
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+  
+  redis.on('error', (err) => console.error('[SSE Redis Client Error]', err));
+  redis.on('connect', () => console.log('[SSE Redis Client Connected]'));
+  
+  return redis;
+};
 ```
 
 ## Status Management Components
@@ -626,7 +680,7 @@ export function JobStatus({ jobId, initialStatus }: JobStatusProps) {
     console.log(`[JobStatus] Setting up SSE for job status: ${jobId}, initial status: ${initialStatus}`);
     
     // Create new EventSource connection
-    const eventSource = new EventSource(`/api/job-status/sse/${jobId}`);
+    const eventSource = new EventSource(`/api/job-status/events/${jobId}`);
     eventSourceRef.current = eventSource;
     
     // Reset toast flag on new connection
@@ -737,7 +791,7 @@ export function RunStatusListener({
 
     // Establish SSE connection
     console.log(`[RunStatusListener] Setting up SSE connection for run ${runId}`);
-    const eventSource = new EventSource(`/api/job-status/sse/${runId}`);
+    const eventSource = new EventSource(`/api/job-status/events/${runId}`);
     eventSourceRef.current = eventSource;
     
     // Reset toast flag on new connection
@@ -785,28 +839,28 @@ export function RunStatusListener({
 
 ## Benefits
 
-### 1. Real-Time Updates
+### 1. Real-Time Updates with Redis Pub/Sub
 
-- **Live Progress**: Users see status changes immediately without refreshing
-- **Reduced Polling**: Eliminates the need for constant API polling
-- **Better UX**: Provides immediate feedback for long-running operations
+- **Immediate Events**: Status updates are pushed immediately via Redis pub/sub
+- **Reduced Latency**: No polling delays, events are delivered instantly
+- **Better Performance**: Eliminates constant database queries for status checks
 
 ### 2. Efficient Resource Usage
 
-- **Single Connection**: One SSE connection per test/job instead of multiple HTTP requests
-- **Server Push**: Server pushes updates when available, reducing client overhead
-- **Connection Reuse**: Connection stays open for the duration of the operation
+- **Event-Driven**: Only processes events when they occur
+- **Reduced Database Load**: Minimal database queries for fallback only
+- **Connection Reuse**: SSE connections stay open for the duration of operations
 
 ### 3. Reliable Status Tracking
 
-- **Multiple Sources**: Combines BullMQ queue status with database status
-- **Fallback Mechanisms**: Uses database status when queue status is unavailable
+- **Primary Events**: Redis pub/sub provides immediate status updates
+- **Fallback Mechanism**: Database checks every 30 seconds as backup
 - **Error Handling**: Graceful handling of connection errors and timeouts
 
 ### 4. Scalable Architecture
 
+- **Redis Pub/Sub**: Highly scalable event distribution
 - **Connection Management**: Proper cleanup of SSE connections
-- **Memory Efficiency**: Minimal memory footprint per connection
 - **Load Distribution**: SSE endpoints can be load balanced
 
 ## Configuration
@@ -814,14 +868,14 @@ export function RunStatusListener({
 ### 1. Environment Variables
 
 ```bash
-# Redis Configuration (for SSE)
+# Redis Configuration (for SSE pub/sub)
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 
 # SSE Configuration
 SSE_PING_INTERVAL=30000        # 30 seconds ping interval
-SSE_POLL_INTERVAL=1000         # 1 second status poll interval
+SSE_FALLBACK_INTERVAL=30000    # 30 seconds fallback check interval
 SSE_CONNECTION_TIMEOUT=300000  # 5 minutes connection timeout
 ```
 
@@ -838,28 +892,42 @@ headers: {
 
 ## Best Practices
 
-### 1. Connection Management
+### 1. Event-Driven Architecture
+
+- **Redis Pub/Sub**: Use Redis channels for immediate event distribution
+- **Event Naming**: Use consistent channel naming conventions
+- **Event Structure**: Standardize event payload structure
+
+### 2. Connection Management
 
 - **Proper Cleanup**: Always close SSE connections when no longer needed
 - **Error Handling**: Implement robust error handling for connection failures
 - **Timeout Management**: Set appropriate timeouts for long-running operations
 
-### 2. Status Polling
+### 3. Fallback Mechanisms
 
-- **Efficient Polling**: Use appropriate polling intervals (1 second for status updates)
-- **Database Priority**: Check database status first, then queue status
-- **Terminal State Detection**: Close connections when operations complete
-
-### 3. Error Recovery
-
-- **Graceful Degradation**: Fall back to polling if SSE fails
-- **Reconnection Logic**: Implement automatic reconnection for dropped connections
+- **Database Fallback**: Periodic database checks for missed events
+- **Graceful Degradation**: Fall back to polling if Redis pub/sub fails
 - **Status Persistence**: Store status in database for reliability
 
 ### 4. Performance Optimization
 
-- **Connection Limits**: Monitor and limit concurrent SSE connections
+- **Event Filtering**: Only subscribe to relevant channels
 - **Memory Management**: Clean up resources properly
 - **Load Balancing**: Distribute SSE connections across multiple servers
 
-This comprehensive SSE implementation provides reliable, real-time status updates while maintaining system performance and user experience. 
+## Migration from Database Polling
+
+The system has been migrated from database polling to Redis pub/sub events:
+
+### Before (Database Polling)
+- Polled database every 1 second for status updates
+- High database load with frequent queries
+- Delayed status updates due to polling intervals
+
+### After (Redis Pub/Sub)
+- Immediate events via Redis pub/sub channels
+- Minimal database queries (only fallback every 30 seconds)
+- Real-time status updates with no polling delays
+
+This comprehensive SSE implementation provides reliable, real-time status updates using Redis pub/sub events while maintaining system performance and user experience. 

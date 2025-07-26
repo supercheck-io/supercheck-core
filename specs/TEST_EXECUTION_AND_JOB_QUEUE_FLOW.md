@@ -87,8 +87,8 @@ sequenceDiagram
     NextFE->>NextAPI: POST /api/test
     NextAPI->>Redis: Add test to 'test-execution' queue
     NextAPI-->>NextFE: Return testId, success status
-    NextFE->>NextAPI: Open SSE connection<br>/api/test-status/sse/[testId]
-    NextAPI->>Redis: Subscribe to 'test-status:[testId]' channel<br>with TTL
+    NextFE->>NextAPI: Open SSE connection<br>/api/test-status/events/[testId]
+    NextAPI->>Redis: Subscribe to 'test:[testId]:status' and<br>'test:[testId]:complete' channels
     NextAPI-->>NextFE: Establish SSE stream
 
     %% Worker picks up test from queue
