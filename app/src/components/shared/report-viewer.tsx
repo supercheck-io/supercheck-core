@@ -85,6 +85,58 @@ export function ReportViewer({
     }
   }, [reportUrl]);
 
+    // Shared function to remove external buttons from any iframe
+  const removeExternalButtonFromIframe = (iframe: HTMLIFrameElement | null) => {
+    if (iframe?.contentDocument) {
+      try {
+        // Simple CSS injection
+        const style = iframe.contentDocument.createElement('style');
+        style.textContent = `
+          button.toolbar-button.link-external,
+          button[title="Open snapshot in a new tab"],
+          .codicon.codicon-link-external {
+            display: none !important;
+          }
+        `;
+        iframe.contentDocument.head.appendChild(style);
+        
+        // Remove the button immediately
+        const button = iframe.contentDocument.querySelector('button.toolbar-button.link-external');
+        if (button) {
+          button.remove();
+        }
+      } catch (error) {
+        // Ignore CORS errors
+      }
+    }
+  };
+
+  // Remove external buttons from main iframe
+  useEffect(() => {
+    if (currentReportUrl && !isReportLoading) {
+      const removeExternalButton = () => removeExternalButtonFromIframe(iframeRef.current);
+      
+      // Remove immediately and keep checking
+      removeExternalButton();
+      const interval = setInterval(removeExternalButton, 100);
+      
+      return () => clearInterval(interval);
+    }
+  }, [currentReportUrl, isReportLoading]);
+
+  // Remove external buttons from fullscreen iframe
+  useEffect(() => {
+    if (showFullscreen && currentReportUrl) {
+      const removeExternalButton = () => removeExternalButtonFromIframe(fullscreenIframeRef.current);
+      
+      // Remove immediately and keep checking
+      removeExternalButton();
+      const interval = setInterval(removeExternalButton, 100);
+      
+      return () => clearInterval(interval);
+    }
+  }, [showFullscreen, currentReportUrl]);
+
   // Safety timeout to prevent loading state from getting stuck
   useEffect(() => {
     if (isReportLoading) {
@@ -238,7 +290,7 @@ export function ReportViewer({
   return (
     <div className={containerClassName}>
       {isReportLoading && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#191919]">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background">
           <Loader2Icon className="h-12 w-12 animate-spin mb-2 text-muted-foreground" />
           <p className="text-lg text-muted-foreground">{loadingMessage}</p>
         </div>
@@ -264,9 +316,12 @@ export function ReportViewer({
             ref={iframeRef}
             key={currentReportUrl}
             src={currentReportUrl}
-            className={`${iframeClassName} ${isReportLoading ? 'opacity-0' : ''} ${isValidationError ? 'h-4/5 flex-grow' : 'h-full'}`}
+            className={`${iframeClassName} ${isReportLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${isValidationError ? 'h-4/5 flex-grow' : 'h-full'}`}
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-          
+            style={{ 
+              visibility: isReportLoading ? 'hidden' : 'visible',
+              transition: 'opacity 0.3s ease-in-out'
+            }}
             title="Playwright Report"
             onLoad={(e) => {
               console.log("ReportViewer: iframe onLoad triggered for URL:", currentReportUrl);
