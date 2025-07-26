@@ -106,7 +106,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:monitoring-da21444
+    image: ghcr.io/krish-kant/supercheck/app:monitoring-264557b
     expose:
       - "3000"
     environment:
@@ -155,7 +155,7 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:monitoring-da21444
+    image: ghcr.io/krish-kant/supercheck/worker:monitoring-264557b
     environment:
       <<: *common-env
       # Worker-specific configuration
