@@ -14,7 +14,6 @@ interface ReportViewerProps {
   containerClassName?: string;
   iframeClassName?: string;
   loadingMessage?: string;
-  darkMode?: boolean;
   hideEmptyMessage?: boolean;
 }
 
@@ -26,7 +25,6 @@ export function ReportViewer({
   containerClassName = "w-full h-full relative",
   iframeClassName = "w-full h-full",
   loadingMessage = "Loading report...",
-  darkMode = true,
   hideEmptyMessage = false,
 }: ReportViewerProps) {
   const [isReportLoading, setIsReportLoading] = useState(!!reportUrl);
@@ -46,11 +44,9 @@ export function ReportViewer({
     console.log("ReportViewer: reportUrl changed:", reportUrl);
     if (reportUrl) {
       // Always ensure we have a timestamp parameter to prevent caching issues
-      // Add theme parameter based on darkMode prop
-      const themeParam = darkMode ? 'theme=dark' : 'theme=light';
       const formattedUrl = reportUrl.includes('?') ? 
-        (reportUrl.includes('t=') ? `${reportUrl}&${themeParam}` : `${reportUrl}&t=${Date.now()}&${themeParam}`) : 
-        `${reportUrl}?t=${Date.now()}&${themeParam}`;
+        (reportUrl.includes('t=') ? `${reportUrl}&t=${Date.now()}` : `${reportUrl}&t=${Date.now()}`) : 
+        `${reportUrl}?t=${Date.now()}`;
       
       const finalUrl = formattedUrl; // Use the timestamped URL directly
       
@@ -87,7 +83,7 @@ export function ReportViewer({
       console.log("ReportViewer: reportUrl is null or empty");
       setCurrentReportUrl(null);
     }
-  }, [reportUrl, darkMode]);
+  }, [reportUrl]);
 
   // Safety timeout to prevent loading state from getting stuck
   useEffect(() => {

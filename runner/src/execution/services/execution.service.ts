@@ -1033,8 +1033,6 @@ export class ExecutionService {
         PLAYWRIGHT_HTML_REPORT: playwrightReportDir,
         // Add timestamp to prevent caching issues
         PLAYWRIGHT_TIMESTAMP: Date.now().toString(),
-        // Set the default theme to dark for HTML reports
-        PLAYWRIGHT_HTML_REPORT_THEME: 'dark',
       };
 
       this.logger.debug(
@@ -1348,57 +1346,7 @@ export class ExecutionService {
           }
         }
 
-        // Add dark theme support for all HTML files
-        // Inject theme parameter and localStorage setting for consistent dark theme
-        if (content.includes('<html') || content.includes('<head')) {
-          // Add theme parameter to current URL if it's a trace viewer or has links
-          if (!content.includes('theme=dark')) {
-            // Inject script to force dark theme for trace viewer
-            const themeScript = `
-<script>
-  // Force dark theme for Playwright trace viewer
-  (function() {
-    // Set theme in URL parameters
-    if (window.location.search && !window.location.search.includes('theme=')) {
-      const url = new URL(window.location.href);
-      url.searchParams.set('theme', 'dark');
-      window.history.replaceState({}, '', url.toString());
-    } else if (!window.location.search) {
-      const url = new URL(window.location.href);
-      url.searchParams.set('theme', 'dark');
-      window.history.replaceState({}, '', url.toString());
-    }
-    
-    // Set localStorage theme preference
-    try {
-      localStorage.setItem('theme', 'dark');
-      localStorage.setItem('theme-choice', 'dark');
-    } catch (e) {
-      console.log('Could not set localStorage theme preference:', e);
-    }
-    
-    // Set data attributes on document for immediate theme application
-    if (document.documentElement) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-      document.documentElement.setAttribute('data-theme-choice', 'dark');
-    }
-  })();
-</script>`;
 
-            // Try to inject before closing </head> tag, or before closing </html> tag as fallback
-            if (content.includes('</head>')) {
-              content = content.replace('</head>', themeScript + '\n</head>');
-              modified = true;
-            } else if (content.includes('</html>')) {
-              content = content.replace('</html>', themeScript + '\n</html>');
-              modified = true;
-            } else if (content.includes('<html')) {
-              // If no head or html closing tags, inject after opening html tag
-              content = content.replace(/<html[^>]*>/, '$&\n' + themeScript);
-              modified = true;
-            }
-          }
-        }
 
         // Only save the file if we made changes
         if (modified) {
