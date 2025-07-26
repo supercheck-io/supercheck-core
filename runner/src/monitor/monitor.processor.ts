@@ -22,7 +22,7 @@ export class MonitorProcessor extends WorkerHost {
   ): Promise<MonitorExecutionResult | null> {
     if (job.name === EXECUTE_MONITOR_JOB_NAME) {
       this.logger.log(
-        `Executing monitor check for ${job.data.type} on target: ${job.data.target} (Job ID: ${job.id})`,
+        `Executing monitor check for ${(job.data as any).type} on target: ${(job.data as any).target} (Job ID: ${job.id})`,
       );
       return this.monitorService.executeMonitor(job.data);
     }
@@ -36,10 +36,10 @@ export class MonitorProcessor extends WorkerHost {
   @OnWorkerEvent('completed')
   onCompleted(job: Job, result: MonitorExecutionResult) {
     this.logger.log(
-      `Job ${job.id} (monitor ${job.data.monitorId}) has completed processing in runner.`,
+      `Job ${job.id} (monitor ${job.data?.monitorId}) has completed processing in runner.`,
     );
     if (result) {
-      this.monitorService.saveMonitorResult(result);
+      void this.monitorService.saveMonitorResult(result);
     }
   }
 
@@ -48,7 +48,7 @@ export class MonitorProcessor extends WorkerHost {
     job: Job<MonitorJobDataDto, MonitorExecutionResult, string> | undefined,
     err: Error,
   ) {
-    const monitorId = job?.data?.monitorId || 'unknown_monitor';
+    const monitorId = (job?.data as any)?.monitorId || 'unknown_monitor';
     this.logger.error(
       `Job ${job?.id} (monitor ${monitorId}) has failed with error: ${err.message}`,
       err.stack,
@@ -61,7 +61,7 @@ export class MonitorProcessor extends WorkerHost {
     progress: number | object,
   ) {
     this.logger.log(
-      `Job ${job.id} (monitor ${job.data.monitorId}) reported progress: ${JSON.stringify(progress)}`,
+      `Job ${job.id} (monitor ${(job.data as any)?.monitorId}) reported progress: ${JSON.stringify(progress)}`,
     );
   }
 }

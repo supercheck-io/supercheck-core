@@ -290,7 +290,7 @@ export function ReportViewer({
   return (
     <div className={containerClassName}>
       {isReportLoading && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-card">
           <Loader2Icon className="h-12 w-12 animate-spin mb-2 text-muted-foreground" />
           <p className="text-lg text-muted-foreground">{loadingMessage}</p>
         </div>
@@ -425,8 +425,8 @@ export function ReportViewer({
       
       {/* Manual fullscreen implementation */}
       {showFullscreen && currentReportUrl && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
-          <div className="fixed inset-8 bg-background rounded-lg shadow-lg flex flex-col overflow-hidden border">
+        <div className="fixed inset-0 z-50 bg-card/80 backdrop-blur-sm">
+          <div className="fixed inset-8 bg-card rounded-lg shadow-lg flex flex-col overflow-hidden border">
             <div className="p-4 border-b flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <PlaywrightLogo width={42} height={42} />

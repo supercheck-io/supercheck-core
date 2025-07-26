@@ -20,7 +20,9 @@ export class MonitorSchedulerProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<MonitorJobData, void, string>): Promise<any> {
+  async process(
+    job: Job<MonitorJobData, void, string>,
+  ): Promise<{ success: boolean }> {
     this.logger.log(
       `Processing scheduled monitor trigger: ${job.name} (${job.id})`,
     );
@@ -28,7 +30,7 @@ export class MonitorSchedulerProcessor extends WorkerHost {
     return { success: true };
   }
 
-  private async handleScheduledMonitorTrigger(job: Job) {
+  private async handleScheduledMonitorTrigger(job: Job<MonitorJobData>) {
     const monitorId = job.data.monitorId;
     try {
       const data = job.data;
@@ -37,7 +39,7 @@ export class MonitorSchedulerProcessor extends WorkerHost {
       );
 
       // Extract the jobData from the scheduler job and pass it to the execution queue
-      const executionJobData = data.jobData;
+      const executionJobData = data.jobData as unknown;
 
       // Add job to execution queue (like job scheduler does)
       await this.monitorExecutionQueue.add(
@@ -45,7 +47,7 @@ export class MonitorSchedulerProcessor extends WorkerHost {
         executionJobData,
         {
           jobId: monitorId,
-          attempts: data.retryLimit || 3,
+          attempts: (data.retryLimit as number) || 3,
           backoff: { type: 'exponential', delay: 5000 },
           removeOnComplete: true,
           removeOnFail: { count: 1000 },
@@ -69,7 +71,7 @@ export class MonitorSchedulerProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('failed')
-  onFailed(job: Job, error: any) {
+  onFailed(job: Job, error: unknown) {
     this.logger.error(`Scheduled monitor failed: ${job?.name}`, error);
   }
 }

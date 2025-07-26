@@ -25,7 +25,17 @@ export class JobSchedulerProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<any, any, string>): Promise<any> {
+  async process(
+    job: Job<
+      {
+        jobId: string;
+        testCases: Array<{ id: string; script: string; title: string }>;
+        retryLimit?: number;
+      },
+      any,
+      string
+    >,
+  ): Promise<{ success: boolean }> {
     this.logger.log(
       `Processing scheduled job trigger: ${job.name} (${job.id})`,
     );
@@ -33,7 +43,13 @@ export class JobSchedulerProcessor extends WorkerHost {
     return { success: true };
   }
 
-  private async handleScheduledJobTrigger(job: Job) {
+  private async handleScheduledJobTrigger(
+    job: Job<{
+      jobId: string;
+      testCases: Array<{ id: string; script: string; title: string }>;
+      retryLimit?: number;
+    }>,
+  ) {
     const jobId = job.data.jobId;
     try {
       const data = job.data;
@@ -104,17 +120,19 @@ export class JobSchedulerProcessor extends WorkerHost {
       const task: JobExecutionTask = {
         runId,
         jobId,
-        testScripts: data.testCases.map((test) => ({
-          id: test.id,
-          script: test.script,
-          name: test.title,
-        })),
+        testScripts: data.testCases.map(
+          (test: { id: string; script: string; title: string }) => ({
+            id: test.id,
+            script: test.script,
+            name: test.title,
+          }),
+        ),
         trigger: 'schedule',
       };
 
       const jobOptions = {
         jobId: runId,
-        attempts: data.retryLimit || 3,
+        attempts: (data.retryLimit as number) || 3,
         backoff: {
           type: 'exponential' as const,
           delay: 5000,
@@ -136,7 +154,7 @@ export class JobSchedulerProcessor extends WorkerHost {
     }
   }
 
-  private async handleError(jobId: string, error: any) {
+  private async handleError(jobId: string, error: unknown) {
     try {
       await this.dbService.db
         .update(jobs)
@@ -167,7 +185,7 @@ export class JobSchedulerProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('failed')
-  onFailed(job: Job, error: any) {
+  onFailed(job: Job, error: unknown) {
     this.logger.error(`Scheduled job failed: ${job?.name}`, error);
   }
 }

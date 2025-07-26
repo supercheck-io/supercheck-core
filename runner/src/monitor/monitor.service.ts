@@ -1,26 +1,51 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios'; // Import HttpService
 import { AxiosError, Method } from 'axios'; // Import Method from axios
 import { firstValueFrom } from 'rxjs'; // To convert Observable to Promise
-import {
-  MonitorJobDataDto,
-  MonitorConfig,
-  MonitorType,
-} from './dto/monitor-job.dto';
+import { MonitorJobDataDto, MonitorConfig } from './dto/monitor-job.dto';
 import {
   MonitorExecutionResult,
   MonitorResultStatus,
   MonitorResultDetails,
 } from './types/monitor-result.type';
 import { DbService } from '../db/db.service';
-import { PostgresJsDatabase } from 'drizzle-orm/postgres-js'; // Import specific Drizzle type
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
 import { eq, desc } from 'drizzle-orm';
 import { MonitorAlertService } from './services/monitor-alert.service';
 import { ValidationService } from '../common/validation/validation.service';
 
-
 // Placeholder for actual execution libraries (axios, ping, net, dns, playwright-runner)
+
+// Utility function to safely extract error message
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+// Monitor type interface for better type safety
+interface Monitor {
+  id: string;
+  name?: string;
+  status?: string;
+  alertConfig?: {
+    enabled?: boolean;
+    alertOnFailure?: boolean;
+    alertOnRecovery?: boolean;
+    failureThreshold?: number;
+    recoveryThreshold?: number;
+  } | null;
+  createdAt?: Date | string;
+  config?: any;
+}
+
+// Monitor result interface for better type safety
+interface MonitorResult {
+  isUp: boolean;
+  status?: string;
+  checkedAt?: Date | string;
+}
 
 // Replace generic DrizzleInstance with the specific type from Drizzle
 // interface DrizzleInstance {
@@ -119,7 +144,7 @@ export class MonitorService {
       }
     } catch (dbError) {
       this.logger.error(
-        `Failed to check monitor status for ${jobData.monitorId}: ${dbError.message}`,
+        `Failed to check monitor status for ${jobData.monitorId}: ${getErrorMessage(dbError)}`,
       );
       // Continue with execution if we can't verify status
     }
@@ -136,7 +161,7 @@ export class MonitorService {
           ({ status, details, responseTimeMs, isUp } =
             await this.executeHttpRequest(jobData.target, jobData.config));
           break;
-        case 'website':
+        case 'website': {
           // Website monitoring is essentially HTTP GET with simplified config
           const websiteConfig = {
             ...jobData.config,
@@ -162,38 +187,50 @@ export class MonitorService {
 
               // Merge SSL certificate info into the website check details
               if (sslResult.details?.sslCertificate) {
-                details.sslCertificate = sslResult.details.sslCertificate;
+                details.sslCertificate = sslResult.details
+                  .sslCertificate as any;
               }
 
               // If SSL check failed but website was up, show warning
               if (!sslResult.isUp && sslResult.details?.warningMessage) {
-                details.sslWarning = sslResult.details.warningMessage;
+                details.sslWarning = sslResult.details.warningMessage as string;
               } else if (!sslResult.isUp) {
                 // If SSL check completely failed, mark the overall check as down
                 status = sslResult.status;
                 isUp = false;
                 details.errorMessage =
-                  sslResult.details?.errorMessage ||
+                  (sslResult.details?.errorMessage as string) ||
                   'SSL certificate check failed';
               }
             } catch (sslError) {
               this.logger.warn(
-                `SSL check failed for website monitor ${jobData.monitorId}: ${sslError.message}`,
+                `SSL check failed for website monitor ${jobData.monitorId}: ${getErrorMessage(sslError)}`,
               );
-              details.sslWarning = `SSL check failed: ${sslError.message}`;
+              details.sslWarning = `SSL check failed: ${getErrorMessage(sslError)}`;
             }
           }
           break;
+        }
         case 'ping_host':
           ({ status, details, responseTimeMs, isUp } =
-            await this.executePingHost(jobData.target, jobData.config));
+            await this.executePingHost(jobData.target, jobData.config)) as {
+            status: MonitorResultStatus;
+            details: MonitorResultDetails;
+            responseTimeMs?: number;
+            isUp: boolean;
+          };
           break;
         case 'port_check':
           ({ status, details, responseTimeMs, isUp } =
-            await this.executePortCheck(jobData.target, jobData.config));
+            await this.executePortCheck(jobData.target, jobData.config)) as {
+            status: MonitorResultStatus;
+            details: MonitorResultDetails;
+            responseTimeMs?: number;
+            isUp: boolean;
+          };
           break;
 
-        case 'heartbeat':
+        case 'heartbeat': {
           // Heartbeat monitors check for missed pings rather than actively pinging
           const heartbeatResult = await this.checkHeartbeatMissedPing(
             jobData.monitorId,
@@ -206,28 +243,37 @@ export class MonitorService {
             );
             return null; // Signal to skip result recording
           }
-          ({ status, details, responseTimeMs, isUp } = heartbeatResult);
+          ({ status, details, responseTimeMs, isUp } = heartbeatResult as {
+            status: MonitorResultStatus;
+            details: MonitorResultDetails;
+            responseTimeMs?: number;
+            isUp: boolean;
+          });
           break;
-        default:
+        }
+        default: {
           const _exhaustiveCheck: never = jobData.type;
-          this.logger.warn(`Unsupported monitor type: ${jobData.type}`);
-          executionError = `Unsupported monitor type: ${jobData.type}`;
+          this.logger.warn(`Unsupported monitor type: ${String(jobData.type)}`);
+          executionError = `Unsupported monitor type: ${String(jobData.type)}`;
           status = 'error';
           isUp = false;
+          // Use the exhaustive check to ensure all cases are handled
+          return _exhaustiveCheck;
+        }
       }
     } catch (error) {
       this.logger.error(
-        `Error executing monitor ${jobData.monitorId}: ${error.message}`,
-        error.stack,
+        `Error executing monitor ${jobData.monitorId}: ${getErrorMessage(error)}`,
+        error instanceof Error ? error.stack : undefined,
       );
-      executionError = error.message;
+      executionError = getErrorMessage(error);
       status = 'error';
       isUp = false;
       if (details) {
         // Ensure details is defined before assigning to it
-        details.errorMessage = error.message;
+        details.errorMessage = getErrorMessage(error);
       } else {
-        details = { errorMessage: error.message };
+        details = { errorMessage: getErrorMessage(error) };
       }
     }
 
@@ -273,11 +319,12 @@ export class MonitorService {
 
         if (isStatusChange && monitor.alertConfig?.enabled) {
           // Get recent monitor results to check thresholds
+          const alertConfig = monitor.alertConfig;
           const recentResults = await this.getRecentMonitorResults(
             resultData.monitorId,
             Math.max(
-              monitor.alertConfig.failureThreshold || 1,
-              monitor.alertConfig.recoveryThreshold || 1,
+              alertConfig?.failureThreshold || 1,
+              alertConfig?.recoveryThreshold || 1,
             ),
           );
 
@@ -307,16 +354,15 @@ export class MonitorService {
 
           // Check threshold conditions
           const shouldSendFailureAlert =
-            monitor.alertConfig.alertOnFailure &&
+            alertConfig?.alertOnFailure &&
             currentStatus === 'down' &&
-            consecutiveFailures >= (monitor.alertConfig.failureThreshold || 1);
+            consecutiveFailures >= (alertConfig?.failureThreshold || 1);
 
           const shouldSendRecoveryAlert =
-            monitor.alertConfig.alertOnRecovery &&
+            alertConfig?.alertOnRecovery &&
             currentStatus === 'up' &&
             previousStatus === 'down' &&
-            consecutiveSuccesses >=
-              (monitor.alertConfig.recoveryThreshold || 1);
+            consecutiveSuccesses >= (alertConfig?.recoveryThreshold || 1);
 
           if (shouldSendFailureAlert || shouldSendRecoveryAlert) {
             const type = currentStatus === 'up' ? 'recovery' : 'failure';
@@ -345,8 +391,8 @@ export class MonitorService {
       }
     } catch (error) {
       this.logger.error(
-        `Failed to save result for monitor ${resultData.monitorId}: ${error.message}`,
-        error.stack,
+        `Failed to save result for monitor ${resultData.monitorId}: ${getErrorMessage(error)}`,
+        error instanceof Error ? error.stack : undefined,
       );
     }
   }
@@ -430,7 +476,7 @@ export class MonitorService {
             this.logger.debug(
               `Using proxy: ${proxyUrlObj.protocol}//${proxyUrlObj.hostname}:${proxyUrlObj.port} for ${target}`,
             );
-          } catch (proxyError) {
+          } catch {
             this.logger.warn(
               `Invalid proxy URL format: ${proxyUrl}. Proceeding without proxy.`,
             );
@@ -473,7 +519,7 @@ export class MonitorService {
           try {
             JSON.parse(config.body);
             requestConfig.headers['Content-Type'] = 'application/json';
-          } catch (e) {
+          } catch {
             requestConfig.headers['Content-Type'] = 'text/plain';
           }
         }
@@ -486,7 +532,7 @@ export class MonitorService {
         if (contentType.includes('application/json')) {
           try {
             requestConfig.data = JSON.parse(config.body);
-          } catch (e) {
+          } catch {
             // If JSON parsing fails but content type is JSON, still send as string
             requestConfig.data = config.body;
           }
@@ -548,15 +594,17 @@ export class MonitorService {
       responseTimeMs = Math.round(Number(errorTime - startTime) / 1000000);
 
       if (error instanceof AxiosError) {
-        this.logger.warn(`HTTP Request to ${target} failed: ${error.message}`);
-        details.errorMessage = error.message;
+        this.logger.warn(
+          `HTTP Request to ${target} failed: ${getErrorMessage(error)}`,
+        );
+        details.errorMessage = getErrorMessage(error);
         if (error.response) {
           details.statusCode = error.response.status;
           details.statusText = error.response.statusText;
         }
         if (
           error.code === 'ECONNABORTED' ||
-          error.message.toLowerCase().includes('timeout')
+          getErrorMessage(error).toLowerCase().includes('timeout')
         ) {
           status = 'timeout';
           isUp = false;
@@ -583,10 +631,11 @@ export class MonitorService {
         }
       } else {
         this.logger.error(
-          `Unexpected error during HTTP Request to ${target}: ${error.message}`,
-          error.stack,
+          `Unexpected error during HTTP Request to ${target}: ${getErrorMessage(error)}`,
+          error instanceof Error ? error.stack : undefined,
         );
-        details.errorMessage = error.message || 'An unexpected error occurred';
+        details.errorMessage =
+          getErrorMessage(error) || 'An unexpected error occurred';
         status = 'error';
         isUp = false;
         responseTimeMs = timeout; // Set to timeout for unexpected errors
@@ -708,14 +757,14 @@ export class MonitorService {
       const errorTime = process.hrtime.bigint();
       responseTimeMs = Math.round(Number(errorTime - startTime) / 1000000);
 
-      this.logger.warn(`Ping to ${target} failed: ${error.message}`);
+      this.logger.warn(`Ping to ${target} failed: ${getErrorMessage(error)}`);
 
-      if (error.message.includes('timeout')) {
+      if (getErrorMessage(error).includes('timeout')) {
         status = 'timeout';
         details.errorMessage = `Ping timeout after ${timeout}ms`;
       } else {
         status = 'error';
-        details.errorMessage = error.message;
+        details.errorMessage = getErrorMessage(error);
       }
 
       isUp = false;
@@ -852,10 +901,10 @@ export class MonitorService {
       responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
 
       this.logger.warn(
-        `Port Check to ${target}:${port} (${protocol}) failed: ${error.message}`,
+        `Port Check to ${target}:${port} (${protocol}) failed: ${getErrorMessage(error)}`,
       );
 
-      if (error.message.includes('timeout')) {
+      if (getErrorMessage(error).includes('timeout')) {
         status = 'timeout';
         details.errorMessage = `Connection timeout after ${timeout}ms`;
       } else if (error.code === 'ECONNREFUSED') {
@@ -870,7 +919,7 @@ export class MonitorService {
         details.errorMessage = 'Network unreachable';
       } else {
         status = 'error';
-        details.errorMessage = error.message;
+        details.errorMessage = getErrorMessage(error);
       }
 
       isUp = false;
@@ -1005,7 +1054,7 @@ export class MonitorService {
       status = 'error';
       isUp = false;
       details = {
-        errorMessage: `Failed to check heartbeat: ${error.message}`,
+        errorMessage: `Failed to check heartbeat: ${getErrorMessage(error)}`,
         checkType: 'heartbeat_error',
       };
     }
@@ -1181,9 +1230,11 @@ export class MonitorService {
       const endTime = process.hrtime.bigint();
       responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
 
-      this.logger.warn(`SSL Check to ${target} failed: ${error.message}`);
+      this.logger.warn(
+        `SSL Check to ${target} failed: ${getErrorMessage(error)}`,
+      );
 
-      if (error.message.includes('timeout')) {
+      if (getErrorMessage(error).includes('timeout')) {
         status = 'timeout';
         details.errorMessage = `SSL connection timeout after ${timeout}ms`;
       } else if (error.code === 'ECONNREFUSED') {
@@ -1195,11 +1246,11 @@ export class MonitorService {
       } else if (error.code === 'ENOTFOUND') {
         status = 'down';
         details.errorMessage = 'Host not found';
-      } else if (error.message.includes('handshake')) {
+      } else if (getErrorMessage(error).includes('handshake')) {
         status = 'down';
         details.errorMessage =
           'SSL handshake failed - certificate or TLS configuration issue';
-      } else if (error.message.includes('alert')) {
+      } else if (getErrorMessage(error).includes('alert')) {
         status = 'down';
         details.errorMessage =
           'SSL/TLS protocol error - server rejected connection';
@@ -1214,7 +1265,7 @@ export class MonitorService {
         details.errorMessage = 'Unable to verify certificate signature';
       } else {
         status = 'error';
-        details.errorMessage = `SSL check failed: ${error.message}`;
+        details.errorMessage = `SSL check failed: ${getErrorMessage(error)}`;
       }
 
       isUp = false;
@@ -1227,10 +1278,10 @@ export class MonitorService {
     return { status, details, responseTimeMs, isUp };
   }
 
-  async getMonitorById(monitorId: string): Promise<any> {
+  async getMonitorById(monitorId: string): Promise<Monitor | undefined> {
     return this.dbService.db.query.monitors.findFirst({
       where: (monitors, { eq }) => eq(monitors.id, monitorId),
-    });
+    }) as Promise<Monitor | undefined>;
   }
 
   private async saveMonitorResultToDb(
@@ -1247,7 +1298,7 @@ export class MonitorService {
       });
     } catch (error) {
       this.logger.error(
-        `Failed to save monitor result for ${resultData.monitorId}: ${error.message}`,
+        `Failed to save monitor result for ${resultData.monitorId}: ${getErrorMessage(error)}`,
       );
     }
   }
@@ -1271,8 +1322,8 @@ export class MonitorService {
         .where(eq(schema.monitors.id, monitorId));
     } catch (error) {
       this.logger.error(
-        `Failed to update monitor status for ${monitorId}: ${error.message}`,
-        error.stack,
+        `Failed to update monitor status for ${monitorId}: ${getErrorMessage(error)}`,
+        error instanceof Error ? error.stack : undefined,
       );
     }
   }
@@ -1283,17 +1334,17 @@ export class MonitorService {
   private async getRecentMonitorResults(
     monitorId: string,
     limit: number,
-  ): Promise<any[]> {
+  ): Promise<MonitorResult[]> {
     try {
       const results = await this.dbService.db.query.monitorResults.findMany({
         where: eq(schema.monitorResults.monitorId, monitorId),
         orderBy: [desc(schema.monitorResults.checkedAt)],
         limit: limit,
       });
-      return results || [];
+      return (results || []) as MonitorResult[];
     } catch (error) {
       this.logger.error(
-        `Failed to get recent monitor results: ${error.message}`,
+        `Failed to get recent monitor results: ${getErrorMessage(error)}`,
       );
       return [];
     }
@@ -1372,7 +1423,7 @@ export class MonitorService {
       return true; // Use proxy if no patterns match
     } catch (error) {
       this.logger.warn(
-        `Error parsing target URL for proxy detection: ${error.message}`,
+        `Error parsing target URL for proxy detection: ${getErrorMessage(error)}`,
       );
       return true; // Default to using proxy on parse errors
     }

@@ -82,4 +82,6 @@ export interface MonitorJobData {
   target: string;
   config?: any;
   frequencyMinutes?: number;
+  jobData?: any;
+  retryLimit?: number;
 }

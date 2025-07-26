@@ -106,7 +106,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:monitoring-4d83a49
+    image: ghcr.io/krish-kant/supercheck/app:monitoring-da21444
     expose:
       - "3000"
     environment:
@@ -155,7 +155,7 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:monitoring-4d83a49
+    image: ghcr.io/krish-kant/supercheck/worker:monitoring-da21444
     environment:
       <<: *common-env
       # Worker-specific configuration
@@ -234,8 +234,6 @@ services:
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
     command: sh -c "rm -rf /data/* && redis-server --requirepass \"${REDIS_PASSWORD:-supersecure-redis-password-change-this}\" --maxmemory 512mb --maxmemory-policy allkeys-lru --save '' --appendonly no --protected-mode yes --bind 0.0.0.0 --tcp-keepalive 300"
-    sysctls:
-      - vm.overcommit_memory=1
     volumes:
       - redis-data:/data
     restart: unless-stopped

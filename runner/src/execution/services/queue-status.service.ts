@@ -51,17 +51,17 @@ export class QueueStatusService {
       this.logger.debug(`Job ${jobId} is waiting`);
     });
 
-    this.jobQueueEvents.on('active', async ({ jobId }) => {
+    this.jobQueueEvents.on('active', ({ jobId }) => {
       this.logger.debug(`Job ${jobId} is active`);
       // Database updates are handled by the job execution processor
     });
 
-    this.jobQueueEvents.on('completed', async ({ jobId, returnvalue }) => {
+    this.jobQueueEvents.on('completed', ({ jobId }) => {
       this.logger.debug(`Job ${jobId} completed`);
       // Database updates are handled by the job execution processor
     });
 
-    this.jobQueueEvents.on('failed', async ({ jobId, failedReason }) => {
+    this.jobQueueEvents.on('failed', ({ jobId, failedReason }) => {
       this.logger.error(`Job ${jobId} failed: ${failedReason}`);
       // Database updates are handled by the job execution processor
     });
@@ -71,15 +71,15 @@ export class QueueStatusService {
       this.logger.debug(`Test ${jobId} is waiting`);
     });
 
-    this.testQueueEvents.on('active', async ({ jobId }) => {
+    this.testQueueEvents.on('active', ({ jobId }) => {
       this.logger.debug(`Test ${jobId} is active`);
     });
 
-    this.testQueueEvents.on('completed', async ({ jobId, returnvalue }) => {
+    this.testQueueEvents.on('completed', ({ jobId }) => {
       this.logger.debug(`Test ${jobId} completed`);
     });
 
-    this.testQueueEvents.on('failed', async ({ jobId, failedReason }) => {
+    this.testQueueEvents.on('failed', ({ jobId, failedReason }) => {
       this.logger.error(`Test ${jobId} failed: ${failedReason}`);
     });
   }

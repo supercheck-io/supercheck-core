@@ -13,7 +13,6 @@ import { AlertStatus, AlertType } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { jobs } from 'src/db/schema';
 import { ErrorHandler } from '../../common/utils/error-handler';
-import { JobExecutionError } from '../../common/errors/execution-error';
 
 // Types are now imported from interfaces.ts which uses schema types
 
@@ -145,7 +144,7 @@ export class JobExecutionProcessor extends WorkerHost {
             .updateJobStatus(originalJobId, [errorStatus])
             .catch((err) =>
               this.logger.error(
-                `[${runId}] Failed to update job error status (robust): ${err.message}`,
+                `[${runId}] Failed to update job error status (robust): ${(err as Error).message}`,
               ),
             );
         } else {
@@ -153,7 +152,7 @@ export class JobExecutionProcessor extends WorkerHost {
             .updateJobStatus(originalJobId, finalRunStatuses)
             .catch((err) =>
               this.logger.error(
-                `[${runId}] Failed to update job error status: ${err.message}`,
+                `[${runId}] Failed to update job error status: ${(err as Error).message}`,
               ),
             );
         }
@@ -185,7 +184,21 @@ export class JobExecutionProcessor extends WorkerHost {
     try {
       // Get job configuration including alert settings - use originalJobId for database lookup
       const jobIdForLookup = jobData.originalJobId || jobData.jobId;
-      const job = await this.dbService.getJobById(jobIdForLookup);
+      const job = (await this.dbService.getJobById(jobIdForLookup)) as {
+        id: string;
+        name: string;
+        alertConfig?: {
+          enabled: boolean;
+          notificationProviders: string[];
+          failureThreshold: number;
+          recoveryThreshold: number;
+          alertOnFailure: boolean;
+          alertOnSuccess: boolean;
+          alertOnTimeout: boolean;
+          customMessage?: string;
+        } | null;
+      } | null;
+
       if (!job || !job.alertConfig?.enabled) {
         this.logger.debug(
           `No alerts configured for job ${jobIdForLookup} - alertConfig: ${JSON.stringify(job?.alertConfig)}`,
@@ -193,9 +206,12 @@ export class JobExecutionProcessor extends WorkerHost {
         return; // No alerts configured
       }
 
+      // Type assertion for job.alertConfig since we checked it's enabled above
+      const alertConfig = job.alertConfig;
+
       // Get notification providers
       const providers = await this.dbService.getNotificationProviders(
-        job.alertConfig.notificationProviders,
+        alertConfig.notificationProviders,
       );
       if (!providers || providers.length === 0) {
         this.logger.debug(
@@ -207,10 +223,7 @@ export class JobExecutionProcessor extends WorkerHost {
       // Get recent runs to check thresholds - use originalJobId for database lookup
       const recentRuns = await this.dbService.getRecentRunsForJob(
         jobIdForLookup,
-        Math.max(
-          job.alertConfig.failureThreshold,
-          job.alertConfig.recoveryThreshold,
-        ),
+        Math.max(alertConfig.failureThreshold, alertConfig.recoveryThreshold),
       );
 
       // Calculate consecutive statuses
@@ -239,17 +252,17 @@ export class JobExecutionProcessor extends WorkerHost {
 
       // Determine if we should send notifications based on thresholds
       const shouldNotifyFailure =
-        job.alertConfig.alertOnFailure &&
+        alertConfig.alertOnFailure &&
         finalStatus === 'failed' &&
-        consecutiveFailures >= job.alertConfig.failureThreshold;
+        consecutiveFailures >= alertConfig.failureThreshold;
 
       const shouldNotifySuccess =
-        job.alertConfig.alertOnSuccess &&
+        alertConfig.alertOnSuccess &&
         finalStatus === 'passed' &&
-        consecutiveSuccesses >= job.alertConfig.recoveryThreshold;
+        consecutiveSuccesses >= alertConfig.recoveryThreshold;
 
       const shouldNotifyTimeout =
-        job.alertConfig.alertOnTimeout && finalStatus === 'timeout';
+        alertConfig.alertOnTimeout && finalStatus === 'timeout';
 
       if (
         !shouldNotifyFailure &&
@@ -304,7 +317,7 @@ export class JobExecutionProcessor extends WorkerHost {
       const payload: NotificationPayload = {
         type: notificationType,
         title,
-        message: job.alertConfig.customMessage || message,
+        message: alertConfig.customMessage || message,
         targetName: job.name,
         targetId: job.id,
         severity,
@@ -346,40 +359,21 @@ export class JobExecutionProcessor extends WorkerHost {
         await this.dbService.saveAlertHistory(
           jobIdForLookup, // Use originalJobId for database storage
           alertType as AlertType,
-          providers.map((p) => p.type).join(', '),
+          providers.map((p: { type: string }) => p.type).join(', '),
           alertStatus,
           payload.message,
           alertErrorMessage,
         );
       } catch (historyError) {
         this.logger.error(
-          `Failed to save alert history for job ${jobIdForLookup}: ${historyError.message}`,
+          `Failed to save alert history for job ${jobIdForLookup}: ${(historyError as Error).message}`,
         );
       }
     } catch (error) {
       this.logger.error(
-        `Failed to handle job notifications: ${error.message}`,
-        error.stack,
+        `Failed to handle job notifications: ${(error as Error).message}`,
+        (error as Error).stack,
       );
-    }
-  }
-
-  /**
-   * Formats duration in ms to a human-readable string
-   * @param durationMs Duration in milliseconds
-   * @returns Formatted duration string like "3s" or "1m 30s"
-   */
-  private formatDuration(durationMs: number): string {
-    const seconds = Math.floor(durationMs / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`;
-    } else {
-      return `${seconds}s`;
     }
   }
 }

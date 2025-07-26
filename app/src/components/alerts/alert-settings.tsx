@@ -424,18 +424,18 @@ export function AlertSettings({
                         <Bell className="h-8 w-8 text-muted-foreground" />
                         <div>
                                                   <p className="text-sm font-medium">No notification channels configured</p>
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-muted-foreground mt-1 mb-4 text-center">
                           Create a notification channel first to receive alerts
                         </p>
                         </div>
-                        <Button
+                        {/* <Button
                           variant="outline"
                           size="sm"
                           onClick={() => setIsProviderDialogOpen(true)}
                         >
                           <Plus className="h-4 w-4 mr-2" />
                           Create Channel
-                        </Button>
+                        </Button> */}
                       </div>
                     </div>
                   ) : (

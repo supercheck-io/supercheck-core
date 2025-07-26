@@ -20,7 +20,7 @@ export class TestExecutionProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('completed')
-  onCompleted(job: Job, result: any) {
+  onCompleted(job: Job, result: unknown) {
     this.logger.log(
       `[Event:completed] Job ${job.id} completed with result: ${JSON.stringify(result)}`,
     );
@@ -78,8 +78,8 @@ export class TestExecutionProcessor extends WorkerHost {
       return result;
     } catch (error) {
       this.logger.error(
-        `[${testId}] Test execution job ID: ${job.id} failed. Error: ${error.message}`,
-        error.stack,
+        `[${testId}] Test execution job ID: ${job.id} failed. Error: ${(error as Error).message}`,
+        (error as Error).stack,
       );
       await job.updateProgress(100);
       throw error instanceof Error ? error : new Error(String(error));

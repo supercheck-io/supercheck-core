@@ -10,6 +10,22 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { getContentType } from '../services/execution.service';
 
+// Utility function to safely get error message
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+// Utility function to safely get error stack
+function getErrorStack(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.stack;
+  }
+  return undefined;
+}
+
 @Injectable()
 export class S3Service implements OnModuleInit {
   private readonly logger = new Logger(S3Service.name);
@@ -117,8 +133,12 @@ export class S3Service implements OnModuleInit {
         `Check bucket ${bucketName} existence`,
       );
       this.logger.log(`Bucket '${bucketName}' already exists.`);
-    } catch (error: any) {
-      if (error.name === 'NoSuchBucket' || error.Code === 'NoSuchBucket') {
+    } catch (error: unknown) {
+      const awsError = error as { name?: string; Code?: string };
+      if (
+        awsError?.name === 'NoSuchBucket' ||
+        awsError?.Code === 'NoSuchBucket'
+      ) {
         this.logger.warn(
           `Bucket '${bucketName}' does not exist. Attempting to create...`,
         );
@@ -131,16 +151,20 @@ export class S3Service implements OnModuleInit {
             `Create bucket ${bucketName}`,
           );
           this.logger.log(`Bucket '${bucketName}' created successfully.`);
-        } catch (createError: any) {
+        } catch (createError: unknown) {
           // Handle the case where bucket was created by another process
+          const createAwsError = createError as {
+            name?: string;
+            message?: string;
+          };
           if (
-            createError.name === 'BucketAlreadyOwnedByYou' ||
-            createError.message?.includes('already own it') ||
-            createError.message?.includes('already exists') ||
-            createError.message?.includes(
+            createAwsError?.name === 'BucketAlreadyOwnedByYou' ||
+            createAwsError?.message?.includes('already own it') ||
+            createAwsError?.message?.includes('already exists') ||
+            createAwsError?.message?.includes(
               'The specified bucket does not exist',
             ) ||
-            createError.message?.includes(
+            createAwsError?.message?.includes(
               'Your previous request to create the named bucket succeeded',
             )
           ) {
@@ -149,15 +173,15 @@ export class S3Service implements OnModuleInit {
             );
           } else {
             this.logger.error(
-              `Failed to create bucket '${bucketName}': ${createError.message}`,
-              createError.stack,
+              `Failed to create bucket '${bucketName}': ${getErrorMessage(createError)}`,
+              getErrorStack(createError),
             );
           }
         }
       } else {
         this.logger.error(
-          `Error checking bucket '${bucketName}' existence: ${error.message}`,
-          error.stack,
+          `Error checking bucket '${bucketName}' existence: ${getErrorMessage(error)}`,
+          getErrorStack(error),
         );
       }
     }
@@ -197,8 +221,8 @@ export class S3Service implements OnModuleInit {
       return s3Key;
     } catch (error) {
       this.logger.error(
-        `Error uploading file ${localFilePath} to S3 key ${s3Key}: ${error.message}`,
-        error.stack,
+        `Error uploading file ${localFilePath} to S3 key ${s3Key}: ${getErrorMessage(error)}`,
+        getErrorStack(error),
       );
       throw error;
     }
@@ -241,7 +265,7 @@ export class S3Service implements OnModuleInit {
       }
     } catch (err) {
       this.logger.error(
-        `[S3 UPLOAD] Failed to access directory ${localDirPath}: ${err.message}`,
+        `[S3 UPLOAD] Failed to access directory ${localDirPath}: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -261,7 +285,7 @@ export class S3Service implements OnModuleInit {
       }
     } catch (err) {
       this.logger.error(
-        `[S3 UPLOAD] Failed to read directory contents: ${err.message}`,
+        `[S3 UPLOAD] Failed to read directory contents: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -278,10 +302,12 @@ export class S3Service implements OnModuleInit {
       this.logger.log(`[S3 UPLOAD] Verified bucket '${targetBucket}' exists.`);
     } catch (error) {
       this.logger.error(
-        `[S3 UPLOAD] Bucket verification failed: ${error.message}`,
-        error.stack,
+        `[S3 UPLOAD] Bucket verification failed: ${getErrorMessage(error)}`,
+        getErrorStack(error),
       );
-      throw new Error(`S3 bucket verification failed: ${error.message}`);
+      throw new Error(
+        `S3 bucket verification failed: ${getErrorMessage(error)}`,
+      );
     }
 
     const uploadedKeys: string[] = [];
@@ -290,7 +316,7 @@ export class S3Service implements OnModuleInit {
       .replace(/\/*$/, '');
     let uploadErrors = 0;
 
-    const walk = async (dir: string, currentS3Prefix: string) => {
+    const walk = async (dir: string) => {
       try {
         const entries = await fs.readdir(dir, { withFileTypes: true });
         this.logger.debug(
@@ -305,7 +331,7 @@ export class S3Service implements OnModuleInit {
 
           if (entry.isDirectory()) {
             // Recursively walk into subdirectories
-            await walk(fullLocalPath, s3Key);
+            await walk(fullLocalPath);
           } else if (entry.isFile()) {
             // Push file upload promise to array - REPLACED with direct await
             try {
@@ -323,7 +349,7 @@ export class S3Service implements OnModuleInit {
             } catch (fileUploadError) {
               uploadErrors++;
               this.logger.error(
-                `[S3 UPLOAD] Failed to upload file ${fullLocalPath} to ${s3Key}: ${fileUploadError.message}`,
+                `[S3 UPLOAD] Failed to upload file ${fullLocalPath} to ${s3Key}: ${getErrorMessage(fileUploadError)}`,
               );
               if (uploadErrors >= 3) {
                 this.logger.error(
@@ -339,10 +365,10 @@ export class S3Service implements OnModuleInit {
       } catch (readError) {
         // Log error if reading a directory fails, but continue if possible
         this.logger.error(
-          `[S3 UPLOAD] Error reading directory ${dir}: ${readError.message}`,
+          `[S3 UPLOAD] Error reading directory ${dir}: ${getErrorMessage(readError)}`,
         );
 
-        if (readError.message.includes('Too many upload failures')) {
+        if (getErrorMessage(readError).includes('Too many upload failures')) {
           throw readError; // Re-throw this specific error to stop the process
         }
       }
@@ -350,7 +376,7 @@ export class S3Service implements OnModuleInit {
 
     try {
       // Start the recursive walk from the root directory
-      await walk(localDirPath, normalizedPrefix);
+      await walk(localDirPath);
 
       if (uploadedKeys.length === 0) {
         this.logger.error(
@@ -368,8 +394,8 @@ export class S3Service implements OnModuleInit {
       }
     } catch (error) {
       this.logger.error(
-        `[S3 UPLOAD] Error during directory upload process for ${localDirPath}: ${error.message}`,
-        error.stack,
+        `[S3 UPLOAD] Error during directory upload process for ${localDirPath}: ${getErrorMessage(error)}`,
+        getErrorStack(error),
       );
       throw error; // Re-throw to let caller handle it
     }

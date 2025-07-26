@@ -3,10 +3,55 @@ import * as nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { AlertType, NotificationProviderType } from '../db/schema';
 
+// Utility function to safely get error message
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+// Utility function to safely get error stack
+function getErrorStack(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.stack;
+  }
+  return undefined;
+}
+
 export interface NotificationProvider {
   id: string;
   type: NotificationProviderType;
   config: Record<string, any>;
+}
+
+// Specific provider configuration interfaces for better type safety
+interface EmailConfig {
+  emails?: string;
+  to?: string;
+}
+
+interface SlackConfig {
+  webhookUrl?: string;
+}
+
+interface TelegramConfig {
+  botToken?: string;
+  chatId?: string;
+}
+
+interface DiscordConfig {
+  discordWebhookUrl?: string;
+}
+
+interface TeamsConfig {
+  teamsWebhookUrl?: string;
+}
+
+interface WebhookConfig {
+  url?: string;
+  method?: string;
+  headers?: Record<string, string>;
 }
 
 export interface NotificationPayload {
@@ -99,7 +144,6 @@ export class NotificationService {
           success = await this.sendSlackNotification(
             provider.config,
             formattedNotification,
-            enhancedPayload,
           );
           break;
         case 'webhook':
@@ -113,14 +157,12 @@ export class NotificationService {
           success = await this.sendTelegramNotification(
             provider.config,
             formattedNotification,
-            enhancedPayload,
           );
           break;
         case 'discord':
           success = await this.sendDiscordNotification(
             provider.config,
             formattedNotification,
-            enhancedPayload,
           );
           break;
         case 'teams':
@@ -130,11 +172,15 @@ export class NotificationService {
             enhancedPayload,
           );
           break;
-        default:
+        default: {
+          const _exhaustiveCheck: never = provider.type;
           this.logger.error(
-            `Unsupported notification provider type: ${provider.type}`,
+            `Unsupported notification provider type: ${String(provider.type)}`,
           );
           success = false;
+          // Use exhaustive check to ensure all cases are handled
+          return _exhaustiveCheck;
+        }
       }
 
       if (success) {
@@ -194,7 +240,7 @@ export class NotificationService {
   ): FormattedNotification {
     // Standardized formatting with professional appearance - no emojis for consistency
     const isMonitor = payload.type.includes('monitor');
-    const isJob = payload.type.includes('job');
+    // const __isJob = payload.type.includes('job');
 
     // Consistent title format without emojis for professional appearance
     const title = payload.title;
@@ -290,10 +336,11 @@ export class NotificationService {
   private validateProviderConfig(provider: NotificationProvider): boolean {
     try {
       switch (provider.type) {
-        case 'email':
+        case 'email': {
+          const emailConfig = provider.config as EmailConfig;
           // Check if emails field exists and has valid email addresses
-          if (provider.config.emails) {
-            const emails = provider.config.emails.trim();
+          if (emailConfig.emails) {
+            const emails = String(emailConfig.emails).trim();
             if (!emails) return false;
 
             const emailList = emails.split(',').map((email) => email.trim());
@@ -301,21 +348,34 @@ export class NotificationService {
             return emailList.every((email) => emailRegex.test(email));
           }
           return false;
-        case 'slack':
-          return !!provider.config.webhookUrl;
-        case 'webhook':
-          return !!provider.config.url;
-        case 'telegram':
-          return !!(provider.config.botToken && provider.config.chatId);
-        case 'discord':
-          return !!provider.config.discordWebhookUrl;
-        case 'teams':
-          return !!provider.config.teamsWebhookUrl;
+        }
+        case 'slack': {
+          const slackConfig = provider.config as SlackConfig;
+          return !!slackConfig.webhookUrl;
+        }
+        case 'webhook': {
+          const webhookConfig = provider.config as WebhookConfig;
+          return !!webhookConfig.url;
+        }
+        case 'telegram': {
+          const telegramConfig = provider.config as TelegramConfig;
+          return !!(telegramConfig.botToken && telegramConfig.chatId);
+        }
+        case 'discord': {
+          const discordConfig = provider.config as DiscordConfig;
+          return !!discordConfig.discordWebhookUrl;
+        }
+        case 'teams': {
+          const teamsConfig = provider.config as TeamsConfig;
+          return !!teamsConfig.teamsWebhookUrl;
+        }
         default:
           return false;
       }
     } catch (error) {
-      this.logger.error(`Error validating provider config: ${error.message}`);
+      this.logger.error(
+        `Error validating provider config: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   }
@@ -449,10 +509,8 @@ export class NotificationService {
         return false;
       }
 
-      let smtpConfig: any;
-
       // Use environment variables for SMTP configuration
-      smtpConfig = {
+      const smtpConfig = {
         host: process.env.SMTP_HOST,
         port: parseInt(process.env.SMTP_PORT || '587'),
         secure: process.env.SMTP_SECURE === 'true',
@@ -566,9 +624,7 @@ export class NotificationService {
 
           if (result.error) {
             const errorMessage =
-              result.error?.message ||
-              result.error?.toString() ||
-              'Unknown error';
+              result.error?.message || String(result.error) || 'Unknown error';
             this.logger.error(
               `Resend batch delivery failed: ${errorMessage}`,
               result.error,
@@ -601,7 +657,7 @@ export class NotificationService {
   private async sendSlackNotification(
     config: any,
     formatted: FormattedNotification,
-    payload: NotificationPayload,
+    // ___payload: NotificationPayload,
   ): Promise<boolean> {
     try {
       const webhookUrl = config.webhookUrl;
@@ -610,13 +666,13 @@ export class NotificationService {
       }
 
       this.logger.debug(
-        `Sending Slack notification to: ${webhookUrl.substring(0, 50)}...`,
+        `Sending Slack notification to: ${(webhookUrl as string).substring(0, 50)}...`,
       );
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      const response = await fetch(webhookUrl, {
+      const response = await fetch(webhookUrl as string, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -663,7 +719,7 @@ export class NotificationService {
         );
       } else {
         this.logger.error(
-          `Failed to send Slack notification: ${error.message}`,
+          `Failed to send Slack notification: ${getErrorMessage(error)}`,
         );
       }
       return false;
@@ -691,7 +747,7 @@ export class NotificationService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      const response = await fetch(webhookUrl, {
+      const response = await fetch(webhookUrl as string, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -718,7 +774,7 @@ export class NotificationService {
         this.logger.error(`Webhook notification timed out after 10 seconds`);
       } else {
         this.logger.error(
-          `Failed to send webhook notification: ${error.message}`,
+          `Failed to send webhook notification: ${getErrorMessage(error)}`,
         );
       }
       return false;
@@ -728,7 +784,7 @@ export class NotificationService {
   private async sendTelegramNotification(
     config: any,
     formatted: FormattedNotification,
-    payload: NotificationPayload,
+    // ___payload: NotificationPayload,
   ): Promise<boolean> {
     try {
       const { botToken, chatId } = config;
@@ -754,8 +810,8 @@ export class NotificationService {
       return response.ok;
     } catch (error) {
       this.logger.error(
-        `Failed to send Telegram notification: ${error.message}`,
-        error.stack,
+        `Failed to send Telegram notification: ${getErrorMessage(error)}`,
+        getErrorStack(error),
       );
       return false;
     }
@@ -764,7 +820,7 @@ export class NotificationService {
   private async sendDiscordNotification(
     config: any,
     formatted: FormattedNotification,
-    payload: NotificationPayload,
+    // ___payload: NotificationPayload,
   ): Promise<boolean> {
     try {
       const webhookUrl = config.discordWebhookUrl;
@@ -775,7 +831,7 @@ export class NotificationService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      const response = await fetch(webhookUrl, {
+      const response = await fetch(webhookUrl as string, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -820,7 +876,7 @@ export class NotificationService {
         this.logger.error(`Discord notification timed out after 10 seconds`);
       } else {
         this.logger.error(
-          `Failed to send Discord notification: ${error.message}`,
+          `Failed to send Discord notification: ${getErrorMessage(error)}`,
         );
       }
       return false;
@@ -874,7 +930,7 @@ export class NotificationService {
           : undefined,
       };
 
-      const response = await fetch(webhookUrl, {
+      const response = await fetch(webhookUrl as string, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -902,7 +958,7 @@ export class NotificationService {
         );
       } else {
         this.logger.error(
-          `Failed to send Microsoft Teams notification: ${error.message}`,
+          `Failed to send Microsoft Teams notification: ${getErrorMessage(error)}`,
         );
       }
       return false;

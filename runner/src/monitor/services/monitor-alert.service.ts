@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { DbService } from 'src/db/db.service';
 import * as schema from 'src/db/schema';
 import { AlertType } from 'src/db/schema';
@@ -103,9 +103,13 @@ export class MonitorAlertService {
           return;
         }
         break;
-      default:
-        this.logger.error(`[NOTIFY] Invalid notification type: ${type}`);
-        return;
+      default: {
+        const _exhaustiveCheck: never = type;
+        this.logger.error(
+          `[NOTIFY] Invalid notification type: ${String(type)}`,
+        );
+        return _exhaustiveCheck;
+      }
     }
 
     const baseUrl =

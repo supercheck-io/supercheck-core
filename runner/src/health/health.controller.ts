@@ -16,7 +16,7 @@ export class HealthController {
   }
 
   @Get('live')
-  async liveness() {
+  liveness() {
     return this.healthService.getLivenessStatus();
   }
 }

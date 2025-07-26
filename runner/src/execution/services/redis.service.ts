@@ -12,7 +12,6 @@ import { JOB_EXECUTION_QUEUE, TEST_EXECUTION_QUEUE } from '../constants';
 import { DbService } from './db.service';
 
 // Constants for Redis TTL
-const REDIS_CHANNEL_TTL = 60 * 60; // 1 hour in seconds
 const REDIS_JOB_TTL = 7 * 24 * 60 * 60; // 7 days for job data
 const REDIS_EVENT_TTL = 24 * 60 * 60; // 24 hours for events/stats
 const REDIS_METRICS_TTL = 48 * 60 * 60; // 48 hours for metrics data
@@ -133,17 +132,17 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.debug(`Job ${jobId} is waiting`);
     });
 
-    this.jobQueueEvents.on('active', async ({ jobId }) => {
+    this.jobQueueEvents.on('active', ({ jobId }) => {
       this.logger.debug(`Job ${jobId} is active`);
       // Database updates are handled by the job execution processor
     });
 
-    this.jobQueueEvents.on('completed', async ({ jobId, returnvalue }) => {
+    this.jobQueueEvents.on('completed', ({ jobId }) => {
       this.logger.debug(`Job ${jobId} completed`);
       // Database updates are handled by the job execution processor
     });
 
-    this.jobQueueEvents.on('failed', async ({ jobId, failedReason }) => {
+    this.jobQueueEvents.on('failed', ({ jobId, failedReason }) => {
       this.logger.error(`Job ${jobId} failed: ${failedReason}`);
       // Database updates are handled by the job execution processor
     });
@@ -153,15 +152,15 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.debug(`Test ${jobId} is waiting`);
     });
 
-    this.testQueueEvents.on('active', async ({ jobId }) => {
+    this.testQueueEvents.on('active', ({ jobId }) => {
       this.logger.debug(`Test ${jobId} is active`);
     });
 
-    this.testQueueEvents.on('completed', async ({ jobId, returnvalue }) => {
+    this.testQueueEvents.on('completed', ({ jobId }) => {
       this.logger.debug(`Test ${jobId} completed`);
     });
 
-    this.testQueueEvents.on('failed', async ({ jobId, failedReason }) => {
+    this.testQueueEvents.on('failed', ({ jobId, failedReason }) => {
       this.logger.error(`Test ${jobId} failed: ${failedReason}`);
     });
   }
@@ -174,12 +173,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     // Schedule cleanup every 12 hours - more frequent than before
     this.cleanupInterval = setInterval(
-      async () => {
-        try {
-          await this.performRedisCleanup();
-        } catch (error) {
+      () => {
+        this.performRedisCleanup().catch((error) => {
           this.logger.error('Error during scheduled Redis cleanup:', error);
-        }
+        });
       },
       12 * 60 * 60 * 1000,
     ); // 12 hours

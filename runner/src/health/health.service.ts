@@ -76,7 +76,7 @@ export class HealthService {
     };
   }
 
-  async getLivenessStatus(): Promise<{ status: string; alive: boolean }> {
+  getLivenessStatus(): { status: string; alive: boolean } {
     // Basic liveness check - service is running
     return {
       status: 'alive',

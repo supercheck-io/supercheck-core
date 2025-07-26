@@ -15,6 +15,7 @@ import {
 } from 'src/db/schema'; // Specifically import reports table
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { ReportMetadata } from '../interfaces'; // Import our interface
+import { NotificationProvider } from '../../notification/notification.service';
 
 // Define a token for the Drizzle provider
 export const DB_PROVIDER_TOKEN = 'DB_DRIZZLE';
@@ -50,13 +51,15 @@ export class DbService implements OnModuleInit {
     this.redisClient.on('connect', () => this.logger.log('Redis Connected'));
   }
 
-  async onModuleInit() {
+  onModuleInit() {
     // Optional: Test connection on startup
     try {
-      await this.dbInstance.select({ now: sql`now()` });
+      this.dbInstance.select({ now: sql`now()` });
       this.logger.log('Database connection successful.');
     } catch (error) {
-      this.logger.error('Database connection failed!', error);
+      const errorToLog =
+        error instanceof Error ? error : new Error(String(error));
+      this.logger.error('Database connection failed!', errorToLog);
     }
   }
 
@@ -75,7 +78,7 @@ export class DbService implements OnModuleInit {
       );
     } catch (error) {
       this.logger.error(
-        `Failed to publish to Redis channel ${channel}: ${error.message}`,
+        `Failed to publish to Redis channel ${channel}: ${(error as Error).message}`,
       );
     }
   }
@@ -165,8 +168,8 @@ export class DbService implements OnModuleInit {
       }
     } catch (error) {
       this.logger.error(
-        `Error storing report metadata for ${entityType}/${entityId}: ${error.message}`,
-        error.stack,
+        `Error storing report metadata for ${entityType}/${entityId}: ${(error as Error).message}`,
+        (error as Error).stack,
       );
       // Decide whether to re-throw or just log
       // throw error;
@@ -228,7 +231,14 @@ export class DbService implements OnModuleInit {
 
     try {
       const now = new Date();
-      const updateData: any = {
+      const updateData: {
+        status: TestRunStatus;
+        duration?: string;
+        completedAt?: Date;
+        startedAt?: Date;
+        errorDetails?: string;
+        artifactPaths?: any;
+      } = {
         status,
       };
 
@@ -250,8 +260,8 @@ export class DbService implements OnModuleInit {
           durationSeconds = secondsMatch ? parseInt(secondsMatch[1], 10) : 0;
         }
 
-        // Store both the numeric seconds and the formatted string
-        updateData.duration = durationSeconds;
+        // Store the duration as a string
+        updateData.duration = durationSeconds.toString();
       }
 
       // Add completedAt timestamp for terminal statuses
@@ -270,7 +280,15 @@ export class DbService implements OnModuleInit {
       );
 
       // Publish status update to Redis for SSE
-      const statusData = {
+      const statusData: {
+        status: string;
+        runId: string;
+        duration?: string;
+        startedAt?: Date;
+        completedAt?: Date;
+        errorDetails?: string;
+        artifactPaths?: any;
+      } = {
         status,
         runId,
         duration: updateData.duration,
@@ -289,8 +307,8 @@ export class DbService implements OnModuleInit {
       }
     } catch (error) {
       this.logger.error(
-        `Failed to update run status: ${error.message}`,
-        error.stack,
+        `Failed to update run status: ${(error as Error).message}`,
+        (error as Error).stack,
       );
       throw error;
     }
@@ -307,7 +325,9 @@ export class DbService implements OnModuleInit {
       });
       return job;
     } catch (error) {
-      this.logger.error(`Failed to get job ${jobId}: ${error.message}`);
+      this.logger.error(
+        `Failed to get job ${jobId}: ${(error as Error).message}`,
+      );
       throw error;
     }
   }
@@ -325,7 +345,7 @@ export class DbService implements OnModuleInit {
       return lastRun;
     } catch (error) {
       this.logger.error(
-        `Failed to get last run for job ${jobId}: ${error.message}`,
+        `Failed to get last run for job ${jobId}: ${(error as Error).message}`,
       );
       return null;
     }
@@ -335,7 +355,9 @@ export class DbService implements OnModuleInit {
    * Gets notification providers by IDs
    * @param providerIds Array of provider IDs
    */
-  async getNotificationProviders(providerIds: string[]): Promise<any[]> {
+  async getNotificationProviders(
+    providerIds: string[],
+  ): Promise<NotificationProvider[]> {
     try {
       if (!providerIds || providerIds.length === 0) {
         return [];
@@ -346,10 +368,15 @@ export class DbService implements OnModuleInit {
           inArray(notificationProviders.id, providerIds),
       });
 
-      return providers || [];
+      // Map the database result to NotificationProvider interface
+      return (providers || []).map((provider) => ({
+        id: provider.id,
+        type: provider.type,
+        config: provider.config,
+      }));
     } catch (error) {
       this.logger.error(
-        `Failed to get notification providers: ${error.message}`,
+        `Failed to get notification providers: ${(error as Error).message}`,
       );
       return [];
     }
@@ -368,7 +395,7 @@ export class DbService implements OnModuleInit {
   ): Promise<void> {
     try {
       // Get the actual job name
-      const job = await this.getJobById(jobId);
+      const job = (await this.getJobById(jobId)) as { name?: string } | null;
       const jobName = job?.name || `Job ${jobId}`;
 
       await this.db.insert(alertHistory).values({
@@ -414,7 +441,7 @@ export class DbService implements OnModuleInit {
       return runs;
     } catch (error) {
       this.logger.error(
-        `Failed to get recent runs for job ${jobId}: ${error.message}`,
+        `Failed to get recent runs for job ${jobId}: ${(error as Error).message}`,
       );
       return [];
     }
