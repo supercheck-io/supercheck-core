@@ -17,6 +17,22 @@ const nextConfig: NextConfig = {
     // Will be available on both server and client
     apiTimeout: 60000, // 60 seconds
   },
+  // Suppress webpack warnings for BullMQ
+  webpack: (config, { isServer }) => {
+    // Suppress BullMQ warnings about dynamic imports
+    config.ignoreWarnings = [
+      {
+        module: /node_modules\/bullmq/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+      {
+        module: /node_modules\/bullmq/,
+        message: /the request of a dependency is an expression/,
+      },
+    ];
+    
+    return config;
+  },
 };
 
 export default nextConfig;

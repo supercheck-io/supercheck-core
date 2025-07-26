@@ -105,9 +105,9 @@ export function ReportViewer({
         if (button) {
           button.remove();
         }
-      } catch (error) {
-        // Ignore CORS errors
-      }
+                } catch {
+            // Ignore CORS errors
+          }
     }
   };
 

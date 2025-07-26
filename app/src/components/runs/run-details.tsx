@@ -340,7 +340,6 @@ export function RunDetails({ run }: { run: RunResponse }) {
             backToUrl="/runs"
             containerClassName="w-full h-[calc(100vh-270px)] relative"
             iframeClassName="w-full h-full border-0 rounded-lg"
-            darkMode={false}
             hideEmptyMessage={true}
           />
         </div>

@@ -486,8 +486,8 @@ const Playground: React.FC<PlaygroundProps> = ({
         setActiveTab("report");
 
         // Set up Server-Sent Events (SSE) to get real-time status updates
-        console.log("Setting up SSE connection to:", `/api/test-status/sse/${result.testId}`);
-        const eventSource = new EventSource(`/api/test-status/sse/${result.testId}`);
+        console.log("Setting up SSE connection to:", `/api/test-status/events/${result.testId}`);
+        const eventSource = new EventSource(`/api/test-status/events/${result.testId}`);
         let eventSourceClosed = false;
 
         // Handle status updates from the SSE endpoint
@@ -755,7 +755,6 @@ const Playground: React.FC<PlaygroundProps> = ({
                         isRunning={isRunning || isReportLoading}
                         containerClassName="h-full w-full relative bg-[#191919] border-1 rounded-bl-lg"
                         iframeClassName="h-full w-full rounded-bl-lg"
-                        darkMode={true}
                       />
                     </TabsContent>
                   </Tabs>
