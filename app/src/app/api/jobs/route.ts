@@ -457,7 +457,7 @@ async function runJob(request: Request) {
 
       if (!testScript) {
         // Fetch the test from the database to get the script
-        const testResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/tests/${test.id}`);
+        const testResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/tests/${test.id}`);
         const testData = await testResult.json();
         if (testResult.ok && testData?.script) {
           testScript = testData.script;

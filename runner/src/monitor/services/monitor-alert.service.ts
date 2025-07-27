@@ -112,8 +112,7 @@ export class MonitorAlertService {
       }
     }
 
-    const baseUrl =
-      this.configService.get<string>('APP_URL') || 'http://localhost:3000';
+    const baseUrl = this.configService.get<string>('NEXT_PUBLIC_APP_URL');
     const dashboardUrl = `${baseUrl}/monitors/${monitor.id}`;
 
     const notificationPayload: NotificationPayload = {

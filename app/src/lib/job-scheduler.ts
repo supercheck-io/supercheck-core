@@ -50,7 +50,7 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
 
     // Fetch all test scripts upfront
     const testCasePromises = jobTestsList.map(async (jobTest: { testId: string; orderPosition: number | null }) => {
-      const test = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/tests/${jobTest.testId}`);
+      const test = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/tests/${jobTest.testId}`);
       const testData = await test.json();
       return {
         ...testData,

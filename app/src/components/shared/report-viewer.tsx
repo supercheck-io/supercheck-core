@@ -330,11 +330,11 @@ export function ReportViewer({
           <div className="absolute top-2 right-2 z-10">
             <Button 
               size="sm"
-              className="cursor-pointer flex items-center gap-1 bg-black/50 hover:bg-black/75"
+              className="cursor-pointer flex items-center gap-1 bg-secondary hover:bg-secondary/90"
               onClick={() => setShowFullscreen(true)}
             >
              
-              <Maximize2 className="h-4 w-4 text-white" />
+              <Maximize2 className="h-4 w-4 text-secondary-foreground" />
               
             </Button>
           </div>
@@ -462,11 +462,11 @@ export function ReportViewer({
                 <h2 className="text-xl font-semibold">Playwright Report</h2>
               </div>
               <Button 
-                className="cursor-pointer"
+                className="cursor-pointer bg-secondary hover:bg-secondary/90"
                 size="sm"
                 onClick={() => setShowFullscreen(false)}
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4 text-secondary-foreground" />
                 
               </Button>
             </div>

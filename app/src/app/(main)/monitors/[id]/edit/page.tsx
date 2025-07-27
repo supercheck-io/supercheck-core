@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 async function fetchMonitor(id: string): Promise<Monitor | null> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/monitors/${id}`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/monitors/${id}`, {
       cache: 'no-store'
     });
     

@@ -116,7 +116,7 @@ export const MonacoEditorClient = memo(
       }, [monaco]);
 
       // Add custom styles to remove all borders, but only once
-      const beforeMount = useCallback((monaco: any) => {
+      const beforeMount = useCallback((monaco: typeof import('monaco-editor')) => {
         // Define custom warm light theme before editor mounts
         monaco.editor.defineTheme('warm-light', {
           base: 'vs',

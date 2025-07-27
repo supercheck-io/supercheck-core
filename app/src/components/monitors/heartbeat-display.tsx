@@ -18,7 +18,7 @@ export function HeartbeatDisplay({ monitor }: HeartbeatDisplayProps) {
   const expectedInterval = config?.expectedIntervalMinutes || 60;
   const gracePeriod = config?.gracePeriodMinutes || 10;
   const lastPingAt = config?.lastPingAt;
-  const heartbeatUrl = config?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`;
+  const heartbeatUrl = config?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/${monitor.id}`;
   const failureUrl = `${heartbeatUrl}/fail`;
 
   // Calculate time since last ping
