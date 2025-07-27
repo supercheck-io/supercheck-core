@@ -16,7 +16,7 @@ export function PlaygroundSkeleton() {
                   <Skeleton className="h-9 w-28" />
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <div className="h-full w-full p-4 bg-card/30 flex flex-col gap-4">
+                  <div className="h-full w-full p-4 flex flex-col gap-4" style={{ backgroundColor: '#FAF7F3' }}>
                     <Skeleton className="h-5 w-1/4 mt-5" />
                     <Skeleton className="h-5 w-1/3" />
                     <Skeleton className="h-5 w-1/2" />

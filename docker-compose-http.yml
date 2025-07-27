@@ -82,7 +82,7 @@ x-common-env: &common-env
 services:
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:monitoring-264557b
+    image: ghcr.io/krish-kant/supercheck/app:monitoring-085e78a
     ports:
       - "3000:3000"
     environment:
@@ -119,7 +119,7 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:monitoring-264557b
+    image: ghcr.io/krish-kant/supercheck/worker:monitoring-085e78a
     environment:
       <<: *common-env
       # Worker-specific configuration

@@ -34,7 +34,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible }) => 
                   <Skeleton className="h-9 w-28" />
                 </div>
                 <div className="flex-1 overflow-hidden rounded-bl-lg">
-                  <div className="p-4 space-y-2 h-full bg-muted/20 overflow-hidden">
+                  <div className="p-4 space-y-2 h-full overflow-hidden" style={{ backgroundColor: '#FAF7F3' }}>
                     <Skeleton className="h-4 w-3/4" />
                     <Skeleton className="h-4 w-1/2" />
                     <Skeleton className="h-4 w-5/6" />

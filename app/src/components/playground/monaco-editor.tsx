@@ -23,7 +23,7 @@ export const MonacoEditorClient = memo(
       // Update editor theme when app theme changes
       useEffect(() => {
         if (editorInstanceRef.current && monaco) {
-          const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs';
+          const editorTheme = theme === 'dark' ? 'vs-dark' : 'warm-light';
           monaco.editor.setTheme(editorTheme);
         }
       }, [theme, monaco]);
@@ -116,7 +116,17 @@ export const MonacoEditorClient = memo(
       }, [monaco]);
 
       // Add custom styles to remove all borders, but only once
-      const beforeMount = useCallback(() => {
+      const beforeMount = useCallback((monaco: any) => {
+        // Define custom warm light theme before editor mounts
+        monaco.editor.defineTheme('warm-light', {
+          base: 'vs',
+          inherit: true,
+          rules: [],
+          colors: {
+            'editor.background': '#FAF7F3'
+          }
+        });
+
         // Check if the style already exists by ID
         if (!document.getElementById("monaco-editor-styles")) {
           const styleSheet = document.createElement("style");
@@ -171,7 +181,7 @@ export const MonacoEditorClient = memo(
             defaultLanguage="typescript"
             value={value}
             onChange={handleEditorChange}
-            theme={theme === 'dark' ? 'vs-dark' : 'light'}
+            theme={theme === 'dark' ? 'vs-dark' : 'warm-light'}
             className="w-full overflow-hidden"
             beforeMount={beforeMount}
             onMount={handleEditorMount}
