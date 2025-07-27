@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useCallback, useRef, memo } from "react";
 import { Editor, useMonaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
+import { useTheme } from "next-themes";
 
 interface MonacoEditorProps {
   value: string;
@@ -12,11 +13,20 @@ export const MonacoEditorClient = memo(
   forwardRef<editor.IStandaloneCodeEditor, MonacoEditorProps>(
     ({ value, onChange }, ref) => {
       const monaco = useMonaco();
+      const { theme } = useTheme();
       const editorInstanceRef = useRef<editor.IStandaloneCodeEditor | null>(
         null
       );
       const styleSheetRef = useRef<HTMLStyleElement | null>(null);
       const isInitialized = useRef(false);
+
+      // Update editor theme when app theme changes
+      useEffect(() => {
+        if (editorInstanceRef.current && monaco) {
+          const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs';
+          monaco.editor.setTheme(editorTheme);
+        }
+      }, [theme, monaco]);
 
       // Configure Monaco once when it's available
       useEffect(() => {
@@ -154,16 +164,15 @@ export const MonacoEditorClient = memo(
 
       return (
         <div
-          className="flex flex-1 w-full relative overflow-hidden border-none outline-none monaco-wrapper"
-          style={{ borderBottom: "none" }}
+          className="flex flex-1 w-full relative overflow-hidden border border-border rounded-bl-lg monaco-wrapper"
         >
           <Editor
             height="calc(100vh - 10rem)"
             defaultLanguage="typescript"
             value={value}
             onChange={handleEditorChange}
-            theme="vs-dark"
-            className="w-full overflow-hidden border-none outline-none"
+            theme={theme === 'dark' ? 'vs-dark' : 'light'}
+            className="w-full overflow-hidden"
             beforeMount={beforeMount}
             onMount={handleEditorMount}
             options={{

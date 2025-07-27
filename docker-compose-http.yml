@@ -67,8 +67,16 @@ x-common-env: &common-env
   RESEND_API_KEY: ${RESEND_API_KEY:-re_xxxxxxxxxxxxxxx}
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notifications@meditationblue.com}
 
-  NEXT_PUBLIC_APP_URL: http://localhost:3000
-  BETTER_AUTH_URL: http://localhost:3000
+  # For HTTP use IP or localhost 
+  # NEXT_PUBLIC_APP_URL: http://91.98.19.170:3000 
+  # BETTER_AUTH_URL: http://91.98.19.170:3000 
+  NEXT_PUBLIC_APP_URL: http://localhost:3000 
+  BETTER_AUTH_URL: http://localhost:3000 
+
+  # For HTTPS use domain name 
+  # NEXT_PUBLIC_APP_URL: https://supercheck.meditationblue.com 
+  # BETTER_AUTH_URL: https://supercheck.meditationblue.com 
+
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-7pQ4ME2JCMxhcinoTtvUYpque24t2uh1}
 
 services:

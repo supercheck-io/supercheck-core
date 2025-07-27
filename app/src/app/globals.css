@@ -129,11 +129,8 @@
   }
 }
 
-/* Custom styles for iframe content */
-iframe {
-  background-color: #191919;
-  color-scheme: dark;
-}
+
+
 
 /* Add a custom class for the report iframe wrapper */
 /* .report-iframe-wrapper {
@@ -161,16 +158,6 @@ iframe {
 /* .monaco-editor .overflow-guard {
   border-bottom: none !important;
 } */
-
-/* Add a small negative margin to hide any potential edge lines */
-.overflow-guard {
-  margin-bottom: -1px !important;
-}
-
-/* Custom scrollbar styles for WebKit browsers */
-.overflow-guard {
-  margin-bottom: -1px !important;
-}
 
 /* Custom scrollbar for WebKit browsers */
 ::-webkit-scrollbar {

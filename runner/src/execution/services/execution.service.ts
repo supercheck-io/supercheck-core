@@ -1303,11 +1303,11 @@ export class ExecutionService {
         if (modified) {
           await fs.writeFile(filePath, content, 'utf8');
           this.logger.log(
-            `Successfully processed trace paths and theme in ${filePath}`,
+            `Successfully processed trace paths in ${filePath}`,
           );
         } else {
           this.logger.log(
-            `No trace path replacements or theme injection needed in ${filePath}`,
+            `No trace path replacements needed in ${filePath}`,
           );
         }
       };

@@ -85,7 +85,7 @@ export function ReportViewer({
     }
   }, [reportUrl]);
 
-    // Shared function to remove external buttons from any iframe
+    // Shared function to remove external buttons and settings icon from any iframe
   const removeExternalButtonFromIframe = (iframe: HTMLIFrameElement | null) => {
     if (iframe?.contentDocument) {
       try {
@@ -94,17 +94,46 @@ export function ReportViewer({
         style.textContent = `
           button.toolbar-button.link-external,
           button[title="Open snapshot in a new tab"],
-          .codicon.codicon-link-external {
+          .codicon.codicon-link-external,
+          /* Hide settings icon in trace viewer */
+          button[title*="settings"],
+          button[title*="Settings"],
+          button[title*="gear"],
+          button[title*="Gear"],
+          .codicon.codicon-gear,
+          .codicon.codicon-settings,
+          /* Hide any button with gear/settings icon in the top right */
+          .toolbar-button[title*="settings"],
+          .toolbar-button[title*="Settings"],
+          .toolbar-button[title*="gear"],
+          .toolbar-button[title*="Gear"],
+          /* More specific selectors for the settings icon */
+          button[aria-label*="settings"],
+          button[aria-label*="Settings"],
+          button[aria-label*="gear"],
+          button[aria-label*="Gear"],
+          /* Hide by class names that might contain settings */
+          .settings-button,
+          .gear-button,
+          .config-button,
+          /* Additional Playwright-specific selectors */
+          [data-testid*="settings"],
+          [data-testid*="gear"],
+          [class*="settings"],
+          [class*="gear"],
+          /* Hide any element with settings-related attributes */
+          [title*="Configure"],
+          [title*="configure"],
+          [aria-label*="Configure"],
+          [aria-label*="configure"] {
             display: none !important;
           }
         `;
         iframe.contentDocument.head.appendChild(style);
         
-        // Remove the button immediately
-        const button = iframe.contentDocument.querySelector('button.toolbar-button.link-external');
-        if (button) {
-          button.remove();
-        }
+
+        
+
                 } catch {
             // Ignore CORS errors
           }
@@ -290,7 +319,7 @@ export function ReportViewer({
   return (
     <div className={containerClassName}>
       {isReportLoading && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-card">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center">
           <Loader2Icon className="h-12 w-12 animate-spin mb-2 text-muted-foreground" />
           <p className="text-lg text-muted-foreground">{loadingMessage}</p>
         </div>

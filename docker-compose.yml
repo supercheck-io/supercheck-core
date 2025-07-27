@@ -111,6 +111,7 @@ services:
       - "3000"
     environment:
       <<: *common-env
+      NEXT_PUBLIC_APP_URL: https://${DOMAIN:-supercheck.meditationblue.com}
       # App-specific configuration
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-key-change-this-in-production}
       BETTER_AUTH_URL: https://${DOMAIN:-supercheck.meditationblue.com}
@@ -159,6 +160,7 @@ services:
     environment:
       <<: *common-env
       # Worker-specific configuration
+      NEXT_PUBLIC_APP_URL: https://${DOMAIN:-supercheck.meditationblue.com}
       BETTER_AUTH_URL: https://${DOMAIN:-supercheck.meditationblue.com}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
       # Note: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD already in common-env
