@@ -488,7 +488,7 @@ docker-compose logs traefik | grep -i "app"
 docker-compose logs traefik | grep -i redirect
 
 # Verify app configuration
-curl -I -H "Host: your-domain.com" http://localhost:3000
+curl -I -H "Host: your-domain.com" ${NEXT_PUBLIC_APP_URL}
 ```
 
 #### 4. Dashboard Not Accessible

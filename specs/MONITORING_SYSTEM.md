@@ -494,8 +494,8 @@ const jobDataPayload: MonitorJobData = {
 ### Heartbeat Monitor Testing
 1. Create heartbeat monitor with alert settings enabled
 2. Configure notification providers (Slack recommended for testing)
-3. Test success ping: `curl http://localhost:3000/api/heartbeat/[your-token]`
-4. Test failure ping: `curl http://localhost:3000/api/heartbeat/[your-token]/fail`
+3. Test success ping: `curl ${NEXT_PUBLIC_APP_URL}/api/heartbeat/[your-token]`
+4. Test failure ping: `curl ${NEXT_PUBLIC_APP_URL}/api/heartbeat/[your-token]/fail`
 5. Verify notifications in configured channels
 6. Check alert history for logged notifications
 
@@ -544,10 +544,10 @@ const jobDataPayload: MonitorJobData = {
 #### Frontend (.env.local)
 ```bash
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/supertest"
+DATABASE_URL="postgresql://user:password@${DB_HOST}:5432/supertest"
 
 # Redis
-REDIS_URL="redis://localhost:6379"
+REDIS_URL="redis://${REDIS_HOST}:6379"
 
 # Disable schedulers if needed (for development/testing)
 DISABLE_JOB_SCHEDULER=true
@@ -557,10 +557,10 @@ DISABLE_MONITOR_SCHEDULER=true
 #### Backend (runner/.env)
 ```bash
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/supertest"
+DATABASE_URL="postgresql://user:password@${DB_HOST}:5432/supertest"
 
 # Redis
-REDIS_URL="redis://localhost:6379"
+REDIS_URL="redis://${REDIS_HOST}:6379"
 ```
 
 ### Alert Configuration

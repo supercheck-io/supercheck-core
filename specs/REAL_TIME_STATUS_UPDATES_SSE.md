@@ -627,7 +627,7 @@ const createSSEMessage = (data: Record<string, unknown>) => {
 const getRedisConnection = async (): Promise<Redis> => {
   console.log(`Creating Redis connection for SSE endpoint`);
   
-  const host = process.env.REDIS_HOST || 'localhost';
+  const host = process.env.REDIS_HOST || 'redis';
   const port = parseInt(process.env.REDIS_PORT || '6379');
   const password = process.env.REDIS_PASSWORD;
   
@@ -869,7 +869,7 @@ export function RunStatusListener({
 
 ```bash
 # Redis Configuration (for SSE pub/sub)
-REDIS_HOST=localhost
+REDIS_HOST=redis
 REDIS_PORT=6379
 REDIS_PASSWORD=
 

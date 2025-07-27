@@ -72,7 +72,7 @@ export interface QueueStats {
  */
 export async function fetchQueueStats(): Promise<QueueStats> {
   // Set up Redis connection
-  const host = process.env.REDIS_HOST || 'localhost';
+  const host = process.env.REDIS_HOST || 'redis';
   const port = parseInt(process.env.REDIS_PORT || '6379');
   const password = process.env.REDIS_PASSWORD;
   
