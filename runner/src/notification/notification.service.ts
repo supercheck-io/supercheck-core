@@ -204,11 +204,24 @@ export class NotificationService {
   }
 
   private enhancePayload(payload: NotificationPayload): NotificationPayload {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      'http://localhost:3000';
+
+    // Debug logging for URL issues
+    if (!process.env.NEXT_PUBLIC_APP_URL && !process.env.APP_URL) {
+      this.logger.warn(
+        `[NOTIFICATION] No APP_URL configured, using fallback: ${baseUrl}`,
+      );
+      this.logger.debug(
+        `[NOTIFICATION] Environment variables: NEXT_PUBLIC_APP_URL=${process.env.NEXT_PUBLIC_APP_URL}, APP_URL=${process.env.APP_URL}`,
+      );
+    }
 
     // Generate dashboard URLs for easy navigation
     let dashboardUrl: string;
-    if (payload.type.includes('monitor')) {
+    if (payload.type.includes('monitor') || payload.type === 'ssl_expiring') {
       dashboardUrl = `${baseUrl}/monitors/${payload.targetId}`;
     } else if (payload.type.includes('job')) {
       dashboardUrl = `${baseUrl}/jobs`;
@@ -236,7 +249,8 @@ export class NotificationService {
     payload: NotificationPayload,
   ): FormattedNotification {
     // Standardized formatting with professional appearance - no emojis for consistency
-    const isMonitor = payload.type.includes('monitor');
+    const isMonitor =
+      payload.type.includes('monitor') || payload.type === 'ssl_expiring';
     // const __isJob = payload.type.includes('job');
 
     // Consistent title format without emojis for professional appearance
@@ -304,21 +318,22 @@ export class NotificationService {
 
     // Dashboard link
     if (payload.metadata?.dashboardUrl) {
+      // Determine the appropriate label based on the payload type
+      const dashboardLabel =
+        payload.type.includes('monitor') || payload.type === 'ssl_expiring'
+          ? '🔗 Monitor Details'
+          : payload.type.includes('job')
+            ? '🔗 Job Details'
+            : '🔗 Dashboard';
+
       fields.push({
-        title: '🔗 Dashboard',
+        title: dashboardLabel,
         value: payload.metadata.dashboardUrl,
         short: false,
       });
     }
 
-    // Trigger type (manual/scheduled)
-    if (payload.metadata?.trigger) {
-      fields.push({
-        title: 'Trigger',
-        value: payload.metadata.trigger,
-        short: true,
-      });
-    }
+    // Removed: Trigger field - not required in notifications
 
     return {
       title,

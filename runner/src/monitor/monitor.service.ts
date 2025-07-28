@@ -2,14 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios'; // Import HttpService
 import { AxiosError, Method } from 'axios'; // Import Method from axios
 import { firstValueFrom } from 'rxjs'; // To convert Observable to Promise
-import { MonitorJobDataDto, MonitorConfig } from './dto/monitor-job.dto';
-import {
-  MonitorExecutionResult,
-  MonitorResultStatus,
-  MonitorResultDetails,
-} from './types/monitor-result.type';
+import { MonitorJobDataDto } from './dto/monitor-job.dto';
+import { MonitorExecutionResult } from './types/monitor-result.type';
 import { DbService } from '../db/db.service';
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
+import type {
+  MonitorConfig,
+  MonitorResultStatus,
+  MonitorResultDetails,
+  monitorsSelectSchema,
+  monitorResultsSelectSchema,
+} from '../db/schema';
+import type { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
 import { MonitorAlertService } from './services/monitor-alert.service';
 import { ValidationService } from '../common/validation/validation.service';
@@ -24,28 +28,11 @@ function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
-// Monitor type interface for better type safety
-interface Monitor {
-  id: string;
-  name?: string;
-  status?: string;
-  alertConfig?: {
-    enabled?: boolean;
-    alertOnFailure?: boolean;
-    alertOnRecovery?: boolean;
-    failureThreshold?: number;
-    recoveryThreshold?: number;
-  } | null;
-  createdAt?: Date | string;
-  config?: any;
-}
+// Use the Monitor type from schema
+type Monitor = z.infer<typeof monitorsSelectSchema>;
 
-// Monitor result interface for better type safety
-interface MonitorResult {
-  isUp: boolean;
-  status?: string;
-  checkedAt?: Date | string;
-}
+// Use the MonitorResult type from schema
+type MonitorResult = z.infer<typeof monitorResultsSelectSchema>;
 
 // Replace generic DrizzleInstance with the specific type from Drizzle
 // interface DrizzleInstance {
@@ -172,41 +159,72 @@ export class MonitorService {
           ({ status, details, responseTimeMs, isUp } =
             await this.executeHttpRequest(jobData.target, websiteConfig));
 
-          // If SSL checking is enabled and the website check was successful, also check SSL
+          // Smart SSL checking - only check when needed
           if (
             jobData.config?.enableSslCheck &&
             isUp &&
             jobData.target.startsWith('https://')
           ) {
+            let shouldCheckSsl = true;
             try {
-              const sslResult = await this.executeSslCheck(jobData.target, {
-                daysUntilExpirationWarning:
-                  jobData.config.sslDaysUntilExpirationWarning || 30,
-                timeoutSeconds: jobData.config.timeoutSeconds || 10,
-              });
-
-              // Merge SSL certificate info into the website check details
-              if (sslResult.details?.sslCertificate) {
-                details.sslCertificate = sslResult.details
-                  .sslCertificate as any;
-              }
-
-              // If SSL check failed but website was up, show warning
-              if (!sslResult.isUp && sslResult.details?.warningMessage) {
-                details.sslWarning = sslResult.details.warningMessage as string;
-              } else if (!sslResult.isUp) {
-                // If SSL check completely failed, mark the overall check as down
-                status = sslResult.status;
-                isUp = false;
-                details.errorMessage =
-                  (sslResult.details?.errorMessage as string) ||
-                  'SSL certificate check failed';
-              }
-            } catch (sslError) {
-              this.logger.warn(
-                `SSL check failed for website monitor ${jobData.monitorId}: ${getErrorMessage(sslError)}`,
+              shouldCheckSsl = await this.shouldPerformSslCheck(
+                jobData.monitorId,
+                jobData.config,
               );
-              details.sslWarning = `SSL check failed: ${getErrorMessage(sslError)}`;
+            } catch (sslFreqError) {
+              this.logger.warn(
+                `SSL frequency check failed for monitor ${jobData.monitorId}, defaulting to check SSL:`,
+                sslFreqError,
+              );
+              shouldCheckSsl = true; // Default to checking SSL if frequency logic fails
+            }
+
+            if (shouldCheckSsl) {
+              try {
+                const sslResult = await this.executeSslCheck(jobData.target, {
+                  sslDaysUntilExpirationWarning:
+                    jobData.config.sslDaysUntilExpirationWarning || 30,
+                  timeoutSeconds: jobData.config.timeoutSeconds || 10,
+                });
+
+                // Update SSL last checked timestamp (non-blocking)
+                try {
+                  await this.updateSslLastChecked(jobData.monitorId);
+                } catch (updateError) {
+                  this.logger.warn(
+                    `Failed to update SSL last checked timestamp for monitor ${jobData.monitorId}:`,
+                    updateError,
+                  );
+                }
+
+                // Merge SSL certificate info into the website check details
+                if (sslResult.details?.sslCertificate) {
+                  details.sslCertificate = sslResult.details
+                    .sslCertificate as any;
+                }
+
+                // If SSL check failed but website was up, show warning
+                if (!sslResult.isUp && sslResult.details?.warningMessage) {
+                  details.sslWarning = sslResult.details
+                    .warningMessage as string;
+                } else if (!sslResult.isUp) {
+                  // If SSL check completely failed, mark the overall check as down
+                  status = sslResult.status;
+                  isUp = false;
+                  details.errorMessage =
+                    (sslResult.details?.errorMessage as string) ||
+                    'SSL certificate check failed';
+                }
+              } catch (sslError) {
+                this.logger.warn(
+                  `SSL check failed for website monitor ${jobData.monitorId}: ${getErrorMessage(sslError)}`,
+                );
+                details.sslWarning = `SSL check failed: ${getErrorMessage(sslError)}`;
+              }
+            } else {
+              this.logger.debug(
+                `Skipping SSL check for monitor ${jobData.monitorId} - not due for check`,
+              );
             }
           }
           break;
@@ -388,6 +406,24 @@ export class MonitorService {
             );
           }
         }
+
+        // Check for SSL expiration warnings independently of status changes
+        this.logger.debug(
+          `[SSL_ALERT_DEBUG] Monitor ${resultData.monitorId}: alertConfig.enabled=${monitor.alertConfig?.enabled}, alertOnSslExpiration=${monitor.alertConfig?.alertOnSslExpiration}`,
+        );
+        if (
+          monitor.alertConfig?.enabled &&
+          monitor.alertConfig?.alertOnSslExpiration
+        ) {
+          this.logger.log(
+            `[SSL_ALERT_DEBUG] Checking SSL expiration alert for monitor ${resultData.monitorId}`,
+          );
+          await this.checkSslExpirationAlert(resultData, monitor);
+        } else {
+          this.logger.debug(
+            `[SSL_ALERT_DEBUG] Skipping SSL alert check for monitor ${resultData.monitorId} - alerts not enabled or SSL alerts disabled`,
+          );
+        }
       }
     } catch (error) {
       this.logger.error(
@@ -431,65 +467,28 @@ export class MonitorService {
         // Default headers
         headers: {
           'User-Agent': 'SuperTest-Monitor/1.0',
+          Accept: 'application/json, text/plain, */*',
           ...config?.headers,
         },
-        // Disable automatic decompression to get more accurate timing
-        decompress: false,
+        // Enable automatic decompression for proper response parsing
+        decompress: true,
         // Follow redirects but track timing
         maxRedirects: 5,
-        // Handle various response types
-        responseType: 'text', // Always get text to check for keywords
+        // Handle various response types - let axios determine the best type
+        responseType: 'text', // Keep as text for consistent keyword searching
         // Validate status codes
         validateStatus: () => true, // Accept all status codes, we'll handle validation
+        // Transform response to ensure we get string data for keyword checking
+        transformResponse: [
+          (data) => {
+            // Return raw data as string for consistent keyword matching
+            return data;
+          },
+        ],
       };
 
-      // Handle proxy configuration for corporate networks
-      const shouldUseProxy = this.shouldUseProxy(target);
-      if (
-        shouldUseProxy &&
-        (process.env.HTTP_PROXY || process.env.HTTPS_PROXY)
-      ) {
-        const proxyUrl = target.startsWith('https://')
-          ? process.env.HTTPS_PROXY || process.env.HTTP_PROXY
-          : process.env.HTTP_PROXY || process.env.HTTPS_PROXY;
-
-        if (proxyUrl) {
-          try {
-            const proxyUrlObj = new URL(proxyUrl);
-            requestConfig.proxy = {
-              protocol: proxyUrlObj.protocol.replace(':', ''),
-              host: proxyUrlObj.hostname,
-              port: parseInt(
-                proxyUrlObj.port ||
-                  (proxyUrlObj.protocol === 'https:' ? '443' : '80'),
-              ),
-            };
-
-            // Handle proxy authentication
-            if (proxyUrlObj.username && proxyUrlObj.password) {
-              requestConfig.proxy.auth = {
-                username: decodeURIComponent(proxyUrlObj.username),
-                password: decodeURIComponent(proxyUrlObj.password),
-              };
-            }
-
-            this.logger.debug(
-              `Using proxy: ${proxyUrlObj.protocol}//${proxyUrlObj.hostname}:${proxyUrlObj.port} for ${target}`,
-            );
-          } catch {
-            this.logger.warn(
-              `Invalid proxy URL format: ${proxyUrl}. Proceeding without proxy.`,
-            );
-          }
-        }
-      } else if (!shouldUseProxy) {
-        this.logger.debug(
-          `Bypassing proxy for ${target} (matches NO_PROXY rules)`,
-        );
-      }
-
       // Handle authentication
-      if (config?.auth) {
+      if (config?.auth && config.auth.type !== 'none') {
         if (
           config.auth.type === 'basic' &&
           config.auth.username &&
@@ -499,9 +498,15 @@ export class MonitorService {
             username: config.auth.username,
             password: config.auth.password,
           };
+          this.logger.debug('Using Basic authentication');
         } else if (config.auth.type === 'bearer' && config.auth.token) {
           requestConfig.headers['Authorization'] =
             `Bearer ${config.auth.token}`;
+          this.logger.debug('Using Bearer token authentication');
+        } else {
+          this.logger.warn(
+            `Invalid auth configuration: type=${config.auth.type}, has credentials=${!!(config.auth.username || config.auth.token)}`,
+          );
         }
       }
 
@@ -510,11 +515,21 @@ export class MonitorService {
         ['POST', 'PUT', 'PATCH', 'DELETE'].includes(httpMethod) &&
         config?.body
       ) {
+        // Helper function to check if header exists (case-insensitive)
+        const getHeaderValue = (headerName: string): string | undefined => {
+          const lowerHeaderName = headerName.toLowerCase();
+          const headers = requestConfig.headers;
+          for (const [key, value] of Object.entries(headers)) {
+            if (key.toLowerCase() === lowerHeaderName) {
+              return value as string;
+            }
+          }
+          return undefined;
+        };
+
         // Set content type if not already set
-        if (
-          !requestConfig.headers['Content-Type'] &&
-          !requestConfig.headers['content-type']
-        ) {
+        const existingContentType = getHeaderValue('Content-Type');
+        if (!existingContentType) {
           // Try to detect content type
           try {
             JSON.parse(config.body);
@@ -525,10 +540,7 @@ export class MonitorService {
         }
 
         // Attempt to parse body as JSON if content type suggests it, otherwise send as is
-        const contentType =
-          requestConfig.headers['Content-Type'] ||
-          requestConfig.headers['content-type'] ||
-          '';
+        const contentType = getHeaderValue('Content-Type') || '';
         if (contentType.includes('application/json')) {
           try {
             requestConfig.data = JSON.parse(config.body);
@@ -561,11 +573,32 @@ export class MonitorService {
         isUp = true;
 
         if (config?.keywordInBody) {
-          const bodyString =
-            typeof response.data === 'string'
-              ? response.data
-              : JSON.stringify(response.data);
-          const keywordFound = bodyString.includes(config.keywordInBody);
+          // Ensure we have a string to search in
+          let bodyString: string;
+          if (typeof response.data === 'string') {
+            bodyString = response.data;
+          } else if (response.data && typeof response.data === 'object') {
+            bodyString = JSON.stringify(response.data);
+          } else {
+            bodyString = String(response.data || '');
+          }
+
+          // Perform case-insensitive keyword matching for better reliability
+          const keyword = config.keywordInBody;
+          const keywordFound = bodyString
+            .toLowerCase()
+            .includes(keyword.toLowerCase());
+
+          // Store original response for debugging
+          details.responseBodySnippet =
+            bodyString.length > 1000
+              ? bodyString.substring(0, 1000) + '...'
+              : bodyString;
+
+          this.logger.debug(
+            `Keyword search: looking for '${keyword}' in response body (${bodyString.length} chars): found=${keywordFound}`,
+          );
+
           if (
             (config.keywordInBodyShouldBePresent === undefined ||
               config.keywordInBodyShouldBePresent === true) &&
@@ -573,14 +606,14 @@ export class MonitorService {
           ) {
             status = 'down';
             isUp = false;
-            details.errorMessage = `Keyword '${config.keywordInBody}' not found in response.`;
+            details.errorMessage = `Keyword '${keyword}' not found in response body. Response: ${details.responseBodySnippet}`;
           } else if (
             config.keywordInBodyShouldBePresent === false &&
             keywordFound
           ) {
             status = 'down';
             isUp = false;
-            details.errorMessage = `Keyword '${config.keywordInBody}' was found in response but should be absent.`;
+            details.errorMessage = `Keyword '${keyword}' was found in response but should be absent. Response: ${details.responseBodySnippet}`;
           }
         }
       } else {
@@ -1284,6 +1317,262 @@ export class MonitorService {
     }) as Promise<Monitor | undefined>;
   }
 
+  /**
+   * Determines if SSL check should be performed based on smart frequency logic
+   */
+  private async shouldPerformSslCheck(
+    monitorId: string,
+    config?: any,
+  ): Promise<boolean> {
+    try {
+      // Get current monitor config from database to check SSL last checked timestamp
+      const monitor = await this.dbService.db.query.monitors.findFirst({
+        where: (monitors, { eq }) => eq(monitors.id, monitorId),
+      });
+
+      if (!monitor || !monitor.config) {
+        return true; // First time check
+      }
+
+      const monitorConfig = monitor.config as any;
+      const sslLastCheckedAt = monitorConfig.sslLastCheckedAt;
+      const sslCheckFrequencyHours =
+        config?.sslCheckFrequencyHours ||
+        monitorConfig.sslCheckFrequencyHours ||
+        24;
+      const sslDaysUntilExpirationWarning =
+        config?.sslDaysUntilExpirationWarning ||
+        monitorConfig.sslDaysUntilExpirationWarning ||
+        30;
+
+      if (!sslLastCheckedAt) {
+        return true; // Never checked before
+      }
+
+      const lastChecked = new Date(sslLastCheckedAt);
+      const now = new Date();
+      const hoursSinceLastCheck =
+        (now.getTime() - lastChecked.getTime()) / (1000 * 60 * 60);
+
+      // Check if we have SSL certificate info to determine smart frequency
+      const sslCertificate =
+        monitorConfig.sslCertificate || (monitor.config as any)?.sslCertificate;
+      if (sslCertificate && sslCertificate.daysRemaining !== undefined) {
+        // Smart frequency: check more often when approaching expiration
+        if (sslCertificate.daysRemaining <= sslDaysUntilExpirationWarning) {
+          // Check every hour when within warning threshold
+          return hoursSinceLastCheck >= 1;
+        }
+        if (sslCertificate.daysRemaining <= sslDaysUntilExpirationWarning * 2) {
+          // Check every 6 hours when within 2x warning threshold
+          return hoursSinceLastCheck >= 6;
+        }
+      }
+
+      // Default frequency check
+      return hoursSinceLastCheck >= sslCheckFrequencyHours;
+    } catch (error) {
+      this.logger.error(
+        `Error checking SSL frequency for monitor ${monitorId}:`,
+        error,
+      );
+      return true; // Default to checking on error
+    }
+  }
+
+  /**
+   * Updates the SSL last checked timestamp in monitor config
+   */
+  private async updateSslLastChecked(monitorId: string): Promise<void> {
+    try {
+      const monitor = await this.dbService.db.query.monitors.findFirst({
+        where: (monitors, { eq }) => eq(monitors.id, monitorId),
+      });
+
+      if (!monitor) {
+        return;
+      }
+
+      const updatedConfig = {
+        ...((monitor.config as any) || {}),
+        sslLastCheckedAt: new Date().toISOString(),
+      };
+
+      await this.dbService.db
+        .update(schema.monitors)
+        .set({ config: updatedConfig })
+        .where(eq(schema.monitors.id, monitorId));
+    } catch (error) {
+      this.logger.error(
+        `Error updating SSL last checked for monitor ${monitorId}:`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Checks for SSL expiration warnings and sends alerts independently of status changes
+   */
+  private async checkSslExpirationAlert(
+    resultData: MonitorExecutionResult,
+    monitor: any,
+  ): Promise<void> {
+    try {
+      this.logger.log(
+        `[SSL_ALERT_DEBUG] Starting SSL expiration alert check for monitor ${resultData.monitorId}`,
+      );
+
+      // Check if SSL certificate info is available and has warning
+      const sslCertificate = resultData.details?.sslCertificate;
+      const sslWarning =
+        resultData.details?.sslWarning || resultData.details?.warningMessage;
+
+      this.logger.debug(
+        `[SSL_ALERT_DEBUG] SSL data found: sslCertificate=${!!sslCertificate}, sslWarning=${sslWarning}, daysRemaining=${sslCertificate?.daysRemaining}`,
+      );
+
+      if (!sslCertificate && !sslWarning) {
+        this.logger.debug(
+          `[SSL_ALERT_DEBUG] No SSL certificate or warning data found for monitor ${resultData.monitorId}`,
+        );
+        return; // No SSL info to check
+      }
+
+      let shouldAlert = false;
+      let alertReason = '';
+
+      // Check for SSL expiration warning
+      if (sslCertificate?.daysRemaining !== undefined) {
+        const daysUntilExpiration = sslCertificate.daysRemaining;
+        const warningThreshold =
+          monitor.config?.sslDaysUntilExpirationWarning || 30;
+
+        this.logger.debug(
+          `[SSL_ALERT_DEBUG] SSL threshold check: daysUntilExpiration=${daysUntilExpiration}, warningThreshold=${warningThreshold}`,
+        );
+
+        if (
+          daysUntilExpiration <= warningThreshold &&
+          daysUntilExpiration > 0
+        ) {
+          shouldAlert = true;
+          alertReason = `SSL certificate expires in ${daysUntilExpiration} days`;
+          this.logger.log(
+            `[SSL_ALERT_DEBUG] SSL alert triggered: ${alertReason}`,
+          );
+        } else if (daysUntilExpiration <= 0) {
+          shouldAlert = true;
+          alertReason = 'SSL certificate has expired';
+          this.logger.log(
+            `[SSL_ALERT_DEBUG] SSL alert triggered: ${alertReason}`,
+          );
+        } else {
+          this.logger.debug(
+            `[SSL_ALERT_DEBUG] SSL certificate is still valid (${daysUntilExpiration} days > ${warningThreshold} threshold)`,
+          );
+        }
+      }
+
+      // Check for SSL warning messages
+      if (sslWarning && typeof sslWarning === 'string') {
+        shouldAlert = true;
+        alertReason = alertReason || sslWarning;
+      }
+
+      if (shouldAlert) {
+        // Check if we've already sent an SSL alert recently to avoid spam
+        const lastSslAlert = await this.getLastSslAlert(resultData.monitorId);
+        const now = new Date();
+        const hoursSinceLastAlert = lastSslAlert
+          ? (now.getTime() - lastSslAlert.getTime()) / (1000 * 60 * 60)
+          : Infinity;
+
+        // Only send SSL alerts once per day to avoid spam
+        if (hoursSinceLastAlert >= 24) {
+          await this.monitorAlertService.sendSslExpirationNotification(
+            resultData.monitorId,
+            alertReason,
+            {
+              sslCertificate,
+              daysRemaining: sslCertificate?.daysRemaining,
+              responseTime: resultData.responseTimeMs,
+            },
+          );
+
+          // Record that we sent an SSL alert
+          await this.recordSslAlert(resultData.monitorId);
+
+          this.logger.log(
+            `Sent SSL expiration alert for monitor ${resultData.monitorId}: ${alertReason}`,
+          );
+        } else {
+          this.logger.debug(
+            `Skipping SSL alert for monitor ${resultData.monitorId} - already sent ${hoursSinceLastAlert.toFixed(1)} hours ago`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error checking SSL expiration alert for monitor ${resultData.monitorId}:`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Gets the timestamp of the last SSL alert sent for a monitor
+   */
+  private async getLastSslAlert(monitorId: string): Promise<Date | null> {
+    try {
+      const lastAlert = await this.dbService.db.query.alertHistory.findFirst({
+        where: (alertHistory, { eq, and }) =>
+          and(
+            eq(alertHistory.monitorId, monitorId),
+            eq(alertHistory.type, 'ssl_expiring'),
+          ),
+        orderBy: (alertHistory, { desc }) => [desc(alertHistory.sentAt)],
+      });
+
+      return lastAlert?.sentAt ? new Date(lastAlert.sentAt) : null;
+    } catch (error) {
+      this.logger.error(
+        `Error getting last SSL alert for monitor ${monitorId}:`,
+        error,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Records that an SSL alert was sent for a monitor
+   */
+  private async recordSslAlert(monitorId: string): Promise<void> {
+    try {
+      const monitor = await this.dbService.db.query.monitors.findFirst({
+        where: (monitors, { eq }) => eq(monitors.id, monitorId),
+      });
+
+      if (!monitor) {
+        return;
+      }
+
+      const updatedConfig = {
+        ...((monitor.config as any) || {}),
+        lastSslAlertSentAt: new Date().toISOString(),
+      };
+
+      await this.dbService.db
+        .update(schema.monitors)
+        .set({ config: updatedConfig })
+        .where(eq(schema.monitors.id, monitorId));
+    } catch (error) {
+      this.logger.error(
+        `Error recording SSL alert for monitor ${monitorId}:`,
+        error,
+      );
+    }
+  }
+
   private async saveMonitorResultToDb(
     resultData: MonitorExecutionResult,
   ): Promise<void> {
@@ -1347,85 +1636,6 @@ export class MonitorService {
         `Failed to get recent monitor results: ${getErrorMessage(error)}`,
       );
       return [];
-    }
-  }
-
-  /**
-   * Determines if a target URL should use proxy based on NO_PROXY environment variable
-   */
-  private shouldUseProxy(target: string): boolean {
-    const noProxy = process.env.NO_PROXY || process.env.no_proxy;
-    if (!noProxy) {
-      return true;
-    }
-
-    try {
-      const targetUrl = new URL(target);
-      const hostname = targetUrl.hostname.toLowerCase();
-      const port = targetUrl.port;
-
-      // Split NO_PROXY by comma and check each pattern
-      const noProxyPatterns = noProxy
-        .split(',')
-        .map((pattern) => pattern.trim().toLowerCase());
-
-      for (const pattern of noProxyPatterns) {
-        if (!pattern) continue;
-
-        // Handle different NO_PROXY patterns
-        if (pattern === '*') {
-          return false; // Wildcard - no proxy for anything
-        }
-
-        // Handle localhost patterns
-        if (
-          pattern === 'localhost' &&
-          (hostname === 'localhost' || hostname === '127.0.0.1')
-        ) {
-          return false;
-        }
-
-        // Handle IP ranges (simple cases)
-        if (pattern.startsWith('127.') && hostname.startsWith('127.')) {
-          return false;
-        }
-        if (pattern.startsWith('192.168.') && hostname.startsWith('192.168.')) {
-          return false;
-        }
-        if (pattern.startsWith('10.') && hostname.startsWith('10.')) {
-          return false;
-        }
-
-        // Handle exact hostname match
-        if (pattern === hostname) {
-          return false;
-        }
-
-        // Handle domain suffix match (e.g., .company.com)
-        if (pattern.startsWith('.') && hostname.endsWith(pattern)) {
-          return false;
-        }
-
-        // Handle hostname:port pattern
-        if (pattern.includes(':')) {
-          const [patternHost, patternPort] = pattern.split(':');
-          if (patternHost === hostname && patternPort === port) {
-            return false;
-          }
-        }
-
-        // Handle subdomain pattern (company.com matches subdomain.company.com)
-        if (hostname.endsWith('.' + pattern) || hostname === pattern) {
-          return false;
-        }
-      }
-
-      return true; // Use proxy if no patterns match
-    } catch (error) {
-      this.logger.warn(
-        `Error parsing target URL for proxy detection: ${getErrorMessage(error)}`,
-      );
-      return true; // Default to using proxy on parse errors
     }
   }
 }

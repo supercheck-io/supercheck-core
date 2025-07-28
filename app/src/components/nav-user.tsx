@@ -13,7 +13,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "next-themes";
-import { Moon, Sun, Monitor } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 
 export function NavUser() {
   const { data: session, isPending } = useSession();
@@ -68,10 +68,6 @@ export function NavUser() {
           <span className="ml-auto">{theme === "light" && <span className="inline-block w-2 h-2 rounded-full bg-primary" />}</span>
         </DropdownMenuItem>
        
-        <DropdownMenuItem onClick={() => setTheme("system")}> 
-          <span className="mr-2 flex items-center"><Monitor className="h-4 w-4 mr-2" />System</span>
-          <span className="ml-auto">{theme === "system" && <span className="inline-block w-2 h-2 rounded-full bg-primary" />}</span>
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>Log out</DropdownMenuItem>
       </DropdownMenuContent>

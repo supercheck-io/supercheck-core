@@ -112,7 +112,21 @@ export class MonitorAlertService {
       }
     }
 
-    const baseUrl = this.configService.get<string>('NEXT_PUBLIC_APP_URL');
+    const baseUrl =
+      this.configService.get<string>('NEXT_PUBLIC_APP_URL') ||
+      this.configService.get<string>('APP_URL') ||
+      'http://localhost:3000';
+
+    // Debug logging for URL issues
+    if (
+      !this.configService.get<string>('NEXT_PUBLIC_APP_URL') &&
+      !this.configService.get<string>('APP_URL')
+    ) {
+      this.logger.warn(
+        `[MONITOR-ALERT] No APP_URL configured, using fallback: ${baseUrl}`,
+      );
+    }
+
     const dashboardUrl = `${baseUrl}/monitors/${monitor.id}`;
 
     const notificationPayload: NotificationPayload = {
@@ -171,6 +185,148 @@ export class MonitorAlertService {
 
     await db.insert(schema.alertHistory).values({
       type: notificationType as AlertType,
+      message: notificationPayload.message,
+      target: monitor.name,
+      targetType: 'monitor',
+      monitorId: monitor.id,
+      provider: providers.map((p) => p.type).join(', '),
+      status: alertStatus,
+      errorMessage,
+      sentAt: new Date(),
+    });
+  }
+
+  async sendSslExpirationNotification(
+    monitorId: string,
+    reason: string,
+    metadata: any = {},
+  ) {
+    this.logger.log(
+      `[SSL-NOTIFY] SSL expiration notification for monitor ${monitorId}`,
+    );
+
+    const db = this.dbService.db;
+
+    // Get monitor details
+    const monitor = await db.query.monitors.findFirst({
+      where: eq(schema.monitors.id, monitorId),
+    });
+
+    if (!monitor) {
+      this.logger.error(`[SSL-NOTIFY] Monitor not found: ${monitorId}`);
+      return;
+    }
+
+    // Check if SSL alerts are enabled
+    if (
+      !monitor.alertConfig?.enabled ||
+      !monitor.alertConfig?.alertOnSslExpiration
+    ) {
+      this.logger.log(
+        `[SSL-NOTIFY] SSL alerts not enabled for monitor ${monitorId}`,
+      );
+      return;
+    }
+
+    // Get notification providers
+    const providers = await db
+      .select({
+        id: schema.notificationProviders.id,
+        type: schema.notificationProviders.type,
+        config: schema.notificationProviders.config,
+      })
+      .from(schema.notificationProviders)
+      .innerJoin(
+        schema.monitorNotificationSettings,
+        eq(
+          schema.monitorNotificationSettings.notificationProviderId,
+          schema.notificationProviders.id,
+        ),
+      )
+      .where(eq(schema.monitorNotificationSettings.monitorId, monitorId));
+
+    if (!providers || providers.length === 0) {
+      this.logger.log(
+        `[SSL-NOTIFY] No notification providers configured for monitor ${monitorId}`,
+      );
+      return;
+    }
+
+    const baseUrl =
+      this.configService.get<string>('NEXT_PUBLIC_APP_URL') ||
+      this.configService.get<string>('APP_URL') ||
+      'http://localhost:3000';
+
+    // Debug logging for URL issues
+    if (
+      !this.configService.get<string>('NEXT_PUBLIC_APP_URL') &&
+      !this.configService.get<string>('APP_URL')
+    ) {
+      this.logger.warn(
+        `[MONITOR-ALERT] No APP_URL configured, using fallback: ${baseUrl}`,
+      );
+    }
+
+    const dashboardUrl = `${baseUrl}/monitors/${monitor.id}`;
+
+    const notificationPayload: NotificationPayload = {
+      type: 'ssl_expiring' as any,
+      title: `SSL Certificate Warning - ${monitor.name}`,
+      message:
+        monitor.alertConfig.customMessage ||
+        `SSL certificate issue detected: ${reason}`,
+      targetName: monitor.name,
+      targetId: monitor.id,
+      severity: 'warning',
+      timestamp: new Date(),
+      metadata: {
+        target: monitor.target,
+        type: monitor.type,
+        status: 'ssl_warning',
+        dashboardUrl,
+        targetUrl: monitor.target,
+        trigger: 'ssl_expiration_check',
+        reason: reason,
+        monitorType: monitor.type,
+        checkFrequency: monitor.frequencyMinutes
+          ? `${monitor.frequencyMinutes}m`
+          : undefined,
+        lastCheckTime: monitor.lastCheckAt
+          ? new Date(monitor.lastCheckAt).toISOString()
+          : undefined,
+        ...metadata,
+      },
+    };
+
+    this.logger.log(
+      `[SSL-NOTIFY] Sending SSL expiration notifications to ${providers.length} providers`,
+    );
+
+    const { success: successCount, failed: failedCount } =
+      await this.notificationService.sendNotificationToMultipleProviders(
+        providers as NotificationProvider[],
+        notificationPayload,
+      );
+
+    this.logger.log(
+      `[SSL-NOTIFY] Notification results: ${successCount} success, ${failedCount} failed`,
+    );
+
+    let alertStatus: 'sent' | 'failed' | 'pending' = 'pending';
+    let errorMessage: string | undefined;
+
+    if (successCount > 0 && failedCount === 0) {
+      alertStatus = 'sent';
+    } else if (successCount === 0 && failedCount > 0) {
+      alertStatus = 'failed';
+      errorMessage = `All ${failedCount} notifications failed`;
+    } else if (successCount > 0 && failedCount > 0) {
+      alertStatus = 'sent';
+      errorMessage = `${failedCount} of ${providers.length} notifications failed`;
+    }
+
+    await db.insert(schema.alertHistory).values({
+      type: 'ssl_expiring' as AlertType,
       message: notificationPayload.message,
       target: monitor.name,
       targetType: 'monitor',

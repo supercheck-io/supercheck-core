@@ -1302,13 +1302,9 @@ export class ExecutionService {
         // Only save the file if we made changes
         if (modified) {
           await fs.writeFile(filePath, content, 'utf8');
-          this.logger.log(
-            `Successfully processed trace paths in ${filePath}`,
-          );
+          this.logger.log(`Successfully processed trace paths in ${filePath}`);
         } else {
-          this.logger.log(
-            `No trace path replacements needed in ${filePath}`,
-          );
+          this.logger.log(`No trace path replacements needed in ${filePath}`);
         }
       };
 

@@ -79,7 +79,7 @@ export async function updateJob(data: UpdateJobData) {
     
     const dbInstance = db;
     
-    // Check if the job exists and if user has permission to update it
+    // Check if the job exists
     const existingJob = await dbInstance
       .select({
         id: jobs.id,
@@ -101,19 +101,10 @@ export async function updateJob(data: UpdateJobData) {
     
     const job = existingJob[0];
     
-    // Check permission - user must own the job (unless it's a legacy job with no owner)
+    // Note: RBAC will be implemented later. For now, all authenticated users can edit any job.
+    console.log(`Job ${validatedData.jobId} being updated by user ${session.user.id}`);
     if (job.createdByUserId && job.createdByUserId !== session.user.id) {
-      console.warn(`Access denied: User ${session.user.id} attempted to update job ${validatedData.jobId} owned by ${job.createdByUserId}`);
-      return {
-        success: false,
-        message: "Access denied - you don't have permission to update this job",
-        error: "Forbidden"
-      };
-    }
-
-    // Log warning for legacy jobs without owner
-    if (!job.createdByUserId) {
-      console.warn(`Legacy job ${validatedData.jobId} has no createdByUserId - allowing update for user ${session.user.id}`);
+      console.log(`User ${session.user.id} is updating job ${validatedData.jobId} originally created by ${job.createdByUserId}`);
     }
     
     try {
