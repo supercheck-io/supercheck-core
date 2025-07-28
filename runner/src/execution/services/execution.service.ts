@@ -994,38 +994,28 @@ export class ExecutionService {
       );
 
       // Handle path differences between Windows and Unix-like systems
-      let playwrightCliPath: string;
+      let command: string;
+      let args: string[];
+
       if (isWindows) {
-        // On Windows, use the .cmd extension
-        playwrightCliPath = path.join(
-          serviceRoot,
-          'node_modules',
-          '.bin',
-          'playwright.cmd',
-        );
+        // On Windows, use npx to execute playwright more reliably
+        command = 'npx';
+        args = [
+          'playwright',
+          'test',
+          `"${targetPath}"`, // Quote paths on Windows
+          `--config="${playwrightConfigPath}"`,
+          '--reporter=html,list',
+        ];
       } else {
-        playwrightCliPath = path.join(
+        // On Unix-like systems, use node directly with playwright CLI
+        const playwrightCliPath = path.join(
           serviceRoot,
           'node_modules',
           '.bin',
           'playwright',
         );
-      }
-
-      // Use proper command based on platform
-      const command = isWindows ? playwrightCliPath : 'node';
-
-      // Build args array - for Windows the command itself is the executable
-      let args: string[];
-
-      if (isWindows) {
-        args = [
-          'test',
-          targetPath,
-          `--config=${playwrightConfigPath}`,
-          '--reporter=html,list',
-        ];
-      } else {
+        command = 'node';
         args = [
           playwrightCliPath,
           'test',
@@ -1094,6 +1084,149 @@ export class ExecutionService {
   }
 
   /**
+   * Kills a process and all its child processes
+   * This is crucial for cleanup when tests have infinite loops or hanging processes
+   */
+  private killProcessTree(pid: number | undefined): void {
+    if (!pid) {
+      this.logger.warn('Cannot kill process tree: no PID provided');
+      return;
+    }
+
+    try {
+      if (isWindows) {
+        // On Windows, use taskkill to kill the process tree
+        execSync(`taskkill /pid ${pid} /t /f`, { stdio: 'ignore' });
+        this.logger.log(`Killed Windows process tree for PID: ${pid}`);
+      } else {
+        // On Unix-like systems, kill the process group
+        try {
+          // Try to kill the process group first (negative PID)
+          process.kill(-pid, 'SIGKILL');
+          this.logger.log(`Killed Unix process group for PID: ${pid}`);
+        } catch {
+          // If process group kill fails, try individual process
+          process.kill(pid, 'SIGKILL');
+          this.logger.log(`Killed individual Unix process for PID: ${pid}`);
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to kill process tree for PID ${pid}: ${(error as Error).message}`,
+      );
+    }
+
+    // Always perform browser process cleanup after a timeout
+    void this.cleanupBrowserProcesses();
+  }
+
+  /**
+   * Cleanup any lingering browser processes that might be left behind
+   * This is especially important for infinite loop tests that consume CPU
+   */
+  private async cleanupBrowserProcesses(): Promise<void> {
+    try {
+      if (isWindows) {
+        // More aggressive cleanup on Windows
+        const browserProcesses = [
+          'playwright.exe',
+          'node.exe',
+          'chromium.exe',
+          'chrome.exe',
+          'msedge.exe',
+          'firefox.exe',
+          'pwsh.exe', // PowerShell processes
+          'cmd.exe', // Command prompt processes that might be running tests
+        ];
+
+        // First, kill by process name
+        for (const processName of browserProcesses) {
+          try {
+            execSync(`taskkill /im ${processName} /f /t`, {
+              stdio: 'ignore',
+              timeout: 10000,
+              windowsHide: true,
+            });
+          } catch {
+            // Ignore errors if process doesn't exist
+          }
+        }
+
+        // Then kill by command line pattern (more specific)
+        const killPatterns = [
+          'playwright test',
+          'node.*spec.js',
+          'chromium.*test',
+          'for(;;100)',
+          'playwright.*runner',
+        ];
+
+        for (const pattern of killPatterns) {
+          try {
+            execSync(
+              `wmic process where "commandline like '%${pattern}%'" delete`,
+              {
+                stdio: 'ignore',
+                timeout: 10000,
+                windowsHide: true,
+              },
+            );
+          } catch {
+            // Ignore errors if no matching processes
+          }
+        }
+
+        // Final cleanup - kill specific test-related processes with high CPU usage
+        try {
+          // Only target processes that match our test patterns AND have high CPU
+          execSync(
+            `powershell "Get-Process | Where-Object {$_.CPU -gt 10 -and ($_.CommandLine -match 'spec\\.js|playwright.*test|for.*;;.*100')} | Stop-Process -Force"`,
+            {
+              stdio: 'ignore',
+              timeout: 15000,
+              windowsHide: true,
+            },
+          );
+        } catch {
+          // Ignore if PowerShell command fails
+        }
+      } else {
+        // Enhanced Unix cleanup
+        const killCommands = [
+          'pkill -9 -f "playwright.*test"',
+          'pkill -9 -f "node.*playwright"',
+          'pkill -9 -f "node.*spec.js"',
+          'pkill -9 -f chromium',
+          'pkill -9 -f chrome',
+          'pkill -9 -f firefox',
+          // Kill any processes consuming high CPU (likely infinite loops) - but only if they match our patterns
+          'pkill -9 -f "for.*;;.*100"',
+          // More targeted CPU cleanup - only kill node processes running our tests with high CPU
+          'ps -eo pid,pcpu,comm,args | awk \'$2 > 80.0 && ($3 == "node" || $3 == "playwright") && ($0 ~ /spec\\.js|playwright.*test/) {print $1}\' | xargs -r kill -9',
+        ];
+
+        for (const cmd of killCommands) {
+          try {
+            execSync(cmd, { stdio: 'ignore', timeout: 10000 });
+            // Wait a bit between commands to ensure cleanup
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          } catch {
+            // Ignore errors if processes don't exist
+          }
+        }
+      }
+
+      this.logger.log(
+        'Completed comprehensive browser and test process cleanup',
+      );
+    } catch (cleanupError) {
+      this.logger.warn(
+        `Browser process cleanup failed: ${(cleanupError as Error).message}`,
+      );
+    }
+  }
+
+  /**
    * Helper method to execute a command with proper error handling and timeout
    */
   private async _executeCommand(
@@ -1111,7 +1244,10 @@ export class ExecutionService {
         const childProcess = spawn(command, args, {
           env: { ...process.env, ...(options.env || {}) },
           cwd: options.cwd || process.cwd(),
-          shell: options.shell,
+          shell: options.shell || isWindows, // Always use shell on Windows
+          // Create a new process group so we can kill all related processes
+          detached: !isWindows, // Only use detached on Unix-like systems
+          windowsHide: isWindows, // Hide window on Windows
         });
 
         let stdout = '';
@@ -1128,7 +1264,12 @@ export class ExecutionService {
               this.logger.warn(
                 `Command execution timed out after ${options.timeout}ms: ${command} ${args.join(' ')}`,
               );
-              childProcess.kill('SIGKILL');
+
+              // More aggressive process cleanup for timeout scenarios
+              this.killProcessTree(childProcess.pid);
+              // Additional immediate cleanup to ensure processes are terminated
+              setTimeout(() => void this.cleanupBrowserProcesses(), 1000);
+
               resolve({
                 success: false,
                 stdout: stdout + '\n[EXECUTION TIMEOUT]',
@@ -1143,6 +1284,10 @@ export class ExecutionService {
         const cleanup = () => {
           if (timeoutHandle) {
             clearTimeout(timeoutHandle);
+          }
+          // Ensure process is terminated if still running
+          if (childProcess && !childProcess.killed) {
+            this.killProcessTree(childProcess.pid);
           }
         };
 
@@ -1175,6 +1320,24 @@ export class ExecutionService {
               success: code === 0,
               stdout,
               stderr,
+            });
+          }
+        });
+
+        childProcess.on('exit', (code, signal) => {
+          if (!resolved) {
+            resolved = true;
+            cleanup();
+            this.logger.debug(
+              `Command exited with code: ${code}, signal: ${signal}`,
+            );
+            resolve({
+              success: code === 0,
+              stdout,
+              stderr: signal
+                ? stderr +
+                  `\n[TERMINATED] Process killed with signal: ${signal}`
+                : stderr,
             });
           }
         });
