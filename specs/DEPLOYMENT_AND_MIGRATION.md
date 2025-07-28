@@ -40,10 +40,10 @@ docker-compose logs -f worker
 ```
 
 ### 4. Access the Application
-- **Frontend**: http://localhost:3000
-- **MinIO Console**: http://localhost:9001 (admin/minioadmin)
-- **PostgreSQL**: localhost:5432
-- **Redis**: localhost:6379
+- **Frontend**: ${NEXT_PUBLIC_APP_URL}
+- **MinIO Console**: http://${S3_HOST}:9001 (admin/minioadmin)
+- **PostgreSQL**: ${DB_HOST}:5432
+- **Redis**: ${REDIS_HOST}:6379
 
 ## 📋 Services Overview
 
@@ -51,13 +51,13 @@ docker-compose logs -f worker
 - **Port**: 3000
 - **Image**: `ghcr.io/your-username/supertest/app:latest`
 - **Purpose**: Web interface for managing tests, jobs, and monitors
-- **Health Check**: http://localhost:3000/api/health
+- **Health Check**: ${NEXT_PUBLIC_APP_URL}/api/health
 
 ### Worker (NestJS Runner)
 - **Port**: 3001
 - **Image**: `ghcr.io/your-username/supertest/worker:latest`
 - **Purpose**: Executes Playwright tests and processes job queues
-- **Health Check**: http://localhost:3001/health
+- **Health Check**: ${WORKER_URL}/health
 
 ### PostgreSQL
 - **Port**: 5432
@@ -454,8 +454,8 @@ docker stack rm supertest
 docker-compose ps
 
 # Check service health
-docker-compose exec frontend wget -q -O- http://localhost:3000/api/health
-docker-compose exec worker wget -q -O- http://localhost:3001/health
+docker-compose exec frontend wget -q -O- ${NEXT_PUBLIC_APP_URL}/api/health
+docker-compose exec worker wget -q -O- ${WORKER_URL}/health
 ```
 
 ### View Logs
@@ -807,7 +807,7 @@ Create a `.env` file in the root directory:
 
 ```bash
 # Database
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/supertest
+DATABASE_URL=postgresql://postgres:postgres@${DB_HOST}:5432/supertest
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
@@ -817,13 +817,13 @@ DB_NAME=supertest
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
-REDIS_URL=redis://localhost:6379
+REDIS_URL=redis://${REDIS_HOST}:6379
 
 # MinIO
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=minioadmin
 AWS_SECRET_ACCESS_KEY=minioadmin
-S3_ENDPOINT=http://localhost:9000
+S3_ENDPOINT=http://${S3_HOST}:9000
 S3_JOB_BUCKET_NAME=playwright-job-artifacts
 S3_FORCE_PATH_STYLE=true
 ```

@@ -49,7 +49,7 @@ export function ValidationError({
   return (
     <Alert
       variant="destructive"
-      className={` bg-rose-300/95 shadow-lg rounded-sm p-4 relative ${className}`}
+      className={`bg-rose-100/95 shadow-lg rounded-sm p-4 relative ${className}`}
     >
       <div className="flex items-start w-full pr-10">
         <div className="flex items-start gap-4 flex-1">
@@ -62,7 +62,7 @@ export function ValidationError({
                 {category.label} Error
               </span>
               {line && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-sm border border-red-200">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-200 text-red-700 text-xs font-medium rounded-sm border border-red-200">
                   <MapPin className="h-3 w-3" />
                   Line {line}{column ? `:${column}` : ''}
                 </span>
@@ -79,10 +79,10 @@ export function ValidationError({
           variant="ghost"
           size="icon"
           onClick={onDismiss}
-          className="absolute top-6 right-4 h-8 w-8 rounded-full bg-red-200 text-gray-600 transition" 
+          className="absolute top-6 right-4 h-8 w-8 rounded-lg bg-red-200 transition" 
           aria-label="Dismiss error"
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4 text-gray-600" />
         </Button>
       )}
     </Alert>

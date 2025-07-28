@@ -1,6 +1,6 @@
 import { db } from '@/utils/db';
 import { monitors as monitorTable, monitorsInsertSchema, MonitorConfig, MonitorType as DBMoniotorType, MonitorStatus as DBMonitorStatus, AlertConfig } from '@/db/schema/schema';
-import { MonitorJobData } from '@/lib/queue';
+import { MonitorJobData, addMonitorExecutionJobToQueue } from '@/lib/queue';
 import { scheduleMonitor, deleteScheduledMonitor } from '@/lib/monitor-scheduler';
 import { eq } from 'drizzle-orm';
 
@@ -73,6 +73,11 @@ export async function createMonitorHandler(data: MonitorApiData) {
       console.error(`Failed to schedule monitor ${newMonitor.id} after creation:`, scheduleError);
       // Decide if this should be a hard error or just logged
     }
+
+    // Trigger immediate execution for validation (non-blocking)
+    triggerImmediateMonitorExecution(newMonitor.id).catch(error => {
+      console.error(`Failed to trigger immediate execution for monitor ${newMonitor.id}:`, error);
+    });
   }
   return newMonitor;
 }
@@ -153,6 +158,11 @@ export async function updateMonitorHandler(monitorId: string, data: Partial<Moni
           .update(monitorTable)
           .set({ scheduledJobId: schedulerId })
           .where(eq(monitorTable.id, updatedMonitor.id));
+
+        // Trigger immediate execution for validation if monitor is enabled (non-blocking)
+        triggerImmediateMonitorExecution(updatedMonitor.id).catch(error => {
+          console.error(`Failed to trigger immediate execution for updated monitor ${updatedMonitor.id}:`, error);
+        });
           
       } catch (scheduleError) {
         console.error(`Failed to re-schedule monitor ${updatedMonitor.id} after update:`, scheduleError);
@@ -192,4 +202,59 @@ export async function deleteMonitorHandler(monitorId: string) {
     throw { statusCode: 404, message: 'Monitor not found for deletion' };
   }
   return deletedMonitor;
+}
+
+/**
+ * Trigger immediate execution of a monitor for validation/testing.
+ * Skips heartbeat monitors since they are passive.
+ */
+export async function triggerImmediateMonitorExecution(monitorId: string) {
+  console.log(`[IMMEDIATE_EXECUTION] Starting immediate execution for monitor ${monitorId}`);
+  
+  try {
+    // Get monitor details
+    const monitor = await db.query.monitors.findFirst({
+      where: eq(monitorTable.id, monitorId),
+    });
+
+    if (!monitor) {
+      console.warn(`[IMMEDIATE_EXECUTION] Monitor ${monitorId} not found`);
+      return;
+    }
+
+    console.log(`[IMMEDIATE_EXECUTION] Found monitor ${monitorId}: type=${monitor.type}, enabled=${monitor.enabled}, status=${monitor.status}`);
+
+    // Skip heartbeat monitors as they are passive (wait for pings)
+    if (monitor.type === 'heartbeat') {
+      console.log(`[IMMEDIATE_EXECUTION] Skipping heartbeat monitor ${monitorId}`);
+      return;
+    }
+
+    // Skip disabled monitors
+    if (!monitor.enabled || monitor.status === 'paused') {
+      console.log(`[IMMEDIATE_EXECUTION] Skipping disabled monitor ${monitorId} (enabled=${monitor.enabled}, status=${monitor.status})`);
+      return;
+    }
+
+    const jobDataPayload: MonitorJobData = {
+      monitorId: monitor.id,
+      type: monitor.type as MonitorJobData['type'],
+      target: monitor.target,
+      config: monitor.config as MonitorConfig,
+      frequencyMinutes: monitor.frequencyMinutes,
+    };
+
+    console.log(`[IMMEDIATE_EXECUTION] Adding monitor ${monitorId} to execution queue:`, {
+      type: jobDataPayload.type,
+      target: jobDataPayload.target,
+      hasConfig: !!jobDataPayload.config
+    });
+
+    // Add to execution queue with immediate priority
+    const jobId = await addMonitorExecutionJobToQueue(jobDataPayload);
+    console.log(`[IMMEDIATE_EXECUTION] Successfully triggered execution for monitor ${monitorId} (jobId: ${jobId}, type: ${monitor.type})`);
+  } catch (error) {
+    console.error(`[IMMEDIATE_EXECUTION] Failed to trigger execution for monitor ${monitorId}:`, error);
+    // Don't throw - immediate execution is a nice-to-have, not critical
+  }
 } 

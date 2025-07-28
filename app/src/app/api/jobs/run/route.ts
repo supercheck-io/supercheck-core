@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       let testName = test.name || test.title || `Test ${test.id}`;
       if (!testScript) {
         console.log(`[${jobId}/${runId}] Fetching script for test ${test.id}`);
-        const testResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/tests/${test.id}`);
+        const testResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/tests/${test.id}`);
         const testData = await testResult.json();
         
         if (testResult.ok && testData?.script) {

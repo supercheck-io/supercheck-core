@@ -1,7 +1,11 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { JOB_SCHEDULER_QUEUE, JOB_EXECUTION_QUEUE, JobExecutionTask } from '../constants';
+import {
+  JOB_SCHEDULER_QUEUE,
+  JOB_EXECUTION_QUEUE,
+  JobExecutionTask,
+} from '../constants';
 import { DbService } from '../../db/db.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -21,13 +25,31 @@ export class JobSchedulerProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<any, any, string>): Promise<any> {
-    this.logger.log(`Processing scheduled job trigger: ${job.name} (${job.id})`);
+  async process(
+    job: Job<
+      {
+        jobId: string;
+        testCases: Array<{ id: string; script: string; title: string }>;
+        retryLimit?: number;
+      },
+      any,
+      string
+    >,
+  ): Promise<{ success: boolean }> {
+    this.logger.log(
+      `Processing scheduled job trigger: ${job.name} (${job.id})`,
+    );
     await this.handleScheduledJobTrigger(job);
     return { success: true };
   }
 
-  private async handleScheduledJobTrigger(job: Job) {
+  private async handleScheduledJobTrigger(
+    job: Job<{
+      jobId: string;
+      testCases: Array<{ id: string; script: string; title: string }>;
+      retryLimit?: number;
+    }>,
+  ) {
     const jobId = job.data.jobId;
     try {
       const data = job.data;
@@ -76,7 +98,11 @@ export class JobSchedulerProcessor extends WorkerHost {
           this.logger.error(`Failed to calculate next run date: ${error}`);
         }
 
-        const updatePayload: { lastRunAt: Date; nextRunAt?: Date; status: 'running' } = {
+        const updatePayload: {
+          lastRunAt: Date;
+          nextRunAt?: Date;
+          status: 'running';
+        } = {
           lastRunAt: now,
           status: 'running',
         };
@@ -94,17 +120,19 @@ export class JobSchedulerProcessor extends WorkerHost {
       const task: JobExecutionTask = {
         runId,
         jobId,
-        testScripts: data.testCases.map((test) => ({
-          id: test.id,
-          script: test.script,
-          name: test.title,
-        })),
+        testScripts: data.testCases.map(
+          (test: { id: string; script: string; title: string }) => ({
+            id: test.id,
+            script: test.script,
+            name: test.title,
+          }),
+        ),
         trigger: 'schedule',
       };
 
       const jobOptions = {
         jobId: runId,
-        attempts: data.retryLimit || 3,
+        attempts: (data.retryLimit as number) || 3,
         backoff: {
           type: 'exponential' as const,
           delay: 5000,
@@ -114,14 +142,19 @@ export class JobSchedulerProcessor extends WorkerHost {
       };
 
       await this.jobExecutionQueue.add(runId, task, jobOptions);
-      this.logger.log(`Created execution task for scheduled job ${jobId}, run ${runId}`);
+      this.logger.log(
+        `Created execution task for scheduled job ${jobId}, run ${runId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to process scheduled job trigger for job ${jobId}:`, error);
+      this.logger.error(
+        `Failed to process scheduled job trigger for job ${jobId}:`,
+        error,
+      );
       await this.handleError(jobId, error);
     }
   }
 
-  private async handleError(jobId: string, error: any) {
+  private async handleError(jobId: string, error: unknown) {
     try {
       await this.dbService.db
         .update(jobs)
@@ -139,7 +172,10 @@ export class JobSchedulerProcessor extends WorkerHost {
         })
         .where(and(eq(runs.jobId, jobId), eq(runs.status, 'running')));
     } catch (dbError) {
-      this.logger.error(`Failed to update job/run status to error for job ${jobId}:`, dbError);
+      this.logger.error(
+        `Failed to update job/run status to error for job ${jobId}:`,
+        dbError,
+      );
     }
   }
 
@@ -149,7 +185,7 @@ export class JobSchedulerProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('failed')
-  onFailed(job: Job, error: any) {
+  onFailed(job: Job, error: unknown) {
     this.logger.error(`Scheduled job failed: ${job?.name}`, error);
   }
-} 
+}

@@ -3,19 +3,6 @@ import { db } from "@/utils/db";
 import { runs, reports, jobs, jobTests } from "@/db/schema/schema";
 import { eq, and, count } from "drizzle-orm";
 
-// Enable CORS for all origins
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Content-Type': 'application/json',
-};
-
-// Options handler for CORS preflight requests
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
-}
-
 // Get run handler
 export async function GET(
   request: Request,
@@ -28,10 +15,7 @@ export async function GET(
     if (!runId) {
       return NextResponse.json(
         { error: "Missing run ID" },
-        { 
-          status: 400,
-          headers: corsHeaders,
-        }
+        { status: 400 }
       );
     }
 
@@ -65,10 +49,7 @@ export async function GET(
     if (result.length === 0) {
       return NextResponse.json(
         { error: "Run not found" },
-        { 
-          status: 404,
-          headers: corsHeaders,
-        }
+        { status: 404 }
       );
     }
     
@@ -92,16 +73,13 @@ export async function GET(
       trigger: run.trigger,
     };
     
-    return NextResponse.json(response, { headers: corsHeaders });
+    return NextResponse.json(response);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Error fetching run: ${errorMessage}`, error);
     return NextResponse.json(
       { error: errorMessage },
-      { 
-        status: 500,
-        headers: corsHeaders,
-      }
+      { status: 500 }
     );
   }
 }
@@ -120,10 +98,7 @@ export async function DELETE(
       console.error('Missing run ID');
       return NextResponse.json(
         { success: false, error: "Missing run ID" },
-        { 
-          status: 400,
-          headers: corsHeaders,
-        }
+        { status: 400 }
       );
     }
 
@@ -138,10 +113,7 @@ export async function DELETE(
       console.error(`Run with ID ${runId} not found`);
       return NextResponse.json(
         { success: false, error: "Run not found" },
-        { 
-          status: 404,
-          headers: corsHeaders,
-        }
+        { status: 404 }
       );
     }
     
@@ -164,20 +136,14 @@ export async function DELETE(
     console.log(`Successfully deleted run: ${runId}`);
     return NextResponse.json(
       { success: true },
-      { 
-        status: 200,
-        headers: corsHeaders,
-      }
+      { status: 200 }
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Error deleting run: ${errorMessage}`, error);
     return NextResponse.json(
       { success: false, error: errorMessage },
-      { 
-        status: 500,
-        headers: corsHeaders,
-      }
+      { status: 500 }
     );
   }
 } 

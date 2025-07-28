@@ -499,17 +499,26 @@ export async function setQueueCapacityLimit(limit: number): Promise<void> {
  * Add a monitor execution task to the MONITOR_EXECUTION_QUEUE.
  */
 export async function addMonitorExecutionJobToQueue(task: MonitorJobData): Promise<string> {
-  const { monitorExecutionQueue } = await getQueues();
-  const job = await monitorExecutionQueue.add(
-    `monitor-execution-${task.monitorId}`, 
-    task,
-    {
-      jobId: task.monitorId, // Use monitorId as job ID to prevent duplicates if job already in queue
-      removeOnComplete: true, // Auto-remove successful monitor jobs
-      removeOnFail: { count: 10 }, // Keep last 10 failed jobs for debugging
-    }
-  );
-  return job.id!;
+  console.log(`[Queue Client] Adding monitor execution job for monitor ${task.monitorId} to queue ${MONITOR_EXECUTION_QUEUE}`);
+  
+  try {
+    const { monitorExecutionQueue } = await getQueues();
+    const job = await monitorExecutionQueue.add(
+      'executeMonitorJob', // Use the correct job name that the processor expects
+      task,
+      {
+        jobId: task.monitorId, // Use monitorId as job ID to prevent duplicates if job already in queue
+        removeOnComplete: true, // Auto-remove successful monitor jobs
+        removeOnFail: { count: 10 }, // Keep last 10 failed jobs for debugging
+        priority: 1, // Higher priority for immediate execution
+      }
+    );
+    console.log(`[Queue Client] Monitor execution job ${job.id} added successfully for monitor ${task.monitorId}`);
+    return job.id!;
+  } catch (error) {
+    console.error(`[Queue Client] Error adding monitor execution job for monitor ${task.monitorId}:`, error);
+    throw new Error(`Failed to add monitor execution job: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 export interface HeartbeatPingNotificationData {

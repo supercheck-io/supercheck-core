@@ -390,6 +390,13 @@ export type MonitorConfig = {
   gracePeriodMinutes?: number;
   heartbeatUrl?: string;
   lastPingAt?: string;
+  // SSL-specific settings
+  enableSslCheck?: boolean;
+  sslDaysUntilExpirationWarning?: number;
+  sslCheckFrequencyHours?: number;
+  sslLastCheckedAt?: string;
+  sslCheckOnStatusChange?: boolean;
+  // Legacy fields (deprecated, use SSL-specific fields above)
   checkExpiration?: boolean;
   daysUntilExpirationWarning?: number;
   checkRevocation?: boolean;

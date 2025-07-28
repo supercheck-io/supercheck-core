@@ -1,7 +1,11 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { MONITOR_SCHEDULER_QUEUE, MONITOR_EXECUTION_QUEUE, EXECUTE_MONITOR_JOB_NAME } from '../constants';
+import {
+  MONITOR_SCHEDULER_QUEUE,
+  MONITOR_EXECUTION_QUEUE,
+  EXECUTE_MONITOR_JOB_NAME,
+} from '../constants';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { MonitorJobData } from '../interfaces';
@@ -16,37 +20,48 @@ export class MonitorSchedulerProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<MonitorJobData, void, string>): Promise<any> {
-    this.logger.log(`Processing scheduled monitor trigger: ${job.name} (${job.id})`);
+  async process(
+    job: Job<MonitorJobData, void, string>,
+  ): Promise<{ success: boolean }> {
+    this.logger.log(
+      `Processing scheduled monitor trigger: ${job.name} (${job.id})`,
+    );
     await this.handleScheduledMonitorTrigger(job);
     return { success: true };
   }
 
-  private async handleScheduledMonitorTrigger(job: Job) {
+  private async handleScheduledMonitorTrigger(job: Job<MonitorJobData>) {
     const monitorId = job.data.monitorId;
     try {
       const data = job.data;
-      this.logger.log(`Handling scheduled monitor trigger for monitor ${monitorId}`);
+      this.logger.log(
+        `Handling scheduled monitor trigger for monitor ${monitorId}`,
+      );
 
       // Extract the jobData from the scheduler job and pass it to the execution queue
-      const executionJobData = data.jobData;
-      
+      const executionJobData = data.jobData as unknown;
+
       // Add job to execution queue (like job scheduler does)
       await this.monitorExecutionQueue.add(
         EXECUTE_MONITOR_JOB_NAME,
         executionJobData,
         {
           jobId: monitorId,
-          attempts: data.retryLimit || 3,
+          attempts: (data.retryLimit as number) || 3,
           backoff: { type: 'exponential', delay: 5000 },
           removeOnComplete: true,
           removeOnFail: { count: 1000 },
-        }
+        },
       );
-      
-      this.logger.log(`Created execution task for scheduled monitor ${monitorId}`);
+
+      this.logger.log(
+        `Created execution task for scheduled monitor ${monitorId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to process scheduled monitor trigger for monitor ${monitorId}:`, error);
+      this.logger.error(
+        `Failed to process scheduled monitor trigger for monitor ${monitorId}:`,
+        error,
+      );
     }
   }
 
@@ -56,7 +71,7 @@ export class MonitorSchedulerProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('failed')
-  onFailed(job: Job, error: any) {
+  onFailed(job: Job, error: unknown) {
     this.logger.error(`Scheduled monitor failed: ${job?.name}`, error);
   }
-} 
+}

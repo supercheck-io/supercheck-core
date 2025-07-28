@@ -89,19 +89,21 @@ services:
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       
-      # Let's Encrypt configuration
-      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      # Let's Encrypt configuration with HTTP challenge (more reliable)
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-hello@meditationblue.com}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.myresolver.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"
       
-      # HTTP to HTTPS redirect
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
     
     ports:
-      - "80:80"      # HTTP entry point
-      - "443:443"    # HTTPS entry point  
-      - "8080:8080"  # Traefik dashboard
+      - "80:80"      # HTTP entry point (required for ACME challenges)
+      - "443:443"    # HTTPS entry point
+      # Port 8080 removed for security - dashboard only via HTTPS
     
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -109,10 +111,14 @@ services:
     
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:-supercheck.meditationblue.com}`)"
-      - "traefik.http.routers.traefik.entrypoints=websecure"
-      - "traefik.http.routers.traefik.tls.certresolver=myresolver"
-      - "traefik.http.routers.traefik.service=api@internal"
+      # Secure dashboard router (HTTPS only) - matches both /api and /dashboard
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=myresolver"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=dashboard-auth"
+      # Basic auth middleware (change default password!)
+      - "traefik.http.middlewares.dashboard-auth.basicauth.users=admin:$$apr1$$FY28Hi7I$$HBfY4It75DZpccigvT0Ht/"
     
     networks:
       - supercheck-network
@@ -266,8 +272,17 @@ docker-compose up -d
 ## Traefik Dashboard
 
 ### Access
-- **URL**: `https://traefik.your-domain.com:8080`
-- **Authentication**: None (consider adding authentication for production)
+- **URL**: `https://traefik.your-domain.com/dashboard/`
+- **Authentication**: Basic Auth (admin/supersecure-dashboard-password)
+- **API Endpoint**: `https://traefik.your-domain.com/api/`
+
+⚠️ **Important**: Dashboard is now secured by default with basic authentication and HTTPS-only access. Port 8080 is no longer exposed for security reasons.
+
+### Default Credentials
+- **Username**: `admin`
+- **Password**: `supersecure-dashboard-password`
+
+🔒 **Security Note**: Always change the default password before production deployment!
 
 ### Dashboard Features
 1. **Services Overview**: View all discovered services
@@ -277,26 +292,45 @@ docker-compose up -d
 5. **Certificates**: Monitor SSL certificate status
 
 ### Securing the Dashboard
-For production environments, add authentication:
+The dashboard is now secured by default using Traefik v3.0 best practices:
 
 ```yaml
 labels:
-  - "traefik.http.routers.traefik.middlewares=auth"
-  - "traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$10$$..."
+  - "traefik.enable=true"
+  # Dashboard router matches both /api and /dashboard paths per official docs
+  - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+  - "traefik.http.routers.dashboard.entrypoints=websecure"
+  - "traefik.http.routers.dashboard.tls.certresolver=myresolver"
+  - "traefik.http.routers.dashboard.service=api@internal"
+  - "traefik.http.routers.dashboard.middlewares=dashboard-auth"
+  # Basic auth middleware with hashed password
+  - "traefik.http.middlewares.dashboard-auth.basicauth.users=admin:$$apr1$$FY28Hi7I$$HBfY4It75DZpccigvT0Ht/"
 ```
 
-Generate password hash:
+### Changing Dashboard Password
+Generate a new password hash:
 ```bash
-htpasswd -nb admin your_password
+# Generate new password hash
+htpasswd -nb admin your_new_password
+
+# Example output: admin:$apr1$abc123$xyz789...
 ```
+
+Update the docker-compose.yml:
+```yaml
+- "traefik.http.middlewares.dashboard-auth.basicauth.users=admin:$$apr1$$abc123$$xyz789..."
+```
+
+⚠️ **Important**: Double the dollar signs (`$$`) in docker-compose.yml to escape them properly.
 
 ## SSL Certificate Management
 
 ### Let's Encrypt Integration
 - **Provider**: Let's Encrypt via ACME protocol
-- **Challenge Type**: TLS Challenge (port 443)
+- **Challenge Type**: HTTP Challenge (port 80) - More reliable than TLS challenge
 - **Storage**: `/letsencrypt/acme.json` volume
 - **Renewal**: Automatic (30 days before expiration)
+- **CA Server**: Production Let's Encrypt (use staging for testing)
 
 ### Certificate Storage
 ```bash
@@ -327,6 +361,45 @@ openssl s_client -connect your-domain.com:443 -servername your-domain.com 2>/dev
 ```
 
 ## Security Considerations
+
+### ✅ Current Security Implementation
+
+This configuration implements several security best practices:
+
+1. **Secure Dashboard Access**:
+   - ✅ HTTPS-only dashboard access
+   - ✅ Basic authentication enabled by default
+   - ✅ No insecure port 8080 exposure
+   - ✅ Following Traefik v3.0 official recommendations
+
+2. **Certificate Security**:
+   - ✅ HTTP challenge (more secure than TLS challenge)
+   - ✅ Production Let's Encrypt CA
+   - ✅ Automatic certificate renewal
+   - ✅ Secure certificate storage in Docker volume
+
+3. **Network Security**:
+   - ✅ Services only accessible through Traefik
+   - ✅ Docker socket read-only access
+   - ✅ No unnecessary port exposures
+
+4. **Authentication**:
+   - ✅ Dashboard protected with basic auth
+   - ✅ Hashed password storage
+   - ⚠️ **Action Required**: Change default password in production
+
+### 🔒 Production Security Checklist
+
+Before deploying to production, ensure:
+
+- [ ] Change default dashboard password
+- [ ] Set proper ACME_EMAIL environment variable
+- [ ] Configure firewall to allow only ports 80, 443
+- [ ] Enable log monitoring and alerting
+- [ ] Set up certificate expiration monitoring
+- [ ] Review and restrict dashboard access by IP if needed
+- [ ] Enable additional security headers (see examples below)
+
 
 ### Network Security
 1. **Firewall Rules**:
@@ -415,7 +488,7 @@ docker-compose logs traefik | grep -i "app"
 docker-compose logs traefik | grep -i redirect
 
 # Verify app configuration
-curl -I -H "Host: your-domain.com" http://localhost:3000
+curl -I -H "Host: your-domain.com" ${NEXT_PUBLIC_APP_URL}
 ```
 
 #### 4. Dashboard Not Accessible
@@ -594,11 +667,14 @@ Import Traefik dashboard for visualization:
 5. **Documentation**: Keep deployment documentation updated
 
 ### Security Hardening
-1. **Dashboard authentication**: Always enable authentication for dashboard
-2. **Network segmentation**: Use dedicated networks for different services
-3. **Log management**: Centralized logging for security analysis
-4. **Regular updates**: Keep Traefik version updated
-5. **Access control**: Restrict dashboard access to authorized users only
+1. **Dashboard authentication**: ✅ Enabled by default with basic auth
+2. **Port exposure**: ✅ Port 8080 removed, dashboard only via HTTPS
+3. **Network segmentation**: Use dedicated networks for different services
+4. **Password security**: Always change default dashboard password
+5. **Log management**: Centralized logging for security analysis
+6. **Regular updates**: Keep Traefik version updated
+7. **Access control**: Restrict dashboard access to authorized users only
+8. **Certificate validation**: HTTP challenge prevents DNS poisoning attacks
 
 ### Performance Optimization
 1. **Resource allocation**: Adequate CPU/memory for certificate operations

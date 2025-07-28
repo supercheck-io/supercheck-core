@@ -1,18 +1,40 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs/promises';
-import { existsSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { promisify } from 'util';
-import { exec } from 'child_process';
+import { exec, ExecOptions } from 'child_process';
 import { randomUUID } from 'crypto';
 
+// Utility function to safely get error message
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+// Utility function to safely get error stack
+function getErrorStack(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.stack;
+  }
+  return undefined;
+}
+
 const execAsync = promisify(exec);
+
+// Interface for exec error with proper typing
+interface ExecError extends Error {
+  code?: number;
+  stdout?: string | Buffer;
+  stderr?: string | Buffer;
+}
 
 // Helper function to execute a command and get the exitCode
 async function execWithExitCode(
   command: string,
-  options: any = {},
+  options: ExecOptions = {},
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
     const { stdout, stderr } = await execAsync(command, options);
@@ -21,22 +43,23 @@ async function execWithExitCode(
       stderr: stderr.toString(),
       exitCode: 0,
     }; // Success
-  } catch (error) {
+  } catch (error: unknown) {
+    const execError = error as ExecError;
     if (
-      error.code !== undefined &&
-      error.stdout !== undefined &&
-      error.stderr !== undefined
+      execError?.code !== undefined &&
+      execError?.stdout !== undefined &&
+      execError?.stderr !== undefined
     ) {
       return {
         stdout:
-          typeof error.stdout === 'string'
-            ? error.stdout
-            : error.stdout.toString(),
+          typeof execError.stdout === 'string'
+            ? execError.stdout
+            : String(execError.stdout),
         stderr:
-          typeof error.stderr === 'string'
-            ? error.stderr
-            : error.stderr.toString(),
-        exitCode: error.code,
+          typeof execError.stderr === 'string'
+            ? execError.stderr
+            : String(execError.stderr),
+        exitCode: execError.code,
       };
     }
     throw error; // Re-throw if it's not the expected error format
@@ -182,8 +205,8 @@ const path = require('path');
     } catch (error) {
       const duration = Date.now() - startTime;
       this.logger.error(
-        `Failed to execute test: ${error.message}`,
-        error.stack,
+        `Failed to execute test: ${getErrorMessage(error)}`,
+        getErrorStack(error),
       );
 
       return {
@@ -191,7 +214,7 @@ const path = require('path');
         exitCode: 1,
         duration,
         stdout: '',
-        stderr: error.message,
+        stderr: getErrorMessage(error),
       };
     }
   }
@@ -206,15 +229,14 @@ const path = require('path');
       const result = await execWithExitCode(cmdString, options);
       return result;
     } catch (error) {
-      this.logger.error(`Command execution failed: ${error.message}`);
-      return { stdout: '', stderr: error.message, exitCode: 1 };
+      this.logger.error(`Command execution failed: ${getErrorMessage(error)}`);
+      return { stdout: '', stderr: getErrorMessage(error), exitCode: 1 };
     }
   }
 
   private async _executeNode(
     testFilePath: string,
     reportDir: string,
-    testId: string,
   ): Promise<ExecutionResult> {
     this.logger.log(`Executing Node script: ${testFilePath}`);
 
@@ -229,16 +251,18 @@ const path = require('path');
       // Check if there's a success.json file which our test script creates on success
       const successFilePath = path.join(reportDir, 'success.json');
       let success = false;
-      let result: any = {};
+      let result: Record<string, unknown> = {};
 
       try {
         if (await this._fileExists(successFilePath)) {
           const resultData = await fs.readFile(successFilePath, 'utf8');
-          result = JSON.parse(resultData);
+          result = JSON.parse(resultData) as Record<string, unknown>;
           success = true;
         }
       } catch (error) {
-        this.logger.error(`Error reading success file: ${error.message}`);
+        this.logger.error(
+          `Error reading success file: ${getErrorMessage(error)}`,
+        );
       }
 
       return {
@@ -247,15 +271,17 @@ const path = require('path');
         stdout: stdout,
         stderr: stderr,
         reportDir: reportDir,
-        screenshots: result.screenshots || [],
+        screenshots: (result.screenshots as string[]) || [],
       };
     } catch (error) {
-      this.logger.error(`Error executing Node script: ${error.message}`);
+      this.logger.error(
+        `Error executing Node script: ${getErrorMessage(error)}`,
+      );
       return {
         success: false,
         exitCode: 1,
         stdout: '',
-        stderr: error.message,
+        stderr: getErrorMessage(error),
         reportDir: reportDir,
       };
     }
@@ -292,7 +318,7 @@ const path = require('path');
       this.logger.log(`Report directory created at ${reportDir}`);
 
       // Execute the test with Node
-      const result = await this._executeNode(testFilePath, reportDir, testId);
+      const result = await this._executeNode(testFilePath, reportDir);
 
       const duration = Date.now() - startTime;
       this.logger.log(
@@ -305,11 +331,11 @@ const path = require('path');
         testId,
       };
     } catch (error) {
-      this.logger.error(`Error executing test: ${error.message}`);
+      this.logger.error(`Error executing test: ${getErrorMessage(error)}`);
       return {
         success: false,
         exitCode: 1,
-        stderr: error.message,
+        stderr: getErrorMessage(error),
         stdout: '',
         reportDir: '',
         duration: Date.now() - startTime,

@@ -8,7 +8,7 @@ export class DbService implements OnModuleInit {
   private readonly logger = new Logger(DbService.name);
   public db: PostgresJsDatabase<typeof schema>;
 
-  async onModuleInit() {
+  onModuleInit() {
     this.logger.log('Initializing database connection...');
     try {
       const queryClient = postgres(process.env.DATABASE_URL!);
@@ -19,4 +19,4 @@ export class DbService implements OnModuleInit {
       throw error;
     }
   }
-} 
+}

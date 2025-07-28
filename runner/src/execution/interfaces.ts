@@ -1,4 +1,10 @@
 // Interfaces migrated from the original project and processor definitions
+import {
+  JobTrigger,
+  TestRunStatus,
+  ReportType,
+  MonitorType,
+} from '../db/schema';
 
 // Result of a single test execution
 export interface TestResult {
@@ -45,7 +51,7 @@ export interface TestExecutionTask {
   testId: string;
   // Consider passing the code directly instead of a path
   // as the worker service doesn't share the filesystem
-  code: string; 
+  code: string;
   // testPath: string; // Original field - needs adaptation
 }
 
@@ -58,14 +64,12 @@ export interface JobExecutionTask {
   trigger: JobTrigger; // Add trigger property
 }
 
-export type JobTrigger = 'manual' | 'remote' | 'schedule'; // Define allowed trigger values
-
 // Optional: Interface for database report metadata storage
 export interface ReportMetadata {
   entityId: string;
-  entityType: "test" | "job";
+  entityType: ReportType;
   reportPath: string; // This might be the S3 key/path
-  status: "running" | "passed" | "failed" | "error";
+  status: TestRunStatus;
   s3Url?: string; // Explicitly store the final S3 URL
   createdAt?: Date;
   updatedAt?: Date;
@@ -74,13 +78,10 @@ export interface ReportMetadata {
 // Interface for Monitor Job Data (mirroring DTO in runner)
 export interface MonitorJobData {
   monitorId: string;
-  type: "http_request" | "website" | "ping_host" | "port_check" | "heartbeat" | "ssl";
+  type: MonitorType;
   target: string;
   config?: any;
-  frequencyMinutes?: number; 
+  frequencyMinutes?: number;
+  jobData?: any;
+  retryLimit?: number;
 }
-
-export enum TestRunStatus {
-  RUNNING = 'running',
-  // ... existing code ...
-} 

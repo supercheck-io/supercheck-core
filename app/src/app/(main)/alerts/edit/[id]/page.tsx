@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 async function fetchNotificationProvider(id: string) {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notification-providers/${id}`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/notification-providers/${id}`, {
       cache: 'no-store'
     });
     

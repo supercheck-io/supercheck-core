@@ -52,7 +52,7 @@ export const columns: ColumnDef<Monitor>[] = [
       if (!isTruncated) {
         return (
           <div className="flex space-x-2">
-            <span className="max-w-[160px] truncate">
+            <span className="font-medium max-w-[160px] truncate">
               {name}
             </span>
           </div>
@@ -61,7 +61,7 @@ export const columns: ColumnDef<Monitor>[] = [
       
       return (
         <div className="flex space-x-2">
-          <span className="max-w-[160px] truncate" title={name}>
+          <span className="font-medium max-w-[160px] truncate" title={name}>
             {name}
           </span>
         </div>
@@ -88,7 +88,7 @@ export const columns: ColumnDef<Monitor>[] = [
           displayUrl = heartbeatUrl;
         } else {
           // Fallback: construct URL from target token
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
           displayUrl = `${baseUrl}/api/heartbeat/${target}`;
         }
         

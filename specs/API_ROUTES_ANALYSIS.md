@@ -31,7 +31,7 @@ The API is organized into logical groups:
 | `/api/alerts/history/route.ts` | Alert history | ✅ Essential | Tracks alert events |
 | `/api/heartbeat/[token]/route.ts` | Heartbeat monitoring | ✅ Essential | External health checks |
 | `/api/queue-stats/sse/route.ts` | Real-time queue stats | ✅ Essential | SSE for live updates |
-| `/api/job-status/sse/[jobId]/route.ts` | Real-time job status | ✅ Essential | SSE for job progress |
+| `/api/job-status/events/[jobId]/route.ts` | Real-time job status | ✅ Essential | SSE for job progress |
 
 ### **Route-Specific Improvements**
 

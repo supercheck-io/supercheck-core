@@ -7,6 +7,7 @@ import { ExecutionModule } from './execution.module';
 import { MonitorModule } from './monitor/monitor.module';
 import { NotificationModule } from './notification/notification.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         connection: {
           host: configService.get<string>('REDIS_HOST', 'localhost'),
           port: configService.get<number>('REDIS_PORT', 6379),
@@ -29,6 +30,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     MonitorModule,
     NotificationModule,
     SchedulerModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

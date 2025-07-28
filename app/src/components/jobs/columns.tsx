@@ -36,7 +36,7 @@ function NameWithPopover({ name }: { name: string }) {
   if (!isTruncated) {
     return (
       <div className="flex space-x-2">
-        <span className="max-w-[160px] truncate">
+        <span className="font-medium max-w-[160px] truncate">
           {name}
         </span>
       </div>

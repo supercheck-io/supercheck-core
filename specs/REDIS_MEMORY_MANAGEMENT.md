@@ -218,7 +218,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   ) {
     // Initialize Redis connection
     this.redisClient = new Redis({
-      host: this.configService.get<string>('REDIS_HOST', 'localhost'),
+      host: this.configService.get<string>('REDIS_HOST', 'redis'),
       port: this.configService.get<number>('REDIS_PORT', 6379),
       password: this.configService.get<string>('REDIS_PASSWORD'),
       maxRetriesPerRequest: null,
@@ -381,7 +381,7 @@ The Redis memory management system can be configured via environment variables:
 
 ```bash
 # Redis Configuration
-REDIS_HOST=localhost
+REDIS_HOST=redis
 REDIS_PORT=6379
 REDIS_PASSWORD=
 

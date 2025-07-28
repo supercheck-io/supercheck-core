@@ -369,10 +369,7 @@ export default function AlertsPage() {
                         <p className="text-muted-foreground mb-4">
                           Add your first notification channel to start receiving alerts
                         </p>
-                        <Button onClick={() => setIsCreateDialogOpen(true)}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Channel
-                        </Button>
+                       
                       </div>
                     ) : (
                       <NotificationChannelsComponent
@@ -386,13 +383,21 @@ export default function AlertsPage() {
                 <TabsContent value="history" className="mt-2">
                   <div className="h-full flex-1 flex-col md:flex">
                     {alertHistory.length === 0 && !loading ? (
-                      <div className="text-center py-8">
+                      <>   
+                      <div>
+                        <CardTitle className="text-2xl font-semibold">Alert History</CardTitle>
+                        <CardDescription>
+                          View the history of alerts
+                        </CardDescription>
+                      </div>
+                      <div className="text-center py-12">
                         <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-md font-medium mb-2">No alerts found</h3>
-                        <p className="text-muted-foreground text-sm">
+                        <h3 className="text-lg font-medium mb-2">No alerts found</h3>
+                        <p className="text-muted-foreground">
                           Alerts will appear here when your monitors or jobs trigger notifications
                         </p>
                       </div>
+                      </>
                     ) : (
                       <DataTable columns={columns} data={alertHistory} isLoading={loading} />
                     )}

@@ -87,8 +87,8 @@ sequenceDiagram
     NextFE->>NextAPI: POST /api/test
     NextAPI->>Redis: Add test to 'test-execution' queue
     NextAPI-->>NextFE: Return testId, success status
-    NextFE->>NextAPI: Open SSE connection<br>/api/test-status/sse/[testId]
-    NextAPI->>Redis: Subscribe to 'test-status:[testId]' channel<br>with TTL
+    NextFE->>NextAPI: Open SSE connection<br>/api/test-status/events/[testId]
+    NextAPI->>Redis: Subscribe to 'test:[testId]:status' and<br>'test:[testId]:complete' channels
     NextAPI-->>NextFE: Establish SSE stream
 
     %% Worker picks up test from queue
@@ -356,13 +356,13 @@ The test execution system can be configured via environment variables:
 
 ```bash
 # Database
-DATABASE_URL=postgres://user:password@localhost:5432/supertest
+DATABASE_URL=postgres://user:password@${DB_HOST}:5432/supertest
 
 # Redis (for queue)
-REDIS_URL=redis://localhost:6379
+REDIS_URL=redis://${REDIS_HOST}:6379
 
 # S3/MinIO
-S3_ENDPOINT=http://localhost:9000
+S3_ENDPOINT=http://${S3_HOST}:9000
 S3_JOB_BUCKET_NAME=playwright-job-artifacts
 S3_TEST_BUCKET_NAME=playwright-test-artifacts
 AWS_REGION=us-east-1

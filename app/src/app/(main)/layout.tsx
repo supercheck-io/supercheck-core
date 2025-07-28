@@ -46,7 +46,7 @@ export default async function MainLayout({
                 />
                 <BreadcrumbDisplay />
               </div>
-              <div className="flex items-center gap-8 px-4">
+              <div className="flex items-center gap-10 px-4">
                 <CommandSearch />
                 <ParallelThreads />
                 <NavUser />

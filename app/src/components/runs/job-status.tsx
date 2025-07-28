@@ -37,7 +37,7 @@ export function JobStatus({ jobId, initialStatus }: JobStatusProps) {
     console.log(`[JobStatus] Setting up SSE for job status: ${jobId}, initial status: ${initialStatus}`);
     
     // Create new EventSource connection
-    const eventSource = new EventSource(`/api/job-status/sse/${jobId}`);
+            const eventSource = new EventSource(`/api/job-status/events/${jobId}`);
     eventSourceRef.current = eventSource;
     
     // Reset toast flag on new connection

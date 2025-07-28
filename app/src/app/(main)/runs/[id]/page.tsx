@@ -28,7 +28,7 @@ export default async function RunPage({ params }: Params) {
   const { id } = await params;
   
   // Fetch run data from API
-  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/runs/${id}`, {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/runs/${id}`, {
     cache: 'no-store'
   });
   

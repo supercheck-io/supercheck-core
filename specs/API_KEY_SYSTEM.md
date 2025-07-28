@@ -203,7 +203,7 @@ if (key.jobId !== jobId) {
 1. Copy the generated API key
 2. Use curl to test the trigger endpoint:
 ```bash
-curl -X POST "http://localhost:3000/api/jobs/{jobId}/trigger" \
+curl -X POST "${NEXT_PUBLIC_APP_URL}/api/jobs/{jobId}/trigger" \
   -H "Content-Type: application/json" \
   -H "x-api-key: {your-api-key}"
 ```
@@ -225,12 +225,12 @@ curl -X POST "http://localhost:3000/api/jobs/{jobId}/trigger" \
 ### Example Test Commands
 ```bash
 # Create API key for job
-curl -X POST "http://localhost:3000/api/jobs/{jobId}/api-keys" \
+curl -X POST "${NEXT_PUBLIC_APP_URL}/api/jobs/{jobId}/api-keys" \
   -H "Content-Type: application/json" \
   -d '{"name": "Test Key"}'
 
 # Trigger job with API key
-curl -X POST "http://localhost:3000/api/jobs/{jobId}/trigger" \
+curl -X POST "${NEXT_PUBLIC_APP_URL}/api/jobs/{jobId}/trigger" \
   -H "x-api-key: {api-key}"
 ```
 

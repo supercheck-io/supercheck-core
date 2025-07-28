@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { MonitorForm } from "./monitor-form";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ export function MonitorCreationWizard() {
   const router = useRouter();
   const [showAlerts, setShowAlerts] = useState(false);
   const [monitorData, setMonitorData] = useState<FormValues | undefined>(undefined);
+  const [apiData, setApiData] = useState<Record<string, unknown> | undefined>(undefined);
   const [alertConfig, setAlertConfig] = useState<AlertConfig>({
     enabled: false,
     notificationProviders: [],
@@ -29,17 +30,16 @@ export function MonitorCreationWizard() {
   const type = searchParams?.get('type') || 'http_request';
   const typeLabel = type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
-  // Clear monitor data when URL changes and we're not in alert mode
-  useEffect(() => {
-    if (!showAlerts) {
-      setMonitorData(undefined);
-    }
-  }, [type, showAlerts]);
+  // Don't clear monitor data when URL changes - preserve form state
+  // This was causing the form to lose data when navigating between pages
 
   const handleMonitorNext = (data: Record<string, unknown>) => {
-    // Transform the form data to FormValues format
-    const formData: FormValues = data as FormValues;
+    // Extract form data and API data from the passed object
+    const { formData, apiData: monitorApiData } = data as { formData: FormValues; apiData: Record<string, unknown> };
+    
+    // Store the form data for state persistence and API data for creation
     setMonitorData(formData);
+    setApiData(monitorApiData);
     setShowAlerts(true);
   };
 
@@ -88,7 +88,7 @@ export function MonitorCreationWizard() {
 
     try {
       const finalData = {
-        ...monitorData,
+        ...apiData,
         alertConfig: alertConfig,
       };
       
@@ -171,7 +171,7 @@ export function MonitorCreationWizard() {
             })}
             context="monitor"
             monitorType={monitorData?.type || (type as MonitorType)}
-            sslCheckEnabled={monitorData?.type === 'website' ? !!monitorData?.websiteConfig_enableSslCheck : false}
+            sslCheckEnabled={monitorData?.type === 'website' && !!monitorData?.websiteConfig_enableSslCheck}
           />
           <div className="flex justify-end gap-6 pt-4">
             <Button variant="outline" onClick={handleBack}>

@@ -57,7 +57,7 @@ export function RunStatusListener({
     // Establish SSE connection
     // Using runId instead of jobId for the SSE connection
     console.log(`[RunStatusListener] Setting up SSE connection for run ${runId}`);
-    const eventSource = new EventSource(`/api/job-status/sse/${runId}`);
+            const eventSource = new EventSource(`/api/job-status/events/${runId}`);
     eventSourceRef.current = eventSource;
     
     // Reset toast flag on new connection

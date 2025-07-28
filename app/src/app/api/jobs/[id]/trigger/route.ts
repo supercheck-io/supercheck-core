@@ -197,7 +197,7 @@ export async function POST(
 
     // Trigger the job by calling the existing job run API
     const runResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/jobs/run`,
+      `${process.env.NEXT_PUBLIC_APP_URL}/api/jobs/run`,
       {
         method: "POST",
         headers: {

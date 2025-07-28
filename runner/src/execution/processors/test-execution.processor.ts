@@ -20,52 +20,69 @@ export class TestExecutionProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('completed')
-  onCompleted(job: Job, result: any) {
-    this.logger.log(`[Event:completed] Job ${job.id} completed with result: ${JSON.stringify(result)}`);
+  onCompleted(job: Job, result: unknown) {
+    this.logger.log(
+      `[Event:completed] Job ${job.id} completed with result: ${JSON.stringify(result)}`,
+    );
   }
 
   @OnWorkerEvent('failed')
   onFailed(job: Job | undefined, error: Error) {
     const jobId = job?.id || 'unknown';
-    this.logger.error(`[Event:failed] Job ${jobId} failed with error: ${error.message}`, error.stack);
+    this.logger.error(
+      `[Event:failed] Job ${jobId} failed with error: ${error.message}`,
+      error.stack,
+    );
   }
-  
+
   @OnWorkerEvent('error')
   onError(error: Error) {
-    this.logger.error(`[Event:error] Worker encountered an error: ${error.message}`, error.stack);
+    this.logger.error(
+      `[Event:error] Worker encountered an error: ${error.message}`,
+      error.stack,
+    );
   }
 
   @OnWorkerEvent('ready')
   onReady() {
     // This indicates the underlying BullMQ worker is connected and ready
-    this.logger.log('[Event:ready] Worker is connected to Redis and ready to process jobs.');
+    this.logger.log(
+      '[Event:ready] Worker is connected to Redis and ready to process jobs.',
+    );
   }
 
   async process(job: Job<TestExecutionTask>): Promise<TestResult> {
     const testId = job.data.testId;
     const startTime = new Date();
-    this.logger.log(`[${testId}] Test execution job ID: ${job.id} received for processing`);
-    
+    this.logger.log(
+      `[${testId}] Test execution job ID: ${job.id} received for processing`,
+    );
+
     try {
-      await job.updateProgress(10); 
+      await job.updateProgress(10);
 
       // Delegate the actual execution to the service
       const result = await this.executionService.runSingleTest(job.data);
-      
+
       // Calculate execution duration
       const endTime = new Date();
       const durationMs = endTime.getTime() - startTime.getTime();
       const durationSeconds = Math.floor(durationMs / 1000);
-      
+
       await job.updateProgress(100);
-      this.logger.log(`[${testId}] Test execution job ID: ${job.id} completed. Success: ${result.success}, Duration: ${durationSeconds}s`);
-      
+      this.logger.log(
+        `[${testId}] Test execution job ID: ${job.id} completed. Success: ${result.success}, Duration: ${durationSeconds}s`,
+      );
+
       // The result object (TestResult) from the service is returned
       return result;
     } catch (error) {
-      this.logger.error(`[${testId}] Test execution job ID: ${job.id} failed. Error: ${error.message}`, error.stack);
+      this.logger.error(
+        `[${testId}] Test execution job ID: ${job.id} failed. Error: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       await job.updateProgress(100);
       throw error instanceof Error ? error : new Error(String(error));
     }
   }
-} 
+}

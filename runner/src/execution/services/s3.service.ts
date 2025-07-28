@@ -10,6 +10,22 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { getContentType } from '../services/execution.service';
 
+// Utility function to safely get error message
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+// Utility function to safely get error stack
+function getErrorStack(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.stack;
+  }
+  return undefined;
+}
+
 @Injectable()
 export class S3Service implements OnModuleInit {
   private readonly logger = new Logger(S3Service.name);
@@ -21,16 +37,36 @@ export class S3Service implements OnModuleInit {
   private operationTimeout: number;
 
   constructor(private configService: ConfigService) {
-    this.jobBucketName = this.configService.get<string>('S3_JOB_BUCKET_NAME', 'playwright-job-artifacts');
-    this.testBucketName = this.configService.get<string>('S3_TEST_BUCKET_NAME', 'playwright-test-artifacts');
-    this.s3Endpoint = this.configService.get<string>('S3_ENDPOINT', 'http://localhost:9000');
+    this.jobBucketName = this.configService.get<string>(
+      'S3_JOB_BUCKET_NAME',
+      'playwright-job-artifacts',
+    );
+    this.testBucketName = this.configService.get<string>(
+      'S3_TEST_BUCKET_NAME',
+      'playwright-test-artifacts',
+    );
+    this.s3Endpoint = this.configService.get<string>(
+      'S3_ENDPOINT',
+      'http://localhost:9000',
+    );
     const region = this.configService.get<string>('AWS_REGION', 'us-east-1');
-    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID', 'minioadmin');
-    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY', 'minioadmin');
+    const accessKeyId = this.configService.get<string>(
+      'AWS_ACCESS_KEY_ID',
+      'minioadmin',
+    );
+    const secretAccessKey = this.configService.get<string>(
+      'AWS_SECRET_ACCESS_KEY',
+      'minioadmin',
+    );
     this.maxRetries = this.configService.get<number>('S3_MAX_RETRIES', 3);
-    this.operationTimeout = this.configService.get<number>('S3_OPERATION_TIMEOUT', 5000);
+    this.operationTimeout = this.configService.get<number>(
+      'S3_OPERATION_TIMEOUT',
+      5000,
+    );
 
-    this.logger.log(`Initializing S3 client: endpoint=${this.s3Endpoint}, job bucket=${this.jobBucketName}, test bucket=${this.testBucketName}, region=${region}`);
+    this.logger.log(
+      `Initializing S3 client: endpoint=${this.s3Endpoint}, job bucket=${this.jobBucketName}, test bucket=${this.testBucketName}, region=${region}`,
+    );
 
     this.s3Client = new S3Client({
       region,
@@ -42,9 +78,25 @@ export class S3Service implements OnModuleInit {
   }
 
   async onModuleInit() {
-    // Ensure both buckets exist
-    await this.ensureBucketExists(this.jobBucketName);
-    await this.ensureBucketExists(this.testBucketName);
+    this.logger.log(
+      'S3Service onModuleInit() called - starting bucket initialization',
+    );
+    try {
+      // Ensure both buckets exist
+      this.logger.log(`Ensuring job bucket exists: ${this.jobBucketName}`);
+      await this.ensureBucketExists(this.jobBucketName);
+
+      this.logger.log(`Ensuring test bucket exists: ${this.testBucketName}`);
+      await this.ensureBucketExists(this.testBucketName);
+
+      this.logger.log('S3Service bucket initialization completed successfully');
+    } catch (error) {
+      this.logger.error(
+        `S3Service onModuleInit() failed: ${getErrorMessage(error)}`,
+        getErrorStack(error),
+      );
+      // Don't throw - let the service continue even if bucket creation fails
+    }
   }
 
   /**
@@ -77,41 +129,78 @@ export class S3Service implements OnModuleInit {
         }
       }
     }
-    this.logger.error(`${operationName} failed after ${this.maxRetries} retries.`);
-    throw lastError || new Error(`${operationName} failed after ${this.maxRetries} retries`);
+    this.logger.error(
+      `${operationName} failed after ${this.maxRetries} retries.`,
+    );
+    throw (
+      lastError ||
+      new Error(`${operationName} failed after ${this.maxRetries} retries`)
+    );
   }
 
   async ensureBucketExists(bucketName: string): Promise<void> {
     this.logger.debug(`Checking if bucket exists: ${bucketName}`);
     try {
       await this.withRetry(
-        () => this.s3Client.send(new ListObjectsV2Command({ Bucket: bucketName, MaxKeys: 1 })),
-        `Check bucket ${bucketName} existence`
+        () =>
+          this.s3Client.send(
+            new ListObjectsV2Command({ Bucket: bucketName, MaxKeys: 1 }),
+          ),
+        `Check bucket ${bucketName} existence`,
       );
       this.logger.log(`Bucket '${bucketName}' already exists.`);
-    } catch (error: any) {
-      if (error.name === 'NoSuchBucket' || error.Code === 'NoSuchBucket') {
-        this.logger.warn(`Bucket '${bucketName}' does not exist. Attempting to create...`);
+    } catch (error: unknown) {
+      const awsError = error as { name?: string; Code?: string };
+      if (
+        awsError?.name === 'NoSuchBucket' ||
+        awsError?.Code === 'NoSuchBucket'
+      ) {
+        this.logger.warn(
+          `Bucket '${bucketName}' does not exist. Attempting to create...`,
+        );
         try {
           await this.withRetry(
-            () => this.s3Client.send(new CreateBucketCommand({ Bucket: bucketName })),
-            `Create bucket ${bucketName}`
+            () =>
+              this.s3Client.send(
+                new CreateBucketCommand({ Bucket: bucketName }),
+              ),
+            `Create bucket ${bucketName}`,
           );
           this.logger.log(`Bucket '${bucketName}' created successfully.`);
-        } catch (createError: any) {
+        } catch (createError: unknown) {
           // Handle the case where bucket was created by another process
-          if (createError.name === 'BucketAlreadyOwnedByYou' || 
-              createError.message?.includes('already own it') ||
-              createError.message?.includes('already exists') ||
-              createError.message?.includes('The specified bucket does not exist') ||
-              createError.message?.includes('Your previous request to create the named bucket succeeded')) {
-            this.logger.log(`Bucket '${bucketName}' already exists (created by another process).`);
+          const createAwsError = createError as {
+            name?: string;
+            message?: string;
+          };
+          if (
+            createAwsError?.name === 'BucketAlreadyOwnedByYou' ||
+            createAwsError?.message?.includes('already own it') ||
+            createAwsError?.message?.includes('already exists') ||
+            createAwsError?.message?.includes(
+              'The specified bucket does not exist',
+            ) ||
+            createAwsError?.message?.includes(
+              'Your previous request to create the named bucket succeeded',
+            )
+          ) {
+            this.logger.log(
+              `Bucket '${bucketName}' already exists (created by another process).`,
+            );
           } else {
-            this.logger.error(`Failed to create bucket '${bucketName}': ${createError.message}`, createError.stack);
+            this.logger.error(
+              `Failed to create bucket '${bucketName}': ${getErrorMessage(createError)}`,
+              getErrorStack(createError),
+            );
+            // Don't re-throw - let the service continue
           }
         }
       } else {
-        this.logger.error(`Error checking bucket '${bucketName}' existence: ${error.message}`, error.stack);
+        this.logger.error(
+          `Error checking bucket '${bucketName}' existence: ${getErrorMessage(error)}`,
+          getErrorStack(error),
+        );
+        // Don't re-throw - let the service continue
       }
     }
   }
@@ -123,25 +212,36 @@ export class S3Service implements OnModuleInit {
     bucket?: string,
   ): Promise<string> {
     const targetBucket = bucket || this.jobBucketName;
-    this.logger.debug(`Uploading file ${localFilePath} to s3://${targetBucket}/${s3Key}`);
+    this.logger.debug(
+      `Uploading file ${localFilePath} to s3://${targetBucket}/${s3Key}`,
+    );
     try {
       const fileBuffer = await fs.readFile(localFilePath);
-      const determinedContentType = contentType || getContentType(localFilePath);
+      const determinedContentType =
+        contentType || getContentType(localFilePath);
 
       await this.withRetry(
-        () => this.s3Client.send(new PutObjectCommand({
-          Bucket: targetBucket,
-          Key: s3Key,
-          Body: fileBuffer,
-          ContentType: determinedContentType,
-        })),
-        `Upload file ${s3Key}`
+        () =>
+          this.s3Client.send(
+            new PutObjectCommand({
+              Bucket: targetBucket,
+              Key: s3Key,
+              Body: fileBuffer,
+              ContentType: determinedContentType,
+            }),
+          ),
+        `Upload file ${s3Key}`,
       );
 
-      this.logger.log(`Successfully uploaded file to s3://${targetBucket}/${s3Key}`);
+      this.logger.log(
+        `Successfully uploaded file to s3://${targetBucket}/${s3Key}`,
+      );
       return s3Key;
     } catch (error) {
-      this.logger.error(`Error uploading file ${localFilePath} to S3 key ${s3Key}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error uploading file ${localFilePath} to S3 key ${s3Key}: ${getErrorMessage(error)}`,
+        getErrorStack(error),
+      );
       throw error;
     }
   }
@@ -159,7 +259,7 @@ export class S3Service implements OnModuleInit {
     entityType?: string,
   ): Promise<string[]> {
     const targetBucket = bucket || this.jobBucketName;
-    
+
     // If entityId and entityType are provided, use the direct ID format
     if (entityId && entityType) {
       // Replace any test-results/entity paths with direct ID path
@@ -167,109 +267,175 @@ export class S3Service implements OnModuleInit {
         s3KeyPrefix = this.formatReportPath(entityId);
       }
     }
-    
-    this.logger.log(`[S3 UPLOAD] Starting directory upload from ${localDirPath} to s3://${targetBucket}/${s3KeyPrefix}`);
-    
+
+    this.logger.log(
+      `[S3 UPLOAD] Starting directory upload from ${localDirPath} to s3://${targetBucket}/${s3KeyPrefix}`,
+    );
+
     // Check if directory exists
     try {
       const stats = await fs.stat(localDirPath);
       if (!stats.isDirectory()) {
-        this.logger.error(`[S3 UPLOAD] Path ${localDirPath} is not a directory`);
+        this.logger.error(
+          `[S3 UPLOAD] Path ${localDirPath} is not a directory`,
+        );
         throw new Error(`Path ${localDirPath} is not a directory`);
       }
     } catch (err) {
-      this.logger.error(`[S3 UPLOAD] Failed to access directory ${localDirPath}: ${err.message}`);
+      this.logger.error(
+        `[S3 UPLOAD] Failed to access directory ${localDirPath}: ${getErrorMessage(err)}`,
+      );
       throw err;
     }
-    
+
     // List directory contents to debug
     let files: string[] = [];
     try {
       files = await fs.readdir(localDirPath);
-      this.logger.log(`[S3 UPLOAD] Directory contents (${files.length} items): ${files.join(', ')}`);
-      
+      this.logger.log(
+        `[S3 UPLOAD] Directory contents (${files.length} items): ${files.join(', ')}`,
+      );
+
       if (files.length === 0) {
-        this.logger.warn(`[S3 UPLOAD] Warning: Directory ${localDirPath} is empty`);
+        this.logger.warn(
+          `[S3 UPLOAD] Warning: Directory ${localDirPath} is empty`,
+        );
       }
     } catch (err) {
-      this.logger.error(`[S3 UPLOAD] Failed to read directory contents: ${err.message}`);
+      this.logger.error(
+        `[S3 UPLOAD] Failed to read directory contents: ${getErrorMessage(err)}`,
+      );
       throw err;
     }
-    
+
     // Verify bucket exists before attempting upload
     try {
       await this.withRetry(
-        () => this.s3Client.send(new ListObjectsV2Command({ Bucket: targetBucket, MaxKeys: 1 })),
-        `Check bucket ${targetBucket} before upload`
+        () =>
+          this.s3Client.send(
+            new ListObjectsV2Command({ Bucket: targetBucket, MaxKeys: 1 }),
+          ),
+        `Check bucket ${targetBucket} before upload`,
       );
       this.logger.log(`[S3 UPLOAD] Verified bucket '${targetBucket}' exists.`);
     } catch (error) {
-      this.logger.error(`[S3 UPLOAD] Bucket verification failed: ${error.message}`, error.stack);
-      throw new Error(`S3 bucket verification failed: ${error.message}`);
+      this.logger.warn(
+        `[S3 UPLOAD] Bucket '${targetBucket}' verification failed, attempting to create it: ${getErrorMessage(error)}`,
+      );
+
+      // Try to create the bucket as a fallback
+      try {
+        await this.withRetry(
+          () =>
+            this.s3Client.send(
+              new CreateBucketCommand({ Bucket: targetBucket }),
+            ),
+          `Create bucket ${targetBucket} as fallback`,
+        );
+        this.logger.log(
+          `[S3 UPLOAD] Successfully created bucket '${targetBucket}' as fallback.`,
+        );
+      } catch (createError) {
+        this.logger.error(
+          `[S3 UPLOAD] Failed to create bucket '${targetBucket}' as fallback: ${getErrorMessage(createError)}`,
+          getErrorStack(createError),
+        );
+        throw new Error(
+          `S3 bucket verification and creation failed: ${getErrorMessage(error)}`,
+        );
+      }
     }
-    
+
     const uploadedKeys: string[] = [];
-    const normalizedPrefix = s3KeyPrefix.replace(/^\/+/, '').replace(/\/*$/, '');
+    const normalizedPrefix = s3KeyPrefix
+      .replace(/^\/+/, '')
+      .replace(/\/*$/, '');
     let uploadErrors = 0;
 
-    const walk = async (dir: string, currentS3Prefix: string) => {
+    const walk = async (dir: string) => {
       try {
         const entries = await fs.readdir(dir, { withFileTypes: true });
-        this.logger.debug(`[S3 UPLOAD] Walking directory ${dir}, found ${entries.length} items`);
+        this.logger.debug(
+          `[S3 UPLOAD] Walking directory ${dir}, found ${entries.length} items`,
+        );
 
         for (const entry of entries) {
           const fullLocalPath = path.join(dir, entry.name);
           const relativePath = path.relative(localDirPath, fullLocalPath);
-          const s3Key = normalizedPrefix + '/' + relativePath.split(path.sep).join('/');
+          const s3Key =
+            normalizedPrefix + '/' + relativePath.split(path.sep).join('/');
 
           if (entry.isDirectory()) {
             // Recursively walk into subdirectories
-            await walk(fullLocalPath, s3Key); 
+            await walk(fullLocalPath);
           } else if (entry.isFile()) {
             // Push file upload promise to array - REPLACED with direct await
             try {
-                this.logger.debug(`[S3 UPLOAD] Uploading file ${fullLocalPath} to ${s3Key}`);
-                const key = await this.uploadFile(fullLocalPath, s3Key, undefined, targetBucket);
-                uploadedKeys.push(key); // Push key on success
-                this.logger.debug(`[S3 UPLOAD] Successfully uploaded ${key}`);
+              this.logger.debug(
+                `[S3 UPLOAD] Uploading file ${fullLocalPath} to ${s3Key}`,
+              );
+              const key = await this.uploadFile(
+                fullLocalPath,
+                s3Key,
+                undefined,
+                targetBucket,
+              );
+              uploadedKeys.push(key); // Push key on success
+              this.logger.debug(`[S3 UPLOAD] Successfully uploaded ${key}`);
             } catch (fileUploadError) {
-                uploadErrors++;
-                this.logger.error(`[S3 UPLOAD] Failed to upload file ${fullLocalPath} to ${s3Key}: ${fileUploadError.message}`);
-                if (uploadErrors >= 3) {
-                  this.logger.error(`[S3 UPLOAD] Too many upload errors (${uploadErrors}), stopping directory upload`);
-                  throw new Error(`Too many upload failures: ${uploadErrors} files failed to upload`);
-                }
+              uploadErrors++;
+              this.logger.error(
+                `[S3 UPLOAD] Failed to upload file ${fullLocalPath} to ${s3Key}: ${getErrorMessage(fileUploadError)}`,
+              );
+              if (uploadErrors >= 3) {
+                this.logger.error(
+                  `[S3 UPLOAD] Too many upload errors (${uploadErrors}), stopping directory upload`,
+                );
+                throw new Error(
+                  `Too many upload failures: ${uploadErrors} files failed to upload`,
+                );
+              }
             }
           }
         }
-
       } catch (readError) {
-         // Log error if reading a directory fails, but continue if possible
-         this.logger.error(`[S3 UPLOAD] Error reading directory ${dir}: ${readError.message}`);
-         
-         if (readError.message.includes('Too many upload failures')) {
-           throw readError; // Re-throw this specific error to stop the process
-         }
+        // Log error if reading a directory fails, but continue if possible
+        this.logger.error(
+          `[S3 UPLOAD] Error reading directory ${dir}: ${getErrorMessage(readError)}`,
+        );
+
+        if (getErrorMessage(readError).includes('Too many upload failures')) {
+          throw readError; // Re-throw this specific error to stop the process
+        }
       }
     };
 
     try {
       // Start the recursive walk from the root directory
-      await walk(localDirPath, normalizedPrefix);
-      
+      await walk(localDirPath);
+
       if (uploadedKeys.length === 0) {
-        this.logger.error(`[S3 UPLOAD] No files were uploaded from ${localDirPath}. This could indicate an issue.`);
+        this.logger.error(
+          `[S3 UPLOAD] No files were uploaded from ${localDirPath}. This could indicate an issue.`,
+        );
         if (files.length > 0) {
-          throw new Error('No files were uploaded despite directory containing files');
+          throw new Error(
+            'No files were uploaded despite directory containing files',
+          );
         }
       } else {
-        this.logger.log(`[S3 UPLOAD] Finished upload for ${localDirPath}. Successfully uploaded ${uploadedKeys.length} files to prefix ${normalizedPrefix} in bucket ${targetBucket}`);
+        this.logger.log(
+          `[S3 UPLOAD] Finished upload for ${localDirPath}. Successfully uploaded ${uploadedKeys.length} files to prefix ${normalizedPrefix} in bucket ${targetBucket}`,
+        );
       }
     } catch (error) {
-      this.logger.error(`[S3 UPLOAD] Error during directory upload process for ${localDirPath}: ${error.message}`, error.stack);
+      this.logger.error(
+        `[S3 UPLOAD] Error during directory upload process for ${localDirPath}: ${getErrorMessage(error)}`,
+        getErrorStack(error),
+      );
       throw error; // Re-throw to let caller handle it
     }
-    
+
     return uploadedKeys; // Return keys of successfully uploaded files
   }
 
@@ -278,7 +444,7 @@ export class S3Service implements OnModuleInit {
     const bucket = this.getBucketForEntityType(entityType);
     // Use direct UUID without nested folders
     const prefix = `${entityId}/report`;
-    
+
     // Fix: Make sure URL format is correct for MinIO
     return `${this.s3Endpoint}/${bucket}/${prefix}`;
   }

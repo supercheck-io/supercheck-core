@@ -1,6 +1,9 @@
-import { forwardRef, useEffect, useCallback, useRef, memo } from "react";
+import { forwardRef, useEffect, useCallback, useRef, memo, useState } from "react";
 import { Editor, useMonaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
+import { Maximize2, X, Code2 } from "lucide-react";
 
 interface MonacoEditorProps {
   value: string;
@@ -12,11 +15,24 @@ export const MonacoEditorClient = memo(
   forwardRef<editor.IStandaloneCodeEditor, MonacoEditorProps>(
     ({ value, onChange }, ref) => {
       const monaco = useMonaco();
+      const { theme } = useTheme();
       const editorInstanceRef = useRef<editor.IStandaloneCodeEditor | null>(
+        null
+      );
+      const fullscreenEditorRef = useRef<editor.IStandaloneCodeEditor | null>(
         null
       );
       const styleSheetRef = useRef<HTMLStyleElement | null>(null);
       const isInitialized = useRef(false);
+      const [showFullscreen, setShowFullscreen] = useState(false);
+
+      // Update editor theme when app theme changes
+      useEffect(() => {
+        if (monaco) {
+          const editorTheme = theme === 'dark' ? 'vs-dark' : 'warm-light';
+          monaco.editor.setTheme(editorTheme);
+        }
+      }, [theme, monaco]);
 
       // Configure Monaco once when it's available
       useEffect(() => {
@@ -106,7 +122,17 @@ export const MonacoEditorClient = memo(
       }, [monaco]);
 
       // Add custom styles to remove all borders, but only once
-      const beforeMount = useCallback(() => {
+      const beforeMount = useCallback((monaco: typeof import('monaco-editor')) => {
+        // Define custom warm light theme before editor mounts
+        monaco.editor.defineTheme('warm-light', {
+          base: 'vs',
+          inherit: true,
+          rules: [],
+          colors: {
+            'editor.background': '#FAF7F3'
+          }
+        });
+
         // Check if the style already exists by ID
         if (!document.getElementById("monaco-editor-styles")) {
           const styleSheet = document.createElement("style");
@@ -144,6 +170,14 @@ export const MonacoEditorClient = memo(
         [ref]
       );
 
+      // Handle fullscreen editor mount
+      const handleFullscreenEditorMount = useCallback(
+        (editor: editor.IStandaloneCodeEditor) => {
+          fullscreenEditorRef.current = editor;
+        },
+        []
+      );
+
       // Create a memoized callback for onChange to prevent unnecessary re-renders
       const handleEditorChange = useCallback(
         (value: string | undefined) => {
@@ -153,63 +187,150 @@ export const MonacoEditorClient = memo(
       );
 
       return (
-        <div
-          className="flex flex-1 w-full relative overflow-hidden border-none outline-none monaco-wrapper"
-          style={{ borderBottom: "none" }}
-        >
-          <Editor
-            height="calc(100vh - 10rem)"
-            defaultLanguage="typescript"
-            value={value}
-            onChange={handleEditorChange}
-            theme="vs-dark"
-            className="w-full overflow-hidden border-none outline-none"
-            beforeMount={beforeMount}
-            onMount={handleEditorMount}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 13.5,
-              wordWrap: "on",
-              padding: { top: 16, bottom: 16 },
-              automaticLayout: true,
-              roundedSelection: true,
-              scrollBeyondLastLine: false,
-              folding: true,
-              renderValidationDecorations: "off",
-              hover: { enabled: true },
-              suggest: {
-                snippetsPreventQuickSuggestions: false,
-                showIcons: true,
-                showStatusBar: true,
-                preview: true,
-                filterGraceful: true,
-                selectionMode: "always",
-                showMethods: true,
-                showFunctions: true,
-                showConstructors: true,
-                showDeprecated: false,
-                matchOnWordStartOnly: false,
-                localityBonus: true,
-              },
-              parameterHints: {
-                enabled: true,
-                cycle: true,
-              },
-              inlineSuggest: {
-                enabled: true,
-              },
-              quickSuggestions: {
-                other: true,
-                comments: true,
-                strings: true,
-              },
-              acceptSuggestionOnCommitCharacter: true,
-              acceptSuggestionOnEnter: "on",
-              tabCompletion: "on",
-              wordBasedSuggestions: "currentDocument",
-            }}
-          />
-        </div>
+        <>
+          <div
+            className="flex flex-1 w-full relative overflow-hidden border border-border rounded-bl-lg monaco-wrapper"
+          >
+            {/* Fullscreen button */}
+            <div className="absolute top-2 right-2 z-10">
+              <Button 
+                size="sm"
+                className="cursor-pointer flex items-center gap-1 bg-secondary hover:bg-secondary/90"
+                onClick={() => setShowFullscreen(true)}
+              >
+                <Maximize2 className="h-4 w-4 text-secondary-foreground" />
+              </Button>
+            </div>
+
+            <Editor
+              height="calc(100vh - 10rem)"
+              defaultLanguage="typescript"
+              value={value}
+              onChange={handleEditorChange}
+              theme={theme === 'dark' ? 'vs-dark' : 'warm-light'}
+              className="w-full overflow-hidden"
+              beforeMount={beforeMount}
+              onMount={handleEditorMount}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 13.5,
+                wordWrap: "on",
+                padding: { top: 16, bottom: 16 },
+                automaticLayout: true,
+                roundedSelection: true,
+                scrollBeyondLastLine: false,
+                folding: true,
+                renderValidationDecorations: "off",
+                hover: { enabled: true },
+                suggest: {
+                  snippetsPreventQuickSuggestions: false,
+                  showIcons: true,
+                  showStatusBar: true,
+                  preview: true,
+                  filterGraceful: true,
+                  selectionMode: "always",
+                  showMethods: true,
+                  showFunctions: true,
+                  showConstructors: true,
+                  showDeprecated: false,
+                  matchOnWordStartOnly: false,
+                  localityBonus: true,
+                },
+                parameterHints: {
+                  enabled: true,
+                  cycle: true,
+                },
+                inlineSuggest: {
+                  enabled: true,
+                },
+                quickSuggestions: {
+                  other: true,
+                  comments: true,
+                  strings: true,
+                },
+                acceptSuggestionOnCommitCharacter: true,
+                acceptSuggestionOnEnter: "on",
+                tabCompletion: "on",
+                wordBasedSuggestions: "currentDocument",
+              }}
+            />
+          </div>
+
+          {/* Manual fullscreen implementation */}
+          {showFullscreen && (
+            <div className="fixed inset-0 z-50 bg-card/80 backdrop-blur-sm">
+              <div className="fixed inset-8 bg-card rounded-lg shadow-lg flex flex-col overflow-hidden border">
+                <div className="p-4 border-b flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Code2 className="h-6 w-6 text-primary" />
+                    <h2 className="text-xl font-semibold">Code Editor</h2>
+                  </div>
+                  <Button 
+                    className="cursor-pointer bg-secondary hover:bg-secondary/90"
+                    size="sm"
+                    onClick={() => setShowFullscreen(false)}
+                  >
+                    <X className="h-4 w-4 text-secondary-foreground" />
+                  </Button>
+                </div>
+                <div className="flex-grow overflow-hidden">
+                  <Editor
+                    height="100%"
+                    defaultLanguage="typescript"
+                    value={value}
+                    onChange={handleEditorChange}
+                    theme={theme === 'dark' ? 'vs-dark' : 'warm-light'}
+                    className="w-full h-full"
+                    beforeMount={beforeMount}
+                    onMount={handleFullscreenEditorMount}
+                    options={{
+                      minimap: { enabled: true }, // Enable minimap in fullscreen
+                      fontSize: 14,
+                      wordWrap: "on",
+                      padding: { top: 16, bottom: 16 },
+                      automaticLayout: true,
+                      roundedSelection: true,
+                      scrollBeyondLastLine: false,
+                      folding: true,
+                      renderValidationDecorations: "off",
+                      hover: { enabled: true },
+                      suggest: {
+                        snippetsPreventQuickSuggestions: false,
+                        showIcons: true,
+                        showStatusBar: true,
+                        preview: true,
+                        filterGraceful: true,
+                        selectionMode: "always",
+                        showMethods: true,
+                        showFunctions: true,
+                        showConstructors: true,
+                        showDeprecated: false,
+                        matchOnWordStartOnly: false,
+                        localityBonus: true,
+                      },
+                      parameterHints: {
+                        enabled: true,
+                        cycle: true,
+                      },
+                      inlineSuggest: {
+                        enabled: true,
+                      },
+                      quickSuggestions: {
+                        other: true,
+                        comments: true,
+                        strings: true,
+                      },
+                      acceptSuggestionOnCommitCharacter: true,
+                      acceptSuggestionOnEnter: "on",
+                      tabCompletion: "on",
+                      wordBasedSuggestions: "currentDocument",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       );
     }
   )

@@ -1,7 +1,8 @@
-import { Module, OnModuleInit, Provider } from '@nestjs/common';
+import { Module, Provider } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { drizzle } from 'drizzle-orm/postgres-js';
+import * as postgres from 'postgres';
 
 // Import Services and Processors
 import { ExecutionService } from './execution/services/execution.service';
@@ -14,8 +15,8 @@ import { NotificationModule } from './notification/notification.module';
 import * as schema from './db/schema';
 
 // Import constants from constants file
-import { 
-  TEST_EXECUTION_QUEUE, 
+import {
+  TEST_EXECUTION_QUEUE,
   JOB_EXECUTION_QUEUE,
 } from './execution/constants';
 
@@ -24,7 +25,7 @@ const defaultJobOptions = {
   removeOnComplete: { count: 500, age: 24 * 3600 }, // Keep completed jobs for 24 hours (500 max)
   removeOnFail: { count: 1000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (1000 max)
   attempts: 3,
-  backoff: { type: 'exponential', delay: 1000 }
+  backoff: { type: 'exponential', delay: 1000 },
 };
 
 // PostgreSQL database connection provider
@@ -36,16 +37,15 @@ const drizzleProvider: Provider = {
     if (!connectionString) {
       throw new Error('DATABASE_URL environment variable is not set!');
     }
-    
-    console.log('Creating database connection with URL:', connectionString.substring(0, 30) + '...');
-    
-    // Import postgres directly here to avoid issues
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const postgres = require('postgres');
-    
+
+    console.log(
+      'Creating database connection with URL:',
+      connectionString.substring(0, 30) + '...',
+    );
+
     // Initialize the Postgres.js client
     const client = postgres(connectionString, { ssl: false });
-    
+
     // Create and return the Drizzle ORM instance
     return drizzle(client, { schema });
   },
@@ -57,14 +57,14 @@ const drizzleProvider: Provider = {
     BullModule.registerQueue(
       {
         name: TEST_EXECUTION_QUEUE,
-        defaultJobOptions
+        defaultJobOptions,
         // Note: Worker concurrency is controlled by the processor options
       },
       {
         name: JOB_EXECUTION_QUEUE,
-        defaultJobOptions
+        defaultJobOptions,
         // Note: Worker concurrency is controlled by the processor options
-      }
+      },
     ),
   ],
   providers: [
@@ -78,6 +78,6 @@ const drizzleProvider: Provider = {
     TestExecutionProcessor,
     JobExecutionProcessor,
   ],
-  exports: [drizzleProvider, DbService]
+  exports: [drizzleProvider, DbService, RedisService],
 })
 export class ExecutionModule {}

@@ -24,8 +24,11 @@ The monitoring system provides real-time monitoring capabilities for HTTP endpoi
 - **Ping Host Monitoring**: Monitor server availability and network connectivity using ICMP pings
 - **Port Check Monitoring**: Verify if specific TCP/UDP ports are open and accessible
 - **Heartbeat Monitoring**: Passive monitoring where external services ping Supertest endpoints
+- **Smart SSL Certificate Monitoring**: Intelligent SSL certificate expiration checking with adaptive frequency
+- **Immediate Monitor Execution**: Monitors execute immediately when created/updated for instant validation
 - **Real-time Status Updates**: Live status updates via Server-Sent Events (SSE) for immediate feedback
 - **Multi-Channel Alerting**: Supports email, Slack, webhooks, Telegram, Discord, and Microsoft Teams
+- **SSL Expiration Alerts**: Independent SSL certificate expiration warnings without status changes
 - **Threshold-Based Alerting**: Configurable failure/recovery thresholds to prevent alert spam
 - **Professional Templates**: Rich HTML emails and formatted messages with full context
 - **Complete Audit Trail**: Alert history with delivery status and error tracking
@@ -163,7 +166,182 @@ graph TD
 
 ## Heartbeat Monitoring
 
-Heartbeat monitors now follow the **standard monitor pattern** and use the same scheduling and execution system as other monitors. The key difference is in the execution logic, which checks for missed pings rather than actively pinging external services.
+Heartbeat monitors follow the **standard monitor pattern** and use the same scheduling and execution system as other monitors. The key difference is in the execution logic, which checks for missed pings rather than actively pinging external services.
+
+### Current Implementation Issues
+
+#### 1. **Incorrect Check Frequency Logic**
+**Problem**: The current heartbeat monitoring system has a fundamental flaw in how it calculates when to check for missed pings.
+
+**Current Logic**:
+- Monitor frequency is set to `expectedInterval + gracePeriod` (e.g., 60 + 10 = 70 minutes)
+- Monitor checks run every 70 minutes
+- Logic checks if a ping is overdue by comparing against `expectedInterval + gracePeriod`
+
+**The Issue**: This creates a gap where missed pings aren't detected optimally:
+- Service should ping every 60 minutes
+- Grace period is 10 minutes (so up to 70 minutes is acceptable)
+- But we only check every 70 minutes
+- If a service misses its ping at 61 minutes, we won't detect it until the next check at 140 minutes (70 minutes later)
+
+#### 2. **Inconsistent Alert Timing**
+**Current Behavior**:
+```
+Service pings every 60min, grace period 10min
+Check frequency: 70min
+
+Timeline:
+0min: Service starts, first ping expected at 60min
+60min: Service fails, no ping sent
+70min: First check - everything still OK (within 70min window)
+140min: Second check - NOW we detect the failure (80min late!)
+```
+
+**Expected Behavior**:
+```
+Service pings every 60min, grace period 10min
+Check frequency: Should be more frequent than expected interval
+
+Timeline:
+0min: Service starts, first ping expected at 60min
+60min: Service fails, no ping sent
+70min: First check - detects failure (exactly at grace period limit)
+```
+
+#### 3. **Missing Pings Not Detected Promptly**
+The current system can miss detecting failures for up to `2 × (expectedInterval + gracePeriod)` time in worst case scenarios.
+
+### Recommended Heartbeat Monitoring Improvements
+
+#### 1. **Optimal Check Frequency Strategy**
+
+**Strategy A: Half-Interval Checking** (Recommended)
+```typescript
+// Check twice as often as expected interval, but not more than grace period
+const checkFrequencyMinutes = Math.min(
+  expectedIntervalMinutes / 2,  // Half the expected interval
+  gracePeriodMinutes           // But no more than grace period
+);
+
+// Examples:
+// Expected: 60min, Grace: 10min → Check every: 10min
+// Expected: 30min, Grace: 15min → Check every: 15min  
+// Expected: 120min, Grace: 20min → Check every: 20min
+```
+
+**Strategy B: Grace Period Checking**
+```typescript
+// Check exactly at grace period intervals
+const checkFrequencyMinutes = gracePeriodMinutes;
+
+// Examples:
+// Expected: 60min, Grace: 10min → Check every: 10min
+// Expected: 30min, Grace: 5min → Check every: 5min
+```
+
+**Strategy C: Smart Adaptive Checking**
+```typescript
+// Adaptive frequency based on expected interval
+const checkFrequencyMinutes = Math.max(
+  Math.min(expectedIntervalMinutes / 3, gracePeriodMinutes),
+  5  // Minimum 5 minutes
+);
+```
+
+#### 2. **Enhanced Detection Logic**
+
+**Current Logic Issues**:
+```typescript
+// Current: Only creates "down" entries when overdue
+if (minutesSinceLastPing > totalWaitMinutes) {
+  // Create failure entry
+} else {
+  // Skip result creation - this is the problem!
+}
+```
+
+**Improved Logic**:
+```typescript
+// Always create status entries for proper monitoring
+const isOverdue = minutesSinceLastPing > totalWaitMinutes;
+const status = isOverdue ? 'down' : 'up';
+const shouldAlert = isOverdue && !wasAlreadyDown;
+
+// Always record status for consistent monitoring
+return {
+  status,
+  isUp: !isOverdue,
+  details: {
+    lastPingAge: minutesSinceLastPing,
+    expectedInterval: expectedIntervalMinutes,
+    isOverdue,
+    // ... other details
+  }
+};
+```
+
+#### 3. **Robust Status Tracking**
+
+**Problem**: Current system doesn't track heartbeat status consistently, making it hard to detect status changes.
+
+**Solution**: 
+```typescript
+interface HeartbeatStatus {
+  lastPingAt: string | null;
+  lastCheckAt: string;
+  consecutiveFailures: number;
+  lastKnownStatus: 'up' | 'down' | 'unknown';
+  overdueDetectedAt?: string;
+}
+```
+
+#### 4. **Improved Failure Detection Timeline**
+
+**Optimal Timeline**:
+```
+Expected: 60min, Grace: 10min, Check: 10min intervals
+
+0min: Service starts, next ping expected at 60min
+10min: Check - OK (no ping expected yet)
+20min: Check - OK (no ping expected yet)  
+...
+60min: Service fails, no ping sent
+70min: Check - FAILURE DETECTED (exactly at grace period end)
+80min: Check - Still down (send recovery alert when ping resumes)
+```
+
+#### 5. **Configuration Recommendations**
+
+**For Production Heartbeat Monitors**:
+```typescript
+interface OptimalHeartbeatConfig {
+  // User-configured
+  expectedIntervalMinutes: number;    // e.g., 60
+  gracePeriodMinutes: number;         // e.g., 10
+  
+  // System-calculated optimal values
+  checkFrequencyMinutes: number;      // min(expectedInterval/2, gracePeriod)
+  alertDelayMinutes: 0;               // Alert immediately on detection
+  recoveryConfirmationChecks: 1;     // Confirm recovery after 1 successful ping
+}
+```
+
+### Implementation Priority
+
+**High Priority Fixes**:
+1. Fix check frequency calculation to detect failures promptly
+2. Implement consistent status tracking
+3. Add proper failure detection timeline
+
+**Medium Priority Improvements**:
+1. Add heartbeat analytics and trends
+2. Implement recovery confirmation logic
+3. Add heartbeat-specific dashboard views
+
+**Low Priority Enhancements**:
+1. Custom ping intervals per monitor
+2. Advanced heartbeat patterns (burst detection, etc.)
+3. Heartbeat SLA tracking
 
 ### Standard Heartbeat Scheduling
 
@@ -326,11 +504,139 @@ This follows the same pattern as jobs, which store their scheduler IDs in the da
 - ✅ **Minimal overhead** - lightweight scheduler initialization
 - ✅ **Proper cleanup** - prevents memory leaks and duplicate jobs
 
+## SSL Certificate Monitoring
+
+### Smart SSL Check Strategy
+
+The monitoring system implements intelligent SSL certificate checking to optimize performance while ensuring timely expiration alerts.
+
+#### SSL Check Frequency Logic
+
+The system uses **frequent SSL checks** for rapid detection but **controlled alert frequency** to prevent spam:
+
+```typescript
+// SSL Check Frequency (How often we verify certificates)
+interface SSLCheckStrategy {
+  normal: 24 hours,      // Certificates with >2x warning threshold (e.g., >100 days)
+  approaching: 6 hours,  // Certificates within 2x warning threshold (e.g., 50-100 days)  
+  critical: 1 hour,      // Certificates within warning threshold (e.g., ≤50 days)
+  immediate: on save,    // Always check when monitors are created/updated
+}
+
+// Alert Frequency (How often we send notifications)
+interface SSLAlertStrategy {
+  expiration: 24 hours,  // "Certificate expires in X days" - once per day
+  critical: immediate,   // Expired/revoked certificates - immediate alert
+  changes: immediate,    // Certificate renewed/replaced - immediate notification
+}
+```
+
+**Why Frequent Checks + Controlled Alerts?**
+- **Rapid Detection**: Hourly checks detect certificate changes within 1 hour
+- **No Alert Spam**: Expiration countdown alerts limited to once per day
+- **Critical Issues**: Expired/revoked certificates trigger immediate alerts
+- **Certificate Changes**: Renewals/replacements detected and reported quickly
+
+#### Key Features
+
+1. **Adaptive Frequency**: SSL checks become more frequent as expiration approaches
+2. **Performance Optimization**: Reduces SSL checks from every 5 minutes to daily for most certificates
+3. **Immediate Validation**: All monitors execute immediately when created or updated
+4. **Independent Alerting**: SSL expiration alerts work without monitor status changes
+5. **Alert Deduplication**: SSL alerts are sent once per day to prevent spam
+
+#### Configuration Options
+
+```typescript
+interface MonitorConfig {
+  // SSL-specific settings
+  enableSslCheck?: boolean;                 // Enable SSL certificate checking
+  sslDaysUntilExpirationWarning?: number;   // Warning threshold (default: 30)
+  sslCheckFrequencyHours?: number;          // Default check frequency (default: 24)
+  sslLastCheckedAt?: string;                // Timestamp of last SSL check
+  sslCheckOnStatusChange?: boolean;         // Check SSL on status changes (default: true)
+}
+```
+
+#### SSL Alert Types
+
+1. **Expiration Warning**: Certificate expires within warning threshold
+2. **Certificate Expired**: Certificate has already expired  
+3. **SSL Connection Errors**: Handshake failures, invalid certificates
+4. **Certificate Revocation**: Certificate has been revoked (if enabled)
+
+### Performance Benefits
+
+- **288x Reduction**: SSL checks reduced from every 5 minutes to daily
+- **Smart Escalation**: More frequent checks only when needed
+- **Resource Efficient**: Fewer TLS handshakes reduce network overhead
+- **Immediate Feedback**: Users get instant SSL validation on monitor save
+
+## Immediate Monitor Execution
+
+### Feature Overview
+
+All monitors (except heartbeat) now execute immediately when created or updated, providing instant validation and feedback.
+
+#### Implementation
+
+```typescript
+// Automatic execution triggers
+createMonitor() -> scheduleMonitor() -> triggerImmediateExecution()
+updateMonitor() -> rescheduleMonitor() -> triggerImmediateExecution()
+```
+
+#### Benefits
+
+1. **Instant Validation**: Users see immediate results when creating monitors
+2. **Configuration Verification**: Quickly identify misconfigurations
+3. **SSL Certificate Info**: Immediate SSL certificate details for HTTPS monitors
+4. **User Experience**: No waiting for first scheduled check
+
+#### Excluded Monitor Types
+
+- **Heartbeat Monitors**: Passive monitoring, no active execution needed
+
 ## Fixes and Improvements
 
 ### Issues Addressed
 
-#### 1. Heartbeat Ping URL Database Call Errors
+#### 1. SSL Expiration Alert Logic Fixed
+**Problem**: SSL expiration warnings (47 days with 50-day threshold) didn't trigger alerts because they don't change monitor status.
+
+**Solution**: 
+- Added independent SSL expiration alert checking in `saveMonitorResult`
+- Created `checkSslExpirationAlert` method that works without status changes
+- Added `sendSslExpirationNotification` method in `MonitorAlertService`
+- Implemented alert deduplication to prevent spam (24-hour cooldown)
+
+#### 2. Smart SSL Check Frequency Implementation
+**Problem**: SSL checks running with every monitor execution (every 5 minutes) caused performance issues.
+
+**Solution**:
+- Implemented `shouldPerformSslCheck` logic with adaptive frequency
+- Added SSL check timestamp tracking in monitor config
+- Smart escalation: hourly checks when approaching expiration, 6-hourly for 2x threshold
+- Performance improvement: 288x reduction in SSL checks for normal certificates
+
+#### 3. Immediate Monitor Execution on Save
+**Problem**: Users had to wait for scheduled execution to see monitor results.
+
+**Solution**:
+- Added `triggerImmediateMonitorExecution` function in monitor service
+- Integrated immediate execution in `createMonitorHandler` and `updateMonitorHandler`
+- Skips heartbeat monitors (passive) and disabled monitors
+- Non-blocking implementation doesn't affect save performance
+
+#### 4. Enhanced Monitor Configuration Schema
+**Problem**: Monitor configuration lacked SSL-specific fields for optimization.
+
+**Solution**:
+- Added SSL-specific configuration fields to `MonitorConfig` type
+- Backward compatibility with legacy SSL fields (`checkExpiration`, `daysUntilExpirationWarning`)
+- Enhanced configuration tracking for SSL check timestamps and frequencies
+
+#### 5. Heartbeat Ping URL Database Call Errors
 **Problem**: Database calls were failing in heartbeat endpoints due to incorrect `await db()` syntax.
 
 **Solution**: 
@@ -338,7 +644,7 @@ This follows the same pattern as jobs, which store their scheduler IDs in the da
 - Updated database calls to use `db` directly instead of `await db()`
 - Added proper error handling and comprehensive logging
 
-#### 2. Alert Notifications Not Working for Heartbeat Monitors
+#### 6. Alert Notifications Not Working for Heartbeat Monitors
 **Problem**: Heartbeat monitors weren't sending alert notifications when status changed.
 
 **Solution**:
@@ -489,13 +795,123 @@ const jobDataPayload: MonitorJobData = {
 };
 ```
 
+## Recent Enhancements (Latest Release)
+
+### Alert Notification Template Improvements
+
+The latest release includes comprehensive fixes to notification templates and dashboard URLs:
+
+#### Fixed Notification Issues
+1. **Dashboard URL Resolution**: Fixed undefined dashboard URLs in alert notifications caused by environment variable typos
+2. **Contextual Dashboard Labels**: Updated generic "🔗 Dashboard" labels to be contextual:
+   - Monitor alerts: "🔗 Monitor Details"
+   - Job alerts: "🔗 Job Details"
+   - SSL alerts: Properly routed to monitor details instead of generic alerts page
+3. **Trigger Field Removal**: Removed unnecessary "Trigger" field from all notification templates for cleaner alerts
+4. **SSL Alert Routing**: Fixed SSL expiration alerts to properly link to monitor details page
+
+#### Monaco Editor Full-Screen Mode
+- Added full-screen capability to Monaco editor similar to Playwright report viewer
+- Enhanced editing experience with larger viewport and enabled minimap in fullscreen
+- Consistent UI patterns across all full-screen modals
+
+### SSL Certificate Monitoring Optimization
+
+Significant improvements to SSL certificate monitoring:
+
+#### Performance Improvements
+- **288x SSL Check Reduction**: SSL checks reduced from every 5 minutes to adaptive scheduling
+- **Smart Frequency Logic**: More frequent checks only when approaching expiration
+- **Resource Optimization**: Fewer TLS handshakes reduce server load and network traffic
+
+#### Alert Control Strategy
+- **Check Frequency ≠ Alert Frequency**: Frequent checks for fast detection, controlled alerts for spam prevention
+- **Smart Alert Deduplication**: Expiration warnings sent once per day maximum
+- **Immediate Critical Alerts**: Expired/revoked certificates bypass cooldown for instant notification
+- **Change Detection**: Certificate renewals detected within 1-6 hours depending on expiration proximity
+
+#### Enhanced User Experience  
+- **Immediate Validation**: All monitors execute instantly when created/updated
+- **Real-time SSL Info**: Users see SSL certificate details immediately
+- **Independent SSL Alerts**: SSL expiration warnings work without status changes
+- **Alert Deduplication**: SSL alerts limited to once per day to prevent spam
+
+#### Technical Implementation
+```typescript
+// Enhanced SSL configuration
+{
+  enableSslCheck: true,
+  sslDaysUntilExpirationWarning: 50,  // Your 50-day threshold
+  sslCheckFrequencyHours: 24,         // Daily checks
+  sslLastCheckedAt: "2025-01-27T...", // Automatic tracking
+}
+
+// Smart frequency escalation (CHECK frequency)
+normal: 24 hours     -> when > 2x warning threshold (>100 days)
+approaching: 6 hours -> when > warning threshold (50-100 days)
+critical: 1 hour     -> when ≤ warning threshold (≤50 days) 
+immediate: on save   -> always check new monitors
+
+// Alert frequency (NOTIFICATION frequency)  
+expiration_alerts: 24 hours max -> "expires in X days" once per day
+critical_alerts: immediate      -> expired/revoked certs alert instantly
+change_alerts: immediate        -> certificate renewals reported quickly
+```
+
+#### SSL Alert Resolution
+The SSL expiration alert issue (47-day certificate with 50-day threshold) has been resolved:
+
+- **Root Cause**: SSL warnings didn't change monitor status, so alerts weren't triggered
+- **Solution**: Independent SSL alert checking that works without status changes
+- **Implementation**: `checkSslExpirationAlert` method checks SSL warnings separately
+- **Alert Logic**: Compares `daysRemaining ≤ sslDaysUntilExpirationWarning`
+
+### Immediate Monitor Execution
+
+All monitors now execute immediately when saved for instant feedback:
+
+#### Execution Flow
+```mermaid
+graph TD
+    A[User saves monitor] --> B[Monitor scheduled]
+    B --> C[Immediate execution triggered]
+    C --> D[Monitor runs instantly]
+    D --> E[Results visible immediately]
+    E --> F[SSL certificate info displayed]
+```
+
+#### Benefits
+- **Instant Validation**: No waiting for first scheduled check
+- **Configuration Verification**: Immediate feedback on settings
+- **SSL Certificate Details**: Instant SSL info for HTTPS monitors
+- **Error Detection**: Quick identification of misconfigurations
+
 ## Testing and Verification
+
+### SSL Monitoring Testing
+1. Create HTTPS monitor with SSL checking enabled
+2. Set `sslDaysUntilExpirationWarning` to desired threshold (e.g., 50 days)
+3. Monitor executes immediately showing SSL certificate info
+4. Verify adaptive SSL check frequency in logs:
+   - Normal certificates (>100 days): Checked every 24 hours
+   - Approaching expiration (50-100 days): Checked every 6 hours  
+   - Critical certificates (≤50 days): Checked every 1 hour
+5. Test SSL expiration alerts:
+   - **Expiration warnings**: Maximum 1 alert per day per monitor
+   - **Critical issues** (expired/revoked): Immediate alerts bypass cooldown
+   - **Certificate changes**: Detected within check frequency window
+
+### Immediate Execution Testing
+1. Create any monitor (HTTP, ping, port check)
+2. Verify monitor executes immediately after save
+3. Check that results appear without waiting for schedule
+4. Confirm heartbeat monitors don't trigger immediate execution
 
 ### Heartbeat Monitor Testing
 1. Create heartbeat monitor with alert settings enabled
 2. Configure notification providers (Slack recommended for testing)
-3. Test success ping: `curl http://localhost:3000/api/heartbeat/[your-token]`
-4. Test failure ping: `curl http://localhost:3000/api/heartbeat/[your-token]/fail`
+3. Test success ping: `curl ${NEXT_PUBLIC_APP_URL}/api/heartbeat/[your-token]`
+4. Test failure ping: `curl ${NEXT_PUBLIC_APP_URL}/api/heartbeat/[your-token]/fail`
 5. Verify notifications in configured channels
 6. Check alert history for logged notifications
 
@@ -544,10 +960,10 @@ const jobDataPayload: MonitorJobData = {
 #### Frontend (.env.local)
 ```bash
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/supertest"
+DATABASE_URL="postgresql://user:password@${DB_HOST}:5432/supertest"
 
 # Redis
-REDIS_URL="redis://localhost:6379"
+REDIS_URL="redis://${REDIS_HOST}:6379"
 
 # Disable schedulers if needed (for development/testing)
 DISABLE_JOB_SCHEDULER=true
@@ -557,10 +973,10 @@ DISABLE_MONITOR_SCHEDULER=true
 #### Backend (runner/.env)
 ```bash
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/supertest"
+DATABASE_URL="postgresql://user:password@${DB_HOST}:5432/supertest"
 
 # Redis
-REDIS_URL="redis://localhost:6379"
+REDIS_URL="redis://${REDIS_HOST}:6379"
 ```
 
 ### Alert Configuration
@@ -617,6 +1033,24 @@ The system uses cron expressions for scheduling. Common patterns:
 - Check provider API keys/credentials
 - Review monitor-provider linkage
 - Check alert service logs
+- **Recent Fix**: Environment variable `NEXT_PUBLIC_APP_URL` must be properly configured in runner service
+
+#### Dashboard URLs Showing as "undefined"
+- **Cause**: Missing or incorrect `NEXT_PUBLIC_APP_URL` environment variable
+- **Fix**: Ensure `NEXT_PUBLIC_APP_URL=http://localhost:3000` is set in runner `.env` file
+- **Check**: Look for typos like `NEXT_NEXT_PUBLIC_APP_URL` (double "NEXT")
+
+#### SSL Alerts Not Working
+- **Recent Fix**: SSL expiration alerts now work independently of monitor status changes
+- Verify `enableSslCheck: true` in monitor configuration
+- Check `sslDaysUntilExpirationWarning` threshold setting
+- SSL alerts are limited to once per 24 hours to prevent spam
+
+#### Heartbeat Monitors Not Detecting Failures Promptly  
+- **Known Issue**: Current check frequency is `expectedInterval + gracePeriod`
+- **Impact**: Failures may not be detected for up to 2x the expected interval
+- **Workaround**: Use shorter grace periods for more responsive detection
+- **Recommendation**: Implement improved check frequency strategy (see Heartbeat Monitoring section)
 
 #### High Response Times
 - Monitor system resources (CPU, memory)

@@ -146,7 +146,7 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     }
     
     // Set up SSE to get real-time job status
-    const eventSource = new EventSource(`/api/job-status/sse/${runId}`);
+            const eventSource = new EventSource(`/api/job-status/events/${runId}`);
     eventSourcesRef.current.set(jobId, eventSource);
     
     // Flag to track if we've shown the final toast for this run

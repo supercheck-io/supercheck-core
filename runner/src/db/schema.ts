@@ -416,6 +416,13 @@ export type MonitorConfig = {
   gracePeriodMinutes?: number;
   heartbeatUrl?: string;
   lastPingAt?: string;
+  // SSL-specific settings
+  enableSslCheck?: boolean;
+  sslDaysUntilExpirationWarning?: number;
+  sslCheckFrequencyHours?: number;
+  sslLastCheckedAt?: string;
+  sslCheckOnStatusChange?: boolean;
+  // Legacy fields (deprecated, use SSL-specific fields above)
   checkExpiration?: boolean;
   daysUntilExpirationWarning?: number;
   checkRevocation?: boolean;
@@ -558,30 +565,30 @@ export type NotificationProviderType =
 export type NotificationProviderConfig = {
   name?: string;
   isDefault?: boolean;
-  
+
   // Email configuration - simplified field using environment variables for SMTP
   emails?: string;
-  
+
   // Slack configuration
   webhookUrl?: string;
   channel?: string;
-  
+
   // Webhook configuration
   url?: string;
   method?: 'GET' | 'POST' | 'PUT';
   headers?: Record<string, string>;
   bodyTemplate?: string;
-  
+
   // Telegram configuration
   botToken?: string;
   chatId?: string;
-  
+
   // Discord configuration
   discordWebhookUrl?: string;
-  
+
   // Microsoft Teams configuration
   teamsWebhookUrl?: string;
-  
+
   [key: string]: any;
 };
 

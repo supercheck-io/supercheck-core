@@ -1,55 +1,22 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { spawn, execSync, exec } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import * as fs from 'fs/promises';
-import {
-  existsSync,
-  mkdirSync,
-  writeFileSync,
-  cpSync,
-  readFileSync,
-  rmSync,
-} from 'fs';
+import { existsSync } from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import * as crypto from 'crypto';
 import { S3Service } from './s3.service';
 import { DbService } from './db.service';
 import { RedisService } from './redis.service';
-import { eq } from 'drizzle-orm';
-import * as schema from '../../db/schema';
 import {
   TestResult,
   TestExecutionResult,
-  TestScript,
   TestExecutionTask,
   JobExecutionTask,
-  ReportMetadata,
 } from '../interfaces';
 
 // Helper function to check if running on Windows
 export const isWindows = process.platform === 'win32';
-
-/**
- * Converts a path to a properly formatted CLI path based on the operating system.
- * Handles escaping special characters and spaces.
- */
-export function toCLIPath(inputPath: string): string {
-  // Get absolute path
-  const absolutePath = path.isAbsolute(inputPath)
-    ? inputPath
-    : path.resolve(process.cwd(), inputPath);
-
-  // Return the properly formatted path for CLI usage
-  return absolutePath.replace(/([\\\\])/g, '\\\\$1');
-}
-
-// Generates a temporary directory path for a given execution ID
-export function getTemporaryRunPath(runId: string): string {
-  // Use os.tmpdir() for a system-appropriate temporary directory
-  const basePath = path.join(os.tmpdir(), 'supercheck-runs');
-  return path.join(basePath, runId);
-}
 
 // Gets the content type based on file extension (simple version)
 export function getContentType(filePath: string): string {
@@ -119,16 +86,6 @@ export function ensureProperTraceConfiguration(
   return testScript;
 }
 
-// Helper function to check if a file exists with fs.promises
-const fsExists = async (path) => {
-  try {
-    await fs.access(path);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 // Interface defining the result from the internal _executePlaywright function
 interface PlaywrightExecutionResult {
   success: boolean;
@@ -184,7 +141,7 @@ export class ExecutionService {
     );
 
     // Ensure base local dir exists and has correct permissions
-    this.ensureBaseDirectoryPermissions();
+    void this.ensureBaseDirectoryPermissions();
   }
 
   /**
@@ -194,26 +151,34 @@ export class ExecutionService {
     try {
       // Create the base directory if it doesn't exist
       await fs.mkdir(this.baseLocalRunDir, { recursive: true });
-      
+
       // Test write permissions by creating and removing a test file
       const testFile = path.join(this.baseLocalRunDir, '.permission-test');
       await fs.writeFile(testFile, 'test', { mode: 0o644 });
       await fs.unlink(testFile);
-      
-      this.logger.log(`Base directory permissions verified: ${this.baseLocalRunDir}`);
+
+      this.logger.log(
+        `Base directory permissions verified: ${this.baseLocalRunDir}`,
+      );
     } catch (error: any) {
       this.logger.error(
-        `Failed to create or verify permissions for base directory ${this.baseLocalRunDir}: ${error.message}`,
-        error.stack,
+        `Failed to create or verify permissions for base directory ${this.baseLocalRunDir}: ${(error as Error).message}`,
+        (error as Error).stack,
       );
-      
+
       // Try to fix permissions if possible (works when container has sufficient privileges)
-      try {
-        const { execSync } = require('child_process');
-        execSync(`chmod -R 755 ${this.baseLocalRunDir}`, { stdio: 'ignore' });
-        this.logger.log(`Attempted to fix permissions for ${this.baseLocalRunDir}`);
-      } catch (chmodError) {
-        this.logger.warn(`Could not fix permissions: ${chmodError.message}`);
+      // Skip on Windows as chmod doesn't exist
+      if (!isWindows) {
+        try {
+          execSync(`chmod -R 755 ${this.baseLocalRunDir}`, { stdio: 'ignore' });
+          this.logger.log(
+            `Attempted to fix permissions for ${this.baseLocalRunDir}`,
+          );
+        } catch (chmodError) {
+          this.logger.warn(
+            `Could not fix permissions: ${(chmodError as Error).message}`,
+          );
+        }
       }
     }
   }
@@ -221,40 +186,49 @@ export class ExecutionService {
   /**
    * Creates a run directory with proper permissions and enhanced error handling
    */
-  private async createRunDirectoryWithPermissions(runDir: string, entityId: string): Promise<void> {
+  private async createRunDirectoryWithPermissions(
+    runDir: string,
+    entityId: string,
+  ): Promise<void> {
     try {
       await fs.mkdir(runDir, { recursive: true });
-      this.logger.debug(`[${entityId}] Successfully created run directory: ${runDir}`);
-    } catch (error: any) {
-      if (error.code === 'EACCES') {
+      this.logger.debug(
+        `[${entityId}] Successfully created run directory: ${runDir}`,
+      );
+    } catch (error: unknown) {
+      if ((error as { code?: string }).code === 'EACCES') {
         this.logger.error(
           `[${entityId}] Permission denied when creating directory ${runDir}. ` +
-          `This usually happens when the mounted volume has incorrect ownership. ` +
-          `Container user: nodejs (UID 1001), Error: ${error.message}`,
+            `This usually happens when the mounted volume has incorrect ownership. ` +
+            `Container user: nodejs (UID 1001), Error: ${(error as Error).message}`,
         );
-        
+
         // Try alternative approaches
         try {
           // Check if parent directory exists and is writable
           const parentDir = path.dirname(runDir);
           await fs.access(parentDir, fs.constants.F_OK | fs.constants.W_OK);
-          
+
           // Try creating with explicit permissions
           await fs.mkdir(runDir, { recursive: true, mode: 0o755 });
-          this.logger.log(`[${entityId}] Successfully created directory with explicit permissions`);
-        } catch (fallbackError: any) {
+          this.logger.log(
+            `[${entityId}] Successfully created directory with explicit permissions`,
+          );
+        } catch (fallbackError: unknown) {
           this.logger.error(
             `[${entityId}] All attempts to create directory failed. ` +
-            `Please ensure the host directory has correct ownership (UID 1001) or is writable by the container. ` +
-            `Fallback error: ${fallbackError.message}`,
+              `Please ensure the host directory has correct ownership (UID 1001) or is writable by the container. ` +
+              `Fallback error: ${(fallbackError as Error).message}`,
           );
           throw new Error(
-            `Unable to create test execution directory: ${error.message}. ` +
-            `Please check Docker volume mount permissions for playwright-reports directory.`
+            `Unable to create test execution directory: ${(error as Error).message}. ` +
+              `Please check Docker volume mount permissions for playwright-reports directory.`,
           );
         }
       } else {
-        this.logger.error(`[${entityId}] Unexpected error creating directory ${runDir}: ${error.message}`);
+        this.logger.error(
+          `[${entityId}] Unexpected error creating directory ${runDir}: ${(error as Error).message}`,
+        );
         throw error;
       }
     }
@@ -275,11 +249,6 @@ export class ExecutionService {
     const entityType = 'test';
     let finalResult: TestResult;
     let s3Url: string | null = null;
-    const finalError: string | null = null;
-    const timestamp = new Date().toISOString();
-    const testSuccess = false;
-    const stdout_log = '';
-    const stderr_log = '';
 
     try {
       // 1. Validate input
@@ -303,7 +272,7 @@ export class ExecutionService {
         // Note: prepareSingleTest now returns the directory path, not the file path
         testDirPath = await this.prepareSingleTest(testId, code, runDir);
       } catch (error) {
-        throw new Error(`Failed to prepare test: ${error.message}`);
+        throw new Error(`Failed to prepare test: ${(error as Error).message}`);
       }
 
       // 4. Execute the test script using the native Playwright runner with timeout
@@ -349,11 +318,7 @@ export class ExecutionService {
 
               try {
                 // Process the report files to fix trace URLs before uploading
-                await this._processReportFilesForS3(
-                  outputDir,
-                  testId,
-                  entityType,
-                );
+                await this._processReportFilesForS3(outputDir, testId);
 
                 await this.s3Service.uploadDirectory(
                   outputDir,
@@ -370,14 +335,14 @@ export class ExecutionService {
                   '/index.html';
               } catch (uploadErr: any) {
                 this.logger.error(
-                  `[${testId}] Report upload failed from ${outputDir}: ${uploadErr.message}`,
+                  `[${testId}] Report upload failed from ${outputDir}: ${(uploadErr as Error).message}`,
                 );
                 s3Url = null;
               }
             }
           } catch (err) {
             this.logger.error(
-              `[${testId}] Error reading output directory: ${err.message}`,
+              `[${testId}] Error reading output directory: ${(err as Error).message}`,
             );
           }
         }
@@ -392,11 +357,7 @@ export class ExecutionService {
             );
             try {
               // Process the report files to fix trace URLs before uploading
-              await this._processReportFilesForS3(
-                playwrightReportDir,
-                testId,
-                entityType,
-              );
+              await this._processReportFilesForS3(playwrightReportDir, testId);
 
               // Upload the playwright-report directory contents
               await this.s3Service.uploadDirectory(
@@ -415,7 +376,7 @@ export class ExecutionService {
                 '/index.html';
             } catch (uploadErr: any) {
               this.logger.error(
-                `[${testId}] Report upload failed from default location: ${uploadErr.message}`,
+                `[${testId}] Report upload failed from default location: ${(uploadErr as Error).message}`,
               );
               s3Url = null;
             }
@@ -439,7 +400,7 @@ export class ExecutionService {
           entityId: testId,
           entityType,
           reportPath: s3ReportKeyPrefix,
-          status: 'passed',
+          status: finalStatus,
           s3Url: s3Url ?? undefined,
         });
 
@@ -453,7 +414,6 @@ export class ExecutionService {
         };
       } else {
         // Playwright execution failed
-        finalStatus = 'failed';
         const specificError =
           execResult.error ||
           'Playwright execution failed with an unknown error.';
@@ -494,11 +454,7 @@ export class ExecutionService {
 
               try {
                 // Process the report files to fix trace URLs before uploading
-                await this._processReportFilesForS3(
-                  outputDir,
-                  testId,
-                  entityType,
-                );
+                await this._processReportFilesForS3(outputDir, testId);
 
                 await this.s3Service.uploadDirectory(
                   outputDir,
@@ -515,14 +471,14 @@ export class ExecutionService {
                   '/index.html';
               } catch (uploadErr: any) {
                 this.logger.error(
-                  `[${testId}] Report upload failed from ${outputDir}: ${uploadErr.message}`,
+                  `[${testId}] Report upload failed from ${outputDir}: ${(uploadErr as Error).message}`,
                 );
                 s3Url = null;
               }
             }
           } catch (err) {
             this.logger.error(
-              `[${testId}] Error reading output directory: ${err.message}`,
+              `[${testId}] Error reading output directory: ${(err as Error).message}`,
             );
           }
         }
@@ -537,11 +493,7 @@ export class ExecutionService {
             );
             try {
               // Process the report files to fix trace URLs before uploading
-              await this._processReportFilesForS3(
-                playwrightReportDir,
-                testId,
-                entityType,
-              );
+              await this._processReportFilesForS3(playwrightReportDir, testId);
 
               // Upload the playwright-report directory contents
               await this.s3Service.uploadDirectory(
@@ -560,7 +512,7 @@ export class ExecutionService {
                 '/index.html';
             } catch (uploadErr: any) {
               this.logger.error(
-                `[${testId}] Report upload failed from default location: ${uploadErr.message}`,
+                `[${testId}] Report upload failed from default location: ${(uploadErr as Error).message}`,
               );
               s3Url = null;
             }
@@ -599,8 +551,8 @@ export class ExecutionService {
     } catch (error: any) {
       // Catch unexpected errors during the process
       this.logger.error(
-        `[${testId}] Unhandled error during single test execution: ${error.message}`,
-        error.stack,
+        `[${testId}] Unhandled error during single test execution: ${(error as Error).message}`,
+        (error as Error).stack,
       );
 
       // Ensure DB status is marked as failed
@@ -614,17 +566,17 @@ export class ExecutionService {
         })
         .catch((dbErr) =>
           this.logger.error(
-            `[${testId}] Failed to update DB status on error: ${dbErr.message}`,
+            `[${testId}] Failed to update DB status on error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
           ),
         );
 
       finalResult = {
         success: false,
-        error: error.message,
+        error: (error as Error).message,
         reportUrl: null,
         testId,
         stdout: '',
-        stderr: error.stack || error.message,
+        stderr: (error as Error).stack || (error as Error).message,
       };
       // Propagate the error to the BullMQ processor so the job is marked as failed
       throw error;
@@ -637,7 +589,7 @@ export class ExecutionService {
       // Comment out the cleanup code
       /*
             await fs.rm(runDir, { recursive: true, force: true }).catch(err => {
-                this.logger.warn(`[${testId}] Failed to cleanup local run directory ${runDir}: ${err.message}`);
+                this.logger.warn(`[${testId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`);
             });
             */
     }
@@ -650,7 +602,7 @@ export class ExecutionService {
    * Uses the native Playwright test runner and HTML reporter.
    */
   async runJob(task: JobExecutionTask): Promise<TestExecutionResult> {
-    const { runId, testScripts, originalJobId, trigger } = task;
+    const { runId, testScripts } = task;
     const entityType = 'job';
     this.logger.log(
       `[${runId}] Starting job execution with ${testScripts.length} tests.`,
@@ -690,7 +642,7 @@ export class ExecutionService {
 
       // Process each script, creating a Playwright test file for each
       for (let i = 0; i < testScripts.length; i++) {
-        const { id, script: originalScript, name } = testScripts[i];
+        const { id, script: originalScript } = testScripts[i];
         const testId = id;
 
         try {
@@ -708,8 +660,8 @@ export class ExecutionService {
           );
         } catch (error) {
           this.logger.error(
-            `[${runId}] Error creating test file for ${testId}: ${error.message}`,
-            error.stack,
+            `[${runId}] Error creating test file for ${testId}: ${(error as Error).message}`,
+            (error as Error).stack,
           );
           continue;
         }
@@ -766,7 +718,7 @@ export class ExecutionService {
 
           try {
             // Process the report files to fix trace URLs before uploading
-            await this._processReportFilesForS3(reportDir, runId, entityType);
+            await this._processReportFilesForS3(reportDir, runId);
 
             await this.s3Service.uploadDirectory(
               reportDir,
@@ -780,19 +732,19 @@ export class ExecutionService {
             );
           } catch (uploadErr: any) {
             this.logger.error(
-              `[${runId}] Report upload failed from ${reportDir}: ${uploadErr.message}`,
+              `[${runId}] Report upload failed from ${reportDir}: ${(uploadErr as Error).message}`,
             );
             s3Url = null;
             overallSuccess = false;
             finalError =
-              finalError || `Report upload failed: ${uploadErr.message}`;
+              finalError ||
+              `Report upload failed: ${(uploadErr as Error).message}`;
           }
         }
       }
 
       // If no report found in the output directory, check for the default playwright-report location
       if (!reportFound) {
-        const serviceRoot = process.cwd();
         const playwrightReportDir = path.join(runDir, 'pw-report');
 
         if (existsSync(playwrightReportDir)) {
@@ -801,11 +753,7 @@ export class ExecutionService {
           );
           try {
             // Process the report files to fix trace URLs before uploading
-            await this._processReportFilesForS3(
-              playwrightReportDir,
-              runId,
-              entityType,
-            );
+            await this._processReportFilesForS3(playwrightReportDir, runId);
 
             // Upload the playwright-report directory contents
             await this.s3Service.uploadDirectory(
@@ -821,12 +769,13 @@ export class ExecutionService {
             reportFound = true;
           } catch (uploadErr: any) {
             this.logger.error(
-              `[${runId}] Report upload failed from default location: ${uploadErr.message}`,
+              `[${runId}] Report upload failed from default location: ${(uploadErr as Error).message}`,
             );
             s3Url = null;
             overallSuccess = false;
             finalError =
-              finalError || `Report upload failed: ${uploadErr.message}`;
+              finalError ||
+              `Report upload failed: ${(uploadErr as Error).message}`;
           }
         }
       }
@@ -840,7 +789,7 @@ export class ExecutionService {
           // If the reportDir exists but doesn't have index.html, upload it anyway for the artifacts
           try {
             // Process the report files to fix trace URLs before uploading
-            await this._processReportFilesForS3(reportDir, runId, entityType);
+            await this._processReportFilesForS3(reportDir, runId);
 
             await this.s3Service.uploadDirectory(
               reportDir,
@@ -854,7 +803,7 @@ export class ExecutionService {
             );
           } catch (uploadErr: any) {
             this.logger.error(
-              `[${runId}] Artifacts upload failed: ${uploadErr.message}`,
+              `[${runId}] Artifacts upload failed: ${(uploadErr as Error).message}`,
             );
           }
         }
@@ -911,8 +860,8 @@ export class ExecutionService {
         );
       } catch (updateError) {
         this.logger.error(
-          `[${runId}] Error updating run duration: ${updateError.message}`,
-          updateError.stack,
+          `[${runId}] Error updating run duration: ${(updateError as Error).message}`,
+          (updateError as Error).stack,
         );
       }
 
@@ -920,8 +869,8 @@ export class ExecutionService {
       await this.dbService.updateRunStatus(runId, finalStatus, durationStr);
     } catch (error) {
       this.logger.error(
-        `[${runId}] Unhandled error during job execution: ${error.message}`,
-        error.stack,
+        `[${runId}] Unhandled error during job execution: ${(error as Error).message}`,
+        (error as Error).stack,
       );
       const finalStatus = 'failed';
       // Attempt to mark DB as failed
@@ -935,7 +884,7 @@ export class ExecutionService {
         })
         .catch((dbErr) =>
           this.logger.error(
-            `[${runId}] Failed to update DB status on error: ${dbErr.message}`,
+            `[${runId}] Failed to update DB status on error: ${(dbErr as Error).message}`,
           ),
         );
 
@@ -945,12 +894,12 @@ export class ExecutionService {
       finalResult = {
         jobId: runId,
         success: false,
-        error: error.message,
+        error: (error as Error).message,
         reportUrl: null,
         results: [],
         timestamp,
         stdout: stdout_log,
-        stderr: stderr_log + (error.stack || ''),
+        stderr: stderr_log + ((error as Error).stack || ''),
       };
       throw error;
     } finally {
@@ -959,7 +908,7 @@ export class ExecutionService {
       // Comment out the cleanup code to keep reports
       /*
             await fs.rm(runDir, { recursive: true, force: true }).catch(err => {
-                this.logger.warn(`[${runId}] Failed to cleanup local run directory ${runDir}: ${err.message}`);
+                this.logger.warn(`[${runId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`);
             });
             */
     }
@@ -1038,8 +987,6 @@ export class ExecutionService {
         PLAYWRIGHT_HTML_REPORT: playwrightReportDir,
         // Add timestamp to prevent caching issues
         PLAYWRIGHT_TIMESTAMP: Date.now().toString(),
-        // Set the default theme to dark for HTML reports
-        PLAYWRIGHT_HTML_REPORT_THEME: 'dark',
       };
 
       this.logger.debug(
@@ -1047,7 +994,7 @@ export class ExecutionService {
       );
 
       // Handle path differences between Windows and Unix-like systems
-      let playwrightCliPath;
+      let playwrightCliPath: string;
       if (isWindows) {
         // On Windows, use the .cmd extension
         playwrightCliPath = path.join(
@@ -1139,9 +1086,9 @@ export class ExecutionService {
     } catch (error) {
       return {
         success: false,
-        error: error.message,
+        error: (error as Error).message,
         stdout: '',
-        stderr: error.stack || '',
+        stderr: (error as Error).stack || '',
       };
     }
   }
@@ -1199,7 +1146,7 @@ export class ExecutionService {
           }
         };
 
-        childProcess.stdout.on('data', (data) => {
+        childProcess.stdout.on('data', (data: Buffer) => {
           const chunk = data.toString();
           if (stdout.length < MAX_BUFFER) {
             stdout += chunk;
@@ -1209,7 +1156,7 @@ export class ExecutionService {
           this.logger.debug(`STDOUT: ${chunk.trim()}`);
         });
 
-        childProcess.stderr.on('data', (data) => {
+        childProcess.stderr.on('data', (data: Buffer) => {
           const chunk = data.toString();
           if (stderr.length < MAX_BUFFER) {
             stderr += chunk;
@@ -1264,7 +1211,6 @@ export class ExecutionService {
   private async _processReportFilesForS3(
     reportDir: string,
     runId: string,
-    entityType: string,
   ): Promise<void> {
     try {
       // Look for index.html in the report directory
@@ -1318,7 +1264,7 @@ export class ExecutionService {
           },
           // Pattern 7: Any path with the runId in it - could be an artifact path
           {
-            regex: new RegExp(`(["'])(\/[^"']*${runId}[^"']*)(['"])`, 'g'),
+            regex: new RegExp(`(["'])(/[^"']*${runId}[^"']*)(['"])`, 'g'),
             replacement: '$1../data$3',
           },
         ];
@@ -1337,7 +1283,7 @@ export class ExecutionService {
 
         // Process iframe srcs that might contain trace references
         const iframeSrcRegex = /<iframe[^>]+src=["']([^"']+)["'][^>]*>/g;
-        let match;
+        let match: RegExpExecArray | null;
         while ((match = iframeSrcRegex.exec(content)) !== null) {
           const originalSrc = match[1];
           if (originalSrc.includes('trace') || originalSrc.includes(runId)) {
@@ -1382,14 +1328,16 @@ export class ExecutionService {
             }
           }
         } catch (err) {
-          this.logger.warn(`Error reading trace directory: ${err.message}`);
+          this.logger.warn(
+            `Error reading trace directory: ${(err as Error).message}`,
+          );
         }
       }
     } catch (error) {
       // Log error but don't fail the process
       this.logger.error(
-        `Error processing report files for S3: ${error.message}`,
-        error.stack,
+        `Error processing report files for S3: ${(error as Error).message}`,
+        (error as Error).stack,
       );
     }
   }
@@ -1457,10 +1405,10 @@ test('Automated Test ${testId.substring(0, 8)}', async ({ page }) => {
       return runDir; // Return the directory path similar to how _executePlaywrightNativeRunner is called
     } catch (error) {
       this.logger.error(
-        `[${testId}] Failed to prepare test: ${error.message}`,
-        error.stack,
+        `[${testId}] Failed to prepare test: ${(error as Error).message}`,
+        (error as Error).stack,
       );
-      throw new Error(`Test preparation failed: ${error.message}`);
+      throw new Error(`Test preparation failed: ${(error as Error).message}`);
     }
   }
 

@@ -69,7 +69,7 @@ const checkIntervalOptions = [
 
 // Create schema for the form with conditional validation
 const formSchema = z.object({
-  name: z.string().min(10, "Name must be at least 10 characters"),
+  name: z.string().min(10, "Name must be at least 10 characters").max(100, "Name must be 100 characters or less"),
   target: z.string().optional(),
   type: z.enum(["http_request", "website", "ping_host", "port_check", "heartbeat"], {
     required_error: "Please select a check type",
@@ -77,26 +77,34 @@ const formSchema = z.object({
   interval: z.enum(["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"]).default("1800"),
   // Optional fields that may be required based on type
   // HTTP Request specific
-  httpConfig_method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]).optional(),
-  httpConfig_headers: z.string().optional(),
+  httpConfig_method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]).default("GET"),
+  httpConfig_headers: z.string().optional().refine((val) => {
+    if (!val || val.trim() === "") return true;
+    try {
+      const parsed = JSON.parse(val);
+      return typeof parsed === 'object' && parsed !== null;
+    } catch {
+      return false;
+    }
+  }, "Headers must be valid JSON format, e.g., {\"Content-Type\": \"application/json\"}"),
   httpConfig_body: z.string().optional(),
-  httpConfig_expectedStatusCodes: z.string().optional(),
+  httpConfig_expectedStatusCodes: z.string().min(1, "Expected status codes are required").default("200-299"),
   httpConfig_keywordInBody: z.string().optional(),
-  httpConfig_keywordShouldBePresent: z.boolean().optional(),
+  httpConfig_keywordShouldBePresent: z.boolean().default(true),
   // Auth fields for HTTP Request
-  httpConfig_authType: z.enum(["none", "basic", "bearer"]).optional().default("none"),
+  httpConfig_authType: z.enum(["none", "basic", "bearer"]).default("none"),
   httpConfig_authUsername: z.string().optional(),
   httpConfig_authPassword: z.string().optional(),
   httpConfig_authToken: z.string().optional(),
   // Port Check specific
   portConfig_port: z.coerce.number().int().min(1, "Port must be at least 1").max(65535, "Port must be 65535 or less").optional(),
-  portConfig_protocol: z.enum(["tcp", "udp"]).optional(),
+  portConfig_protocol: z.enum(["tcp", "udp"]).default("tcp"),
   // Heartbeat specific
   heartbeatConfig_expectedInterval: z.coerce.number().int().min(1, "Expected interval must be at least 1 minute").max(10080, "Expected interval must be 1 week or less").optional(), // 1 minute to 1 week
   heartbeatConfig_gracePeriod: z.coerce.number().int().min(1, "Grace period must be at least 1 minute").max(1440, "Grace period must be 1 day or less").optional(), // 1 minute to 1 day
   // Website SSL checking
-  websiteConfig_enableSslCheck: z.boolean().optional(),
-  websiteConfig_sslDaysUntilExpirationWarning: z.coerce.number().int().min(1, "SSL warning days must be at least 1").max(365, "SSL warning days must be 365 or less").optional(), // 1 day to 1 year
+  websiteConfig_enableSslCheck: z.boolean().default(false),
+  websiteConfig_sslDaysUntilExpirationWarning: z.coerce.number().int().min(1, "SSL warning days must be at least 1").max(365, "SSL warning days must be 365 or less").default(30), // 1 day to 1 year
 }).superRefine((data, ctx) => {
   // Target is required for all monitor types except heartbeat
   if (data.type !== "heartbeat" && (!data.target || data.target.trim() === "")) {
@@ -105,6 +113,38 @@ const formSchema = z.object({
       message: "Target is required for this monitor type",
       path: ["target"],
     });
+  }
+
+  // Validate target format based on type
+  if (data.target && data.target.trim()) {
+    const target = data.target.trim();
+    
+    if (data.type === "http_request" || data.type === "website") {
+      // URL validation
+      try {
+        new URL(target);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Target must be a valid URL (e.g., https://example.com)",
+          path: ["target"],
+        });
+      }
+    }
+    
+    if (data.type === "ping_host" || data.type === "port_check") {
+      // Hostname or IP validation
+      const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
+      const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+      
+      if (!hostnameRegex.test(target) && !ipRegex.test(target)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Target must be a valid hostname or IP address",
+          path: ["target"],
+        });
+      }
+    }
   }
 
   // Port is required for port_check
@@ -116,6 +156,14 @@ const formSchema = z.object({
         path: ["portConfig_port"],
       });
     }
+    
+    if (!data.portConfig_protocol) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Protocol is required for port check monitors",
+        path: ["portConfig_protocol"],
+      });
+    }
   }
 
   // Expected interval is required for heartbeat
@@ -125,6 +173,53 @@ const formSchema = z.object({
         code: z.ZodIssueCode.custom,
         message: "Expected interval is required for heartbeat monitors",
         path: ["heartbeatConfig_expectedInterval"],
+      });
+    }
+    
+    if (!data.heartbeatConfig_gracePeriod) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Grace period is required for heartbeat monitors",
+        path: ["heartbeatConfig_gracePeriod"],
+      });
+    }
+  }
+
+  // Authentication validation
+  if (data.httpConfig_authType === "basic") {
+    if (!data.httpConfig_authUsername || data.httpConfig_authUsername.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Username is required for Basic Authentication",
+        path: ["httpConfig_authUsername"],
+      });
+    }
+    if (!data.httpConfig_authPassword || data.httpConfig_authPassword.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Password is required for Basic Authentication",
+        path: ["httpConfig_authPassword"],
+      });
+    }
+  }
+
+  if (data.httpConfig_authType === "bearer") {
+    if (!data.httpConfig_authToken || data.httpConfig_authToken.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Token is required for Bearer Authentication",
+        path: ["httpConfig_authToken"],
+      });
+    }
+  }
+
+  // SSL warning days validation
+  if (data.websiteConfig_enableSslCheck && data.type === "website") {
+    if (!data.websiteConfig_sslDaysUntilExpirationWarning || data.websiteConfig_sslDaysUntilExpirationWarning < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "SSL warning days must be at least 1 when SSL check is enabled",
+        path: ["websiteConfig_sslDaysUntilExpirationWarning"],
       });
     }
   }
@@ -265,10 +360,17 @@ export function MonitorForm({
   const httpMethod = form.watch("httpConfig_method");
   const authType = form.watch("httpConfig_authType");
 
-  // Reset form when URL params change (for monitor type)
+  // Reset form when URL params change (for monitor type) - but preserve state during navigation
   useEffect(() => {
-    if (!editMode && !initialData && urlType && urlType !== type) {
-      console.log("URL type changed from", type, "to", urlType);
+    // Only reset if this is truly a new form (no data has been entered)
+    const hasFormData = formChanged || Object.keys(form.getValues()).some(key => {
+      const value = form.getValues()[key as keyof FormValues];
+      const defaultValue = getDefaultValues()[key as keyof FormValues];
+      return value !== defaultValue && value !== "" && value !== undefined;
+    });
+    
+    if (!editMode && !initialData && urlType && urlType !== type && !hasFormData) {
+      console.log("URL type changed from", type, "to", urlType, "- resetting empty form");
       const newDefaults = getDefaultValues();
       
       // Reset form with new defaults
@@ -281,7 +383,15 @@ export function MonitorForm({
       
       setFormChanged(false);
     }
-  }, [urlType, editMode, initialData, type, form, getDefaultValues]);
+  }, [urlType, editMode, initialData, type, form, getDefaultValues, formChanged]);
+
+  // Initialize form with initialData in edit mode
+  useEffect(() => {
+    if (editMode && initialData) {
+      console.log("Resetting form with initial data for edit mode:", initialData);
+      form.reset(initialData);
+    }
+  }, [editMode, initialData, form]);
   
   const targetPlaceholders: Record<FormValues["type"], string> = {
     http_request: "e.g., https://example.com or https://api.example.com/health",
@@ -307,6 +417,32 @@ export function MonitorForm({
       // Handle cases where one value might be undefined and the other an empty string for certain fields
       if (currentVal === undefined && defaultVal === "") return false;
       if (currentVal === "" && defaultVal === undefined) return false;
+
+      // Handle boolean fields - ensure proper comparison
+      if (typeof currentVal === 'boolean' || typeof defaultVal === 'boolean') {
+        const currentBool = Boolean(currentVal);
+        const defaultBool = Boolean(defaultVal);
+        const changed = currentBool !== defaultBool;
+        console.log(`[FORM_DEBUG] Boolean field comparison for ${key}:`, {
+          currentVal,
+          defaultVal,
+          currentBool,
+          defaultBool,
+          changed
+        });
+        
+        // Debug boolean fields specifically - SSL and other important booleans
+        if (key === 'websiteConfig_enableSslCheck' || key.includes('_enable') || key.includes('_should')) {
+          console.log("[FORM_DEBUG] Important boolean field change detection:", { key, currentVal, defaultVal, currentBool, defaultBool, changed });
+        }
+        
+        return changed;
+      }
+
+      // Debug SSL-related fields specifically
+      if (key === 'websiteConfig_sslDaysUntilExpirationWarning' || key === 'websiteConfig_enableSslCheck') {
+        console.log("[FORM_DEBUG] SSL field change detection:", { key, currentVal, defaultVal, changed: currentVal !== defaultVal });
+      }
 
       return currentVal !== defaultVal;
     });
@@ -345,6 +481,11 @@ export function MonitorForm({
 
   async function onSubmit(data: FormValues) {
     setIsSubmitting(true);
+
+    // Debug: Log form data to see what's being submitted
+    console.log("[FORM_DEBUG] Form submission data:", data);
+    console.log("[FORM_DEBUG] SSL Check Enabled:", data.websiteConfig_enableSslCheck);
+    console.log("[FORM_DEBUG] SSL Days Warning:", data.websiteConfig_sslDaysUntilExpirationWarning);
 
     // Convert form data to API format
     const apiData = {
@@ -453,10 +594,22 @@ export function MonitorForm({
         delete apiData.config.keywordInBodyShouldBePresent;
       }
 
-      // Add SSL checking if enabled
-      if (data.websiteConfig_enableSslCheck) {
-        apiData.config.enableSslCheck = true;
+      // Add SSL checking configuration - handle boolean properly
+      const sslCheckEnabled = Boolean(data.websiteConfig_enableSslCheck);
+      apiData.config.enableSslCheck = sslCheckEnabled;
+      
+      if (sslCheckEnabled) {
         apiData.config.sslDaysUntilExpirationWarning = data.websiteConfig_sslDaysUntilExpirationWarning || 30;
+        console.log("[FORM_DEBUG] SSL Config enabled:", {
+          enableSslCheck: apiData.config.enableSslCheck,
+          sslDaysUntilExpirationWarning: apiData.config.sslDaysUntilExpirationWarning
+        });
+      } else {
+        // When SSL is disabled, still set the field explicitly but remove the warning days to clean up config
+        delete apiData.config.sslDaysUntilExpirationWarning;
+        console.log("[FORM_DEBUG] SSL Config disabled:", {
+          enableSslCheck: apiData.config.enableSslCheck
+        });
       }
     } else if (data.type === "port_check") {
       apiData.config = {
@@ -511,10 +664,10 @@ export function MonitorForm({
               return window.location.origin;
             }
             // Server-side or fallback
-            return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+            return process.env.NEXT_PUBLIC_APP_URL;
           } catch {
-            console.warn('Failed to determine app URL, using fallback');
-            return 'http://localhost:3000';
+            console.warn('Failed to determine app URL');
+            return process.env.NEXT_PUBLIC_APP_URL;
           }
         };
 
@@ -532,16 +685,20 @@ export function MonitorForm({
     }
 
     try {
-      // If onSave callback is provided (wizard mode), pass the processed API data
+      // If onSave callback is provided (wizard mode), pass the form data and API data
       if (onSave) {
-        onSave(apiData); // Pass processed API data with all required fields
+        // Pass both the form values and the API data
+        onSave({ formData: data, apiData }); // Pass both for wizard state management
         setIsSubmitting(false);
         return;
       }
 
       // If edit mode and alerts not hidden, show alerts step
       if (editMode && !hideAlerts) {
-        setMonitorData(apiData);
+        // Store both form data and API data for edit mode
+        console.log("[FORM_DEBUG] Edit mode: storing monitor data for alerts step");
+        console.log("[FORM_DEBUG] API Data to store:", JSON.stringify(apiData, null, 2));
+        setMonitorData({ formData: data, apiData });
         setShowAlerts(true);
         setIsSubmitting(false);
         return;
@@ -568,6 +725,11 @@ export function MonitorForm({
       const saveData = includeAlerts ? { ...apiData, alertConfig } : apiData;
       const endpoint = editMode ? `/api/monitors/${id}` : "/api/monitors";
       const method = editMode ? "PUT" : "POST";
+
+      console.log("[FORM_DEBUG] Saving to API:");
+      console.log("[FORM_DEBUG] Endpoint:", endpoint);
+      console.log("[FORM_DEBUG] Method:", method);
+      console.log("[FORM_DEBUG] Save Data:", JSON.stringify(saveData, null, 2));
 
       const response = await fetch(endpoint, {
         method,
@@ -647,7 +809,10 @@ export function MonitorForm({
     }
 
     if (monitorData) {
-      await handleDirectSave(monitorData, true);
+      // Extract apiData from monitorData object if it contains both formData and apiData
+      const apiDataToSave = 'apiData' in monitorData ? (monitorData as { apiData: Record<string, unknown> }).apiData : monitorData;
+      console.log("[FORM_DEBUG] Final submit with monitor data:", JSON.stringify(apiDataToSave, null, 2));
+      await handleDirectSave(apiDataToSave, true);
     }
   }
 
@@ -676,6 +841,7 @@ export function MonitorForm({
               })}
               context="monitor"
               monitorType={type}
+              sslCheckEnabled={type === "website" && form.watch("websiteConfig_enableSslCheck")}
             />
             <div className="flex justify-end space-x-4">
               <Button
@@ -1231,7 +1397,10 @@ export function MonitorForm({
                                 <FormControl>
                                   <Switch
                                     checked={field.value}
-                                    onCheckedChange={field.onChange}
+                                    onCheckedChange={(checked) => {
+                                      console.log("[FORM_DEBUG] SSL Check field changed:", { oldValue: field.value, newValue: checked });
+                                      field.onChange(checked);
+                                    }}
                                   />
                                 </FormControl>
                               </FormItem>
@@ -1251,11 +1420,14 @@ export function MonitorForm({
                                     <Input
                                       type="number"
                                       placeholder="30"
-        
-        
                                       className="w-16 h-7 text-xs"
                                       {...field}
-                                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                                      value={field.value || ''}
+                                      onChange={(e) => {
+                                        const newValue = e.target.value ? parseInt(e.target.value) : 30;
+                                        console.log("[FORM_DEBUG] SSL Days field changed:", { oldValue: field.value, newValue, inputValue: e.target.value });
+                                        field.onChange(newValue);
+                                      }}
                                     />
                                   </FormControl>
                                 </FormItem>
@@ -1456,7 +1628,7 @@ export function MonitorForm({
                                 if (!isNaN(value)) {
                                   field.onChange(value);
                                 } else {
-                                  field.onChange(undefined);
+                                  field.onChange(60); // Default expected interval
                                 }
                               }}
                             />
@@ -1485,7 +1657,7 @@ export function MonitorForm({
                                 if (!isNaN(value)) {
                                   field.onChange(value);
                                 } else {
-                                  field.onChange(undefined);
+                                  field.onChange(10); // Default grace period
                                 }
                               }}
                             />
@@ -1520,7 +1692,7 @@ export function MonitorForm({
                       <p>1. Create this monitor to get a unique heartbeat URL</p>
                       <p>2. Send GET or POST requests to the URL from your service/script</p>
                       <p>3. If no ping is received within the expected interval + grace period, the monitor will be marked as down</p>
-                                              <p className="font-medium">Example: <code className="bg-background px-1 rounded">curl {process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/YOUR_TOKEN</code></p>
+                      <p className="font-medium">Example: <code className="bg-background px-1 rounded">curl {process.env.NEXT_PUBLIC_APP_URL || 'https://app-domain.com'}/api/heartbeat/YOUR_TOKEN</code></p>
                     </div>
                   </div>
                 </div>
@@ -1546,7 +1718,7 @@ export function MonitorForm({
                                 if (!isNaN(value)) {
                                   field.onChange(value);
                                 } else {
-                                  field.onChange(undefined);
+                                  field.onChange(443); // Default port
                                 }
                               }}
                             />

@@ -766,13 +766,13 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                       <label className="text-sm font-medium text-muted-foreground">Success URL</label>
                       <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group">
                         <code className="flex-1 text-sm font-mono break-all">
-                          {(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`}
+                          {(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/${monitor.id}`}
                         </code>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const url = (monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`;
+                            const url = (monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/${monitor.id}`;
                             navigator.clipboard.writeText(url);
                             toast.success("URL copied to clipboard");
                           }}
@@ -787,13 +787,13 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                       <label className="text-sm font-medium text-muted-foreground">Failure URL</label>
                       <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group mb-5" >
                         <code className="flex-1 text-sm font-mono break-all">
-                          {(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`}/fail
+                          {(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/${monitor.id}`}/fail
                         </code>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const url = `${(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/heartbeat/${monitor.id}`}/fail`;
+                            const url = `${(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/${monitor.id}`}/fail`;
                             navigator.clipboard.writeText(url);
                             toast.success("URL copied to clipboard");
                           }}

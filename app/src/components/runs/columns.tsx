@@ -27,7 +27,7 @@ function JobNameWithPopover({ jobName }: { jobName: string | undefined }) {
   
   if (!isTruncated) {
     return (
-      <div className="max-w-[250px] truncate">
+      <div className="font-medium max-w-[250px] truncate">
         {displayName}
       </div>
     );
@@ -37,7 +37,7 @@ function JobNameWithPopover({ jobName }: { jobName: string | undefined }) {
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <div 
-          className="max-w-[250px] truncate cursor-pointer"
+          className="font-medium max-w-[250px] truncate cursor-pointer"
           onMouseEnter={() => setIsOpen(true)}
           onMouseLeave={() => setIsOpen(false)}
         >

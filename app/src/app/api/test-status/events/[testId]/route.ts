@@ -2,30 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/utils/db';
 import { reports } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
-import { TEST_EXECUTION_QUEUE } from '@/lib/queue';
 import Redis from 'ioredis';
-
-// Dynamic import for BullMQ to avoid webpack warnings
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let Queue: any;
-if (typeof window === 'undefined') {
-  // Only import on server side
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  Queue = require('bullmq').Queue;
-}
-
-// Type for BullMQ Job
-interface BullJob {
-  id?: string;
-  name?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data?: any;
-  getState(): Promise<string>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  progress: Promise<any>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  returnvalue: Promise<any>;
-}
 
 /**
  * Helper function to create SSE message
@@ -35,12 +12,11 @@ const createSSEMessage = (data: Record<string, unknown>) => {
 };
 
 /**
- * Helper function to get Redis connection - internal function that doesn't rely on exported getRedisConnection
+ * Helper function to get Redis connection
  */
 const getRedisConnection = async (): Promise<Redis> => {
   console.log(`Creating Redis connection for SSE endpoint`);
   
-  // Read directly from process.env (same as main queue system)
   const host = process.env.REDIS_HOST || 'localhost';
   const port = parseInt(process.env.REDIS_PORT || '6379');
   const password = process.env.REDIS_PASSWORD;
@@ -51,8 +27,8 @@ const getRedisConnection = async (): Promise<Redis> => {
     host,
     port,
     password: password || undefined,
-    maxRetriesPerRequest: null, // Required for BullMQ
-    enableReadyCheck: false,    // Speed up connection
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
   });
   
   redis.on('error', (err) => console.error('[SSE Redis Client Error]', err));
@@ -98,9 +74,8 @@ export async function GET(request: Request) {
           return;
         }
 
-        // Get Redis connection and create the Bull queue
-        const connection = await getRedisConnection();
-        const testQueue = new Queue(TEST_EXECUTION_QUEUE, { connection });
+        // Get Redis connection for pub/sub
+        const subscriber = await getRedisConnection();
         
         // Handle disconnection
         const cleanup = async () => {
@@ -110,7 +85,7 @@ export async function GET(request: Request) {
             console.log(`[SSE] Client disconnected for test ${testId}`);
             // Clean up Redis connection
             try {
-              await connection.disconnect();
+              await subscriber.disconnect();
             } catch (err) {
               console.error(`Error disconnecting Redis: ${err instanceof Error ? err.message : String(err)}`);
             }
@@ -145,75 +120,95 @@ export async function GET(request: Request) {
           controller.enqueue(encoder.encode(createSSEMessage({ status: 'waiting' })));
         }
         
-        // Get all Bull jobs for this test ID
-        const jobs = await testQueue.getJobs(['waiting', 'active', 'completed', 'failed']);
-        const testJob = jobs.find((job: BullJob) => job.data.testId === testId);
+        // Subscribe to Redis channels for test status updates
+        const testStatusChannel = `test:${testId}:status`;
+        const testCompleteChannel = `test:${testId}:complete`;
         
-        if (!testJob) {
-          console.log(`[SSE] Test ${testId} not found in Bull queue`);
-          // Even if test not found in Bull, keep the connection alive
-          // as it might be added later or already completed
-          return;
-        }
+        console.log(`[SSE] Subscribing to channels: ${testStatusChannel}, ${testCompleteChannel}`);
         
-        // Set up polling to check test status from Bull queue
-        const pollInterval = setInterval(async () => {
+        // Subscribe to status updates
+        await subscriber.subscribe(testStatusChannel, testCompleteChannel);
+        
+        // Handle messages from Redis pub/sub
+        subscriber.on('message', async (channel, message) => {
+          if (connectionClosed) return;
+          
+          try {
+            const data = JSON.parse(message);
+            console.log(`[SSE] Received message on channel ${channel}:`, data);
+            
+            if (channel === testCompleteChannel) {
+              // Test completed, send final status and close connection
+              controller.enqueue(encoder.encode(createSSEMessage({
+                status: data.status,
+                testId: data.testId,
+                reportPath: data.reportPath,
+                s3Url: data.s3Url,
+                error: data.error
+              })));
+              
+              connectionClosed = true;
+              clearInterval(pingInterval);
+              await cleanup();
+              controller.close();
+            } else if (channel === testStatusChannel) {
+              // Status update
+              controller.enqueue(encoder.encode(createSSEMessage({
+                status: data.status,
+                testId: data.testId,
+                reportPath: data.reportPath,
+                s3Url: data.s3Url,
+                error: data.error
+              })));
+            }
+          } catch (parseError) {
+            console.error(`[SSE] Error parsing message from channel ${channel}:`, parseError);
+          }
+        });
+        
+        // Set up a fallback mechanism to check database periodically (less frequent)
+        // This is only for cases where Redis pub/sub might miss events
+        const fallbackInterval = setInterval(async () => {
           if (connectionClosed) {
-            clearInterval(pollInterval);
+            clearInterval(fallbackInterval);
             return;
           }
           
           try {
-            // Get all jobs again to find the latest state
-            const updatedJobs = await testQueue.getJobs(['waiting', 'active', 'completed', 'failed']);
-            const updatedTestJob = updatedJobs.find((job: BullJob) => job.data.testId === testId);
-            
-            if (!updatedTestJob) {
-              return;
-            }
-            
-            // Get job state
-            const state = await updatedTestJob.getState();
-            const progress = JSON.stringify(await updatedTestJob.progress);
-            
-            // Map Bull states to our application states
-            let status = state;
-            if (state === 'completed') {
-              const result = await updatedTestJob.returnvalue;
-              status = result?.success === true ? 'completed' : 'failed';
-            }
-            
-            // Get latest report data from DB
-            const updatedReport = await db.query.reports.findFirst({
+            // Check database for terminal status (less frequent than before)
+            const dbReport = await db.query.reports.findFirst({
               where: and(
                 eq(reports.entityType, 'test'),
                 eq(reports.entityId, testId)
               ),
             });
             
-            controller.enqueue(encoder.encode(createSSEMessage({ 
-              status,
-              testId,
-              progress,
-              reportPath: updatedReport?.reportPath,
-              s3Url: updatedReport?.s3Url,
-              error: undefined,
-              ...(updatedTestJob.returnvalue || {})
-            })));
-            
-            // If terminal state, close connection
-            if (['completed', 'failed'].includes(state)) {
-              console.log(`[SSE] Test ${testId} reached terminal state ${status}, closing connection`);
+            if (dbReport && ['completed', 'failed'].includes(dbReport.status)) {
+              console.log(`[SSE] Fallback: Test ${testId} has terminal status ${dbReport.status} in database`);
+              
+              controller.enqueue(encoder.encode(createSSEMessage({ 
+                status: dbReport.status,
+                testId: dbReport.entityId,
+                reportPath: dbReport.reportPath,
+                s3Url: dbReport.s3Url,
+                error: undefined
+              })));
+              
               connectionClosed = true;
-              clearInterval(pollInterval);
-              // Close Redis connection using our cleanup function
+              clearInterval(fallbackInterval);
               await cleanup();
               controller.close();
             }
-          } catch (pollError) {
-            console.error(`[SSE] Error polling test ${testId} status:`, pollError);
+          } catch (fallbackError) {
+            console.error(`[SSE] Error in fallback check for test ${testId}:`, fallbackError);
           }
-        }, 1000); // Poll every second
+        }, 30000); // Check every 30 seconds instead of every second
+        
+        // Clean up fallback interval on close
+        request.signal.addEventListener('abort', () => {
+          clearInterval(fallbackInterval);
+        });
+        
       } catch (err) {
         console.error('[SSE] Error in SSE stream:', err);
         controller.enqueue(encoder.encode(createSSEMessage({ 

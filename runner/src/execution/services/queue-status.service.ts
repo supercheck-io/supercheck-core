@@ -6,14 +6,14 @@ import { DbService } from './db.service';
 
 /**
  * Queue Status Service - Centralized Bull Queue Status Management
- * 
+ *
  * This service manages status updates directly through Bull queues rather than
  * separate Redis pub/sub channels. This simplifies the architecture by:
- * 
+ *
  * 1. Using Bull's built-in event system for status tracking
  * 2. Leveraging Bull's existing Redis data with proper TTL settings
  * 3. Removing the need for separate Redis pub/sub channels
- * 
+ *
  * NOTE: Database status updates are handled by the job execution processor
  * to avoid race conditions. This service only provides logging and monitoring.
  */
@@ -26,7 +26,7 @@ export class QueueStatusService {
   constructor(
     @InjectQueue(JOB_EXECUTION_QUEUE) private jobQueue: Queue,
     @InjectQueue(TEST_EXECUTION_QUEUE) private testQueue: Queue,
-    private dbService: DbService
+    private dbService: DbService,
   ) {
     this.initializeQueueListeners();
   }
@@ -38,12 +38,12 @@ export class QueueStatusService {
   private initializeQueueListeners() {
     // Set up QueueEvents for job queue
     this.jobQueueEvents = new QueueEvents(JOB_EXECUTION_QUEUE, {
-      connection: this.jobQueue.opts.connection
+      connection: this.jobQueue.opts.connection,
     });
 
     // Set up QueueEvents for test queue
     this.testQueueEvents = new QueueEvents(TEST_EXECUTION_QUEUE, {
-      connection: this.testQueue.opts.connection
+      connection: this.testQueue.opts.connection,
     });
 
     // Job queue event listeners - only for logging and monitoring
@@ -51,17 +51,17 @@ export class QueueStatusService {
       this.logger.debug(`Job ${jobId} is waiting`);
     });
 
-    this.jobQueueEvents.on('active', async ({ jobId }) => {
+    this.jobQueueEvents.on('active', ({ jobId }) => {
       this.logger.debug(`Job ${jobId} is active`);
       // Database updates are handled by the job execution processor
     });
 
-    this.jobQueueEvents.on('completed', async ({ jobId, returnvalue }) => {
+    this.jobQueueEvents.on('completed', ({ jobId }) => {
       this.logger.debug(`Job ${jobId} completed`);
       // Database updates are handled by the job execution processor
     });
 
-    this.jobQueueEvents.on('failed', async ({ jobId, failedReason }) => {
+    this.jobQueueEvents.on('failed', ({ jobId, failedReason }) => {
       this.logger.error(`Job ${jobId} failed: ${failedReason}`);
       // Database updates are handled by the job execution processor
     });
@@ -71,16 +71,16 @@ export class QueueStatusService {
       this.logger.debug(`Test ${jobId} is waiting`);
     });
 
-    this.testQueueEvents.on('active', async ({ jobId }) => {
+    this.testQueueEvents.on('active', ({ jobId }) => {
       this.logger.debug(`Test ${jobId} is active`);
     });
 
-    this.testQueueEvents.on('completed', async ({ jobId, returnvalue }) => {
+    this.testQueueEvents.on('completed', ({ jobId }) => {
       this.logger.debug(`Test ${jobId} completed`);
     });
 
-    this.testQueueEvents.on('failed', async ({ jobId, failedReason }) => {
+    this.testQueueEvents.on('failed', ({ jobId, failedReason }) => {
       this.logger.error(`Test ${jobId} failed: ${failedReason}`);
     });
   }
-} 
+}
