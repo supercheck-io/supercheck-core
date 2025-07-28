@@ -1692,7 +1692,7 @@ export function MonitorForm({
                       <p>1. Create this monitor to get a unique heartbeat URL</p>
                       <p>2. Send GET or POST requests to the URL from your service/script</p>
                       <p>3. If no ping is received within the expected interval + grace period, the monitor will be marked as down</p>
-                                              <p className="font-medium">Example: <code className="bg-background px-1 rounded">curl {process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/YOUR_TOKEN</code></p>
+                      <p className="font-medium">Example: <code className="bg-background px-1 rounded">curl {process.env.NEXT_PUBLIC_APP_URL || 'https://app-domain.com'}/api/heartbeat/YOUR_TOKEN</code></p>
                     </div>
                   </div>
                 </div>
