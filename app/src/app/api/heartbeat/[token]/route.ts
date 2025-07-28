@@ -68,13 +68,23 @@ async function handleHeartbeatPing(request: NextRequest, token: string) {
     const now = new Date();
     const wasDown = heartbeatMonitor.status === 'down';
 
-    // Update monitor status to 'up'
+    // Update monitor config with lastPingAt timestamp for proper heartbeat timing
+    const currentConfig = (heartbeatMonitor.config as Record<string, unknown>) || {};
+    const updatedConfig = {
+      ...currentConfig,
+      lastPingAt: now.toISOString()
+    };
+
+    console.log(`[HEARTBEAT] Updating config with lastPingAt: ${now.toISOString()}`);
+
+    // Update monitor status to 'up' and update config with ping timestamp
     await db
       .update(monitors)
       .set({
         status: "up",
         lastCheckAt: now,
         lastStatusChangeAt: wasDown ? now : heartbeatMonitor.lastStatusChangeAt,
+        config: updatedConfig,
       })
       .where(eq(monitors.id, heartbeatMonitor.id));
 

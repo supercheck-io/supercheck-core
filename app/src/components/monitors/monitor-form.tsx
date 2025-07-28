@@ -67,6 +67,26 @@ const checkIntervalOptions = [
   { value: "86400", label: "24 hours" },
 ];
 
+// Helper function to calculate optimal check frequency for heartbeat monitors
+const calculateOptimalFrequency = (expected: number, grace: number) => {
+  // Total time to wait before considering the heartbeat failed
+  const totalWaitMinutes = expected + grace;
+  
+  // For very short total wait times (≤5min), check at half the total wait time
+  // but ensure we don't check more frequently than every minute
+  if (totalWaitMinutes <= 5) {
+    return Math.max(1, Math.round(totalWaitMinutes / 2));
+  }
+  
+  // For longer intervals, check at 1/3 of the total wait time
+  // This ensures failures are detected reasonably quickly after they occur
+  // but not so frequently as to waste resources
+  const optimalFrequency = Math.max(1, Math.round(totalWaitMinutes / 3));
+  
+  // Apply reasonable limits: minimum 1 minute, maximum 60 minutes
+  return Math.max(1, Math.min(optimalFrequency, 60));
+};
+
 // Create schema for the form with conditional validation
 const formSchema = z.object({
   name: z.string().min(10, "Name must be at least 10 characters").max(100, "Name must be 100 characters or less"),
@@ -101,7 +121,7 @@ const formSchema = z.object({
   portConfig_protocol: z.enum(["tcp", "udp"]).default("tcp"),
   // Heartbeat specific
   heartbeatConfig_expectedInterval: z.coerce.number().int().min(1, "Expected interval must be at least 1 minute").max(10080, "Expected interval must be 1 week or less").optional(), // 1 minute to 1 week
-  heartbeatConfig_gracePeriod: z.coerce.number().int().min(1, "Grace period must be at least 1 minute").max(1440, "Grace period must be 1 day or less").optional(), // 1 minute to 1 day
+  heartbeatConfig_gracePeriod: z.coerce.number().int().min(0, "Grace period must be 0 or more minutes").max(1440, "Grace period must be 1 day or less").optional(), // 0 minutes to 1 day
   // Website SSL checking
   websiteConfig_enableSslCheck: z.boolean().default(false),
   websiteConfig_sslDaysUntilExpirationWarning: z.coerce.number().int().min(1, "SSL warning days must be at least 1").max(365, "SSL warning days must be 365 or less").default(30), // 1 day to 1 year
@@ -176,10 +196,10 @@ const formSchema = z.object({
       });
     }
     
-    if (!data.heartbeatConfig_gracePeriod) {
+    if (data.heartbeatConfig_gracePeriod === undefined || data.heartbeatConfig_gracePeriod === null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Grace period is required for heartbeat monitors",
+        message: "Grace period is required for heartbeat monitors (0 is allowed for no grace period)",
         path: ["heartbeatConfig_gracePeriod"],
       });
     }
@@ -247,7 +267,7 @@ const creationDefaultValues: FormValues = {
   portConfig_port: 80, // Default port instead of undefined
   portConfig_protocol: "tcp", // Default protocol instead of undefined
   heartbeatConfig_expectedInterval: 60, // Default interval instead of undefined
-  heartbeatConfig_gracePeriod: 10, // Default grace period instead of undefined
+  heartbeatConfig_gracePeriod: 10, // Default grace period (0 is also valid for no grace)
   websiteConfig_enableSslCheck: false, // Default to false instead of undefined
   websiteConfig_sslDaysUntilExpirationWarning: 30, // Default to 30 days instead of undefined
 };
@@ -353,37 +373,49 @@ export function MonitorForm({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as Resolver<FormValues>,
-    defaultValues: getDefaultValues(),
+    defaultValues: {
+      ...getDefaultValues(),
+      type: currentMonitorType, // Ensure type is set correctly from URL
+    },
   });
 
   const type = form.watch("type");
   const httpMethod = form.watch("httpConfig_method");
   const authType = form.watch("httpConfig_authType");
 
-  // Reset form when URL params change (for monitor type) - but preserve state during navigation
+  // Reset form when URL params change (for monitor type)
   useEffect(() => {
-    // Only reset if this is truly a new form (no data has been entered)
-    const hasFormData = formChanged || Object.keys(form.getValues()).some(key => {
-      const value = form.getValues()[key as keyof FormValues];
-      const defaultValue = getDefaultValues()[key as keyof FormValues];
-      return value !== defaultValue && value !== "" && value !== undefined;
-    });
+    console.log("URL change detected:", { urlType, currentFormType: type, editMode, hasInitialData: !!initialData });
     
-    if (!editMode && !initialData && urlType && urlType !== type && !hasFormData) {
-      console.log("URL type changed from", type, "to", urlType, "- resetting empty form");
-      const newDefaults = getDefaultValues();
+    // Always reset form when URL type changes, unless we're in edit mode
+    if (!editMode && urlType && urlType !== type) {
+      console.log("Resetting form for monitor type change:", type, "->", urlType);
       
-      // Reset form with new defaults
+      // Create fresh default values for the new monitor type
+      const newDefaults: FormValues = {
+        ...creationDefaultValues,
+        type: urlType,
+      };
+      
+      // Reset form completely
       form.reset(newDefaults);
-      
-      // Force update the type field
-      setTimeout(() => {
-        form.setValue('type', urlType, { shouldValidate: true });
-      }, 0);
-      
       setFormChanged(false);
+      
+      console.log("Form reset completed for type:", urlType);
     }
-  }, [urlType, editMode, initialData, type, form, getDefaultValues, formChanged]);
+  }, [urlType, type, editMode, initialData, form]);
+
+  // Handle initial form setup when component first mounts
+  useEffect(() => {
+    if (!editMode && !initialData && urlType) {
+      console.log("Initial form setup for type:", urlType);
+      const initialDefaults: FormValues = {
+        ...creationDefaultValues,
+        type: urlType,
+      };
+      form.reset(initialDefaults);
+    }
+  }, [editMode, initialData, urlType, form]); // Run when these values change
 
   // Initialize form with initialData in edit mode
   useEffect(() => {
@@ -648,11 +680,12 @@ export function MonitorForm({
         // For heartbeat monitors, target is the unique token
         apiData.target = heartbeatToken;
         
-        // Heartbeat monitors should check at expected interval + grace period
-        // This ensures they only check when a ping could actually be overdue
-        const expectedIntervalMinutes = data.heartbeatConfig_expectedInterval || 60;
-        const gracePeriodMinutes = data.heartbeatConfig_gracePeriod || 10;
-        const checkFrequencyMinutes = expectedIntervalMinutes + gracePeriodMinutes;
+        // Calculate optimal check frequency for heartbeat monitors
+        // Smart frequency: Check more often than expected interval for faster detection
+        const expectedIntervalMinutes = data.heartbeatConfig_expectedInterval ?? 60;
+        const gracePeriodMinutes = data.heartbeatConfig_gracePeriod ?? 10;
+        
+        const checkFrequencyMinutes = calculateOptimalFrequency(expectedIntervalMinutes, gracePeriodMinutes);
         
         apiData.frequencyMinutes = checkFrequencyMinutes;
         
@@ -977,11 +1010,11 @@ export function MonitorForm({
                         <div className="text-sm text-muted-foreground">
                                                       <p>
                               This monitor will check every <strong className="text-foreground">
-                                {formatDurationMinutes((form.watch("heartbeatConfig_expectedInterval") || 60) + (form.watch("heartbeatConfig_gracePeriod") || 10))}
+                                {formatDurationMinutes(calculateOptimalFrequency(form.watch("heartbeatConfig_expectedInterval") ?? 60, form.watch("heartbeatConfig_gracePeriod") ?? 10))}
                               </strong> for missed pings.
                             </p>
                           <p className="text-xs mt-1">
-                            (Expected interval: {form.watch("heartbeatConfig_expectedInterval") || 60} min + Grace period: {form.watch("heartbeatConfig_gracePeriod") || 10} min)
+                            (Failures trigger after {form.watch("heartbeatConfig_expectedInterval") ?? 60} min interval + {form.watch("heartbeatConfig_gracePeriod") ?? 10} min grace = {(form.watch("heartbeatConfig_expectedInterval") ?? 60) + (form.watch("heartbeatConfig_gracePeriod") ?? 10)} min total)
                           </p>
                         </div>
                       </div>
@@ -1677,11 +1710,11 @@ export function MonitorForm({
                     <div className="text-xs text-muted-foreground space-y-2">
                                               <p>
                           This monitor will check every <strong>
-                            {formatDurationMinutes((form.watch("heartbeatConfig_expectedInterval") || 60) + (form.watch("heartbeatConfig_gracePeriod") || 10))}
+                            {formatDurationMinutes((form.watch("heartbeatConfig_expectedInterval") ?? 60) + (form.watch("heartbeatConfig_gracePeriod") ?? 10))}
                           </strong> for missed pings.
                         </p>
                       <p className="text-xs">
-                        (Expected interval: {form.watch("heartbeatConfig_expectedInterval") || 60} min + Grace period: {form.watch("heartbeatConfig_gracePeriod") || 10} min)
+                        (Expected interval: {form.watch("heartbeatConfig_expectedInterval") ?? 60} min + Grace period: {form.watch("heartbeatConfig_gracePeriod") ?? 10} min)
                       </p>
                     </div>
                   </div> */}
@@ -1692,7 +1725,7 @@ export function MonitorForm({
                       <p>1. Create this monitor to get a unique heartbeat URL</p>
                       <p>2. Send GET or POST requests to the URL from your service/script</p>
                       <p>3. If no ping is received within the expected interval + grace period, the monitor will be marked as down</p>
-                      <p className="font-medium">Example: <code className="bg-background px-1 rounded">curl {process.env.NEXT_PUBLIC_APP_URL || 'https://app-domain.com'}/api/heartbeat/YOUR_TOKEN</code></p>
+                      <p className="font-medium">Example: <code className="bg-background px-1 rounded">curl {process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/YOUR_TOKEN</code></p>
                     </div>
                   </div>
                 </div>
