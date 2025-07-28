@@ -976,8 +976,14 @@ export class MonitorService {
     responseTimeMs?: number;
     isUp: boolean;
   } | null> {
-    this.logger.debug(
-      `Checking heartbeat missed ping for monitor ${monitorId}`,
+    const expectedIntervalMinutes = config?.expectedIntervalMinutes ?? 60;
+    const gracePeriodMinutes = config?.gracePeriodMinutes ?? 10;
+    const lastPingAt = config?.lastPingAt;
+    const now = new Date();
+    const totalWaitMinutes = expectedIntervalMinutes + gracePeriodMinutes;
+
+    this.logger.log(
+      `[HEARTBEAT-CHECK] Starting check for monitor ${monitorId}: Expected=${expectedIntervalMinutes}min, Grace=${gracePeriodMinutes}min, Total=${totalWaitMinutes}min, LastPing=${lastPingAt || 'none'}`,
     );
 
     let details: MonitorResultDetails = {};
@@ -986,13 +992,6 @@ export class MonitorService {
     const responseTimeMs = 0; // Heartbeat checks don't have response times
 
     try {
-      const expectedIntervalMinutes = config?.expectedIntervalMinutes || 60;
-      const gracePeriodMinutes = config?.gracePeriodMinutes || 10;
-      const lastPingAt = config?.lastPingAt;
-
-      const now = new Date();
-      const totalWaitMinutes = expectedIntervalMinutes + gracePeriodMinutes;
-
       // Get monitor from database to check creation time and get latest ping info
       const monitor = await this.dbService.db.query.monitors.findFirst({
         where: (monitors, { eq }) => eq(monitors.id, monitorId),
@@ -1024,13 +1023,20 @@ export class MonitorService {
 
       if (!currentLastPingAt) {
         // No ping received yet - check if monitor was created more than the expected interval ago
+        this.logger.log(
+          `[HEARTBEAT-CHECK] No ping received yet for ${monitorId}. Created ${Math.round(minutesSinceCreation)} minutes ago, waiting for ${totalWaitMinutes} minutes total`,
+        );
+
         if (minutesSinceCreation > totalWaitMinutes) {
           isOverdue = true;
           overdueMessage = `No initial ping received within ${totalWaitMinutes} minutes of creation (${Math.round(minutesSinceCreation)} minutes ago)`;
+          this.logger.warn(
+            `[HEARTBEAT-CHECK] Monitor ${monitorId} OVERDUE: ${overdueMessage}`,
+          );
         } else {
           // Still within grace period for initial ping - don't create a result entry
-          this.logger.debug(
-            `Monitor ${monitorId} still within grace period, skipping result creation`,
+          this.logger.log(
+            `[HEARTBEAT-CHECK] Monitor ${monitorId} still within grace period (${Math.round(minutesSinceCreation)}/${totalWaitMinutes} min), skipping result creation`,
           );
           return null; // Signal to not create a result entry
         }
@@ -1040,14 +1046,21 @@ export class MonitorService {
         const minutesSinceLastPing =
           (now.getTime() - lastPing.getTime()) / (1000 * 60);
 
+        this.logger.log(
+          `[HEARTBEAT-CHECK] Last ping for ${monitorId} was ${Math.round(minutesSinceLastPing)} minutes ago (limit: ${totalWaitMinutes} minutes)`,
+        );
+
         if (minutesSinceLastPing > totalWaitMinutes) {
           isOverdue = true;
           overdueMessage = `Last ping was ${Math.round(minutesSinceLastPing)} minutes ago, expected every ${expectedIntervalMinutes} minutes (grace period: ${gracePeriodMinutes} minutes)`;
+          this.logger.warn(
+            `[HEARTBEAT-CHECK] Monitor ${monitorId} OVERDUE: ${overdueMessage}`,
+          );
         } else {
           // Ping is recent enough - don't create a result entry
           // Success entries are only created when actual pings are received
-          this.logger.debug(
-            `Monitor ${monitorId} ping is recent enough, skipping result creation`,
+          this.logger.log(
+            `[HEARTBEAT-CHECK] Monitor ${monitorId} ping is recent enough (${Math.round(minutesSinceLastPing)}/${totalWaitMinutes} min), skipping result creation`,
           );
           return null; // Signal to not create a result entry
         }
@@ -1091,6 +1104,10 @@ export class MonitorService {
         checkType: 'heartbeat_error',
       };
     }
+
+    this.logger.log(
+      `[HEARTBEAT-CHECK] Completed check for monitor ${monitorId}: status=${status}, isUp=${isUp}`,
+    );
 
     return { status, details, responseTimeMs, isUp };
   }

@@ -92,13 +92,23 @@ async function handleHeartbeatFailure(request: NextRequest, token: string) {
 
     console.log(`[HEARTBEAT-FAIL] Updating monitor status to 'down', was: ${heartbeatMonitor.status}, status change: ${isStatusChange}`);
 
-    // Update monitor status to 'down' regardless of previous state
+    // Update monitor config with lastPingAt timestamp (failure is still a ping activity)
+    const currentConfig = (heartbeatMonitor.config as Record<string, unknown>) || {};
+    const updatedConfig = {
+      ...currentConfig,
+      lastPingAt: now.toISOString()
+    };
+
+    console.log(`[HEARTBEAT-FAIL] Updating config with lastPingAt: ${now.toISOString()}`);
+
+    // Update monitor status to 'down' and update config with ping timestamp
     await db
       .update(monitors)
       .set({
         status: "down",
         lastCheckAt: now,
         lastStatusChangeAt: wasUp ? now : heartbeatMonitor.lastStatusChangeAt,
+        config: updatedConfig,
       })
       .where(eq(monitors.id, heartbeatMonitor.id));
     

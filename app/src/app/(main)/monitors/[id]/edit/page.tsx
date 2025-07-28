@@ -119,8 +119,8 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
     portConfig_protocol: formType === "port_check" ? (monitor.config?.protocol as "tcp" | "udp") || "tcp" : "tcp",
 
     // Heartbeat specific
-    heartbeatConfig_expectedInterval: formType === "heartbeat" ? (monitor.config?.expectedIntervalMinutes || 60) : 60,
-    heartbeatConfig_gracePeriod: formType === "heartbeat" ? (monitor.config?.gracePeriodMinutes || 10) : 10,
+    heartbeatConfig_expectedInterval: formType === "heartbeat" ? (monitor.config?.expectedIntervalMinutes ?? 60) : 60,
+    heartbeatConfig_gracePeriod: formType === "heartbeat" ? (monitor.config?.gracePeriodMinutes ?? 10) : 10,
 
     // Website SSL specific
     websiteConfig_enableSslCheck: formType === "website" ? (monitor.config?.enableSslCheck || false) : false,
