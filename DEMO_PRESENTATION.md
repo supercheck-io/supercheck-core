@@ -1,55 +1,75 @@
-# Supercheck - Platform Demo
+# Supercheck Platform Overview
 
-## 🎯 Overview
-**Supercheck** is a comprehensive end-to-end testing and monitoring platform built with a distributed, scalable architecture.
+## Platform Summary
+**Supercheck** is a comprehensive end-to-end testing and monitoring platform engineered with a distributed, cloud-native architecture designed for enterprise scalability and reliability.
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ### High-Level Architecture
 
 ```mermaid
 graph TB
-    subgraph "Frontend Layer"
-        FE[Frontend Service<br/>Next.js]
-        FE --> |UI/UX| UI[User Interface]
-        FE --> |API Routes| API[REST APIs]
-        FE --> |Job Scheduling| JSCHED[Job Scheduler]
-        FE --> |Monitor Scheduling| MSCHED[Monitor Scheduler]
-        FE --> |Migrations| DB_MIG[DB Migrations]
+    subgraph frontend ["Frontend Layer"]
+        FE[Frontend Service - Next.js]
+        UI[User Interface]
+        API[REST APIs]
+        JSCHED[Job Scheduler]
+        MSCHED[Monitor Scheduler]
+        DB_MIG[DB Migrations]
+        
+        FE --> UI
+        FE --> API
+        FE --> JSCHED
+        FE --> MSCHED
+        FE --> DB_MIG
     end
     
-    subgraph "Processing Layer"
-        WS[Worker Service<br/>NestJS]
-        WS --> |Test Execution| TE[Playwright Tests]
-        WS --> |Monitor Execution| ME[HTTP/SSL/Ping/Heartbeat]
-        WS --> |Queue Processing| QP[BullMQ Processors]
-        WS --> |Capacity Management| CM[Resource Limits]
-        WS --> |Notifications| NS[Alert Service]
+    subgraph processing ["Processing Layer"]
+        WS[Worker Service - NestJS]
+        TE[Playwright Tests]
+        ME[HTTP/SSL/Ping/Heartbeat]
+        QP[BullMQ Processors]
+        CM[Resource Limits]
+        NS[Alert Service]
+        
+        WS --> TE
+        WS --> ME
+        WS --> QP
+        WS --> CM
+        WS --> NS
     end
     
-    subgraph "Queue Layer"
-        RD[(Redis<br/>BullMQ)]
-        RD --> |Job Queue| JQ[Test/Job Execution]
-        RD --> |Monitor Queue| MQ[Monitor Execution]
-        RD --> |Scheduler Queues| SQ[Job/Monitor Schedulers]
-        RD --> |Notification Queue| NQ[Heartbeat Notifications]
+    subgraph queue ["Queue Layer"]
+        RD[(Redis - BullMQ)]
+        JQ[Test/Job Execution]
+        MQ[Monitor Execution]
+        SQ[Job/Monitor Schedulers]
+        NQ[Heartbeat Notifications]
+        
+        RD --> JQ
+        RD --> MQ
+        RD --> SQ
+        RD --> NQ
     end
     
-    subgraph "Storage Layer"
-        PG[(PostgreSQL<br/>Database)]
-        MO[(MinIO<br/>Object Storage)]
-        PG --> |Tables| TABLES[Tests/Jobs/Monitors/Results]
-        MO --> |Artifacts| ARTS[Reports/Traces/Screenshots]
+    subgraph storage ["Storage Layer"]
+        PG[(PostgreSQL Database)]
+        MO[(MinIO Object Storage)]
+        TABLES[Tests/Jobs/Monitors/Results]
+        ARTS[Reports/Traces/Screenshots]
+        
+        PG --> TABLES
+        MO --> ARTS
     end
     
-    FE <--> |API Calls| WS
-    FE <--> |Database Access| PG
-    FE <--> |Queue Management| RD
-    WS <--> |Job Processing| RD
-    WS <--> |Data Persistence| PG
-    WS <--> |Artifact Storage| MO
+    FE <--> WS
+    FE <--> PG
+    FE <--> RD
+    WS <--> RD
+    WS <--> PG
+    WS <--> MO
     
     classDef frontend fill:#e1f5fe
     classDef worker fill:#f3e5f5
@@ -64,7 +84,7 @@ graph TB
 
 ### Component Breakdown
 
-#### 🎨 Frontend Service (Next.js)
+#### Frontend Service (Next.js)
 - **Location**: `/app`
 - **Responsibilities**:
   - User interface and experience
@@ -73,7 +93,7 @@ graph TB
   - Database migrations
   - Real-time updates via SSE
 
-#### ⚙️ Worker Service (NestJS)
+#### Worker Service (NestJS)
 - **Location**: `/runner`
 - **Responsibilities**:
   - Playwright test execution
@@ -81,43 +101,43 @@ graph TB
   - Queue job processing
   - Test artifact generation
 
-#### 🗄️ Infrastructure Layer
+#### Infrastructure Layer
 - **PostgreSQL**: Primary database with Drizzle ORM
 - **Redis**: Job queuing with BullMQ
 - **MinIO**: S3-compatible storage for test artifacts
 
 ---
 
-## 🚀 Core Features
+## Core Platform Features
 
-### 1. **End-to-End Testing**
+### End-to-End Testing Capabilities
 - Playwright-based browser automation
 - Parallel test execution
 - Configurable timeouts and retries
 - Real-time status updates
 - Comprehensive test reports
 
-### 2. **Job Scheduling & Management**
+### Job Scheduling & Management
 - Cron-based scheduling
 - Manual job triggers
 - API key authentication
 - Job history tracking
 - Queue-based execution
 
-### 3. **Monitoring System**
+### Comprehensive Monitoring System
 - HTTP/HTTPS endpoint monitoring
 - Heartbeat monitoring
 - Response time metrics
 - Uptime calculations
 - Availability tracking
 
-### 4. **Alerting & Notifications**
+### Enterprise Alerting & Notifications
 - Multi-channel notifications (email, webhooks)
 - Rule-based alerting
 - Custom notification conditions
 - Provider quota management
 
-### 5. **Multi-Tenant Support**
+### Multi-Tenant Architecture
 - Organization-based isolation
 - Member management
 - Role-based access control
@@ -125,7 +145,7 @@ graph TB
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Backend Technologies
 - **Next.js 14**: Full-stack React framework
@@ -149,7 +169,7 @@ graph TB
 
 ---
 
-## 🗄️ Database Schema
+## Database Schema Design
 
 ### Entity Relationship Diagram
 
@@ -323,48 +343,48 @@ erDiagram
 
 ---
 
-## 📊 Data Flow
+## System Data Flow
 
 ### Test Execution Flow
 
 ```mermaid
 flowchart LR
-    A[User Trigger<br/>Manual/API/Schedule] --> B[Test/Job API<br/>Next.js Routes]
-    B --> C[Capacity Verification<br/>Queue Stats Check]
-    C --> D[Job Creation<br/>Database Insert]
-    D --> E[Queue Addition<br/>BullMQ Redis]
-    E --> F[Test Execution Processor<br/>NestJS Worker]
-    F --> G[Execution Service<br/>Test Orchestration]
-    G --> H[Playwright Runner<br/>Browser Automation]
-    H --> I[Report Generation<br/>HTML Reports/Traces]
-    I --> J[Artifact Upload<br/>MinIO S3 Storage]
-    J --> K[Database Update<br/>Status & Results]
-    K --> L[Redis Publish<br/>Status Events]
-    L --> M[SSE Stream<br/>Real-time Updates]
+    A[User Trigger - Manual/API/Schedule] --> B[Test/Job API - Next.js Routes]
+    B --> C[Capacity Verification - Queue Stats Check]
+    C --> D[Job Creation - Database Insert]
+    D --> E[Queue Addition - BullMQ Redis]
+    E --> F[Test Execution Processor - NestJS Worker]
+    F --> G[Execution Service - Test Orchestration]
+    G --> H[Playwright Runner - Browser Automation]
+    H --> I[Report Generation - HTML Reports/Traces]
+    I --> J[Artifact Upload - MinIO S3 Storage]
+    J --> K[Database Update - Status & Results]
+    K --> L[Redis Publish - Status Events]
+    L --> M[SSE Stream - Real-time Updates]
     
-    subgraph "Frontend Layer"
+    subgraph frontend ["Frontend Layer"]
         A
         B
         M
     end
     
-    subgraph "Validation Layer"
+    subgraph validation ["Validation Layer"]
         C
         D
     end
     
-    subgraph "Queue Layer"
+    subgraph queue ["Queue Layer"]
         E
         F
     end
     
-    subgraph "Execution Layer"
+    subgraph exec ["Execution Layer"]
         G
         H
         I
     end
     
-    subgraph "Storage Layer"
+    subgraph storage ["Storage Layer"]
         J
         K
         L
@@ -387,47 +407,47 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    A[User/API Trigger<br/>Manual/Schedule] --> B[Monitor API<br/>Next.js Routes]
-    B --> C[Monitor Service<br/>Create/Update Config]
-    C --> D[Monitor Scheduler<br/>Schedule Setup]
-    D --> E[Monitor Scheduler Queue<br/>BullMQ Redis]
-    E --> F[Monitor Scheduler Processor<br/>NestJS Worker]
-    F --> G[Add Execution Job<br/>One-time Job]
-    G --> H[Monitor Execution Queue<br/>BullMQ Redis]
-    H --> I[Monitor Processor<br/>NestJS Worker]
-    I --> J[Monitor Service<br/>Execute Monitor]
+    A[User/API Trigger - Manual/Schedule] --> B[Monitor API - Next.js Routes]
+    B --> C[Monitor Service - Create/Update Config]
+    C --> D[Monitor Scheduler - Schedule Setup]
+    D --> E[Monitor Scheduler Queue - BullMQ Redis]
+    E --> F[Monitor Scheduler Processor - NestJS Worker]
+    F --> G[Add Execution Job - One-time Job]
+    G --> H[Monitor Execution Queue - BullMQ Redis]
+    H --> I[Monitor Processor - NestJS Worker]
+    I --> J[Monitor Service - Execute Monitor]
     J --> K{Monitor Type}
-    K --> |HTTP/Website| L[HTTP Request<br/>Status/Response/SSL Check]
-    K --> |Ping Host| M[ICMP Ping<br/>Platform Detection]
-    K --> |Port Check| N[TCP/UDP Connection<br/>Socket Test]
-    K --> |Heartbeat| O[Missed Ping Check<br/>Grace Period Logic]
-    L --> P[Result Processing<br/>Status Determination]
+    K -->|HTTP/Website| L[HTTP Request - Status/Response/SSL Check]
+    K -->|Ping Host| M[ICMP Ping - Platform Detection]
+    K -->|Port Check| N[TCP/UDP Connection - Socket Test]
+    K -->|Heartbeat| O[Missed Ping Check - Grace Period Logic]
+    L --> P[Result Processing - Status Determination]
     M --> P
     N --> P
     O --> P
-    P --> Q[Save Monitor Result<br/>Database Update]
-    Q --> R[Monitor Status Update<br/>Last Check Time]
-    R --> S[Status Change Detection<br/>Previous vs Current]
-    S --> T[Threshold Evaluation<br/>Consecutive Failures/Success]
-    T --> U[Monitor Alert Service<br/>Notification Logic]
-    U --> V[Notification Service<br/>Multi-Provider Dispatch]
-    V --> W[Provider Delivery<br/>Email/Slack/Webhook/etc]
-    W --> X[Alert History<br/>Audit Trail]
+    P --> Q[Save Monitor Result - Database Update]
+    Q --> R[Monitor Status Update - Last Check Time]
+    R --> S[Status Change Detection - Previous vs Current]
+    S --> T[Threshold Evaluation - Consecutive Failures/Success]
+    T --> U[Monitor Alert Service - Notification Logic]
+    U --> V[Notification Service - Multi-Provider Dispatch]
+    V --> W[Provider Delivery - Email/Slack/Webhook/etc]
+    W --> X[Alert History - Audit Trail]
     
-    subgraph "Frontend Layer"
+    subgraph frontend ["Frontend Layer"]
         A
         B
         C
     end
     
-    subgraph "Scheduling Layer"
+    subgraph schedule ["Scheduling Layer"]
         D
         E
         F
         G
     end
     
-    subgraph "Execution Layer"
+    subgraph exec ["Execution Layer"]
         H
         I
         J
@@ -438,7 +458,7 @@ flowchart LR
         O
     end
     
-    subgraph "Analysis Layer"
+    subgraph analysis ["Analysis Layer"]
         P
         Q
         R
@@ -446,7 +466,7 @@ flowchart LR
         T
     end
     
-    subgraph "Notification Layer"
+    subgraph delivery ["Notification Layer"]
         U
         V
         W
@@ -468,7 +488,7 @@ flowchart LR
 
 ---
 
-## 🎭 Demo Scenarios & User Workflows
+## Key User Workflows
 
 ### 1. **Creating and Running a Test**
 
@@ -578,7 +598,7 @@ sequenceDiagram
 
 ---
 
-## 📈 Scalability & Performance
+## Scalability & Performance Architecture
 
 ### Horizontal Scaling
 - **Worker Scaling**: Multiple NestJS workers
@@ -594,7 +614,7 @@ sequenceDiagram
 
 ---
 
-## 🔒 Security Features
+## Security Architecture
 
 ### Authentication & Authorization
 - Better Auth integration
@@ -610,32 +630,32 @@ sequenceDiagram
 
 ---
 
-## 🚀 Deployment Architecture
+## Production Deployment Architecture
 
 ### Container Deployment Diagram
 
 ```mermaid
 graph TB
-    subgraph "Load Balancer / Reverse Proxy"
-        LB[Nginx/Traefik<br/>Load Balancer]
+    subgraph lb ["Load Balancer / Reverse Proxy"]
+        LB[Nginx/Traefik Load Balancer]
     end
     
-    subgraph "Application Tier"
-        APP1[App Container 1<br/>Next.js<br/>Port 3000]
-        APP2[App Container 2<br/>Next.js<br/>Port 3000]
-        WRK1[Worker Container 1<br/>NestJS<br/>Background Jobs]
-        WRK2[Worker Container 2<br/>NestJS<br/>Background Jobs]
+    subgraph app ["Application Tier"]
+        APP1[App Container 1 - Next.js - Port 3000]
+        APP2[App Container 2 - Next.js - Port 3000]
+        WRK1[Worker Container 1 - NestJS - Background Jobs]
+        WRK2[Worker Container 2 - NestJS - Background Jobs]
     end
     
-    subgraph "Data Tier"
-        PG[(PostgreSQL<br/>Database<br/>Port 5432)]
-        RD[(Redis<br/>Job Queue<br/>Port 6379)]
-        MIO[(MinIO<br/>Object Storage<br/>Ports 9000/9001)]
+    subgraph data ["Data Tier"]
+        PG[(PostgreSQL Database - Port 5432)]
+        RD[(Redis Job Queue - Port 6379)]
+        MIO[(MinIO Object Storage - Ports 9000/9001)]
     end
     
-    subgraph "Monitoring & Logging"
-        MON[Monitoring<br/>Prometheus/Grafana]
-        LOG[Logging<br/>Docker Logs]
+    subgraph monitor ["Monitoring & Logging"]
+        MON[Monitoring - Prometheus/Grafana]
+        LOG[Logging - Docker Logs]
     end
     
     LB --> APP1
@@ -684,22 +704,22 @@ graph TB
 
 ```mermaid
 flowchart LR
-    subgraph "Development"
-        DEV[Developer<br/>Code Changes]
+    subgraph dev ["Development"]
+        DEV[Developer - Code Changes]
     end
     
-    subgraph "CI/CD Pipeline"
-        GHA[GitHub Actions<br/>Build Pipeline]
-        BUILDX[Docker Buildx<br/>Multi-arch Builder]
+    subgraph cicd ["CI/CD Pipeline"]
+        GHA[GitHub Actions - Build Pipeline]
+        BUILDX[Docker Buildx - Multi-arch Builder]
     end
     
-    subgraph "Registry"
-        GHCR[GitHub Container Registry<br/>ghcr.io]
+    subgraph registry ["Registry"]
+        GHCR[GitHub Container Registry - ghcr.io]
     end
     
-    subgraph "Target Platforms"
-        AMD64[Linux AMD64<br/>Intel/AMD Servers]
-        ARM64[Linux ARM64<br/>Apple Silicon/ARM]
+    subgraph platforms ["Target Platforms"]
+        AMD64[Linux AMD64 - Intel/AMD Servers]
+        ARM64[Linux ARM64 - Apple Silicon/ARM]
     end
     
     DEV --> GHA
@@ -729,7 +749,7 @@ flowchart LR
 
 ---
 
-## 📋 Key Metrics & Insights
+## Operational Metrics & Analytics
 
 ### Test Execution Metrics
 - Test success/failure rates
@@ -751,20 +771,20 @@ flowchart LR
 
 ---
 
-## 🎪 Live Demo Points
+## Platform Demonstration Areas
 
-1. **Dashboard Overview**: System status and recent activity
-2. **Test Creation**: Step-by-step test setup
-3. **Job Execution**: Real-time job monitoring
-4. **Monitor Configuration**: Uptime monitoring setup
-5. **Alert Management**: Notification rule configuration
-6. **Reporting**: Test results and monitoring reports
-7. **Organization**: Multi-tenant features
-8. **API Integration**: Programmatic access examples
+1. **System Dashboard**: Comprehensive platform status and activity overview
+2. **Test Development**: Interactive test creation and configuration
+3. **Execution Monitoring**: Real-time job processing and status tracking
+4. **Service Monitoring**: Uptime and performance monitoring configuration
+5. **Alert Configuration**: Multi-channel notification setup and management
+6. **Analytics & Reporting**: Detailed test results and monitoring analytics
+7. **Organization Management**: Multi-tenant administration and user management
+8. **API Integration**: Programmatic platform access and automation examples
 
 ---
 
-## 🔗 Quick Start Commands
+## Quick Start Guide
 
 ```bash
 # Production deployment (default)
@@ -786,9 +806,9 @@ cd runner && npm run dev
 
 ---
 
-## 📞 Support & Documentation
+## Documentation & Support Resources
 
-- **GitHub**: Repository with full source code
-- **Docker Hub**: Pre-built multi-arch images
-- **Documentation**: Comprehensive setup guides
-- **API Reference**: OpenAPI specifications
+- **Source Repository**: Complete platform source code and development resources
+- **Container Registry**: Pre-built multi-architecture deployment images
+- **Technical Documentation**: Comprehensive deployment and configuration guides
+- **API Documentation**: Complete OpenAPI specifications and integration examples

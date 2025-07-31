@@ -87,12 +87,12 @@ sequenceDiagram
     NextFE->>NextAPI: POST /api/test
     NextAPI->>Redis: Add test to 'test-execution' queue
     NextAPI-->>NextFE: Return testId, success status
-    NextFE->>NextAPI: Open SSE connection<br>/api/test-status/events/[testId]
-    NextAPI->>Redis: Subscribe to 'test:[testId]:status' and<br>'test:[testId]:complete' channels
+    NextFE->>NextAPI: Open SSE connection /api/test-status/events/[testId]
+    NextAPI->>Redis: Subscribe to test status and complete channels
     NextAPI-->>NextFE: Establish SSE stream
 
     %% Worker picks up test from queue
-    Redis->>NestJS: TestExecutionProcessor<br>receives test task
+    Redis->>NestJS: TestExecutionProcessor receives test task
     activate NestJS
     NestJS->>Redis: Publish 'running' status with TTL
     Redis-->>NextAPI: Message: status='running'
@@ -228,10 +228,6 @@ The system enforces capacity limits at multiple levels:
    - Workers check running job count before processing each job
    - If running capacity is full, the job is delayed and returned to the queue
    - This ensures only the allowed number of jobs run simultaneously
-
-3. **Technical Limit (MAX_CONCURRENT_TESTS):**
-   - Controls the maximum number of BullMQ worker processes
-   - Sets the absolute system-level limit on parallel job processing
 
 These multi-level checks ensure the system maintains stability under heavy load while providing accurate UI feedback.
 
@@ -370,7 +366,6 @@ AWS_ACCESS_KEY_ID=minioadmin
 AWS_SECRET_ACCESS_KEY=minioadmin
 
 # Execution Parameters
-MAX_CONCURRENT_TESTS=2             # Maximum number of BullMQ worker processes
 RUNNING_CAPACITY=5                 # Maximum concurrent executions allowed to run
 QUEUED_CAPACITY=50                 # Maximum executions allowed in queued state
 TEST_EXECUTION_TIMEOUT_MS=900000   # 15 minutes default
@@ -452,14 +447,28 @@ export async function GET(request: Request) {
 
 ### Capacity Management
 
-The system implements sophisticated capacity management:
+The system implements sophisticated capacity management through environment-configurable limits:
 
 ```typescript
-// Capacity limits
+// Capacity limits from runner/src/execution/constants.ts and app/src/lib/queue-stats.ts
 export const RUNNING_CAPACITY = parseInt(process.env.RUNNING_CAPACITY || '5');
 export const QUEUED_CAPACITY = parseInt(process.env.QUEUED_CAPACITY || '50');
 
-// Verify capacity before adding jobs
+// Real-time queue statistics from app/src/lib/queue-stats.ts
+export async function fetchQueueStats(): Promise<QueueStats> {
+  // Counts active jobs from BullMQ Redis keys
+  const runningCount = activeJobs + activeTests + processingJobs + processingTests;
+  const queuedCount = waitingJobs + waitingTests + delayedJobs + delayedTests;
+  
+  return {
+    running: Math.min(runningCount, RUNNING_CAPACITY),
+    runningCapacity: RUNNING_CAPACITY,
+    queued: queuedCount,
+    queuedCapacity: QUEUED_CAPACITY,
+  };
+}
+
+// Capacity verification before job submission
 export async function verifyQueueCapacityOrThrow(): Promise<void> {
   const stats = await fetchQueueStats();
   
@@ -471,4 +480,4 @@ export async function verifyQueueCapacityOrThrow(): Promise<void> {
 }
 ```
 
-This comprehensive system ensures reliable, scalable, and observable test execution with proper resource management and real-time feedback. 
+This comprehensive system ensures reliable, scalable, and observable test execution with proper resource management and real-time feedback. The capacity management system uses RUNNING_CAPACITY and QUEUED_CAPACITY environment variables to control system load, with sophisticated Redis-based queue statistics tracking for accurate capacity enforcement across distributed workers. 
