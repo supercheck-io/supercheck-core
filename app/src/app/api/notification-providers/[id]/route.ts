@@ -7,7 +7,10 @@ import {
   jobNotificationSettings,
   alertHistory
 } from "@/db/schema/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
+import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireProjectContext } from '@/lib/project-context';
 
 export async function GET(
   req: NextRequest,
@@ -15,11 +18,27 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    const { userId, project, organizationId } = await requireProjectContext();
+    
+    // Build permission context and check access
+    const permissionContext = await buildPermissionContext(userId, 'project', organizationId, project.id);
+    const canView = await hasPermission(permissionContext, ProjectPermission.VIEW_MONITORS);
+    
+    if (!canView) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
 
     const [provider] = await db
       .select()
       .from(notificationProviders)
-      .where(eq(notificationProviders.id, id));
+      .where(and(
+        eq(notificationProviders.id, id),
+        eq(notificationProviders.organizationId, organizationId),
+        eq(notificationProviders.projectId, project.id)
+      ));
 
     if (!provider) {
       return NextResponse.json(

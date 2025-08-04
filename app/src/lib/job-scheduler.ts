@@ -211,7 +211,9 @@ export async function handleScheduledJobTrigger(job: Job) {
         script: test.script,
         name: test.title
       })),
-      trigger: 'schedule'
+      trigger: 'schedule',
+      organizationId: jobData[0]?.organizationId || '',
+      projectId: jobData[0]?.projectId || ''
     };
     
     // Add task to the execution queue - always use runId as both job name and ID

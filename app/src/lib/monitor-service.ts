@@ -5,6 +5,7 @@ import { scheduleMonitor, deleteScheduledMonitor } from '@/lib/monitor-scheduler
 import { eq } from 'drizzle-orm';
 
 // This is a conceptual service layer, actual Next.js API routes would call these functions.
+// Updated to support dual scoping (organization + project) for multi-tenant architecture.
 
 interface MonitorApiData {
   name: string;
@@ -15,7 +16,8 @@ interface MonitorApiData {
   enabled?: boolean;
   config?: MonitorConfig | null;
   alertConfig?: AlertConfig | null; // Alert configuration for notifications
-  organizationId?: string; // Optional for now, will be required when organizations are implemented
+  organizationId: string; // Required for dual scoping
+  projectId: string; // Required for dual scoping
   createdByUserId?: string; // Assuming this comes from authenticated session
 }
 
@@ -36,7 +38,8 @@ export async function createMonitorHandler(data: MonitorApiData) {
     frequencyMinutes: validatedData.frequencyMinutes,
     config: validatedData.config,
     alertConfig: validatedData.alertConfig,
-    organizationId: validatedData.organizationId || null,
+    organizationId: validatedData.organizationId,
+    projectId: validatedData.projectId,
     createdByUserId: validatedData.createdByUserId,
     status: (validatedData.enabled === false ? 'paused' : 'pending') as DBMonitorStatus,
     // id, createdAt, updatedAt are typically auto-generated or set by DB/Drizzle

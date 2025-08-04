@@ -4,6 +4,8 @@ import { db } from "../utils/db";
 import { runs, reports } from "../db/schema/schema";
 import { eq, or, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireProjectContext } from "@/lib/project-context";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 type DeleteRunResult = {
   success: boolean;
@@ -25,22 +27,36 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
   }
 
   try {
+    // Get current project context (includes auth verification)
+    const { userId, project, organizationId } = await requireProjectContext();
+
     // Perform the deletion within a transaction
     return await db.transaction(async (tx) => {
-      // Check if the run exists
-      console.log(`[DELETE_RUN] Checking if run ${runId} exists`);
+      // Check if the run exists and belongs to current project - get details for audit
+      console.log(`[DELETE_RUN] Checking if run ${runId} exists in project ${project.name}`);
       const existingRun = await tx
-        .select({ id: runs.id })
+        .select({ 
+          id: runs.id, 
+          projectId: runs.projectId,
+          jobId: runs.jobId,
+          status: runs.status,
+          trigger: runs.trigger,
+          startedAt: runs.startedAt
+        })
         .from(runs)
-        .where(eq(runs.id, runId))
+        .where(and(
+          eq(runs.id, runId),
+          eq(runs.projectId, project.id),
+          eq(runs.organizationId, organizationId)
+        ))
         .limit(1);
 
       if (existingRun.length === 0) {
-        console.log(`[DELETE_RUN] Run with ID ${runId} not found`);
+        console.log(`[DELETE_RUN] Run with ID ${runId} not found or access denied`);
         return {
           success: false,
           message: "Failed to delete run",
-          error: "Run not found",
+          error: "Run not found or access denied",
         };
       }
 
@@ -89,11 +105,30 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
           .where(eq(runs.id, runId))
           .returning({ id: runs.id });
 
-        console.log(`[DELETE_RUN] Successfully deleted run with ID: ${runId}, count: ${deletedRuns.length}`);
+        console.log(`[DELETE_RUN] Successfully deleted run with ID: ${runId} from project ${project.name} by user ${userId}, count: ${deletedRuns.length}`);
 
         if (deletedRuns.length === 0) {
           throw new Error(`Failed to delete run ${runId} - no rows affected`);
         }
+        
+        // Log the audit event for run deletion
+        await logAuditEvent({
+          userId,
+          organizationId,
+          action: 'run_deleted',
+          resource: 'run',  
+          resourceId: runId,
+          metadata: {
+            jobId: existingRun[0].jobId,
+            status: existingRun[0].status,
+            trigger: existingRun[0].trigger,
+            startedAt: existingRun[0].startedAt?.toISOString(),
+            projectId: project.id,
+            projectName: project.name,
+            reportsDeleted: associatedReports.length
+          },
+          success: true
+        });
         
         // Revalidate paths to ensure UI is updated
         revalidatePath("/runs");

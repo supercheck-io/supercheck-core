@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import {
   jobs,
@@ -12,9 +12,10 @@ import {
   jobNotificationSettings,
   JobTrigger,
 } from "@/db/schema/schema";
-import { desc, eq, inArray } from "drizzle-orm";
-import { auth } from "@/utils/auth";
-import { headers } from "next/headers";
+import { desc, eq, inArray, and } from "drizzle-orm";
+import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireProjectContext } from '@/lib/project-context';
 
 import { randomUUID } from "crypto";
 
@@ -29,10 +30,18 @@ async function executeJob(jobId: string, tests: { id: string; script: string }[]
   
   const runId = randomUUID();
   
+  // Get job details to add project scoping to run
+  const jobDetails = await db
+    .select({ projectId: jobs.projectId })
+    .from(jobs)
+    .where(eq(jobs.id, jobId))
+    .limit(1);
+  
   // Create a run record
   await db.insert(runs).values({
     id: runId,
     jobId: jobId,
+    projectId: jobDetails.length > 0 ? jobDetails[0].projectId : null,
     status: 'running' as TestRunStatus,
     startedAt: new Date(),
     trigger: 'manual' as JobTrigger,
@@ -80,6 +89,7 @@ interface JobData {
     customMessage: string;
   };
   organizationId?: string;
+  projectId?: string;
   createdByUserId?: string;
 }
 
@@ -95,16 +105,23 @@ interface TestResult {
 // GET all jobs
 export async function GET() {
   try {
-    // Verify user is authenticated
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { userId, project, organizationId } = await requireProjectContext();
+    
+    // Use current project context
+    const targetProjectId = project.id;
+    
+    // Build permission context and check access
+    const context = await buildPermissionContext(userId, 'project', organizationId, targetProjectId);
+    const canView = await hasPermission(context, ProjectPermission.VIEW_JOBS);
+    
+    if (!canView) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
     }
 
-    // Get all jobs with their associated tests and last run status
+    // Get all jobs with their associated tests and last run status (scoped to project)
     const result = await db
       .select({
         id: jobs.id,
@@ -116,11 +133,16 @@ export async function GET() {
         createdAt: jobs.createdAt,
         updatedAt: jobs.updatedAt,
         organizationId: jobs.organizationId,
+        projectId: jobs.projectId,
         createdByUserId: jobs.createdByUserId,
         lastRunAt: jobs.lastRunAt,
         nextRunAt: jobs.nextRunAt,
       })
       .from(jobs)
+      .where(and(
+        eq(jobs.projectId, targetProjectId),
+        eq(jobs.organizationId, organizationId)
+      ))
       .orderBy(desc(jobs.createdAt));
 
     // For each job, get its associated tests
@@ -220,18 +242,9 @@ export async function GET() {
 }
 
 // POST to create a new job
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    // Verify user is authenticated
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if this is a job execution request
+    // Check if this is a job execution request first
     const url = new URL(request.url);
     const action = url.searchParams.get("action");
 
@@ -239,7 +252,8 @@ export async function POST(request: Request) {
       return await runJob(request);
     }
 
-    // Regular job creation
+    // Regular job creation - use project context
+    const { userId, project, organizationId } = await requireProjectContext();
     const jobData: JobData = await request.json();
 
     // Validate required fields
@@ -250,6 +264,20 @@ export async function POST(request: Request) {
           error: "Missing required field: name is required.",
         },
         { status: 400 }
+      );
+    }
+    
+    // Use current project context
+    const targetProjectId = project.id;
+    
+    // Build permission context and check access
+    const context = await buildPermissionContext(userId, 'project', organizationId!, targetProjectId);
+    const canCreate = await hasPermission(context, ProjectPermission.CREATE_JOBS);
+    
+    if (!canCreate) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions to create jobs' },
+        { status: 403 }
       );
     }
 
@@ -273,8 +301,9 @@ export async function POST(request: Request) {
         recoveryThreshold: typeof jobData.alertConfig.recoveryThreshold === 'number' ? jobData.alertConfig.recoveryThreshold : 1,
         customMessage: typeof jobData.alertConfig.customMessage === 'string' ? jobData.alertConfig.customMessage : "",
       } : null,
-      organizationId: jobData.organizationId || null,
-      createdByUserId: session.user.id, // Use authenticated user ID
+      organizationId: organizationId,
+      projectId: targetProjectId,
+      createdByUserId: userId, // Use authenticated user ID
     }).returning();
 
     // Validate alert configuration if enabled
@@ -363,6 +392,9 @@ export async function PUT(request: Request) {
       );
     }
 
+    // Get current project context (includes auth verification)
+    const { userId, project, organizationId } = await requireProjectContext();
+
     // Validate required fields
     if (!jobData.name || !jobData.cronSchedule || !jobData.description) {
       return NextResponse.json(
@@ -372,6 +404,43 @@ export async function PUT(request: Request) {
             "Missing required fields. Name, description, and cron schedule are required.",
         },
         { status: 400 }
+      );
+    }
+
+    // Check if job exists and belongs to current project
+    const existingJob = await db
+      .select({ 
+        id: jobs.id, 
+        projectId: jobs.projectId,
+        organizationId: jobs.organizationId 
+      })
+      .from(jobs)
+      .where(eq(jobs.id, jobData.id))
+      .limit(1);
+
+    if (existingJob.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Job not found" },
+        { status: 404 }
+      );
+    }
+
+    // Verify job belongs to current project and organization
+    if (existingJob[0].projectId !== project.id || existingJob[0].organizationId !== organizationId) {
+      return NextResponse.json(
+        { success: false, error: "Job not found or access denied" },
+        { status: 404 }
+      );
+    }
+
+    // Build permission context and check access
+    const context = await buildPermissionContext(userId, 'project', organizationId, project.id);
+    const canEdit = await hasPermission(context, ProjectPermission.EDIT_JOBS);
+    
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions to edit jobs' },
+        { status: 403 }
       );
     }
 
@@ -412,6 +481,24 @@ export async function PUT(request: Request) {
     });
   } catch (error) {
     console.error("Error updating job:", error);
+    
+    // Handle authentication/authorization errors
+    if (error instanceof Error) {
+      if (error.message === 'Authentication required') {
+        return NextResponse.json(
+          { success: false, error: 'Authentication required' },
+          { status: 401 }
+        );
+      }
+      
+      if (error.message.includes('not found')) {
+        return NextResponse.json(
+          { success: false, error: 'Resource not found or access denied' },
+          { status: 404 }
+        );
+      }
+    }
+    
     return NextResponse.json(
       { success: false, error: "Failed to update job" },
       { status: 500 }

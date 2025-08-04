@@ -32,11 +32,31 @@ const typeColors = {
 } as const;
 
 // Separate component for notification provider cell to fix React hooks issue
-const NotificationProviderCell = ({ provider }: { provider: string }) => {
+const NotificationProviderCell = ({ provider }: { provider: string | object | null | undefined }) => {
   const [isOpen, setIsOpen] = useState(false);
   
+  // Handle null/undefined provider
+  if (!provider) {
+    return (
+      <div className="text-muted-foreground text-sm">
+        No providers
+      </div>
+    );
+  }
+  
+  // Handle case where provider is an object or not a string
+  let providerString: string;
+  if (typeof provider === 'string') {
+    providerString = provider;
+  } else if (typeof provider === 'object' && provider !== null) {
+    // If it's an object, try to extract a string representation
+    providerString = JSON.stringify(provider);
+  } else {
+    providerString = String(provider);
+  }
+  
   // Parse providers from comma-separated string
-  const providers = provider
+  const providers = providerString
     .split(',')
     .map(p => p.trim())
     .filter(p => p.length > 0);

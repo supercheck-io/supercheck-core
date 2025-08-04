@@ -184,9 +184,14 @@ export class JobExecutionProcessor extends WorkerHost {
     try {
       // Get job configuration including alert settings - use originalJobId for database lookup
       const jobIdForLookup = jobData.originalJobId || jobData.jobId;
-      const job = (await this.dbService.getJobById(jobIdForLookup)) as {
+      const job = (await this.dbService.getJobById(
+        jobIdForLookup,
+        jobData.organizationId,
+        jobData.projectId,
+      )) as {
         id: string;
         name: string;
+        projectId?: string;
         alertConfig?: {
           enabled: boolean;
           notificationProviders: string[];
@@ -206,12 +211,21 @@ export class JobExecutionProcessor extends WorkerHost {
         return; // No alerts configured
       }
 
+      // Get project information
+      let projectName: string | undefined;
+      if (job.projectId) {
+        const project = await this.dbService.getProjectById(job.projectId);
+        projectName = project?.name;
+      }
+
       // Type assertion for job.alertConfig since we checked it's enabled above
       const alertConfig = job.alertConfig;
 
       // Get notification providers
       const providers = await this.dbService.getNotificationProviders(
         alertConfig.notificationProviders,
+        jobData.organizationId,
+        jobData.projectId,
       );
       if (!providers || providers.length === 0) {
         this.logger.debug(
@@ -322,6 +336,8 @@ export class JobExecutionProcessor extends WorkerHost {
         targetId: job.id,
         severity,
         timestamp: new Date(),
+        projectId: job.projectId,
+        projectName: projectName,
         metadata: {
           duration: durationSeconds,
           status: finalStatus,

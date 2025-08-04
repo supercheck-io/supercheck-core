@@ -1,0 +1,37 @@
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { getUserOrgRole } from "@/lib/rbac/middleware";
+import { OrgRole } from "@/lib/rbac/permissions";
+import { getActiveOrganization, getCurrentUser } from "@/lib/session";
+
+export default async function OrgAdminLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+
+  if (!session) {
+    redirect("/sign-in");
+  }
+
+  // Check organization admin permissions
+  const currentUser = await getCurrentUser();
+  const activeOrg = await getActiveOrganization();
+  
+  if (!currentUser || !activeOrg) {
+    redirect("/");
+  }
+
+  const orgRole = await getUserOrgRole(currentUser.id, activeOrg.id);
+  const isOrgAdmin = orgRole === OrgRole.ADMIN || orgRole === OrgRole.OWNER;
+  
+  if (!isOrgAdmin) {
+    redirect("/");
+  }
+
+  return children;
+}

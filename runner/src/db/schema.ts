@@ -269,6 +269,9 @@ export const jobs = pgTable('jobs', {
   organizationId: uuid('organization_id').references(() => organization.id, {
     onDelete: 'cascade',
   }),
+  projectId: uuid('project_id').references(() => projects.id, {
+    onDelete: 'cascade',
+  }),
   createdByUserId: uuid('created_by_user_id').references(() => user.id, {
     onDelete: 'no action',
   }),
@@ -444,6 +447,9 @@ export const monitors = pgTable('monitors', {
   organizationId: uuid('organization_id').references(() => organization.id, {
     onDelete: 'cascade',
   }),
+  projectId: uuid('project_id').references(() => projects.id, {
+    onDelete: 'cascade',
+  }),
   createdByUserId: uuid('created_by_user_id').references(() => user.id, {
     onDelete: 'no action',
   }),
@@ -598,6 +604,9 @@ export type NotificationProviderConfig = {
 export const notificationProviders = pgTable('notification_providers', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').references(() => organization.id, {
+    onDelete: 'cascade',
+  }),
+  projectId: uuid('project_id').references(() => projects.id, {
     onDelete: 'cascade',
   }),
   createdByUserId: uuid('created_by_user_id').references(() => user.id, {

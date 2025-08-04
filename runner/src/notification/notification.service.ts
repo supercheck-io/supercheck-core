@@ -62,6 +62,8 @@ export interface NotificationPayload {
   targetId: string;
   severity: 'info' | 'warning' | 'error' | 'success';
   timestamp: Date;
+  projectId?: string;
+  projectName?: string;
   metadata?: {
     responseTime?: number;
     status?: string;
@@ -264,6 +266,15 @@ export class NotificationService {
 
     // Build standardized fields
     const fields: Array<{ title: string; value: string; short?: boolean }> = [];
+
+    // Project info
+    if (payload.projectName) {
+      fields.push({
+        title: 'Project',
+        value: payload.projectName,
+        short: true,
+      });
+    }
 
     // Basic info
     fields.push({

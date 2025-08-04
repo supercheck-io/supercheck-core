@@ -76,7 +76,8 @@ export default function AlertsPage() {
           const historyData = await historyResponse.json();
           setAlertHistory(historyData);
         } else {
-          console.error('Failed to fetch alert history');
+          const errorText = await historyResponse.text();
+          console.error('Failed to fetch alert history:', historyResponse.status, errorText);
           setAlertHistory([]);
         }
       } catch (error) {

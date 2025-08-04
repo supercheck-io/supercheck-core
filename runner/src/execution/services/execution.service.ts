@@ -145,6 +145,32 @@ export class ExecutionService {
   }
 
   /**
+   * Clean up local report directory after successful S3 upload
+   */
+  private async cleanupLocalReportDirectory(
+    dirPath: string,
+    entityId: string,
+  ): Promise<void> {
+    try {
+      if (existsSync(dirPath)) {
+        this.logger.log(
+          `[${entityId}] Cleaning up local report directory: ${dirPath}`,
+        );
+        await fs.rm(dirPath, { recursive: true, force: true });
+        this.logger.log(
+          `[${entityId}] Successfully cleaned up local report directory`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `[${entityId}] Failed to cleanup local report directory ${dirPath}:`,
+        error,
+      );
+      // Don't throw - cleanup failure shouldn't break the main flow
+    }
+  }
+
+  /**
    * Ensures base directory exists and has correct permissions for the nodejs user
    */
   private async ensureBaseDirectoryPermissions(): Promise<void> {
@@ -330,6 +356,10 @@ export class ExecutionService {
                 this.logger.log(
                   `[${testId}] Report directory contents uploaded to S3 prefix: ${s3ReportKeyPrefix}`,
                 );
+
+                // Clean up local report directory after successful upload
+                await this.cleanupLocalReportDirectory(outputDir, testId);
+
                 s3Url =
                   this.s3Service.getBaseUrlForEntity(entityType, testId) +
                   '/index.html';
@@ -371,6 +401,12 @@ export class ExecutionService {
                 `[${testId}] Report directory uploaded from default location to S3 prefix: ${s3ReportKeyPrefix}`,
               );
               reportFound = true;
+
+              // Clean up local report directory after successful upload
+              await this.cleanupLocalReportDirectory(
+                playwrightReportDir,
+                testId,
+              );
               s3Url =
                 this.s3Service.getBaseUrlForEntity(entityType, testId) +
                 '/index.html';
@@ -466,6 +502,10 @@ export class ExecutionService {
                 this.logger.log(
                   `[${testId}] Error report/artifacts uploaded to S3 prefix: ${s3ReportKeyPrefix}`,
                 );
+
+                // Clean up local report directory after successful upload
+                await this.cleanupLocalReportDirectory(outputDir, testId);
+
                 s3Url =
                   this.s3Service.getBaseUrlForEntity(entityType, testId) +
                   '/index.html';
@@ -507,6 +547,13 @@ export class ExecutionService {
                 `[${testId}] Error report/artifacts uploaded from default location to S3 prefix: ${s3ReportKeyPrefix}`,
               );
               reportFound = true;
+
+              // Clean up local report directory after successful upload
+              await this.cleanupLocalReportDirectory(
+                playwrightReportDir,
+                testId,
+              );
+
               s3Url =
                 this.s3Service.getBaseUrlForEntity(entityType, testId) +
                 '/index.html';
@@ -581,17 +628,15 @@ export class ExecutionService {
       // Propagate the error to the BullMQ processor so the job is marked as failed
       throw error;
     } finally {
-      // 6. Cleanup local run directory
-      // Skip cleanup to preserve test reports
-      this.logger.debug(
-        `[${testId}] Preserving local run directory: ${runDir}`,
+      // 6. Cleanup local run directory after all processing is complete
+      this.logger.log(
+        `[${testId}] Cleaning up entire run directory: ${runDir}`,
       );
-      // Comment out the cleanup code
-      /*
-            await fs.rm(runDir, { recursive: true, force: true }).catch(err => {
-                this.logger.warn(`[${testId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`);
-            });
-            */
+      await fs.rm(runDir, { recursive: true, force: true }).catch((err) => {
+        this.logger.warn(
+          `[${testId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`,
+        );
+      });
     }
 
     return finalResult;
@@ -730,6 +775,9 @@ export class ExecutionService {
             this.logger.log(
               `[${runId}] Report directory contents uploaded to S3 prefix: ${s3ReportKeyPrefix}`,
             );
+
+            // Clean up local report directory after successful upload
+            await this.cleanupLocalReportDirectory(reportDir, runId);
           } catch (uploadErr: any) {
             this.logger.error(
               `[${runId}] Report upload failed from ${reportDir}: ${(uploadErr as Error).message}`,
@@ -767,6 +815,9 @@ export class ExecutionService {
               `[${runId}] Report directory uploaded from default location to S3 prefix: ${s3ReportKeyPrefix}`,
             );
             reportFound = true;
+
+            // Clean up local report directory after successful upload
+            await this.cleanupLocalReportDirectory(playwrightReportDir, runId);
           } catch (uploadErr: any) {
             this.logger.error(
               `[${runId}] Report upload failed from default location: ${(uploadErr as Error).message}`,
@@ -801,6 +852,9 @@ export class ExecutionService {
             this.logger.log(
               `[${runId}] Uploaded test artifacts to S3 prefix: ${s3ReportKeyPrefix}`,
             );
+
+            // Clean up local report directory after successful upload
+            await this.cleanupLocalReportDirectory(reportDir, runId);
           } catch (uploadErr: any) {
             this.logger.error(
               `[${runId}] Artifacts upload failed: ${(uploadErr as Error).message}`,
@@ -903,14 +957,13 @@ export class ExecutionService {
       };
       throw error;
     } finally {
-      // 7. Cleanup local run directory
-      this.logger.debug(`[${runId}] Preserving local run directory: ${runDir}`);
-      // Comment out the cleanup code to keep reports
-      /*
-            await fs.rm(runDir, { recursive: true, force: true }).catch(err => {
-                this.logger.warn(`[${runId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`);
-            });
-            */
+      // 7. Cleanup local run directory after all processing is complete
+      this.logger.log(`[${runId}] Cleaning up entire run directory: ${runDir}`);
+      await fs.rm(runDir, { recursive: true, force: true }).catch((err) => {
+        this.logger.warn(
+          `[${runId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`,
+        );
+      });
     }
 
     return finalResult;

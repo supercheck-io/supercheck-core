@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { tests } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
+import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { ProjectPermission } from '@/lib/rbac/permissions';
 
 declare const Buffer: {
   from(data: string, encoding: string): { toString(encoding: string): string };
@@ -45,7 +47,9 @@ export async function GET(
   const testId = params.id;
 
   try {
-    // Query the database for the test with the given ID
+    const { userId } = await requireAuth();
+    
+    // First, find the test without filtering by active project
     const result = await db
       .select()
       .from(tests)
@@ -61,6 +65,24 @@ export async function GET(
     }
 
     const test = result[0];
+    
+    // Now check if user has access to this test's project
+    if (!test.organizationId || !test.projectId) {
+      return NextResponse.json(
+        { error: "Test data incomplete" },
+        { status: 500 }
+      );
+    }
+    
+    const permissionContext = await buildPermissionContext(userId, 'project', test.organizationId, test.projectId);
+    const canView = await hasPermission(permissionContext, ProjectPermission.VIEW_TESTS);
+    
+    if (!canView) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
 
     // Decode the base64 script before returning
     const decodedScript = await decodeTestScript(test.script || "");

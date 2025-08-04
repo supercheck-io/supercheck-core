@@ -1,12 +1,31 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/utils/db";
-import { monitors, monitorResults, jobs, runs, tests } from "@/db/schema/schema";
+import { monitors, monitorResults, jobs, runs, tests, projects } from "@/db/schema/schema";
 import { eq, desc, gte, and, count, sql } from "drizzle-orm";
 import { subDays, subHours } from "date-fns";
 import { getQueueStats } from "@/lib/queue-stats";
+import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireProjectContext } from '@/lib/project-context';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { userId, project, organizationId } = await requireProjectContext();
+    
+    // Use current project context - no need for query params
+    const targetProjectId = project.id;
+    
+    // Build permission context and check access
+    const context = await buildPermissionContext(userId, 'project', organizationId, targetProjectId);
+    const canView = await hasPermission(context, ProjectPermission.VIEW_DASHBOARD);
+    
+    if (!canView) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
+
     const dbInstance = db;
     const now = new Date();
     const last24Hours = subHours(now, 24);
@@ -15,7 +34,7 @@ export async function GET() {
     // Get queue statistics
     const queueStats = await getQueueStats();
 
-    // Monitor Statistics
+    // Monitor Statistics - scoped to project
     const [
       totalMonitors,
       activeMonitors,
@@ -26,26 +45,38 @@ export async function GET() {
       criticalAlerts
     ] = await Promise.all([
       // Total monitors
-      dbInstance.select({ count: count() }).from(monitors),
+      dbInstance.select({ count: count() }).from(monitors)
+        .where(and(eq(monitors.projectId, targetProjectId), eq(monitors.organizationId, organizationId))),
       
       // Active (enabled) monitors
-      dbInstance.select({ count: count() }).from(monitors).where(eq(monitors.enabled, true)),
+      dbInstance.select({ count: count() }).from(monitors)
+        .where(and(eq(monitors.enabled, true), eq(monitors.projectId, targetProjectId), eq(monitors.organizationId, organizationId))),
       
       // Up monitors (based on latest status)
-      dbInstance.select({ count: count() }).from(monitors).where(eq(monitors.status, "up")),
+      dbInstance.select({ count: count() }).from(monitors)
+        .where(and(eq(monitors.status, "up"), eq(monitors.projectId, targetProjectId), eq(monitors.organizationId, organizationId))),
       
       // Down monitors
-      dbInstance.select({ count: count() }).from(monitors).where(eq(monitors.status, "down")),
+      dbInstance.select({ count: count() }).from(monitors)
+        .where(and(eq(monitors.status, "down"), eq(monitors.projectId, targetProjectId), eq(monitors.organizationId, organizationId))),
       
-      // Recent monitor results (last 24h)
-      dbInstance.select({ count: count() }).from(monitorResults)
-        .where(gte(monitorResults.checkedAt, last24Hours)),
+      // Recent monitor results (last 24h) - only for monitors in this project
+      dbInstance.select({ count: count() })
+        .from(monitorResults)
+        .innerJoin(monitors, eq(monitorResults.monitorId, monitors.id))
+        .where(and(
+          gte(monitorResults.checkedAt, last24Hours),
+          eq(monitors.projectId, targetProjectId),
+          eq(monitors.organizationId, organizationId)
+        )),
       
       // Monitor count by type
       dbInstance.select({
         type: monitors.type,
         count: count()
-      }).from(monitors).groupBy(monitors.type),
+      }).from(monitors)
+        .where(and(eq(monitors.projectId, targetProjectId), eq(monitors.organizationId, organizationId)))
+        .groupBy(monitors.type),
       
       // Critical alerts (down monitors)
       dbInstance.select({
@@ -54,10 +85,12 @@ export async function GET() {
         type: monitors.type,
         status: monitors.status,
         lastCheckAt: monitors.lastCheckAt
-      }).from(monitors).where(eq(monitors.status, "down")).limit(5)
+      }).from(monitors)
+        .where(and(eq(monitors.status, "down"), eq(monitors.projectId, targetProjectId), eq(monitors.organizationId, organizationId)))
+        .limit(5)
     ]);
 
-    // Job Statistics
+    // Job Statistics - scoped to project
     const [
       totalJobs,
       activeJobs,
@@ -68,34 +101,52 @@ export async function GET() {
       recentJobRuns
     ] = await Promise.all([
       // Total jobs
-      dbInstance.select({ count: count() }).from(jobs),
+      dbInstance.select({ count: count() }).from(jobs)
+        .where(and(eq(jobs.projectId, targetProjectId), eq(jobs.organizationId, organizationId))),
       
       // Active jobs (not paused)
-      dbInstance.select({ count: count() }).from(jobs).where(eq(jobs.status, "running")),
+      dbInstance.select({ count: count() }).from(jobs)
+        .where(and(eq(jobs.status, "running"), eq(jobs.projectId, targetProjectId), eq(jobs.organizationId, organizationId))),
       
-      // Recent runs (last 7 days)
-      dbInstance.select({ count: count() }).from(runs)
-        .where(gte(runs.startedAt, last7Days)),
+      // Recent runs (last 7 days) - only for jobs in this project
+      dbInstance.select({ count: count() })
+        .from(runs)
+        .innerJoin(jobs, eq(runs.jobId, jobs.id))
+        .where(and(
+          gte(runs.startedAt, last7Days),
+          eq(jobs.projectId, targetProjectId),
+          eq(jobs.organizationId, organizationId)
+        )),
       
       // Successful runs in last 24h
-      dbInstance.select({ count: count() }).from(runs)
+      dbInstance.select({ count: count() })
+        .from(runs)
+        .innerJoin(jobs, eq(runs.jobId, jobs.id))
         .where(and(
           gte(runs.startedAt, last24Hours),
-          eq(runs.status, "passed")
+          eq(runs.status, "passed"),
+          eq(jobs.projectId, targetProjectId),
+          eq(jobs.organizationId, organizationId)
         )),
       
       // Failed runs in last 24h
-      dbInstance.select({ count: count() }).from(runs)
+      dbInstance.select({ count: count() })
+        .from(runs)
+        .innerJoin(jobs, eq(runs.jobId, jobs.id))
         .where(and(
           gte(runs.startedAt, last24Hours),
-          eq(runs.status, "failed")
+          eq(runs.status, "failed"),
+          eq(jobs.projectId, targetProjectId),
+          eq(jobs.organizationId, organizationId)
         )),
       
       // Jobs by status
       dbInstance.select({
         status: jobs.status,
         count: count()
-      }).from(jobs).groupBy(jobs.status),
+      }).from(jobs)
+        .where(and(eq(jobs.projectId, targetProjectId), eq(jobs.organizationId, organizationId)))
+        .groupBy(jobs.status),
       
       // Recent job runs with details
       dbInstance.select({
@@ -107,37 +158,52 @@ export async function GET() {
         duration: runs.duration
       }).from(runs)
         .leftJoin(jobs, eq(runs.jobId, jobs.id))
+        .where(and(eq(jobs.projectId, targetProjectId), eq(jobs.organizationId, organizationId)))
         .orderBy(desc(runs.startedAt))
         .limit(10)
     ]);
 
-    // Test Statistics
+    // Test Statistics - scoped to project
     const [
       totalTests,
       testsByType,
       recentTestRuns
     ] = await Promise.all([
       // Total tests
-      dbInstance.select({ count: count() }).from(tests),
+      dbInstance.select({ count: count() }).from(tests)
+        .where(and(eq(tests.projectId, targetProjectId), eq(tests.organizationId, organizationId))),
       
       // Tests by type
       dbInstance.select({
         type: tests.type,
         count: count()
-      }).from(tests).groupBy(tests.type),
+      }).from(tests)
+        .where(and(eq(tests.projectId, targetProjectId), eq(tests.organizationId, organizationId)))
+        .groupBy(tests.type),
       
-      // Recent test activity (via job runs)
-      dbInstance.select({ count: count() }).from(runs)
-        .where(gte(runs.startedAt, last7Days))
+      // Recent test activity (via job runs) - only for jobs in this project
+      dbInstance.select({ count: count() })
+        .from(runs)
+        .innerJoin(jobs, eq(runs.jobId, jobs.id))
+        .where(and(
+          gte(runs.startedAt, last7Days),
+          eq(jobs.projectId, targetProjectId),
+          eq(jobs.organizationId, organizationId)
+        ))
     ]);
 
-    // Calculate uptime percentage for active monitors
+    // Calculate uptime percentage for active monitors in this project
     const uptimeStats = await dbInstance.select({
       monitorId: monitorResults.monitorId,
       isUp: monitorResults.isUp,
       checkedAt: monitorResults.checkedAt
     }).from(monitorResults)
-      .where(gte(monitorResults.checkedAt, last24Hours))
+      .innerJoin(monitors, eq(monitorResults.monitorId, monitors.id))
+      .where(and(
+        gte(monitorResults.checkedAt, last24Hours),
+        eq(monitors.projectId, targetProjectId),
+        eq(monitors.organizationId, organizationId)
+      ))
       .orderBy(desc(monitorResults.checkedAt));
 
     // Calculate overall uptime percentage
@@ -145,25 +211,33 @@ export async function GET() {
     const successfulChecks = uptimeStats.filter(r => r.isUp).length;
     const overallUptime = totalChecks > 0 ? (successfulChecks / totalChecks) * 100 : 100;
 
-    // Monitor availability trend (last 7 days)
+    // Monitor availability trend (last 7 days) - only for monitors in this project
     const availabilityTrend = await dbInstance.select({
       date: sql<string>`DATE(${monitorResults.checkedAt})`,
       upCount: sql<number>`SUM(CASE WHEN ${monitorResults.isUp} THEN 1 ELSE 0 END)`,
       totalCount: count()
     }).from(monitorResults)
-      .where(gte(monitorResults.checkedAt, last7Days))
+      .innerJoin(monitors, eq(monitorResults.monitorId, monitors.id))
+      .where(and(
+        gte(monitorResults.checkedAt, last7Days),
+        eq(monitors.projectId, targetProjectId),
+        eq(monitors.organizationId, organizationId)
+      ))
       .groupBy(sql`DATE(${monitorResults.checkedAt})`)
       .orderBy(sql`DATE(${monitorResults.checkedAt})`);
 
-    // Response time statistics
+    // Response time statistics - only for monitors in this project
     const responseTimeStats = await dbInstance.select({
       avgResponseTime: sql<number>`AVG(${monitorResults.responseTimeMs})`,
       minResponseTime: sql<number>`MIN(${monitorResults.responseTimeMs})`,
       maxResponseTime: sql<number>`MAX(${monitorResults.responseTimeMs})`
     }).from(monitorResults)
+      .innerJoin(monitors, eq(monitorResults.monitorId, monitors.id))
       .where(and(
         gte(monitorResults.checkedAt, last24Hours),
-        eq(monitorResults.isUp, true)
+        eq(monitorResults.isUp, true),
+        eq(monitors.projectId, targetProjectId),
+        eq(monitors.organizationId, organizationId)
       ));
 
     return NextResponse.json({

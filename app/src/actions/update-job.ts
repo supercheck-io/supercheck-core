@@ -2,13 +2,15 @@
 
 import { db } from "@/utils/db";
 import { jobs, jobTests, jobNotificationSettings } from "@/db/schema/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { scheduleJob, deleteScheduledJob } from "@/lib/job-scheduler";
 import { getNextRunDate } from "@/lib/cron-utils";
-import { auth } from "@/utils/auth";
-import { headers } from "next/headers";
+import { requireProjectContext } from "@/lib/project-context";
+import { buildPermissionContext, hasPermission } from "@/lib/rbac/middleware";
+import { ProjectPermission } from "@/lib/rbac/permissions";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 const updateJobSchema = z.object({
   jobId: z.string().uuid(),
@@ -36,16 +38,24 @@ export async function updateJob(data: UpdateJobData) {
   console.log(`Updating job ${data.jobId}`);
   
   try {
-    // Verify user is authenticated
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    // Get current project context (includes auth verification)
+    const { userId, project, organizationId } = await requireProjectContext();
 
-    if (!session || !session.user || !session.user.id) {
+    // Check EDIT_JOBS permission
+    const permissionContext = await buildPermissionContext(
+      userId,
+      'project',
+      organizationId,
+      project.id
+    );
+    
+    const canEditJobs = await hasPermission(permissionContext, ProjectPermission.EDIT_JOBS);
+    
+    if (!canEditJobs) {
+      console.warn(`User ${userId} attempted to update job ${data.jobId} without EDIT_JOBS permission`);
       return {
         success: false,
-        message: "Unauthorized - user must be logged in to update jobs",
-        error: "Unauthorized"
+        message: "Insufficient permissions to edit jobs",
       };
     }
 
@@ -79,7 +89,7 @@ export async function updateJob(data: UpdateJobData) {
     
     const dbInstance = db;
     
-    // Check if the job exists
+    // Check if the job exists and user has access to it (project scoped)
     const existingJob = await dbInstance
       .select({
         id: jobs.id,
@@ -87,24 +97,29 @@ export async function updateJob(data: UpdateJobData) {
         createdByUserId: jobs.createdByUserId,
         cronSchedule: jobs.cronSchedule,
         scheduledJobId: jobs.scheduledJobId,
+        projectId: jobs.projectId,
+        organizationId: jobs.organizationId,
       })
       .from(jobs)
-      .where(eq(jobs.id, validatedData.jobId))
+      .where(and(
+        eq(jobs.id, validatedData.jobId),
+        eq(jobs.projectId, project.id),
+        eq(jobs.organizationId, organizationId)
+      ))
       .limit(1);
       
     if (!existingJob || existingJob.length === 0) {
       return { 
         success: false, 
-        message: `Job with ID ${validatedData.jobId} not found` 
+        message: `Job with ID ${validatedData.jobId} not found or access denied` 
       };
     }
     
     const job = existingJob[0];
     
-    // Note: RBAC will be implemented later. For now, all authenticated users can edit any job.
-    console.log(`Job ${validatedData.jobId} being updated by user ${session.user.id}`);
-    if (job.createdByUserId && job.createdByUserId !== session.user.id) {
-      console.log(`User ${session.user.id} is updating job ${validatedData.jobId} originally created by ${job.createdByUserId}`);
+    console.log(`Job ${validatedData.jobId} being updated by user ${userId} in project ${project.name}`);
+    if (job.createdByUserId && job.createdByUserId !== userId) {
+      console.log(`User ${userId} is updating job ${validatedData.jobId} originally created by ${job.createdByUserId}`);
     }
     
     try {
@@ -213,7 +228,28 @@ export async function updateJob(data: UpdateJobData) {
         scheduledJobId = previousSchedulerId;
       }
       
-      console.log(`Job ${validatedData.jobId} updated successfully by user ${session.user.id}`);
+      console.log(`Job ${validatedData.jobId} updated successfully by user ${userId} in project ${project.name}`);
+      
+      // Log the audit event for job update
+      await logAuditEvent({
+        userId,
+        organizationId,
+        action: 'job_updated',
+        resource: 'job',
+        resourceId: validatedData.jobId,
+        metadata: {
+          jobName: validatedData.name,
+          projectId: project.id,
+          projectName: project.name,
+          testsCount: validatedData.tests.length,
+          cronScheduleChanged: previousSchedule !== newSchedule,
+          oldCronSchedule: previousSchedule,
+          newCronSchedule: newSchedule,
+          alertsEnabled: validatedData.alertConfig?.enabled || false,
+          notificationProvidersCount: validatedData.alertConfig?.notificationProviders?.length || 0
+        },
+        success: true
+      });
       
       // Revalidate the jobs page
       revalidatePath('/jobs');

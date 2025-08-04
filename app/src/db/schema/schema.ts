@@ -55,25 +55,13 @@ export const organization = pgTable("organization", {
 });
 
 /**
- * Represents a team within an organization.
- */
-export const team = pgTable("team", {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name').notNull(),
-	organizationId: uuid('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
-	createdAt: timestamp('created_at').notNull(),
-	updatedAt: timestamp('updated_at')
-});
-
-/**
- * Maps users to organizations and teams, defining their roles.
+ * Maps users to organizations, defining their roles.
  */
 export const member = pgTable("member", {
 	id: uuid('id').primaryKey().defaultRandom(),
 	organizationId: uuid('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
 	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
 	role: text('role').default('member').notNull(),
-	teamId: uuid('team_id').references(() => team.id),
 	createdAt: timestamp('created_at').notNull()
 });
 
@@ -85,10 +73,10 @@ export const invitation = pgTable("invitation", {
 	organizationId: uuid('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
 	email: text('email').notNull(),
 	role: text('role'),
-	teamId: uuid('team_id').references(() => team.id),
 	status: text('status').default('pending').notNull(),
 	expiresAt: timestamp('expires_at').notNull(),
-	inviterId: uuid('inviter_id').notNull().references(() => user.id, { onDelete: 'cascade' })
+	inviterId: uuid('inviter_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	selectedProjects: text('selected_projects') // JSON array of project IDs
 });
 
 /**
@@ -104,6 +92,7 @@ export const session = pgTable("session", {
 	userAgent: text('user_agent'),
 	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
 	activeOrganizationId: uuid('active_organization_id').references(() => organization.id),
+	activeProjectId: uuid('active_project_id').references(() => projects.id),
 	impersonatedBy: text('impersonated_by')
 });
 
@@ -149,6 +138,7 @@ export const apikey = pgTable("apikey", {
 	key: text('key').notNull(),
 	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'no action' }),
 	jobId: uuid('job_id').references(() => jobs.id, { onDelete: 'cascade' }),
+	projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
 	refillInterval: text('refill_interval'),
 	refillAmount: text('refill_amount'),
 	lastRefillAt: timestamp('last_refill_at'),
@@ -183,13 +173,26 @@ export const projects = pgTable("projects", {
     .notNull()
     .references(() => organization.id),
   name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).unique(),
   description: text("description"),
+  isDefault: boolean("is_default").default(false).notNull(),
   status: varchar("status", { length: 50 })
     .$type<"active" | "archived" | "deleted">()
     .notNull()
     .default("active"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/**
+ * Maps users to projects, defining their roles within a project.
+ */
+export const projectMembers = pgTable("project_members", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => user.id, { onDelete: 'cascade' }),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  role: varchar("role", { length: 50 }).default('member').notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type TestPriority = "low" | "medium" | "high";
@@ -201,6 +204,8 @@ export const tests = pgTable("tests", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
@@ -248,6 +253,8 @@ export const jobs = pgTable("jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
@@ -310,6 +317,8 @@ export const runs = pgTable("runs", {
   jobId: uuid("job_id")
     .notNull()
     .references(() => jobs.id),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   status: varchar("status", { length: 50 }).$type<TestRunStatus>().notNull().default("running"),
   duration: varchar("duration", { length: 100 }),
   startedAt: timestamp("started_at"),
@@ -417,6 +426,8 @@ export const monitors = pgTable("monitors", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
@@ -574,6 +585,8 @@ export const notificationProviders = pgTable("notification_providers", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   type: varchar("type", { length: 50 }).$type<NotificationProviderType>().notNull(),
@@ -844,5 +857,5 @@ export const integrationsSelectSchema = createSelectSchema(integrations);
    -------------------------------
    Object containing all tables required by the better-auth drizzle adapter.
 =================================== */
-export const authSchema = { user, organization, team, member, invitation, session, account, verification, apikey };
+export const authSchema = { user, organization, member, invitation, session, account, verification, apikey };
 

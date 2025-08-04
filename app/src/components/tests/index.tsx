@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+// import { useProjectContext } from "@/hooks/use-project-context"; // No longer needed
 // import { getTests } from "@/actions/get-tests"; // Replaced with API call
 import { Test } from "./schema";
 import { Row } from "@tanstack/react-table";
@@ -17,6 +18,7 @@ export default function Tests() {
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
+  // Remove projectId dependency since API handles project context automatically
 
   // Set mounted to true after initial render
   useEffect(() => {
@@ -44,6 +46,8 @@ export default function Tests() {
     async function fetchTests() {
       safeSetIsLoading(true);
       try {
+        // API handles project context automatically, no need to check projectId
+
         const response = await fetch('/api/tests');
         const data = await response.json();
         
@@ -64,9 +68,11 @@ export default function Tests() {
           safeSetTests(testsWithDefaults);
         } else {
           console.error("Failed to fetch tests:", data.error);
+          safeSetTests([]);
         }
       } catch (error) {
         console.error("Error fetching tests:", error);
+        safeSetTests([]);
       } finally {
         safeSetIsLoading(false);
       }

@@ -15,6 +15,10 @@ import { db } from "@/utils/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import crypto from "crypto";
+import { requireProjectContext } from "@/lib/project-context";
+import { buildPermissionContext, hasPermission } from "@/lib/rbac/middleware";
+import { ProjectPermission } from "@/lib/rbac/permissions";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 // Create a schema for the save test action
 const saveTestSchema = testsInsertSchema.omit({
@@ -38,6 +42,9 @@ export async function saveTest(
   data: SaveTestInput
 ): Promise<{ id: string; success: boolean; error?: string }> {
   try {
+    // Get user and project context
+    const { userId, project, organizationId } = await requireProjectContext();
+    
     const validatedData = saveTestWithIdSchema.parse(data);
 
     // Ensure script is properly base64 encoded
@@ -71,9 +78,28 @@ export async function saveTest(
       scriptToSave = Buffer.from(scriptToSave, "utf-8").toString("base64");
     }
 
+    // Build permission context
+    const permissionContext = await buildPermissionContext(
+      userId,
+      'project',
+      organizationId,
+      project.id
+    );
+
     // Check if this is an update (has an ID) or a new test
     if (validatedData.id) {
-      // This is an update
+      // This is an update - check EDIT_TESTS permission
+      const canEditTests = await hasPermission(permissionContext, ProjectPermission.EDIT_TESTS);
+      
+      if (!canEditTests) {
+        console.warn(`User ${userId} attempted to update test ${validatedData.id} without EDIT_TESTS permission`);
+        return {
+          id: "",
+          success: false,
+          error: "Insufficient permissions to edit tests",
+        };
+      }
+
       const testId = validatedData.id;
 
       // Remove the id from the data to update
@@ -89,8 +115,27 @@ export async function saveTest(
           updatedAt: new Date(),
           priority: updateData.priority as TestPriority,
           type: updateData.type as TestType,
+          organizationId: organizationId,
+          projectId: project.id,
         })
         .where(eq(tests.id, testId));
+
+      // Log the audit event for test update
+      await logAuditEvent({
+        userId,
+        organizationId,
+        action: 'test_updated',
+        resource: 'test',
+        resourceId: testId,
+        metadata: {
+          testTitle: validatedData.title,
+          testType: validatedData.type,
+          testPriority: validatedData.priority,
+          projectId: project.id,
+          projectName: project.name
+        },
+        success: true
+      });
 
       // Revalidate the tests page to show the updated data
       revalidatePath("/tests");
@@ -98,7 +143,18 @@ export async function saveTest(
       // Return the updated test ID
       return { id: testId, success: true };
     } else {
-      // This is a new test
+      // This is a new test - check CREATE_TESTS permission
+      const canCreateTests = await hasPermission(permissionContext, ProjectPermission.CREATE_TESTS);
+      
+      if (!canCreateTests) {
+        console.warn(`User ${userId} attempted to create test without CREATE_TESTS permission`);
+        return {
+          id: "",
+          success: false,
+          error: "Insufficient permissions to create tests",
+        };
+      }
+
       const newTestId = crypto.randomUUID();
 
       // Insert the test into the database
@@ -109,8 +165,28 @@ export async function saveTest(
         script: scriptToSave,
         priority: validatedData.priority as TestPriority,
         type: validatedData.type as TestType,
+        organizationId: organizationId,
+        projectId: project.id,
+        createdByUserId: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
+      });
+
+      // Log the audit event for test creation
+      await logAuditEvent({
+        userId,
+        organizationId,
+        action: 'test_created',
+        resource: 'test',
+        resourceId: newTestId,
+        metadata: {
+          testTitle: validatedData.title,
+          testType: validatedData.type,
+          testPriority: validatedData.priority,
+          projectId: project.id,
+          projectName: project.name
+        },
+        success: true
       });
 
       // Revalidate the tests page to show the updated data

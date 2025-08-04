@@ -15,11 +15,15 @@ import {
   Code2,
   BookOpenText,
   History,
-  Plus
+  Plus,
+  Users,
+  Building2,
+  BarChart3
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
 import { ProjectSwitcher } from "@/components/project-switcher";
+import { ImpersonationCard } from "@/components/impersonation-card";
 import Link from "next/link";
 import {
   Sidebar,
@@ -172,6 +176,21 @@ const data = {
     },
   ],
 
+  Admin: [
+    {
+      title: "Super Admin",
+      url: "/super-admin",
+      icon: BarChart3,
+    },
+  ],
+  OrgAdmin: [
+    {
+      title: "Organization Admin",
+      url: "/org-admin",
+      icon: Building2,
+    },
+  ],
+
 
   navSecondary: [
     // {
@@ -210,19 +229,60 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  // const activeTeam = data.teams[0]; // Assuming we want to display the first team
+  const [isAdmin, setIsAdmin] = React.useState(false);
+  const [isOrgAdmin, setIsOrgAdmin] = React.useState(false);
+
+  React.useEffect(() => {
+    // Check if user is admin
+    const checkAdminStatus = async () => {
+      try {
+        const response = await fetch('/api/admin/check');
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(data.isAdmin || false);
+        } else {
+          setIsAdmin(false);
+        }
+      } catch {
+        // Network errors or other issues - assume not admin
+        setIsAdmin(false);
+      }
+    };
+
+    // Check if user is organization admin
+    const checkOrgAdminStatus = async () => {
+      try {
+        const response = await fetch('/api/organizations/stats');
+        // Only set org admin if response is successful (200)
+        // 403 means user is not org admin, which is expected
+        setIsOrgAdmin(response.status === 200);
+      } catch {
+        // Network errors or other issues - assume not org admin
+        setIsOrgAdmin(false);
+      }
+    };
+
+    checkAdminStatus();
+    checkOrgAdminStatus();
+  }, []);
+
+  // Create combined settings items based on admin status
+  const getSettingsItems = () => {
+    const baseSettings = [...data.Settings];
+    
+    if (isAdmin) {
+      baseSettings.push(...data.Admin);
+    } else if (isOrgAdmin) {
+      baseSettings.push(...data.OrgAdmin);
+    }
+    
+    return baseSettings;
+  };
 
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="group-data-[collapsible=icon]:px-0">
-        <ProjectSwitcher projects={data.projects} />
-        {/* <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
-          <LogoToDisplay className="h-7 w-7 flex-shrink-0" /> 
-          <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="truncate font-medium">{teamName}</span>
-            <span className="truncate text-xs">{teamPlan}</span>
-          </div>
-        </div> */}
+        <ProjectSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup className="-mb-2 ">
@@ -243,11 +303,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain groupLabel="Communicate" items={data.Communicate} />
         <NavMain groupLabel="Automate" items={data.Automate} />
         <NavMain groupLabel="Monitor" items={data.Monitor} />
-        <NavMain groupLabel="Settings" items={data.Settings} />
-
+        <NavMain groupLabel="Settings" items={getSettingsItems()} />
       </SidebarContent>
       <NavMain groupLabel="" items={data.navSecondary} />
       <SidebarFooter>
+        <ImpersonationCard />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

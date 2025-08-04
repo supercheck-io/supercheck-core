@@ -2,9 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { addTestToQueue, TestExecutionTask } from "@/lib/queue";
 import { validationService } from "@/lib/validation-service";
+import { requireProjectContext } from "@/lib/project-context";
+import { buildPermissionContext, hasPermission } from "@/lib/rbac/middleware";
+import { ProjectPermission } from "@/lib/rbac/permissions";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication and permissions first
+    const { userId, project, organizationId } = await requireProjectContext();
+
+    // Build permission context and check RUN_TESTS permission
+    const permissionContext = await buildPermissionContext(
+      userId,
+      'project',
+      organizationId,
+      project.id
+    );
+    
+    const canRunTests = await hasPermission(permissionContext, ProjectPermission.RUN_TESTS);
+    
+    if (!canRunTests) {
+      console.warn(`User ${userId} attempted to run playground test without RUN_TESTS permission`);
+      return NextResponse.json(
+        { error: "Insufficient permissions to run tests. Only editors and admins can execute tests from the playground." },
+        { status: 403 }
+      );
+    }
+
     const data = await request.json();
     const code = data.script as string;
 
@@ -52,6 +77,23 @@ export async function POST(request: NextRequest) {
 
     try {
       await addTestToQueue(task);
+      
+      // Log the audit event for playground test execution
+      await logAuditEvent({
+        userId,
+        organizationId,
+        action: 'playground_test_executed',
+        resource: 'test',
+        resourceId: testId,
+        metadata: {
+          projectId: project.id,
+          projectName: project.name,
+          scriptLength: code.length,
+          executionMethod: 'playground'
+        },
+        success: true
+      });
+      
     } catch (error) {
       // Check if this is a queue capacity error
       const errorMessage = error instanceof Error ? error.message : String(error);

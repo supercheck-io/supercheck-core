@@ -86,36 +86,40 @@ export class JobSchedulerProcessor extends WorkerHost {
         .where(eq(jobs.id, jobId))
         .limit(1);
 
-      if (jobData.length > 0) {
-        const cronSchedule = jobData[0].cronSchedule;
-        let nextRunAt: Date | null = null;
-
-        try {
-          if (cronSchedule) {
-            nextRunAt = getNextRunDate(cronSchedule);
-          }
-        } catch (error) {
-          this.logger.error(`Failed to calculate next run date: ${error}`);
-        }
-
-        const updatePayload: {
-          lastRunAt: Date;
-          nextRunAt?: Date;
-          status: 'running';
-        } = {
-          lastRunAt: now,
-          status: 'running',
-        };
-
-        if (nextRunAt) {
-          updatePayload.nextRunAt = nextRunAt;
-        }
-
-        await this.dbService.db
-          .update(jobs)
-          .set(updatePayload)
-          .where(eq(jobs.id, jobId));
+      if (jobData.length === 0) {
+        this.logger.error(`Job ${jobId} not found`);
+        return;
       }
+
+      const jobRecord = jobData[0];
+      const cronSchedule = jobRecord.cronSchedule;
+      let nextRunAt: Date | null = null;
+
+      try {
+        if (cronSchedule) {
+          nextRunAt = getNextRunDate(cronSchedule);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to calculate next run date: ${error}`);
+      }
+
+      const updatePayload: {
+        lastRunAt: Date;
+        nextRunAt?: Date;
+        status: 'running';
+      } = {
+        lastRunAt: now,
+        status: 'running',
+      };
+
+      if (nextRunAt) {
+        updatePayload.nextRunAt = nextRunAt;
+      }
+
+      await this.dbService.db
+        .update(jobs)
+        .set(updatePayload)
+        .where(eq(jobs.id, jobId));
 
       const task: JobExecutionTask = {
         runId,
@@ -128,6 +132,8 @@ export class JobSchedulerProcessor extends WorkerHost {
           }),
         ),
         trigger: 'schedule',
+        organizationId: jobRecord.organizationId!,
+        projectId: jobRecord.projectId!,
       };
 
       const jobOptions = {

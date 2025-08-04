@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors, monitorResults, monitorsUpdateSchema, monitorNotificationSettings } from "@/db/schema/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { scheduleMonitor, deleteScheduledMonitor } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
+import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { ProjectPermission } from '@/lib/rbac/permissions';
 
 const RECENT_RESULTS_LIMIT = 1000; // Number of recent results to fetch
 
@@ -18,6 +20,9 @@ export async function GET(
   }
 
   try {
+    const { userId } = await requireAuth();
+    
+    // First, find the monitor without filtering by active project
     const monitor = await db.query.monitors.findFirst({
       where: eq(monitors.id, id),
     });
@@ -67,6 +72,8 @@ export async function PUT(
   }
 
   try {
+    const { userId } = await requireAuth();
+    
     const rawData = await request.json();
     const validationResult = monitorsUpdateSchema.safeParse(rawData);
 
@@ -76,9 +83,31 @@ export async function PUT(
 
     const updateData = validationResult.data;
 
-    const currentMonitor = await db.query.monitors.findFirst({ where: eq(monitors.id, id) });
+    // First, find the monitor without filtering by active project
+    const currentMonitor = await db.query.monitors.findFirst({ 
+      where: eq(monitors.id, id)
+    });
+
     if (!currentMonitor) {
         return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+    
+    // Now check if user has access to this monitor's project
+    if (!currentMonitor.organizationId || !currentMonitor.projectId) {
+      return NextResponse.json(
+        { error: "Monitor data incomplete" },
+        { status: 500 }
+      );
+    }
+    
+    const permissionContext = await buildPermissionContext(userId, 'project', currentMonitor.organizationId, currentMonitor.projectId);
+    const canManage = await hasPermission(permissionContext, ProjectPermission.MANAGE_MONITORS);
+    
+    if (!canManage) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
     }
 
     // Validate alert configuration if enabled
@@ -222,6 +251,35 @@ export async function DELETE(
   }
 
   try {
+    const { userId } = await requireAuth();
+    
+    // First, find the monitor without filtering by active project
+    const monitorToDelete = await db.query.monitors.findFirst({
+      where: eq(monitors.id, id)
+    });
+
+    if (!monitorToDelete) {
+      return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+    
+    // Now check if user has access to this monitor's project
+    if (!monitorToDelete.organizationId || !monitorToDelete.projectId) {
+      return NextResponse.json(
+        { error: "Monitor data incomplete" },
+        { status: 500 }
+      );
+    }
+    
+    const permissionContext = await buildPermissionContext(userId, 'project', monitorToDelete.organizationId, monitorToDelete.projectId);
+    const canManage = await hasPermission(permissionContext, ProjectPermission.MANAGE_MONITORS);
+    
+    if (!canManage) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
+
     // First, unschedule the monitor
     try {
         await deleteScheduledMonitor(id);
@@ -235,7 +293,11 @@ export async function DELETE(
     // Explicitly deleting them first can be safer depending on DB config / Drizzle behavior interpretation.
     await db.delete(monitorResults).where(eq(monitorResults.monitorId, id));
     
-    const [deletedMonitor] = await db.delete(monitors).where(eq(monitors.id, id)).returning();
+    const [deletedMonitor] = await db.delete(monitors).where(and(
+      eq(monitors.id, id),
+      eq(monitors.projectId, monitorToDelete.projectId),
+      eq(monitors.organizationId, monitorToDelete.organizationId)
+    )).returning();
 
     if (!deletedMonitor) {
       return NextResponse.json({ error: "Monitor not found or already deleted" }, { status: 404 });
@@ -283,12 +345,35 @@ export async function PATCH(
   }
 
   try {
+    const { userId } = await requireAuth();
+    
     const rawData = await request.json();
 
-    // Fetch the current monitor to merge the config
-    const currentMonitor = await db.query.monitors.findFirst({ where: eq(monitors.id, id) });
+    // First, find the monitor without filtering by active project
+    const currentMonitor = await db.query.monitors.findFirst({ 
+      where: eq(monitors.id, id)
+    });
+
     if (!currentMonitor) {
       return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+    
+    // Now check if user has access to this monitor's project
+    if (!currentMonitor.organizationId || !currentMonitor.projectId) {
+      return NextResponse.json(
+        { error: "Monitor data incomplete" },
+        { status: 500 }
+      );
+    }
+    
+    const permissionContext = await buildPermissionContext(userId, 'project', currentMonitor.organizationId, currentMonitor.projectId);
+    const canManage = await hasPermission(permissionContext, ProjectPermission.MANAGE_MONITORS);
+    
+    if (!canManage) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
     }
     
     const updatePayload: Partial<{

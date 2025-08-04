@@ -51,6 +51,15 @@ x-common-env: &common-env
   PLAYWRIGHT_RETRIES: 1
   PLAYWRIGHT_WORKERS: 3
   
+  # Better Auth Admin Configuration
+  SUPER_ADMIN_USER_IDS: ${SUPER_ADMIN_USER_IDS:-}
+  MAX_ORGANIZATIONS_PER_USER: 5
+  MAX_PROJECTS_PER_ORG: 10
+  DEFAULT_PROJECT_NAME: "Default Project"
+  ENABLE_PROJECT_LEVEL_RBAC: true
+  ALLOW_CROSS_PROJECT_ACCESS: false
+  STRICT_ORGANIZATION_ISOLATION: true
+  
   # Email Configuration for Notifications
   # Control which email services are enabled
   SMTP_ENABLED: ${SMTP_ENABLED:-true}

@@ -1,7 +1,6 @@
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
-import { RunsClient } from "@/components/runs/runs-client";
+import { Runs } from "@/components/runs";
 import { Card, CardContent } from "@/components/ui/card";
-
 
 export default async function RunsPage() {
   const breadcrumbs = [
@@ -14,7 +13,7 @@ export default async function RunsPage() {
       <PageBreadcrumbs items={breadcrumbs} />
       <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4 ">
         <CardContent>
-          <RunsClient />
+          <Runs />
         </CardContent>
       </Card> 
     </div>

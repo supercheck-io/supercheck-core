@@ -126,6 +126,7 @@ Key environment variables are managed through Docker Compose and include:
 - Capacity limits (`RUNNING_CAPACITY`, `QUEUED_CAPACITY`)
 - Timeout configurations (`TEST_EXECUTION_TIMEOUT_MS`)
 - Scheduler toggles (`DISABLE_JOB_SCHEDULER`, `DISABLE_MONITOR_SCHEDULER`)
+- Super admin access (`SUPER_ADMIN_EMAILS`, `SUPER_ADMIN_USER_IDS`)
 
 ## Testing Infrastructure
 
@@ -180,5 +181,21 @@ docker buildx imagetools inspect ghcr.io/krish-kant/supercheck/app:latest
 - Email credentials are environment-variable only
 - Change all default passwords and secrets
 - Regular security updates are essential
+
+### Super Admin Setup
+The platform requires at least one super admin user for system management. 
+
+**Quick Setup (Recommended):**
+```bash
+# Run the interactive setup script
+./scripts/setup-super-admin.sh
+```
+
+**Manual Setup:**
+See [RBAC_DOCUMENTATION.md](./RBAC_DOCUMENTATION.md) for detailed instructions on:
+- Creating your first super admin user
+- Managing admin privileges through the UI
+- Security best practices for admin accounts
+- Troubleshooting admin access issues
 
 

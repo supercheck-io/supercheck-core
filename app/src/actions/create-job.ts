@@ -8,8 +8,10 @@ import { z } from "zod";
 import { scheduleJob } from "@/lib/job-scheduler";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
-import { auth } from "@/utils/auth";
-import { headers } from "next/headers";
+import { requireProjectContext } from "@/lib/project-context";
+import { buildPermissionContext, hasPermission } from "@/lib/rbac/middleware";
+import { ProjectPermission } from "@/lib/rbac/permissions";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 const createJobSchema = z.object({
   name: z.string(),
@@ -26,16 +28,24 @@ export async function createJob(data: CreateJobData) {
   console.log(`Creating job with data:`, JSON.stringify(data, null, 2));
   
   try {
-    // Verify user is authenticated
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    // Get current project context (includes auth verification)
+    const { userId, project, organizationId } = await requireProjectContext();
 
-    if (!session || !session.user || !session.user.id) {
+    // Check CREATE_JOBS permission
+    const permissionContext = await buildPermissionContext(
+      userId,
+      'project',
+      organizationId,
+      project.id
+    );
+    
+    const canCreateJobs = await hasPermission(permissionContext, ProjectPermission.CREATE_JOBS);
+    
+    if (!canCreateJobs) {
+      console.warn(`User ${userId} attempted to create job without CREATE_JOBS permission`);
       return {
         success: false,
-        message: "Unauthorized - user must be logged in to create jobs",
-        error: "Unauthorized"
+        message: "Insufficient permissions to create jobs",
       };
     }
 
@@ -56,15 +66,17 @@ export async function createJob(data: CreateJobData) {
     }
     
     try {
-      // Create the job with proper user association
+      // Create the job with proper project and user association
       await db.insert(jobs).values({
         id: jobId,
+        organizationId: organizationId,
+        projectId: project.id,
         name: validatedData.name,
         description: validatedData.description || "",
         cronSchedule: validatedData.cronSchedule || null,
         status: "pending",
         nextRunAt: nextRunAt,
-        createdByUserId: session.user.id, // Set the authenticated user ID
+        createdByUserId: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -103,7 +115,25 @@ export async function createJob(data: CreateJobData) {
         }
       }
       
-      console.log(`Job ${jobId} created successfully by user ${session.user.id}`);
+      console.log(`Job ${jobId} created successfully by user ${userId} in project ${project.name}`);
+      
+      // Log the audit event
+      await logAuditEvent({
+        userId,
+        organizationId,
+        action: 'job_created',
+        resource: 'job',
+        resourceId: jobId,
+        metadata: {
+          jobName: validatedData.name,
+          projectId: project.id,
+          projectName: project.name,
+          testsCount: validatedData.tests.length,
+          hasCronSchedule: !!validatedData.cronSchedule,
+          cronSchedule: validatedData.cronSchedule
+        },
+        success: true
+      });
       
       // Revalidate the jobs page
       revalidatePath('/jobs');
@@ -119,7 +149,7 @@ export async function createJob(data: CreateJobData) {
           nextRunAt: nextRunAt?.toISOString() || null,
           scheduledJobId,
           testCount: validatedData.tests.length,
-          createdByUserId: session.user.id,
+          createdByUserId: userId,
         }
       };
     } catch (dbError) {

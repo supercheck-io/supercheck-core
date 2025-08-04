@@ -1,24 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/utils/db';
 import { tags } from '@/db/schema/schema';
-import { auth } from '@/utils/auth';
-import { eq } from 'drizzle-orm';
-import { headers } from 'next/headers';
+import { eq, and } from 'drizzle-orm';
+import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { OrgPermission } from '@/lib/rbac/permissions';
+import { getActiveOrganization } from '@/lib/session';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { userId } = await requireAuth();
+    
+    // Get organization context from query params or active organization
+    const { searchParams } = new URL(request.url);
+    const organizationId = searchParams.get('organizationId');
+    
+    let targetOrganizationId = organizationId;
+    
+    if (!targetOrganizationId) {
+      const activeOrganization = await getActiveOrganization();
+      if (!activeOrganization) {
+        return NextResponse.json(
+          { error: 'No active organization found' },
+          { status: 400 }
+        );
+      }
+      targetOrganizationId = activeOrganization.id;
+    }
+    
+    // Build permission context and check access
+    const context = await buildPermissionContext(userId, 'organization', targetOrganizationId);
+    const canView = await hasPermission(context, OrgPermission.VIEW_TAGS);
+    
+    if (!canView) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
     }
 
-    // Get all tags (no organization scoping like other entities)
+    // Get tags scoped to the organization
     const allTags = await db
       .select()
       .from(tags)
+      .where(eq(tags.organizationId, targetOrganizationId))
       .orderBy(tags.name);
 
     return NextResponse.json(allTags);
@@ -30,15 +54,34 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const { userId } = await requireAuth();
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { name, color, organizationId: bodyOrganizationId } = await request.json();
+    
+    // Get organization context
+    let targetOrganizationId = bodyOrganizationId;
+    
+    if (!targetOrganizationId) {
+      const activeOrganization = await getActiveOrganization();
+      if (!activeOrganization) {
+        return NextResponse.json(
+          { error: 'No active organization found' },
+          { status: 400 }
+        );
+      }
+      targetOrganizationId = activeOrganization.id;
     }
-
-    const { name, color } = await request.json();
+    
+    // Build permission context and check access
+    const context = await buildPermissionContext(userId, 'organization', targetOrganizationId);
+    const canCreate = await hasPermission(context, OrgPermission.CREATE_TAGS);
+    
+    if (!canCreate) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions to create tags' },
+        { status: 403 }
+      );
+    }
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Tag name is required' }, { status: 400 });
@@ -65,24 +108,28 @@ export async function POST(request: NextRequest) {
 
 
 
-    // Check if tag already exists (global check, no organization scoping)
+    // Check if tag already exists within the organization
     const existingTag = await db
       .select()
       .from(tags)
-      .where(eq(tags.name, trimmedName))
+      .where(and(
+        eq(tags.name, trimmedName),
+        eq(tags.organizationId, targetOrganizationId)
+      ))
       .limit(1);
 
     if (existingTag.length > 0) {
-      return NextResponse.json({ error: 'Tag already exists' }, { status: 409 });
+      return NextResponse.json({ error: 'Tag already exists in this organization' }, { status: 409 });
     }
 
-    // Check if we've reached the maximum number of tags (50)
+    // Check if we've reached the maximum number of tags (50) per organization
     const totalTags = await db
       .select({ count: tags.id })
-      .from(tags);
+      .from(tags)
+      .where(eq(tags.organizationId, targetOrganizationId));
 
     if (totalTags.length >= 50) {
-      return NextResponse.json({ error: 'Maximum of 50 tags allowed per project' }, { status: 400 });
+      return NextResponse.json({ error: 'Maximum of 50 tags allowed per organization' }, { status: 400 });
     }
 
     // Generate a default color if not provided
@@ -99,8 +146,8 @@ export async function POST(request: NextRequest) {
       .values({
         name: trimmedName,
         color: tagColor,
-        organizationId: null, // No organization scoping
-        createdByUserId: session.user.id,
+        organizationId: targetOrganizationId,
+        createdByUserId: userId,
       })
       .returning();
 

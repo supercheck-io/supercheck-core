@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as postgres from 'postgres';
 import * as schema from './schema';
+import { eq } from 'drizzle-orm';
 
 @Injectable()
 export class DbService implements OnModuleInit {
@@ -17,6 +18,24 @@ export class DbService implements OnModuleInit {
     } catch (error) {
       this.logger.error('Failed to initialize database connection', error);
       throw error;
+    }
+  }
+
+  /**
+   * Gets project information by ID
+   * @param projectId The project ID
+   */
+  async getProjectById(projectId: string): Promise<any> {
+    try {
+      const project = await this.db.query.projects.findFirst({
+        where: eq(schema.projects.id, projectId),
+      });
+      return project;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get project ${projectId}: ${(error as Error).message}`,
+      );
+      return null;
     }
   }
 }

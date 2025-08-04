@@ -11,15 +11,38 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { signIn } from "@/utils/auth-client";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
 export default function SignInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [inviteData, setInviteData] = useState<any>(null);
+
+  useEffect(() => {
+    const invite = searchParams.get('invite');
+    if (invite) {
+      setInviteToken(invite);
+      fetchInviteData(invite);
+    }
+  }, [searchParams]);
+
+  const fetchInviteData = async (token: string) => {
+    try {
+      const response = await fetch(`/api/invite/${token}`);
+      const data = await response.json();
+      if (data.success) {
+        setInviteData(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching invite data:', error);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -34,7 +57,12 @@ export default function SignInPage() {
     if (error) {
       setError(error.message || "An error occurred");
     } else {
-      router.push("/");
+      // If user signed in with an invite token, redirect to accept invitation
+      if (inviteToken) {
+        router.push(`/invite/${inviteToken}`);
+      } else {
+        router.push("/");
+      }
     }
     setIsLoading(false);
   };
@@ -43,9 +71,14 @@ export default function SignInPage() {
     <Card className="w-full max-w-sm">
       <form onSubmit={handleSubmit}>
         <CardHeader>
-          <CardTitle className="text-2xl">Sign In</CardTitle>
+          <CardTitle className="text-2xl">
+            {inviteData ? `Sign In to Join ${inviteData.organizationName}` : 'Sign In'}
+          </CardTitle>
           <CardDescription>
-            Enter your email below to login to your account.
+            {inviteData 
+              ? `Sign in to accept your invitation to ${inviteData.organizationName} as ${inviteData.role}.`
+              : 'Enter your email below to login to your account.'
+            }
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -56,6 +89,7 @@ export default function SignInPage() {
               type="email"
               name="email"
               placeholder="m@example.com"
+              defaultValue={inviteData?.email || ''}
               required
               autoComplete="email"
             />
@@ -79,7 +113,10 @@ export default function SignInPage() {
           </Button>
           <div className="mt-4 text-center text-sm">
             Don&apos;t have an account?{" "}
-            <Link href="/sign-up" className="underline">
+            <Link 
+              href={inviteToken ? `/sign-up?invite=${inviteToken}` : "/sign-up"} 
+              className="underline"
+            >
               Sign up
             </Link>
           </div>

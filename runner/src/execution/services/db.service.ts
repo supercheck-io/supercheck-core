@@ -315,14 +315,41 @@ export class DbService implements OnModuleInit {
   }
 
   /**
-   * Gets a job by ID including alert configuration
+   * Gets a job by ID including alert configuration with RBAC filtering
    * @param jobId The ID of the job to retrieve
+   * @param organizationId The organization ID for RBAC filtering
+   * @param projectId The project ID for RBAC filtering
    */
-  async getJobById(jobId: string): Promise<any> {
+  async getJobById(
+    jobId: string,
+    organizationId?: string,
+    projectId?: string,
+  ): Promise<any> {
     try {
+      // Build where condition with RBAC filtering if context is provided
+      const whereConditions = [eq(schema.jobs.id, jobId)];
+
+      if (organizationId) {
+        whereConditions.push(eq(schema.jobs.organizationId, organizationId));
+      }
+      if (projectId) {
+        whereConditions.push(eq(schema.jobs.projectId, projectId));
+      }
+
       const job = await this.db.query.jobs.findFirst({
-        where: (jobs, { eq }) => eq(jobs.id, jobId),
+        where:
+          whereConditions.length > 1
+            ? and(...whereConditions)
+            : whereConditions[0],
       });
+
+      if (!job && (organizationId || projectId)) {
+        this.logger.warn(
+          `Job ${jobId} not found or access denied for organization ${organizationId}, project ${projectId}`,
+        );
+        return null;
+      }
+
       return job;
     } catch (error) {
       this.logger.error(
@@ -352,21 +379,71 @@ export class DbService implements OnModuleInit {
   }
 
   /**
-   * Gets notification providers by IDs
+   * Gets project information by ID
+   * @param projectId The project ID
+   */
+  async getProjectById(projectId: string): Promise<any> {
+    try {
+      const project = await this.db.query.projects.findFirst({
+        where: eq(schema.projects.id, projectId),
+      });
+      return project;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get project ${projectId}: ${(error as Error).message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Gets notification providers by IDs with RBAC filtering
    * @param providerIds Array of provider IDs
+   * @param organizationId The organization ID for RBAC filtering
+   * @param projectId The project ID for RBAC filtering
    */
   async getNotificationProviders(
     providerIds: string[],
+    organizationId?: string,
+    projectId?: string,
   ): Promise<NotificationProvider[]> {
     try {
       if (!providerIds || providerIds.length === 0) {
         return [];
       }
 
-      const providers = await this.db.query.notificationProviders.findMany({
-        where: (notificationProviders, { inArray }) =>
+      // Build where conditions with RBAC filtering
+      const whereConditions = [
+        (notificationProviders: any, { inArray }: any) =>
           inArray(notificationProviders.id, providerIds),
+      ];
+
+      if (organizationId) {
+        whereConditions.push((notificationProviders: any, { eq }: any) =>
+          eq(notificationProviders.organizationId, organizationId),
+        );
+      }
+      if (projectId) {
+        whereConditions.push((notificationProviders: any, { eq }: any) =>
+          eq(notificationProviders.projectId, projectId),
+        );
+      }
+
+      const providers = await this.db.query.notificationProviders.findMany({
+        where:
+          whereConditions.length > 1
+            ? (notificationProviders: any, ops: any) =>
+                ops.and(
+                  ...whereConditions.map((cond: any) =>
+                    cond(notificationProviders, ops),
+                  ),
+                )
+            : whereConditions[0],
       });
+
+      this.logger.debug(
+        `Found ${providers?.length || 0} notification providers for org ${organizationId}, project ${projectId}`,
+      );
 
       // Map the database result to NotificationProvider interface
       return (providers || []).map((provider) => ({
@@ -394,7 +471,7 @@ export class DbService implements OnModuleInit {
     errorMessage?: string,
   ): Promise<void> {
     try {
-      // Get the actual job name
+      // Get the actual job name - no need for RBAC filtering here since we're just getting the name
       const job = (await this.getJobById(jobId)) as { name?: string } | null;
       const jobName = job?.name || `Job ${jobId}`;
 

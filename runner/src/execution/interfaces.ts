@@ -62,6 +62,8 @@ export interface JobExecutionTask {
   runId: string; // Required run ID to distinguish parallel executions of the same job
   originalJobId?: string; // The original job ID from the 'jobs' table that should be updated
   trigger: JobTrigger; // Add trigger property
+  organizationId: string; // Required for RBAC filtering
+  projectId: string; // Required for RBAC filtering
 }
 
 // Optional: Interface for database report metadata storage

@@ -8,6 +8,7 @@ import { TestRun } from "./schema";
 import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { useProjectContext } from "@/hooks/use-project-context";
 
 export function Runs() {
   const [runs, setRuns] = useState<TestRun[]>([]);
@@ -15,6 +16,7 @@ export function Runs() {
   const [isLoading, setIsLoading] = useState(true);
   const [tableKey, setTableKey] = useState(Date.now()); // Add key to force remounting
   const [mounted, setMounted] = useState(false);
+  const { projectId, currentProject } = useProjectContext();
 
   // Set mounted to true after initial render
   useEffect(() => {
@@ -46,7 +48,14 @@ export function Runs() {
   const fetchRuns = useCallback(async () => {
     safeSetIsLoading(true);
     try {
-      const response = await fetch('/api/runs');
+      // Only fetch runs if we have a projectId and organizationId
+      if (!projectId || !currentProject?.organizationId) {
+        safeSetRuns([]);
+        safeSetIsLoading(false);
+        return;
+      }
+
+      const response = await fetch(`/api/runs?projectId=${projectId}&organizationId=${currentProject.organizationId}`);
       const data = await response.json();
       
       if (!response.ok) {
@@ -62,10 +71,11 @@ export function Runs() {
     } catch (error) {
       console.error("Failed to fetch runs:", error);
       toast.error("Failed to fetch runs");
+      safeSetRuns([]);
     } finally {
       safeSetIsLoading(false);
     }
-  }, [safeSetRuns, safeSetIsLoading]);
+  }, [safeSetRuns, safeSetIsLoading, projectId, currentProject?.organizationId]);
 
   useEffect(() => {
     fetchRuns();

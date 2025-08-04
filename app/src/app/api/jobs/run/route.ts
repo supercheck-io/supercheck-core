@@ -1,18 +1,52 @@
 import { NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { runs, JobTrigger } from "@/db/schema/schema";
+import { runs, JobTrigger, tests, jobs } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
+import { requireProjectContext } from '@/lib/project-context';
+import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { ProjectPermission } from '@/lib/rbac/permissions';
+import { logAuditEvent } from '@/lib/audit-logger';
+
+declare const Buffer: {
+  from(data: string, encoding: string): { toString(encoding: string): string };
+};
+
+/**
+ * Helper function to decode base64-encoded test scripts
+ */
+async function decodeTestScript(base64Script: string): Promise<string> {
+  const base64Regex = /^[A-Za-z0-9+/=]+$/;
+  const isBase64 = base64Regex.test(base64Script);
+
+  if (!isBase64) {
+    return base64Script;
+  }
+
+  try {
+    if (typeof window === "undefined") {
+      const decoded = Buffer.from(base64Script, "base64").toString("utf-8");
+      return decoded;
+    }
+    return base64Script;
+  } catch (error) {
+    console.error("Error decoding base64:", error);
+    return base64Script;
+  }
+}
 
 export async function POST(request: Request) {
   let jobId: string | null = null;
   let runId: string | null = null;
 
   try {
+    // Check authentication and get project context
+    const { userId, project, organizationId } = await requireProjectContext();
+    
     const data = await request.json();
     jobId = data.jobId as string;
-    const tests = data.tests;
+    const testData = data.tests;
     const trigger = data.trigger as JobTrigger; // Get trigger from request body
     
     // Validate trigger value
@@ -24,22 +58,68 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log(`Received job execution request:`, { jobId, testCount: tests?.length });
+    console.log(`Received job execution request:`, { jobId, testCount: testData?.length });
     
-    if (!jobId || !tests || !Array.isArray(tests) || tests.length === 0) {
-      console.error("Invalid job data:", { jobId, tests });
+    if (!jobId || !testData || !Array.isArray(testData) || testData.length === 0) {
+      console.error("Invalid job data:", { jobId, tests: testData });
       return NextResponse.json(
         { error: "Invalid job data. Job ID and tests are required." },
         { status: 400 }
       );
     }
 
+    // Fetch job details to get the organization and project ID
+    const jobDetails = await db
+      .select({ 
+        organizationId: jobs.organizationId, 
+        projectId: jobs.projectId 
+      })
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1);
+    
+    if (jobDetails.length === 0) {
+      console.error("Job not found:", jobId);
+      return NextResponse.json(
+        { error: "Job not found" },
+        { status: 404 }
+      );
+    }
+    
+    // Verify job belongs to current project
+    if (jobDetails[0].projectId !== project.id) {
+      console.error("Job does not belong to current project:", { jobId, jobProjectId: jobDetails[0].projectId, currentProjectId: project.id });
+      return NextResponse.json(
+        { error: "Job not found in current project" },
+        { status: 404 }
+      );
+    }
+    
+    // Build permission context and check TRIGGER_JOBS permission
+    const permissionContext = await buildPermissionContext(
+      userId,
+      'project',
+      organizationId,
+      project.id
+    );
+    
+    const canTriggerJobs = await hasPermission(permissionContext, ProjectPermission.TRIGGER_JOBS);
+    
+    if (!canTriggerJobs) {
+      console.warn(`User ${userId} attempted to trigger job ${jobId} without TRIGGER_JOBS permission`);
+      return NextResponse.json(
+        { error: "Insufficient permissions to trigger jobs" },
+        { status: 403 }
+      );
+    }
+    
     runId = crypto.randomUUID();
     const startTime = new Date();
     
     await db.insert(runs).values({
       id: runId,
       jobId,
+      projectId: jobDetails.length > 0 ? jobDetails[0].projectId : null,
       status: "running",
       startedAt: startTime,
       trigger, // Include trigger value
@@ -49,22 +129,34 @@ export async function POST(request: Request) {
 
     const testScripts = [];
     
-    for (const test of tests) {
+    for (const test of testData) {
       let testScript = test.script;
       let testName = test.name || test.title || `Test ${test.id}`;
+      
       if (!testScript) {
-        console.log(`[${jobId}/${runId}] Fetching script for test ${test.id}`);
-        const testResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/tests/${test.id}`);
-        const testData = await testResult.json();
+        console.log(`[${jobId}/${runId}] Fetching script for test ${test.id} from database`);
         
-        if (testResult.ok && testData?.script) {
-          testScript = testData.script;
-          testName = testData.title || testName;
+        // Fetch test directly from database
+        const testResult = await db
+          .select({
+            id: tests.id,
+            title: tests.title,
+            script: tests.script
+          })
+          .from(tests)
+          .where(eq(tests.id, test.id))
+          .limit(1);
+        
+        if (testResult.length > 0 && testResult[0].script) {
+          // Decode the base64 script
+          testScript = await decodeTestScript(testResult[0].script);
+          testName = testResult[0].title || testName;
         } else {
           console.error(`[${jobId}/${runId}] Failed to fetch script for test ${test.id}, skipping.`);
           continue;
         }
       }
+      
       testScripts.push({ id: test.id, name: testName, script: testScript });
     }
 
@@ -84,11 +176,31 @@ export async function POST(request: Request) {
       testScripts,
       runId: runId,
       originalJobId: jobId,
-      trigger: trigger
+      trigger: trigger,
+      organizationId: jobDetails[0]?.organizationId || '',
+      projectId: jobDetails[0]?.projectId || ''
     };
 
     try {
       await addJobToQueue(task);
+      
+      // Log the audit event for job execution trigger
+      await logAuditEvent({
+        userId,
+        organizationId,
+        action: 'job_triggered',
+        resource: 'job',
+        resourceId: jobId,
+        metadata: {
+          runId,
+          trigger,
+          testsCount: testScripts.length,
+          projectId: project.id,
+          projectName: project.name
+        },
+        success: true
+      });
+      
     } catch (error) {
       // Check if this is a queue capacity error
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -127,6 +239,21 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error(`[${jobId || 'unknown'}/${runId || 'unknown'}] Error queuing job:`, error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+
+    // Handle authentication/authorization errors
+    if (errorMessage === 'Authentication required') {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    if (errorMessage.includes('No active project found') || errorMessage.includes('not found')) {
+      return NextResponse.json(
+        { error: 'Project access denied or not found' },
+        { status: 404 }
+      );
+    }
 
     if (runId) {
       try {

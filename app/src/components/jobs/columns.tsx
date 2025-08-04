@@ -16,6 +16,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useState } from "react";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { canTriggerJobs } from "@/lib/rbac/client-permissions";
 
 // Type definition for the extended meta object used in this table
 interface JobsTableMeta {
@@ -104,10 +106,14 @@ function DescriptionWithPopover({ description }: { description: string | null })
 // Create a proper React component for the run button
 function RunButton({ job }: { job: Job }) {
   const { isJobRunning, setJobRunning, startJobRun } = useJobContext();
+  const { currentProject } = useProjectContext();
   const eventSourceRef = useRef<EventSource | null>(null);
   
   // Get job running state from global context
   const isRunning = isJobRunning(job.id);
+  
+  // Check if user has permission to trigger jobs
+  const hasPermission = currentProject ? canTriggerJobs(currentProject.userRole) : false;
 
   // Cleanup function to handle SSE connection close
   const closeSSEConnection = useCallback(() => {
@@ -129,8 +135,8 @@ function RunButton({ job }: { job: Job }) {
     e.stopPropagation(); // Prevent row click event
     e.preventDefault(); // Prevent opening the sheet
 
-    // Only prevent execution if this specific job is running
-    if (isRunning) {
+    // Only prevent execution if this specific job is running or user lacks permission
+    if (isRunning || !hasPermission) {
       return;
     }
 
@@ -248,10 +254,12 @@ function RunButton({ job }: { job: Job }) {
         "ml-1"
       )}
       disabled={
-        isRunning || !job.tests || job.tests.length === 0
+        isRunning || !job.tests || job.tests.length === 0 || !hasPermission
       }
       title={
-        isRunning
+        !hasPermission
+          ? "Insufficient permissions to trigger jobs"
+          : isRunning
           ? "Job is currently running"
           : !job.tests || job.tests.length === 0
           ? "No tests available to run"

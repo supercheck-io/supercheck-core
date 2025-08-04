@@ -1,42 +1,83 @@
-import { Metadata } from "next";
+"use client";
+
+import { useState, useEffect } from "react";
 import { MonitorForm, type FormValues } from "@/components/monitors/monitor-form";
 import { Monitor } from "@/components/monitors/schema";
-import { notFound } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { monitorTypes } from "@/components/monitors/data";
 
-export const metadata: Metadata = {
-  title: "Edit Monitor | Supercheck",
-  description: "Edit your monitor configuration",
-};
+// Can't use metadata in client components, remove this
+// export const metadata: Metadata = {
+//   title: "Edit Monitor | Supercheck",
+//   description: "Edit your monitor configuration",
+// };
 
-async function fetchMonitor(id: string): Promise<Monitor | null> {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/monitors/${id}`, {
-      cache: 'no-store'
-    });
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
+export default function EditMonitorPage({ params }: { params: Promise<{ id: string }> }) {
+  const [id, setId] = useState<string>("");
+  const [monitor, setMonitor] = useState<Monitor | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Get params on client side
+  useEffect(() => {
+    params.then(({ id }) => setId(id));
+  }, [params]);
+
+  // Fetch monitor data
+  useEffect(() => {
+    if (!id) return;
+
+    async function fetchMonitor() {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/monitors/${id}`);
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError('Monitor not found');
+            return;
+          }
+          throw new Error(`Failed to fetch monitor: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        setMonitor(data);
+      } catch (error) {
+        console.error("Error fetching monitor:", error);
+        setError(error instanceof Error ? error.message : 'Failed to fetch monitor');
+      } finally {
+        setLoading(false);
       }
-      throw new Error(`Failed to fetch monitor: ${response.statusText}`);
     }
-    
-    const monitor = await response.json();
-    return monitor;
-  } catch (error) {
-    console.error("Error fetching monitor:", error);
-    return null;
+
+    fetchMonitor();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading monitor...</p>
+        </div>
+      </div>
+    );
   }
-}
 
-export default async function EditMonitorPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const monitor = await fetchMonitor(id);
-
-  if (!monitor) {
-    notFound();
+  if (error || !monitor) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-destructive mb-4">{error || 'Monitor not found'}</p>
+          <button 
+            onClick={() => window.history.back()} 
+            className="text-primary hover:underline"
+          >
+            Go back
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Map Monitor.type to FormValues.type first

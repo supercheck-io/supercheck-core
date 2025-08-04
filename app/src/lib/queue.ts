@@ -17,6 +17,8 @@ export interface JobExecutionTask {
   runId: string; // Optional run ID to distinguish parallel executions of the same job
   originalJobId?: string; // The original job ID from the 'jobs' table
   trigger?: 'manual' | 'remote' | 'schedule'; // Trigger type for the job execution
+  organizationId: string; // Required for RBAC filtering
+  projectId: string; // Required for RBAC filtering
 }
 
 // Health check task interface - REMOVING

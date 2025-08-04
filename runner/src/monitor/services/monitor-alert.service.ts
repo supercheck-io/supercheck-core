@@ -42,6 +42,13 @@ export class MonitorAlertService {
       return;
     }
 
+    // Get project information
+    let projectName: string | undefined;
+    if (monitor.projectId) {
+      const project = await this.dbService.getProjectById(monitor.projectId);
+      projectName = project?.name;
+    }
+
     // Check if alerts are enabled
     if (!monitor.alertConfig?.enabled) {
       this.logger.log(`[NOTIFY] Alerts not enabled for monitor ${monitorId}`);
@@ -137,6 +144,8 @@ export class MonitorAlertService {
       targetId: monitor.id,
       severity: severity,
       timestamp: new Date(),
+      projectId: monitor.projectId || undefined,
+      projectName: projectName,
       metadata: {
         target: monitor.target,
         type: monitor.type,
@@ -217,6 +226,13 @@ export class MonitorAlertService {
       return;
     }
 
+    // Get project information
+    let projectName: string | undefined;
+    if (monitor.projectId) {
+      const project = await this.dbService.getProjectById(monitor.projectId);
+      projectName = project?.name;
+    }
+
     // Check if SSL alerts are enabled
     if (
       !monitor.alertConfig?.enabled ||
@@ -279,6 +295,8 @@ export class MonitorAlertService {
       targetId: monitor.id,
       severity: 'warning',
       timestamp: new Date(),
+      projectId: monitor.projectId || undefined,
+      projectName: projectName,
       metadata: {
         target: monitor.target,
         type: monitor.type,

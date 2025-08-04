@@ -15,6 +15,8 @@ export function useTests() {
   useEffect(() => {
     async function fetchTests() {
       try {
+        setLoading(true);
+        setError(null);
         const response = await fetch('/api/tests');
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));

@@ -1,26 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors, monitorNotificationSettings } from "@/db/schema/schema";
-import { eq, desc } from "drizzle-orm";
-import { auth } from "@/utils/auth";
-import { headers } from "next/headers";
+import { eq, desc, and } from "drizzle-orm";
+import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireProjectContext } from '@/lib/project-context';
 import { createMonitorHandler, updateMonitorHandler } from "@/lib/monitor-service";
+import { logAuditEvent } from "@/lib/audit-logger";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const monitorsList = await db
+    const { userId } = await requireAuth();
+    
+    // Get URL parameters for optional filtering
+    const url = new URL(request.url);
+    const projectId = url.searchParams.get('projectId');
+    const organizationId = url.searchParams.get('organizationId');
+    
+    // Build the base query
+    const baseQuery = db
       .select()
-      .from(monitors)
-      .where(eq(monitors.createdByUserId, session.user.id))
-      .orderBy(desc(monitors.createdAt));
+      .from(monitors);
+    
+    // Apply filters if provided
+    let monitorsList;
+    if (projectId && organizationId) {
+      monitorsList = await baseQuery
+        .where(and(
+          eq(monitors.projectId, projectId),
+          eq(monitors.organizationId, organizationId)
+        ))
+        .orderBy(desc(monitors.createdAt));
+    } else {
+      monitorsList = await baseQuery.orderBy(desc(monitors.createdAt));
+    }
 
     return NextResponse.json(monitorsList);
   } catch (error) {
@@ -31,13 +44,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { userId, project, organizationId } = await requireProjectContext();
 
     const rawData = await req.json();
     console.log("[MONITOR_CREATE] Raw data received:", rawData);
@@ -94,6 +101,20 @@ export async function POST(req: NextRequest) {
     const finalConfig = rawData.config || {};
     console.log("[MONITOR_CREATE] Final config:", finalConfig);
 
+    // Use current project context
+    const targetProjectId = project.id;
+    
+    // Build permission context and check access
+    const context = await buildPermissionContext(userId, 'project', organizationId!, targetProjectId);
+    const canCreate = await hasPermission(context, ProjectPermission.CREATE_MONITORS);
+    
+    if (!canCreate) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions to create monitors' },
+        { status: 403 }
+      );
+    }
+
     // Use the monitor service to create the monitor
     const monitorData = {
       name: rawData.name,
@@ -104,7 +125,9 @@ export async function POST(req: NextRequest) {
       enabled: rawData.enabled !== false, // Default to true
       config: finalConfig,
       alertConfig: alertConfig,
-      createdByUserId: session.user.id,
+      createdByUserId: userId,
+      projectId: targetProjectId,
+      organizationId: organizationId,
     };
 
     // Validate alert configuration if enabled
@@ -168,6 +191,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Log the audit event for monitor creation
+    await logAuditEvent({
+      userId,
+      organizationId,
+      action: 'monitor_created',
+      resource: 'monitor',
+      resourceId: newMonitor.id,
+      metadata: {
+        monitorName: monitorData.name,
+        monitorType: monitorData.type,
+        target: monitorData.target,
+        frequencyMinutes: monitorData.frequencyMinutes,
+        projectId: project.id,
+        projectName: project.name,
+        alertsEnabled: alertConfig?.enabled || false,
+        notificationProvidersCount: alertConfig?.notificationProviders?.length || 0
+      },
+      success: true
+    });
+
     console.log("[MONITOR_CREATE] Successfully created monitor:", newMonitor.id);
     return NextResponse.json(newMonitor, { status: 201 });
   } catch (error) {
@@ -178,19 +221,42 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { userId, project, organizationId } = await requireProjectContext();
 
     const rawData = await req.json();
     const { id, ...updateData } = rawData;
     
     if (!id) {
       return NextResponse.json({ error: "Monitor ID is required" }, { status: 400 });
+    }
+    
+    // Verify monitor belongs to current project context
+    const monitorData = await db
+      .select({ projectId: monitors.projectId, organizationId: monitors.organizationId })
+      .from(monitors)
+      .where(and(
+        eq(monitors.id, id),
+        eq(monitors.projectId, project.id),
+        eq(monitors.organizationId, organizationId)
+      ))
+      .limit(1);
+    
+    if (monitorData.length === 0) {
+      return NextResponse.json(
+        { error: 'Monitor not found or access denied' },
+        { status: 404 }
+      );
+    }
+    
+    // Build permission context and check access
+    const context = await buildPermissionContext(userId, 'project', organizationId, project.id);
+    const canManage = await hasPermission(context, ProjectPermission.MANAGE_MONITORS);
+    
+    if (!canManage) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions to update monitors' },
+        { status: 403 }
+      );
     }
 
     // Prepare alert configuration - ensure it's properly structured
@@ -285,6 +351,27 @@ export async function PUT(req: NextRequest) {
         )
       );
     }
+
+    // Log the audit event for monitor update
+    await logAuditEvent({
+      userId,
+      organizationId,
+      action: 'monitor_updated',
+      resource: 'monitor',
+      resourceId: id,
+      metadata: {
+        monitorName: monitorUpdateData.name,
+        monitorType: monitorUpdateData.type,
+        target: monitorUpdateData.target,
+        frequencyMinutes: monitorUpdateData.frequencyMinutes,
+        enabled: monitorUpdateData.enabled,
+        projectId: project.id,
+        projectName: project.name,
+        alertsEnabled: alertConfig?.enabled || false,
+        notificationProvidersCount: alertConfig?.notificationProviders?.length || 0
+      },
+      success: true
+    });
 
     return NextResponse.json(updatedMonitor);
   } catch (error) {

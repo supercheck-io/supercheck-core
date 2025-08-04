@@ -10,6 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -23,6 +29,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { deleteJob } from "@/actions/delete-job";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { canDeleteJobs, canEditJobs } from "@/lib/rbac/client-permissions";
 
 import { Job } from "./schema";
 
@@ -36,9 +44,14 @@ export function DataTableRowActions<TData>({
   onDelete,
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
+  const { currentProject } = useProjectContext();
   const job = row.original as unknown as Job;
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Check permissions
+  const hasEditPermission = currentProject ? canEditJobs(currentProject.userRole) : false;
+  const hasDeletePermission = currentProject ? canDeleteJobs(currentProject.userRole) : false;
 
   const handleEditJob = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent row click event
@@ -97,7 +110,7 @@ export function DataTableRowActions<TData>({
   };
 
   return (
-    <>
+    <TooltipProvider>
       <DropdownMenu>
         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Button
@@ -109,21 +122,50 @@ export function DataTableRowActions<TData>({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[160px]">
-          <DropdownMenuItem onClick={handleEditJob}>
-            <Edit className="mr-2 h-4 w-4" />
-            <span>Edit</span>
-          </DropdownMenuItem>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <DropdownMenuItem 
+                  onClick={hasEditPermission ? handleEditJob : undefined}
+                  disabled={!hasEditPermission}
+                  className={!hasEditPermission ? "opacity-50 cursor-not-allowed" : ""}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  <span>Edit</span>
+                </DropdownMenuItem>
+              </div>
+            </TooltipTrigger>
+            {!hasEditPermission && (
+              <TooltipContent>
+                <p>Insufficient permissions to edit jobs</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+          
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowDeleteDialog(true);
-            }}
-            className="text-red-600"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            <span>Delete</span>
-          </DropdownMenuItem>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <DropdownMenuItem
+                  onClick={hasDeletePermission ? (e) => {
+                    e.stopPropagation();
+                    setShowDeleteDialog(true);
+                  } : undefined}
+                  disabled={!hasDeletePermission}
+                  className={`${!hasDeletePermission ? "opacity-50 cursor-not-allowed" : "text-red-600"}`}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  <span>Delete</span>
+                </DropdownMenuItem>
+              </div>
+            </TooltipTrigger>
+            {!hasDeletePermission && (
+              <TooltipContent>
+                <p>Insufficient permissions to delete jobs</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -152,6 +194,6 @@ export function DataTableRowActions<TData>({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </TooltipProvider>
   );
 }
