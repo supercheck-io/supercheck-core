@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { auditLogs, user } from "@/db/schema/schema";
-import { desc, eq, and, ilike, count } from "drizzle-orm";
+import { desc, eq, and, ilike, count, SQL } from "drizzle-orm";
 import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
 import { OrgPermission } from '@/lib/rbac/permissions';
 import { getActiveOrganization } from '@/lib/session';
@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
-    const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
     const search = searchParams.get('search') || '';
     const action = searchParams.get('action') || '';
@@ -57,10 +56,10 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     // Build where clause
-    let whereClause = eq(auditLogs.organizationId, activeOrg.id);
+    let whereClause: SQL<unknown> = eq(auditLogs.organizationId, activeOrg.id);
     
     // Add search filter
-    const searchConditions = [];
+    const searchConditions: SQL<unknown>[] = [];
     if (search) {
       searchConditions.push(ilike(auditLogs.action, `%${search}%`));
     }
@@ -71,7 +70,7 @@ export async function GET(request: NextRequest) {
 
     // Combine where conditions
     if (searchConditions.length > 0) {
-      whereClause = and(whereClause, ...searchConditions);
+      whereClause = and(whereClause, ...searchConditions) as SQL<unknown>;
     }
 
     // Get total count for pagination
@@ -86,8 +85,8 @@ export async function GET(request: NextRequest) {
 
     // Build order by clause
     const orderBy = sortOrder === 'desc' 
-      ? desc(auditLogs[sortBy as keyof typeof auditLogs])
-      : auditLogs[sortBy as keyof typeof auditLogs];
+      ? desc(auditLogs.createdAt)
+      : auditLogs.createdAt;
 
     // Fetch audit logs with user information
     console.log('Audit API: Fetching audit data with limit:', limit, 'offset:', offset);

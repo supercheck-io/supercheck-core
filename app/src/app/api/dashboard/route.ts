@@ -1,14 +1,14 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { monitors, monitorResults, jobs, runs, tests, projects } from "@/db/schema/schema";
+import { monitors, monitorResults, jobs, runs, tests } from "@/db/schema/schema";
 import { eq, desc, gte, and, count, sql } from "drizzle-orm";
 import { subDays, subHours } from "date-fns";
 import { getQueueStats } from "@/lib/queue-stats";
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
 import { ProjectPermission } from '@/lib/rbac/permissions';
 import { requireProjectContext } from '@/lib/project-context';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId, project, organizationId } = await requireProjectContext();
     

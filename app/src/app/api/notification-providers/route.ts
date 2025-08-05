@@ -7,7 +7,7 @@ import { ProjectPermission } from '@/lib/rbac/permissions';
 import { requireProjectContext } from '@/lib/project-context';
 import { logAuditEvent } from '@/lib/audit-logger';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId, project, organizationId } = await requireProjectContext();
     

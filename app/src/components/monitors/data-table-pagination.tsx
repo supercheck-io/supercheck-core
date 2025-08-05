@@ -23,7 +23,7 @@ export function DataTablePagination<TData>({
   table,
 }: DataTablePaginationProps<TData>) {
   return (
-    <div className="flex items-center justify-between px-2">
+    <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-t border-border rounded-b-lg">
       <div className="flex-1 text-sm text-muted-foreground">
        Total {table.getRowCount()} monitors
       </div>

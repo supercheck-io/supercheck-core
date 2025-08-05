@@ -6,7 +6,7 @@ import { OrgRole } from '@/lib/rbac/permissions';
 
 export async function GET() {
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const currentUser = await getCurrentUser();
     const activeOrg = await getActiveOrganization();
     

@@ -60,7 +60,7 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
-      <div className="font-medium flex items-center">
+      <div className="py-2 font-medium flex items-center">
         <Building className="mr-2 h-4 w-4 text-muted-foreground" />
         {row.getValue("name")}
       </div>
@@ -73,10 +73,14 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
     ),
     cell: ({ row }) => {
       const slug = row.getValue("slug") as string;
-      return slug ? (
-        <Badge variant="outline">{slug}</Badge>
-      ) : (
-        <span className="text-muted-foreground text-sm">—</span>
+      return (
+        <div className="py-2 flex items-center">
+          {slug ? (
+            <span className=" text-xs">{slug}</span>
+          ) : (
+            <span className="text-muted-foreground text-sm">—</span>
+          )}
+        </div>
       );
     },
   },
@@ -87,10 +91,14 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
     ),
     cell: ({ row }) => {
       const count = row.getValue("memberCount") as number;
-      return count !== undefined ? (
-        <Badge variant="secondary">{count}</Badge>
-      ) : (
-        <span className="text-muted-foreground text-sm">—</span>
+      return (
+        <div className="py-2 flex items-center">
+          {count !== undefined && count !== null ? (
+            <Badge variant="outline" className="bg-blue-100 text-blue-700 text-xs px-3 py-1.5 font-medium">{count}</Badge>
+          ) : (
+            <span className="text-muted-foreground text-sm">—</span>
+          )}
+        </div>
       );
     },
   },
@@ -101,10 +109,14 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
     ),
     cell: ({ row }) => {
       const count = row.getValue("projectCount") as number;
-      return count !== undefined ? (
-        <Badge variant="secondary">{count}</Badge>
-      ) : (
-        <span className="text-muted-foreground text-sm">—</span>
+      return (
+        <div className="py-2 flex items-center">
+          {count !== undefined && count !== null ? (
+            <Badge variant="outline" className="bg-green-100 text-green-700 text-xs px-3 py-1.5 font-medium">{count}</Badge>
+          ) : (
+            <span className="text-muted-foreground text-sm">—</span>
+          )}
+        </div>
       );
     },
   },
@@ -116,7 +128,7 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
     cell: ({ row }) => {
       const date = new Date(row.getValue("createdAt"));
       return (
-        <div className="text-sm">
+        <div className="py-2 flex items-center text-sm">
           {date.toLocaleDateString()}
         </div>
       );

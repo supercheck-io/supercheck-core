@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, AlertCircle, Loader2, Users, Building2, Calendar, Mail, ShieldCheck, ArrowRight, Clock } from "lucide-react";
+import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
 interface InvitationData {
   organizationName: string;
@@ -99,22 +98,11 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
   const getRoleColor = (role: string) => {
     switch (role.toLowerCase()) {
       case 'owner': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'admin': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'editor': return 'bg-green-100 text-green-800 border-green-200';
-      case 'member': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'admin': return 'bg-red-100 text-red-800 border-red-200';
+      case 'editor': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'member': return 'bg-green-100 text-green-800 border-green-200';
       case 'viewer': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getRoleDescription = (role: string) => {
-    switch (role.toLowerCase()) {
-      case 'owner': return 'Full access to all organization features and settings';
-      case 'admin': return 'Manage projects, members, and organization settings';
-      case 'editor': return 'Create and edit tests, jobs, and monitors';
-      case 'member': return 'Basic access to create and edit content';
-      case 'viewer': return 'View-only access to projects and results';
-      default: return 'Standard member access';
     }
   };
 
@@ -193,7 +181,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
           <CardHeader>
             <CardTitle>Organization Invitation</CardTitle>
             <CardDescription>
-              You've been invited to join {invitation.organizationName}
+              You&apos;ve been invited to join {invitation.organizationName} as a {invitation.role}.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

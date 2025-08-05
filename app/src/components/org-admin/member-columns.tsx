@@ -137,20 +137,23 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Member" />
     ),
+    size: 200,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
       
       return (
-        <div className="py-2">
-          <div className="font-medium text-sm">
-            {isInvitation ? (item as PendingInvitation).email : (item as OrgMember).name}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {isInvitation 
-              ? `Invited by ${(item as PendingInvitation).inviterName}`
-              : (item as OrgMember).email
-            }
+        <div className="py-2 flex items-center">
+          <div>
+            <div className="font-medium text-sm">
+              {isInvitation ? (item as PendingInvitation).email : (item as OrgMember).name}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {isInvitation 
+                ? `Invited by ${(item as PendingInvitation).inviterName}`
+                : (item as OrgMember).email
+              }
+            </div>
           </div>
         </div>
       );
@@ -168,16 +171,17 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Role" />
     ),
+    size: 100,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
       const role = isInvitation ? (item as PendingInvitation).role : (item as OrgMember).role;
       
       return (
-        <div className="py-2">
+        <div className="py-2 flex items-center">
           <Badge 
             variant="outline" 
-            className={`${getRoleColor(role, isInvitation)} text-xs px-2 py-1`}
+            className={`${getRoleColor(role, isInvitation)} text-xs px-3 py-1.5 font-medium capitalize`}
           >
             {getRoleIcon(role)}
             {role}
@@ -192,22 +196,26 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
     },
   },
   {
-    accessorKey: "status",
+    id: "status",
+    accessorFn: (row) => {
+      return row.type === 'invitation' ? (row as PendingInvitation).status : 'active';
+    },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
+    size: 100,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
       
       return (
-        <div className="py-2">
+        <div className="py-2 flex items-center">
           {isInvitation ? (
-            <Badge variant="outline" className={`${getStatusColor((item as PendingInvitation).status)} text-xs px-2 py-1`}>
+            <Badge variant="outline" className={`${getStatusColor((item as PendingInvitation).status)} text-xs px-3 py-1.5 font-medium capitalize`}>
               {(item as PendingInvitation).status}
             </Badge>
           ) : (
-            <Badge variant="outline" className="bg-green-100 text-green-700 text-xs px-2 py-1">
+            <Badge variant="outline" className="bg-green-100 text-green-700 text-xs px-3 py-1.5 font-medium capitalize">
               Active
             </Badge>
           )}
@@ -225,21 +233,22 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Date" />
     ),
+    size: 120,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
       
       return (
-        <div className="py-2">
+        <div className="py-2 flex items-center">
           {isInvitation ? (
-            <div className="text-xs space-y-1">
+            <div className="text-xs">
               <div className="text-muted-foreground">Expires:</div>
               <div className="font-medium">
                 {new Date((item as PendingInvitation).expiresAt).toLocaleDateString()}
               </div>
             </div>
           ) : (
-            <div className="text-xs space-y-1">
+            <div className="text-xs">
               <div className="text-muted-foreground">Joined:</div>
               <div className="font-medium">
                 {new Date((item as OrgMember).joinedAt).toLocaleDateString()}
@@ -253,13 +262,14 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
   {
     id: "actions",
     header: "Actions",
+    size: 140,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
 
       if (isInvitation) {
         return (
-          <div className="py-2">
+          <div className="py-1">
             <div className="text-xs text-muted-foreground">
               Pending invitation
             </div>
@@ -271,8 +281,8 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
 
       if (member.role === 'owner') {
         return (
-          <div className="py-2">
-            <Badge variant="outline" className="bg-purple-50 text-purple-700 text-xs px-2 py-1">
+          <div className="py-1">
+            <Badge variant="outline" className="bg-purple-50 text-purple-700 text-xs px-3 py-1.5 font-medium capitalize">
               Organization Owner
             </Badge>
           </div>
@@ -280,7 +290,7 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
       }
 
       return (
-        <div className="flex items-center gap-2 py-2">
+        <div className="flex items-center gap-2 py-1">
           <Select
             value={member.role}
             onValueChange={(value) => handleUpdateMemberRole(member.id, value, onMemberUpdate)}

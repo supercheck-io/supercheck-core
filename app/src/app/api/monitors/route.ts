@@ -10,7 +10,7 @@ import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function GET(request: Request) {
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     
     // Get URL parameters for optional filtering
     const url = new URL(request.url);

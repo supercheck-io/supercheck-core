@@ -3,14 +3,12 @@
 import { db } from "@/utils/db";
 import { runs, reports, jobs, jobTests } from "@/db/schema/schema";
 import { eq, and, count } from "drizzle-orm";
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
 
 // Type based on the actual API response from /api/runs/[runId]
 type RunResponse = {
   id: string;
   jobId: string;
-  jobName?: string;
+  jobName?: string | undefined;
   status: string;
   duration?: string | null;
   startedAt?: string | null;
@@ -25,8 +23,6 @@ type RunResponse = {
 
 export async function getRun(runId: string): Promise<RunResponse | null> {
   try {
-    const { userId } = await requireAuth();
-    
     if (!runId) {
       throw new Error("Missing run ID");
     }
@@ -76,6 +72,9 @@ export async function getRun(runId: string): Promise<RunResponse | null> {
     
     const response: RunResponse = {
       ...run,
+      jobName: run.jobName || undefined,
+      startedAt: run.startedAt?.toISOString() || null,
+      completedAt: run.completedAt?.toISOString() || null,
       testCount,
     };
     

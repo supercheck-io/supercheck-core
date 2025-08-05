@@ -16,7 +16,6 @@ import {
   BookOpenText,
   History,
   Plus,
-  Users,
   Building2,
   BarChart3
 } from "lucide-react";
@@ -185,7 +184,7 @@ const data = {
   ],
   OrgAdmin: [
     {
-      title: "Organization Admin",
+      title: "Org Admin",
       url: "/org-admin",
       icon: Building2,
     },

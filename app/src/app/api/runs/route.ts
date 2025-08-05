@@ -2,13 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { runs, jobs, reports } from "@/db/schema/schema";
 import { desc, eq, and } from "drizzle-orm";
-import { buildPermissionContext, hasPermission, requireAuth } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
-import { requireProjectContext } from '@/lib/project-context';
+import { requireAuth } from '@/lib/rbac/middleware';
 
 export async function GET(request: Request) {
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     
     // Get URL parameters for optional filtering
     const url = new URL(request.url);

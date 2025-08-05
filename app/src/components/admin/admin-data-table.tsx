@@ -15,8 +15,8 @@ import {
   getSortedRowModel,
   useReactTable,
   TableMeta,
+  type Table as TableType,
 } from "@tanstack/react-table";
-import { Loader2 } from "lucide-react";
 
 import {
   Table,
@@ -27,22 +27,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { DataTablePagination } from "@/components/tests/data-table-pagination";
+import { AdminDataTablePagination } from "@/components/admin/admin-data-table-pagination";
 import { UserTableToolbar } from "./user-table-toolbar";
-import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { cn } from "@/lib/utils";
 
 interface AdminDataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
-  isLoading?: boolean;
   onRowClick?: (row: Row<TData>) => void;
   meta?: {
     [key: string]: unknown;
   };
-  toolbar?: React.ComponentType<{ table: ReturnType<typeof useReactTable> }>;
+  toolbar?: React.ComponentType<{ table: TableType<TData> }>;
   title?: string;
   description?: string;
+  itemName?: string;
 }
 
 // Define the extended meta type locally
@@ -69,12 +68,12 @@ function adminGlobalFilterFn(row: Row<unknown>, _columnId: string, filterValue: 
 export function AdminDataTable<TData, TValue>({
   columns,
   data,
-  isLoading,
   onRowClick,
   meta,
   toolbar: ToolbarComponent = UserTableToolbar,
   title,
   description,
+  itemName = "items",
 }: AdminDataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -156,7 +155,9 @@ export function AdminDataTable<TData, TValue>({
     columns,
     initialState: {
       pagination: {
-        pageSize: 12,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pageSize: (meta as any)?.initialPageSize || 6,
+        pageIndex: 0,
       },
     },
     state: mounted ? {
@@ -191,22 +192,20 @@ export function AdminDataTable<TData, TValue>({
     } as ExtendedTableMeta<TData>,
   });
 
-  // Use useEffect to reset pagination after the component has mounted
+  // Use useEffect to set proper pagination after the component has mounted
   React.useEffect(() => {
-    // Only reset if there's data and the component is mounted
-    if (data.length > 0 && mounted) {
-      // Use setTimeout to ensure this runs after the current render cycle
-      setTimeout(() => {
-        if (mounted) {
-          table.resetPageIndex(true);
-        }
-      }, 0);
+    if (mounted && table) {
+      // Set page size based on meta or default to 6
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pageSize = (meta as any)?.initialPageSize || 6;
+      table.setPageSize(pageSize);
+      table.setPageIndex(0);
     }
-  }, [data, table, mounted]);
+  }, [mounted, table, meta]);
 
   // Don't render the table until the component is mounted
   if (!mounted) {
-    return <DataTableSkeleton columns={5} rows={3} />;
+    return null;
   }
 
   return (
@@ -222,14 +221,23 @@ export function AdminDataTable<TData, TValue>({
         </div>
       )}
       <ToolbarComponent table={table} />
-      <div className="rounded-md border relative">
+      <div className="rounded-t-lg border shadow-sm relative">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
+              <TableRow key={headerGroup.id} className="hover:bg-transparent border-b">
+                {headerGroup.headers.map((header, index) => {
+                  const isFirst = index === 0;
+                  const isLast = index === headerGroup.headers.length - 1;
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead 
+                      key={header.id} 
+                      className={`h-12 px-4 text-left align-middle font-semibold text-muted-foreground bg-muted/30 ${
+                        isFirst ? 'rounded-tl-lg' : ''
+                      } ${
+                        isLast ? 'rounded-tr-lg' : ''
+                      }`}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -243,30 +251,19 @@ export function AdminDataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  <div className="flex justify-center items-center space-x-2">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    <span className="text-muted-foreground">
-                      Loading data...
-                    </span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row, index) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={cn(onRowClick && "cursor-pointer")}
+                  className={cn(
+                    onRowClick && "cursor-pointer",
+                    `transition-colors hover:bg-muted/50 ${index % 2 === 0 ? 'bg-background' : 'bg-muted/20'}`
+                  )}
                   onClick={() => onRowClick?.(row)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-2.5">
+                    <TableCell key={cell.id} className="px-4 py-3 align-top">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -288,7 +285,7 @@ export function AdminDataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
+      <AdminDataTablePagination table={table} itemName={itemName} />
     </div>
   );
 }

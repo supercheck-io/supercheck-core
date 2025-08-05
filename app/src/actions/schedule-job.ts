@@ -62,7 +62,7 @@ async function getJob(jobId: string, projectId: string, organizationId: string):
 export async function scheduleCronJob(jobId: string, cronExpression: string): Promise<ScheduleJobResponse> {
   try {
     // Get current project context (includes auth verification)
-    const { userId, project, organizationId } = await requireProjectContext();
+    const { project, organizationId } = await requireProjectContext();
 
     // Validate cron expression
     if (!cronExpression) {
@@ -120,7 +120,7 @@ export async function scheduleCronJob(jobId: string, cronExpression: string): Pr
 export async function cancelScheduledJob(jobId: string): Promise<ScheduleJobResponse> {
   try {
     // Get current project context (includes auth verification)
-    const { userId, project, organizationId } = await requireProjectContext();
+    const { project, organizationId } = await requireProjectContext();
 
     // Get the job to find its scheduledJobId with project scoping
     const jobResult = await getJob(jobId, project.id, organizationId);

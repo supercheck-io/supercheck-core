@@ -81,7 +81,14 @@ export async function getCurrentUser(): Promise<UserSession | null> {
           id: impersonatedUser.id,
           name: impersonatedUser.name,
           email: impersonatedUser.email,
-          image: impersonatedUser.image
+          emailVerified: impersonatedUser.emailVerified,
+          createdAt: impersonatedUser.createdAt,
+          updatedAt: impersonatedUser.updatedAt,
+          image: impersonatedUser.image,
+          banned: impersonatedUser.banned,
+          role: impersonatedUser.role,
+          banReason: impersonatedUser.banReason,
+          banExpires: impersonatedUser.banExpires
         };
       }
     }

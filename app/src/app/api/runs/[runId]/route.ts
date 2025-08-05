@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from "@/utils/db";
 import { runs, reports, jobs, jobTests } from "@/db/schema/schema";
 import { eq, and, count } from "drizzle-orm";
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireAuth } from '@/lib/rbac/middleware';
 import { getActiveProject } from '@/lib/session';
 
 // Get run handler - requires auth but no project restrictions
@@ -13,7 +12,7 @@ export async function GET(
 ) {
   const params = await context.params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const runId = params.runId;
     
     if (!runId) {
@@ -91,7 +90,7 @@ export async function DELETE(
 ) {
   const params = await context.params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const runId = params.runId;
     console.log(`Attempting to delete run with ID: ${runId}`);
     

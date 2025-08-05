@@ -10,10 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Users, Building2, FolderOpen, Activity, TrendingUp, Calendar, UserPlus, RefreshCw } from "lucide-react";
+import { Users, Building2, FolderOpen, Activity, TrendingUp, Calendar } from "lucide-react";
 import { toast } from "sonner";
+import { useBreadcrumbs } from "@/components/breadcrumb-context";
 
 interface SystemStats {
   users: {
@@ -34,6 +35,7 @@ interface SystemStats {
 
 
 export default function AdminDashboard() {
+  const { setBreadcrumbs } = useBreadcrumbs();
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -68,6 +70,20 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchStats();
   }, []);
+
+  // Set breadcrumbs
+  useEffect(() => {
+    setBreadcrumbs([
+      { label: "Home", href: "/", isCurrentPage: false },
+      { label: "Settings", href: "/settings", isCurrentPage: false },
+      { label: "Super Admin", href: "/super-admin", isCurrentPage: true }
+    ]);
+
+    // Cleanup breadcrumbs on unmount
+    return () => {
+      setBreadcrumbs([]);
+    };
+  }, [setBreadcrumbs]);
 
   const handleTabChange = (value: string) => {
     if (value === 'users' && users.length === 0) {
@@ -129,7 +145,7 @@ export default function AdminDashboard() {
     setOrgsLoading(true);
     try {
       const offset = page * orgsPagination.limit;
-      const response = await fetch(`/api/admin/organizations?limit=${orgsPagination.limit}&offset=${offset}`);
+      const response = await fetch(`/api/admin/organizations?limit=${orgsPagination.limit}&offset=${offset}&stats=true`);
       const data = await response.json();
 
       if (data.success) {
@@ -192,9 +208,9 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="flex-1 space-y-4 p-4 pt-6">
+      <div className="flex-1 space-y-4 p-6 pt-4">
         <div className="flex items-center justify-between space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight">Super Admin Dashboard</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Super Admin</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[...Array(8)].map((_, i) => (
@@ -225,9 +241,9 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="flex-1 space-y-4 p-4 pt-6">
+    <div className="flex-1 space-y-4 p-6 pt-4">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Super Admin Dashboard</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Super Admin</h2>
       </div>
       
       <Tabs defaultValue="overview" className="space-y-4" onValueChange={handleTabChange}>
@@ -355,30 +371,7 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-medium">Users ({users.length})</h3>
-              <p className="text-sm text-muted-foreground">
-                Manage user accounts, ban/unban users, and impersonate users.
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { fetchUsers(); fetchStats(); }}
-                disabled={usersLoading}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-              <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Create User
-                  </Button>
-                </DialogTrigger>
+          <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Create New User</DialogTitle>
@@ -427,15 +420,13 @@ export default function AdminDashboard() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            </div>
-          </div>
 
-          <Card>
+          <Card className="bg-transparent border-none shadow-none">
             <CardContent className="p-0">
               <UserTable 
                 users={users} 
                 onUserUpdate={() => { fetchUsers(); fetchStats(); }}
-                isLoading={usersLoading}
+                onCreateUser={() => setShowCreateUserDialog(true)}
               />
               {usersPagination.hasMore && (
                 <div className="flex justify-center pt-4">
@@ -453,32 +444,13 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="organizations" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-medium">Organizations ({organizations.length})</h3>
-              <p className="text-sm text-muted-foreground">
-                View and manage organizations across the platform.
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { fetchOrganizations(); fetchStats(); }}
-                disabled={orgsLoading}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
-          </div>
+         
 
-          <Card>
+          <Card className="bg-transparent border-none shadow-none">
             <CardContent className="p-0">
               <OrgTable 
                 organizations={organizations} 
                 onOrgUpdate={() => { fetchOrganizations(); fetchStats(); }}
-                isLoading={orgsLoading}
               />
               {orgsPagination.hasMore && (
                 <div className="flex justify-center pt-4">

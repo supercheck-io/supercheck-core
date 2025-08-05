@@ -14,7 +14,7 @@ export async function PUT(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const currentUser = await getCurrentUser();
     const activeOrg = await getActiveOrganization();
     
@@ -89,8 +89,7 @@ export async function PUT(
     await db
       .update(member)
       .set({ 
-        role: role as 'owner' | 'admin' | 'member' | 'viewer',
-        updatedAt: new Date()
+        role: role as 'owner' | 'admin' | 'member' | 'viewer'
       })
       .where(and(
         eq(member.userId, resolvedParams.memberId),
@@ -138,7 +137,7 @@ export async function DELETE(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const currentUser = await getCurrentUser();
     const activeOrg = await getActiveOrganization();
     

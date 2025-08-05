@@ -1,8 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/rbac/middleware';
 import { getUserOrganizations } from '@/lib/session';
-import { db } from '@/utils/db';
-import { organization, member } from '@/db/schema/schema';
 
 /**
  * GET /api/organizations
@@ -39,7 +37,7 @@ export async function GET() {
  * POST /api/organizations
  * Organization creation is disabled - organizations are created automatically on user signup
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   return NextResponse.json(
     { error: 'Manual organization creation is not allowed. Organizations are created automatically on user signup.' },
     { status: 403 }

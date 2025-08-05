@@ -16,13 +16,19 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
+interface InviteData {
+  organizationName: string;
+  role: string;
+  email?: string;
+}
+
 export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
-  const [inviteData, setInviteData] = useState<any>(null);
+  const [inviteData, setInviteData] = useState<InviteData | null>(null);
 
   useEffect(() => {
     const invite = searchParams.get('invite');

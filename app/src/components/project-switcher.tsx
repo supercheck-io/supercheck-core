@@ -1,9 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, Plus, Search } from "lucide-react"
+import { ChevronsUpDown, Plus, Search, Edit3 } from "lucide-react"
 import { CheckIcon } from "@/components/logo/supercheck-logo"
 import { useProjectContext } from "@/hooks/use-project-context"
+import { createProjectSchema, updateProjectSchema, type CreateProjectFormData, type UpdateProjectFormData } from "@/lib/validations/project"
+import { FormInput } from "@/components/ui/form-input"
+import { useFormValidation } from "@/hooks/use-form-validation"
 
 import {
   DropdownMenu,
@@ -11,7 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -29,7 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+// import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useRef, useEffect } from "react"
 import { toast } from "sonner"
@@ -49,12 +51,44 @@ export function ProjectSwitcher() {
   const [newProjectName, setNewProjectName] = React.useState("")
   const [newProjectDescription, setNewProjectDescription] = React.useState("")
   const [creating, setCreating] = React.useState(false)
+  const [showEditProjectDialog, setShowEditProjectDialog] = React.useState(false)
+  const [editingProjectId, setEditingProjectId] = React.useState<string | null>(null)
+  const [editingProjectName, setEditingProjectName] = React.useState("")
+  const [editingProjectDescription, setEditingProjectDescription] = React.useState("")
+  const [updating, setUpdating] = React.useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Filter projects based on search query
-  const filteredProjects = (projects || []).filter(project =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  // Form validation hooks
+  const {
+    errors: createErrors,
+    isValidating: isCreatingValidating,
+    validate: validateCreateForm,
+    clearErrors: clearCreateErrors,
+  } = useFormValidation({
+    schema: createProjectSchema,
+    onSuccess: async (data) => {
+      await handleCreateProject(data)
+    },
+  })
+
+  const {
+    errors: updateErrors,
+    isValidating: isUpdatingValidating,
+    validate: validateUpdateForm,
+    clearErrors: clearUpdateErrors,
+  } = useFormValidation({
+    schema: updateProjectSchema,
+    onSuccess: async (data) => {
+      await handleUpdateProject(editingProjectId!, data)
+    },
+  })
+
+  // Filter and sort projects based on search query
+  const filteredProjects = (projects || [])
+    .filter(project =>
+      project.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   // Reset search when dropdown closes
   useEffect(() => {
@@ -100,12 +134,73 @@ export function ProjectSwitcher() {
     }
   }
 
-  const createProject = async () => {
-    if (!newProjectName.trim()) {
-      toast.error("Project name is required")
-      return
+  const startEditingProject = (project: { id: string; name: string; description?: string }) => {
+    setEditingProjectId(project.id)
+    setEditingProjectName(project.name)
+    setEditingProjectDescription(project.description || "")
+    setShowEditProjectDialog(true)
+  }
+
+
+
+  // const cancelEditingProject = () => {
+  //   setEditingProjectId(null)
+  //   setEditingProjectName("")
+  //   setEditingProjectDescription("")
+  //   clearUpdateErrors()
+  // }
+
+  // const cancelEditDialog = () => {
+  //   setShowEditProjectDialog(false)
+  //   setEditingProjectId(null)
+  //   setEditingProjectName("")
+  //   setEditingProjectDescription("")
+  //   clearUpdateErrors()
+  // }
+
+  const handleUpdateProject = async (projectId: string, formData: UpdateProjectFormData) => {
+    setUpdating(true)
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(`Updated project "${formData.name}"`)
+        setEditingProjectId(null)
+        setEditingProjectName("")
+        setEditingProjectDescription("")
+        setShowEditProjectDialog(false)
+        clearUpdateErrors()
+        // Refresh the page to update all components with new project data
+        window.location.reload()
+      } else {
+        toast.error(data.error || "Failed to update project")
+      }
+    } catch (error) {
+      console.error("Error updating project:", error)
+      toast.error("Failed to update project")
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const updateProject = async () => {
+    const formData = {
+      name: editingProjectName.trim(),
+      description: editingProjectDescription.trim(),
     }
 
+    await validateUpdateForm(formData)
+  }
+
+  const handleCreateProject = async (formData: CreateProjectFormData) => {
     setCreating(true)
     try {
       const response = await fetch("/api/projects", {
@@ -113,10 +208,7 @@ export function ProjectSwitcher() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: newProjectName.trim(),
-          description: newProjectDescription.trim() || undefined,
-        }),
+        body: JSON.stringify(formData),
       })
 
       const data = await response.json()
@@ -125,6 +217,7 @@ export function ProjectSwitcher() {
         const newProject = data.data
         setNewProjectName("")
         setNewProjectDescription("")
+        clearCreateErrors()
         setShowNewProjectDialog(false)
         toast.success(`Created project "${newProject.name}"`)
         
@@ -139,6 +232,15 @@ export function ProjectSwitcher() {
     } finally {
       setCreating(false)
     }
+  }
+
+  const createProject = async () => {
+    const formData = {
+      name: newProjectName.trim(),
+      description: newProjectDescription.trim(),
+    }
+
+    await validateCreateForm(formData)
   }
 
   if (loading) {
@@ -209,21 +311,28 @@ export function ProjectSwitcher() {
 
                 {/* Project List */}
                 <div className="max-h-48 overflow-y-auto">
-                  {filteredProjects.map((project, index) => (
+                  {filteredProjects.map((project) => (
                     <DropdownMenuItem
                       key={project.id}
-                      onClick={() => handleProjectSelect(project)}
-                      className="gap-2 p-2"
+                      className="gap-2 p-2 flex items-center justify-between group"
                     >
-                      <div className="flex flex-col">
-                        <span className="font-medium">{project.name}</span>
-                        {project.description && (
-                          <span className="text-xs text-muted-foreground truncate">
-                            {project.description}
-                          </span>
+                      <div className="flex items-center justify-between flex-1" onClick={() => handleProjectSelect(project)}>
+                        <span className="font-medium truncate">{project.name}</span>
+                        {currentProject?.id === project.id && (
+                          <div className="h-2.5 w-2.5 rounded-full bg-primary flex-shrink-0 ml-2" />
                         )}
                       </div>
-                      <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          startEditingProject(project)
+                        }}
+                      >
+                        <Edit3 className="h-3 w-3" />
+                      </Button>
                     </DropdownMenuItem>
                   ))}
                   {filteredProjects.length === 0 && (
@@ -244,7 +353,7 @@ export function ProjectSwitcher() {
                   <div className="bg-background flex size-6 items-center justify-center rounded-md border">
                     <Plus className="size-4" />
                   </div>
-                  <div className="text-muted-foreground font-medium">Add project</div>
+                  <div className="font-medium">Add project</div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -254,47 +363,101 @@ export function ProjectSwitcher() {
           <DialogHeader>
             <DialogTitle>Create Project</DialogTitle>
             <DialogDescription>
-              Create a new project to organize your tests, jobs, and monitors.
+              Create a new project to organize your tests, jobs, and monitors. Both name and description are required.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="name"
-                value={newProjectName}
-                onChange={(e) => setNewProjectName(e.target.value)}
-                className="col-span-3"
-                placeholder="Enter project name"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="description" className="text-right">
-                Description
-              </Label>
-              <Input
-                id="description"
-                value={newProjectDescription}
-                onChange={(e) => setNewProjectDescription(e.target.value)}
-                className="col-span-3"
-                placeholder="Enter project description (optional)"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    createProject()
-                  }
-                }}
-              />
-            </div>
+            <FormInput
+              id="name"
+              label="Name"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              placeholder="Enter project name"
+              maxLength={20}
+              showCharacterCount={true}
+              error={createErrors.name}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  createProject()
+                }
+              }}
+            />
+            <FormInput
+              id="description"
+              label="Description"
+              value={newProjectDescription}
+              onChange={(e) => setNewProjectDescription(e.target.value)}
+              placeholder="Enter project description"
+              maxLength={100}
+              showCharacterCount={true}
+              error={createErrors.description}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  createProject()
+                }
+              }}
+            />
           </div>
           <DialogFooter>
             <Button
               type="submit"
               onClick={createProject}
-              disabled={creating || !newProjectName.trim()}
+              disabled={creating || isCreatingValidating || !newProjectName.trim() || !newProjectDescription.trim()}
             >
               {creating ? "Creating..." : "Create Project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Project Dialog */}
+      <Dialog open={showEditProjectDialog} onOpenChange={setShowEditProjectDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Project</DialogTitle>
+            <DialogDescription>
+              Update your project details. Both name and description are required.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <FormInput
+              id="edit-name"
+              label="Name"
+              value={editingProjectName}
+              onChange={(e) => setEditingProjectName(e.target.value)}
+              placeholder="Enter project name"
+              maxLength={20}
+              showCharacterCount={true}
+              error={updateErrors.name}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  updateProject()
+                }
+              }}
+            />
+            <FormInput
+              id="edit-description"
+              label="Description"
+              value={editingProjectDescription}
+              onChange={(e) => setEditingProjectDescription(e.target.value)}
+              placeholder="Enter project description"
+              maxLength={100}
+              showCharacterCount={true}
+              error={updateErrors.description}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  updateProject()
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="submit"
+              onClick={updateProject}
+              disabled={updating || isUpdatingValidating || !editingProjectName.trim() || !editingProjectDescription.trim()}
+            >
+              {updating ? "Updating..." : "Update Project"}
             </Button>
           </DialogFooter>
         </DialogContent>

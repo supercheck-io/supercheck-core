@@ -56,11 +56,11 @@ export async function POST(request: NextRequest) {
     });
     
     // Set email as verified for admin-created users
-    if (newUser?.user?.id) {
+    if ('user' in newUser && newUser.user && typeof newUser.user === 'object' && 'id' in newUser.user) {
       await db
         .update(user)
         .set({ emailVerified: true })
-        .where(eq(user.id, newUser.user.id));
+        .where(eq(user.id, newUser.user.id as string));
     }
     
     return NextResponse.json({

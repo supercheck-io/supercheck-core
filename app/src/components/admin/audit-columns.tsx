@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Eye, Copy, Check, Activity, User, Calendar, Clock } from "lucide-react";
+import { Eye, Copy, Check, Activity, User, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { DataTableColumnHeader } from "@/components/tests/data-table-column-header";
@@ -27,13 +27,13 @@ export interface AuditUser {
 export interface AuditLog {
   id: string;
   action: string;
-  details: Record<string, any> | null;
+  details: Record<string, unknown> | null;
   createdAt: string;
   user: AuditUser;
 }
 
 // JSON viewer component
-function JsonViewer({ data, title }: { data: any; title: string }) {
+function JsonViewer({ data, title }: { data: unknown; title: string }) {
   const [copied, setCopied] = useState(false);
   
   const copyToClipboard = async () => {
@@ -42,46 +42,46 @@ function JsonViewer({ data, title }: { data: any; title: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       toast.success("JSON copied to clipboard");
-    } catch (error) {
+    } catch {
       toast.error("Failed to copy JSON");
     }
   };
 
-  const formatJsonWithSyntaxHighlight = (obj: any): JSX.Element => {
-    if (obj === null) return <span className="text-gray-500">null</span>;
-    if (obj === undefined) return <span className="text-gray-500">undefined</span>;
-    if (typeof obj === 'string') return <span className="text-green-600">"{obj}"</span>;
-    if (typeof obj === 'number') return <span className="text-blue-600">{obj}</span>;
-    if (typeof obj === 'boolean') return <span className="text-purple-600">{obj.toString()}</span>;
+  const formatJsonWithSyntaxHighlight = (obj: unknown): React.JSX.Element => {
+    if (obj === null) return <span className="text-slate-400">null</span>;
+    if (obj === undefined) return <span className="text-slate-400">undefined</span>;
+    if (typeof obj === 'string') return <span className="text-green-400">&quot;{obj}&quot;</span>;
+    if (typeof obj === 'number') return <span className="text-blue-400">{obj}</span>;
+    if (typeof obj === 'boolean') return <span className="text-purple-400">{obj.toString()}</span>;
     
     if (Array.isArray(obj)) {
       return (
         <div>
-          <span className="text-gray-600">[</span>
+          <span className="text-slate-300">[</span>
           {obj.map((item, index) => (
             <div key={index} className="ml-4">
               {formatJsonWithSyntaxHighlight(item)}
-              {index < obj.length - 1 && <span className="text-gray-600">,</span>}
+              {index < obj.length - 1 && <span className="text-slate-300">,</span>}
             </div>
           ))}
-          <span className="text-gray-600">]</span>
+          <span className="text-slate-300">]</span>
         </div>
       );
     }
     
-    if (typeof obj === 'object') {
+    if (typeof obj === 'object' && obj !== null) {
       return (
         <div>
-          <span className="text-gray-600">{'{'}</span>
-          {Object.entries(obj).map(([key, value], index, array) => (
+          <span className="text-slate-300">{'{'}</span>
+          {Object.entries(obj as Record<string, unknown>).map(([key, value], index, array) => (
             <div key={key} className="ml-4">
-              <span className="text-red-600">"{key}"</span>
-              <span className="text-gray-600">: </span>
+              <span className="text-red-400">&quot;{key}&quot;</span>
+              <span className="text-slate-300">: </span>
               {formatJsonWithSyntaxHighlight(value)}
-              {index < array.length - 1 && <span className="text-gray-600">,</span>}
+              {index < array.length - 1 && <span className="text-slate-300">,</span>}
             </div>
           ))}
-          <span className="text-gray-600">{'}'}</span>
+          <span className="text-slate-300">{'}'}</span>
         </div>
       );
     }
@@ -111,13 +111,13 @@ function JsonViewer({ data, title }: { data: any; title: string }) {
         </TabsList>
         
         <TabsContent value="formatted" className="mt-4">
-          <div className="p-4 bg-gray-50 rounded-lg border font-mono text-sm overflow-auto max-h-96">
+          <div className="p-4 bg-slate-900 text-slate-100 rounded-lg border font-mono text-sm overflow-auto max-h-96">
             {formatJsonWithSyntaxHighlight(data)}
           </div>
         </TabsContent>
         
         <TabsContent value="raw" className="mt-4">
-          <pre className="p-4 bg-gray-50 rounded-lg border text-sm overflow-auto max-h-96 whitespace-pre-wrap">
+          <pre className="p-4 bg-slate-900 text-slate-100 rounded-lg border text-sm overflow-auto max-h-96 whitespace-pre-wrap">
             {JSON.stringify(data, null, 2)}
           </pre>
         </TabsContent>
@@ -146,17 +146,6 @@ const formatDate = (dateString: string) => {
   });
 };
 
-const renderDetailsPreview = (details: Record<string, any> | null) => {
-  if (!details) return <span className="text-muted-foreground text-xs">No details</span>;
-  
-  const keys = Object.keys(details);
-  if (keys.length === 0) return <span className="text-muted-foreground text-xs">No details</span>;
-  
-  const previewText = keys.slice(0, 2).map(key => `${key}: ${JSON.stringify(details[key])}`).join(', ');
-  const truncated = previewText.length > 40 ? previewText.substring(0, 40) + '...' : previewText;
-  
-  return <span className="text-xs font-mono text-muted-foreground">{truncated}</span>;
-};
 
 export const auditLogColumns: ColumnDef<AuditLog>[] = [
   {
@@ -167,18 +156,32 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
     cell: ({ row }) => {
       const dateTime = formatDate(row.getValue("createdAt"));
       const date = new Date(row.getValue("createdAt"));
-      const timeAgo = new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
-        Math.ceil((date.getTime() - Date.now()) / (1000 * 60)),
-        'minute'
-      );
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      
+      let timeAgo = '';
+      if (diffMs < 60000) {
+        timeAgo = 'just now';
+      } else if (diffMs < 3600000) {
+        const minutes = Math.floor(diffMs / 60000);
+        timeAgo = `${minutes}m ago`;
+      } else if (diffMs < 86400000) {
+        const hours = Math.floor(diffMs / 3600000);
+        timeAgo = `${hours}h ago`;
+      } else {
+        const days = Math.floor(diffMs / 86400000);
+        timeAgo = `${days}d ago`;
+      }
       
       return (
-        <div className="py-2">
-          <div className="text-xs font-mono">
-            {dateTime}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {timeAgo}
+        <div className="py-2 min-w-[140px] flex items-center">
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              {dateTime}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1 font-medium">
+              {timeAgo}
+            </div>
           </div>
         </div>
       );
@@ -193,12 +196,12 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
       const action = row.getValue("action") as string;
       
       return (
-        <div className="py-2">
+        <div className="py-2 flex items-center">
           <Badge 
             variant="outline" 
-            className={`${getActionBadgeColor(action)} text-xs px-2 py-1`}
+            className={`${getActionBadgeColor(action)} text-xs px-3 py-1.5 font-medium border-0`}
           >
-            <Activity className="mr-1 h-3 w-3" />
+            <Activity className="mr-1.5 h-3 w-3" />
             {action}
           </Badge>
         </div>
@@ -209,23 +212,31 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
     },
   },
   {
-    accessorKey: "user",
+    id: "user",
+    accessorFn: (row) => {
+      const user = row.user as AuditUser;
+      return user.name || 'System';
+    },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="User" />
     ),
     cell: ({ row }) => {
-      const user = row.getValue("user") as AuditUser;
+      const user = row.original.user as AuditUser;
       
       return (
-        <div className="py-2">
-          <div className="flex items-center gap-2">
-            <User className="h-3 w-3 text-muted-foreground" />
-            <div>
-              <div className="text-sm font-medium">
+        <div className="py-2 min-w-[160px] flex items-center">
+          <div className="flex items-center gap-2.5">
+            <div className="flex-shrink-0">
+              <div className="w-7 h-7 bg-muted rounded-full flex items-center justify-center">
+                <User className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-foreground truncate">
                 {user.name || 'System'}
               </div>
               {user.email && (
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground truncate mt-0.5">
                   {user.email}
                 </div>
               )}
@@ -235,22 +246,9 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
       );
     },
     filterFn: (row, id, value) => {
-      const user = row.getValue(id) as AuditUser;
-      const searchText = `${user.name || ''} ${user.email || ''}`;
-      return searchText.toLowerCase().includes(value.toLowerCase());
-    },
-  },
-  {
-    accessorKey: "details",
-    header: "Details",
-    cell: ({ row }) => {
-      const details = row.getValue("details") as Record<string, any> | null;
-      
-      return (
-        <div className="py-2 max-w-[200px]">
-          {renderDetailsPreview(details)}
-        </div>
-      );
+      if (!value || value.length === 0) return true;
+      const userName = row.getValue(id) as string;
+      return value.includes(userName);
     },
   },
   {
@@ -260,11 +258,11 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
       const log = row.original;
       
       return (
-        <div className="py-2">
+        <div className="py-2 flex items-center">
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <Eye className="h-4 w-4" />
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-muted transition-colors">
+                <Eye className="h-4 w-4 text-muted-foreground" />
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[80vh]">

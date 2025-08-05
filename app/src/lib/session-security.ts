@@ -52,8 +52,7 @@ export interface SessionValidationContext {
 export function validateSessionContext(
   token: string,
   context: SessionValidationContext,
-  currentIp?: string,
-  _currentUserAgent?: string
+  currentIp?: string
 ): {
   valid: boolean;
   reason?: string;

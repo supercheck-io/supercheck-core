@@ -97,7 +97,7 @@ export function Runs() {
   // Don't render until component is mounted
   if (!mounted) {
     return (
-      <div className="h-full flex-1 flex-col space-y-4 p-4 md:flex">
+      <div className="flex h-full flex-col space-y-4 p-2 mt-6 w-full max-w-full overflow-x-hidden">
         <DataTableSkeleton columns={6} rows={8} />
       </div>
     );
@@ -107,7 +107,7 @@ export function Runs() {
   const columns = createColumns(handleDeleteRun);
 
   return (
-    <div className="h-full flex-1 flex-col space-y-4 p-4 md:flex">
+    <div className="flex h-full flex-col space-y-4 p-2 mt-6 w-full max-w-full overflow-x-hidden">
       <DataTable 
         key={tableKey}
         columns={columns} 

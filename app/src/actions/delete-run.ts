@@ -32,11 +32,10 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
 
     // Perform the deletion within a transaction
     return await db.transaction(async (tx) => {
-      // Check if the run exists and belongs to current project - get details for audit
-      console.log(`[DELETE_RUN] Checking if run ${runId} exists in project ${project.name}`);
+      // Check if the run exists and belongs to the current project
       const existingRun = await tx
-        .select({ 
-          id: runs.id, 
+        .select({
+          id: runs.id,
           projectId: runs.projectId,
           jobId: runs.jobId,
           status: runs.status,
@@ -46,8 +45,7 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
         .from(runs)
         .where(and(
           eq(runs.id, runId),
-          eq(runs.projectId, project.id),
-          eq(runs.organizationId, organizationId)
+          eq(runs.projectId, project.id)
         ))
         .limit(1);
 

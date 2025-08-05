@@ -258,7 +258,7 @@ export function DataTable<TData extends AlertHistory, TValue>({
   return (
     <div className="space-y-4">
       <DataTableToolbar table={table} />
-      <div className="rounded-md border relative">
+      <div className="rounded-lg border relative">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

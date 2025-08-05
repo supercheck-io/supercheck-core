@@ -9,10 +9,10 @@ interface MembersTableProps {
   members: MemberOrInvitation[];
   onMemberUpdate: () => void;
   onInviteMember: () => void;
-  isLoading?: boolean;
 }
 
 // Custom global filter function for members table
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function memberGlobalFilterFn(row: any, _columnId: string, filterValue: string) {
   if (!filterValue) return true;
   const search = String(filterValue).toLowerCase();
@@ -28,9 +28,10 @@ function memberGlobalFilterFn(row: any, _columnId: string, filterValue: string) 
   }
 }
 
-export function MembersTable({ members, onMemberUpdate, onInviteMember, isLoading }: MembersTableProps) {
+export function MembersTable({ members, onMemberUpdate, onInviteMember }: MembersTableProps) {
   const columns = React.useMemo(() => createMemberColumns(onMemberUpdate), [onMemberUpdate]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const CustomToolbar = React.useCallback(({ table }: { table: any }) => (
     <MemberTableToolbar table={table} onInviteMember={onInviteMember} />
   ), [onInviteMember]);
@@ -39,13 +40,14 @@ export function MembersTable({ members, onMemberUpdate, onInviteMember, isLoadin
     <AdminDataTable
       columns={columns}
       data={members}
-      isLoading={isLoading}
       toolbar={CustomToolbar}
-      title={`Organization Members (${members.filter(m => m.type === 'member').length})${members.filter(m => m.type === 'invitation').length > 0 ? ` • Pending Invitations (${members.filter(m => m.type === 'invitation').length})` : ''}`}
+      title="Members"
       description="Manage organization members and their roles. View pending invitations."
+      itemName="members"
       meta={{
         globalFilterColumns: ["name", "email"],
         globalFilterFn: memberGlobalFilterFn,
+        initialPageSize: 6,
       }}
     />
   );

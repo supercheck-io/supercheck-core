@@ -123,3 +123,37 @@ export const auditStatuses = [
     color: "text-red-600",
   },
 ];
+
+// Action categories for better filtering
+export const auditActionCategories = [
+  {
+    value: "user",
+    label: "User Actions",
+    icon: Users,
+    color: "text-blue-600",
+  },
+  {
+    value: "org",
+    label: "Organization Actions", 
+    icon: Shield,
+    color: "text-purple-600",
+  },
+  {
+    value: "member",
+    label: "Member Actions",
+    icon: Users,
+    color: "text-green-600",
+  },
+  {
+    value: "project",
+    label: "Project Actions",
+    icon: Plus,
+    color: "text-orange-600",
+  },
+  {
+    value: "settings",
+    label: "Settings Actions",
+    icon: Settings,
+    color: "text-gray-600",
+  },
+];

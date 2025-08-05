@@ -14,12 +14,12 @@ export const getUserFriendlyError = (error: unknown, providerType: string): stri
     return `Connection timeout. Please try again or check your network connection.`;
   }
   
-  if (errorMessage.includes('401') || errorMessage.includes('403')) {
-    return `Authentication failed. Please verify your credentials.`;
-  }
-  
   if (errorMessage.includes('SSL') || errorMessage.includes('TLS')) {
     return `Security connection failed. Please check your SSL/TLS settings.`;
+  }
+  
+  if (errorMessage.includes('401') || errorMessage.includes('403')) {
+    return `Authentication failed. Please verify your credentials.`;
   }
   
   if (errorMessage.includes('Invalid email format')) {
@@ -67,9 +67,9 @@ export const VALIDATION_PATTERNS = {
 /**
  * Maximum character limits for form fields
  */
-export const CHARACTER_LIMITS = {
+export const CHARACTER_LIMITS = Object.freeze({
   emails: 500,
   bodyTemplate: 2000,
   name: 255,
   url: 2048,
-} as const;
+} as const);

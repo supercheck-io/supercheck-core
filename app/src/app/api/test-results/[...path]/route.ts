@@ -130,7 +130,7 @@ export async function GET(request: Request) {
   // Require authentication
   try {
     await requireAuth();
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Authentication required' },
       { status: 401 }

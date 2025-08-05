@@ -166,7 +166,7 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("name")}</div>
+      <div className="py-2 flex items-center font-medium">{row.getValue("name")}</div>
     ),
   },
   {
@@ -175,7 +175,7 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
       <DataTableColumnHeader column={column} title="Email" />
     ),
     cell: ({ row }) => (
-      <div className="text-sm">{row.getValue("email")}</div>
+      <div className="py-2 flex items-center text-sm">{row.getValue("email")}</div>
     ),
   },
   {
@@ -186,10 +186,12 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
     cell: ({ row }) => {
       const role = row.getValue("role") as string || 'user';
       return (
-        <Badge variant="outline" className={getRoleColor(role)}>
-          {getRoleIcon(role)}
-          {role}
-        </Badge>
+        <div className="py-2 flex items-center">
+          <Badge variant="outline" className={`${getRoleColor(role)} text-xs px-3 py-1.5 font-medium capitalize`}>
+            {getRoleIcon(role)}
+            {role}
+          </Badge>
+        </div>
       );
     },
     filterFn: (row, id, value) => {
@@ -197,39 +199,55 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
     },
   },
   {
-    accessorKey: "banned",
+    id: "banned",
+    accessorFn: (row) => {
+      const banned = row.banned;
+      return banned ? 'banned' : 'active';
+    },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
-      const banned = row.getValue("banned") as boolean;
-      return banned ? (
-        <Badge variant="destructive">Banned</Badge>
-      ) : (
-        <Badge variant="outline">Active</Badge>
+      const banned = row.original.banned as boolean;
+      return (
+        <div className="py-2 flex items-center">
+          {banned ? (
+            <Badge variant="outline" className="bg-red-100 text-red-700 text-xs px-3 py-1.5 font-medium capitalize">Banned</Badge>
+          ) : (
+            <Badge variant="outline" className="bg-green-100 text-green-700 text-xs px-3 py-1.5 font-medium capitalize">Active</Badge>
+          )}
+        </div>
       );
     },
     filterFn: (row, id, value) => {
-      const banned = row.getValue(id) as boolean;
+      const banned = row.original.banned as boolean;
       const status = banned ? 'banned' : 'active';
       return value.includes(status);
     },
   },
   {
-    accessorKey: "emailVerified",
+    id: "emailVerified",
+    accessorFn: (row) => {
+      const verified = row.emailVerified;
+      return verified ? 'verified' : 'unverified';
+    },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Verified" />
     ),
     cell: ({ row }) => {
-      const verified = row.getValue("emailVerified") as boolean;
-      return verified ? (
-        <Badge variant="outline" className="bg-green-100 text-green-800">Verified</Badge>
-      ) : (
-        <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Unverified</Badge>
+      const verified = row.original.emailVerified as boolean;
+      return (
+        <div className="py-2 flex items-center">
+          {verified ? (
+            <Badge variant="outline" className="bg-green-100 text-green-700 text-xs px-3 py-1.5 font-medium capitalize">Verified</Badge>
+          ) : (
+            <Badge variant="outline" className="bg-yellow-100 text-yellow-700 text-xs px-3 py-1.5 font-medium capitalize">Unverified</Badge>
+          )}
+        </div>
       );
     },
     filterFn: (row, id, value) => {
-      const verified = row.getValue(id) as boolean;
+      const verified = row.original.emailVerified as boolean;
       const status = verified ? 'verified' : 'unverified';
       return value.includes(status);
     },
@@ -242,7 +260,7 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
     cell: ({ row }) => {
       const date = new Date(row.getValue("createdAt"));
       return (
-        <div className="text-sm">
+        <div className="py-2 flex items-center text-sm">
           {date.toLocaleDateString()}
         </div>
       );

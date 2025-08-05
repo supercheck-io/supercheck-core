@@ -20,7 +20,7 @@ export async function GET(
   }
 
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     
     // First, find the monitor without filtering by active project
     const monitor = await db.query.monitors.findFirst({

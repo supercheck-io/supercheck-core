@@ -1,9 +1,8 @@
 import type { Table } from "@tanstack/react-table";
-import { X, Search, Filter, RefreshCw } from "lucide-react";
+import { X, Search, User, Activity } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTableViewOptions } from "@/components/tests/data-table-view-options";
 import { DataTableFacetedFilter } from "@/components/tests/data-table-faceted-filter";
 
@@ -11,25 +10,47 @@ import { auditActions } from "./audit-data";
 
 interface AuditTableToolbarProps<TData> {
   table: Table<TData>;
-  onRefresh: () => void;
-  availableActions?: string[];
-  pageSize: number;
-  onPageSizeChange: (size: number) => void;
+  availableUsers?: { name: string; email?: string }[];
 }
 
 export function AuditTableToolbar<TData>({
   table,
-  onRefresh,
-  availableActions = [],
-  pageSize,
-  onPageSizeChange,
+  availableUsers = [],
 }: AuditTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
 
-  // Filter audit actions to only show those that exist in the data
-  const availableAuditActions = auditActions.filter(action => 
-    availableActions.length === 0 || availableActions.includes(action.value)
-  );
+  // Get faceted unique values for actions from the table
+  const actionColumn = table.getColumn("action");
+  const actionFacets = actionColumn?.getFacetedUniqueValues();
+  
+  // Create action filter options from faceted values with Activity icon
+  const availableAuditActions = actionFacets ? 
+    Array.from(actionFacets.keys()).map(actionValue => ({
+      value: actionValue as string,
+      label: actionValue as string,
+      icon: Activity,
+      color: 'text-gray-600',
+    })) : 
+    auditActions;
+
+  // Get faceted unique values for users from the table
+  const userColumn = table.getColumn("user");
+  const userFacets = userColumn?.getFacetedUniqueValues();
+  
+  // Create user filter options from faceted values
+  const userFilterOptions = userFacets ? 
+    Array.from(userFacets.keys()).map(userName => ({
+      value: userName as string,
+      label: userName as string,
+      icon: User,
+      color: userName === 'System' ? 'text-gray-600' : 'text-blue-600',
+    })) : 
+    availableUsers.map(user => ({
+      value: user.name || 'System',
+      label: user.name || 'System',
+      icon: User,
+      color: 'text-blue-600',
+    }));
 
   return (
     <div className="flex items-center justify-between">
@@ -54,11 +75,18 @@ export function AuditTableToolbar<TData>({
             </button>
           )}
         </div>
-        {table.getColumn("action") && availableAuditActions.length > 0 && (
+        {table.getColumn("action") && (
           <DataTableFacetedFilter
             column={table.getColumn("action")}
             title="Action"
             options={availableAuditActions}
+          />
+        )}
+        {table.getColumn("user") && (
+          <DataTableFacetedFilter
+            column={table.getColumn("user")}
+            title="User"
+            options={userFilterOptions}
           />
         )}
         {isFiltered && (
@@ -73,30 +101,7 @@ export function AuditTableToolbar<TData>({
         )}
       </div>
       <div className="flex items-center space-x-2">
-        <Select
-          value={pageSize.toString()}
-          onValueChange={(value) => onPageSizeChange(parseInt(value))}
-        >
-          <SelectTrigger className="w-20 h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="10">10</SelectItem>
-            <SelectItem value="25">25</SelectItem>
-            <SelectItem value="50">50</SelectItem>
-            <SelectItem value="100">100</SelectItem>
-          </SelectContent>
-        </Select>
         <DataTableViewOptions table={table} />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onRefresh}
-          className="h-8"
-        >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
       </div>
     </div>
   );

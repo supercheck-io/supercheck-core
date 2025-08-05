@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ interface AuditUser {
 interface AuditLog {
   id: string;
   action: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   details: Record<string, any> | null;
   createdAt: string;
   user: AuditUser;
@@ -49,6 +50,7 @@ interface AuditTableProps {
 }
 
 // JSON viewer component
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function JsonViewer({ data, title }: { data: any; title: string }) {
   const [copied, setCopied] = useState(false);
   
@@ -58,15 +60,16 @@ function JsonViewer({ data, title }: { data: any; title: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       toast.success("JSON copied to clipboard");
-    } catch (error) {
+    } catch {
       toast.error("Failed to copy JSON");
     }
   };
 
-  const formatJsonWithSyntaxHighlight = (obj: any): JSX.Element => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const formatJsonWithSyntaxHighlight = (obj: any): React.JSX.Element => {
     if (obj === null) return <span className="text-gray-500">null</span>;
     if (obj === undefined) return <span className="text-gray-500">undefined</span>;
-    if (typeof obj === 'string') return <span className="text-green-600">"{obj}"</span>;
+    if (typeof obj === 'string') return <span className="text-green-600">&quot;{obj}&quot;</span>;
     if (typeof obj === 'number') return <span className="text-blue-600">{obj}</span>;
     if (typeof obj === 'boolean') return <span className="text-purple-600">{obj.toString()}</span>;
     
@@ -91,7 +94,7 @@ function JsonViewer({ data, title }: { data: any; title: string }) {
           <span className="text-gray-600">{'{'}</span>
           {Object.entries(obj).map(([key, value], index, array) => (
             <div key={key} className="ml-4">
-              <span className="text-red-600">"{key}"</span>
+              <span className="text-red-600">&quot;{key}&quot;</span>
               <span className="text-gray-600">: </span>
               {formatJsonWithSyntaxHighlight(value)}
               {index < array.length - 1 && <span className="text-gray-600">,</span>}
@@ -145,17 +148,14 @@ function JsonViewer({ data, title }: { data: any; title: string }) {
 export default function AuditTable({ className }: AuditTableProps) {
   const [data, setData] = useState<AuditData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-  
-  // Filter and pagination state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [actionFilter, setActionFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [pageSize, setPageSize] = useState(10);
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [actionFilter, setActionFilter] = useState('all');
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -184,17 +184,17 @@ export default function AuditTable({ className }: AuditTableProps) {
         console.error('Audit API error:', result.error);
         toast.error(result.error || 'Failed to load audit logs');
       }
-    } catch (error) {
-      console.error('Error fetching audit logs:', error);
+    } catch (_error) {
+      console.error('Error fetching audit logs:', _error);
       toast.error('Failed to load audit logs');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, sortBy, sortOrder, pageSize, actionFilter, searchQuery]);
 
   useEffect(() => {
     fetchAuditLogs();
-  }, [currentPage, sortBy, sortOrder, pageSize, actionFilter]);
+  }, [fetchAuditLogs]);
 
   // Debounced search effect
   useEffect(() => {
@@ -207,7 +207,7 @@ export default function AuditTable({ className }: AuditTableProps) {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, currentPage, fetchAuditLogs]);
 
   const handleSort = (column: string) => {
     if (sortBy === column) {
@@ -242,6 +242,7 @@ export default function AuditTable({ className }: AuditTableProps) {
     return "outline";
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderDetailsPreview = (details: Record<string, any> | null) => {
     if (!details) return <span className="text-muted-foreground text-sm">No details</span>;
     
@@ -402,7 +403,7 @@ export default function AuditTable({ className }: AuditTableProps) {
                   <TableCell>
                     <Dialog>
                       <DialogTrigger asChild>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)}>
+                        <Button variant="ghost" size="sm">
                           <Eye className="h-4 w-4" />
                         </Button>
                       </DialogTrigger>

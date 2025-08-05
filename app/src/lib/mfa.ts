@@ -5,6 +5,10 @@
 
 import { createHash, randomBytes } from 'crypto';
 
+declare const Buffer: {
+  from(data: string, encoding: string): { toString(encoding: string): string };
+};
+
 /**
  * MFA Token validity window (in 30-second intervals)
  */
@@ -26,8 +30,12 @@ export function generateTOTPToken(secret: string, time?: number): string {
   const timeHex = currentTime.toString(16).padStart(16, '0');
   
   const hmac = createHash('sha1');
-  hmac.update(Buffer.from(secret, 'base32'));
-  hmac.update(Buffer.from(timeHex, 'hex'));
+  // Convert base32 secret to binary string
+  const secretBinary = Buffer.from(secret, 'base32').toString('binary');
+  // Convert hex time to binary string
+  const timeBinary = Buffer.from(timeHex, 'hex').toString('binary');
+  hmac.update(secretBinary);
+  hmac.update(timeBinary);
   
   const hash = hmac.digest();
   const offset = hash[hash.length - 1] & 0xf;
@@ -129,7 +137,8 @@ export async function getUserMFASecret(userId: string): Promise<string | null> {
     // For now, we'll use a mock implementation that generates a consistent secret per user
     const mockSecret = createHash('sha256')
       .update(`mfa_secret_${userId}`)
-      .digest('base32')
+      .digest('base64')
+      .replace(/[+/=]/g, '')
       .substring(0, 32);
     
     return mockSecret;

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/utils/db';
 import { projects, jobs, tests, monitors, runs, member } from '@/db/schema/schema';
-import { count, eq, and } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import { requireAuth } from '@/lib/rbac/middleware';
 import { getActiveOrganization, getCurrentUser } from '@/lib/session';
 import { getUserOrgRole } from '@/lib/rbac/middleware';
@@ -9,7 +9,7 @@ import { OrgRole } from '@/lib/rbac/permissions';
 
 export async function GET() {
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const currentUser = await getCurrentUser();
     const activeOrg = await getActiveOrganization();
     
