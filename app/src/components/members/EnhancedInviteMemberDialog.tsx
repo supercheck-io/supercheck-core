@@ -22,7 +22,7 @@ interface Project {
 
 interface ProjectRoleAssignment {
   projectId: string;
-  role: 'project_viewer' | 'project_editor' | 'org_admin' | 'org_owner';
+  role: 'project_viewer' | 'project_editor' | 'project_admin' | 'org_admin' | 'org_owner';
 }
 
 interface EnhancedInviteMemberDialogProps {
@@ -38,12 +38,14 @@ interface EnhancedInviteMemberDialogProps {
 const organizationRoles = [
   { value: 'project_viewer', label: 'Project Viewer', description: 'Read-only access to organization projects' },
   { value: 'project_editor', label: 'Project Editor', description: 'Create and edit tests, jobs, monitors in assigned projects' },
+  { value: 'project_admin', label: 'Project Admin', description: 'Full admin access to assigned projects only' },
   { value: 'org_admin', label: 'Organization Admin', description: 'Can manage organization and invite members' }
 ];
 
 const projectRoles = [
   { value: 'project_viewer', label: 'Project Viewer', description: 'Read-only access to project' },
   { value: 'project_editor', label: 'Project Editor', description: 'Create and edit tests, jobs, monitors' },
+  { value: 'project_admin', label: 'Project Admin', description: 'Full admin access to project' },
   { value: 'org_admin', label: 'Organization Admin', description: 'Manage organization and projects' },
   { value: 'org_owner', label: 'Organization Owner', description: 'Full organization and project control' }
 ];

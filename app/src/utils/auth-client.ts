@@ -12,6 +12,7 @@ export const authClient = createAuthClient({
             roles: {
                 org_owner: roles[Role.ORG_OWNER],
                 org_admin: roles[Role.ORG_ADMIN],
+                project_admin: roles[Role.PROJECT_ADMIN],
                 project_editor: roles[Role.PROJECT_EDITOR],
                 project_viewer: roles[Role.PROJECT_VIEWER]
             }

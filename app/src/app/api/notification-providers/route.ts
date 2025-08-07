@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { notificationProviders, notificationProvidersInsertSchema, alertHistory } from "@/db/schema/schema";
-import { desc, sql, eq, and } from "drizzle-orm";
+import { desc, eq, and, like } from "drizzle-orm";
 import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 import { logAuditEvent } from '@/lib/audit-logger';
@@ -45,8 +45,8 @@ export async function GET() {
           .select({ sentAt: alertHistory.sentAt })
           .from(alertHistory)
           .where(
-            // Use LIKE to find provider type within comma-separated list
-            sql`${alertHistory.provider} LIKE ${'%' + provider.type + '%'}`
+            // Use safe LIKE operator to find provider type within comma-separated list
+            like(alertHistory.provider, `%${provider.type}%`)
           )
           .orderBy(desc(alertHistory.sentAt))
           .limit(1);

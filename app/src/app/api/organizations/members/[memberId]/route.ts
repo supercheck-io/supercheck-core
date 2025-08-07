@@ -38,7 +38,7 @@ export async function PUT(
 
     const { role } = await request.json();
 
-    if (!role || !['project_viewer', 'project_editor', 'org_admin', 'org_owner'].includes(role)) {
+    if (!role || !['project_viewer', 'project_editor', 'project_admin', 'org_admin', 'org_owner'].includes(role)) {
       return NextResponse.json(
         { error: 'Invalid role provided' },
         { status: 400 }
@@ -97,6 +97,8 @@ export async function PUT(
         eq(member.userId, resolvedParams.memberId),
         eq(member.organizationId, activeOrg.id)
       ));
+
+    // Role update completed successfully
 
     // Log the audit event
     await logAuditEvent({

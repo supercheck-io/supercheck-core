@@ -45,6 +45,7 @@ export enum Role {
   SUPER_ADMIN = 'super_admin',
   ORG_OWNER = 'org_owner',
   ORG_ADMIN = 'org_admin',
+  PROJECT_ADMIN = 'project_admin',
   PROJECT_EDITOR = 'project_editor',
   PROJECT_VIEWER = 'project_viewer'
 }
@@ -112,6 +113,27 @@ export const orgAdmin = ac.newRole({
   tag: ["create", "update", "delete", "view"]
 });
 
+// PROJECT_ADMIN: Full project management but limited to assigned projects (no system permissions)
+export const projectAdmin = ac.newRole({
+  // No system permissions
+  system: [],
+  
+  // Limited organization access
+  organization: ["view"],
+  member: ["view"],
+  invitation: ["view"],
+  
+  // Full project admin permissions for assigned projects
+  project: ["view", "manage_members"],
+  test: ["create", "update", "delete", "view", "run"],
+  job: ["create", "update", "delete", "view", "trigger"],
+  monitor: ["create", "update", "delete", "view", "manage"],
+  run: ["view", "delete", "export"],
+  apiKey: ["create", "update", "delete", "view"],
+  notification: ["create", "update", "delete", "view"],
+  tag: ["create", "update", "delete", "view"]
+});
+
 // PROJECT_EDITOR: Can edit assigned projects only (no system permissions)
 export const projectEditor = ac.newRole({
   // No system permissions
@@ -159,6 +181,7 @@ export const roles = {
   [Role.SUPER_ADMIN]: superAdmin,
   [Role.ORG_OWNER]: orgOwner, 
   [Role.ORG_ADMIN]: orgAdmin,
+  [Role.PROJECT_ADMIN]: projectAdmin,
   [Role.PROJECT_EDITOR]: projectEditor,
   [Role.PROJECT_VIEWER]: projectViewer
 };
@@ -201,17 +224,17 @@ export function hasOrganizationWideAccess(role: Role): boolean {
 
 // Helper function to check if role is limited to assigned projects
 export function isProjectLimitedRole(role: Role): boolean {
-  return role === Role.PROJECT_EDITOR;
+  return [Role.PROJECT_ADMIN, Role.PROJECT_EDITOR].includes(role);
 }
 
 // Helper function to check if role can edit resources  
 export function canEditResources(role: Role): boolean {
-  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_EDITOR].includes(role);
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_ADMIN, Role.PROJECT_EDITOR].includes(role);
 }
 
 // Helper function to check if role can delete resources
 export function canDeleteResources(role: Role): boolean {
-  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN].includes(role);
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_ADMIN].includes(role);
 }
 
 // Permission context for checking user permissions
@@ -248,8 +271,8 @@ export function hasPermission(
     return false;
   }
   
-  // Special case: PROJECT_EDITOR has viewer access to all projects, but edit access only to assigned projects
-  if (context.role === Role.PROJECT_EDITOR && 
+  // Special case: PROJECT_ADMIN and PROJECT_EDITOR have viewer access to all projects, but edit access only to assigned projects
+  if ([Role.PROJECT_ADMIN, Role.PROJECT_EDITOR].includes(context.role) && 
       ['project', 'test', 'job', 'monitor', 'run', 'apiKey', 'notification'].includes(resource) &&
       context.projectId && 
       !context.assignedProjectIds?.includes(context.projectId)) {
@@ -259,8 +282,8 @@ export function hasPermission(
     }
   }
 
-  // Special case: For tags, PROJECT_EDITOR can create/delete in assigned projects only
-  if (context.role === Role.PROJECT_EDITOR && 
+  // Special case: For tags, PROJECT_ADMIN and PROJECT_EDITOR can create/delete in assigned projects only
+  if ([Role.PROJECT_ADMIN, Role.PROJECT_EDITOR].includes(context.role) && 
       resource === 'tag' &&
       context.projectId && 
       !context.assignedProjectIds?.includes(context.projectId)) {
@@ -270,7 +293,7 @@ export function hasPermission(
     }
   }
 
-  // Special case: PROJECT_EDITOR can delete resources they created
+  // Special case: PROJECT_EDITOR can delete resources they created (PROJECT_ADMIN can delete all resources in assigned projects)
   if (context.role === Role.PROJECT_EDITOR && 
       action === 'delete' &&
       ['test', 'job', 'monitor', 'notification', 'tag'].includes(resource) &&

@@ -19,25 +19,7 @@ import { inviteMemberSchema } from "@/lib/validations/member";
 // import { useFormValidation } from "@/hooks/use-form-validation";
 import { useBreadcrumbs } from "@/components/breadcrumb-context";
 import { canCreateProjects, canInviteMembers, canManageProject, convertStringToRole } from "@/lib/rbac/client-permissions";
-import { Role } from "@/lib/rbac/permissions";
-import { normalizeRole } from "@/lib/rbac/role-normalizer";
 import { z } from "zod";
-
-// Helper function to convert Role enum to expected member role format
-function roleEnumToMemberRole(role: Role): 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer' {
-  switch (role) {
-    case Role.SUPER_ADMIN:
-    case Role.ORG_OWNER:
-      return 'org_owner';
-    case Role.ORG_ADMIN:
-      return 'org_admin';
-    case Role.PROJECT_EDITOR:
-      return 'project_editor';
-    case Role.PROJECT_VIEWER:
-    default:
-      return 'project_viewer';
-  }
-}
 
 interface OrgStats {
   projects: number;
@@ -52,7 +34,7 @@ interface OrgMember {
   id: string;
   name: string;
   email: string;
-  role: 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer';
+  role: 'org_owner' | 'org_admin' | 'project_admin' | 'project_editor' | 'project_viewer';
   joinedAt: string;
 }
 
@@ -110,7 +92,7 @@ export default function OrgAdminDashboard() {
   const [inviting, setInviting] = useState(false);
   const [inviteData, setInviteData] = useState({
     email: "",
-    role: "project_editor" as 'project_editor' | 'org_admin' | 'project_viewer',
+    role: "project_editor" as 'project_editor' | 'project_admin' | 'org_admin' | 'project_viewer',
     selectedProjects: [] as string[]
   });
   
@@ -722,7 +704,7 @@ export default function OrgAdminDashboard() {
                     ...(members || []).map(m => ({ 
                       ...m, 
                       type: 'member' as const,
-                      role: roleEnumToMemberRole(normalizeRole(m.role))
+                      role: m.role as 'org_owner' | 'org_admin' | 'project_admin' | 'project_editor' | 'project_viewer'
                     })),
                     ...(invitations || [])
                       .filter(i => i.status === 'pending' || i.status === 'expired')
@@ -774,7 +756,7 @@ export default function OrgAdminDashboard() {
                   <Label htmlFor="role">Role</Label>
                   <Select
                     value={inviteData.role}
-                    onValueChange={(value) => setInviteData({ ...inviteData, role: value as 'project_editor' | 'org_admin' | 'project_viewer' })}
+                    onValueChange={(value) => setInviteData({ ...inviteData, role: value as 'project_editor' | 'project_admin' | 'org_admin' | 'project_viewer' })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select role" />
@@ -798,6 +780,15 @@ export default function OrgAdminDashboard() {
                           </div>
                         </div>
                       </SelectItem>
+                      <SelectItem value="project_admin">
+                        <div className="flex items-center space-x-2 text-left">
+                          <Shield className="h-4 w-4 text-indigo-600" />
+                          <div>
+                            <div className="font-medium">Project Admin</div>
+                            <div className="text-xs text-muted-foreground">Full admin access to selected projects</div>
+                          </div>
+                        </div>
+                      </SelectItem>
                       <SelectItem value="org_admin">
                         <div className="flex items-center space-x-2 text-left">
                           <Shield className="h-4 w-4 text-blue-600" />
@@ -812,12 +803,12 @@ export default function OrgAdminDashboard() {
                 </div>
                 
                 {/* Project Selection */}
-                {inviteData.role === 'project_editor' && (
+                {(inviteData.role === 'project_editor' || inviteData.role === 'project_admin') && (
                   <div className="space-y-3">
                     <div className="space-y-1">
                       <Label>Project Access</Label>
                       <p className="text-xs text-muted-foreground">
-                        Select projects to edit (viewer access to all projects)
+                        Select projects for {inviteData.role === 'project_admin' ? 'admin access' : 'editing'} (viewer access to all projects)
                       </p>
                     </div>
                     
@@ -888,7 +879,7 @@ export default function OrgAdminDashboard() {
                 </Button>
                 <Button 
                   onClick={handleInviteMember} 
-                  disabled={inviting || (inviteData.role === 'project_editor' && inviteData.selectedProjects.length === 0) || !inviteData.email.trim()}
+                  disabled={inviting || ((inviteData.role === 'project_editor' || inviteData.role === 'project_admin') && inviteData.selectedProjects.length === 0) || !inviteData.email.trim()}
                 >
                   {inviting ? "Sending..." : "Send Invitation"}
                 </Button>

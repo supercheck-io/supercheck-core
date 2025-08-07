@@ -7,7 +7,7 @@ import { headers } from 'next/headers';
 import { db } from '@/utils/db';
 import { organization, projects, member, session, user } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
-import { getUserRole, getUserOrgRole, getUserAssignedProjects } from './rbac/middleware';
+import { getUserRole, getUserOrgRole } from './rbac/middleware';
 import { Role } from './rbac/permissions';
 
 export interface UserSession {
@@ -167,8 +167,8 @@ export async function getActiveProject(): Promise<ProjectWithRole | null> {
 
     const project = projectData[0];
     
-    // Use the organization role as the project role in unified RBAC
-    const role = activeOrg.role;
+    // Get the user's project-specific role (considers project assignments)
+    const role = await getUserProjectRole(user.id, activeOrg.id, project.id);
 
     return {
       id: project.id,
@@ -250,8 +250,8 @@ export async function getUserProjects(userId: string, organizationId: string): P
         eq(projects.status, 'active')
       ));
 
-    // For PROJECT_EDITOR - check which projects they have edit access to
-    if (orgRole === Role.PROJECT_EDITOR) {
+    // For PROJECT_ADMIN and PROJECT_EDITOR - check which projects they have specific access to
+    if (orgRole === Role.PROJECT_ADMIN || orgRole === Role.PROJECT_EDITOR) {
       const { projectMembers } = await import('@/db/schema/schema');
       
       const assignedProjectIds = await db
@@ -270,8 +270,8 @@ export async function getUserProjects(userId: string, organizationId: string): P
         isDefault: project.isDefault,
         status: project.status as 'active' | 'archived' | 'deleted',
         createdAt: project.createdAt || new Date(),
-        // PROJECT_EDITOR gets viewer access to all projects, editor access to assigned ones
-        role: assignedIds.has(project.id) ? Role.PROJECT_EDITOR : Role.PROJECT_VIEWER,
+        // PROJECT_ADMIN/PROJECT_EDITOR gets viewer access to all projects, admin/editor access to assigned ones
+        role: assignedIds.has(project.id) ? orgRole : Role.PROJECT_VIEWER,
         isActive: false
       }));
     }
@@ -308,6 +308,8 @@ function convertRoleToUnified(roleString: string | null): Role {
       return Role.ORG_OWNER;
     case 'org_admin':
       return Role.ORG_ADMIN;
+    case 'project_admin':
+      return Role.PROJECT_ADMIN;
     case 'project_editor':
       return Role.PROJECT_EDITOR;
     case 'project_viewer':
@@ -316,6 +318,43 @@ function convertRoleToUnified(roleString: string | null): Role {
       return Role.SUPER_ADMIN;
     default:
       return Role.PROJECT_VIEWER;
+  }
+}
+
+/**
+ * Get user's role for a specific project (takes into account project-specific assignments)
+ */
+export async function getUserProjectRole(userId: string, organizationId: string, projectId: string): Promise<Role> {
+  try {
+    // Get user's organization role first
+    const orgRole = await getUserOrgRole(userId, organizationId);
+    if (!orgRole) {
+      return Role.PROJECT_VIEWER;
+    }
+
+    // For PROJECT_ADMIN and PROJECT_EDITOR, check if they're assigned to this specific project
+    if (orgRole === Role.PROJECT_ADMIN || orgRole === Role.PROJECT_EDITOR) {
+      const { projectMembers } = await import('@/db/schema/schema');
+      
+      const assignment = await db
+        .select({ projectId: projectMembers.projectId })
+        .from(projectMembers)
+        .where(and(
+          eq(projectMembers.userId, userId),
+          eq(projectMembers.projectId, projectId)
+        ))
+        .limit(1);
+      
+      // If they're assigned to this project, they have their full role
+      // If not assigned, they have viewer access (project_admin is NOT org admin)
+      return assignment.length > 0 ? orgRole : Role.PROJECT_VIEWER;
+    }
+
+    // For other roles (ORG_OWNER, ORG_ADMIN, PROJECT_VIEWER) - use their org role
+    return orgRole;
+  } catch (error) {
+    console.error('Error getting user project role:', error);
+    return Role.PROJECT_VIEWER;
   }
 }
 
@@ -348,16 +387,8 @@ export async function switchProject(projectId: string): Promise<{ success: boole
       return { success: false, message: 'Project not found' };
     }
 
-    // Check if user has access to this project
-    const userRole = activeOrg.role;
-    
-    // For PROJECT_EDITOR, check if they're assigned to this project
-    if (userRole === Role.PROJECT_EDITOR) {
-      const assignedProjects = await getUserAssignedProjects(user.id);
-      if (!assignedProjects.includes(projectId)) {
-        return { success: false, message: 'Access denied to this project' };
-      }
-    }
+    // For PROJECT_ADMIN and PROJECT_EDITOR, permissions will be determined dynamically
+    // based on project assignments, so no need to block access here
 
     // Update session with new active project
     const authSession = await auth.api.getSession({
@@ -371,6 +402,9 @@ export async function switchProject(projectId: string): Promise<{ success: boole
         .where(eq(session.token, authSession.session.token));
     }
 
+    // Get the user's project-specific role
+    const projectRole = await getUserProjectRole(user.id, activeOrg.id, projectId);
+
     const project: ProjectWithRole = {
       id: projectData.id,
       name: projectData.name,
@@ -380,7 +414,7 @@ export async function switchProject(projectId: string): Promise<{ success: boole
       isDefault: projectData.isDefault,
       status: projectData.status as 'active' | 'archived' | 'deleted',
       createdAt: projectData.createdAt || new Date(),
-      role: userRole,
+      role: projectRole,
       isActive: true
     };
 

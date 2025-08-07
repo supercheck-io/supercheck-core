@@ -175,7 +175,7 @@ export async function POST(
         .values({
           organizationId: invite.organizationId,
           userId: currentUser.id,
-          role: invite.role as 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer',
+          role: invite.role as 'org_owner' | 'org_admin' | 'project_admin' | 'project_editor' | 'project_viewer',
           createdAt: new Date()
         });
     } catch (error: unknown) {
@@ -216,7 +216,7 @@ export async function POST(
                 .values({
                   userId: currentUser.id,
                   projectId: project.id,
-                  role: invite.role as 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer',
+                  role: invite.role as 'org_owner' | 'org_admin' | 'project_admin' | 'project_editor' | 'project_viewer',
                   createdAt: new Date()
                 });
             } catch (error: unknown) {

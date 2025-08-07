@@ -108,13 +108,14 @@ export const statement = {
 
 ## Role System with Better Auth
 
-### The 5 Unified Roles
+### The 6 Unified Roles
 
 1. **SUPER_ADMIN** (`super_admin`) - System-wide access using Better Auth admin plugin
 2. **ORG_OWNER** (`owner`) - Full organization control via Better Auth organization plugin  
 3. **ORG_ADMIN** (`admin`) - Organization management via Better Auth organization plugin
-4. **PROJECT_EDITOR** (`project_editor`) - Custom role for project-specific editing
-5. **PROJECT_VIEWER** (`project_viewer`) - Custom role for read-only access
+4. **PROJECT_ADMIN** (`project_admin`) - Custom role for full project administration within assigned projects
+5. **PROJECT_EDITOR** (`project_editor`) - Custom role for project-specific editing
+6. **PROJECT_VIEWER** (`project_viewer`) - Custom role for read-only access
 
 ### Better Auth Role Mapping
 
@@ -123,6 +124,7 @@ export const roles = {
   [Role.SUPER_ADMIN]: superAdmin,    // Full system access
   [Role.ORG_OWNER]: orgOwner,        // Organization owner permissions
   [Role.ORG_ADMIN]: orgAdmin,        // Organization admin permissions
+  [Role.PROJECT_ADMIN]: projectAdmin, // Project admin permissions
   [Role.PROJECT_EDITOR]: projectEditor,  // Project editing permissions
   [Role.PROJECT_VIEWER]: projectViewer   // Read-only permissions
 };
@@ -149,6 +151,13 @@ ORG_ADMIN (Organization-wide via Better Auth Organization Plugin)
     ├── Full access to all projects in organization
     └── Can create/edit/delete jobs, tests, monitors
 
+PROJECT_ADMIN (Project-specific Role)
+    ├── View organization info
+    ├── Full admin access to assigned projects only
+    ├── Can manage project members within assigned projects
+    ├── Can create/edit/delete jobs, tests, monitors in assigned projects
+    └── Cannot manage organization or add new members
+
 PROJECT_EDITOR (Project-specific Role)
     ├── View organization info
     ├── Edit access to assigned projects only
@@ -164,16 +173,17 @@ PROJECT_VIEWER (Project-specific Role - Read Only)
 
 ### Current Permission Matrix
 
-| Resource | Super Admin | Org Owner | Org Admin | Project Editor | Project Viewer |
-|----------|-------------|-----------|-----------|----------------|----------------|
-| Users (ban/unban) | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Organizations | ✅ | ✅ (own) | ✅ (own) | 👁️ (view) | 👁️ (view) |
-| Organization Members | ✅ | ✅ | ✅ | 👁️ (view) | 👁️ (view) |
-| Projects | ✅ | ✅ | ✅ | 👁️ (assigned) | 👁️ (assigned) |
-| Jobs | ✅ | ✅ | ✅ | ✅ (assigned projects) | 👁️ (assigned projects) |
-| Tests | ✅ | ✅ | ✅ | ✅ (assigned projects) | 👁️ (assigned projects) |
-| Monitors | ✅ | ✅ | ✅ | ✅ (assigned projects) | 👁️ (assigned projects) |
-| Runs | ✅ | ✅ | ✅ | ✅ (assigned projects) | 👁️ (assigned projects) |
+| Resource | Super Admin | Org Owner | Org Admin | Project Admin | Project Editor | Project Viewer |
+|----------|-------------|-----------|-----------|---------------|----------------|----------------|
+| Users (ban/unban) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Organizations | ✅ | ✅ (own) | ✅ (own) | 👁️ (view) | 👁️ (view) | 👁️ (view) |
+| Organization Members | ✅ | ✅ | ✅ | 👁️ (view) | 👁️ (view) | 👁️ (view) |
+| Projects | ✅ | ✅ | ✅ | ✅ (assigned) | 👁️ (assigned) | 👁️ (assigned) |
+| Project Members | ✅ | ✅ | ✅ | ✅ (assigned projects) | 👁️ (assigned projects) | 👁️ (assigned projects) |
+| Jobs | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | 👁️ (assigned projects) |
+| Tests | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | 👁️ (assigned projects) |
+| Monitors | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | 👁️ (assigned projects) |
+| Runs | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | 👁️ (assigned projects) |
 
 Legend: ✅ = Full Access, 👁️ = View Only, ❌ = No Access
 
@@ -687,46 +697,46 @@ export async function POST(request: NextRequest) {
 
 ### Organization-Level Permissions (Better Auth Organization Plugin)
 
-| Permission | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_EDITOR | PROJECT_VIEWER |
-|------------|-------------|-----------|-----------|----------------|----------------|
+| Permission | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_ADMIN | PROJECT_EDITOR | PROJECT_VIEWER |
+|------------|-------------|-----------|-----------|---------------|----------------|----------------|
 | **Organization Management** |
-| organization:create | ✅ | ✅ | ❌ | ❌ | ❌ |
-| organization:update | ✅ | ✅ | ✅ | ❌ | ❌ |
-| organization:delete | ✅ | ✅ | ❌ | ❌ | ❌ |
-| organization:view | ✅ | ✅ | ✅ | ✅ | ✅ |
+| organization:create | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| organization:update | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| organization:delete | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| organization:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Member Management** |
-| member:create | ✅ | ✅ | ✅ | ❌ | ❌ |
-| member:update | ✅ | ✅ | ✅ | ❌ | ❌ |
-| member:delete | ✅ | ✅ | ✅ | ❌ | ❌ |
-| member:view | ✅ | ✅ | ✅ | ✅ | ✅ |
+| member:create | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| member:update | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| member:delete | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| member:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Invitation Management** |
-| invitation:create | ✅ | ✅ | ✅ | ❌ | ❌ |
-| invitation:cancel | ✅ | ✅ | ✅ | ❌ | ❌ |
-| invitation:view | ✅ | ✅ | ✅ | ✅ | ✅ |
+| invitation:create | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| invitation:cancel | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| invitation:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ### Custom Resource Permissions
 
-| Permission | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_EDITOR* | PROJECT_VIEWER |
-|------------|-------------|-----------|-----------|-----------------|----------------|
+| Permission | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_ADMIN* | PROJECT_EDITOR* | PROJECT_VIEWER |
+|------------|-------------|-----------|-----------|----------------|-----------------|----------------|
 | **Project Management** |
-| project:create | ✅ | ✅ | ✅ | ❌ | ❌ |
-| project:update | ✅ | ✅ | ✅ | ❌ | ❌ |
-| project:delete | ✅ | ✅ | ✅ | ❌ | ❌ |
-| project:view | ✅ | ✅ | ✅ | ✅ | ✅ |
+| project:create | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| project:update | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| project:delete | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| project:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Test Management** |
-| test:create | ✅ | ✅ | ✅ | ✅ | ❌ |
-| test:update | ✅ | ✅ | ✅ | ✅ | ❌ |
-| test:delete | ✅ | ✅ | ✅ | ❌ | ❌ |
-| test:view | ✅ | ✅ | ✅ | ✅ | ✅ |
-| test:run | ✅ | ✅ | ✅ | ✅ | ❌ |
+| test:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| test:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| test:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| test:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| test:run | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **Job Management** |
-| job:create | ✅ | ✅ | ✅ | ✅ | ❌ |
-| job:update | ✅ | ✅ | ✅ | ✅ | ❌ |
-| job:delete | ✅ | ✅ | ✅ | ❌ | ❌ |
-| job:view | ✅ | ✅ | ✅ | ✅ | ✅ |
-| job:trigger | ✅ | ✅ | ✅ | ✅ | ❌ |
+| job:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| job:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| job:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| job:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| job:trigger | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 
-*\* PROJECT_EDITOR permissions apply only to their assigned projects*
+*\* PROJECT_ADMIN and PROJECT_EDITOR permissions apply only to their assigned projects*
 
 ## Implementation Files
 

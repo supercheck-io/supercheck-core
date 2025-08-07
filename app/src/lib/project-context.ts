@@ -117,10 +117,10 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
       return await setDefaultProjectInSession();
     }
 
-    // 2. For PROJECT_EDITOR, check if they have project-specific access
-    const finalRole = orgRole;
-    if (orgRole === Role.PROJECT_EDITOR) {
-      console.log('🔍 [ProjectContext] Checking project-specific access for PROJECT_EDITOR');
+    // 2. For PROJECT_ADMIN and PROJECT_EDITOR, check project-specific access
+    let finalRole = orgRole;
+    if (orgRole === Role.PROJECT_ADMIN || orgRole === Role.PROJECT_EDITOR) {
+      console.log(`🔍 [ProjectContext] Checking project-specific access for ${orgRole}`);
       const projectMember = await db
         .select({ role: projectMembers.role })
         .from(projectMembers)
@@ -131,12 +131,14 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
         .limit(1);
       
       if (projectMember.length === 0) {
-        console.log('🔍 [ProjectContext] PROJECT_EDITOR has no project access');
-        return await setDefaultProjectInSession();
+        console.log(`🔍 [ProjectContext] ${orgRole} has no project assignment - giving viewer access`);
+        // For project-limited roles without assignments, give viewer access
+        finalRole = Role.PROJECT_VIEWER;
+      } else {
+        console.log('🔍 [ProjectContext] Project membership found:', projectMember[0]);
+        // Keep the org role as final role when assigned to this project
+        finalRole = orgRole;
       }
-      
-      console.log('🔍 [ProjectContext] Project membership found:', projectMember[0]);
-      // Keep the org role as final role for PROJECT_EDITOR
     }
 
     // 3. Convert Role enum back to string using the normalizer

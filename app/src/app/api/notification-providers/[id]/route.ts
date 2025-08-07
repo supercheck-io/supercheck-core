@@ -7,7 +7,7 @@ import {
   jobNotificationSettings,
   alertHistory
 } from "@/db/schema/schema";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, and, like } from "drizzle-orm";
 import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 
@@ -53,8 +53,8 @@ export async function GET(
       .select({ sentAt: alertHistory.sentAt })
       .from(alertHistory)
       .where(
-        // Use LIKE to find provider type within comma-separated list
-        sql`${alertHistory.provider} LIKE ${'%' + provider.type + '%'}`
+        // Use safe LIKE operator to find provider type within comma-separated list
+        like(alertHistory.provider, `%${provider.type}%`)
       )
       .orderBy(desc(alertHistory.sentAt))
       .limit(1);

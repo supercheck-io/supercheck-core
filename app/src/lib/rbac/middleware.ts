@@ -82,21 +82,36 @@ export async function requirePermission(
  */
 export async function getUserRole(userId: string, organizationId?: string): Promise<Role> {
   // First check if user is SUPER_ADMIN via env vars
-  const adminUserIds = process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()) || [];
-  const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
+  // TODO: Move to database-backed super admin validation for production
+  const adminUserIds = process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()).filter(Boolean) || [];
+  const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim().toLowerCase()).filter(Boolean) || [];
   
-  if (adminUserIds.includes(userId)) {
+  // Validate UUID format for user IDs to prevent injection
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (adminUserIds.some(id => !uuidRegex.test(id))) {
+    console.warn('⚠️ Invalid UUID format in SUPER_ADMIN_USER_IDS environment variable');
+  }
+  
+  // Check user ID against validated admin IDs
+  if (userId && uuidRegex.test(userId) && adminUserIds.includes(userId)) {
+    console.log(`✅ Super admin access granted to user ID: ${userId.substring(0, 8)}...`);
     return Role.SUPER_ADMIN;
   }
 
-  // Check by email
-  const userRecord = await db.select({ email: user.email })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1);
+  // Check by email with additional validation
+  if (adminEmails.length > 0) {
+    const userRecord = await db.select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
 
-  if (userRecord.length > 0 && userRecord[0].email && adminEmails.includes(userRecord[0].email)) {
-    return Role.SUPER_ADMIN;
+    if (userRecord.length > 0 && userRecord[0].email) {
+      const userEmail = userRecord[0].email.toLowerCase();
+      if (adminEmails.includes(userEmail)) {
+        console.log(`✅ Super admin access granted to email: ${userEmail}`);
+        return Role.SUPER_ADMIN;
+      }
+    }
   }
 
   // If organization context is provided, get organization role
@@ -342,7 +357,7 @@ export async function buildUnifiedPermissionContext(
   projectId?: string
 ): Promise<PermissionContext> {
   const role = await getUserRole(userId, organizationId);
-  const assignedProjectIds = role === Role.PROJECT_EDITOR ? await getUserAssignedProjects(userId) : [];
+  const assignedProjectIds = (role === Role.PROJECT_EDITOR || role === Role.PROJECT_ADMIN) ? await getUserAssignedProjects(userId) : [];
   
   return {
     userId,

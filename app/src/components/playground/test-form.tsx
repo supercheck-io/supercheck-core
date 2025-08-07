@@ -156,8 +156,8 @@ export function TestForm({
       return tag.createdByUserId === userId;
     }
     
-    // For ORG_ADMIN, ORG_OWNER, SUPER_ADMIN - they can delete any tag
-    return ['org_admin', 'org_owner', 'super_admin'].includes(role.toString());
+    // For PROJECT_ADMIN, ORG_ADMIN, ORG_OWNER, SUPER_ADMIN - they can delete any tag
+    return ['project_admin', 'org_admin', 'org_owner', 'super_admin'].includes(role.toString());
   };
 
   // Load available tags and test tags

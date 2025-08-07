@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
-import { Role } from '@/lib/rbac/permissions';
+import { requireAuth, hasPermission, getUserRole } from '@/lib/rbac/middleware';
 import { getActiveOrganization, getUserProjects } from '@/lib/session';
 import { getCurrentProjectContext } from '@/lib/project-context';
 import { db } from '@/utils/db';
@@ -117,6 +116,9 @@ export async function POST(request: NextRequest) {
       targetOrgId = activeOrg.id;
     }
     
+    // Get user role for security
+    const userRole = await getUserRole(userId, targetOrgId);
+    
     // Check permission to create projects
     const canCreate = await hasPermission('project', 'create', { organizationId: targetOrgId });
     if (!canCreate) {
@@ -174,7 +176,7 @@ export async function POST(request: NextRequest) {
         projectSlug: newProject.slug,
         description: newProject.description,
         organizationId: targetOrgId,
-        userRole: Role.ORG_OWNER
+        userRole: userRole
       },
       success: true
     });
@@ -190,7 +192,7 @@ export async function POST(request: NextRequest) {
         isDefault: newProject.isDefault,
         status: newProject.status,
         createdAt: newProject.createdAt,
-        role: Role.ORG_OWNER
+        role: userRole
       }
     }, { status: 201 });
     

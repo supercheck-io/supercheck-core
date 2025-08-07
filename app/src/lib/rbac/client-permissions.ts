@@ -17,7 +17,6 @@ export function convertStringToRole(roleString: string): Role {
  * Check if role has permission to perform action on resource
  */
 export function hasPermission(role: Role, resource: string, action: string): boolean {
-  console.log('🔍 [Permissions] hasPermission check:', { role, resource, action });
   let result: boolean;
   switch (role) {
     case Role.SUPER_ADMIN:
@@ -35,6 +34,19 @@ export function hasPermission(role: Role, resource: string, action: string): boo
         result = false;
       } else {
         result = resource !== 'system';
+      }
+      break;
+
+    case Role.PROJECT_ADMIN:
+      // Project admins have full control over assigned projects but limited organization access
+      if (['test', 'job', 'monitor', 'run', 'apiKey', 'notification', 'tag'].includes(resource)) {
+        result = true; // Full access to project resources
+      } else if (resource === 'project') {
+        result = ['view', 'manage_members'].includes(action);
+      } else if (['organization', 'member'].includes(resource)) {
+        result = action === 'view';
+      } else {
+        result = false;
       }
       break;
 
@@ -61,7 +73,6 @@ export function hasPermission(role: Role, resource: string, action: string): boo
       break;
   }
   
-  console.log('🔍 [Permissions] hasPermission result:', result);
   return result;
 }
 
@@ -90,9 +101,7 @@ export function canTriggerJobs(role: Role): boolean {
  * Check if user can create jobs
  */
 export function canCreateJobs(role: Role): boolean {
-  const result = hasPermission(role, 'job', 'create');
-  console.log('🔍 [Permissions] canCreateJobs:', role, '→', result);
-  return result;
+  return hasPermission(role, 'job', 'create');
 }
 
 /**
@@ -253,19 +262,19 @@ export function hasOrganizationWideAccess(role: Role): boolean {
  * Check if role is limited to assigned projects
  */
 export function isProjectLimitedRole(role: Role): boolean {
-  return role === Role.PROJECT_EDITOR;
+  return [Role.PROJECT_ADMIN, Role.PROJECT_EDITOR].includes(role);
 }
 
 /**
  * Check if role can edit resources
  */
 export function canEditResources(role: Role): boolean {
-  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_EDITOR].includes(role);
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_ADMIN, Role.PROJECT_EDITOR].includes(role);
 }
 
 /**
  * Check if role can delete resources
  */
 export function canDeleteResources(role: Role): boolean {
-  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN].includes(role);
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_ADMIN].includes(role);
 }

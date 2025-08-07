@@ -14,6 +14,7 @@ export type RoleStringVariant =
   | 'super_admin'
   | 'org_owner'
   | 'org_admin'
+  | 'project_admin'
   | 'project_editor'
   | 'project_viewer'
   | string;
@@ -44,6 +45,9 @@ export function normalizeRole(roleInput: RoleStringVariant | Role | null | undef
     case 'org_admin':
       return Role.ORG_ADMIN;
 
+    case 'project_admin':
+      return Role.PROJECT_ADMIN;
+
     case 'project_editor':
       return Role.PROJECT_EDITOR;
 
@@ -67,6 +71,8 @@ export function roleToString(role: Role): string {
       return 'org_owner';
     case Role.ORG_ADMIN:
       return 'org_admin';
+    case Role.PROJECT_ADMIN:
+      return 'project_admin';
     case Role.PROJECT_EDITOR:
       return 'project_editor';
     case Role.PROJECT_VIEWER:
@@ -88,6 +94,8 @@ export function roleToDisplayName(role: Role): string {
       return 'Organization Owner';
     case Role.ORG_ADMIN:
       return 'Organization Admin';
+    case Role.PROJECT_ADMIN:
+      return 'Project Admin';
     case Role.PROJECT_EDITOR:
       return 'Project Editor';
     case Role.PROJECT_VIEWER:
@@ -101,7 +109,7 @@ export function roleToDisplayName(role: Role): string {
  * Check if a role string needs normalization
  */
 export function isNormalizedRole(roleString: string): boolean {
-  return ['super_admin', 'org_owner', 'org_admin', 'project_editor', 'project_viewer'].includes(roleString);
+  return ['super_admin', 'org_owner', 'org_admin', 'project_admin', 'project_editor', 'project_viewer'].includes(roleString);
 }
 
 /**
@@ -110,10 +118,12 @@ export function isNormalizedRole(roleString: string): boolean {
 export function getRoleHierarchyLevel(role: Role): number {
   switch (role) {
     case Role.SUPER_ADMIN:
-      return 5;
+      return 6;
     case Role.ORG_OWNER:
-      return 4;
+      return 5;
     case Role.ORG_ADMIN:
+      return 4;
+    case Role.PROJECT_ADMIN:
       return 3;
     case Role.PROJECT_EDITOR:
       return 2;

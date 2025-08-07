@@ -45,6 +45,8 @@ export async function GET() {
       .where(eq(member.organizationId, activeOrg.id))
       .orderBy(desc(member.createdAt));
 
+    // Members fetched successfully
+
     // Get pending invitations for this organization
     const invitations = await db
       .select({

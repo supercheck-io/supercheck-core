@@ -31,7 +31,7 @@ export interface OrgMember {
   id: string;
   name: string;
   email: string;
-  role: 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer';
+  role: 'org_owner' | 'org_admin' | 'project_admin' | 'project_editor' | 'project_viewer';
   joinedAt: string;
   type: 'member';
 }
@@ -135,6 +135,8 @@ const getRoleIcon = (role: string) => {
       return <Crown className="mr-2 h-4 w-4" />;
     case 'org_admin':
       return <Shield className="mr-2 h-4 w-4" />;
+    case 'project_admin':
+      return <Shield className="mr-2 h-4 w-4" />;
     case 'project_editor':
       return <User className="mr-2 h-4 w-4" />;
     case 'project_viewer':
@@ -152,6 +154,8 @@ const getRoleColor = (role: string, isInvitation = false) => {
       return 'bg-purple-100 text-purple-700';
     case 'org_admin':
       return 'bg-blue-100 text-blue-700';
+    case 'project_admin':
+      return 'bg-indigo-100 text-indigo-700';
     case 'project_editor':
       return 'bg-green-100 text-green-700';
     case 'project_viewer':
@@ -220,6 +224,9 @@ const MemberActionsCell = ({
             </SelectItem>
             <SelectItem value="project_editor">
               <span className="text-left">Project Editor</span>
+            </SelectItem>
+            <SelectItem value="project_admin">
+              <span className="text-left">Project Admin</span>
             </SelectItem>
             <SelectItem value="org_admin">
               <span className="text-left">Organization Admin</span>

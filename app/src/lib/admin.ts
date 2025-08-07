@@ -1,6 +1,6 @@
 import { db } from '@/utils/db';
 import { user, organization, projects, jobs, tests, monitors, runs, member } from '@/db/schema/schema';
-import { count, eq, desc, sql, or, isNull } from 'drizzle-orm';
+import { count, eq, desc, or, isNull, gte } from 'drizzle-orm';
 import { getCurrentUser, getActiveOrganization } from './session';
 import { getUserRole, getUserOrgRole } from './rbac/middleware';
 import { Role } from './rbac/permissions';
@@ -78,7 +78,7 @@ export async function getUserStats(): Promise<UserStats> {
   const [newUsersResult] = await db
     .select({ count: count() })
     .from(user)
-    .where(sql`${user.createdAt} >= ${thirtyDaysAgo.toISOString()}`);
+    .where(gte(user.createdAt, thirtyDaysAgo));
   
   const [activeUsersResult] = await db
     .select({ count: count() })
@@ -176,7 +176,7 @@ export async function getAllUsers(limit = 50, offset = 0) {
           getUserHighestRole(u.id),
           getUserOrgCount(u.id)
         ]);
-        console.log(`User ${u.email} (${u.id}): Highest role = ${highestRole}, DB role = ${u.role}, Org count = ${orgCount}`);
+        // Debug logging removed - implementation complete
         
         // Add org count to name if user is in multiple orgs
         const nameWithOrgCount = orgCount > 1 ? `${u.name} (${orgCount} orgs)` : u.name;
@@ -228,10 +228,7 @@ async function getUserHighestRole(userId: string): Promise<string> {
     .from(member)
     .where(eq(member.userId, userId));
 
-  console.log(`User ${userId} memberships:`, memberships);
-
   if (memberships.length === 0) {
-    console.log(`User ${userId} has no org memberships - returning project_viewer`);
     return 'project_viewer'; // Default for users with no org membership
   }
 
@@ -240,6 +237,7 @@ async function getUserHighestRole(userId: string): Promise<string> {
     'super_admin',
     'org_owner', 
     'org_admin',
+    'project_admin',
     'project_editor',
     'project_viewer'
   ];
@@ -247,12 +245,10 @@ async function getUserHighestRole(userId: string): Promise<string> {
   // Find the highest role
   for (const hierarchyRole of roleHierarchy) {
     if (memberships.some(m => m.role === hierarchyRole)) {
-      console.log(`User ${userId} highest role found: ${hierarchyRole}`);
       return hierarchyRole;
     }
   }
 
-  console.log(`User ${userId} no matching role found in hierarchy, membership roles:`, memberships.map(m => m.role));
   return 'project_viewer';
 }
 
