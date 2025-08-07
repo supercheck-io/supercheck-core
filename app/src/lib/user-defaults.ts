@@ -44,7 +44,7 @@ export async function createUserDefaults(userId: string, userName: string, userE
     await db.insert(member).values({
       organizationId: newOrg.id,
       userId: userId,
-      role: 'owner',
+      role: 'org_owner',
       createdAt: new Date(),
     });
 
@@ -64,7 +64,7 @@ export async function createUserDefaults(userId: string, userName: string, userE
     await db.insert(projectMembers).values({
       userId: userId,
       projectId: newProject.id,
-      role: 'owner',
+      role: 'org_owner',
       createdAt: new Date(),
     });
 

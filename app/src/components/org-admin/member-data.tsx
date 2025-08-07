@@ -10,26 +10,26 @@ import {
 
 export const memberRoles = [
   {
-    value: "owner",
-    label: "Owner",
+    value: "org_owner",
+    label: "Organization Owner",
     icon: Crown,
     color: "text-purple-600",
   },
   {
-    value: "admin",
-    label: "Admin",
+    value: "org_admin",
+    label: "Organization Admin",
     icon: Shield,
     color: "text-blue-600",
   },
   {
-    value: "member",
-    label: "Member",
+    value: "project_editor",
+    label: "Project Editor",
     icon: User,
     color: "text-green-600",
   },
   {
-    value: "viewer",
-    label: "Viewer",
+    value: "project_viewer",
+    label: "Project Viewer",
     icon: Eye,
     color: "text-gray-600",
   },

@@ -3,13 +3,13 @@ import { createJob, CreateJobData } from '../create-job';
 // Import modules first
 import { db } from '@/utils/db';
 import { requireProjectContext } from '@/lib/project-context';
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { buildUnifiedPermissionContext, hasPermission } from '@/lib/rbac/middleware';
 import { logAuditEvent } from '@/lib/audit-logger';
 import { scheduleJob } from '@/lib/job-scheduler';
 import { getNextRunDate } from '@/lib/cron-utils';
 import { revalidatePath } from 'next/cache';
 import crypto from 'crypto';
-import { ProjectRole } from '@/lib/rbac/permissions';
+import { UnifiedRole } from '@/lib/rbac/permissions';
 
 // Mock dependencies
 jest.mock('@/utils/db');
@@ -24,7 +24,7 @@ jest.mock('crypto');
 // Type the mocked modules
 const mockDb = jest.mocked(db);
 const mockRequireProjectContext = jest.mocked(requireProjectContext);
-const mockBuildPermissionContext = jest.mocked(buildPermissionContext);
+const mockBuildPermissionContext = jest.mocked(buildUnifiedPermissionContext);
 const mockHasPermission = jest.mocked(hasPermission);
 const mockLogAuditEvent = jest.mocked(logAuditEvent);
 const mockScheduleJob = jest.mocked(scheduleJob);
@@ -47,7 +47,7 @@ describe('createJob server action', () => {
       name: 'Test Project',
       organizationId: 'org-123',
       isDefault: false,
-      userRole: ProjectRole.ADMIN
+      userRole: UnifiedRole.PROJECT_EDITOR
     },
     organizationId: 'org-123',
   };
@@ -72,7 +72,7 @@ describe('createJob server action', () => {
       userId: 'user-123',
       organizationId: 'org-123',
       projectId: 'project-123',
-      projectRole: ProjectRole.ADMIN
+      role: UnifiedRole.PROJECT_EDITOR
     });
     mockHasPermission.mockResolvedValue(true);
     mockCrypto.randomUUID.mockReturnValue('550e8400-e29b-41d4-a716-446655440000');

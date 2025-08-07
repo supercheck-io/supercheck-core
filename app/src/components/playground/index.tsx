@@ -26,6 +26,8 @@ import * as z from "zod";
 import type { editor } from "monaco-editor";
 import type { ScriptType } from "@/lib/script-service";
 import { ReportViewer } from "@/components/shared/report-viewer";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { canRunTests, convertStringToRole } from "@/lib/rbac/client-permissions";
 
 // Define our own TestCaseFormData interface
 interface TestCaseFormData {
@@ -56,6 +58,32 @@ const Playground: React.FC<PlaygroundProps> = ({
   initialTestData,
   initialTestId,
 }) => {
+  // Permission checking
+  const { currentProject } = useProjectContext();
+  const userCanRunTests = currentProject?.userRole ? canRunTests(convertStringToRole(currentProject.userRole)) : false;
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+
+  // Fetch current user ID for permissions
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const response = await fetch('/api/auth/user');
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUserId(userData.user?.id);
+        }
+      } catch (error) {
+        console.error('Error fetching user ID:', error);
+      }
+    };
+    fetchUserId();
+  }, []);
+  
+  // Debug logging
+  if (currentProject?.userRole) {
+    console.log('Playground permissions:', currentProject.userRole, '→', userCanRunTests ? 'CAN' : 'CANNOT', 'run tests');
+  }
+  
   const [activeTab, setActiveTab] = useState<string>("editor");
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -418,6 +446,13 @@ const Playground: React.FC<PlaygroundProps> = ({
   };
 
   const runTest = async () => {
+    if (!userCanRunTests) {
+      toast.error("Insufficient permissions", {
+        description: "You don't have permission to run tests. Contact your organization admin for access.",
+      });
+      return;
+    }
+
     if (isRunning) {
       toast.warning("A script is already running", {
         description: "Please wait for the current script to complete, or cancel it before running a new script.",
@@ -447,12 +482,6 @@ const Playground: React.FC<PlaygroundProps> = ({
     }
 
     setIsRunning(true);
-
-    // Show a loading toast to indicate that the test is running
-    const loadingToastId = toast.loading(`Executing script${testId ? `: ${testCase.title.length > 25 ? testCase.title.substring(0, 25) + '...' : testCase.title}` : ''}`, {
-      description: "Script execution is in progress...",
-      duration: Infinity, // Keep this visible until execution completes
-    });
 
     try {
       console.log("Sending test data to API:", { id: testId, script: editorContent });
@@ -543,8 +572,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                   // Determine if it was a success or failure for the toast
                   const isSuccess = normalizedStatus === "completed" || normalizedStatus === "passed";
                   
-                  // Dismiss loading toast and show completion toast
-                  toast.dismiss(loadingToastId);
+                  // Show completion toast
                   toast[isSuccess ? "success" : "error"](
                     isSuccess ? "Script execution passed" : "Script execution failed",
                     { 
@@ -569,8 +597,6 @@ const Playground: React.FC<PlaygroundProps> = ({
           setIsRunning(false);
           setIsReportLoading(false);
           
-          // Dismiss the loading toast
-          toast.dismiss(loadingToastId);
           
           // Show error toast
           toast.error("Script execution error", {
@@ -595,7 +621,6 @@ const Playground: React.FC<PlaygroundProps> = ({
         };
       } else {
         // If we didn't get a report URL or test ID, something went wrong
-        toast.dismiss(loadingToastId);
         setIsReportLoading(false);
         setIsRunning(false);
         
@@ -629,7 +654,6 @@ const Playground: React.FC<PlaygroundProps> = ({
       }
     } catch (error) {
       console.error("Error running script:", error);
-      toast.dismiss(loadingToastId);
       toast.error("Error running script", {
         description: error instanceof Error ? error.message : "Unknown error",
         duration: 5000,
@@ -677,7 +701,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                   </div>
                   <Button
                     onClick={runTest}
-                    disabled={isRunning || isValidating}
+                    disabled={isRunning || isValidating || !userCanRunTests}
                     className="flex items-center gap-2 bg-[hsl(221.2,83.2%,53.3%)] text-white hover:bg-[hsl(221.2,83.2%,48%)] "
                     size="sm"
                   >
@@ -792,6 +816,8 @@ const Playground: React.FC<PlaygroundProps> = ({
                       isCurrentScriptValidated={isCurrentScriptValidated}
                       isCurrentScriptReadyToSave={isCurrentScriptReadyToSave}
                       testExecutionStatus={testExecutionStatus}
+                      userRole={currentProject?.userRole}
+                      userId={currentUserId}
                     />
                   </div>
                 </ScrollArea>

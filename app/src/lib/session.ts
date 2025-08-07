@@ -1,21 +1,21 @@
 /**
- * Session management utilities with organization and project context
+ * Session management utilities with unified RBAC support
  */
 
 import { auth } from '@/utils/auth';
 import { headers } from 'next/headers';
 import { db } from '@/utils/db';
-import { organization, projects, member, projectMembers, session, user } from '@/db/schema/schema';
+import { organization, projects, member, session, user } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
-import { getUserSystemRole, getUserOrgRole } from './rbac/middleware';
-import { SystemRole, OrgRole, ProjectRole } from './rbac/permissions';
+import { getUserRole, getUserOrgRole, getUserAssignedProjects } from './rbac/middleware';
+import { Role } from './rbac/permissions';
 
 export interface UserSession {
   id: string;
   name: string;
   email: string;
   image?: string;
-  systemRole: SystemRole;
+  role: Role;
 }
 
 export interface OrganizationWithRole {
@@ -24,7 +24,7 @@ export interface OrganizationWithRole {
   slug?: string;
   logo?: string;
   createdAt: Date;
-  role: OrgRole;
+  role: Role;
   isActive: boolean;
 }
 
@@ -37,12 +37,12 @@ export interface ProjectWithRole {
   isDefault: boolean;
   status: 'active' | 'archived' | 'deleted';
   createdAt: Date;
-  role: ProjectRole | null;
+  role: Role | null;
   isActive: boolean;
 }
 
 /**
- * Get current authenticated user with system role
+ * Get current authenticated user with unified role
  * Handles impersonation by checking database session for impersonated user
  */
 export async function getCurrentUser(): Promise<UserSession | null> {
@@ -93,14 +93,14 @@ export async function getCurrentUser(): Promise<UserSession | null> {
       }
     }
 
-    const systemRole = await getUserSystemRole(currentUserId);
+    const role = await getUserRole(currentUserId);
 
     return {
       id: currentUserId,
       name: currentUserData.name,
       email: currentUserData.email,
       image: currentUserData.image || undefined,
-      systemRole
+      role
     };
   } catch (error) {
     console.error('Error getting current user:', error);
@@ -133,32 +133,17 @@ export async function getActiveOrganization(): Promise<OrganizationWithRole | nu
 }
 
 /**
- * Get active project from session
+ * Get active project with unified role
  */
 export async function getActiveProject(): Promise<ProjectWithRole | null> {
   try {
     const user = await getCurrentUser();
     if (!user) return null;
 
-    // Get active project from session
-    const sessionData = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const activeOrg = await getActiveOrganization();
+    if (!activeOrg) return null;
 
-    if (!(sessionData?.session as { activeProjectId?: string })?.activeProjectId) {
-      // If no active project, get the default project from active organization
-      const activeOrg = await getActiveOrganization();
-      if (!activeOrg) return null;
-      
-      const userProjects = await getUserProjects(user.id, activeOrg.id);
-      const defaultProject = userProjects.find(p => p.isDefault) || userProjects[0];
-      
-      return defaultProject || null;
-    }
-
-    const activeProjectId = (sessionData?.session as { activeProjectId?: string })?.activeProjectId;
-    
-    // Get project details with user's role
+    // Get the user's default project or first project
     const projectData = await db
       .select({
         id: projects.id,
@@ -169,33 +154,21 @@ export async function getActiveProject(): Promise<ProjectWithRole | null> {
         isDefault: projects.isDefault,
         status: projects.status,
         createdAt: projects.createdAt,
-        projectRole: projectMembers.role
       })
       .from(projects)
-      .leftJoin(projectMembers, and(
-        eq(projectMembers.projectId, projects.id),
-        eq(projectMembers.userId, user.id)
+      .where(and(
+        eq(projects.organizationId, activeOrg.id),
+        eq(projects.status, 'active')
       ))
-      .where(eq(projects.id, activeProjectId!))
+      .orderBy(projects.isDefault, projects.createdAt)
       .limit(1);
 
     if (projectData.length === 0) return null;
 
     const project = projectData[0];
     
-    // Check if user has access through organization membership
-    let role: ProjectRole | null = null;
-    if (project.projectRole) {
-      role = getUserProjectRoleFromString(project.projectRole);
-    } else {
-      // Check organization role as fallback
-      const orgRole = await getUserOrgRole(user.id, project.organizationId);
-      if (orgRole === OrgRole.OWNER || orgRole === OrgRole.ADMIN) {
-        role = ProjectRole.ADMIN;
-      } else if (orgRole === OrgRole.MEMBER) {
-        role = ProjectRole.VIEWER;
-      }
-    }
+    // Use the organization role as the project role in unified RBAC
+    const role = activeOrg.role;
 
     return {
       id: project.id,
@@ -216,7 +189,7 @@ export async function getActiveProject(): Promise<ProjectWithRole | null> {
 }
 
 /**
- * Get all organizations for a user
+ * Get all organizations for a user with unified roles
  */
 export async function getUserOrganizations(userId: string): Promise<OrganizationWithRole[]> {
   try {
@@ -227,7 +200,7 @@ export async function getUserOrganizations(userId: string): Promise<Organization
         slug: organization.slug,
         logo: organization.logo,
         createdAt: organization.createdAt,
-        userRole: member.role
+        memberRole: member.role,
       })
       .from(organization)
       .innerJoin(member, eq(member.organizationId, organization.id))
@@ -239,8 +212,8 @@ export async function getUserOrganizations(userId: string): Promise<Organization
       slug: org.slug || undefined,
       logo: org.logo || undefined,
       createdAt: org.createdAt,
-      role: getUserOrgRoleFromString(org.userRole),
-      isActive: false // Will be set by caller if needed
+      role: convertRoleToUnified(org.memberRole),
+      isActive: false
     }));
   } catch (error) {
     console.error('Error getting user organizations:', error);
@@ -249,12 +222,18 @@ export async function getUserOrganizations(userId: string): Promise<Organization
 }
 
 /**
- * Get all projects for a user in an organization
+ * Get projects for a user in an organization with unified roles
  */
 export async function getUserProjects(userId: string, organizationId: string): Promise<ProjectWithRole[]> {
   try {
-    // Get projects where user is a direct member
-    const directProjects = await db
+    // Get user's organization role first
+    const orgRole = await getUserOrgRole(userId, organizationId);
+    if (!orgRole) {
+      return [];
+    }
+
+    // Get all projects in the organization
+    const projectsData = await db
       .select({
         id: projects.id,
         name: projects.name,
@@ -264,65 +243,41 @@ export async function getUserProjects(userId: string, organizationId: string): P
         isDefault: projects.isDefault,
         status: projects.status,
         createdAt: projects.createdAt,
-        projectRole: projectMembers.role
       })
       .from(projects)
-      .innerJoin(projectMembers, eq(projectMembers.projectId, projects.id))
       .where(and(
         eq(projects.organizationId, organizationId),
-        eq(projectMembers.userId, userId),
         eq(projects.status, 'active')
       ));
 
-    // Get organization role to check for additional project access
-    const orgRole = await getUserOrgRole(userId, organizationId);
-    
-    // If user is org owner/admin, they get access to all projects
-    let allProjects = directProjects;
-    if (orgRole === OrgRole.OWNER || orgRole === OrgRole.ADMIN) {
-      const orgProjects = await db
-        .select({
-          id: projects.id,
-          name: projects.name,
-          slug: projects.slug,
-          description: projects.description,
-          organizationId: projects.organizationId,
-          isDefault: projects.isDefault,
-          status: projects.status,
-          createdAt: projects.createdAt
-        })
-        .from(projects)
-        .where(and(
-          eq(projects.organizationId, organizationId),
-          eq(projects.status, 'active')
-        ));
+    // For PROJECT_EDITOR - check which projects they have edit access to
+    if (orgRole === Role.PROJECT_EDITOR) {
+      const { projectMembers } = await import('@/db/schema/schema');
+      
+      const assignedProjectIds = await db
+        .select({ projectId: projectMembers.projectId })
+        .from(projectMembers)
+        .where(eq(projectMembers.userId, userId));
+      
+      const assignedIds = new Set(assignedProjectIds.map(p => p.projectId));
 
-      // Merge and deduplicate
-      const projectMap = new Map();
-      
-      // Add direct projects first
-      directProjects.forEach(p => {
-        projectMap.set(p.id, {
-          ...p,
-          role: getUserProjectRoleFromString(p.projectRole)
-        });
-      });
-      
-      // Add org projects (if not already present)
-      orgProjects.forEach(p => {
-        if (!projectMap.has(p.id)) {
-          projectMap.set(p.id, {
-            ...p,
-            projectRole: null,
-            role: ProjectRole.ADMIN // Org admins get admin access
-          });
-        }
-      });
-      
-      allProjects = Array.from(projectMap.values());
+      return projectsData.map(project => ({
+        id: project.id,
+        name: project.name,
+        slug: project.slug || undefined,
+        description: project.description || undefined,
+        organizationId: project.organizationId,
+        isDefault: project.isDefault,
+        status: project.status as 'active' | 'archived' | 'deleted',
+        createdAt: project.createdAt || new Date(),
+        // PROJECT_EDITOR gets viewer access to all projects, editor access to assigned ones
+        role: assignedIds.has(project.id) ? Role.PROJECT_EDITOR : Role.PROJECT_VIEWER,
+        isActive: false
+      }));
     }
 
-    return allProjects.map(project => ({
+    // For other roles (ORG_OWNER, ORG_ADMIN, PROJECT_VIEWER) - use their org role for all projects
+    return projectsData.map(project => ({
       id: project.id,
       name: project.name,
       slug: project.slug || undefined,
@@ -331,9 +286,11 @@ export async function getUserProjects(userId: string, organizationId: string): P
       isDefault: project.isDefault,
       status: project.status as 'active' | 'archived' | 'deleted',
       createdAt: project.createdAt || new Date(),
-      role: getUserProjectRoleFromString(project.projectRole),
-      isActive: false // Will be set by caller if needed
+      role: orgRole,
+      isActive: false
     }));
+
+    return [];
   } catch (error) {
     console.error('Error getting user projects:', error);
     return [];
@@ -341,69 +298,95 @@ export async function getUserProjects(userId: string, organizationId: string): P
 }
 
 /**
- * Organization switching is disabled - users have a single fixed organization
+ * Convert role strings to unified roles
  */
-
-/**
- * Switch active project
- */
-export async function switchActiveProject(projectId: string): Promise<boolean> {
-  try {
-    const user = await getCurrentUser();
-    const activeOrg = await getActiveOrganization();
-    
-    if (!user || !activeOrg) return false;
-
-    // Verify user has access to this project
-    const userProjects = await getUserProjects(user.id, activeOrg.id);
-    const targetProject = userProjects.find(proj => proj.id === projectId);
-    
-    if (!targetProject) return false;
-
-    // Update session - this would need to be implemented based on your session strategy
-    // You might need to call Better Auth API to update the session
-    
-    return true;
-  } catch (error) {
-    console.error('Error switching project:', error);
-    return false;
-  }
-}
-
-/**
- * Helper to convert string role to OrgRole enum
- */
-function getUserOrgRoleFromString(roleString: string): OrgRole {
-  switch (roleString) {
-    case 'owner':
-      return OrgRole.OWNER;
-    case 'admin':
-      return OrgRole.ADMIN;
-    case 'member':
-      return OrgRole.MEMBER;
-    case 'viewer':
-      return OrgRole.VIEWER;
-    default:
-      return OrgRole.MEMBER;
-  }
-}
-
-/**
- * Helper to convert string role to ProjectRole enum
- */
-function getUserProjectRoleFromString(roleString: string | null): ProjectRole | null {
-  if (!roleString) return null;
+function convertRoleToUnified(roleString: string | null): Role {
+  if (!roleString) return Role.PROJECT_VIEWER;
   
   switch (roleString) {
-    case 'owner':
-      return ProjectRole.OWNER;
-    case 'admin':
-      return ProjectRole.ADMIN;
-    case 'editor':
-      return ProjectRole.EDITOR;
-    case 'viewer':
-      return ProjectRole.VIEWER;
+    case 'org_owner':
+      return Role.ORG_OWNER;
+    case 'org_admin':
+      return Role.ORG_ADMIN;
+    case 'project_editor':
+      return Role.PROJECT_EDITOR;
+    case 'project_viewer':
+      return Role.PROJECT_VIEWER;
+    case 'super_admin':
+      return Role.SUPER_ADMIN;
     default:
-      return ProjectRole.VIEWER;
+      return Role.PROJECT_VIEWER;
+  }
+}
+
+/**
+ * Switch user to a different project
+ */
+export async function switchProject(projectId: string): Promise<{ success: boolean; message?: string; project?: ProjectWithRole }> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, message: 'Not authenticated' };
+    }
+
+    const activeOrg = await getActiveOrganization();
+    if (!activeOrg) {
+      return { success: false, message: 'No active organization' };
+    }
+
+    // Get the specific project
+    const [projectData] = await db
+      .select()
+      .from(projects)
+      .where(and(
+        eq(projects.id, projectId),
+        eq(projects.organizationId, activeOrg.id)
+      ))
+      .limit(1);
+
+    if (!projectData) {
+      return { success: false, message: 'Project not found' };
+    }
+
+    // Check if user has access to this project
+    const userRole = activeOrg.role;
+    
+    // For PROJECT_EDITOR, check if they're assigned to this project
+    if (userRole === Role.PROJECT_EDITOR) {
+      const assignedProjects = await getUserAssignedProjects(user.id);
+      if (!assignedProjects.includes(projectId)) {
+        return { success: false, message: 'Access denied to this project' };
+      }
+    }
+
+    // Update session with new active project
+    const authSession = await auth.api.getSession({
+      headers: await headers(),
+    });
+    
+    if (authSession) {
+      await db
+        .update(session)
+        .set({ activeProjectId: projectId })
+        .where(eq(session.token, authSession.session.token));
+    }
+
+    const project: ProjectWithRole = {
+      id: projectData.id,
+      name: projectData.name,
+      slug: projectData.slug || undefined,
+      description: projectData.description || undefined,
+      organizationId: projectData.organizationId,
+      isDefault: projectData.isDefault,
+      status: projectData.status as 'active' | 'archived' | 'deleted',
+      createdAt: projectData.createdAt || new Date(),
+      role: userRole,
+      isActive: true
+    };
+
+    return { success: true, project };
+  } catch (error) {
+    console.error('Error switching project:', error);
+    return { success: false, message: 'Internal error' };
   }
 }

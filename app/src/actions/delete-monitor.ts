@@ -5,6 +5,7 @@ import { monitors, monitorResults } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
+import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function deleteMonitor(monitorId: string) {
@@ -20,6 +21,17 @@ export async function deleteMonitor(monitorId: string) {
 
     // Get current project context (includes auth verification)
     const { userId, project, organizationId } = await requireProjectContext();
+
+    // Check DELETE_MONITORS permission
+    const canDeleteMonitors = await hasPermission('monitor', 'delete', { organizationId, projectId: project.id });
+    
+    if (!canDeleteMonitors) {
+      console.warn(`User ${userId} attempted to delete monitor ${monitorId} without DELETE_MONITORS permission`);
+      return {
+        success: false,
+        error: "Insufficient permissions to delete monitors",
+      };
+    }
 
     const dbInstance = db;
 

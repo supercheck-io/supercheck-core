@@ -1,14 +1,17 @@
 "use server";
 
 import { db } from "@/utils/db";
-import { runs, reports, jobs, jobTests } from "@/db/schema/schema";
+import { runs, reports, jobs, jobTests, projects } from "@/db/schema/schema";
 import { eq, and, count } from "drizzle-orm";
+import { requireAuth, getUserRole, getUserOrgRole } from "@/lib/rbac/middleware";
+import { Role } from "@/lib/rbac/permissions";
 
 // Type based on the actual API response from /api/runs/[runId]
 type RunResponse = {
   id: string;
   jobId: string;
   jobName?: string | undefined;
+  projectName?: string | undefined;
   status: string;
   duration?: string | null;
   startedAt?: string | null;
@@ -27,12 +30,16 @@ export async function getRun(runId: string): Promise<RunResponse | null> {
       throw new Error("Missing run ID");
     }
 
+    // Check authentication
+    const { userId } = await requireAuth();
+
     // First, find the run and its associated job/project without filtering by active project
     const result = await db
       .select({
         id: runs.id,
         jobId: runs.jobId,
         jobName: jobs.name,
+        projectName: projects.name,
         status: runs.status,
         duration: runs.duration,
         startedAt: runs.startedAt,
@@ -46,6 +53,7 @@ export async function getRun(runId: string): Promise<RunResponse | null> {
       })
       .from(runs)
       .leftJoin(jobs, eq(runs.jobId, jobs.id))
+      .leftJoin(projects, eq(jobs.projectId, projects.id))
       .leftJoin(
         reports, 
         and(
@@ -61,6 +69,17 @@ export async function getRun(runId: string): Promise<RunResponse | null> {
     }
 
     const run = result[0];
+
+    // Check if user has access to this run's organization
+    const userRole = await getUserRole(userId);
+    
+    if (userRole !== Role.SUPER_ADMIN && run.organizationId) {
+      const orgRole = await getUserOrgRole(userId, run.organizationId);
+      
+      if (!orgRole) {
+        throw new Error('Access denied: Not a member of this organization');
+      }
+    }
     
     // Get test count for this job
     const testCountResult = await db
@@ -73,6 +92,7 @@ export async function getRun(runId: string): Promise<RunResponse | null> {
     const response: RunResponse = {
       ...run,
       jobName: run.jobName || undefined,
+      projectName: run.projectName || undefined,
       startedAt: run.startedAt?.toISOString() || null,
       completedAt: run.completedAt?.toISOString() || null,
       testCount,

@@ -25,13 +25,13 @@ export function AdminDataTablePagination<TData>({
   itemName = "items",
 }: AdminDataTablePaginationProps<TData>) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-t border-border rounded-b-lg">
+    <div className="flex items-center justify-between px-2 -mb-2">
        <div className="flex-1 text-sm text-muted-foreground">
          Total {table.getRowCount()} {itemName}
        </div>
       <div className="flex items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium">Rows per page</p>
+          <p className="text-sm">Rows per page</p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
@@ -42,7 +42,7 @@ export function AdminDataTablePagination<TData>({
               <SelectValue />
             </SelectTrigger>
             <SelectContent side="top">
-              {[6, 12, 25, 50, 100].map((pageSize) => (
+              {[7, 12, 25, 50, 100].map((pageSize) => (
                 <SelectItem key={pageSize} value={`${pageSize}`}>
                   {pageSize}
                 </SelectItem>
@@ -50,7 +50,7 @@ export function AdminDataTablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+        <div className="flex w-[100px] items-center justify-center text-sm">
           Page {table.getState().pagination.pageIndex + 1} of{" "}
           {table.getPageCount()}
         </div>

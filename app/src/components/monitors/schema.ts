@@ -36,6 +36,7 @@ export const monitorSchema = z.object({
   mutedUntil: z.string().nullable().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
+  projectName: z.string().optional(),
   
   // Legacy fields for backward compatibility
   url: z.string().optional(),

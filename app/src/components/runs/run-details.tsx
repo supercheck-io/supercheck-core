@@ -10,11 +10,15 @@ import {
   ChevronLeft,
   CalendarClock,
   Copy,
-  Calendar,
   Trash2,
   Code2,
-  CalendarDays
+  CalendarDays,
+  ActivityIcon,
+  FolderOpen
 } from "lucide-react";
+import { canManageMonitors } from "@/lib/rbac/client-permissions";
+import { Role } from "@/lib/rbac/permissions";
+import { LoadingBadge, Spinner } from "@/components/ui/spinner";
 import { RunStatusListener } from "./run-status-listener";
 import { TestRunStatus } from "@/db/schema/schema";
 import { Button } from "@/components/ui/button";
@@ -36,6 +40,7 @@ type RunResponse = {
   id: string;
   jobId: string;
   jobName?: string;
+  projectName?: string;
   status: string;
   duration?: string | null;
   startedAt?: string | null;
@@ -54,6 +59,8 @@ export function RunDetails({ run }: { run: RunResponse }) {
   const [duration, setDuration] = useState<string | undefined>(run.duration || undefined);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [userRole, setUserRole] = useState<Role | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   // Helper to validate status is one of the allowed values
   const mapStatusForDisplay = (status: string): TestRunStatus => {
@@ -92,6 +99,30 @@ export function RunDetails({ run }: { run: RunResponse }) {
     // Always update status and duration regardless of reportUrl
     setCurrentStatus(mapStatusForDisplay(run.status as TestRunStatus));
     setDuration(run.duration || undefined);
+    
+    // Fetch user permissions for this run
+    const fetchPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const response = await fetch(`/api/runs/${run.id}/permissions`);
+        
+        if (!response.ok) {
+          console.error('Failed to fetch permissions:', response.status);
+          return;
+        }
+        
+        const data = await response.json();
+        if (data.success && data.data) {
+          setUserRole(data.data.userRole);
+        }
+      } catch (error) {
+        console.error('Error fetching permissions:', error);
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    fetchPermissions();
     
     // No need for refresh timer since we're using SSE for real-time updates
   }, [run.reportUrl, run.status, run.id, run.duration]);
@@ -217,16 +248,32 @@ export function RunDetails({ run }: { run: RunResponse }) {
               
             </div>
           </div>
-          <Button 
-            variant="outline"
-            size="sm"
-            className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
-          
-            onClick={() => setShowDeleteDialog(true)}
-          >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Delete
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Loading permissions */}
+            {permissionsLoading && <LoadingBadge />}
+            
+            {/* Access level badge */}
+            {!permissionsLoading && userRole && !canManageMonitors(userRole) && (
+              <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                <ActivityIcon className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs text-blue-700 dark:text-blue-300">
+                  View-only Access
+                </span>
+              </div>
+            )}
+            
+            {!permissionsLoading && userRole && canManageMonitors(userRole) && (
+              <Button 
+                variant="outline"
+                size="sm"
+                className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Status cards - similar to monitor details but with appropriate content */}
@@ -291,18 +338,11 @@ export function RunDetails({ run }: { run: RunResponse }) {
           </div>
 
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
-            <Calendar className="h-6 w-6 min-w-6 mr-2 text-amber-400" />
+            <FolderOpen className="h-6 w-6 min-w-6 mr-2 text-amber-400" />
             <div className="min-w-0 w-full">
-              <div className="text-xs font-medium text-muted-foreground">Run Date</div>
+              <div className="text-xs font-medium text-muted-foreground">Project</div>
               <div className="text-sm font-semibold truncate">
-                {run.startedAt ? new Date(run.startedAt).toLocaleString('en-GB', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: false,
-                }) : "Unknown"}
+                {run.projectName || "No Project"}
               </div>
             </div>
           </div>
@@ -364,7 +404,12 @@ export function RunDetails({ run }: { run: RunResponse }) {
               disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700"
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+{isDeleting ? (
+                <div className="flex items-center gap-2">
+                  <Spinner size="sm" />
+                  Deleting...
+                </div>
+              ) : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

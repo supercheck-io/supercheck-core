@@ -99,7 +99,8 @@ CREATE TABLE "invitation" (
 	"role" text,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"expires_at" timestamp NOT NULL,
-	"inviter_id" uuid NOT NULL
+	"inviter_id" uuid NOT NULL,
+	"selected_projects" text
 );
 --> statement-breakpoint
 CREATE TABLE "job_notification_settings" (
@@ -151,7 +152,8 @@ CREATE TABLE "member" (
 	"organization_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"role" text DEFAULT 'member' NOT NULL,
-	"created_at" timestamp NOT NULL
+	"created_at" timestamp NOT NULL,
+	CONSTRAINT "member_user_id_organization_id_unique" UNIQUE("user_id","organization_id")
 );
 --> statement-breakpoint
 CREATE TABLE "monitor_maintenance_windows" (
@@ -246,7 +248,8 @@ CREATE TABLE "project_members" (
 	"user_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"role" varchar(50) DEFAULT 'member' NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "project_members_user_id_project_id_unique" UNIQUE("user_id","project_id")
 );
 --> statement-breakpoint
 CREATE TABLE "projects" (

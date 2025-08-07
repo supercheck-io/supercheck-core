@@ -4,8 +4,8 @@ import { monitors, monitorResults, monitorsUpdateSchema, monitorNotificationSett
 import { eq, desc, and } from "drizzle-orm";
 import { scheduleMonitor, deleteScheduledMonitor } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireAuth, hasPermission, getUserOrgRole } from '@/lib/rbac/middleware';
+import { isSuperAdmin } from '@/lib/admin';
 
 const RECENT_RESULTS_LIMIT = 1000; // Number of recent results to fetch
 
@@ -20,7 +20,7 @@ export async function GET(
   }
 
   try {
-    await requireAuth();
+    const { userId } = await requireAuth();
     
     // First, find the monitor without filtering by active project
     const monitor = await db.query.monitors.findFirst({
@@ -29,6 +29,36 @@ export async function GET(
 
     if (!monitor) {
       return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+
+    // Check if user has access to this monitor
+    const userIsSuperAdmin = await isSuperAdmin();
+    
+    if (!userIsSuperAdmin && monitor.organizationId && monitor.projectId) {
+      // First, check if user is a member of the organization
+      const orgRole = await getUserOrgRole(userId, monitor.organizationId);
+      
+      if (!orgRole) {
+        return NextResponse.json(
+          { error: 'Access denied: Not a member of this organization' },
+          { status: 403 }
+        );
+      }
+
+      // Then check if they have permission to view monitors
+      try {
+        const canView = await hasPermission('monitor', 'view', { organizationId: monitor.organizationId, projectId: monitor.projectId });
+        
+        if (!canView) {
+          return NextResponse.json(
+            { error: 'Insufficient permissions to view this monitor' },
+            { status: 403 }
+          );
+        }
+      } catch (permissionError) {
+        // If permission check fails but user is org member, allow view access
+        console.log('Permission check failed, but user is org member:', permissionError);
+      }
     }
 
     const recentResults = await db
@@ -72,7 +102,7 @@ export async function PUT(
   }
 
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     
     const rawData = await request.json();
     const validationResult = monitorsUpdateSchema.safeParse(rawData);
@@ -93,21 +123,24 @@ export async function PUT(
     }
     
     // Now check if user has access to this monitor's project
-    if (!currentMonitor.organizationId || !currentMonitor.projectId) {
-      return NextResponse.json(
-        { error: "Monitor data incomplete" },
-        { status: 500 }
-      );
-    }
+    const userIsSuperAdmin = await isSuperAdmin();
     
-    const permissionContext = await buildPermissionContext(userId, 'project', currentMonitor.organizationId, currentMonitor.projectId);
-    const canManage = await hasPermission(permissionContext, ProjectPermission.MANAGE_MONITORS);
-    
-    if (!canManage) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      );
+    if (!userIsSuperAdmin) {
+      if (!currentMonitor.organizationId || !currentMonitor.projectId) {
+        return NextResponse.json(
+          { error: "Monitor data incomplete" },
+          { status: 500 }
+        );
+      }
+      
+      const canManage = await hasPermission('monitor', 'manage', { organizationId: currentMonitor.organizationId, projectId: currentMonitor.projectId });
+      
+      if (!canManage) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions' },
+          { status: 403 }
+        );
+      }
     }
 
     // Validate alert configuration if enabled
@@ -251,7 +284,7 @@ export async function DELETE(
   }
 
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     
     // First, find the monitor without filtering by active project
     const monitorToDelete = await db.query.monitors.findFirst({
@@ -270,8 +303,7 @@ export async function DELETE(
       );
     }
     
-    const permissionContext = await buildPermissionContext(userId, 'project', monitorToDelete.organizationId, monitorToDelete.projectId);
-    const canManage = await hasPermission(permissionContext, ProjectPermission.MANAGE_MONITORS);
+    const canManage = await hasPermission('monitor', 'delete', { organizationId: monitorToDelete.organizationId, projectId: monitorToDelete.projectId });
     
     if (!canManage) {
       return NextResponse.json(
@@ -345,7 +377,7 @@ export async function PATCH(
   }
 
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     
     const rawData = await request.json();
 
@@ -359,21 +391,24 @@ export async function PATCH(
     }
     
     // Now check if user has access to this monitor's project
-    if (!currentMonitor.organizationId || !currentMonitor.projectId) {
-      return NextResponse.json(
-        { error: "Monitor data incomplete" },
-        { status: 500 }
-      );
-    }
+    const userIsSuperAdmin = await isSuperAdmin();
     
-    const permissionContext = await buildPermissionContext(userId, 'project', currentMonitor.organizationId, currentMonitor.projectId);
-    const canManage = await hasPermission(permissionContext, ProjectPermission.MANAGE_MONITORS);
-    
-    if (!canManage) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      );
+    if (!userIsSuperAdmin) {
+      if (!currentMonitor.organizationId || !currentMonitor.projectId) {
+        return NextResponse.json(
+          { error: "Monitor data incomplete" },
+          { status: 500 }
+        );
+      }
+      
+      const canManage = await hasPermission('monitor', 'manage', { organizationId: currentMonitor.organizationId, projectId: currentMonitor.projectId });
+      
+      if (!canManage) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions' },
+          { status: 403 }
+        );
+      }
     }
     
     const updatePayload: Partial<{

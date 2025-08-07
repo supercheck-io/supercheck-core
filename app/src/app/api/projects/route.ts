@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { OrgPermission, ProjectRole } from '@/lib/rbac/permissions';
+import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
+import { Role } from '@/lib/rbac/permissions';
 import { getActiveOrganization, getUserProjects } from '@/lib/session';
 import { getCurrentProjectContext } from '@/lib/project-context';
 import { db } from '@/utils/db';
@@ -23,19 +23,26 @@ export async function GET(request: NextRequest) {
     if (!targetOrgId) {
       const activeOrg = await getActiveOrganization();
       if (!activeOrg) {
-        return NextResponse.json(
-          { error: 'No active organization found' },
-          { status: 400 }
-        );
+        // User has no organization - this is likely a new user
+        // Return empty projects array instead of error to trigger setup flow
+        return NextResponse.json({
+          success: true,
+          data: [],
+          currentProject: null,
+          message: 'No organization found - user needs setup'
+        });
       }
       targetOrgId = activeOrg.id;
     }
     
-    // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'organization', targetOrgId);
-    const canView = await hasPermission(context, OrgPermission.VIEW_ALL_PROJECTS);
+    // Check permissions directly
+    console.log(`[DEBUG] Checking project permissions for user ${userId} in org ${targetOrgId}`);
+    
+    const canView = await hasPermission('project', 'view', { organizationId: targetOrgId });
+    console.log(`[DEBUG] Permission check for VIEW_ALL_PROJECTS: ${canView}`);
     
     if (!canView) {
+      console.log(`[DEBUG] Permission denied for user ${userId} in org ${targetOrgId}`);
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }
@@ -110,11 +117,8 @@ export async function POST(request: NextRequest) {
       targetOrgId = activeOrg.id;
     }
     
-    // Build permission context
-    const context = await buildPermissionContext(userId, 'organization', targetOrgId);
-    
     // Check permission to create projects
-    const canCreate = await hasPermission(context, OrgPermission.CREATE_PROJECTS);
+    const canCreate = await hasPermission('project', 'create', { organizationId: targetOrgId });
     if (!canCreate) {
       return NextResponse.json(
         { error: 'Insufficient permissions to create projects' },
@@ -148,13 +152,13 @@ export async function POST(request: NextRequest) {
       })
       .returning();
     
-    // Add user as owner of the project
+    // Add user as project editor (project ownership is handled by org membership in unified RBAC)
     await db
       .insert(projectMembers)
       .values({
         userId,
         projectId: newProject.id,
-        role: 'owner',
+        role: 'project_editor',
         createdAt: new Date()
       });
     
@@ -170,7 +174,7 @@ export async function POST(request: NextRequest) {
         projectSlug: newProject.slug,
         description: newProject.description,
         organizationId: targetOrgId,
-        userRole: ProjectRole.OWNER
+        userRole: Role.ORG_OWNER
       },
       success: true
     });
@@ -186,7 +190,7 @@ export async function POST(request: NextRequest) {
         isDefault: newProject.isDefault,
         status: newProject.status,
         createdAt: newProject.createdAt,
-        role: ProjectRole.OWNER
+        role: Role.ORG_OWNER
       }
     }, { status: 201 });
     

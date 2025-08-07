@@ -6,6 +6,7 @@ import { db } from "@/utils/db";
 import { 
     monitors, 
     monitorResults, 
+    projects,
     MonitorStatus as DBMoniotorStatusType, 
     MonitorType as DBMonitorType,
     MonitorResultStatus as DBMonitorResultStatusType,
@@ -24,13 +25,34 @@ type MonitorDetailsPageProps = {
 // Direct server-side data fetching function (replaces the old fetchMonitorWithResults that used HTTP fetch)
 async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults | null> {
   try {
-    const monitorData = await db.query.monitors.findFirst({
-      where: eq(monitors.id, id),
-    });
+    const monitorData = await db
+      .select({
+        id: monitors.id,
+        name: monitors.name,
+        target: monitors.target,
+        type: monitors.type,
+        enabled: monitors.enabled,
+        frequencyMinutes: monitors.frequencyMinutes,
+        status: monitors.status,
+        createdAt: monitors.createdAt,
+        updatedAt: monitors.updatedAt,
+        lastCheckAt: monitors.lastCheckAt,
+        config: monitors.config,
+        alertConfig: monitors.alertConfig,
+        projectId: monitors.projectId,
+        organizationId: monitors.organizationId,
+        projectName: projects.name,
+      })
+      .from(monitors)
+      .leftJoin(projects, eq(monitors.projectId, projects.id))
+      .where(eq(monitors.id, id))
+      .limit(1);
 
-    if (!monitorData) {
+    if (!monitorData || monitorData.length === 0) {
       return null; 
     }
+
+    const monitor = monitorData[0];
 
     const recentResultsData = await db
       .select()
@@ -51,26 +73,27 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
       isStatusChange: r.isStatusChange,
     }));
     
-    const frequencyMinutes = monitorData.frequencyMinutes ?? 0;
+    const frequencyMinutes = monitor.frequencyMinutes ?? 0;
 
     const transformedMonitor: MonitorWithResults = {
-      id: monitorData.id,
-      name: monitorData.name,
-      url: monitorData.target,
-      target: monitorData.target,
-      type: monitorData.type as DBMonitorType,
-      enabled: monitorData.enabled,
+      id: monitor.id,
+      name: monitor.name,
+      url: monitor.target,
+      target: monitor.target,
+      type: monitor.type as DBMonitorType,
+      enabled: monitor.enabled,
       frequencyMinutes,
-      status: monitorData.status as DBMoniotorStatusType,
-      active: monitorData.status !== 'paused',
-      createdAt: monitorData.createdAt ? new Date(monitorData.createdAt).toISOString() : undefined,
-      updatedAt: monitorData.updatedAt ? new Date(monitorData.updatedAt).toISOString() : undefined,
-      lastCheckedAt: monitorData.lastCheckAt ? new Date(monitorData.lastCheckAt).toISOString() : undefined,
+      status: monitor.status as DBMoniotorStatusType,
+      active: monitor.status !== 'paused',
+      createdAt: monitor.createdAt ? new Date(monitor.createdAt).toISOString() : undefined,
+      updatedAt: monitor.updatedAt ? new Date(monitor.updatedAt).toISOString() : undefined,
+      lastCheckedAt: monitor.lastCheckAt ? new Date(monitor.lastCheckAt).toISOString() : undefined,
       responseTime: mappedRecentResults[0]?.responseTimeMs ?? undefined,
       uptime: undefined, 
       recentResults: mappedRecentResults,
-      config: monitorData.config as MonitorConfig,
-      alertConfig: monitorData.alertConfig || undefined,
+      config: monitor.config as MonitorConfig,
+      alertConfig: monitor.alertConfig || undefined,
+      projectName: monitor.projectName || undefined,
     };
 
     return transformedMonitor;

@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { scheduleJob } from "../lib/job-scheduler";
 import { z } from "zod";
 import { requireProjectContext } from "@/lib/project-context";
+import { hasPermission } from "@/lib/rbac/middleware";
 
 type Job = z.infer<typeof jobsSelectSchema>;
 
@@ -62,7 +63,18 @@ async function getJob(jobId: string, projectId: string, organizationId: string):
 export async function scheduleCronJob(jobId: string, cronExpression: string): Promise<ScheduleJobResponse> {
   try {
     // Get current project context (includes auth verification)
-    const { project, organizationId } = await requireProjectContext();
+    const { userId, project, organizationId } = await requireProjectContext();
+
+    // Check permission to update jobs
+    const canEditJobs = await hasPermission('job', 'update', { organizationId, projectId: project.id });
+    
+    if (!canEditJobs) {
+      console.warn(`User ${userId} attempted to schedule job ${jobId} without EDIT_JOBS permission`);
+      return {
+        success: false,
+        error: "Insufficient permissions to schedule jobs",
+      };
+    }
 
     // Validate cron expression
     if (!cronExpression) {
@@ -120,7 +132,18 @@ export async function scheduleCronJob(jobId: string, cronExpression: string): Pr
 export async function cancelScheduledJob(jobId: string): Promise<ScheduleJobResponse> {
   try {
     // Get current project context (includes auth verification)
-    const { project, organizationId } = await requireProjectContext();
+    const { userId, project, organizationId } = await requireProjectContext();
+
+    // Check permission to update jobs
+    const canEditJobs = await hasPermission('job', 'update', { organizationId, projectId: project.id });
+    
+    if (!canEditJobs) {
+      console.warn(`User ${userId} attempted to cancel scheduled job ${jobId} without EDIT_JOBS permission`);
+      return {
+        success: false,
+        error: "Insufficient permissions to cancel scheduled jobs",
+      };
+    }
 
     // Get the job to find its scheduledJobId with project scoping
     const jobResult = await getJob(jobId, project.id, organizationId);

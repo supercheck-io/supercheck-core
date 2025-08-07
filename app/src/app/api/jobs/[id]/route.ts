@@ -3,8 +3,7 @@ import { updateJob } from "@/actions/update-job";
 import { db } from "@/utils/db";
 import { jobs, jobTests, tests as testsTable, testTags, tags } from "@/db/schema/schema";
 import { eq, inArray } from "drizzle-orm";
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
 
 export async function GET(
   request: NextRequest,
@@ -12,7 +11,7 @@ export async function GET(
 ) {
   const params = await context.params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const jobId = params.id;
     
     // First, find the job without filtering by active project
@@ -53,8 +52,10 @@ export async function GET(
       );
     }
     
-    const permissionContext = await buildPermissionContext(userId, 'project', job.organizationId, job.projectId);
-    const canView = await hasPermission(permissionContext, ProjectPermission.VIEW_JOBS);
+    const canView = await hasPermission('job', 'view', {
+      organizationId: job.organizationId,
+      projectId: job.projectId
+    });
     
     if (!canView) {
       return NextResponse.json(

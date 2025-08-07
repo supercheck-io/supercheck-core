@@ -5,8 +5,7 @@ import { jobs, jobTests, runs } from "../db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
-import { buildPermissionContext, hasPermission } from "@/lib/rbac/middleware";
-import { ProjectPermission } from "@/lib/rbac/permissions";
+import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function deleteJob(jobId: string) {
@@ -24,14 +23,7 @@ export async function deleteJob(jobId: string) {
     const { userId, project, organizationId } = await requireProjectContext();
 
     // Check DELETE_JOBS permission
-    const permissionContext = await buildPermissionContext(
-      userId,
-      'project',
-      organizationId,
-      project.id
-    );
-    
-    const canDeleteJobs = await hasPermission(permissionContext, ProjectPermission.DELETE_JOBS);
+    const canDeleteJobs = await hasPermission('job', 'delete', { organizationId, projectId: project.id });
     
     if (!canDeleteJobs) {
       console.warn(`User ${userId} attempted to delete job ${jobId} without DELETE_JOBS permission`);

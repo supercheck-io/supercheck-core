@@ -22,7 +22,6 @@ jest.mock('@/lib/queue-stats', () => ({
 
 jest.mock('@/lib/rbac/middleware', () => ({
   requireAuth: jest.fn(),
-  buildPermissionContext: jest.fn(),
   hasPermission: jest.fn(),
 }));
 
@@ -38,7 +37,7 @@ jest.mock('date-fns', () => ({
 describe('Dashboard API Route', () => {
   const { db } = jest.requireMock('@/utils/db');
   const { getQueueStats } = jest.requireMock('@/lib/queue-stats');
-  const { buildPermissionContext, hasPermission } = jest.requireMock('@/lib/rbac/middleware');
+  const { buildUnifiedPermissionContext, hasPermission } = jest.requireMock('@/lib/rbac/middleware');
   const { requireProjectContext } = jest.requireMock('@/lib/project-context');
   const { subDays, subHours } = jest.requireMock('date-fns');
 
@@ -60,7 +59,7 @@ describe('Dashboard API Route', () => {
     
     // Setup default mocks
     requireProjectContext.mockResolvedValue(mockProjectContext);
-    buildPermissionContext.mockResolvedValue({});
+    buildUnifiedPermissionContext.mockResolvedValue({});
     hasPermission.mockResolvedValue(true);
     getQueueStats.mockResolvedValue(mockQueueStats);
     
@@ -267,7 +266,7 @@ describe('Dashboard API Route', () => {
 
       // Verify that all database queries include project and organization filtering
       expect(requireProjectContext).toHaveBeenCalled();
-      expect(buildPermissionContext).toHaveBeenCalledWith(
+      expect(buildUnifiedPermissionContext).toHaveBeenCalledWith(
         'user-123',
         'project',
         'org-123',
@@ -278,7 +277,7 @@ describe('Dashboard API Route', () => {
 
   describe('error handling', () => {
     it('should handle permission context build errors', async () => {
-      buildPermissionContext.mockRejectedValue(new Error('Permission context failed'));
+      buildUnifiedPermissionContext.mockRejectedValue(new Error('Permission context failed'));
 
       const request = new NextRequest('http://localhost:3000/api/dashboard');
       const response = await GET(request);

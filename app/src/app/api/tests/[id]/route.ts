@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { tests } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
 
 declare const Buffer: {
   from(data: string, encoding: string): { toString(encoding: string): string };
@@ -47,7 +46,7 @@ export async function GET(
   const testId = params.id;
 
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     
     // First, find the test without filtering by active project
     const result = await db
@@ -74,8 +73,10 @@ export async function GET(
       );
     }
     
-    const permissionContext = await buildPermissionContext(userId, 'project', test.organizationId, test.projectId);
-    const canView = await hasPermission(permissionContext, ProjectPermission.VIEW_TESTS);
+    const canView = await hasPermission('test', 'view', {
+      organizationId: test.organizationId,
+      projectId: test.projectId
+    });
     
     if (!canView) {
       return NextResponse.json(

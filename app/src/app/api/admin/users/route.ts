@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllUsers, requireAdmin } from '@/lib/admin';
-import { createUserAsAdmin, banUser, unbanUser } from '@/utils/auth-client';
+import { createUserAsAdmin } from '@/utils/auth-client';
 import { db } from '@/utils/db';
 import { user } from '@/db/schema/schema';
 import { eq } from 'drizzle-orm';
@@ -101,15 +101,37 @@ export async function PATCH(request: NextRequest) {
           );
         }
         
-        result = await banUser({
-          userId,
-          banReason: reason,
-          banExpiresIn: duration
-        });
+        // Use direct database update since we have our own RBAC admin check
+        // Better Auth's admin plugin requires specific user IDs, but we use RBAC system
+        const banExpires = duration ? new Date(Date.now() + duration) : null;
+        
+        await db
+          .update(user)
+          .set({
+            banned: true,
+            banReason: reason,
+            banExpires: banExpires,
+            updatedAt: new Date()
+          })
+          .where(eq(user.id, userId));
+
+        result = { success: true, userId, action: 'banned', banReason: reason };
         break;
       
       case 'unban':
-        result = await unbanUser({ userId });
+        // Use direct database update since we have our own RBAC admin check  
+        // Better Auth's admin plugin requires specific user IDs, but we use RBAC system
+        await db
+          .update(user)
+          .set({
+            banned: false,
+            banReason: null,
+            banExpires: null,
+            updatedAt: new Date()
+          })
+          .where(eq(user.id, userId));
+
+        result = { success: true, userId, action: 'unbanned' };
         break;
       
       default:

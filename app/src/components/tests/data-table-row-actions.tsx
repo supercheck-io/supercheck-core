@@ -12,6 +12,12 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -23,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { deleteTest } from "@/actions/delete-test";
+import { useTestPermissions } from "@/hooks/use-rbac-permissions";
 
 import { testSchema } from "./schema";
 
@@ -36,6 +43,7 @@ export function DataTableRowActions<TData>({
   onDelete,
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
+  const { canEditTest, canDeleteTest } = useTestPermissions();
   
   // Use safeParse instead of parse to handle validation errors
   const parsedTest = testSchema.safeParse(row.original);
@@ -117,7 +125,7 @@ export function DataTableRowActions<TData>({
   };
 
   return (
-    <>
+    <TooltipProvider>
       <DropdownMenu>
         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Button
@@ -129,21 +137,50 @@ export function DataTableRowActions<TData>({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[160px]">
-          <DropdownMenuItem onClick={handleEditTest}>
-            <PencilIcon className="mr-2 h-4 w-4" />
-            <span>Edit</span>
-          </DropdownMenuItem>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <DropdownMenuItem 
+                  onClick={canEditTest ? handleEditTest : undefined}
+                  disabled={!canEditTest}
+                  className={!canEditTest ? "opacity-50 cursor-not-allowed" : ""}
+                >
+                  <PencilIcon className="mr-2 h-4 w-4" />
+                  <span>Edit</span>
+                </DropdownMenuItem>
+              </div>
+            </TooltipTrigger>
+            {!canEditTest && (
+              <TooltipContent>
+                <p>Insufficient permissions to edit tests</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+          
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowDeleteDialog(true);
-            }}
-            className="text-red-600"
-          >
-            <TrashIcon className="mr-2 h-4 w-4" />
-            <span>Delete</span>
-          </DropdownMenuItem>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <DropdownMenuItem
+                  onClick={canDeleteTest ? (e) => {
+                    e.stopPropagation();
+                    setShowDeleteDialog(true);
+                  } : undefined}
+                  disabled={!canDeleteTest}
+                  className={`${!canDeleteTest ? "opacity-50 cursor-not-allowed" : "text-red-600"}`}
+                >
+                  <TrashIcon className="mr-2 h-4 w-4" />
+                  <span>Delete</span>
+                </DropdownMenuItem>
+              </div>
+            </TooltipTrigger>
+            {!canDeleteTest && (
+              <TooltipContent>
+                <p>Insufficient permissions to delete tests</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -173,6 +210,6 @@ export function DataTableRowActions<TData>({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </TooltipProvider>
   );
 }

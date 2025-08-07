@@ -2,8 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/utils/db";
 import { alertHistory, jobs, monitors } from "@/db/schema/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 
 export async function GET() {
@@ -27,9 +26,7 @@ export async function GET() {
     // Build permission context and check access
     try {
       console.log('Building permission context with:', { userId, organizationId, projectId: project.id });
-      const permissionContext = await buildPermissionContext(userId, 'project', organizationId, project.id);
-      console.log('Permission context built:', JSON.stringify(permissionContext, null, 2));
-      const canView = await hasPermission(permissionContext, ProjectPermission.VIEW_MONITORS);
+      const canView = await hasPermission('monitor', 'view', { organizationId, projectId: project.id });
       console.log('Permission check result:', canView);
       
       if (!canView) {

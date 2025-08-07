@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { tests, testTags, tags } from "@/db/schema/schema";
 import { desc, eq, and, inArray } from "drizzle-orm";
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 
 declare const Buffer: {
@@ -42,14 +41,13 @@ async function decodeTestScript(base64Script: string): Promise<string> {
 
 export async function GET() {
   try {
-    const { userId, project, organizationId } = await requireProjectContext();
+    const { project, organizationId } = await requireProjectContext();
     
     // Use current project context - no need for query params or fallbacks
     const targetProjectId = project.id;
     
-    // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'project', organizationId, targetProjectId);
-    const canView = await hasPermission(context, ProjectPermission.VIEW_TESTS);
+    // Check permission to view tests
+    const canView = await hasPermission('test', 'view', { organizationId, projectId: targetProjectId });
     
     if (!canView) {
       return NextResponse.json(
@@ -147,9 +145,8 @@ export async function POST(request: NextRequest) {
     // Use current project context
     const targetProjectId = project.id;
     
-    // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'project', organizationId!, targetProjectId);
-    const canCreate = await hasPermission(context, ProjectPermission.CREATE_TESTS);
+    // Check permission to create tests
+    const canCreate = await hasPermission('test', 'create', { organizationId, projectId: targetProjectId });
     
     if (!canCreate) {
       return NextResponse.json(

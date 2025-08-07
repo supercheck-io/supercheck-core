@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/utils/db';
-import { organization as orgTable, projects, member, projectMembers, session } from '@/db/schema/schema';
+import { organization as orgTable, projects, member, projectMembers, session, invitation } from '@/db/schema/schema';
 import { getCurrentUser } from '@/lib/session';
-import { eq } from 'drizzle-orm';
+import { eq, and, gte, desc } from 'drizzle-orm';
 import { auth } from '@/utils/auth';
 import { headers } from 'next/headers';
 import { randomUUID } from 'crypto';
@@ -31,6 +31,29 @@ export async function POST() {
       });
     }
 
+    // Check if user has any pending invitations
+    // If they have pending invitations, they should not get a default organization
+    const [recentInvitation] = await db
+      .select()
+      .from(invitation)
+      .where(
+        and(
+          eq(invitation.email, user.email),
+          eq(invitation.status, 'pending'),
+          gte(invitation.expiresAt, new Date())
+        )
+      )
+      .orderBy(desc(invitation.expiresAt))
+      .limit(1);
+
+    if (recentInvitation) {
+      console.log(`User ${user.email} was recently invited - not creating default organization`);
+      return NextResponse.json({
+        success: true,
+        message: 'User was recently invited - skipping default organization setup'
+      });
+    }
+
     // Create default organization
     const [newOrg] = await db.insert(orgTable).values({
       name: `${user.name}'s Organization`,
@@ -42,7 +65,7 @@ export async function POST() {
     await db.insert(member).values({
       organizationId: newOrg.id,
       userId: user.id,
-      role: 'owner',
+      role: 'org_owner',
       createdAt: new Date(),
     });
 
@@ -58,11 +81,11 @@ export async function POST() {
       updatedAt: new Date(),
     }).returning();
 
-    // Add user as owner of the project
+    // Add user as project editor (in unified RBAC, project ownership is handled by org ownership)
     await db.insert(projectMembers).values({
       userId: user.id,
       projectId: newProject.id,
-      role: 'owner',
+      role: 'project_editor',
       createdAt: new Date(),
     });
 
@@ -80,12 +103,16 @@ export async function POST() {
 
     console.log(`✅ Created default org "${newOrg.name}" and project "${newProject.name}" for user ${user.email}`);
 
+    // Force a small delay to ensure database consistency
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     return NextResponse.json({
       success: true,
       data: {
         organization: newOrg,
         project: newProject
-      }
+      },
+      message: 'Default organization and project created successfully'
     });
   } catch (error) {
     console.error('❌ Failed to create default org/project:', error);

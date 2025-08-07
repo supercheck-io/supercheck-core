@@ -3,8 +3,7 @@ import crypto from "crypto";
 import { addTestToQueue, TestExecutionTask } from "@/lib/queue";
 import { validationService } from "@/lib/validation-service";
 import { requireProjectContext } from "@/lib/project-context";
-import { buildPermissionContext, hasPermission } from "@/lib/rbac/middleware";
-import { ProjectPermission } from "@/lib/rbac/permissions";
+import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function POST(request: NextRequest) {
@@ -12,15 +11,11 @@ export async function POST(request: NextRequest) {
     // Check authentication and permissions first
     const { userId, project, organizationId } = await requireProjectContext();
 
-    // Build permission context and check RUN_TESTS permission
-    const permissionContext = await buildPermissionContext(
-      userId,
-      'project',
+    // Check permission to run tests
+    const canRunTests = await hasPermission('test', 'create', {
       organizationId,
-      project.id
-    );
-    
-    const canRunTests = await hasPermission(permissionContext, ProjectPermission.RUN_TESTS);
+      projectId: project.id
+    });
     
     if (!canRunTests) {
       console.warn(`User ${userId} attempted to run playground test without RUN_TESTS permission`);

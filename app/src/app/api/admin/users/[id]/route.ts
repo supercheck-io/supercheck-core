@@ -7,7 +7,6 @@ import { headers } from 'next/headers';
 import { eq } from 'drizzle-orm';
 import { logImpersonationEvent } from '@/lib/audit-logger';
 import { checkAdminRateLimit } from '@/lib/session-security';
-import { ensureUserDefaults } from '@/lib/user-defaults';
 
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -116,7 +115,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await requireAdmin();
     
     const body = await request.json();
-    const { action } = body;
+    const { action, organizationId } = body;
     
     if (action === 'impersonate') {
       // Get current admin session
@@ -158,25 +157,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         );
       }
 
-      // Ensure target user has organization and project defaults
-      try {
-        await ensureUserDefaults(targetUser.id, targetUser.name, targetUser.email);
-      } catch (error) {
-        console.error('Failed to ensure user defaults for impersonation:', error);
-        return NextResponse.json(
-          { success: false, error: 'Failed to setup user defaults for impersonation' },
-          { status: 500 }
-        );
-      }
+      // Note: We don't create defaults during impersonation
+      // This allows admins to impersonate invited users without creating unwanted organizations
 
       // Update session to impersonate the target user
-      // Store the original user ID in impersonatedBy field and clear activeProjectId
-      // This ensures the impersonated user gets their own project context
+      // Store the original user ID in impersonatedBy field and optionally set organization context
       await db
         .update(session)
         .set({
           userId: targetUser.id,
           impersonatedBy: sessionData.user.id,
+          activeOrganizationId: organizationId || null, // Set specific organization if provided
           activeProjectId: null, // Clear project context to force default project selection
           updatedAt: new Date()
         })

@@ -1,13 +1,28 @@
 import { createAuthClient } from "better-auth/react"
 import { apiKeyClient, organizationClient, adminClient } from "better-auth/client/plugins"
+import { ac, roles, Role } from "@/lib/rbac/permissions"
 
 export const authClient = createAuthClient({
     /** The base URL of the server (optional if you're using the same domain) */
     baseURL: process.env.NEXT_PUBLIC_APP_URL,
     plugins: [
         apiKeyClient(),
-        organizationClient(),
-        adminClient()
+        organizationClient({
+            ac,
+            roles: {
+                org_owner: roles[Role.ORG_OWNER],
+                org_admin: roles[Role.ORG_ADMIN],
+                project_editor: roles[Role.PROJECT_EDITOR],
+                project_viewer: roles[Role.PROJECT_VIEWER]
+            }
+        }),
+        adminClient({
+            ac,
+            roles: {
+                org_admin: roles[Role.ORG_ADMIN],
+                super_admin: roles[Role.SUPER_ADMIN]
+            }
+        })
     ]
 })
 

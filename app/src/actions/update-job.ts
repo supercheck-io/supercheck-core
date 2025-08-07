@@ -8,8 +8,7 @@ import { z } from "zod";
 import { scheduleJob, deleteScheduledJob } from "@/lib/job-scheduler";
 import { getNextRunDate } from "@/lib/cron-utils";
 import { requireProjectContext } from "@/lib/project-context";
-import { buildPermissionContext, hasPermission } from "@/lib/rbac/middleware";
-import { ProjectPermission } from "@/lib/rbac/permissions";
+import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 const updateJobSchema = z.object({
@@ -42,14 +41,7 @@ export async function updateJob(data: UpdateJobData) {
     const { userId, project, organizationId } = await requireProjectContext();
 
     // Check EDIT_JOBS permission
-    const permissionContext = await buildPermissionContext(
-      userId,
-      'project',
-      organizationId,
-      project.id
-    );
-    
-    const canEditJobs = await hasPermission(permissionContext, ProjectPermission.EDIT_JOBS);
+    const canEditJobs = await hasPermission('job', 'update', { organizationId, projectId: project.id });
     
     if (!canEditJobs) {
       console.warn(`User ${userId} attempted to update job ${data.jobId} without EDIT_JOBS permission`);

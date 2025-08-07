@@ -13,8 +13,7 @@ import {
   JobTrigger,
 } from "@/db/schema/schema";
 import { desc, eq, inArray, and } from "drizzle-orm";
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 
 import { randomUUID } from "crypto";
@@ -105,14 +104,14 @@ interface TestResult {
 // GET all jobs
 export async function GET() {
   try {
-    const { userId, project, organizationId } = await requireProjectContext();
+    const { project, organizationId } = await requireProjectContext();
     
     // Use current project context
     const targetProjectId = project.id;
     
     // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'project', organizationId, targetProjectId);
-    const canView = await hasPermission(context, ProjectPermission.VIEW_JOBS);
+    // Check permission to view jobs
+    const canView = await hasPermission('job', 'view', { organizationId, projectId: targetProjectId });
     
     if (!canView) {
       return NextResponse.json(
@@ -271,8 +270,8 @@ export async function POST(request: NextRequest) {
     const targetProjectId = project.id;
     
     // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'project', organizationId!, targetProjectId);
-    const canCreate = await hasPermission(context, ProjectPermission.CREATE_JOBS);
+    // Check permission to create jobs
+    const canCreate = await hasPermission('job', 'create', { organizationId, projectId: targetProjectId });
     
     if (!canCreate) {
       return NextResponse.json(
@@ -393,7 +392,7 @@ export async function PUT(request: Request) {
     }
 
     // Get current project context (includes auth verification)
-    const { userId, project, organizationId } = await requireProjectContext();
+    const { project, organizationId } = await requireProjectContext();
 
     // Validate required fields
     if (!jobData.name || !jobData.cronSchedule || !jobData.description) {
@@ -434,8 +433,8 @@ export async function PUT(request: Request) {
     }
 
     // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'project', organizationId, project.id);
-    const canEdit = await hasPermission(context, ProjectPermission.EDIT_JOBS);
+    // Check permission to update jobs
+    const canEdit = await hasPermission('job', 'update', { organizationId, projectId: project.id });
     
     if (!canEdit) {
       return NextResponse.json(

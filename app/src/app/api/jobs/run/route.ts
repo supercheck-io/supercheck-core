@@ -5,8 +5,7 @@ import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
 import { requireProjectContext } from '@/lib/project-context';
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { hasPermission } from '@/lib/rbac/middleware';
 import { logAuditEvent } from '@/lib/audit-logger';
 
 declare const Buffer: {
@@ -95,15 +94,8 @@ export async function POST(request: Request) {
       );
     }
     
-    // Build permission context and check TRIGGER_JOBS permission
-    const permissionContext = await buildPermissionContext(
-      userId,
-      'project',
-      organizationId,
-      project.id
-    );
-    
-    const canTriggerJobs = await hasPermission(permissionContext, ProjectPermission.TRIGGER_JOBS);
+    // Check permission to trigger jobs
+    const canTriggerJobs = await hasPermission('job', 'trigger', { organizationId, projectId: project.id });
     
     if (!canTriggerJobs) {
       console.warn(`User ${userId} attempted to trigger job ${jobId} without TRIGGER_JOBS permission`);

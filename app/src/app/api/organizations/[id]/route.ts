@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { OrgPermission } from '@/lib/rbac/permissions';
+import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
 import { db } from '@/utils/db';
 import { organization, member, projects } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
@@ -18,11 +17,10 @@ export async function GET(
     const { userId } = await requireAuth();
     const organizationId = resolvedParams.id;
     
-    // Build permission context
-    const context = await buildPermissionContext(userId, 'organization', organizationId);
-    
     // Check permission
-    const canView = await hasPermission(context, OrgPermission.VIEW_ORGANIZATION);
+    const canView = await hasPermission('organization', 'view', {
+      organizationId
+    });
     if (!canView) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
@@ -123,14 +121,13 @@ export async function PUT(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const organizationId = resolvedParams.id;
     
-    // Build permission context
-    const context = await buildPermissionContext(userId, 'organization', organizationId);
-    
     // Check permission
-    const canManage = await hasPermission(context, OrgPermission.MANAGE_ORGANIZATION);
+    const canManage = await hasPermission('organization', 'manage', {
+      organizationId
+    });
     if (!canManage) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
@@ -208,14 +205,13 @@ export async function DELETE(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const organizationId = resolvedParams.id;
     
-    // Build permission context
-    const context = await buildPermissionContext(userId, 'organization', organizationId);
-    
     // Check permission - only owners can delete organizations
-    const canDelete = await hasPermission(context, OrgPermission.DELETE_ORGANIZATION);
+    const canDelete = await hasPermission('organization', 'delete', {
+      organizationId
+    });
     if (!canDelete) {
       return NextResponse.json(
         { error: 'Only organization owners can delete organizations' },

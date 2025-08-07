@@ -16,8 +16,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import crypto from "crypto";
 import { requireProjectContext } from "@/lib/project-context";
-import { buildPermissionContext, hasPermission } from "@/lib/rbac/middleware";
-import { ProjectPermission } from "@/lib/rbac/permissions";
+import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 // Create a schema for the save test action
@@ -78,18 +77,10 @@ export async function saveTest(
       scriptToSave = Buffer.from(scriptToSave, "utf-8").toString("base64");
     }
 
-    // Build permission context
-    const permissionContext = await buildPermissionContext(
-      userId,
-      'project',
-      organizationId,
-      project.id
-    );
-
     // Check if this is an update (has an ID) or a new test
     if (validatedData.id) {
       // This is an update - check EDIT_TESTS permission
-      const canEditTests = await hasPermission(permissionContext, ProjectPermission.EDIT_TESTS);
+      const canEditTests = await hasPermission('test', 'update', { organizationId, projectId: project.id });
       
       if (!canEditTests) {
         console.warn(`User ${userId} attempted to update test ${validatedData.id} without EDIT_TESTS permission`);
@@ -144,7 +135,7 @@ export async function saveTest(
       return { id: testId, success: true };
     } else {
       // This is a new test - check CREATE_TESTS permission
-      const canCreateTests = await hasPermission(permissionContext, ProjectPermission.CREATE_TESTS);
+      const canCreateTests = await hasPermission('test', 'create', { organizationId, projectId: project.id });
       
       if (!canCreateTests) {
         console.warn(`User ${userId} attempted to create test without CREATE_TESTS permission`);

@@ -3,10 +3,10 @@ import { deleteTest } from '../delete-test';
 // Import modules first
 import { db } from '@/utils/db';
 import { requireProjectContext } from '@/lib/project-context';
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { buildUnifiedPermissionContext, hasPermission } from '@/lib/rbac/middleware';
 import { logAuditEvent } from '@/lib/audit-logger';
 import { revalidatePath } from 'next/cache';
-import { ProjectRole } from '@/lib/rbac/permissions';
+import { UnifiedRole } from '@/lib/rbac/permissions';
 
 // Mock dependencies
 jest.mock('@/utils/db');
@@ -18,7 +18,7 @@ jest.mock('next/cache');
 // Type the mocked modules
 const mockDb = jest.mocked(db);
 const mockRequireProjectContext = jest.mocked(requireProjectContext);
-const mockBuildPermissionContext = jest.mocked(buildPermissionContext);
+const mockBuildPermissionContext = jest.mocked(buildUnifiedPermissionContext);
 const mockHasPermission = jest.mocked(hasPermission);
 const mockLogAuditEvent = jest.mocked(logAuditEvent);
 const mockRevalidatePath = jest.mocked(revalidatePath);
@@ -50,7 +50,7 @@ describe('delete-test server action', () => {
       name: 'Test Project',
       organizationId: 'org-123',
       isDefault: false,
-      userRole: ProjectRole.ADMIN
+      userRole: UnifiedRole.PROJECT_EDITOR
     },
     organizationId: 'org-123',
   };
@@ -72,7 +72,7 @@ describe('delete-test server action', () => {
       userId: 'user-123',
       organizationId: 'org-123',
       projectId: 'project-123',
-      projectRole: ProjectRole.ADMIN
+      role: UnifiedRole.PROJECT_EDITOR
     });
     mockHasPermission.mockResolvedValue(true);
     mockLogAuditEvent.mockResolvedValue(undefined);

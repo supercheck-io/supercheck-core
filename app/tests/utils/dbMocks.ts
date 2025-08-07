@@ -79,7 +79,7 @@ export const seedTestData = {
     image: null,
     emailVerified: null,
     organizationId: 'org-1',
-    role: 'member',
+    role: 'project_viewer',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     ...overrides,

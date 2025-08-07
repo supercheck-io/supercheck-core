@@ -5,8 +5,9 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { requireAuth } from '@/lib/rbac/middleware';
 import { getActiveOrganization, getCurrentUser } from '@/lib/session';
 import { getUserOrgRole } from '@/lib/rbac/middleware';
-import { OrgRole } from '@/lib/rbac/permissions';
+import { Role } from '@/lib/rbac/permissions';
 import { EmailService } from '@/lib/email-service';
+import { inviteMemberSchema } from '@/lib/validations/member';
 import { logAuditEvent } from '@/lib/audit-logger';
 
 // Simple rate limiting - max 10 invites per hour per user
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user is org admin
     const orgRole = await getUserOrgRole(currentUser.id, activeOrg.id);
-    const isOrgAdmin = orgRole === OrgRole.ADMIN || orgRole === OrgRole.OWNER;
+    const isOrgAdmin = orgRole === Role.ORG_ADMIN || orgRole === Role.ORG_OWNER;
     
     if (!isOrgAdmin) {
       return NextResponse.json(
@@ -65,43 +66,71 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, role, selectedProjects } = body;
 
-    if (!email || !role) {
+    // Validate request data using Zod schema
+    try {
+      inviteMemberSchema.parse({ email, role, selectedProjects });
+    } catch (error) {
+      if (error instanceof Error) {
+        const zodError = error as { errors?: { message: string }[] };
+        if (zodError.errors && zodError.errors.length > 0) {
+          return NextResponse.json(
+            { error: zodError.errors[0].message },
+            { status: 400 }
+          );
+        }
+      }
       return NextResponse.json(
-        { error: 'Email and role are required' },
-        { status: 400 }
-      );
-    }
-
-    if (!selectedProjects || !Array.isArray(selectedProjects) || selectedProjects.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one project must be selected' },
-        { status: 400 }
-      );
-    }
-
-    // Validate role
-    const validRoles = ['viewer', 'member', 'admin'];
-    if (!validRoles.includes(role)) {
-      return NextResponse.json(
-        { error: 'Invalid role' },
+        { error: 'Invalid request data' },
         { status: 400 }
       );
     }
 
     // Check if user already exists and is a member
     const existingUser = await db
-      .select({ id: userTable.id })
+      .select({ id: userTable.id, role: userTable.role, email: userTable.email })
       .from(userTable)
       .where(eq(userTable.email, email))
       .limit(1);
 
     if (existingUser.length > 0) {
-      // Check if already a member
+      const user = existingUser[0];
+      
+      // Block cross-organization admin invitations
+      // Check if user has admin privileges (system-wide or organization-level)
+      const isSystemAdmin = user.role === 'super_admin';
+      
+      // Check if they're in super admin environment list
+      const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(e => e.trim()) || [];
+      const adminUserIds = process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()) || [];
+      const isEnvAdmin = adminEmails.includes(user.email) || adminUserIds.includes(user.id);
+      
+      // Check if they're an admin in any other organization
+      const adminMemberships = await db
+        .select({ 
+          orgId: member.organizationId, 
+          role: member.role 
+        })
+        .from(member)
+        .where(eq(member.userId, user.id));
+
+      const hasAdminRole = adminMemberships.some(m => 
+        m.role === 'org_owner' || 
+        m.role === 'org_admin'
+      );
+
+      if (isSystemAdmin || isEnvAdmin || hasAdminRole) {
+        return NextResponse.json(
+          { error: 'Cannot invite users with administrative privileges from other organizations. Admins should manage their own organizations independently.' },
+          { status: 400 }
+        );
+      }
+
+      // Check if already a member of current organization
       const existingMember = await db
         .select({ id: member.userId })
         .from(member)
         .where(and(
-          eq(member.userId, existingUser[0].id),
+          eq(member.userId, user.id),
           eq(member.organizationId, activeOrg.id)
         ))
         .limit(1);

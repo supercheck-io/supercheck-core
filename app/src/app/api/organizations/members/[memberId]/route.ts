@@ -5,7 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '@/lib/rbac/middleware';
 import { getActiveOrganization, getCurrentUser } from '@/lib/session';
 import { getUserOrgRole } from '@/lib/rbac/middleware';
-import { OrgRole } from '@/lib/rbac/permissions';
+import { Role } from '@/lib/rbac/permissions';
 import { logAuditEvent } from '@/lib/audit-logger';
 
 export async function PUT(
@@ -27,7 +27,7 @@ export async function PUT(
 
     // Check if user is org admin
     const orgRole = await getUserOrgRole(currentUser.id, activeOrg.id);
-    const isOrgAdmin = orgRole === OrgRole.ADMIN || orgRole === OrgRole.OWNER;
+    const isOrgAdmin = orgRole === Role.ORG_ADMIN || orgRole === Role.ORG_OWNER;
     
     if (!isOrgAdmin) {
       return NextResponse.json(
@@ -38,7 +38,7 @@ export async function PUT(
 
     const { role } = await request.json();
 
-    if (!role || !['viewer', 'member', 'admin'].includes(role)) {
+    if (!role || !['project_viewer', 'project_editor', 'org_admin', 'org_owner'].includes(role)) {
       return NextResponse.json(
         { error: 'Invalid role provided' },
         { status: 400 }
@@ -68,7 +68,7 @@ export async function PUT(
       );
     }
 
-    if (existingMember[0].role === 'owner') {
+    if (existingMember[0].role === 'org_owner') {
       return NextResponse.json(
         { error: 'Cannot change owner role' },
         { status: 403 }
@@ -85,11 +85,13 @@ export async function PUT(
 
     const oldRole = existingMember[0].role;
 
+    // No role conversion needed - store new RBAC roles directly
+
     // Update member role
     await db
       .update(member)
       .set({ 
-        role: role as 'owner' | 'admin' | 'member' | 'viewer'
+        role: role
       })
       .where(and(
         eq(member.userId, resolvedParams.memberId),
@@ -150,7 +152,7 @@ export async function DELETE(
 
     // Check if user is org admin
     const orgRole = await getUserOrgRole(currentUser.id, activeOrg.id);
-    const isOrgAdmin = orgRole === OrgRole.ADMIN || orgRole === OrgRole.OWNER;
+    const isOrgAdmin = orgRole === Role.ORG_ADMIN || orgRole === Role.ORG_OWNER;
     
     if (!isOrgAdmin) {
       return NextResponse.json(
@@ -182,7 +184,7 @@ export async function DELETE(
       );
     }
 
-    if (existingMember[0].role === 'owner') {
+    if (existingMember[0].role === 'org_owner') {
       return NextResponse.json(
         { error: 'Cannot remove organization owner' },
         { status: 403 }

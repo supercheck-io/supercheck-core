@@ -2,21 +2,9 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, UserCheck, UserX, Crown, Shield, User } from "lucide-react";
-import { toast } from "sonner";
+import { Crown, Shield, User } from "lucide-react";
 import { DataTableColumnHeader } from "@/components/tests/data-table-column-header";
+import { UserActions } from './user-actions';
 
 export interface AdminUser {
   id: string;
@@ -26,123 +14,21 @@ export interface AdminUser {
   banned?: boolean;
   banReason?: string;
   createdAt: string;
-  emailVerified?: boolean;
 }
 
-const handleBanUser = async (userId: string, reason: string, onUpdate: () => void) => {
-  try {
-    const response = await fetch('/api/admin/users', {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId,
-        action: 'ban',
-        reason,
-      }),
-    });
 
-    const data = await response.json();
-
-    if (data.success) {
-      toast.success('User banned successfully');
-      onUpdate();
-    } else {
-      toast.error(data.error || 'Failed to ban user');
-    }
-  } catch (error) {
-    console.error('Error banning user:', error);
-    toast.error('Failed to ban user');
-  }
-};
-
-const handleUnbanUser = async (userId: string, onUpdate: () => void) => {
-  try {
-    const response = await fetch('/api/admin/users', {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId,
-        action: 'unban',
-      }),
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      toast.success('User unbanned successfully');
-      onUpdate();
-    } else {
-      toast.error(data.error || 'Failed to unban user');
-    }
-  } catch (error) {
-    console.error('Error unbanning user:', error);
-    toast.error('Failed to unban user');
-  }
-};
-
-const handleImpersonateUser = async (userId: string) => {
-  try {
-    const response = await fetch(`/api/admin/users/${userId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'impersonate',
-      }),
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      toast.success(`Now impersonating ${data.data.impersonatedUser?.name || 'user'}`);
-      // Force a full page reload to refresh all session context
-      window.location.href = '/';
-    } else {
-      toast.error(data.error || 'Failed to impersonate user');
-    }
-  } catch (error) {
-    console.error('Error impersonating user:', error);
-    toast.error('Failed to impersonate user');
-  }
-};
-
-const handleChangeRole = async (userId: string, newRole: string, onUpdate: () => void) => {
-  try {
-    const response = await fetch(`/api/admin/users/${userId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        role: newRole,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      toast.success(`User role updated to ${newRole}`);
-      onUpdate();
-    } else {
-      toast.error(data.error || 'Failed to update user role');
-    }
-  } catch (error) {
-    console.error('Error updating user role:', error);
-    toast.error('Failed to update user role');
-  }
-};
+// Role changes are handled at the organization level via org admin interface
+// Super admin focuses on system-level actions: impersonation, user management, etc.
 
 const getRoleIcon = (role: string) => {
   switch (role) {
     case 'super_admin':
       return <Crown className="mr-2 h-4 w-4" />;
-    case 'admin':
+    case 'org_owner':
+    case 'org_admin':
       return <Shield className="mr-2 h-4 w-4" />;
+    case 'project_editor':
+    case 'project_viewer':
     default:
       return <User className="mr-2 h-4 w-4" />;
   }
@@ -152,8 +38,13 @@ const getRoleColor = (role: string) => {
   switch (role) {
     case 'super_admin':
       return 'bg-purple-100 text-purple-800';
-    case 'admin':
+    case 'org_owner':
+      return 'bg-indigo-100 text-indigo-800';
+    case 'org_admin':
       return 'bg-blue-100 text-blue-800';
+    case 'project_editor':
+      return 'bg-green-100 text-green-800';
+    case 'project_viewer':
     default:
       return 'bg-gray-100 text-gray-800';
   }
@@ -181,21 +72,35 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
   {
     accessorKey: "role",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Role" />
+      <DataTableColumnHeader column={column} title="Role (View Only)" />
     ),
     cell: ({ row }) => {
-      const role = row.getValue("role") as string || 'user';
+      const rawRole = row.getValue("role") as string;
+      const role = rawRole || 'project_viewer'; // Align with RBAC default
+      
+      // Display role names - NEW RBAC ONLY
+      const getDisplayRole = (role: string) => {
+        switch (role) {
+          case 'super_admin': return 'Super Admin';
+          case 'org_owner': return 'Organization Owner';
+          case 'org_admin': return 'Organization Admin';
+          case 'project_editor': return 'Project Editor';
+          case 'project_viewer': return 'Project Viewer';
+          default: return role.charAt(0).toUpperCase() + role.slice(1);
+        }
+      };
+      
       return (
         <div className="py-2 flex items-center">
-          <Badge variant="outline" className={`${getRoleColor(role)} text-xs px-3 py-1.5 font-medium capitalize`}>
+          <Badge variant="outline" className={`${getRoleColor(role)} text-xs px-3 py-1.5 font-medium`}>
             {getRoleIcon(role)}
-            {role}
+            {getDisplayRole(role)}
           </Badge>
         </div>
       );
     },
     filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id) || 'user');
+      return value.includes(row.getValue(id) || 'project_viewer');
     },
   },
   {
@@ -226,33 +131,6 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
     },
   },
   {
-    id: "emailVerified",
-    accessorFn: (row) => {
-      const verified = row.emailVerified;
-      return verified ? 'verified' : 'unverified';
-    },
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Verified" />
-    ),
-    cell: ({ row }) => {
-      const verified = row.original.emailVerified as boolean;
-      return (
-        <div className="py-2 flex items-center">
-          {verified ? (
-            <Badge variant="outline" className="bg-green-100 text-green-700 text-xs px-3 py-1.5 font-medium capitalize">Verified</Badge>
-          ) : (
-            <Badge variant="outline" className="bg-yellow-100 text-yellow-700 text-xs px-3 py-1.5 font-medium capitalize">Unverified</Badge>
-          )}
-        </div>
-      );
-    },
-    filterFn: (row, id, value) => {
-      const verified = row.original.emailVerified as boolean;
-      const status = verified ? 'verified' : 'unverified';
-      return value.includes(status);
-    },
-  },
-  {
     accessorKey: "createdAt",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Created" />
@@ -270,73 +148,7 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
     id: "actions",
     cell: ({ row }) => {
       const user = row.original;
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => handleImpersonateUser(user.id)}
-            >
-              <UserCheck className="mr-2 h-4 w-4" />
-              Impersonate
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Shield className="mr-2 h-4 w-4" />
-                Change Role
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem
-                  onClick={() => handleChangeRole(user.id, 'user', onUserUpdate)}
-                  disabled={user.role === 'user'}
-                >
-                  <User className="mr-2 h-4 w-4" />
-                  User
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleChangeRole(user.id, 'admin', onUserUpdate)}
-                  disabled={user.role === 'admin'}
-                >
-                  <Shield className="mr-2 h-4 w-4" />
-                  Admin
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleChangeRole(user.id, 'super_admin', onUserUpdate)}
-                  disabled={user.role === 'super_admin'}
-                >
-                  <Crown className="mr-2 h-4 w-4" />
-                  Super Admin
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            {user.banned ? (
-              <DropdownMenuItem
-                onClick={() => handleUnbanUser(user.id, onUserUpdate)}
-              >
-                <UserCheck className="mr-2 h-4 w-4" />
-                Unban User
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem
-                onClick={() => handleBanUser(user.id, 'Banned by admin', onUserUpdate)}
-                className="text-red-600"
-              >
-                <UserX className="mr-2 h-4 w-4" />
-                Ban User
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
+      return <UserActions user={user} onUserUpdate={onUserUpdate} />;
     },
   },
 ];

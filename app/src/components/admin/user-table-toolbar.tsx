@@ -1,21 +1,19 @@
 import type { Table } from "@tanstack/react-table";
-import { X, Search, UserPlus, Crown, Shield, User, UserCheck, UserX, CheckCircle, XCircle } from "lucide-react";
+import { X, Search, Crown, User, UserCheck, UserX } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTableViewOptions } from "@/components/tests/data-table-view-options";
 import { DataTableFacetedFilter } from "@/components/tests/data-table-faceted-filter";
 
-import { userRoles, userStatuses, emailVerificationStatus } from "./user-data";
+import { userRoles, userStatuses } from "./user-data";
 
 interface UserTableToolbarProps<TData> {
   table: Table<TData>;
-  onCreateUser?: () => void;
 }
 
 export function UserTableToolbar<TData>({
   table,
-  onCreateUser,
 }: UserTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
 
@@ -28,7 +26,6 @@ export function UserTableToolbar<TData>({
     if (!role || typeof role !== 'string') return User;
     switch (role) {
       case 'super_admin': return Crown;
-      case 'admin': return Shield;
       default: return User;
     }
   };
@@ -37,7 +34,6 @@ export function UserTableToolbar<TData>({
     if (!role || typeof role !== 'string') return 'text-gray-600';
     switch (role) {
       case 'super_admin': return 'text-purple-600';
-      case 'admin': return 'text-blue-600';
       default: return 'text-gray-600';
     }
   };
@@ -73,25 +69,6 @@ export function UserTableToolbar<TData>({
       }) : 
     userStatuses;
 
-  // Get faceted unique values for email verification from the table
-  const emailVerifiedColumn = table.getColumn("emailVerified");
-  const emailVerifiedFacets = emailVerifiedColumn?.getFacetedUniqueValues();
-  
-  // Create email status filter options from faceted values
-  const availableEmailStatuses = emailVerifiedFacets ? 
-    Array.from(emailVerifiedFacets.keys())
-      .filter(statusValue => statusValue != null)
-      .map(statusValue => {
-        const status = statusValue as string;
-        const isVerified = status === 'verified';
-        return {
-          value: status,
-          label: isVerified ? 'Verified' : 'Unverified',
-          icon: isVerified ? CheckCircle : XCircle,
-          color: isVerified ? 'text-green-600' : 'text-yellow-600',
-        };
-      }) : 
-    emailVerificationStatus;
 
   return (
     <div className="flex items-center justify-between">
@@ -130,13 +107,6 @@ export function UserTableToolbar<TData>({
             options={availableStatuses}
           />
         )}
-        {table.getColumn("emailVerified") && (
-          <DataTableFacetedFilter
-            column={table.getColumn("emailVerified")}
-            title="Email Status"
-            options={availableEmailStatuses}
-          />
-        )}
         {isFiltered && (
           <Button
             variant="ghost"
@@ -149,14 +119,7 @@ export function UserTableToolbar<TData>({
         )}
       </div>
       <div className="flex items-center space-x-2">
-      <DataTableViewOptions table={table} />
-        {onCreateUser && (
-          <Button size="sm" onClick={onCreateUser}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Create User
-          </Button>
-        )}
-        
+        <DataTableViewOptions table={table} />
       </div>
     </div>
   );

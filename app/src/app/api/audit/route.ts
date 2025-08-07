@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { auditLogs, user } from "@/db/schema/schema";
 import { desc, eq, and, ilike, count, SQL } from "drizzle-orm";
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { OrgPermission } from '@/lib/rbac/permissions';
+import { requireAuth, getUserOrgRole } from '@/lib/rbac/middleware';
 import { getActiveOrganization } from '@/lib/session';
+import { Role } from '@/lib/rbac/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,16 +24,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if user has permission to view audit logs
-    console.log('Audit API: Building permission context');
-    const permissionContext = await buildPermissionContext(
-      userId,
-      'organization', 
-      activeOrg.id
-    );
-    console.log('Audit API: Permission context built:', permissionContext);
+    // Check if a user has permission to view audit logs (org admin or higher)
+    console.log('Audit API: Checking permissions');
+    const userRole = await getUserOrgRole(userId, activeOrg.id);
+    console.log('Audit API: User role:', userRole);
     
-    const canViewAuditLogs = await hasPermission(permissionContext, OrgPermission.MANAGE_MEMBERS);
+    // Only org admins, owners, and super admins can view audit logs
+    const canViewAuditLogs = userRole === Role.ORG_ADMIN || userRole === Role.ORG_OWNER || userRole === Role.SUPER_ADMIN;
     console.log('Audit API: Can view audit logs:', canViewAuditLogs);
     
     if (!canViewAuditLogs) {

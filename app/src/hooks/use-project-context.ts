@@ -54,6 +54,14 @@ export function useProjectContextState(): ProjectContextState {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle specific permission errors more gracefully during user setup
+        if (response.status === 403 && data.error?.includes('Insufficient permissions')) {
+          console.log('Permission error during project fetch - likely new user setup issue');
+          // Don't throw error, just set empty projects to allow setup flow to continue
+          setProjects([]);
+          setCurrentProject(null);
+          return;
+        }
         throw new Error(data.error || 'Failed to fetch projects');
       }
 

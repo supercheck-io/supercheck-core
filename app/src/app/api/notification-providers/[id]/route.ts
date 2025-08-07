@@ -8,8 +8,7 @@ import {
   alertHistory
 } from "@/db/schema/schema";
 import { eq, desc, sql, and } from "drizzle-orm";
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 
 export async function GET(
@@ -18,11 +17,13 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
-    const { userId, project, organizationId } = await requireProjectContext();
+    const { project, organizationId } = await requireProjectContext();
     
-    // Build permission context and check access
-    const permissionContext = await buildPermissionContext(userId, 'project', organizationId, project.id);
-    const canView = await hasPermission(permissionContext, ProjectPermission.VIEW_MONITORS);
+    // Check permission to view notification providers
+    const canView = await hasPermission('monitor', 'view', {
+      organizationId,
+      projectId: project.id
+    });
     
     if (!canView) {
       return NextResponse.json(

@@ -2,22 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { notificationProviders, notificationProvidersInsertSchema, alertHistory } from "@/db/schema/schema";
 import { desc, sql, eq, and } from "drizzle-orm";
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 import { logAuditEvent } from '@/lib/audit-logger';
 
 export async function GET() {
   try {
-    const { userId, project, organizationId } = await requireProjectContext();
+    const { project, organizationId } = await requireProjectContext();
     
     // Use current project and organization context
     const targetProjectId = project.id;
     const targetOrganizationId = organizationId;
     
-    // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'project', targetOrganizationId, targetProjectId);
-    const canView = await hasPermission(context, ProjectPermission.VIEW_MONITORS);
+    // Check permission to view notification providers
+    const canView = await hasPermission('monitor', 'view', {
+      organizationId: targetOrganizationId,
+      projectId: targetProjectId
+    });
     
     if (!canView) {
       return NextResponse.json(
@@ -77,9 +78,11 @@ export async function POST(req: NextRequest) {
     const targetProjectId = project.id;
     const targetOrganizationId = organizationId;
     
-    // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'project', targetOrganizationId, targetProjectId);
-    const canCreate = await hasPermission(context, ProjectPermission.CREATE_MONITORS);
+    // Check permission to create notification providers
+    const canCreate = await hasPermission('monitor', 'create', {
+      organizationId: targetOrganizationId,
+      projectId: targetProjectId
+    });
     
     if (!canCreate) {
       return NextResponse.json(

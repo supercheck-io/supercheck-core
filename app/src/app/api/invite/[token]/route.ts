@@ -168,15 +168,27 @@ export async function POST(
       );
     }
 
-    // Add user to organization
-    await db
-      .insert(member)
-      .values({
-        organizationId: invite.organizationId,
-        userId: currentUser.id,
-        role: invite.role as 'owner' | 'admin' | 'member' | 'viewer',
-        createdAt: new Date()
-      });
+    // Add user to organization (with duplicate handling)
+    try {
+      await db
+        .insert(member)
+        .values({
+          organizationId: invite.organizationId,
+          userId: currentUser.id,
+          role: invite.role as 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer',
+          createdAt: new Date()
+        });
+    } catch (error: unknown) {
+      // Handle duplicate membership gracefully
+      const dbError = error as { constraint?: string; code?: string; message?: string };
+      if (dbError?.constraint === 'member_uniqueUserOrg' || 
+          dbError?.code === '23505' || 
+          dbError?.message?.includes('duplicate key')) {
+        console.log(`ℹ️ User ${currentUser.email} was already a member of organization ${invite.orgName} - continuing with invitation acceptance`);
+      } else {
+        throw error; // Re-throw other errors
+      }
+    }
 
     // Assign user to selected projects
     if (invite.selectedProjects) {
@@ -196,16 +208,29 @@ export async function POST(
               eq(projects.status, 'active')
             ));
 
-          // Assign user to each selected project
+          // Assign user to each selected project (with duplicate handling)
           for (const project of selectedProjects) {
-            await db
-              .insert(projectMembers)
-              .values({
-                userId: currentUser.id,
-                projectId: project.id,
-                role: invite.role as 'owner' | 'admin' | 'member' | 'viewer',
-                createdAt: new Date()
-              });
+            try {
+              await db
+                .insert(projectMembers)
+                .values({
+                  userId: currentUser.id,
+                  projectId: project.id,
+                  role: invite.role as 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer',
+                  createdAt: new Date()
+                });
+            } catch (error: unknown) {
+              // Handle duplicate project assignment gracefully
+              const dbError = error as { constraint?: string; code?: string; message?: string };
+              if (dbError?.constraint === 'project_members_uniqueUserProject' || 
+                  dbError?.code === '23505' || 
+                  dbError?.message?.includes('duplicate key')) {
+                console.log(`ℹ️ User ${currentUser.email} was already assigned to project "${project.name}" - skipping`);
+              } else {
+                console.error(`Error assigning user to project "${project.name}":`, error);
+                // Don't throw here - continue with other projects
+              }
+            }
           }
           
           const projectNames = selectedProjects.map(p => p.name);

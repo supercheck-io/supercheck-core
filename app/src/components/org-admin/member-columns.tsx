@@ -12,15 +12,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MoreHorizontal, UserMinus, Crown, Shield, User, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
 import { DataTableColumnHeader } from "@/components/tests/data-table-column-header";
 
 export interface OrgMember {
   id: string;
   name: string;
   email: string;
-  role: 'owner' | 'admin' | 'member' | 'viewer';
+  role: 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer';
   joinedAt: string;
   type: 'member';
 }
@@ -63,10 +74,6 @@ const handleUpdateMemberRole = async (memberId: string, newRole: string, onUpdat
 };
 
 const handleRemoveMember = async (memberId: string, memberName: string, onUpdate: () => void) => {
-  if (!confirm(`Are you sure you want to remove ${memberName} from the organization?`)) {
-    return;
-  }
-
   try {
     const response = await fetch(`/api/organizations/members/${memberId}`, {
       method: 'DELETE',
@@ -86,15 +93,51 @@ const handleRemoveMember = async (memberId: string, memberName: string, onUpdate
   }
 };
 
+// Component to confirm member removal
+const RemoveMemberConfirmDialog = ({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  memberName 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onConfirm: () => void; 
+  memberName: string; 
+}) => {
+  return (
+    <AlertDialog open={isOpen} onOpenChange={onClose}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove member?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to remove <strong>{memberName}</strong> from the organization? 
+            This action cannot be undone and they will lose access to all projects and data.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={onConfirm}
+            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+          >
+            Remove Member
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
+
 const getRoleIcon = (role: string) => {
   switch (role) {
-    case 'owner':
+    case 'org_owner':
       return <Crown className="mr-2 h-4 w-4" />;
-    case 'admin':
+    case 'org_admin':
       return <Shield className="mr-2 h-4 w-4" />;
-    case 'member':
+    case 'project_editor':
       return <User className="mr-2 h-4 w-4" />;
-    case 'viewer':
+    case 'project_viewer':
       return <Eye className="mr-2 h-4 w-4" />;
     default:
       return <User className="mr-2 h-4 w-4" />;
@@ -105,14 +148,13 @@ const getRoleColor = (role: string, isInvitation = false) => {
   if (isInvitation) return 'bg-orange-100 text-orange-700';
   
   switch (role) {
-    case 'owner':
+    case 'org_owner':
       return 'bg-purple-100 text-purple-700';
-    case 'admin':
+    case 'org_admin':
       return 'bg-blue-100 text-blue-700';
-    case 'member':
+    case 'project_editor':
       return 'bg-green-100 text-green-700';
-    case 'viewer':
-      return 'bg-gray-100 text-gray-700';
+    case 'project_viewer':
     default:
       return 'bg-gray-100 text-gray-700';
   }
@@ -131,13 +173,97 @@ const getStatusColor = (status: string) => {
   }
 };
 
+// All roles are now in new RBAC format - no conversion needed
+
+// Member Actions Cell Component
+const MemberActionsCell = ({ 
+  member, 
+  onMemberUpdate 
+}: { 
+  member: OrgMember; 
+  onMemberUpdate: () => void;
+}) => {
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+
+  const handleRemoveClick = () => {
+    setShowRemoveDialog(true);
+  };
+
+  const handleConfirmRemove = () => {
+    handleRemoveMember(member.id, member.name, onMemberUpdate);
+    setShowRemoveDialog(false);
+  };
+
+  if (member.role === 'org_owner') {
+    return (
+      <div className="py-1 flex justify-start">
+        <Badge variant="outline" className="bg-purple-50 text-purple-700 text-xs px-3 py-1.5 font-medium">
+          Owner
+        </Badge>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-2 py-1 justify-start">
+        <Select
+          value={member.role}
+          onValueChange={(value) => handleUpdateMemberRole(member.id, value, onMemberUpdate)}
+        >
+          <SelectTrigger className="w-32 h-8 text-xs">
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="project_viewer">
+              <span className="text-left">Project Viewer</span>
+            </SelectItem>
+            <SelectItem value="project_editor">
+              <span className="text-left">Project Editor</span>
+            </SelectItem>
+            <SelectItem value="org_admin">
+              <span className="text-left">Organization Admin</span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={handleRemoveClick}
+              className="text-red-600"
+            >
+              <UserMinus className="mr-2 h-4 w-4" />
+              Remove Member
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <RemoveMemberConfirmDialog
+        isOpen={showRemoveDialog}
+        onClose={() => setShowRemoveDialog(false)}
+        onConfirm={handleConfirmRemove}
+        memberName={member.name}
+      />
+    </>
+  );
+};
+
 export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<MemberOrInvitation>[] => [
   {
     accessorKey: "name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Member" />
     ),
-    size: 200,
+    size: 250,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
@@ -171,7 +297,7 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Role" />
     ),
-    size: 100,
+    size: 120,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
@@ -203,7 +329,7 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
-    size: 100,
+    size: 120,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
@@ -233,7 +359,7 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Date" />
     ),
-    size: 120,
+    size: 140,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
@@ -261,70 +387,26 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
   },
   {
     id: "actions",
-    header: "Actions",
-    size: 140,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Actions" />
+    ),
+    size: 200,
     cell: ({ row }) => {
       const item = row.original;
       const isInvitation = item.type === 'invitation';
 
       if (isInvitation) {
         return (
-          <div className="py-1">
-            <div className="text-xs text-muted-foreground">
-              Pending invitation
-            </div>
-          </div>
-        );
-      }
-
-      const member = item as OrgMember;
-
-      if (member.role === 'owner') {
-        return (
-          <div className="py-1">
-            <Badge variant="outline" className="bg-purple-50 text-purple-700 text-xs px-3 py-1.5 font-medium capitalize">
-              Organization Owner
+          <div className="py-1 flex justify-start">
+            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 text-xs px-3 py-1.5 font-medium">
+              Pending
             </Badge>
           </div>
         );
       }
 
-      return (
-        <div className="flex items-center gap-2 py-1">
-          <Select
-            value={member.role}
-            onValueChange={(value) => handleUpdateMemberRole(member.id, value, onMemberUpdate)}
-          >
-            <SelectTrigger className="w-28 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="viewer">Viewer</SelectItem>
-              <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => handleRemoveMember(member.id, member.name, onMemberUpdate)}
-                className="text-red-600"
-              >
-                <UserMinus className="mr-2 h-4 w-4" />
-                Remove Member
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      );
+      const member = item as OrgMember;
+      return <MemberActionsCell member={member} onMemberUpdate={onMemberUpdate} />;
     },
   },
 ];

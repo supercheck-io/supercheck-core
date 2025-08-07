@@ -48,7 +48,7 @@ export default function AdminDashboard() {
     name: "",
     email: "",
     password: "",
-    role: "user"
+    role: "project_viewer"
   });
   const [usersPagination, setUsersPagination] = useState({
     limit: 25,
@@ -192,7 +192,7 @@ export default function AdminDashboard() {
       if (data.success) {
         toast.success('User created successfully');
         setShowCreateUserDialog(false);
-        setNewUser({ name: "", email: "", password: "", role: "user" });
+        setNewUser({ name: "", email: "", password: "", role: "project_viewer" });
         fetchUsers();
         fetchStats(); // Refresh stats
       } else {
@@ -208,24 +208,61 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="flex-1 space-y-4 p-6 pt-4">
-        <div className="flex items-center justify-between space-y-2">
-          <h2 className="text-2xl font-bold tracking-tight">Super Admin</h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(8)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
-              </CardHeader>
-              <CardContent>
-                <div className="h-8 bg-gray-200 rounded w-16 animate-pulse mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <div>
+        <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
+          <CardContent className="p-6">
+            <Tabs defaultValue="overview" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="users">Users</TabsTrigger>
+                <TabsTrigger value="organizations">Organizations</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="h-8 bg-gray-200 rounded w-32 animate-pulse mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
+                  </div>
+                </div>
+                
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  {[...Array(8)].map((_, i) => (
+                    <Card key={i}>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                        <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-8 bg-gray-200 rounded w-16 animate-pulse mb-2"></div>
+                        <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {[...Array(2)].map((_, i) => (
+                    <Card key={i}>
+                      <CardHeader>
+                        <div className="h-5 bg-gray-200 rounded w-32 animate-pulse mb-2"></div>
+                        <div className="h-4 bg-gray-200 rounded w-48 animate-pulse"></div>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {[...Array(4)].map((_, j) => (
+                          <div key={j} className="flex items-center justify-between">
+                            <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+                            <div className="h-4 bg-gray-200 rounded w-12 animate-pulse"></div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -241,12 +278,12 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="flex-1 space-y-4 p-6 pt-4">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-2xl font-bold tracking-tight">Super Admin</h2>
-      </div>
+    <div>
+    
       
-      <Tabs defaultValue="overview" className="space-y-4" onValueChange={handleTabChange}>
+      <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
+        <CardContent className="p-6">
+          <Tabs defaultValue="overview" className="space-y-4" onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
@@ -254,6 +291,12 @@ export default function AdminDashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">Super Admin</h2>
+              <p className="text-muted-foreground text-sm">Manage system users, organizations, and view platform statistics.</p>
+            </div>
+          </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <StatsCard
               title="Total Users"
@@ -421,12 +464,9 @@ export default function AdminDashboard() {
                 </DialogContent>
               </Dialog>
 
-          <Card className="bg-transparent border-none shadow-none">
-            <CardContent className="p-0">
               <UserTable 
                 users={users} 
                 onUserUpdate={() => { fetchUsers(); fetchStats(); }}
-                onCreateUser={() => setShowCreateUserDialog(true)}
               />
               {usersPagination.hasMore && (
                 <div className="flex justify-center pt-4">
@@ -439,15 +479,11 @@ export default function AdminDashboard() {
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="organizations" className="space-y-4">
          
 
-          <Card className="bg-transparent border-none shadow-none">
-            <CardContent className="p-0">
               <OrgTable 
                 organizations={organizations} 
                 onOrgUpdate={() => { fetchOrganizations(); fetchStats(); }}
@@ -463,10 +499,10 @@ export default function AdminDashboard() {
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

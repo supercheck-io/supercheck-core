@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors, monitorNotificationSettings } from "@/db/schema/schema";
 import { eq, desc, and } from "drizzle-orm";
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 import { createMonitorHandler, updateMonitorHandler } from "@/lib/monitor-service";
 import { logAuditEvent } from "@/lib/audit-logger";
@@ -104,9 +103,8 @@ export async function POST(req: NextRequest) {
     // Use current project context
     const targetProjectId = project.id;
     
-    // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'project', organizationId!, targetProjectId);
-    const canCreate = await hasPermission(context, ProjectPermission.CREATE_MONITORS);
+    // Check permission to create monitors
+    const canCreate = await hasPermission('monitor', 'create', { organizationId, projectId: targetProjectId });
     
     if (!canCreate) {
       return NextResponse.json(
@@ -248,9 +246,8 @@ export async function PUT(req: NextRequest) {
       );
     }
     
-    // Build permission context and check access
-    const context = await buildPermissionContext(userId, 'project', organizationId, project.id);
-    const canManage = await hasPermission(context, ProjectPermission.MANAGE_MONITORS);
+    // Check permission to manage monitors
+    const canManage = await hasPermission('monitor', 'manage', { organizationId, projectId: project.id });
     
     if (!canManage) {
       return NextResponse.json(

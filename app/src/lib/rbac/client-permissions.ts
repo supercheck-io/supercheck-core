@@ -1,94 +1,271 @@
 /**
- * Client-side permission checking utilities
- * 
- * This module provides client-side permission checking based on user roles.
- * It mirrors the server-side permission system but works with the client-side context.
+ * Client-side permission checking utilities for Better Auth RBAC System
  */
 
-import { ProjectRole, ProjectPermission, PROJECT_ROLE_PERMISSIONS } from './permissions';
+import { Role } from './permissions';
+import { normalizeRole } from './role-normalizer';
 
 /**
- * Check if a user role has a specific project permission
+ * Helper function to convert string role to Role enum
+ * @deprecated Use normalizeRole from role-normalizer instead
  */
-export function hasProjectPermission(userRole: string, permission: ProjectPermission): boolean {
-  // Map string role to ProjectRole enum
-  let role: ProjectRole;
-  
-  switch (userRole) {
-    case 'owner':
-      role = ProjectRole.OWNER;
-      break;
-    case 'admin':
-      role = ProjectRole.ADMIN;
-      break;
-    case 'editor':
-      role = ProjectRole.EDITOR;
-      break;
-    case 'viewer':
-      role = ProjectRole.VIEWER;
-      break;
-    default:
-      // Default to viewer if role is unknown
-      role = ProjectRole.VIEWER;
-      break;
-  }
-  
-  const rolePermissions = PROJECT_ROLE_PERMISSIONS[role] || [];
-  return rolePermissions.includes(permission);
+export function convertStringToRole(roleString: string): Role {
+  return normalizeRole(roleString);
 }
 
 /**
- * Check if user can trigger jobs
+ * Check if role has permission to perform action on resource
  */
-export function canTriggerJobs(userRole: string): boolean {
-  return hasProjectPermission(userRole, ProjectPermission.TRIGGER_JOBS);
+export function hasPermission(role: Role, resource: string, action: string): boolean {
+  console.log('🔍 [Permissions] hasPermission check:', { role, resource, action });
+  let result: boolean;
+  switch (role) {
+    case Role.SUPER_ADMIN:
+      result = true; // Super admin has all permissions
+      break;
+
+    case Role.ORG_OWNER:
+      // Owners can do everything except system-level operations
+      result = resource !== 'system';
+      break;
+
+    case Role.ORG_ADMIN:
+      // Admins can manage org and projects but not delete org
+      if (resource === 'organization' && action === 'delete') {
+        result = false;
+      } else {
+        result = resource !== 'system';
+      }
+      break;
+
+    case Role.PROJECT_EDITOR:
+      // Editors can edit tests, jobs, monitors, tags in assigned projects
+      if (['test', 'job', 'monitor'].includes(resource)) {
+        result = ['view', 'create', 'update', 'run', 'trigger'].includes(action);
+      } else if (resource === 'tag') {
+        result = ['view', 'create', 'update', 'delete'].includes(action);
+      } else if (['organization', 'member', 'project'].includes(resource)) {
+        result = action === 'view';
+      } else {
+        result = false;
+      }
+      break;
+
+    case Role.PROJECT_VIEWER:
+      // Viewers can only view resources
+      result = action === 'view';
+      break;
+
+    default:
+      result = false;
+      break;
+  }
+  
+  console.log('🔍 [Permissions] hasPermission result:', result);
+  return result;
 }
 
 /**
  * Check if user can edit jobs
  */
-export function canEditJobs(userRole: string): boolean {
-  return hasProjectPermission(userRole, ProjectPermission.EDIT_JOBS);
+export function canEditJobs(role: Role): boolean {
+  return hasPermission(role, 'job', 'update');
 }
 
 /**
  * Check if user can delete jobs
  */
-export function canDeleteJobs(userRole: string): boolean {
-  return hasProjectPermission(userRole, ProjectPermission.DELETE_JOBS);
+export function canDeleteJobs(role: Role): boolean {
+  return hasPermission(role, 'job', 'delete');
+}
+
+/**
+ * Check if user can trigger jobs
+ */
+export function canTriggerJobs(role: Role): boolean {
+  return hasPermission(role, 'job', 'trigger');
 }
 
 /**
  * Check if user can create jobs
  */
-export function canCreateJobs(userRole: string): boolean {
-  return hasProjectPermission(userRole, ProjectPermission.CREATE_JOBS);
-}
-
-/**
- * Check if user can run tests
- */
-export function canRunTests(userRole: string): boolean {
-  return hasProjectPermission(userRole, ProjectPermission.RUN_TESTS);
+export function canCreateJobs(role: Role): boolean {
+  const result = hasPermission(role, 'job', 'create');
+  console.log('🔍 [Permissions] canCreateJobs:', role, '→', result);
+  return result;
 }
 
 /**
  * Check if user can edit tests
  */
-export function canEditTests(userRole: string): boolean {
-  return hasProjectPermission(userRole, ProjectPermission.EDIT_TESTS);
+export function canEditTests(role: Role): boolean {
+  return hasPermission(role, 'test', 'update');
 }
 
 /**
  * Check if user can delete tests
  */
-export function canDeleteTests(userRole: string): boolean {
-  return hasProjectPermission(userRole, ProjectPermission.DELETE_TESTS);
+export function canDeleteTests(role: Role): boolean {
+  return hasPermission(role, 'test', 'delete');
+}
+
+/**
+ * Check if user can run tests
+ */
+export function canRunTests(role: Role): boolean {
+  return hasPermission(role, 'test', 'run');
 }
 
 /**
  * Check if user can create tests
  */
-export function canCreateTests(userRole: string): boolean {
-  return hasProjectPermission(userRole, ProjectPermission.CREATE_TESTS);
+export function canCreateTests(role: Role): boolean {
+  return hasPermission(role, 'test', 'create');
+}
+
+/**
+ * Check if user can edit monitors
+ */
+export function canEditMonitors(role: Role): boolean {
+  return hasPermission(role, 'monitor', 'update');
+}
+
+/**
+ * Check if user can delete monitors
+ */
+export function canDeleteMonitors(role: Role): boolean {
+  return hasPermission(role, 'monitor', 'delete');
+}
+
+/**
+ * Check if user can create monitors
+ */
+export function canCreateMonitors(role: Role): boolean {
+  return hasPermission(role, 'monitor', 'create');
+}
+
+/**
+ * Check if user can manage monitors
+ */
+export function canManageMonitors(role: Role): boolean {
+  return hasPermission(role, 'monitor', 'manage');
+}
+
+/**
+ * Check if user can manage organization
+ */
+export function canManageOrganization(role: Role): boolean {
+  return hasPermission(role, 'organization', 'update');
+}
+
+/**
+ * Check if user can delete organization
+ */
+export function canDeleteOrganization(role: Role): boolean {
+  return hasPermission(role, 'organization', 'delete');
+}
+
+/**
+ * Check if user can invite members
+ */
+export function canInviteMembers(role: Role): boolean {
+  return hasPermission(role, 'member', 'create');
+}
+
+/**
+ * Check if user can remove members
+ */
+export function canRemoveMembers(role: Role): boolean {
+  return hasPermission(role, 'member', 'delete');
+}
+
+/**
+ * Check if user can manage members
+ */
+export function canManageMembers(role: Role): boolean {
+  return hasPermission(role, 'member', 'update');
+}
+
+/**
+ * Check if user can create projects
+ */
+export function canCreateProjects(role: Role): boolean {
+  return hasPermission(role, 'project', 'create');
+}
+
+/**
+ * Check if user can delete project
+ */
+export function canDeleteProject(role: Role): boolean {
+  return hasPermission(role, 'project', 'delete');
+}
+
+/**
+ * Check if user can manage project
+ */
+export function canManageProject(role: Role): boolean {
+  return hasPermission(role, 'project', 'update');
+}
+
+/**
+ * Check if user can view API keys
+ */
+export function canViewAPIKeys(role: Role): boolean {
+  return hasPermission(role, 'apiKey', 'view');
+}
+
+/**
+ * Check if user can manage API keys
+ */
+export function canManageAPIKeys(role: Role): boolean {
+  return hasPermission(role, 'apiKey', 'create');
+}
+
+/**
+ * Check if user can export results
+ */
+export function canExportResults(role: Role): boolean {
+  return hasPermission(role, 'run', 'export');
+}
+
+/**
+ * Check if user can create tags
+ */
+export function canCreateTags(role: Role): boolean {
+  return hasPermission(role, 'tag', 'create');
+}
+
+/**
+ * Check if user can delete tags
+ */
+export function canDeleteTags(role: Role): boolean {
+  return hasPermission(role, 'tag', 'delete');
+}
+
+/**
+ * Check if role has organization-wide access
+ */
+export function hasOrganizationWideAccess(role: Role): boolean {
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_VIEWER].includes(role);
+}
+
+/**
+ * Check if role is limited to assigned projects
+ */
+export function isProjectLimitedRole(role: Role): boolean {
+  return role === Role.PROJECT_EDITOR;
+}
+
+/**
+ * Check if role can edit resources
+ */
+export function canEditResources(role: Role): boolean {
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_EDITOR].includes(role);
+}
+
+/**
+ * Check if role can delete resources
+ */
+export function canDeleteResources(role: Role): boolean {
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN].includes(role);
 }

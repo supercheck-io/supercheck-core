@@ -9,6 +9,7 @@ interface MembersTableProps {
   members: MemberOrInvitation[];
   onMemberUpdate: () => void;
   onInviteMember: () => void;
+  canInviteMembers?: boolean;
 }
 
 // Custom global filter function for members table
@@ -28,13 +29,13 @@ function memberGlobalFilterFn(row: any, _columnId: string, filterValue: string) 
   }
 }
 
-export function MembersTable({ members, onMemberUpdate, onInviteMember }: MembersTableProps) {
+export function MembersTable({ members, onMemberUpdate, onInviteMember, canInviteMembers = false }: MembersTableProps) {
   const columns = React.useMemo(() => createMemberColumns(onMemberUpdate), [onMemberUpdate]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const CustomToolbar = React.useCallback(({ table }: { table: any }) => (
-    <MemberTableToolbar table={table} onInviteMember={onInviteMember} />
-  ), [onInviteMember]);
+    <MemberTableToolbar table={table} onInviteMember={onInviteMember} canInviteMembers={canInviteMembers} />
+  ), [onInviteMember, canInviteMembers]);
 
   return (
     <AdminDataTable
@@ -47,7 +48,7 @@ export function MembersTable({ members, onMemberUpdate, onInviteMember }: Member
       meta={{
         globalFilterColumns: ["name", "email"],
         globalFilterFn: memberGlobalFilterFn,
-        initialPageSize: 6,
+        initialPageSize: 7,
       }}
     />
   );

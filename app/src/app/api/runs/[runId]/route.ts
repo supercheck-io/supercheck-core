@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from "@/utils/db";
 import { runs, reports, jobs, jobTests } from "@/db/schema/schema";
 import { eq, and, count } from "drizzle-orm";
-import { requireAuth } from '@/lib/rbac/middleware';
+import { requireAuth, getUserOrgRole } from '@/lib/rbac/middleware';
+import { isSuperAdmin } from '@/lib/admin';
 import { getActiveProject } from '@/lib/session';
 
 // Get run handler - requires auth but no project restrictions
@@ -12,7 +13,7 @@ export async function GET(
 ) {
   const params = await context.params;
   try {
-    await requireAuth();
+    const { userId } = await requireAuth();
     const runId = params.runId;
     
     if (!runId) {
@@ -59,6 +60,20 @@ export async function GET(
     }
 
     const run = result[0];
+
+    // Check if user has access to this run's organization
+    const userIsSuperAdmin = await isSuperAdmin();
+    
+    if (!userIsSuperAdmin && run.organizationId) {
+      const orgRole = await getUserOrgRole(userId, run.organizationId);
+      
+      if (!orgRole) {
+        return NextResponse.json(
+          { error: 'Access denied: Not a member of this organization' },
+          { status: 403 }
+        );
+      }
+    }
     
     // Get test count for this job
     const testCountResult = await db

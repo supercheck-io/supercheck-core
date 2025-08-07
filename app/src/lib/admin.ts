@@ -1,9 +1,9 @@
 import { db } from '@/utils/db';
-import { user, organization, projects, jobs, tests, monitors, runs } from '@/db/schema/schema';
-import { count, eq, desc, sql } from 'drizzle-orm';
+import { user, organization, projects, jobs, tests, monitors, runs, member } from '@/db/schema/schema';
+import { count, eq, desc, sql, or, isNull } from 'drizzle-orm';
 import { getCurrentUser, getActiveOrganization } from './session';
-import { getUserSystemRole, getUserOrgRole } from './rbac/middleware';
-import { SystemRole, OrgRole } from './rbac/permissions';
+import { getUserRole, getUserOrgRole } from './rbac/middleware';
+import { Role } from './rbac/permissions';
 
 export async function isAdmin(): Promise<boolean> {
   try {
@@ -11,9 +11,9 @@ export async function isAdmin(): Promise<boolean> {
     
     if (!currentUser) return false;
     
-    // Use RBAC system to check admin privileges - SUPER_ADMIN only
-    const systemRole = await getUserSystemRole(currentUser.id);
-    return systemRole === SystemRole.SUPER_ADMIN;
+    // Use unified RBAC system to check admin privileges - SUPER_ADMIN only
+    const role = await getUserRole(currentUser.id);
+    return role === Role.SUPER_ADMIN;
   } catch (error) {
     console.error('Error checking admin status:', error);
     return false;
@@ -26,9 +26,9 @@ export async function isSuperAdmin(): Promise<boolean> {
     
     if (!currentUser) return false;
     
-    // Use RBAC system to check super admin privileges
-    const systemRole = await getUserSystemRole(currentUser.id);
-    return systemRole === SystemRole.SUPER_ADMIN;
+    // Use unified RBAC system to check super admin privileges
+    const role = await getUserRole(currentUser.id);
+    return role === Role.SUPER_ADMIN;
   } catch (error) {
     console.error('Error checking super admin status:', error);
     return false;
@@ -46,7 +46,7 @@ export async function isOrgAdmin(): Promise<boolean> {
     if (!activeOrg) return false;
     
     const orgRole = await getUserOrgRole(currentUser.id, activeOrg.id);
-    return orgRole === OrgRole.ADMIN || orgRole === OrgRole.OWNER;
+    return orgRole === Role.ORG_ADMIN || orgRole === Role.ORG_OWNER;
   } catch (error) {
     console.error('Error checking org admin status:', error);
     return false;
@@ -83,7 +83,7 @@ export async function getUserStats(): Promise<UserStats> {
   const [activeUsersResult] = await db
     .select({ count: count() })
     .from(user)
-    .where(eq(user.banned, false));
+    .where(or(eq(user.banned, false), isNull(user.banned)));
   
   const [bannedUsersResult] = await db
     .select({ count: count() })
@@ -149,7 +149,7 @@ export async function getSystemStats(): Promise<SystemStats> {
 export async function getAllUsers(limit = 50, offset = 0) {
   await requireAdmin();
   
-  return await db
+  const users = await db
     .select({
       id: user.id,
       name: user.name,
@@ -158,7 +158,7 @@ export async function getAllUsers(limit = 50, offset = 0) {
       image: user.image,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      role: user.role,
+      role: user.role, // Keep the database role as backup
       banned: user.banned,
       banReason: user.banReason,
       banExpires: user.banExpires,
@@ -167,6 +167,105 @@ export async function getAllUsers(limit = 50, offset = 0) {
     .orderBy(desc(user.createdAt))
     .limit(limit)
     .offset(offset);
+
+  // Enrich with actual RBAC roles (highest role across all orgs) and org count
+  const enrichedUsers = await Promise.all(
+    users.map(async (u) => {
+      try {
+        const [highestRole, orgCount] = await Promise.all([
+          getUserHighestRole(u.id),
+          getUserOrgCount(u.id)
+        ]);
+        console.log(`User ${u.email} (${u.id}): Highest role = ${highestRole}, DB role = ${u.role}, Org count = ${orgCount}`);
+        
+        // Add org count to name if user is in multiple orgs
+        const nameWithOrgCount = orgCount > 1 ? `${u.name} (${orgCount} orgs)` : u.name;
+        
+        return {
+          ...u,
+          name: nameWithOrgCount,
+          role: highestRole
+        };
+      } catch (error) {
+        console.error(`Error getting role for user ${u.id}:`, error);
+        // Fallback to database role or default
+        return {
+          ...u,
+          role: u.role || 'project_viewer'
+        };
+      }
+    })
+  );
+
+  return enrichedUsers;
+}
+
+/**
+ * Get the user's highest role across all organizations for super admin display
+ */
+async function getUserHighestRole(userId: string): Promise<string> {
+  // First check if user is SUPER_ADMIN via env vars
+  const adminUserIds = process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()) || [];
+  const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
+  
+  if (adminUserIds.includes(userId)) {
+    return 'super_admin';
+  }
+
+  // Check by email
+  const userRecord = await db.select({ email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (userRecord.length > 0 && userRecord[0].email && adminEmails.includes(userRecord[0].email)) {
+    return 'super_admin';
+  }
+
+  // Get all organization memberships and find highest role
+  const memberships = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(eq(member.userId, userId));
+
+  console.log(`User ${userId} memberships:`, memberships);
+
+  if (memberships.length === 0) {
+    console.log(`User ${userId} has no org memberships - returning project_viewer`);
+    return 'project_viewer'; // Default for users with no org membership
+  }
+
+  // Role hierarchy (highest to lowest) - NEW RBAC ONLY
+  const roleHierarchy = [
+    'super_admin',
+    'org_owner', 
+    'org_admin',
+    'project_editor',
+    'project_viewer'
+  ];
+  
+  // Find the highest role
+  for (const hierarchyRole of roleHierarchy) {
+    if (memberships.some(m => m.role === hierarchyRole)) {
+      console.log(`User ${userId} highest role found: ${hierarchyRole}`);
+      return hierarchyRole;
+    }
+  }
+
+  console.log(`User ${userId} no matching role found in hierarchy, membership roles:`, memberships.map(m => m.role));
+  return 'project_viewer';
+}
+
+/**
+ * Get the number of organizations a user is a member of
+ */
+async function getUserOrgCount(userId: string): Promise<number> {
+  const memberships = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId));
+
+  return memberships.length;
 }
 
 export async function getAllOrganizations(limit = 50, offset = 0) {

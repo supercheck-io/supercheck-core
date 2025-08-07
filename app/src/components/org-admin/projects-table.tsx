@@ -9,17 +9,19 @@ interface ProjectsTableProps {
   projects: Project[];
   onCreateProject: () => void;
   onEditProject?: (project: Project) => void;
+  canCreateProjects?: boolean;
+  canManageProject?: boolean;
 }
 
 
 
-export function ProjectsTable({ projects, onCreateProject, onEditProject }: ProjectsTableProps) {
-  const columns = React.useMemo(() => createProjectColumns(onEditProject), [onEditProject]);
+export function ProjectsTable({ projects, onCreateProject, onEditProject, canCreateProjects = false, canManageProject = false }: ProjectsTableProps) {
+  const columns = React.useMemo(() => createProjectColumns(onEditProject, canManageProject), [onEditProject, canManageProject]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const CustomToolbar = React.useCallback(({ table }: { table: any }) => (
-    <ProjectTableToolbar table={table} onCreateProject={onCreateProject} />
-  ), [onCreateProject]);
+    <ProjectTableToolbar table={table} onCreateProject={onCreateProject} canCreateProjects={canCreateProjects} />
+  ), [onCreateProject, canCreateProjects]);
 
   return (
     <AdminDataTable

@@ -2,7 +2,7 @@ import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getUserOrgRole } from "@/lib/rbac/middleware";
-import { OrgRole } from "@/lib/rbac/permissions";
+import { Role } from "@/lib/rbac/permissions";
 import { getActiveOrganization, getCurrentUser } from "@/lib/session";
 
 export default async function OrgAdminLayout({
@@ -27,7 +27,7 @@ export default async function OrgAdminLayout({
   }
 
   const orgRole = await getUserOrgRole(currentUser.id, activeOrg.id);
-  const isOrgAdmin = orgRole === OrgRole.ADMIN || orgRole === OrgRole.OWNER;
+  const isOrgAdmin = orgRole === Role.ORG_ADMIN || orgRole === Role.ORG_OWNER;
   
   if (!isOrgAdmin) {
     redirect("/");

@@ -1,5 +1,5 @@
 /**
- * RBAC Middleware for permission checking and enforcement
+ * Better Auth RBAC Middleware for permission checking and enforcement
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -8,41 +8,54 @@ import { headers } from 'next/headers';
 import { db } from '@/utils/db';
 import { member, projectMembers, user } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
-import {
-  Permission,
-  PermissionContext,
-  SystemRole,
-  OrgRole,
-  ProjectRole,
-  SystemPermission,
-  OrgPermission,
-  ProjectPermission,
-  SYSTEM_ROLE_PERMISSIONS,
-  ORG_ROLE_PERMISSIONS,
-  PROJECT_ROLE_PERMISSIONS
-} from './permissions';
+import { Role, hasPermission as checkPermission, PermissionContext, statement } from './permissions';
+import { normalizeRole } from './role-normalizer';
 
 /**
- * Check if a user has a specific permission in the given context
+ * Check if a user has a specific permission using Better Auth system
  */
 export async function hasPermission(
-  context: PermissionContext,
-  permission: Permission
+  resource: keyof typeof statement,
+  action: string,
+  context?: Partial<PermissionContext>
 ): Promise<boolean> {
   try {
-    switch (context.type) {
-      case 'system':
-        return hasSystemPermission(context, permission as SystemPermission);
-      
-      case 'organization':
-        return hasOrgPermission(context, permission as OrgPermission);
-      
-      case 'project':
-        return hasProjectPermission(context, permission as ProjectPermission);
-      
-      default:
-        return false;
+    // Get current session
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return false;
     }
+
+    // Use Better Auth's hasPermission API for organization and admin permissions
+    if (['organization', 'member', 'invitation'].includes(resource)) {
+      const result = await auth.api.hasPermission({
+        headers: await headers(),
+        body: {
+          permissions: {
+            [resource]: [action]
+          }
+        }
+      });
+      return result.success;
+    }
+
+    // For custom resources (project, test, job, etc.), use our custom logic
+    const userRole = await getUserRole(session.user.id, context?.organizationId);
+    const assignedProjects = context?.assignedProjectIds || await getUserAssignedProjects(session.user.id);
+    
+    const permissionContext: PermissionContext = {
+      userId: session.user.id,
+      role: userRole,
+      organizationId: context?.organizationId,
+      projectId: context?.projectId,
+      assignedProjectIds: assignedProjects,
+      resourceCreatorId: context?.resourceCreatorId
+    };
+
+    return checkPermission(permissionContext, resource, action);
   } catch (error) {
     console.error('Error checking permission:', error);
     return false;
@@ -50,128 +63,56 @@ export async function hasPermission(
 }
 
 /**
- * Check system-level permissions
- */
-function hasSystemPermission(
-  context: PermissionContext,
-  permission: SystemPermission
-): boolean {
-  if (context.type !== 'system') return false;
-  
-  const userPermissions = SYSTEM_ROLE_PERMISSIONS[context.systemRole] || [];
-  return userPermissions.includes(permission);
-}
-
-/**
- * Check organization-level permissions
- */
-function hasOrgPermission(
-  context: PermissionContext,
-  permission: OrgPermission
-): boolean {
-  // System admins have all organization permissions
-  if (context.systemRole === SystemRole.SUPER_ADMIN) {
-    return true;
-  }
-  
-  if (context.type !== 'organization') return false;
-  
-  const userPermissions = ORG_ROLE_PERMISSIONS[context.orgRole] || [];
-  return userPermissions.includes(permission);
-}
-
-/**
- * Check project-level permissions
- */
-function hasProjectPermission(
-  context: PermissionContext,
-  permission: ProjectPermission
-): boolean {
-  // System admins have all project permissions
-  if (context.systemRole === SystemRole.SUPER_ADMIN) {
-    return true;
-  }
-  
-  // Organization owners/admins have all project permissions in their org
-  if (context.type !== 'system' && (context.orgRole === OrgRole.OWNER || context.orgRole === OrgRole.ADMIN)) {
-    return true;
-  }
-  
-  if (context.type !== 'project') return false;
-  
-  // Ensure we have a valid project role
-  const projectRole = context.projectRole || ProjectRole.VIEWER;
-  const userPermissions = PROJECT_ROLE_PERMISSIONS[projectRole] || [];
-  return userPermissions.includes(permission);
-}
-
-/**
  * Require a specific permission - throws error if not authorized
  */
 export async function requirePermission(
-  context: PermissionContext,
-  permission: Permission
+  resource: keyof typeof statement,
+  action: string,
+  context?: Partial<PermissionContext>
 ): Promise<void> {
-  const hasAccess = await hasPermission(context, permission);
+  const hasAccess = await hasPermission(resource, action, context);
   
   if (!hasAccess) {
-    throw new Error(`Access denied: Missing permission ${permission}`);
+    throw new Error(`Access denied: Missing permission ${resource}:${action}`);
   }
 }
 
 /**
- * Get user's system role
+ * Get user's role (prioritizes organization membership role)
  */
-export async function getUserSystemRole(userId: string): Promise<SystemRole> {
-  // First get user data to check against email-based admin list
-  const userRecord = await db.select({ 
-    id: user.id, 
-    email: user.email, 
-    role: user.role 
-  })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1);
-  
-  if (userRecord.length === 0) {
-    return SystemRole.USER;
-  }
-  
-  const userData = userRecord[0];
-  
-  // Check if user is in admin list from environment (supports both email and user ID)
+export async function getUserRole(userId: string, organizationId?: string): Promise<Role> {
+  // First check if user is SUPER_ADMIN via env vars
   const adminUserIds = process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()) || [];
   const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
   
-  // Check by user ID (legacy support)
   if (adminUserIds.includes(userId)) {
-    return SystemRole.SUPER_ADMIN;
+    return Role.SUPER_ADMIN;
   }
-  
-  // Check by email (new preferred method)
-  if (userData.email && adminEmails.includes(userData.email)) {
-    return SystemRole.SUPER_ADMIN;
+
+  // Check by email
+  const userRecord = await db.select({ email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (userRecord.length > 0 && userRecord[0].email && adminEmails.includes(userRecord[0].email)) {
+    return Role.SUPER_ADMIN;
   }
-  
-  // Check user role from database
-  if (userData.role) {
-    switch (userData.role) {
-      case 'admin':
-        return SystemRole.ADMIN;
-      case 'super_admin':
-        return SystemRole.SUPER_ADMIN;
-      default:
-        return SystemRole.USER;
-    }
+
+  // If organization context is provided, get organization role
+  if (organizationId) {
+    const orgRole = await getUserOrgRole(userId, organizationId);
+    if (orgRole) return orgRole;
   }
-  
-  return SystemRole.USER;
+
+  // Default to viewer role
+  return Role.PROJECT_VIEWER;
 }
 
 /**
- * Get user's organization role
+ * Get user's organization role from member table
  */
-export async function getUserOrgRole(userId: string, organizationId: string): Promise<OrgRole | null> {
+export async function getUserOrgRole(userId: string, organizationId: string): Promise<Role | null> {
   const memberRecord = await db
     .select({ role: member.role })
     .from(member)
@@ -186,136 +127,21 @@ export async function getUserOrgRole(userId: string, organizationId: string): Pr
   }
   
   const role = memberRecord[0].role;
-  switch (role) {
-    case 'owner':
-      return OrgRole.OWNER;
-    case 'admin':
-      return OrgRole.ADMIN;
-    case 'member':
-      return OrgRole.MEMBER;
-    case 'viewer':
-      return OrgRole.VIEWER;
-    default:
-      return OrgRole.MEMBER;
-  }
+  
+  // Use the comprehensive role normalizer
+  return normalizeRole(role);
 }
 
 /**
- * Get user's project role
+ * Get user's assigned project IDs (for PROJECT_EDITOR role)
  */
-export async function getUserProjectRole(
-  userId: string, 
-  projectId: string
-): Promise<ProjectRole | null> {
-  const projectMemberRecord = await db
-    .select({ role: projectMembers.role })
+export async function getUserAssignedProjects(userId: string): Promise<string[]> {
+  const projectAssignments = await db
+    .select({ projectId: projectMembers.projectId })
     .from(projectMembers)
-    .where(and(
-      eq(projectMembers.userId, userId),
-      eq(projectMembers.projectId, projectId)
-    ))
-    .limit(1);
+    .where(eq(projectMembers.userId, userId));
   
-  if (projectMemberRecord.length === 0) {
-    return null;
-  }
-  
-  const role = projectMemberRecord[0].role;
-  switch (role) {
-    case 'owner':
-      return ProjectRole.OWNER;
-    case 'admin':
-      return ProjectRole.ADMIN;
-    case 'editor':
-      return ProjectRole.EDITOR;
-    case 'viewer':
-      return ProjectRole.VIEWER;
-    default:
-      return ProjectRole.VIEWER;
-  }
-}
-
-/**
- * Build permission context from request parameters
- */
-export async function buildPermissionContext(
-  userId: string,
-  type: 'system'
-): Promise<PermissionContext>;
-export async function buildPermissionContext(
-  userId: string,
-  type: 'organization',
-  organizationId: string
-): Promise<PermissionContext>;
-export async function buildPermissionContext(
-  userId: string,
-  type: 'project',
-  organizationId: string,
-  projectId: string
-): Promise<PermissionContext>;
-export async function buildPermissionContext(
-  userId: string,
-  type: 'system' | 'organization' | 'project',
-  organizationId?: string,
-  projectId?: string
-): Promise<PermissionContext> {
-  const systemRole = await getUserSystemRole(userId);
-  
-  switch (type) {
-    case 'system':
-      return {
-        type: 'system',
-        userId,
-        systemRole
-      };
-    
-    case 'organization':
-      if (!organizationId) throw new Error('Organization ID required for organization context');
-      
-      const orgRole = await getUserOrgRole(userId, organizationId);
-      if (!orgRole) throw new Error('User not found in organization');
-      
-      return {
-        type: 'organization',
-        userId,
-        organizationId,
-        orgRole,
-        systemRole
-      };
-    
-    case 'project':
-      if (!organizationId || !projectId) {
-        throw new Error('Organization ID and Project ID required for project context');
-      }
-      
-      console.log('Getting project role for userId:', userId, 'projectId:', projectId);
-      const projRole = await getUserProjectRole(userId, projectId);
-      console.log('Project role result:', projRole);
-      
-      console.log('Getting org role for userId:', userId, 'organizationId:', organizationId);
-      const orgRoleForProject = await getUserOrgRole(userId, organizationId);
-      console.log('Org role result:', orgRoleForProject);
-      
-      if (!projRole && !orgRoleForProject) {
-        throw new Error('User not found in project or organization');
-      }
-      
-      const context = {
-        type: 'project' as const,
-        userId,
-        organizationId,
-        projectId,
-        projectRole: projRole || ProjectRole.VIEWER,
-        orgRole: orgRoleForProject || undefined,
-        systemRole
-      };
-      
-      console.log('Built context:', JSON.stringify(context, null, 2));
-      return context;
-    
-    default:
-      throw new Error('Invalid permission context type');
-  }
+  return projectAssignments.map(p => p.projectId);
 }
 
 /**
@@ -336,7 +162,7 @@ interface SessionUser {
 }
 
 /**
- * Middleware to check authentication and basic authorization
+ * Middleware to check authentication
  */
 export async function requireAuth(): Promise<{ userId: string; user: SessionUser }> {
   const session = await auth.api.getSession({
@@ -354,36 +180,64 @@ export async function requireAuth(): Promise<{ userId: string; user: SessionUser
 }
 
 /**
- * API middleware wrapper for permission checking
+ * Better Auth compatible permission checking for API routes
  */
-export function withPermission<T = Record<string, unknown>>(
-  handler: (req: NextRequest, context: T) => Promise<NextResponse>,
-  permission: Permission,
-  getContext: (req: NextRequest, userId: string) => Promise<PermissionContext>
+export async function requireBetterAuthPermission(
+  permissions: Record<string, string[]>
+): Promise<{ userId: string; user: SessionUser }> {
+  // Check authentication first
+  const authResult = await requireAuth();
+  
+  try {
+    // Use Better Auth's permission API for supported resources
+    for (const [resource, actions] of Object.entries(permissions)) {
+      if (['organization', 'member', 'invitation', 'user', 'session'].includes(resource)) {
+        const result = await auth.api.hasPermission({
+          headers: await headers(),
+          body: {
+            permissions: {
+              [resource]: actions
+            }
+          }
+        });
+        
+        if (!result.success) {
+          throw new Error(`Access denied: Missing ${resource} permissions`);
+        }
+      } else {
+        // For custom resources, check individually
+        for (const action of actions) {
+          const hasAccess = await hasPermission(resource as keyof typeof statement, action);
+          if (!hasAccess) {
+            throw new Error(`Access denied: Missing ${resource}:${action} permission`);
+          }
+        }
+      }
+    }
+    
+    return authResult;
+  } catch (error) {
+    throw new Error(`Permission check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * API middleware wrapper for permission checking with Better Auth
+ */
+export function withBetterAuthPermission<T = Record<string, unknown>>(
+  handler: (req: NextRequest, context: T, auth: { userId: string; user: SessionUser }) => Promise<NextResponse>,
+  permissions: Record<string, string[]>
 ) {
   return async (req: NextRequest, routeContext?: T): Promise<NextResponse> => {
     try {
-      // Check authentication
-      const authResult = await requireAuth();
+      // Check authentication and permissions
+      const authResult = await requireBetterAuthPermission(permissions);
       
-      // Build permission context
-      const permissionContext = await getContext(req, authResult.userId);
-      
-      // Check permission
-      const hasAccess = await hasPermission(permissionContext, permission);
-      
-      if (!hasAccess) {
-        return NextResponse.json(
-          { error: 'Insufficient permissions' },
-          { status: 403 }
-        );
-      }
-      
-      // Call the actual handler
-      return handler(req, routeContext!);
+      // Call the actual handler with auth context
+      return handler(req, routeContext!, authResult);
       
     } catch (error) {
-      console.error('Permission middleware error:', error);
+      console.error('Better Auth permission middleware error:', error);
       
       if (error instanceof Error) {
         if (error.message === 'Authentication required') {
@@ -393,10 +247,10 @@ export function withPermission<T = Record<string, unknown>>(
           );
         }
         
-        if (error.message.includes('not found')) {
+        if (error.message.includes('Access denied')) {
           return NextResponse.json(
-            { error: 'Resource not found or access denied' },
-            { status: 404 }
+            { error: error.message },
+            { status: 403 }
           );
         }
       }
@@ -410,19 +264,91 @@ export function withPermission<T = Record<string, unknown>>(
 }
 
 /**
- * Helper to check if user is admin (system or organization level)
+ * Helper to check if user has administrative privileges using Better Auth
  */
-export async function isAdmin(userId: string, organizationId?: string): Promise<boolean> {
-  const systemRole = await getUserSystemRole(userId);
-  
-  if (systemRole === SystemRole.SUPER_ADMIN || systemRole === SystemRole.ADMIN) {
-    return true;
+export async function isAdmin(organizationId?: string): Promise<boolean> {
+  try {
+    if (organizationId) {
+      // Check organization admin permissions
+      const result = await auth.api.hasPermission({
+        headers: await headers(),
+        body: {
+          permissions: {
+            organization: ["update"],
+            member: ["create", "update", "delete"]
+          }
+        }
+      });
+      return result.success;
+    }
+    
+    // Check system admin permissions
+    return await hasPermission('system', 'manage_users');
+  } catch {
+    return false;
   }
-  
-  if (organizationId) {
-    const orgRole = await getUserOrgRole(userId, organizationId);
-    return orgRole === OrgRole.OWNER || orgRole === OrgRole.ADMIN;
+}
+
+/**
+ * Helper to check if user can edit a specific project
+ */
+export async function canEditProject(organizationId: string, projectId: string): Promise<boolean> {
+  return hasPermission('test', 'update', { organizationId, projectId });
+}
+
+/**
+ * Helper to check if user can view a specific project
+ */
+export async function canViewProject(organizationId: string, projectId: string): Promise<boolean> {
+  return hasPermission('project', 'view', { organizationId, projectId });
+}
+
+/**
+ * Check if user can perform admin operations (uses Better Auth admin plugin)
+ */
+export async function canPerformAdminOperation(operation: 'manage_users' | 'view_users' | 'impersonate_users' | 'manage_organizations'): Promise<boolean> {
+  try {
+    const result = await auth.api.userHasPermission({
+      body: {
+        permissions: {
+          system: [operation]
+        }
+      }
+    });
+    if (result.error) {
+      console.error('Admin permission check failed:', result.error);
+      return false;
+    }
+    return result.success;
+  } catch (error) {
+    console.error('Admin permission check failed:', error);
+    return false;
   }
+}
+
+/**
+ * Get user's role with unified interface
+ */
+export async function getUserUnifiedRole(userId: string, organizationId?: string): Promise<Role> {
+  return getUserRole(userId, organizationId);
+}
+
+/**
+ * Build permission context for checking permissions
+ */
+export async function buildUnifiedPermissionContext(
+  userId: string,
+  organizationId?: string,
+  projectId?: string
+): Promise<PermissionContext> {
+  const role = await getUserRole(userId, organizationId);
+  const assignedProjectIds = role === Role.PROJECT_EDITOR ? await getUserAssignedProjects(userId) : [];
   
-  return false;
+  return {
+    userId,
+    role,
+    organizationId,
+    projectId,
+    assignedProjectIds
+  };
 }

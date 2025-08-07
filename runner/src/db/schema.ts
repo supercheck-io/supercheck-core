@@ -7,7 +7,6 @@ import {
   timestamp,
   jsonb,
   uuid,
-  customType,
   uniqueIndex,
   boolean,
 } from 'drizzle-orm/pg-core';
@@ -746,75 +745,6 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
-/**
- * Defines the configuration for a third-party integration.
- */
-export type IntegrationConfig = {
-  webhookUrl?: string;
-  apiEndpoint?: string;
-  settings?: Record<string, unknown>;
-};
-
-const bytea = customType<{ data: Buffer; notNull: false; default: false }>({
-  dataType() {
-    return 'bytea';
-  },
-});
-
-/**
- * Stores configuration for third-party integrations.
- */
-export const integrations = pgTable('integrations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  projectId: uuid('project_id')
-    .notNull()
-    .references(() => projects.id),
-  serviceName: varchar('service_name', { length: 255 }).notNull(),
-  config: jsonb('config').$type<IntegrationConfig>().notNull(),
-  encryptedApiToken: bytea('encrypted_api_token'),
-  lastUsedAt: timestamp('last_used_at'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-});
-
-/**
- * Defines periods of scheduled maintenance during which monitoring alerts can be suppressed.
- */
-export const maintenanceWindows = pgTable('maintenance_windows', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  organizationId: uuid('organization_id').references(() => organization.id, {
-    onDelete: 'cascade',
-  }),
-  createdByUserId: uuid('created_by_user_id').references(() => user.id, {
-    onDelete: 'no action',
-  }),
-  name: varchar('name', { length: 255 }).notNull(),
-  description: text('description'),
-  startTime: timestamp('start_time').notNull(),
-  endTime: timestamp('end_time').notNull(),
-  timezone: varchar('timezone', { length: 100 }),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-});
-
-/**
- * Links monitors to maintenance windows.
- */
-export const monitorMaintenanceWindows = pgTable(
-  'monitor_maintenance_windows',
-  {
-    maintenanceWindowId: uuid('maintenance_window_id')
-      .notNull()
-      .references(() => maintenanceWindows.id, { onDelete: 'cascade' }),
-    monitorId: uuid('monitor_id')
-      .notNull()
-      .references(() => monitors.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').defaultNow(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.maintenanceWindowId, table.monitorId] }),
-  }),
-);
 
 /**
  * Configures alert settings for monitors.
@@ -876,10 +806,6 @@ export const notificationProvidersSelectSchema = createSelectSchema(
   notificationProviders,
 );
 
-export const maintenanceWindowsInsertSchema =
-  createInsertSchema(maintenanceWindows);
-export const maintenanceWindowsSelectSchema =
-  createSelectSchema(maintenanceWindows);
 
 export const projectsInsertSchema = createInsertSchema(projects);
 export const projectsSelectSchema = createSelectSchema(projects);
@@ -891,8 +817,6 @@ export const auditLogsSelectSchema = createSelectSchema(auditLogs);
 export const notificationsInsertSchema = createInsertSchema(notifications);
 export const notificationsSelectSchema = createSelectSchema(notifications);
 
-export const integrationsInsertSchema = createInsertSchema(integrations);
-export const integrationsSelectSchema = createSelectSchema(integrations);
 
 /* ================================
    AUTH SCHEMA EXPORT

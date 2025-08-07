@@ -11,11 +11,13 @@ import { memberRoles, memberStatuses } from "./member-data";
 interface MemberTableToolbarProps<TData> {
   table: Table<TData>;
   onInviteMember: () => void;
+  canInviteMembers?: boolean;
 }
 
 export function MemberTableToolbar<TData>({
   table,
   onInviteMember,
+  canInviteMembers = false,
 }: MemberTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
 
@@ -27,10 +29,10 @@ export function MemberTableToolbar<TData>({
   const getRoleIcon = (role: string) => {
     if (!role || typeof role !== 'string') return User;
     switch (role) {
-      case 'owner': return Crown;
-      case 'admin': return Shield;
-      case 'member': return User;
-      case 'viewer': return Eye;
+      case 'org_owner': return Crown;
+      case 'org_admin': return Shield;
+      case 'project_editor': return User;
+      case 'project_viewer': return Eye;
       default: return User;
     }
   };
@@ -38,10 +40,10 @@ export function MemberTableToolbar<TData>({
   const getRoleColor = (role: string) => {
     if (!role || typeof role !== 'string') return 'text-gray-600';
     switch (role) {
-      case 'owner': return 'text-purple-600';
-      case 'admin': return 'text-blue-600';
-      case 'member': return 'text-green-600';
-      case 'viewer': return 'text-gray-600';
+      case 'org_owner': return 'text-purple-600';
+      case 'org_admin': return 'text-blue-600';
+      case 'project_editor': return 'text-green-600';
+      case 'project_viewer': return 'text-gray-600';
       default: return 'text-gray-600';
     }
   };
@@ -153,7 +155,7 @@ export function MemberTableToolbar<TData>({
       </div>
       <div className="flex items-center space-x-2">
         <DataTableViewOptions table={table} />
-        <Button size="lg" onClick={onInviteMember}>
+        <Button onClick={onInviteMember} disabled={!canInviteMembers}>
           <UserPlus className="h-4 w-4 mr-2" />
           Invite Member
         </Button>

@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/utils/db";
 import { authSchema } from "../db/schema/schema";
 import { apiKey, organization, admin } from "better-auth/plugins";
+import { ac, roles, Role } from "@/lib/rbac/permissions";
 
 import { nextCookies } from "better-auth/next-js";
 
@@ -20,16 +21,28 @@ export const auth = betterAuth({
         // openAPI(),
         admin({
             adminUserIds: process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()).filter(Boolean) || [],
+            ac,
+            roles: {
+                org_admin: roles[Role.ORG_ADMIN],
+                super_admin: roles[Role.SUPER_ADMIN]
+            }
         }),
         organization({
-            // Enable organization features
-            allowUserToCreateOrganization: true,
+            // Disable automatic organization creation - we handle this manually
+            allowUserToCreateOrganization: false,
             organizationLimit: parseInt(process.env.MAX_ORGANIZATIONS_PER_USER || '5'),
-            creatorRole: "owner",
+            creatorRole: "org_owner",
             membershipLimit: 100,
             // Disable team features (we use projects instead)
             teams: {
                 enabled: false,
+            },
+            ac,
+            roles: {
+                org_owner: roles[Role.ORG_OWNER],
+                org_admin: roles[Role.ORG_ADMIN],
+                project_editor: roles[Role.PROJECT_EDITOR],
+                project_viewer: roles[Role.PROJECT_VIEWER]
             },
             // Custom invitation email
             sendInvitationEmail: async ({ invitation, organization }) => {

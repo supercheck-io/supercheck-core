@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission } from '@/lib/rbac/permissions';
+import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
 import { db } from '@/utils/db';
 import { projects, projectMembers, jobs, tests, monitors } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
@@ -44,16 +43,11 @@ export async function GET(
     
     const project = projectData[0];
     
-    // Build permission context
-    const context = await buildPermissionContext(
-      userId, 
-      'project', 
-      project.organizationId, 
-      projectId
-    );
-    
     // Check permission
-    const canView = await hasPermission(context, ProjectPermission.VIEW_PROJECT);
+    const canView = await hasPermission('project', 'view', {
+      organizationId: project.organizationId,
+      projectId
+    });
     if (!canView) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
@@ -134,7 +128,7 @@ export async function PUT(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const projectId = resolvedParams.id;
     
     // Get project to determine organization
@@ -153,14 +147,15 @@ export async function PUT(
     
     const organizationId = projectData[0].organizationId;
     
-    // Build permission context
-    const context = await buildPermissionContext(userId, 'project', organizationId, projectId);
-    
     // Check permission
-    const canManage = await hasPermission(context, ProjectPermission.MANAGE_PROJECT);
-    if (!canManage) {
+    const canUpdate = await hasPermission('project', 'update', {
+      organizationId,
+      projectId
+    });
+    
+    if (!canUpdate) {
       return NextResponse.json(
-        { error: 'Insufficient permissions' },
+        { error: 'Insufficient permissions to update project' },
         { status: 403 }
       );
     }
@@ -236,7 +231,7 @@ export async function DELETE(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const projectId = resolvedParams.id;
     
     // Get project to determine organization
@@ -263,11 +258,11 @@ export async function DELETE(
       );
     }
     
-    // Build permission context
-    const context = await buildPermissionContext(userId, 'project', organizationId, projectId);
-    
     // Check permission - only owners can delete projects
-    const canDelete = await hasPermission(context, ProjectPermission.DELETE_PROJECT);
+    const canDelete = await hasPermission('project', 'delete', {
+      organizationId,
+      projectId
+    });
     if (!canDelete) {
       return NextResponse.json(
         { error: 'Only project owners can delete projects' },

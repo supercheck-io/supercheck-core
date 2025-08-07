@@ -11,11 +11,13 @@ import { projectStatuses } from "./project-data";
 interface ProjectTableToolbarProps<TData> {
   table: Table<TData>;
   onCreateProject: () => void;
+  canCreateProjects?: boolean;
 }
 
 export function ProjectTableToolbar<TData>({
   table,
   onCreateProject,
+  canCreateProjects = false,
 }: ProjectTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
 
@@ -98,7 +100,7 @@ export function ProjectTableToolbar<TData>({
       </div>
       <div className="flex items-center space-x-2">
         <DataTableViewOptions table={table} />
-        <Button size="lg" onClick={onCreateProject}>
+        <Button onClick={onCreateProject} disabled={!canCreateProjects}>
           <Plus className="h-4 w-4 mr-2" />
           Create Project
         </Button>

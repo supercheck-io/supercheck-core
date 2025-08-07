@@ -9,6 +9,9 @@ import { db } from '@/utils/db';
 import { projects, projectMembers, session as sessionTable } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
 import { getActiveOrganization, getUserProjects, getCurrentUser } from './session';
+import { getUserOrgRole } from './rbac/middleware';
+import { Role } from './rbac/permissions';
+import { roleToString } from './rbac/role-normalizer';
 
 export interface ProjectContext {
   id: string;
@@ -29,8 +32,14 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
     });
 
     if (!sessionData?.session?.token || !sessionData?.user?.id) {
+      console.log('🔍 [ProjectContext] No session found');
       return null;
     }
+
+    console.log('🔍 [ProjectContext] Session found:', {
+      userId: sessionData.user.id,
+      userEmail: sessionData.user.email
+    });
 
     // Query the session table directly to get the activeProjectId and check for impersonation
     const sessionRecord = await db
@@ -44,13 +53,23 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
       .limit(1);
 
     if (sessionRecord.length === 0) {
+      console.log('🔍 [ProjectContext] No session record found in database');
       return null;
     }
 
     const session = sessionRecord[0];
     
+    console.log('🔍 [ProjectContext] Session record:', {
+      activeProjectId: session.activeProjectId,
+      userId: session.userId,
+      impersonatedBy: session.impersonatedBy,
+      isImpersonating: !!session.impersonatedBy
+    });
+    
     // Use the impersonated user ID if impersonation is active, otherwise use the original user ID
     const currentUserId = session.impersonatedBy ? session.userId : sessionData.user.id;
+    
+    console.log('🔍 [ProjectContext] Current user ID:', currentUserId);
     
     const activeProjectId = session.activeProjectId;
     
@@ -59,38 +78,81 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
       return await setDefaultProjectInSession();
     }
 
-    // Get project details with user's role
+    // Get project details first
+    console.log('🔍 [ProjectContext] Querying project:', {
+      activeProjectId,
+      currentUserId
+    });
+    
     const projectData = await db
       .select({
         id: projects.id,
         name: projects.name,
         slug: projects.slug,
         organizationId: projects.organizationId,
-        isDefault: projects.isDefault,
-        userRole: projectMembers.role
+        isDefault: projects.isDefault
       })
       .from(projects)
-      .innerJoin(projectMembers, eq(projectMembers.projectId, projects.id))
       .where(and(
         eq(projects.id, activeProjectId),
-        eq(projectMembers.userId, currentUserId),
         eq(projects.status, 'active')
       ))
       .limit(1);
 
     if (projectData.length === 0) {
-      // Project not found or no access, try to set a default
+      console.log('🔍 [ProjectContext] Project not found, trying default');
       return await setDefaultProjectInSession();
     }
 
-    return {
-      id: projectData[0].id,
-      name: projectData[0].name,
-      slug: projectData[0].slug || undefined,
-      organizationId: projectData[0].organizationId,
-      isDefault: projectData[0].isDefault,
-      userRole: projectData[0].userRole
+    const project = projectData[0];
+    console.log('🔍 [ProjectContext] Project found:', project);
+
+    // Get user's role using consistent role resolution
+    // 1. First check organization role (primary source of truth)
+    const orgRole = await getUserOrgRole(currentUserId, project.organizationId);
+    console.log('🔍 [ProjectContext] Organization role:', orgRole);
+    
+    if (!orgRole) {
+      console.log('🔍 [ProjectContext] No organization membership found');
+      return await setDefaultProjectInSession();
+    }
+
+    // 2. For PROJECT_EDITOR, check if they have project-specific access
+    const finalRole = orgRole;
+    if (orgRole === Role.PROJECT_EDITOR) {
+      console.log('🔍 [ProjectContext] Checking project-specific access for PROJECT_EDITOR');
+      const projectMember = await db
+        .select({ role: projectMembers.role })
+        .from(projectMembers)
+        .where(and(
+          eq(projectMembers.projectId, activeProjectId),
+          eq(projectMembers.userId, currentUserId)
+        ))
+        .limit(1);
+      
+      if (projectMember.length === 0) {
+        console.log('🔍 [ProjectContext] PROJECT_EDITOR has no project access');
+        return await setDefaultProjectInSession();
+      }
+      
+      console.log('🔍 [ProjectContext] Project membership found:', projectMember[0]);
+      // Keep the org role as final role for PROJECT_EDITOR
+    }
+
+    // 3. Convert Role enum back to string using the normalizer
+    const roleString = roleToString(finalRole);
+
+    const result = {
+      id: project.id,
+      name: project.name,
+      slug: project.slug || undefined,
+      organizationId: project.organizationId,
+      isDefault: project.isDefault,
+      userRole: roleString
     };
+    
+    console.log('🔍 [ProjectContext] Returning consistent project context:', result);
+    return result;
   } catch (error) {
     console.error('Error getting project context:', error);
     return null;
@@ -141,34 +203,81 @@ async function setDefaultProjectInSession(): Promise<ProjectContext | null> {
         .limit(1);
 
       if (orgProjects.length > 0) {
+        // Check if user already has access to any project in this organization first
+        const existingAccess = await db
+          .select({ projectId: projectMembers.projectId })
+          .from(projectMembers)
+          .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+          .where(and(
+            eq(projectMembers.userId, currentUser.id),
+            eq(projects.organizationId, activeOrg.id),
+            eq(projects.status, 'active')
+          ))
+          .limit(1);
+
+        // If user already has project access, they might have been added via invitation
+        // Don't auto-assign - wait for proper project context to be established
+        if (existingAccess.length > 0) {
+          console.log(`ℹ️ User ${currentUser.email} already has project access in organization "${activeOrg.name}" - skipping auto-assignment`);
+          return null;
+        }
+
         // Auto-assign user to the first available project (usually the default)
         const projectToAssign = orgProjects[0];
         
-        await db
-          .insert(projectMembers)
-          .values({
-            userId: currentUser.id,
-            projectId: projectToAssign.id,
-            role: 'viewer', // Default to viewer role
-            createdAt: new Date()
-          });
+        try {
+          await db
+            .insert(projectMembers)
+            .values({
+              userId: currentUser.id,
+              projectId: projectToAssign.id,
+              role: 'project_viewer', // Default to project viewer role
+              createdAt: new Date()
+            });
 
-        console.log(`✅ Auto-assigned user ${currentUser.email} to project "${projectToAssign.name}" in organization "${activeOrg.name}"`);
+          console.log(`✅ Auto-assigned user ${currentUser.email} to project "${projectToAssign.name}" in organization "${activeOrg.name}"`);
 
-        // Update session with this project
-        await db
-          .update(sessionTable)
-          .set({ activeProjectId: projectToAssign.id })
-          .where(eq(sessionTable.token, sessionData.session.token));
+          // Update session with this project
+          await db
+            .update(sessionTable)
+            .set({ activeProjectId: projectToAssign.id })
+            .where(eq(sessionTable.token, sessionData.session.token));
 
-        return {
-          id: projectToAssign.id,
-          name: projectToAssign.name,
-          slug: projectToAssign.slug || undefined,
-          organizationId: projectToAssign.organizationId,
-          isDefault: projectToAssign.isDefault,
-          userRole: 'viewer'
-        };
+          return {
+            id: projectToAssign.id,
+            name: projectToAssign.name,
+            slug: projectToAssign.slug || undefined,
+            organizationId: projectToAssign.organizationId,
+            isDefault: projectToAssign.isDefault,
+            userRole: 'project_viewer'
+          };
+        } catch (error: unknown) {
+          // Handle duplicate key constraint violation gracefully
+          const dbError = error as { constraint?: string; code?: string; message?: string };
+          if (dbError?.constraint === 'project_members_uniqueUserProject' || 
+              dbError?.code === '23505' || 
+              dbError?.message?.includes('duplicate key')) {
+            console.log(`ℹ️ User ${currentUser.email} was already assigned to project "${projectToAssign.name}" (likely via invitation)`);
+            
+            // Update session anyway since they do have access
+            await db
+              .update(sessionTable)
+              .set({ activeProjectId: projectToAssign.id })
+              .where(eq(sessionTable.token, sessionData.session.token));
+
+            return {
+              id: projectToAssign.id,
+              name: projectToAssign.name,
+              slug: projectToAssign.slug || undefined,
+              organizationId: projectToAssign.organizationId,
+              isDefault: projectToAssign.isDefault,
+              userRole: 'project_viewer'
+            };
+          }
+          
+          console.error('Error auto-assigning user to project:', error);
+          return null;
+        }
       }
 
       return null;
@@ -189,7 +298,7 @@ async function setDefaultProjectInSession(): Promise<ProjectContext | null> {
       slug: defaultProject.slug || undefined,
       organizationId: defaultProject.organizationId,
       isDefault: defaultProject.isDefault,
-      userRole: defaultProject.role || 'viewer'
+      userRole: defaultProject.role || 'project_viewer'
     };
   } catch (error) {
     console.error('Error setting default project:', error);
@@ -241,7 +350,7 @@ export async function switchProject(projectId: string): Promise<{ success: boole
       slug: targetProject.slug || undefined,
       organizationId: targetProject.organizationId,
       isDefault: targetProject.isDefault,
-      userRole: targetProject.role || 'viewer'
+      userRole: targetProject.role || 'project_viewer'
     };
 
     return { 

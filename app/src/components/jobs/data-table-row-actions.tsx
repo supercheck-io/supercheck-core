@@ -30,7 +30,7 @@ import {
 import { useState } from "react";
 import { deleteJob } from "@/actions/delete-job";
 import { useProjectContext } from "@/hooks/use-project-context";
-import { canDeleteJobs, canEditJobs } from "@/lib/rbac/client-permissions";
+import { convertStringToRole, canEditJobs, canDeleteJobs } from "@/lib/rbac/client-permissions";
 
 import { Job } from "./schema";
 
@@ -49,9 +49,15 @@ export function DataTableRowActions<TData>({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  // Check permissions
-  const hasEditPermission = currentProject ? canEditJobs(currentProject.userRole) : false;
-  const hasDeletePermission = currentProject ? canDeleteJobs(currentProject.userRole) : false;
+  // Check permissions using project context (same as toolbar approach)
+  const userRole = currentProject?.userRole ? convertStringToRole(currentProject.userRole) : null;
+  const hasEditPermission = userRole ? canEditJobs(userRole) : false;
+  const hasDeletePermission = userRole ? canDeleteJobs(userRole) : false;
+  
+  // Simple debug logging for testing
+  if (currentProject?.userRole) {
+    console.log('Row actions permissions:', currentProject.userRole, '→ Edit:', hasEditPermission, 'Delete:', hasDeletePermission);
+  }
 
   const handleEditJob = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent row click event

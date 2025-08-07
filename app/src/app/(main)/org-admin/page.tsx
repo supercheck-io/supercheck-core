@@ -4,21 +4,40 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FolderOpen, Activity, TrendingUp, Calendar, Users } from "lucide-react";
+import { FolderOpen, Activity, TrendingUp, Calendar, Users, Eye, User, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { AuditLogsTable } from "@/components/admin/audit-logs-table";
 import { MembersTable } from "@/components/org-admin/members-table";
 import { ProjectsTable } from "@/components/org-admin/projects-table";
 import { FormInput } from "@/components/ui/form-input";
 import { createProjectSchema, type CreateProjectFormData } from "@/lib/validations/project";
+import { inviteMemberSchema } from "@/lib/validations/member";
 // import { useFormValidation } from "@/hooks/use-form-validation";
 import { useBreadcrumbs } from "@/components/breadcrumb-context";
+import { canCreateProjects, canInviteMembers, canManageProject, convertStringToRole } from "@/lib/rbac/client-permissions";
+import { Role } from "@/lib/rbac/permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 import { z } from "zod";
+
+// Helper function to convert Role enum to expected member role format
+function roleEnumToMemberRole(role: Role): 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer' {
+  switch (role) {
+    case Role.SUPER_ADMIN:
+    case Role.ORG_OWNER:
+      return 'org_owner';
+    case Role.ORG_ADMIN:
+      return 'org_admin';
+    case Role.PROJECT_EDITOR:
+      return 'project_editor';
+    case Role.PROJECT_VIEWER:
+    default:
+      return 'project_viewer';
+  }
+}
 
 interface OrgStats {
   projects: number;
@@ -33,7 +52,7 @@ interface OrgMember {
   id: string;
   name: string;
   email: string;
-  role: 'owner' | 'admin' | 'member' | 'viewer';
+  role: 'org_owner' | 'org_admin' | 'project_editor' | 'project_viewer';
   joinedAt: string;
 }
 
@@ -81,6 +100,7 @@ export default function OrgAdminDashboard() {
   const [stats, setStats] = useState<OrgStats | null>(null);
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('project_viewer');
   
   // Members tab state
   const [members, setMembers] = useState<OrgMember[]>([]);
@@ -90,7 +110,7 @@ export default function OrgAdminDashboard() {
   const [inviting, setInviting] = useState(false);
   const [inviteData, setInviteData] = useState({
     email: "",
-    role: "member" as 'member' | 'admin' | 'viewer',
+    role: "project_editor" as 'project_editor' | 'org_admin' | 'project_viewer',
     selectedProjects: [] as string[]
   });
   
@@ -176,6 +196,7 @@ export default function OrgAdminDashboard() {
       if (data.success) {
         setMembers(data.data.members);
         setInvitations(data.data.invitations);
+        setCurrentUserRole(data.data.currentUserRole || 'project_viewer');
       } else {
         console.error('Failed to fetch members:', data.error);
       }
@@ -276,13 +297,23 @@ export default function OrgAdminDashboard() {
   };
 
   const handleInviteMember = async () => {
-    if (!inviteData.email.trim()) {
-      toast.error('Email is required');
-      return;
-    }
+    const inviteDataToValidate = {
+      email: inviteData.email.trim(),
+      role: inviteData.role,
+      selectedProjects: inviteData.selectedProjects
+    };
 
-    if (inviteData.selectedProjects.length === 0) {
-      toast.error('Please select at least one project');
+    // Validate form data using Zod
+    try {
+      inviteMemberSchema.parse(inviteDataToValidate);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        if (error.errors && error.errors.length > 0) {
+          toast.error(error.errors[0].message);
+          return;
+        }
+      }
+      toast.error('Please fix the form errors');
       return;
     }
 
@@ -293,11 +324,7 @@ export default function OrgAdminDashboard() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email: inviteData.email,
-          role: inviteData.role,
-          selectedProjects: inviteData.selectedProjects
-        }),
+        body: JSON.stringify(inviteDataToValidate),
       });
 
       const data = await response.json();
@@ -307,7 +334,7 @@ export default function OrgAdminDashboard() {
         setShowInviteDialog(false);
         setInviteData({
           email: "",
-          role: "member",
+          role: "project_editor",
           selectedProjects: []
         });
         fetchMembers();
@@ -450,24 +477,43 @@ export default function OrgAdminDashboard() {
 
   if (loading) {
     return (
-      <div className="flex-1 space-y-4 p-6 pt-2">
-        {/* <div className="flex items-center justify-between space-y-2">
-          <h2 className="text-2xl font-bold tracking-tight">Organization Admin</h2>
-        </div> */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[...Array(6)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
-              </CardHeader>
-              <CardContent>
-                <div className="h-8 bg-gray-200 rounded w-16 animate-pulse mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <div>
+        <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
+          <CardContent className="p-6">
+            <Tabs defaultValue="overview" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="projects">Projects</TabsTrigger>
+                <TabsTrigger value="members">Members</TabsTrigger>
+                <TabsTrigger value="audit">Audit</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="h-8 bg-gray-200 rounded w-40 animate-pulse mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-80 animate-pulse"></div>
+                  </div>
+                </div>
+                
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {[...Array(6)].map((_, i) => (
+                    <Card key={i}>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                        <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-8 bg-gray-200 rounded w-16 animate-pulse mb-2"></div>
+                        <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -483,15 +529,11 @@ export default function OrgAdminDashboard() {
   }
 
   return (
-    <div className="flex-1 space-y-4 p-6 pt-2">
-      <div className="flex items-center justify-between space-y-2">
-        {/* <div>
-          <h2 className="text-2xl font-bold tracking-tight">Organization Admin</h2>
-          <p className="text-muted-foreground">{orgDetails.name}</p>
-        </div> */}
-      </div>
+    <div>
       
-      <Tabs defaultValue="overview" className="space-y-4" onValueChange={handleTabChange}>
+      <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
+        <CardContent className="p-6">
+          <Tabs defaultValue="overview" className="space-y-4" onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="projects">Projects</TabsTrigger>
@@ -583,15 +625,13 @@ export default function OrgAdminDashboard() {
         </TabsContent>
 
         <TabsContent value="projects" className="space-y-4">
-          <Card className="bg-transparent border-none shadow-none">
-            <CardContent className="p-0">
               <ProjectsTable
                 projects={projects}
                 onCreateProject={() => setShowCreateProjectDialog(true)}
                 onEditProject={handleEditProject}
+                canCreateProjects={canCreateProjects(convertStringToRole(currentUserRole))}
+                canManageProject={canManageProject(convertStringToRole(currentUserRole))}
               />
-            </CardContent>
-          </Card>
           
           {/* Create Project Dialog */}
           <Dialog open={showCreateProjectDialog} onOpenChange={setShowCreateProjectDialog}>
@@ -677,11 +717,13 @@ export default function OrgAdminDashboard() {
               </div>
             </div>
           ) : (
-            <Card className="bg-transparent border-none shadow-none">
-              <CardContent className="p-0">
                 <MembersTable
                   members={[
-                    ...(members || []).map(m => ({ ...m, type: 'member' as const })),
+                    ...(members || []).map(m => ({ 
+                      ...m, 
+                      type: 'member' as const,
+                      role: roleEnumToMemberRole(normalizeRole(m.role))
+                    })),
                     ...(invitations || [])
                       .filter(i => i.status === 'pending' || i.status === 'expired')
                       .map(i => ({ ...i, type: 'invitation' as const, status: i.status as 'pending' | 'expired' }))
@@ -697,9 +739,8 @@ export default function OrgAdminDashboard() {
                       fetchProjects();
                     }
                   }}
+                  canInviteMembers={canInviteMembers(convertStringToRole(currentUserRole))}
                 />
-              </CardContent>
-            </Card>
           )}
 
           {/* Invite Member Dialog */}
@@ -709,49 +750,80 @@ export default function OrgAdminDashboard() {
               fetchProjects();
             }
           }}>
-            <DialogContent>
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Invite New Member</DialogTitle>
                 <DialogDescription>
-                  Invite a new member to your organization.
+                  Add a new member to your organization.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="email" className="text-right">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={inviteData.email}
-                    onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
-                    className="col-span-3"
-                    placeholder="user@example.com"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="role" className="text-right">Role</Label>
+              
+              <div className="space-y-4 py-4">
+                <FormInput
+                  id="email"
+                  label="Email"
+                  type="email"
+                  value={inviteData.email}
+                  onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
+                  placeholder="user@example.com"
+                  maxLength={255}
+                  showCharacterCount={false}
+                />
+                
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
                   <Select
                     value={inviteData.role}
-                    onValueChange={(value) => setInviteData({ ...inviteData, role: value as 'member' | 'admin' | 'viewer' })}
+                    onValueChange={(value) => setInviteData({ ...inviteData, role: value as 'project_editor' | 'org_admin' | 'project_viewer' })}
                   >
-                    <SelectTrigger className="col-span-3">
+                    <SelectTrigger>
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="viewer">Viewer</SelectItem>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="project_viewer">
+                        <div className="flex items-center space-x-2 text-left">
+                          <Eye className="h-4 w-4 text-gray-600" />
+                          <div>
+                            <div className="font-medium">Project Viewer</div>
+                            <div className="text-xs text-muted-foreground">View all projects</div>
+                          </div>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="project_editor">
+                        <div className="flex items-center space-x-2 text-left">
+                          <User className="h-4 w-4 text-green-600" />
+                          <div>
+                            <div className="font-medium">Project Editor</div>
+                            <div className="text-xs text-muted-foreground">View all, edit selected projects</div>
+                          </div>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="org_admin">
+                        <div className="flex items-center space-x-2 text-left">
+                          <Shield className="h-4 w-4 text-blue-600" />
+                          <div>
+                            <div className="font-medium">Organization Admin</div>
+                            <div className="text-xs text-muted-foreground">Manage organization</div>
+                          </div>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 
                 {/* Project Selection */}
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right pt-2">Projects</Label>
-                  <div className="col-span-3 space-y-3">
+                {inviteData.role === 'project_editor' && (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label>Project Access</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Select projects to edit (viewer access to all projects)
+                      </p>
+                    </div>
+                    
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">
-                        Select projects to grant access to ({inviteData.selectedProjects.length} selected)
+                        {inviteData.selectedProjects.length} selected
                       </span>
                       <div className="flex gap-2">
                         <Button
@@ -760,7 +832,7 @@ export default function OrgAdminDashboard() {
                           size="sm"
                           onClick={handleSelectAllProjects}
                         >
-                          Select All
+                          All
                         </Button>
                         <Button
                           type="button"
@@ -773,11 +845,11 @@ export default function OrgAdminDashboard() {
                       </div>
                     </div>
                     
-                    <div className="max-h-48 overflow-y-auto border rounded-md p-3 space-y-2">
+                    <div className="max-h-40 overflow-y-auto border rounded-md p-3 space-y-2">
                       {projectsLoading ? (
-                        <div className="text-sm text-muted-foreground">Loading projects...</div>
+                        <div className="text-sm text-muted-foreground">Loading...</div>
                       ) : projects.filter(p => p.status === 'active').length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No active projects available</div>
+                        <div className="text-sm text-muted-foreground">No projects</div>
                       ) : (
                         projects
                           .filter(project => project.status === 'active')
@@ -790,13 +862,11 @@ export default function OrgAdminDashboard() {
                               />
                               <Label
                                 htmlFor={`project-${project.id}`}
-                                className="text-sm font-normal cursor-pointer flex-1"
+                                className="text-sm cursor-pointer flex-1"
                               >
-                                <div className="flex items-center justify-between">
-                                  <span>{project.name}</span>
-                                </div>
+                                <div>{project.name}</div>
                                 {project.description && (
-                                  <div className="text-xs text-muted-foreground mt-1 truncate max-w-[200px]" title={project.description}>
+                                  <div className="text-xs text-muted-foreground truncate">
                                     {project.description}
                                   </div>
                                 )}
@@ -806,10 +876,20 @@ export default function OrgAdminDashboard() {
                       )}
                     </div>
                   </div>
-                </div>
+                )}
               </div>
+              
               <DialogFooter>
-                <Button onClick={handleInviteMember} disabled={inviting || inviteData.selectedProjects.length === 0}>
+                <Button 
+                  variant="outline"
+                  onClick={() => setShowInviteDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleInviteMember} 
+                  disabled={inviting || (inviteData.role === 'project_editor' && inviteData.selectedProjects.length === 0) || !inviteData.email.trim()}
+                >
                   {inviting ? "Sending..." : "Send Invitation"}
                 </Button>
               </DialogFooter>
@@ -821,6 +901,8 @@ export default function OrgAdminDashboard() {
           <AuditLogsTable />
         </TabsContent>
       </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

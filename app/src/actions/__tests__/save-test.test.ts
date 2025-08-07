@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { saveTest, decodeTestScript } from '../save-test';
 import type { SaveTestInput } from '../save-test';
-import { ProjectRole } from '@/lib/rbac/permissions';
+import { UnifiedRole } from '@/lib/rbac/permissions';
 
 // Mock all dependencies at the top level
 jest.mock('@/utils/db', () => ({
@@ -19,7 +19,7 @@ jest.mock('@/lib/project-context', () => ({
 }));
 
 jest.mock('@/lib/rbac/middleware', () => ({
-  buildPermissionContext: jest.fn(),
+  buildUnifiedPermissionContext: jest.fn(),
   hasPermission: jest.fn(),
 }));
 
@@ -53,7 +53,7 @@ const mockBuffer = {
 
 // Import mocked modules
 import { requireProjectContext } from '@/lib/project-context';
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { buildUnifiedPermissionContext, hasPermission } from '@/lib/rbac/middleware';
 import { logAuditEvent } from '@/lib/audit-logger';
 import { revalidatePath } from 'next/cache';
 import { randomUUID } from 'crypto';
@@ -67,7 +67,7 @@ describe('save-test server action', () => {
     name: 'Test Project',
     organizationId: 'org-123',
     isDefault: false,
-    userRole: ProjectRole.ADMIN
+    userRole: UnifiedRole.PROJECT_EDITOR
   };
 
   beforeEach(() => {
@@ -79,12 +79,12 @@ describe('save-test server action', () => {
       project: mockProject,
     });
 
-    (buildPermissionContext as jest.MockedFunction<typeof buildPermissionContext>).mockResolvedValue({
+    (buildUnifiedPermissionContext as jest.MockedFunction<typeof buildUnifiedPermissionContext>).mockResolvedValue({
       type: 'project',
       userId: mockUserId,
       organizationId: mockOrganizationId,
       projectId: mockProject.id,
-      projectRole: ProjectRole.ADMIN
+      role: UnifiedRole.PROJECT_EDITOR
     });
     (hasPermission as jest.MockedFunction<typeof hasPermission>).mockResolvedValue(true);
     (randomUUID as jest.MockedFunction<typeof randomUUID>).mockReturnValue('new-test-id' as ReturnType<typeof randomUUID>);
@@ -115,7 +115,7 @@ describe('save-test server action', () => {
         expect(result.id).toBe('new-test-id');
 
         expect(requireProjectContext).toHaveBeenCalled();
-        expect(buildPermissionContext).toHaveBeenCalledWith(
+        expect(buildUnifiedPermissionContext).toHaveBeenCalledWith(
           mockUserId,
           'project',
           mockOrganizationId,

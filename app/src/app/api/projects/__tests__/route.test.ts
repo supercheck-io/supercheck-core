@@ -5,7 +5,6 @@ import { GET, POST } from '../route';
 // Mock dependencies
 jest.mock('@/lib/rbac/middleware', () => ({
   requireAuth: jest.fn(),
-  buildPermissionContext: jest.fn(),
   hasPermission: jest.fn(),
 }));
 
@@ -31,7 +30,7 @@ jest.mock('@/lib/audit-logger', () => ({
 }));
 
 describe('Projects API Route', () => {
-  const { requireAuth, buildPermissionContext, hasPermission } = jest.requireMock('@/lib/rbac/middleware');
+  const { requireAuth, hasPermission } = jest.requireMock('@/lib/rbac/middleware');
   const { getActiveOrganization, getUserProjects } = jest.requireMock('@/lib/session');
   const { getCurrentProjectContext } = jest.requireMock('@/lib/project-context');
   const { db } = jest.requireMock('@/utils/db');
@@ -50,7 +49,7 @@ describe('Projects API Route', () => {
     
     // Setup default successful auth and permissions
     requireAuth.mockResolvedValue(mockUser);
-    buildPermissionContext.mockResolvedValue({});
+    buildUnifiedPermissionContext.mockResolvedValue({});
     hasPermission.mockResolvedValue(true);
     getActiveOrganization.mockResolvedValue(mockOrganization);
     getUserProjects.mockResolvedValue(mockProjects);
@@ -83,7 +82,7 @@ describe('Projects API Route', () => {
 
       expect(response.status).toBe(200);
       expect(getUserProjects).toHaveBeenCalledWith('user-123', 'org-456');
-      expect(buildPermissionContext).toHaveBeenCalledWith('user-123', 'organization', 'org-456');
+      expect(buildUnifiedPermissionContext).toHaveBeenCalledWith('user-123', 'organization', 'org-456');
     });
 
     it('should return 400 when no active organization found', async () => {
@@ -198,7 +197,7 @@ describe('Projects API Route', () => {
         isDefault: false,
         status: 'active',
         createdAt: mockNewProject.createdAt,
-        role: 'owner',
+        role: 'org_owner',
       });
 
       expect(db.insert).toHaveBeenCalledTimes(2); // project and projectMember
@@ -211,7 +210,7 @@ describe('Projects API Route', () => {
         metadata: expect.objectContaining({
           projectName: 'New Project',
           projectSlug: 'new-project',
-          userRole: 'owner',
+          userRole: 'org_owner',
         }),
         success: true,
       });
@@ -397,7 +396,7 @@ describe('Projects API Route', () => {
 
       await POST(request);
 
-      expect(buildPermissionContext).toHaveBeenCalledWith('user-123', 'organization', 'org-456');
+      expect(buildUnifiedPermissionContext).toHaveBeenCalledWith('user-123', 'organization', 'org-456');
       expect(getUserProjects).toHaveBeenCalledWith('user-123', 'org-456');
     });
   });

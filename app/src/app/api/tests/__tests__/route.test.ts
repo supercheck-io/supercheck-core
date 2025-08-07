@@ -1,5 +1,4 @@
 import { GET, POST } from '../route';
-import { ProjectRole } from '@/lib/rbac/permissions';
 
 // Mock NextRequest and NextResponse
 const mockJson = jest.fn();
@@ -37,7 +36,6 @@ jest.mock('@/utils/db', () => ({
 }));
 
 jest.mock('@/lib/rbac/middleware', () => ({
-  buildPermissionContext: jest.fn(),
   hasPermission: jest.fn(),
 }));
 
@@ -47,7 +45,7 @@ jest.mock('@/lib/project-context', () => ({
 
 // Import mocked modules
 import { db } from '@/utils/db';
-import { buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
+import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 import type { NextRequest } from 'next/server';
 
@@ -58,7 +56,7 @@ const mockDb = db as jest.Mocked<typeof db> & {
   returning: jest.Mock;
   values: jest.Mock;
 };
-const mockBuildPermissionContext = buildPermissionContext as jest.MockedFunction<typeof buildPermissionContext>;
+const mockBuildPermissionContext = buildUnifiedPermissionContext as jest.MockedFunction<typeof buildUnifiedPermissionContext>;
 const mockHasPermission = hasPermission as jest.MockedFunction<typeof hasPermission>;
 const mockRequireProjectContext = requireProjectContext as jest.MockedFunction<typeof requireProjectContext>;
 
@@ -130,7 +128,7 @@ describe('Tests API Route', () => {
       userId: 'user-123',
       organizationId: 'org-123',
       projectId: 'project-123',
-      projectRole: ProjectRole.ADMIN
+      role: UnifiedRole.PROJECT_EDITOR
     });
     mockHasPermission.mockResolvedValue(true);
     
@@ -186,7 +184,7 @@ describe('Tests API Route', () => {
       });
 
       expect(requireProjectContext).toHaveBeenCalled();
-      expect(buildPermissionContext).toHaveBeenCalledWith(
+      expect(buildUnifiedPermissionContext).toHaveBeenCalledWith(
         'user-123',
         'project',
         'org-123',
@@ -373,7 +371,7 @@ describe('Tests API Route', () => {
       });
 
       expect(requireProjectContext).toHaveBeenCalled();
-      expect(buildPermissionContext).toHaveBeenCalledWith(
+      expect(buildUnifiedPermissionContext).toHaveBeenCalledWith(
         'user-123',
         'project',
         'org-123',

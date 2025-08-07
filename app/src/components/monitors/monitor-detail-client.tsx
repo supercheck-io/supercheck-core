@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import { canManageMonitors } from "@/lib/rbac/client-permissions";
+import { Role } from "@/lib/rbac/permissions";
+import { LoadingBadge, Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { 
   ChevronLeft, 
@@ -23,6 +26,7 @@ import {
   Bell,
   BellOff,
   ActivityIcon,
+  FolderOpen,
 } from "lucide-react";
 import { 
   Card, 
@@ -145,10 +149,35 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [userRole, setUserRole] = useState<Role | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const resultsPerPage = 10;
 
   console.log("[MonitorDetailClient] Initial Monitor Prop:", initialMonitor);
   console.log("[MonitorDetailClient] Monitor Results:", monitor.recentResults);
+
+  // Fetch user permissions for this monitor
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const response = await fetch(`/api/monitors/${monitor.id}/permissions`);
+        if (response.ok) {
+          const data = await response.json();
+          setUserRole(data.data.userRole || Role.PROJECT_VIEWER);
+        } else {
+          console.error('Failed to fetch permissions:', response.status);
+          setUserRole(Role.PROJECT_VIEWER); // Default to most restrictive role
+        }
+      } catch (error) {
+        console.error('Error fetching permissions:', error);
+        setUserRole(Role.PROJECT_VIEWER); // Default to most restrictive role
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    fetchPermissions();
+  }, [monitor.id]);
 
   useEffect(() => {
     console.log("[MonitorDetailClient] useEffect - initialMonitor changed:", initialMonitor);
@@ -578,29 +607,66 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             )}
             
-            <Button variant="outline" size="sm" onClick={handleToggleStatus}>
-              {monitor.status === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
-              {monitor.status === 'paused' ? 'Resume' : 'Pause'}
-            </Button>
-           
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => router.push(`/monitors/${monitor.id}/edit`)}
-              className="flex items-center"
-            >
-              <Edit3 className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Edit</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-              className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Delete</span>
-            </Button>
+            {/* Project name and Action buttons - only show if user has manage permissions */}
+            {!permissionsLoading && userRole && canManageMonitors(userRole) && (
+              <>
+                {monitor.projectName && (
+                  <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                    <FolderOpen className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
+                    <span className="text-xs text-blue-700 dark:text-blue-300">
+                      {monitor.projectName}
+                    </span>
+                  </div>
+                )}
+                <Button variant="outline" size="sm" onClick={handleToggleStatus}>
+                  {monitor.status === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
+                  {monitor.status === 'paused' ? 'Resume' : 'Pause'}
+                </Button>
+               
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => router.push(`/monitors/${monitor.id}/edit`)}
+                  className="flex items-center"
+                >
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Edit</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Delete</span>
+                </Button>
+              </>
+            )}
+            
+            {/* Show loading state while fetching permissions */}
+            {permissionsLoading && <LoadingBadge />}
+            
+            {/* Show access level badge when user doesn't have management permissions */}
+            {!permissionsLoading && userRole && !canManageMonitors(userRole) && (
+              <div className="flex items-center gap-2">
+                {monitor.projectName && (
+                  <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                    <FolderOpen className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
+                    <span className="text-xs text-blue-700 dark:text-blue-300">
+                      {monitor.projectName}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                  <ActivityIcon className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs text-blue-700 dark:text-blue-300">
+                    View-only Access
+                  </span>
+                </div>
+              </div>
+            )}
+            
           </div>
         </div>
 
@@ -1107,7 +1173,12 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
-              {isDeleting ? "Deleting..." : "Delete"}
+{isDeleting ? (
+                <div className="flex items-center gap-2">
+                  <Spinner size="sm" />
+                  Deleting...
+                </div>
+              ) : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

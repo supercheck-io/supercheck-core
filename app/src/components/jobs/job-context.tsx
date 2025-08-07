@@ -9,7 +9,6 @@ interface JobRunState {
   runId: string;
   jobId: string;
   jobName: string;
-  toastId: string | number | null;
 }
 
 // Simple map to track job statuses within the session
@@ -118,10 +117,6 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
   
   // Define startJobRun as a useCallback before it's used in useEffect
   const startJobRun = useCallback((runId: string, jobId: string, jobName: string) => {
-    // Show a loading toast for this job
-    const toastId = toast.loading(`Executing job: ${jobName.length > 25 ? jobName.substring(0, 25) + '...' : jobName}`, {
-      description: "Job execution is in progress...",
-    });
     
     // Mark this job as running
     setRunningJobs(prev => {
@@ -136,7 +131,7 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     // Add this run to the active runs map
     setActiveRuns(prev => ({
       ...prev,
-      [jobId]: { runId, jobId, jobName, toastId }
+      [jobId]: { runId, jobId, jobName }
     }));
     
     // Close existing SSE connection for this job if any
@@ -170,11 +165,6 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
           // Determine if job passed or failed
           const passed = statusData.status === 'completed' || statusData.status === 'passed';
           
-          // Force dismiss existing toast with ID immediately
-          if (toastId) {
-            toast.dismiss(toastId);
-          }
-          
           // Clean up resources
           if (eventSourcesRef.current.has(jobId)) {
             eventSourcesRef.current.get(jobId)?.close();
@@ -198,29 +188,26 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
             return newSet;
           });
           
-          // Use a timeout to ensure the UI has time to process the dismissal
-          setTimeout(() => {
-            // Show a new toast with the completion status
-            toast[passed ? 'success' : 'error'](
-              passed ? 'Job execution passed' : 'Job execution failed',
-              {
-                description: (
-                  <>
-                    {jobName}: {passed 
-                      ? 'All tests executed successfully.' 
-                      : 'One or more tests did not complete successfully.'}{" "}
-                    <a href={`/runs/${runId}`} className="underline font-medium">
-                      View Run Report
-                    </a>
-                  </>
-                ),
-                duration: 10000,
-              }
-            );
-            
-            // Refresh the page
-            router.refresh();
-          }, 300); // Longer delay to ensure no overlap
+          // Show completion toast
+          toast[passed ? 'success' : 'error'](
+            passed ? 'Job execution passed' : 'Job execution failed',
+            {
+              description: (
+                <>
+                  {jobName}: {passed 
+                    ? 'All tests executed successfully.' 
+                    : 'One or more tests did not complete successfully.'}{" "}
+                  <a href={`/runs/${runId}`} className="underline font-medium">
+                    View Run Report
+                  </a>
+                </>
+              ),
+              duration: 10000,
+            }
+          );
+          
+          // Refresh the page
+          router.refresh();
         }
       } catch (e) {
         console.error("[JobContext] Error parsing SSE event:", e);
@@ -233,10 +220,6 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       if (!hasShownFinalToastForRun) {
         hasShownFinalToastForRun = true;
         
-        // Force dismiss any loading toast
-        if (toastId) {
-          toast.dismiss(toastId);
-        }
         
         // Clean up resources
         if (eventSourcesRef.current.has(jobId)) {
@@ -264,15 +247,13 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
           return newRuns;
         });
         
-        // Show error toast with delay
-        setTimeout(() => {
-          toast.error(`Job execution error for ${jobName}`, {
-            description: "Connection to job status updates was lost. Check job status in the runs page.",
-          });
-          
-          // Refresh the page
-          router.refresh();
-        }, 300);
+        // Show error toast
+        toast.error(`Job execution error for ${jobName}`, {
+          description: "Connection to job status updates was lost. Check job status in the runs page.",
+        });
+        
+        // Refresh the page
+        router.refresh();
       }
     };
     
@@ -372,10 +353,6 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
           return newSet;
         });
         
-        // Clean up the toast for this job if it exists
-        if (activeRuns[jobId]?.toastId) {
-          toast.dismiss(activeRuns[jobId].toastId);
-        }
         
         // Remove the job from active runs
         setActiveRuns(prev => {
@@ -394,12 +371,6 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
         setRunningJobs(new Set());
         setIsAnyJobRunning(false);
         
-        // Clean up all toasts
-        Object.values(activeRuns).forEach(run => {
-          if (run.toastId) {
-            toast.dismiss(run.toastId);
-          }
-        });
         
         // Reset all active runs
         setActiveRuns({});
@@ -420,10 +391,6 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     // Get job info
     const jobInfo = activeRuns[jobId];
     
-    // Force dismiss the loading toast if it exists
-    if (jobInfo.toastId) {
-      toast.dismiss(jobInfo.toastId);
-    }
     
     // Clean up resources
     if (eventSourcesRef.current.has(jobId)) {
@@ -451,28 +418,26 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       return newRuns;
     });
     
-    // Show the completion toast with delay
-    setTimeout(() => {
-      toast[success ? 'success' : 'error'](
-        success ? 'Job execution passed' : 'Job execution failed',
-        {
-          description: (
-            <>
-              {jobInfo.jobName}: {success 
-                ? 'All tests executed successfully.' 
-                : 'One or more tests did not complete successfully.'}{" "}
-              <a href={`/runs/${runId}`} className="underline font-medium">
-                View Run Report
-              </a>
-            </>
-          ),
-          duration: 10000,
-        }
-      );
-      
-      // Refresh the page
-      router.refresh();
-    }, 300);
+    // Show completion toast
+    toast[success ? 'success' : 'error'](
+      success ? 'Job execution passed' : 'Job execution failed',
+      {
+        description: (
+          <>
+            {jobInfo.jobName}: {success 
+              ? 'All tests executed successfully.' 
+              : 'One or more tests did not complete successfully.'}{" "}
+            <a href={`/runs/${runId}`} className="underline font-medium">
+              View Run Report
+            </a>
+          </>
+        ),
+        duration: 10000,
+      }
+    );
+    
+    // Refresh the page
+    router.refresh();
   };
 
   return (

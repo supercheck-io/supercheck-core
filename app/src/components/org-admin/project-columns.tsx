@@ -48,7 +48,10 @@ const formatDate = (dateString: string) => {
   });
 };
 
-export function createProjectColumns(onEditProject?: (project: Project) => void): ColumnDef<Project>[] {
+export function createProjectColumns(
+  onEditProject?: (project: Project) => void,
+  canManageProject?: boolean
+): ColumnDef<Project>[] {
   return [
     {
       accessorKey: "name",
@@ -192,6 +195,14 @@ export function createProjectColumns(onEditProject?: (project: Project) => void)
       header: "Actions",
       cell: ({ row }) => {
         const project = row.original;
+        
+        if (!canManageProject) {
+          return (
+            <div className="py-1">
+              <span className="text-xs text-muted-foreground">View only</span>
+            </div>
+          );
+        }
         
         return (
           <div className="py-1">

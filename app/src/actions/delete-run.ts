@@ -5,6 +5,7 @@ import { runs, reports } from "../db/schema/schema";
 import { eq, or, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
+import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 type DeleteRunResult = {
@@ -29,6 +30,18 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
   try {
     // Get current project context (includes auth verification)
     const { userId, project, organizationId } = await requireProjectContext();
+
+    // Check DELETE_JOBS permission (runs are considered part of job management)
+    const canDeleteJobs = await hasPermission('run', 'delete', { organizationId, projectId: project.id });
+    
+    if (!canDeleteJobs) {
+      console.warn(`User ${userId} attempted to delete run ${runId} without DELETE_JOBS permission`);
+      return {
+        success: false,
+        message: "Failed to delete run",
+        error: "Insufficient permissions to delete runs",
+      };
+    }
 
     // Perform the deletion within a transaction
     return await db.transaction(async (tx) => {

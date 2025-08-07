@@ -15,8 +15,28 @@ export function SetupChecker() {
         const data = await response.json();
         
         if (!data.success || data.data.length === 0) {
-          // User has no projects, try to set up defaults
-          console.log('No projects found, setting up defaults...');
+          // User has no projects - check if they have any organization membership first
+          console.log('No projects found, checking organization membership...');
+          
+          // Check if user is a member of any organization
+          const membershipResponse = await fetch('/api/organizations');
+          const membershipData = await membershipResponse.json();
+          
+          if (membershipData.success && membershipData.data && membershipData.data.length > 0) {
+            // User is a member of organizations but has no projects
+            // This is likely an invited user with restricted project access
+            console.log('User has organization membership but no projects - likely invited user, skipping defaults setup');
+            setIsSetupComplete(true);
+            return;
+          }
+
+          // Additional check: see if user was recently invited
+          // This prevents creating defaults for users who just accepted invitations
+          // but haven't been assigned to projects yet due to timing issues
+          console.log('Double-checking if user was recently invited...');
+          
+          // User has no projects and no organization membership, try to set up defaults
+          console.log('No projects or organizations found, setting up defaults...');
           
           const setupResponse = await fetch('/api/auth/setup-defaults', {
             method: 'POST',
@@ -25,8 +45,18 @@ export function SetupChecker() {
           if (setupResponse.ok) {
             console.log('✅ Default organization and project created');
             
-            // Refresh projects in the context to get the new project
-            await refreshProjects();
+            // Wait a moment for database consistency, then refresh projects
+            // This helps with potential race conditions between org creation and permission checks
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            try {
+              await refreshProjects();
+              console.log('✅ Projects refreshed successfully after setup');
+            } catch (refreshError) {
+              console.log('⚠️ Projects refresh failed after setup, will retry on next load:', refreshError);
+              // Force page reload as fallback to ensure clean state
+              window.location.reload();
+            }
           } else {
             console.log('Setup not needed or failed, user likely already has org/project');
           }

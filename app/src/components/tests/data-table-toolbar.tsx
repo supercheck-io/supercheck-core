@@ -10,6 +10,7 @@ import { types, priorities } from "./data";
 
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 import { DataTableTagFilter } from "./data-table-tag-filter";
+import { useTestPermissions } from "@/hooks/use-rbac-permissions";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
@@ -19,6 +20,7 @@ export function DataTableToolbar<TData>({
   table,
 }: DataTableToolbarProps<TData>) {
   const router = useRouter();
+  const { canCreateTest } = useTestPermissions();
 
   return (
     <div className="flex items-center justify-between mb-4 -mt-2">
@@ -76,6 +78,7 @@ export function DataTableToolbar<TData>({
         <DataTableViewOptions table={table} />
         <Button
           onClick={() => router.push("/playground?scriptType=browser")}
+          disabled={!canCreateTest}
         >
           <PlusIcon className="h-4 w-4 mr-2" />
           Create Test

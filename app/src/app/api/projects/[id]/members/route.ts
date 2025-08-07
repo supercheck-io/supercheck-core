@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, buildPermissionContext, hasPermission } from '@/lib/rbac/middleware';
-import { ProjectPermission, ProjectRole } from '@/lib/rbac/permissions';
+import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
 import { db } from '@/utils/db';
 import { projects, projectMembers, user } from '@/db/schema/schema';
 import { eq, and } from 'drizzle-orm';
@@ -15,7 +14,7 @@ export async function GET(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const projectId = resolvedParams.id;
     
     // Get project to determine organization
@@ -34,11 +33,8 @@ export async function GET(
     
     const organizationId = projectData[0].organizationId;
     
-    // Build permission context
-    const context = await buildPermissionContext(userId, 'project', organizationId, projectId);
-    
     // Check permission
-    const canView = await hasPermission(context, ProjectPermission.VIEW_PROJECT_MEMBERS);
+    const canView = await hasPermission('project', 'view', { organizationId, projectId });
     if (!canView) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
@@ -113,7 +109,7 @@ export async function POST(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const projectId = resolvedParams.id;
     
     // Get project to determine organization
@@ -133,10 +129,8 @@ export async function POST(
     const organizationId = projectData[0].organizationId;
     
     // Build permission context
-    const context = await buildPermissionContext(userId, 'project', organizationId, projectId);
-    
     // Check permission
-    const canInvite = await hasPermission(context, ProjectPermission.INVITE_PROJECT_MEMBERS);
+    const canInvite = await hasPermission('member', 'create', { organizationId, projectId });
     if (!canInvite) {
       return NextResponse.json(
         { error: 'Insufficient permissions to add members' },
@@ -145,7 +139,7 @@ export async function POST(
     }
     
     const body = await request.json();
-    const { userId: targetUserId, role = 'viewer' } = body;
+    const { userId: targetUserId, role = 'project_viewer' } = body;
     
     if (!targetUserId) {
       return NextResponse.json(
@@ -155,8 +149,8 @@ export async function POST(
     }
     
     // Validate role
-    const validRoles = Object.values(ProjectRole);
-    if (!validRoles.includes(role as ProjectRole)) {
+    const validRoles = ['org_owner', 'project_editor', 'project_viewer'];
+    if (!validRoles.includes(role)) {
       return NextResponse.json(
         { error: 'Invalid role specified' },
         { status: 400 }
@@ -252,7 +246,7 @@ export async function PUT(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const projectId = resolvedParams.id;
     
     // Get project to determine organization
@@ -272,10 +266,9 @@ export async function PUT(
     const organizationId = projectData[0].organizationId;
     
     // Build permission context
-    const context = await buildPermissionContext(userId, 'project', organizationId, projectId);
-    
+        
     // Check permission
-    const canManage = await hasPermission(context, ProjectPermission.MANAGE_PROJECT_MEMBERS);
+    const canManage = await hasPermission('member', 'update', { organizationId, projectId });
     if (!canManage) {
       return NextResponse.json(
         { error: 'Insufficient permissions to manage members' },
@@ -294,8 +287,8 @@ export async function PUT(
     }
     
     // Validate role
-    const validRoles = Object.values(ProjectRole);
-    if (!validRoles.includes(role as ProjectRole)) {
+    const validRoles = ['org_owner', 'project_editor', 'project_viewer'];
+    if (!validRoles.includes(role)) {
       return NextResponse.json(
         { error: 'Invalid role specified' },
         { status: 400 }
@@ -360,7 +353,7 @@ export async function DELETE(
 ) {
   const resolvedParams = await params;
   try {
-    const { userId } = await requireAuth();
+    await requireAuth();
     const projectId = resolvedParams.id;
     
     // Get project to determine organization
@@ -380,10 +373,9 @@ export async function DELETE(
     const organizationId = projectData[0].organizationId;
     
     // Build permission context
-    const context = await buildPermissionContext(userId, 'project', organizationId, projectId);
-    
+        
     // Check permission
-    const canManage = await hasPermission(context, ProjectPermission.MANAGE_PROJECT_MEMBERS);
+    const canManage = await hasPermission('member', 'update', { organizationId, projectId });
     if (!canManage) {
       return NextResponse.json(
         { error: 'Insufficient permissions to remove members' },
@@ -401,32 +393,8 @@ export async function DELETE(
       );
     }
     
-    // Prevent removing the last owner
-    if (targetUserId !== userId) {
-      const ownerCount = await db
-        .select({ id: projectMembers.id })
-        .from(projectMembers)
-        .where(and(
-          eq(projectMembers.projectId, projectId),
-          eq(projectMembers.role, 'owner')
-        ));
-      
-      const targetMember = await db
-        .select({ role: projectMembers.role })
-        .from(projectMembers)
-        .where(and(
-          eq(projectMembers.projectId, projectId),
-          eq(projectMembers.userId, targetUserId)
-        ))
-        .limit(1);
-      
-      if (targetMember.length > 0 && targetMember[0].role === 'owner' && ownerCount.length === 1) {
-        return NextResponse.json(
-          { error: 'Cannot remove the last owner of the project' },
-          { status: 400 }
-        );
-      }
-    }
+    // In new RBAC system, projects don't have individual owners
+    // Organization owners manage all projects, so no last-owner check needed
     
     // Remove member
     await db

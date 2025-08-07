@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/rbac/middleware';
 import { getActiveOrganization, getCurrentUser } from '@/lib/session';
 import { getUserOrgRole } from '@/lib/rbac/middleware';
-import { OrgRole } from '@/lib/rbac/permissions';
+import { Role } from '@/lib/rbac/permissions';
 
 export async function GET() {
   try {
@@ -19,7 +19,7 @@ export async function GET() {
 
     // Check if user is org admin
     const orgRole = await getUserOrgRole(currentUser.id, activeOrg.id);
-    const isOrgAdmin = orgRole === OrgRole.ADMIN || orgRole === OrgRole.OWNER;
+    const isOrgAdmin = orgRole === Role.ORG_ADMIN || orgRole === Role.ORG_OWNER;
     
     if (!isOrgAdmin) {
       return NextResponse.json(

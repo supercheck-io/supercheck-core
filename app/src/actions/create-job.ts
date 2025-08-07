@@ -9,8 +9,7 @@ import { scheduleJob } from "@/lib/job-scheduler";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
 import { requireProjectContext } from "@/lib/project-context";
-import { buildPermissionContext, hasPermission } from "@/lib/rbac/middleware";
-import { ProjectPermission } from "@/lib/rbac/permissions";
+import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 const createJobSchema = z.object({
@@ -31,18 +30,13 @@ export async function createJob(data: CreateJobData) {
     // Get current project context (includes auth verification)
     const { userId, project, organizationId } = await requireProjectContext();
 
-    // Check CREATE_JOBS permission
-    const permissionContext = await buildPermissionContext(
-      userId,
-      'project',
-      organizationId,
-      project.id
-    );
-    
-    const canCreateJobs = await hasPermission(permissionContext, ProjectPermission.CREATE_JOBS);
-    
-    if (!canCreateJobs) {
-      console.warn(`User ${userId} attempted to create job without CREATE_JOBS permission`);
+    // Check job creation permission using Better Auth
+    try {
+      await requireBetterAuthPermission({
+        job: ['create']
+      });
+    } catch (error) {
+      console.warn(`User ${userId} attempted to create job without permission:`, error);
       return {
         success: false,
         message: "Insufficient permissions to create jobs",

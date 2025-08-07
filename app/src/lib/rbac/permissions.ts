@@ -1,350 +1,283 @@
 /**
- * RBAC (Role-Based Access Control) Permissions System
+ * Better Auth RBAC (Role-Based Access Control) System
  * 
- * This module defines the permission system for the Supertest platform with three levels:
- * 1. System Level - Global admin permissions
- * 2. Organization Level - Organization-wide permissions
- * 3. Project Level - Project-specific permissions
+ * This module integrates with Better Auth's access control system and defines:
+ * - Statements: Resources and their available actions
+ * - Roles: Permission sets for different user roles
+ * - Access Control: Better Auth integration for permission checking
+ * 
+ * Roles:
+ * - SUPER_ADMIN: System-wide access to everything
+ * - ORG_OWNER: Full organization and all project control  
+ * - ORG_ADMIN: Organization and all project management (cannot delete org)
+ * - PROJECT_EDITOR: Can edit tests, jobs, monitors in assigned projects only
+ * - PROJECT_VIEWER: Read-only access to all projects in organization
  */
 
-// System-level roles (global)
-export enum SystemRole {
+import { createAccessControl } from "better-auth/plugins/access";
+
+// Better Auth statements object defining resources and actions
+export const statement = {
+  // System-level resources (SUPER_ADMIN only)
+  system: ["manage_users", "view_users", "impersonate_users", "manage_organizations", "view_organizations", "delete_organizations", "view_stats", "manage_settings", "view_audit_logs"],
+  
+  // Organization resources
+  organization: ["create", "update", "delete", "view"],
+  member: ["create", "update", "delete", "view"],
+  invitation: ["create", "cancel", "view"],
+  
+  // Project-level resources
+  project: ["create", "update", "delete", "view", "manage_members"],
+  test: ["create", "update", "delete", "view", "run"],
+  job: ["create", "update", "delete", "view", "trigger"],
+  monitor: ["create", "update", "delete", "view", "manage"],
+  run: ["view", "delete", "export"],
+  apiKey: ["create", "update", "delete", "view"],
+  notification: ["create", "update", "delete", "view"],
+  tag: ["create", "update", "delete", "view"]
+} as const;
+
+// Create Better Auth access controller
+export const ac = createAccessControl(statement);
+
+// Role names (used in database)
+export enum Role {
   SUPER_ADMIN = 'super_admin',
-  ADMIN = 'admin',
-  USER = 'user'
+  ORG_OWNER = 'org_owner',
+  ORG_ADMIN = 'org_admin',
+  PROJECT_EDITOR = 'project_editor',
+  PROJECT_VIEWER = 'project_viewer'
 }
 
-// Organization-level roles
-export enum OrgRole {
-  OWNER = 'owner',
-  ADMIN = 'admin', 
-  MEMBER = 'member',
-  VIEWER = 'viewer'
-}
+// SUPER_ADMIN: Full system access
+export const superAdmin = ac.newRole({
+  // System permissions
+  system: ["manage_users", "view_users", "impersonate_users", "manage_organizations", "view_organizations", "delete_organizations", "view_stats", "manage_settings", "view_audit_logs"],
+  
+  // Organization permissions
+  organization: ["create", "update", "delete", "view"],
+  member: ["create", "update", "delete", "view"],
+  invitation: ["create", "cancel", "view"],
+  
+  // Full project access
+  project: ["create", "update", "delete", "view", "manage_members"],
+  test: ["create", "update", "delete", "view", "run"],
+  job: ["create", "update", "delete", "view", "trigger"],
+  monitor: ["create", "update", "delete", "view", "manage"],
+  run: ["view", "delete", "export"],
+  apiKey: ["create", "update", "delete", "view"],
+  notification: ["create", "update", "delete", "view"],
+  tag: ["create", "update", "delete", "view"]
+});
 
-// Project-level roles
-export enum ProjectRole {
-  OWNER = 'owner',
-  ADMIN = 'admin',
-  EDITOR = 'editor',
-  VIEWER = 'viewer'
-}
+// ORG_OWNER: Full organization control (no system permissions)
+export const orgOwner = ac.newRole({
+  // No system permissions
+  system: [],
+  
+  // Organization permissions (including delete)
+  organization: ["create", "update", "delete", "view"],
+  member: ["create", "update", "delete", "view"],
+  invitation: ["create", "cancel", "view"],
+  
+  // Full project access
+  project: ["create", "update", "delete", "view", "manage_members"],
+  test: ["create", "update", "delete", "view", "run"],
+  job: ["create", "update", "delete", "view", "trigger"],
+  monitor: ["create", "update", "delete", "view", "manage"],
+  run: ["view", "delete", "export"],
+  apiKey: ["create", "update", "delete", "view"],
+  notification: ["create", "update", "delete", "view"],
+  tag: ["create", "update", "delete", "view"]
+});
 
-// System-level permissions
-export enum SystemPermission {
-  // User management
-  MANAGE_ALL_USERS = 'system:manage_all_users',
-  VIEW_ALL_USERS = 'system:view_all_users',
-  IMPERSONATE_USERS = 'system:impersonate_users',
+// ORG_ADMIN: Organization management (cannot delete org, no system permissions)
+export const orgAdmin = ac.newRole({
+  // No system permissions
+  system: [],
   
-  // Organization management
-  MANAGE_ALL_ORGANIZATIONS = 'system:manage_all_organizations',
-  VIEW_ALL_ORGANIZATIONS = 'system:view_all_organizations',
-  DELETE_ORGANIZATIONS = 'system:delete_organizations',
+  // Organization permissions (no delete)
+  organization: ["update", "view"],
+  member: ["create", "update", "delete", "view"],
+  invitation: ["create", "cancel", "view"],
   
-  // System administration
-  VIEW_SYSTEM_STATS = 'system:view_system_stats',
-  MANAGE_SYSTEM_SETTINGS = 'system:manage_system_settings',
-  VIEW_AUDIT_LOGS = 'system:view_audit_logs'
-}
+  // Full project access
+  project: ["create", "update", "delete", "view", "manage_members"],
+  test: ["create", "update", "delete", "view", "run"],
+  job: ["create", "update", "delete", "view", "trigger"],
+  monitor: ["create", "update", "delete", "view", "manage"],
+  run: ["view", "delete", "export"],
+  apiKey: ["create", "update", "delete", "view"],
+  notification: ["create", "update", "delete", "view"],
+  tag: ["create", "update", "delete", "view"]
+});
 
-// Organization-level permissions
-export enum OrgPermission {
-  // Organization management
-  MANAGE_ORGANIZATION = 'org:manage_organization',
-  VIEW_ORGANIZATION = 'org:view_organization',
-  DELETE_ORGANIZATION = 'org:delete_organization',
+// PROJECT_EDITOR: Can edit assigned projects only (no system permissions)
+export const projectEditor = ac.newRole({
+  // No system permissions
+  system: [],
   
-  // Member management
-  INVITE_MEMBERS = 'org:invite_members',
-  MANAGE_MEMBERS = 'org:manage_members',
-  REMOVE_MEMBERS = 'org:remove_members',
-  VIEW_MEMBERS = 'org:view_members',
+  // Limited organization access
+  organization: ["view"],
+  member: ["view"],
+  invitation: ["view"],
   
-  // Project management
-  CREATE_PROJECTS = 'org:create_projects',
-  MANAGE_ALL_PROJECTS = 'org:manage_all_projects',
-  VIEW_ALL_PROJECTS = 'org:view_all_projects',
-  DELETE_PROJECTS = 'org:delete_projects',
-  
-  // Tag management
-  CREATE_TAGS = 'org:create_tags',
-  VIEW_TAGS = 'org:view_tags',
-  MANAGE_TAGS = 'org:manage_tags',
-  
-  // Organization settings
-  MANAGE_ORG_SETTINGS = 'org:manage_settings',
-  VIEW_ORG_BILLING = 'org:view_billing',
-  MANAGE_ORG_BILLING = 'org:manage_billing'
-}
+  // Project editing permissions (can delete resources they created)
+  project: ["view"],
+  test: ["create", "update", "delete", "view", "run"],
+  job: ["create", "update", "delete", "view", "trigger"],
+  monitor: ["create", "update", "delete", "view"],
+  run: ["view", "delete"],
+  apiKey: ["view"],
+  notification: ["create", "update", "delete", "view"],
+  tag: ["view", "create", "update", "delete"]
+});
 
-// Project-level permissions
-export enum ProjectPermission {
-  // Project management
-  MANAGE_PROJECT = 'project:manage_project',
-  VIEW_PROJECT = 'project:view_project',
-  DELETE_PROJECT = 'project:delete_project',
+// PROJECT_VIEWER: Read-only access (no system permissions)
+export const projectViewer = ac.newRole({
+  // No system permissions
+  system: [],
   
-  // Test management
-  CREATE_TESTS = 'project:create_tests',
-  EDIT_TESTS = 'project:edit_tests',
-  DELETE_TESTS = 'project:delete_tests',
-  VIEW_TESTS = 'project:view_tests',
-  RUN_TESTS = 'project:run_tests',
+  // Read-only organization access
+  organization: ["view"],
+  member: ["view"],
+  invitation: ["view"],
   
-  // Job management
-  CREATE_JOBS = 'project:create_jobs',
-  EDIT_JOBS = 'project:edit_jobs',
-  DELETE_JOBS = 'project:delete_jobs',
-  VIEW_JOBS = 'project:view_jobs',
-  TRIGGER_JOBS = 'project:trigger_jobs',
-  
-  // Monitor management
-  CREATE_MONITORS = 'project:create_monitors',
-  EDIT_MONITORS = 'project:edit_monitors',
-  DELETE_MONITORS = 'project:delete_monitors',
-  VIEW_MONITORS = 'project:view_monitors',
-  
-  // Results & Reports
-  VIEW_TEST_RESULTS = 'project:view_test_results',
-  VIEW_JOB_RESULTS = 'project:view_job_results',
-  VIEW_MONITOR_RESULTS = 'project:view_monitor_results',
-  EXPORT_RESULTS = 'project:export_results',
-  
-  // API Keys
-  CREATE_API_KEYS = 'project:create_api_keys',
-  MANAGE_API_KEYS = 'project:manage_api_keys',
-  VIEW_API_KEYS = 'project:view_api_keys',
-  
-  // Notifications
-  CREATE_NOTIFICATIONS = 'project:create_notifications',
-  MANAGE_NOTIFICATIONS = 'project:manage_notifications',
-  VIEW_NOTIFICATIONS = 'project:view_notifications',
-  
-  // Project members
-  INVITE_PROJECT_MEMBERS = 'project:invite_members',
-  MANAGE_PROJECT_MEMBERS = 'project:manage_members',
-  VIEW_PROJECT_MEMBERS = 'project:view_members',
-  
-  // Dashboard and alerts
-  VIEW_DASHBOARD = 'project:view_dashboard',
-  VIEW_ALERTS = 'project:view_alerts',
-  VIEW_RUNS = 'project:view_runs',
-  MANAGE_MONITORS = 'project:manage_monitors'
-}
+  // Read-only project access
+  project: ["view"],
+  test: ["view"],
+  job: ["view"],
+  monitor: ["view"],
+  run: ["view"],
+  apiKey: [],
+  notification: ["view"],
+  tag: ["view"]
+});
 
-// Permission mappings for each role level
-
-// System role permissions
-export const SYSTEM_ROLE_PERMISSIONS: Record<SystemRole, SystemPermission[]> = {
-  [SystemRole.SUPER_ADMIN]: [
-    SystemPermission.MANAGE_ALL_USERS,
-    SystemPermission.VIEW_ALL_USERS,
-    SystemPermission.IMPERSONATE_USERS,
-    SystemPermission.MANAGE_ALL_ORGANIZATIONS,
-    SystemPermission.VIEW_ALL_ORGANIZATIONS,
-    SystemPermission.DELETE_ORGANIZATIONS,
-    SystemPermission.VIEW_SYSTEM_STATS,
-    SystemPermission.MANAGE_SYSTEM_SETTINGS,
-    SystemPermission.VIEW_AUDIT_LOGS
-  ],
-  [SystemRole.ADMIN]: [
-    SystemPermission.VIEW_ALL_USERS,
-    SystemPermission.VIEW_ALL_ORGANIZATIONS,
-    SystemPermission.VIEW_SYSTEM_STATS
-  ],
-  [SystemRole.USER]: []
+// Export role mapping for Better Auth integration
+export const roles = {
+  [Role.SUPER_ADMIN]: superAdmin,
+  [Role.ORG_OWNER]: orgOwner, 
+  [Role.ORG_ADMIN]: orgAdmin,
+  [Role.PROJECT_EDITOR]: projectEditor,
+  [Role.PROJECT_VIEWER]: projectViewer
 };
 
-// Organization role permissions
-export const ORG_ROLE_PERMISSIONS: Record<OrgRole, OrgPermission[]> = {
-  [OrgRole.OWNER]: [
-    OrgPermission.MANAGE_ORGANIZATION,
-    OrgPermission.VIEW_ORGANIZATION,
-    OrgPermission.DELETE_ORGANIZATION,
-    OrgPermission.INVITE_MEMBERS,
-    OrgPermission.MANAGE_MEMBERS,
-    OrgPermission.REMOVE_MEMBERS,
-    OrgPermission.VIEW_MEMBERS,
-    OrgPermission.CREATE_PROJECTS,
-    OrgPermission.MANAGE_ALL_PROJECTS,
-    OrgPermission.VIEW_ALL_PROJECTS,
-    OrgPermission.DELETE_PROJECTS,
-    OrgPermission.CREATE_TAGS,
-    OrgPermission.VIEW_TAGS,
-    OrgPermission.MANAGE_TAGS,
-    OrgPermission.MANAGE_ORG_SETTINGS,
-    OrgPermission.VIEW_ORG_BILLING,
-    OrgPermission.MANAGE_ORG_BILLING
-  ],
-  [OrgRole.ADMIN]: [
-    OrgPermission.VIEW_ORGANIZATION,
-    OrgPermission.INVITE_MEMBERS,
-    OrgPermission.MANAGE_MEMBERS,
-    OrgPermission.VIEW_MEMBERS,
-    OrgPermission.CREATE_PROJECTS,
-    OrgPermission.MANAGE_ALL_PROJECTS,
-    OrgPermission.VIEW_ALL_PROJECTS,
-    OrgPermission.CREATE_TAGS,
-    OrgPermission.VIEW_TAGS,
-    OrgPermission.MANAGE_TAGS,
-    OrgPermission.MANAGE_ORG_SETTINGS,
-    OrgPermission.VIEW_ORG_BILLING
-  ],
-  [OrgRole.MEMBER]: [
-    OrgPermission.VIEW_ORGANIZATION,
-    OrgPermission.VIEW_MEMBERS,
-    OrgPermission.CREATE_PROJECTS,
-    OrgPermission.VIEW_ALL_PROJECTS,
-    OrgPermission.CREATE_TAGS,
-    OrgPermission.VIEW_TAGS
-  ],
-  [OrgRole.VIEWER]: [
-    OrgPermission.VIEW_ORGANIZATION,
-    OrgPermission.VIEW_MEMBERS,
-    OrgPermission.VIEW_ALL_PROJECTS,
-    OrgPermission.VIEW_TAGS
-  ]
-};
+// Better Auth integration types
+export type BetterAuthStatement = typeof statement;
+export type BetterAuthRole = typeof superAdmin;
 
-// Project role permissions
-export const PROJECT_ROLE_PERMISSIONS: Record<ProjectRole, ProjectPermission[]> = {
-  [ProjectRole.OWNER]: [
-    ProjectPermission.MANAGE_PROJECT,
-    ProjectPermission.VIEW_PROJECT,
-    ProjectPermission.DELETE_PROJECT,
-    ProjectPermission.CREATE_TESTS,
-    ProjectPermission.EDIT_TESTS,
-    ProjectPermission.DELETE_TESTS,
-    ProjectPermission.VIEW_TESTS,
-    ProjectPermission.RUN_TESTS,
-    ProjectPermission.CREATE_JOBS,
-    ProjectPermission.EDIT_JOBS,
-    ProjectPermission.DELETE_JOBS,
-    ProjectPermission.VIEW_JOBS,
-    ProjectPermission.TRIGGER_JOBS,
-    ProjectPermission.CREATE_MONITORS,
-    ProjectPermission.EDIT_MONITORS,
-    ProjectPermission.DELETE_MONITORS,
-    ProjectPermission.VIEW_MONITORS,
-    ProjectPermission.VIEW_TEST_RESULTS,
-    ProjectPermission.VIEW_JOB_RESULTS,
-    ProjectPermission.VIEW_MONITOR_RESULTS,
-    ProjectPermission.EXPORT_RESULTS,
-    ProjectPermission.CREATE_API_KEYS,
-    ProjectPermission.MANAGE_API_KEYS,
-    ProjectPermission.VIEW_API_KEYS,
-    ProjectPermission.CREATE_NOTIFICATIONS,
-    ProjectPermission.MANAGE_NOTIFICATIONS,
-    ProjectPermission.VIEW_NOTIFICATIONS,
-    ProjectPermission.INVITE_PROJECT_MEMBERS,
-    ProjectPermission.MANAGE_PROJECT_MEMBERS,
-    ProjectPermission.VIEW_PROJECT_MEMBERS,
-    ProjectPermission.VIEW_DASHBOARD,
-    ProjectPermission.VIEW_ALERTS,
-    ProjectPermission.VIEW_RUNS,
-    ProjectPermission.MANAGE_MONITORS
-  ],
-  [ProjectRole.ADMIN]: [
-    ProjectPermission.VIEW_PROJECT,
-    ProjectPermission.CREATE_TESTS,
-    ProjectPermission.EDIT_TESTS,
-    ProjectPermission.DELETE_TESTS,
-    ProjectPermission.VIEW_TESTS,
-    ProjectPermission.RUN_TESTS,
-    ProjectPermission.CREATE_JOBS,
-    ProjectPermission.EDIT_JOBS,
-    ProjectPermission.DELETE_JOBS,
-    ProjectPermission.VIEW_JOBS,
-    ProjectPermission.TRIGGER_JOBS,
-    ProjectPermission.CREATE_MONITORS,
-    ProjectPermission.EDIT_MONITORS,
-    ProjectPermission.DELETE_MONITORS,
-    ProjectPermission.VIEW_MONITORS,
-    ProjectPermission.VIEW_TEST_RESULTS,
-    ProjectPermission.VIEW_JOB_RESULTS,
-    ProjectPermission.VIEW_MONITOR_RESULTS,
-    ProjectPermission.EXPORT_RESULTS,
-    ProjectPermission.CREATE_API_KEYS,
-    ProjectPermission.MANAGE_API_KEYS,
-    ProjectPermission.VIEW_API_KEYS,
-    ProjectPermission.CREATE_NOTIFICATIONS,
-    ProjectPermission.MANAGE_NOTIFICATIONS,
-    ProjectPermission.VIEW_NOTIFICATIONS,
-    ProjectPermission.INVITE_PROJECT_MEMBERS,
-    ProjectPermission.VIEW_PROJECT_MEMBERS,
-    ProjectPermission.VIEW_DASHBOARD,
-    ProjectPermission.VIEW_ALERTS,
-    ProjectPermission.VIEW_RUNS,
-    ProjectPermission.MANAGE_MONITORS
-  ],
-  [ProjectRole.EDITOR]: [
-    ProjectPermission.VIEW_PROJECT,
-    ProjectPermission.CREATE_TESTS,
-    ProjectPermission.EDIT_TESTS,
-    ProjectPermission.VIEW_TESTS,
-    ProjectPermission.RUN_TESTS,
-    ProjectPermission.CREATE_JOBS,
-    ProjectPermission.EDIT_JOBS,
-    ProjectPermission.VIEW_JOBS,
-    ProjectPermission.TRIGGER_JOBS,
-    ProjectPermission.CREATE_MONITORS,
-    ProjectPermission.EDIT_MONITORS,
-    ProjectPermission.VIEW_MONITORS,
-    ProjectPermission.VIEW_TEST_RESULTS,
-    ProjectPermission.VIEW_JOB_RESULTS,
-    ProjectPermission.VIEW_MONITOR_RESULTS,
-    ProjectPermission.VIEW_NOTIFICATIONS,
-    ProjectPermission.VIEW_PROJECT_MEMBERS,
-    ProjectPermission.VIEW_DASHBOARD,
-    ProjectPermission.VIEW_ALERTS,
-    ProjectPermission.VIEW_RUNS
-  ],
-  [ProjectRole.VIEWER]: [
-    ProjectPermission.VIEW_PROJECT,
-    ProjectPermission.VIEW_TESTS,
-    ProjectPermission.VIEW_JOBS,
-    ProjectPermission.VIEW_MONITORS,
-    ProjectPermission.VIEW_TEST_RESULTS,
-    ProjectPermission.VIEW_JOB_RESULTS,
-    ProjectPermission.VIEW_MONITOR_RESULTS,
-    ProjectPermission.VIEW_NOTIFICATIONS,
-    ProjectPermission.VIEW_PROJECT_MEMBERS,
-    ProjectPermission.VIEW_DASHBOARD,
-    ProjectPermission.VIEW_ALERTS,
-    ProjectPermission.VIEW_RUNS
-    // NOTE: VIEWER role does NOT have RUN_TESTS or TRIGGER_JOBS permission
-    // They can only view tests, jobs, and results but cannot execute them
-  ]
-};
-
-// Helper types for permission checking
-export type Permission = SystemPermission | OrgPermission | ProjectPermission;
-export type Role = SystemRole | OrgRole | ProjectRole;
-
-// Context types for permission checking
-export interface SystemContext {
-  type: 'system';
-  userId: string;
-  systemRole: SystemRole;
+// Utility functions for role-based checks
+export function checkRolePermissions(role: string, permissions: Record<string, string[]>): boolean {
+  const roleInstance = roles[role as Role];
+  if (!roleInstance) {
+    return false;
+  }
+  
+  // Use Better Auth's checkRolePermission functionality
+  for (const [resource, actions] of Object.entries(permissions)) {
+    const roleStatements = roleInstance.statements as Record<string, string[]>;
+    const roleActions = roleStatements[resource] || [];
+    
+    for (const action of actions) {
+      if (!roleActions.includes(action)) {
+        return false;
+      }
+    }
+  }
+  
+  return true;
 }
 
-export interface OrgContext {
-  type: 'organization';
-  userId: string;
-  organizationId: string;
-  orgRole: OrgRole;
-  systemRole?: SystemRole;
+// Get Better Auth role definition
+export function getBetterAuthRole(role: Role): BetterAuthRole | undefined {
+  return roles[role];
 }
 
-export interface ProjectContext {
-  type: 'project';
-  userId: string;
-  organizationId: string;
-  projectId: string;
-  projectRole: ProjectRole;
-  orgRole?: OrgRole;
-  systemRole?: SystemRole;
+// Helper function to check if role has organization-wide access
+export function hasOrganizationWideAccess(role: Role): boolean {
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_VIEWER].includes(role);
 }
 
-export type PermissionContext = SystemContext | OrgContext | ProjectContext;
+// Helper function to check if role is limited to assigned projects
+export function isProjectLimitedRole(role: Role): boolean {
+  return role === Role.PROJECT_EDITOR;
+}
+
+// Helper function to check if role can edit resources  
+export function canEditResources(role: Role): boolean {
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_EDITOR].includes(role);
+}
+
+// Helper function to check if role can delete resources
+export function canDeleteResources(role: Role): boolean {
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN].includes(role);
+}
+
+// Permission context for checking user permissions
+export interface PermissionContext {
+  userId: string;
+  role: Role;
+  organizationId?: string;
+  projectId?: string;
+  assignedProjectIds?: string[]; // For PROJECT_EDITOR role
+  resourceCreatorId?: string; // For creator-based permissions
+}
+
+// Check if user has permission in context
+export function hasPermission(
+  context: PermissionContext,
+  resource: keyof typeof statement,
+  action: string
+): boolean {
+  const roleInstance = roles[context.role];
+  if (!roleInstance) {
+    return false;
+  }
+  
+  // SUPER_ADMIN always has access
+  if (context.role === Role.SUPER_ADMIN) {
+    return true;
+  }
+  
+  // Check if role has the specific permission
+  const roleStatements = roleInstance.statements as Record<string, string[]>;
+  const roleActions = roleStatements[resource] || [];
+  
+  if (!roleActions.includes(action)) {
+    return false;
+  }
+  
+  // Special case: PROJECT_EDITOR has viewer access to all projects, but edit access only to assigned projects
+  if (context.role === Role.PROJECT_EDITOR && 
+      ['project', 'test', 'job', 'monitor', 'run', 'apiKey', 'notification'].includes(resource) &&
+      context.projectId && 
+      !context.assignedProjectIds?.includes(context.projectId)) {
+    // Allow only view actions for non-assigned projects
+    if (!['view'].includes(action)) {
+      return false;
+    }
+  }
+
+  // Special case: For tags, PROJECT_EDITOR can create/delete in assigned projects only
+  if (context.role === Role.PROJECT_EDITOR && 
+      resource === 'tag' &&
+      context.projectId && 
+      !context.assignedProjectIds?.includes(context.projectId)) {
+    // Allow only view actions for non-assigned projects
+    if (!['view'].includes(action)) {
+      return false;
+    }
+  }
+
+  // Special case: PROJECT_EDITOR can delete resources they created
+  if (context.role === Role.PROJECT_EDITOR && 
+      action === 'delete' &&
+      ['test', 'job', 'monitor', 'notification', 'tag'].includes(resource) &&
+      context.resourceCreatorId &&
+      context.resourceCreatorId !== context.userId) {
+    return false;
+  }
+  
+  return true;
+}
