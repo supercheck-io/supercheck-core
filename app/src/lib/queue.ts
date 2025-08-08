@@ -25,7 +25,7 @@ export interface JobExecutionTask {
 // export interface HealthCheckExecutionTask { ... }
 
 // Interface for Monitor Job Data (mirroring DTO in runner)
-// Consider moving to a shared types location if used across app/runner extensively
+// Consider moving to a shared types location if used across app/worker extensively
 export interface MonitorJobData {
   monitorId: string;
   type: "http_request" | "website" | "ping_host" | "port_check" | "heartbeat";

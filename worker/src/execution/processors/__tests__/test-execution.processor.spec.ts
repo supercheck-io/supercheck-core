@@ -47,12 +47,12 @@ describe('TestExecutionProcessor', () => {
 
     it('should log initialization message', () => {
       const loggerSpy = jest.spyOn(processor['logger'], 'log');
-      
+
       // Create new instance to test constructor logging
       new TestExecutionProcessor(executionService);
-      
+
       expect(loggerSpy).toHaveBeenCalledWith(
-        '[Constructor] TestExecutionProcessor instantiated.'
+        '[Constructor] TestExecutionProcessor instantiated.',
       );
     });
   });
@@ -70,7 +70,7 @@ describe('TestExecutionProcessor', () => {
           runId: 'run-123',
         } as TestExecutionTask,
       };
-      
+
       loggerSpy = jest.spyOn(processor['logger'], 'log').mockImplementation();
       errorSpy = jest.spyOn(processor['logger'], 'error').mockImplementation();
     });
@@ -80,7 +80,7 @@ describe('TestExecutionProcessor', () => {
         processor.onActive(mockJob as Job);
 
         expect(loggerSpy).toHaveBeenCalledWith(
-          '[Event:active] Job test-job-123 has started.'
+          '[Event:active] Job test-job-123 has started.',
         );
       });
     });
@@ -88,11 +88,11 @@ describe('TestExecutionProcessor', () => {
     describe('onCompleted', () => {
       it('should log when job completes successfully', () => {
         const result = { success: true, runId: 'run-123' };
-        
+
         processor.onCompleted(mockJob as Job, result);
 
         expect(loggerSpy).toHaveBeenCalledWith(
-          '[Event:completed] Job test-job-123 completed with result: {"success":true,"runId":"run-123"}'
+          '[Event:completed] Job test-job-123 completed with result: {"success":true,"runId":"run-123"}',
         );
       });
 
@@ -102,11 +102,13 @@ describe('TestExecutionProcessor', () => {
           duration: 5000,
           screenshots: ['screenshot1.png', 'screenshot2.png'],
         };
-        
+
         processor.onCompleted(mockJob as Job, result);
 
         expect(loggerSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[Event:completed] Job test-job-123 completed with result:')
+          expect.stringContaining(
+            '[Event:completed] Job test-job-123 completed with result:',
+          ),
         );
       });
 
@@ -114,7 +116,7 @@ describe('TestExecutionProcessor', () => {
         processor.onCompleted(mockJob as Job, null);
 
         expect(loggerSpy).toHaveBeenCalledWith(
-          '[Event:completed] Job test-job-123 completed with result: null'
+          '[Event:completed] Job test-job-123 completed with result: null',
         );
       });
     });
@@ -123,35 +125,35 @@ describe('TestExecutionProcessor', () => {
       it('should log when job fails with error', () => {
         const error = new Error('Test execution failed');
         error.stack = 'Error stack trace';
-        
+
         processor.onFailed(mockJob as Job, error);
 
         expect(errorSpy).toHaveBeenCalledWith(
           '[Event:failed] Job test-job-123 failed with error: Test execution failed',
-          'Error stack trace'
+          'Error stack trace',
         );
       });
 
       it('should handle job being undefined', () => {
         const error = new Error('Unknown job failed');
-        
+
         processor.onFailed(undefined, error);
 
         expect(errorSpy).toHaveBeenCalledWith(
           '[Event:failed] Job unknown failed with error: Unknown job failed',
-          undefined
+          undefined,
         );
       });
 
       it('should handle errors without stack traces', () => {
         const error = new Error('Simple error');
         delete error.stack;
-        
+
         processor.onFailed(mockJob as Job, error);
 
         expect(errorSpy).toHaveBeenCalledWith(
           '[Event:failed] Job test-job-123 failed with error: Simple error',
-          undefined
+          undefined,
         );
       });
     });
@@ -160,24 +162,24 @@ describe('TestExecutionProcessor', () => {
       it('should log worker errors', () => {
         const error = new Error('Worker connection failed');
         error.stack = 'Worker error stack';
-        
+
         processor.onError(error);
 
         expect(errorSpy).toHaveBeenCalledWith(
           '[Event:error] Worker encountered an error: Worker connection failed',
-          'Worker error stack'
+          'Worker error stack',
         );
       });
 
       it('should handle errors without stack traces', () => {
         const error = new Error('Simple worker error');
         delete error.stack;
-        
+
         processor.onError(error);
 
         expect(errorSpy).toHaveBeenCalledWith(
           '[Event:error] Worker encountered an error: Simple worker error',
-          undefined
+          undefined,
         );
       });
     });
@@ -187,7 +189,7 @@ describe('TestExecutionProcessor', () => {
         processor.onReady();
 
         expect(loggerSpy).toHaveBeenCalledWith(
-          '[Event:ready] Worker is connected to Redis and ready to process jobs.'
+          '[Event:ready] Worker is connected to Redis and ready to process jobs.',
         );
       });
     });
@@ -229,9 +231,11 @@ describe('TestExecutionProcessor', () => {
       const result = await processor.process(mockJob);
 
       expect(loggerSpy).toHaveBeenCalledWith(
-        '[test-123] Test execution job ID: test-job-123 received for processing'
+        '[test-123] Test execution job ID: test-job-123 received for processing',
       );
-      expect(mockExecutionService.executeTest).toHaveBeenCalledWith(mockJob.data);
+      expect(mockExecutionService.executeTest).toHaveBeenCalledWith(
+        mockJob.data,
+      );
       expect(result).toEqual(expectedResult);
     });
 
@@ -239,9 +243,13 @@ describe('TestExecutionProcessor', () => {
       const error = new Error('Test execution failed');
       mockExecutionService.executeTest.mockRejectedValue(error);
 
-      await expect(processor.process(mockJob)).rejects.toThrow('Test execution failed');
-      
-      expect(mockExecutionService.executeTest).toHaveBeenCalledWith(mockJob.data);
+      await expect(processor.process(mockJob)).rejects.toThrow(
+        'Test execution failed',
+      );
+
+      expect(mockExecutionService.executeTest).toHaveBeenCalledWith(
+        mockJob.data,
+      );
     });
 
     it('should log the start of processing', async () => {
@@ -250,7 +258,7 @@ describe('TestExecutionProcessor', () => {
       await processor.process(mockJob);
 
       expect(loggerSpy).toHaveBeenCalledWith(
-        '[test-123] Test execution job ID: test-job-123 received for processing'
+        '[test-123] Test execution job ID: test-job-123 received for processing',
       );
     });
 
@@ -265,7 +273,7 @@ describe('TestExecutionProcessor', () => {
       await processor.process(jobWithMissingData);
 
       expect(loggerSpy).toHaveBeenCalledWith(
-        '[undefined] Test execution job ID: incomplete-job received for processing'
+        '[undefined] Test execution job ID: incomplete-job received for processing',
       );
     });
 
@@ -301,7 +309,9 @@ describe('TestExecutionProcessor', () => {
       timeoutError.name = 'TimeoutError';
       mockExecutionService.executeTest.mockRejectedValue(timeoutError);
 
-      await expect(processor.process(mockJob)).rejects.toThrow('Test execution timeout');
+      await expect(processor.process(mockJob)).rejects.toThrow(
+        'Test execution timeout',
+      );
     });
   });
 

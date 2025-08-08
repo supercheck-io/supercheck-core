@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Supertest (aka Supercheck) is a comprehensive end-to-end testing platform built with a distributed architecture. It consists of:
 
 - **Frontend (Next.js App)**: Located in `/app` - handles UI, API routes, job scheduling, and database migrations
-- **Worker Service (NestJS)**: Located in `/runner` - executes Playwright tests in parallel with capacity management
+- **Worker Service (NestJS)**: Located in `/worker` - executes Playwright tests in parallel with capacity management
 - **Infrastructure**: PostgreSQL, Redis (job queues), MinIO (S3-compatible storage for artifacts)
 
 The system uses BullMQ for job queuing, Better Auth for authentication, and Drizzle ORM with PostgreSQL for data persistence.
@@ -36,7 +36,7 @@ The system uses BullMQ for job queuing, Better Auth for authentication, and Driz
 - `/app/src/components/` - React components organized by feature (jobs, tests, monitors, playground)
 - `/app/src/lib/` - Core services (job scheduler, monitor service, queue management, validation)
 - `/app/src/db/schema/schema.ts` - Drizzle database schema with comprehensive table definitions
-- `/runner/src/` - NestJS worker service modules for test execution
+- `/worker/src/` - NestJS worker service modules for test execution
 
 ## Common Development Commands
 
@@ -54,7 +54,7 @@ npm run db:migrate:prod # Production migration script
 
 ### Worker Service (NestJS)
 ```bash
-cd runner
+cd worker
 npm run dev             # Start in watch mode
 npm run build           # Build the service
 npm run start:prod      # Start production build
@@ -131,7 +131,7 @@ Key environment variables are managed through Docker Compose and include:
 ## Testing Infrastructure
 
 The platform includes comprehensive test execution capabilities:
-- Playwright configuration in both `/app` and `/runner`
+- Playwright configuration in both `/app` and `/worker`
 - Test artifact storage and retrieval
 - Report generation with HTML outputs
 - Parallel test execution with resource management

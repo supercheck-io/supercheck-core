@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
-import { ExecutionService, isWindows, getContentType } from '../execution.service';
+import {
+  ExecutionService,
+  isWindows,
+  getContentType,
+} from '../execution.service';
 import { S3Service } from '../s3.service';
 import { DbService } from '../db.service';
 import { RedisService } from '../redis.service';
@@ -164,36 +168,35 @@ describe('ExecutionService', () => {
     });
 
     it('should load configuration on initialization', () => {
-      expect(mockConfigService.get).toHaveBeenCalledWith('TEST_EXECUTION_TIMEOUT_MS');
-      expect(mockConfigService.get).toHaveBeenCalledWith('PLAYWRIGHT_BROWSERS_PATH');
+      expect(mockConfigService.get).toHaveBeenCalledWith(
+        'TEST_EXECUTION_TIMEOUT_MS',
+      );
+      expect(mockConfigService.get).toHaveBeenCalledWith(
+        'PLAYWRIGHT_BROWSERS_PATH',
+      );
     });
   });
 
   describe('configuration handling', () => {
     it('should use default timeout when not configured', () => {
       mockConfigService.get.mockReturnValue(undefined);
-      
+
       // Reinitialize service to test default values
       expect(() => {
-        new ExecutionService(
-          configService,
-          s3Service,
-          dbService,
-          redisService
-        );
+        new ExecutionService(configService, s3Service, dbService, redisService);
       }).not.toThrow();
     });
 
     it('should handle numeric configuration values', () => {
       mockConfigService.get.mockReturnValue('180000');
-      
+
       const testService = new ExecutionService(
         configService,
         s3Service,
         dbService,
-        redisService
+        redisService,
       );
-      
+
       expect(testService).toBeDefined();
     });
   });
@@ -211,7 +214,7 @@ describe('ExecutionService', () => {
           errorConfigService as any,
           s3Service,
           dbService,
-          redisService
+          redisService,
         );
       }).toThrow('Config error');
     });

@@ -65,7 +65,7 @@ docker-compose up -d
 
 # Or for development with hot reload
 cd app && npm run dev  # Frontend
-cd runner && npm run dev  # Worker service (in separate terminal)
+cd worker && npm run dev  # Worker service (in separate terminal)
 ```
 
 ### 4. Set Up Your First Super Admin
@@ -118,11 +118,11 @@ cd runner && npm run dev  # Worker service (in separate terminal)
 ```bash
 # Install dependencies
 cd app && npm install
-cd ../runner && npm install
+cd ../worker && npm install
 
 # Start development services
 cd app && npm run dev      # Next.js app with Turbopack
-cd runner && npm run dev   # NestJS worker service
+cd worker && npm run dev   # NestJS worker service
 
 # Database operations
 cd app

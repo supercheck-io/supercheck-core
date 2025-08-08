@@ -94,7 +94,7 @@ graph TB
   - Real-time updates via SSE
 
 #### Worker Service (NestJS)
-- **Location**: `/runner`
+- **Location**: `/worker`
 - **Responsibilities**:
   - Playwright test execution
   - Parallel processing with capacity management

@@ -11,7 +11,7 @@ export class TestModuleBuilder {
           isGlobal: true,
           envFilePath: '.env.test',
         }),
-        ...metadata.imports || [],
+        ...(metadata.imports || []),
       ],
       providers: metadata.providers || [],
       controllers: metadata.controllers || [],
@@ -205,32 +205,35 @@ export const createMockPlaywrightResult = (overrides = {}) => ({
 
 // Async testing utilities
 export const delay = (ms: number): Promise<void> =>
-  new Promise(resolve => setTimeout(resolve, ms));
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 export const waitForCondition = async (
   condition: () => boolean | Promise<boolean>,
   timeout = 5000,
-  interval = 100
+  interval = 100,
 ): Promise<void> => {
   const start = Date.now();
-  
+
   while (Date.now() - start < timeout) {
     if (await condition()) {
       return;
     }
     await delay(interval);
   }
-  
+
   throw new Error(`Condition not met within ${timeout}ms`);
 };
 
 // Environment utilities
-export const withTestEnv = (envVars: Record<string, string>, fn: () => void | Promise<void>) => {
+export const withTestEnv = (
+  envVars: Record<string, string>,
+  fn: () => void | Promise<void>,
+) => {
   const originalEnv = { ...process.env };
-  
+
   // Set test environment variables
   Object.assign(process.env, envVars);
-  
+
   return async () => {
     try {
       await fn();
@@ -253,11 +256,17 @@ export const getMemoryUsage = () => {
 };
 
 // Test timeout utilities
-export const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+export const withTimeout = <T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
+      setTimeout(
+        () => reject(new Error(`Operation timed out after ${timeoutMs}ms`)),
+        timeoutMs,
+      ),
     ),
   ]);
 };

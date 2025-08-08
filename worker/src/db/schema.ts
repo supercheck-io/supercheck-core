@@ -745,7 +745,6 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
-
 /**
  * Configures alert settings for monitors.
  */
@@ -806,7 +805,6 @@ export const notificationProvidersSelectSchema = createSelectSchema(
   notificationProviders,
 );
 
-
 export const projectsInsertSchema = createInsertSchema(projects);
 export const projectsSelectSchema = createSelectSchema(projects);
 export const projectsUpdateSchema = createUpdateSchema(projects);
@@ -816,7 +814,6 @@ export const auditLogsSelectSchema = createSelectSchema(auditLogs);
 
 export const notificationsInsertSchema = createInsertSchema(notifications);
 export const notificationsSelectSchema = createSelectSchema(notifications);
-
 
 /* ================================
    AUTH SCHEMA EXPORT

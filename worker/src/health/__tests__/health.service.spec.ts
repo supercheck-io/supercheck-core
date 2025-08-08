@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
-import { HealthService, HealthStatus, ComponentHealth } from '../health.service';
+import {
+  HealthService,
+  HealthStatus,
+  ComponentHealth,
+} from '../health.service';
 import { DbService } from '../../execution/services/db.service';
 import { RedisService } from '../../execution/services/redis.service';
 import { ErrorHandler } from '../../common/utils/error-handler';
@@ -90,7 +94,9 @@ describe('HealthService', () => {
     it('should include correct metadata in health response', async () => {
       const health = await service.getHealthStatus();
 
-      expect(health.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(health.timestamp).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+      );
       expect(health.version).toBeDefined();
       expect(typeof health.uptime).toBe('number');
       expect(health.uptime).toBeGreaterThanOrEqual(0);
@@ -98,7 +104,7 @@ describe('HealthService', () => {
 
     it('should return degraded status when some components are unhealthy', async () => {
       mockDbService.db.limit.mockRejectedValue(new Error('Database error'));
-      
+
       const health = await service.getHealthStatus();
 
       expect(health.status).toBe('degraded');
@@ -110,7 +116,9 @@ describe('HealthService', () => {
     it('should return unhealthy status when all components are unhealthy', async () => {
       mockDbService.db.limit.mockRejectedValue(new Error('Database error'));
       mockRedisService.ping.mockRejectedValue(new Error('Redis error'));
-      mockRedisService.getQueueHealth.mockRejectedValue(new Error('Queue error'));
+      mockRedisService.getQueueHealth.mockRejectedValue(
+        new Error('Queue error'),
+      );
 
       const health = await service.getHealthStatus();
 
@@ -167,7 +175,9 @@ describe('HealthService', () => {
     it('should return not ready when health status is unhealthy', async () => {
       mockDbService.db.limit.mockRejectedValue(new Error('Database error'));
       mockRedisService.ping.mockRejectedValue(new Error('Redis error'));
-      mockRedisService.getQueueHealth.mockRejectedValue(new Error('Queue error'));
+      mockRedisService.getQueueHealth.mockRejectedValue(
+        new Error('Queue error'),
+      );
 
       const readiness = await service.getReadinessStatus();
 
@@ -210,10 +220,12 @@ describe('HealthService', () => {
     it('should return unhealthy status for failed database check', async () => {
       const error = new Error('Connection timeout');
       mockDbService.db.limit.mockRejectedValue(error);
-      
+
       // Mock ErrorHandler
       jest.spyOn(ErrorHandler, 'logError').mockImplementation();
-      jest.spyOn(ErrorHandler, 'extractMessage').mockReturnValue('Connection timeout');
+      jest
+        .spyOn(ErrorHandler, 'extractMessage')
+        .mockReturnValue('Connection timeout');
 
       const result = await service['checkDatabase']();
 
@@ -238,10 +250,12 @@ describe('HealthService', () => {
     it('should return unhealthy status for failed Redis check', async () => {
       const error = new Error('Redis connection failed');
       mockRedisService.ping.mockRejectedValue(error);
-      
+
       // Mock ErrorHandler
       jest.spyOn(ErrorHandler, 'logError').mockImplementation();
-      jest.spyOn(ErrorHandler, 'extractMessage').mockReturnValue('Redis connection failed');
+      jest
+        .spyOn(ErrorHandler, 'extractMessage')
+        .mockReturnValue('Redis connection failed');
 
       const result = await service['checkRedis']();
 
@@ -277,7 +291,9 @@ describe('HealthService', () => {
     });
 
     it('should return unhealthy status when all queues are inaccessible', async () => {
-      mockRedisService.getQueueHealth.mockRejectedValue(new Error('Queue error'));
+      mockRedisService.getQueueHealth.mockRejectedValue(
+        new Error('Queue error'),
+      );
 
       const result = await service['checkQueues']();
 
@@ -290,10 +306,12 @@ describe('HealthService', () => {
       mockRedisService.getQueueHealth.mockImplementation(() => {
         throw new Error('Unexpected queue error');
       });
-      
+
       // Mock ErrorHandler
       jest.spyOn(ErrorHandler, 'logError').mockImplementation();
-      jest.spyOn(ErrorHandler, 'extractMessage').mockReturnValue('Unexpected queue error');
+      jest
+        .spyOn(ErrorHandler, 'extractMessage')
+        .mockReturnValue('Unexpected queue error');
 
       const result = await service['checkQueues']();
 
@@ -344,7 +362,9 @@ describe('HealthService', () => {
 
     it('should handle single check', () => {
       expect(service['determineOverallStatus']([healthyCheck])).toBe('healthy');
-      expect(service['determineOverallStatus']([unhealthyCheck])).toBe('unhealthy');
+      expect(service['determineOverallStatus']([unhealthyCheck])).toBe(
+        'unhealthy',
+      );
     });
   });
 

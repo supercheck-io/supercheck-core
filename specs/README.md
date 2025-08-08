@@ -95,10 +95,10 @@ All documentation has been reviewed and updated to reflect the current codebase 
 
 ## 🔗 **Related Resources**
 
-- **Codebase**: Main application code in `/app` and `/runner` directories
+- **Codebase**: Main application code in `/app` and `/worker` directories
 - **Database Schema**: Located in `/app/src/db/schema/schema.ts`
 - **API Routes**: Next.js API routes in `/app/src/app/api/`
-- **Worker Services**: NestJS services in `/runner/src/`
+- **Worker Services**: NestJS services in `/worker/src/`
 
 
 ## Start Services Quick Reference

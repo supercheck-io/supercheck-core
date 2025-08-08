@@ -163,7 +163,7 @@ build_multiarch_images() {
     
     # Build and push worker image
     print_status "Starting worker image build..."
-    if ! build_and_push_image "$WORKER_IMAGE" "./runner"; then
+    if ! build_and_push_image "$WORKER_IMAGE" "./worker"; then
         print_error "Worker image build failed"
         print_warning "The app image has been built successfully. You can:"
         print_warning "1. Use the app image: ghcr.io/krish-kant/supercheck/app:latest"

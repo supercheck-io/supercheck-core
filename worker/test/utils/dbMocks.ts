@@ -1,10 +1,17 @@
 // Database mocking utilities for runner service
-import { Repository, EntityManager, QueryRunner, SelectQueryBuilder } from 'typeorm';
+import {
+  Repository,
+  EntityManager,
+  QueryRunner,
+  SelectQueryBuilder,
+} from 'typeorm';
 
 // Mock TypeORM repository
-export const createMockRepository = <T>(entityName: string): jest.Mocked<Repository<T>> => {
+export const createMockRepository = <T>(
+  entityName: string,
+): jest.Mocked<Repository<T>> => {
   const mockQueryBuilder = createMockQueryBuilder<T>();
-  
+
   return {
     // Basic CRUD operations
     find: jest.fn(),
@@ -26,10 +33,10 @@ export const createMockRepository = <T>(entityName: string): jest.Mocked<Reposit
     create: jest.fn(),
     merge: jest.fn(),
     preload: jest.fn(),
-    
+
     // Query builder
     createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
-    
+
     // Counting
     count: jest.fn(),
     countBy: jest.fn(),
@@ -37,24 +44,24 @@ export const createMockRepository = <T>(entityName: string): jest.Mocked<Reposit
     average: jest.fn(),
     minimum: jest.fn(),
     maximum: jest.fn(),
-    
+
     // Metadata and manager
     target: {} as any,
     manager: createMockEntityManager(),
     metadata: {} as any,
     queryRunner: undefined,
-    
+
     // Relations
     increment: jest.fn(),
     decrement: jest.fn(),
-    
+
     // Existence
     exist: jest.fn(),
     existsBy: jest.fn(),
-    
+
     // Raw queries
     query: jest.fn(),
-    
+
     // Others
     clear: jest.fn(),
     getId: jest.fn(),
@@ -65,16 +72,18 @@ export const createMockRepository = <T>(entityName: string): jest.Mocked<Reposit
 };
 
 // Mock QueryBuilder
-export const createMockQueryBuilder = <T>(): jest.Mocked<SelectQueryBuilder<T>> => {
+export const createMockQueryBuilder = <T>(): jest.Mocked<
+  SelectQueryBuilder<T>
+> => {
   const mockQueryBuilder = {
     // Selection
     select: jest.fn().mockReturnThis(),
     addSelect: jest.fn().mockReturnThis(),
     distinct: jest.fn().mockReturnThis(),
-    
+
     // FROM clause
     from: jest.fn().mockReturnThis(),
-    
+
     // WHERE clause
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
@@ -82,36 +91,36 @@ export const createMockQueryBuilder = <T>(): jest.Mocked<SelectQueryBuilder<T>> 
     whereInIds: jest.fn().mockReturnThis(),
     andWhereInIds: jest.fn().mockReturnThis(),
     orWhereInIds: jest.fn().mockReturnThis(),
-    
+
     // HAVING clause
     having: jest.fn().mockReturnThis(),
     andHaving: jest.fn().mockReturnThis(),
     orHaving: jest.fn().mockReturnThis(),
-    
+
     // ORDER BY clause
     orderBy: jest.fn().mockReturnThis(),
     addOrderBy: jest.fn().mockReturnThis(),
-    
+
     // GROUP BY clause
     groupBy: jest.fn().mockReturnThis(),
     addGroupBy: jest.fn().mockReturnThis(),
-    
+
     // LIMIT and OFFSET
     limit: jest.fn().mockReturnThis(),
     offset: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
-    
+
     // JOIN
     innerJoin: jest.fn().mockReturnThis(),
     leftJoin: jest.fn().mockReturnThis(),
     innerJoinAndSelect: jest.fn().mockReturnThis(),
     leftJoinAndSelect: jest.fn().mockReturnThis(),
-    
+
     // Parameters
     setParameter: jest.fn().mockReturnThis(),
     setParameters: jest.fn().mockReturnThis(),
-    
+
     // Execution
     getOne: jest.fn(),
     getOneOrFail: jest.fn(),
@@ -121,19 +130,19 @@ export const createMockQueryBuilder = <T>(): jest.Mocked<SelectQueryBuilder<T>> 
     getCount: jest.fn(),
     getExists: jest.fn(),
     stream: jest.fn(),
-    
+
     // Raw SQL
     getSql: jest.fn(),
     printSql: jest.fn(),
-    
+
     // Cloning
     clone: jest.fn().mockReturnThis(),
-    
+
     // Others
     cache: jest.fn().mockReturnThis(),
     useTransaction: jest.fn().mockReturnThis(),
     setLock: jest.fn().mockReturnThis(),
-    
+
     // Internal properties
     connection: {} as any,
     queryRunner: undefined,
@@ -144,52 +153,57 @@ export const createMockQueryBuilder = <T>(): jest.Mocked<SelectQueryBuilder<T>> 
 };
 
 // Mock EntityManager
-export const createMockEntityManager = (): jest.Mocked<EntityManager> => ({
-  connection: {} as any,
-  queryRunner: {} as any,
-  transaction: jest.fn(),
-  query: jest.fn(),
-  createQueryBuilder: jest.fn().mockReturnValue(createMockQueryBuilder()),
-  getRepository: jest.fn().mockImplementation((entity) => createMockRepository(entity.name || 'unknown')),
-  getTreeRepository: jest.fn(),
-  getMongoRepository: jest.fn(),
-  getCustomRepository: jest.fn(),
-  release: jest.fn(),
-  find: jest.fn(),
-  findOne: jest.fn(),
-  findOneBy: jest.fn(),
-  findOneOrFail: jest.fn(),
-  findBy: jest.fn(),
-  findAndCount: jest.fn(),
-  findAndCountBy: jest.fn(),
-  save: jest.fn(),
-  insert: jest.fn(),
-  update: jest.fn(),
-  upsert: jest.fn(),
-  delete: jest.fn(),
-  remove: jest.fn(),
-  softDelete: jest.fn(),
-  restore: jest.fn(),
-  recover: jest.fn(),
-  create: jest.fn(),
-  merge: jest.fn(),
-  preload: jest.fn(),
-  count: jest.fn(),
-  countBy: jest.fn(),
-  sum: jest.fn(),
-  average: jest.fn(),
-  minimum: jest.fn(),
-  maximum: jest.fn(),
-  increment: jest.fn(),
-  decrement: jest.fn(),
-  exist: jest.fn(),
-  existsBy: jest.fn(),
-  clear: jest.fn(),
-  getId: jest.fn(),
-  hasId: jest.fn(),
-  reload: jest.fn(),
-  extend: jest.fn(),
-} as jest.Mocked<EntityManager>);
+export const createMockEntityManager = (): jest.Mocked<EntityManager> =>
+  ({
+    connection: {} as any,
+    queryRunner: {} as any,
+    transaction: jest.fn(),
+    query: jest.fn(),
+    createQueryBuilder: jest.fn().mockReturnValue(createMockQueryBuilder()),
+    getRepository: jest
+      .fn()
+      .mockImplementation((entity) =>
+        createMockRepository(entity.name || 'unknown'),
+      ),
+    getTreeRepository: jest.fn(),
+    getMongoRepository: jest.fn(),
+    getCustomRepository: jest.fn(),
+    release: jest.fn(),
+    find: jest.fn(),
+    findOne: jest.fn(),
+    findOneBy: jest.fn(),
+    findOneOrFail: jest.fn(),
+    findBy: jest.fn(),
+    findAndCount: jest.fn(),
+    findAndCountBy: jest.fn(),
+    save: jest.fn(),
+    insert: jest.fn(),
+    update: jest.fn(),
+    upsert: jest.fn(),
+    delete: jest.fn(),
+    remove: jest.fn(),
+    softDelete: jest.fn(),
+    restore: jest.fn(),
+    recover: jest.fn(),
+    create: jest.fn(),
+    merge: jest.fn(),
+    preload: jest.fn(),
+    count: jest.fn(),
+    countBy: jest.fn(),
+    sum: jest.fn(),
+    average: jest.fn(),
+    minimum: jest.fn(),
+    maximum: jest.fn(),
+    increment: jest.fn(),
+    decrement: jest.fn(),
+    exist: jest.fn(),
+    existsBy: jest.fn(),
+    clear: jest.fn(),
+    getId: jest.fn(),
+    hasId: jest.fn(),
+    reload: jest.fn(),
+    extend: jest.fn(),
+  }) as jest.Mocked<EntityManager>;
 
 // Test data factories
 export const createTestEntityData = {
@@ -268,7 +282,7 @@ export const createTestEntityData = {
 
 // Database transaction mocking
 export const mockTransaction = async <T>(
-  callback: (entityManager: EntityManager) => Promise<T>
+  callback: (entityManager: EntityManager) => Promise<T>,
 ): Promise<T> => {
   const mockEntityManager = createMockEntityManager();
   return callback(mockEntityManager);
@@ -278,14 +292,14 @@ export const mockTransaction = async <T>(
 export const expectRepositoryCall = (
   mockRepository: jest.Mocked<Repository<any>>,
   method: string,
-  expectedArgs?: any[]
+  expectedArgs?: any[],
 ) => {
   const calls = (mockRepository as any)[method].mock.calls;
-  
+
   if (calls.length === 0) {
     throw new Error(`Expected ${method} to have been called but it was not`);
   }
-  
+
   if (expectedArgs) {
     const lastCall = calls[calls.length - 1];
     expect(lastCall).toEqual(expectedArgs);
@@ -295,17 +309,19 @@ export const expectRepositoryCall = (
 // Database connection mocking
 export const createMockDataSource = () => ({
   isInitialized: true,
-  getRepository: jest.fn().mockImplementation((entity) => 
-    createMockRepository(entity.name || 'unknown')
-  ),
+  getRepository: jest
+    .fn()
+    .mockImplementation((entity) =>
+      createMockRepository(entity.name || 'unknown'),
+    ),
   getTreeRepository: jest.fn(),
   getMongoRepository: jest.fn(),
   manager: createMockEntityManager(),
   createQueryBuilder: jest.fn().mockReturnValue(createMockQueryBuilder()),
   createQueryRunner: jest.fn(),
-  transaction: jest.fn().mockImplementation((callback) => 
-    callback(createMockEntityManager())
-  ),
+  transaction: jest
+    .fn()
+    .mockImplementation((callback) => callback(createMockEntityManager())),
   query: jest.fn(),
   initialize: jest.fn(),
   destroy: jest.fn(),

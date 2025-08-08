@@ -5,7 +5,7 @@ beforeAll(async () => {
   // Set test environment
   process.env.NODE_ENV = 'test';
   process.env.TZ = 'UTC';
-  
+
   // Mock environment variables
   process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
   process.env.REDIS_URL = 'redis://localhost:6379/1'; // Use different Redis DB for tests
@@ -114,8 +114,8 @@ global.testUtils = {
   },
 
   // Delay helper for async tests
-  delay: (ms: number): Promise<void> => 
-    new Promise(resolve => setTimeout(resolve, ms)),
+  delay: (ms: number): Promise<void> =>
+    new Promise((resolve) => setTimeout(resolve, ms)),
 };
 
 // Mock external dependencies
@@ -208,5 +208,5 @@ afterEach(() => {
 // Cleanup after all tests
 afterAll(async () => {
   // Close any open handles
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await new Promise((resolve) => setTimeout(resolve, 100));
 });

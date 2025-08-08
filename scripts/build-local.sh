@@ -57,7 +57,7 @@ build_app() {
 build_worker() {
     print_status "Building worker image..."
     
-    cd runner
+    cd worker
     
     # Build with local tag
     if docker build -t supercheck-worker:latest .; then

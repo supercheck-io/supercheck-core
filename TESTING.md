@@ -331,7 +331,7 @@ Add to `.husky/pre-commit`:
 ```bash
 #!/bin/sh
 cd app && npm run test:ci
-cd ../runner && npm run test:ci
+cd ../worker && npm run test:ci
 ```
 
 ## Performance Testing

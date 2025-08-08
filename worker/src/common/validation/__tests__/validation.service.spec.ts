@@ -17,7 +17,9 @@ describe('ValidationService', () => {
     age: z.number().min(0, 'Age must be positive').optional(),
   });
 
-  const simpleStringSchema = z.string().min(3, 'String must be at least 3 characters');
+  const simpleStringSchema = z
+    .string()
+    .min(3, 'String must be at least 3 characters');
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -25,7 +27,7 @@ describe('ValidationService', () => {
     }).compile();
 
     service = module.get<ValidationService>(ValidationService);
-    
+
     // Setup logger spies
     loggerSpy = {
       warn: jest.spyOn(service['logger'], 'warn').mockImplementation(),
@@ -82,7 +84,9 @@ describe('ValidationService', () => {
       });
 
       it('should handle Zod transformations', () => {
-        const transformSchema = z.string().transform((val) => val.toUpperCase());
+        const transformSchema = z
+          .string()
+          .transform((val) => val.toUpperCase());
         const input = 'hello world';
 
         const result = service.validate(transformSchema, input);
@@ -100,7 +104,7 @@ describe('ValidationService', () => {
         };
 
         expect(() => service.validate(userSchema, invalidData)).toThrow(
-          BadRequestException
+          BadRequestException,
         );
       });
 
@@ -115,10 +119,12 @@ describe('ValidationService', () => {
           fail('Should have thrown BadRequestException');
         } catch (error) {
           expect(error).toBeInstanceOf(BadRequestException);
-          
-          const response = error.getResponse() as any;
+
+          const response = error.getResponse();
           expect(response.message).toBe('Validation failed');
-          expect(response.errors).toContain('name: String must contain at least 1 character(s)');
+          expect(response.errors).toContain(
+            'name: String must contain at least 1 character(s)',
+          );
           expect(response.errors).toContain('email: Invalid email');
         }
       });
@@ -137,7 +143,7 @@ describe('ValidationService', () => {
           expect.arrayContaining([
             expect.stringContaining('name:'),
             expect.stringContaining('email:'),
-          ])
+          ]),
         );
       });
 
@@ -162,14 +168,18 @@ describe('ValidationService', () => {
           service.validate(nestedSchema, invalidData);
           fail('Should have thrown');
         } catch (error) {
-          const response = error.getResponse() as any;
-          expect(response.errors).toContain('user.profile.name: String must contain at least 1 character(s)');
+          const response = error.getResponse();
+          expect(response.errors).toContain(
+            'user.profile.name: String must contain at least 1 character(s)',
+          );
         }
       });
 
       it('should handle array validation errors', () => {
         const arraySchema = z.object({
-          items: z.array(z.string().min(1)).min(1, 'At least one item required'),
+          items: z
+            .array(z.string().min(1))
+            .min(1, 'At least one item required'),
         });
 
         const invalidData = {
@@ -180,8 +190,10 @@ describe('ValidationService', () => {
           service.validate(arraySchema, invalidData);
           fail('Should have thrown');
         } catch (error) {
-          const response = error.getResponse() as any;
-          expect(response.errors).toContain('items.0: String must contain at least 1 character(s)');
+          const response = error.getResponse();
+          expect(response.errors).toContain(
+            'items.0: String must contain at least 1 character(s)',
+          );
         }
       });
     });
@@ -192,7 +204,9 @@ describe('ValidationService', () => {
           throw new Error('Custom error');
         });
 
-        expect(() => service.validate(errorSchema, 'test')).toThrow('Custom error');
+        expect(() => service.validate(errorSchema, 'test')).toThrow(
+          'Custom error',
+        );
         expect(loggerSpy.warn).not.toHaveBeenCalled();
       });
 
@@ -251,7 +265,7 @@ describe('ValidationService', () => {
 
         expect(loggerSpy.debug).toHaveBeenCalledWith(
           'Safe validation failed:',
-          expect.any(Array)
+          expect.any(Array),
         );
       });
 
@@ -262,7 +276,9 @@ describe('ValidationService', () => {
           age: -1,
         };
 
-        expect(() => service.safeValidate(userSchema, invalidData)).not.toThrow();
+        expect(() =>
+          service.safeValidate(userSchema, invalidData),
+        ).not.toThrow();
       });
     });
 
@@ -272,7 +288,9 @@ describe('ValidationService', () => {
           throw new Error('Custom validation error');
         });
 
-        expect(() => service.safeValidate(errorSchema, 'test')).toThrow('Custom validation error');
+        expect(() => service.safeValidate(errorSchema, 'test')).toThrow(
+          'Custom validation error',
+        );
       });
     });
   });
@@ -292,7 +310,11 @@ describe('ValidationService', () => {
           years: user.age || 0,
         });
 
-        const result = service.validateWithTransform(userSchema, validData, transform);
+        const result = service.validateWithTransform(
+          userSchema,
+          validData,
+          transform,
+        );
 
         expect(result).toEqual({
           fullName: 'John Doe',
@@ -305,7 +327,11 @@ describe('ValidationService', () => {
         const stringData = 'hello world';
         const transform = (str: string) => str.length;
 
-        const result = service.validateWithTransform(simpleStringSchema, stringData, transform);
+        const result = service.validateWithTransform(
+          simpleStringSchema,
+          stringData,
+          transform,
+        );
 
         expect(result).toBe(11);
         expect(typeof result).toBe('number');
@@ -324,7 +350,11 @@ describe('ValidationService', () => {
           createdAt: new Date('2024-01-01'),
         });
 
-        const result = service.validateWithTransform(userSchema, userData, transform);
+        const result = service.validateWithTransform(
+          userSchema,
+          userData,
+          transform,
+        );
 
         expect(result.displayName).toBe('JANE SMITH');
         expect(result.domain).toBe('company.com');
@@ -341,8 +371,8 @@ describe('ValidationService', () => {
 
         const transform = (user: any) => user.name;
 
-        expect(() => 
-          service.validateWithTransform(userSchema, invalidData, transform)
+        expect(() =>
+          service.validateWithTransform(userSchema, invalidData, transform),
         ).toThrow(BadRequestException);
       });
 
@@ -371,8 +401,8 @@ describe('ValidationService', () => {
           throw new Error('Transform failed');
         };
 
-        expect(() => 
-          service.validateWithTransform(userSchema, validData, errorTransform)
+        expect(() =>
+          service.validateWithTransform(userSchema, validData, errorTransform),
         ).toThrow('Transform failed');
       });
 
@@ -385,8 +415,16 @@ describe('ValidationService', () => {
         const nullTransform = () => null;
         const undefinedTransform = () => undefined;
 
-        expect(service.validateWithTransform(userSchema, validData, nullTransform)).toBeNull();
-        expect(service.validateWithTransform(userSchema, validData, undefinedTransform)).toBeUndefined();
+        expect(
+          service.validateWithTransform(userSchema, validData, nullTransform),
+        ).toBeNull();
+        expect(
+          service.validateWithTransform(
+            userSchema,
+            validData,
+            undefinedTransform,
+          ),
+        ).toBeUndefined();
       });
     });
   });
@@ -395,23 +433,25 @@ describe('ValidationService', () => {
     it('should handle empty objects', () => {
       const emptySchema = z.object({});
       const result = service.validate(emptySchema, {});
-      
+
       expect(result).toEqual({});
     });
 
     it('should handle null and undefined inputs', () => {
       const nullableSchema = z.string().nullable();
-      
+
       expect(service.validate(nullableSchema, null)).toBeNull();
       expect(service.safeValidate(z.string(), null)).toBeNull();
     });
 
     it('should handle very large objects', () => {
-      const largeObject = Array.from({ length: 1000 }, (_, i) => [`key${i}`, `value${i}`])
-        .reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {});
-      
+      const largeObject = Array.from({ length: 1000 }, (_, i) => [
+        `key${i}`,
+        `value${i}`,
+      ]).reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {});
+
       const dynamicSchema = z.record(z.string());
-      
+
       const result = service.validate(dynamicSchema, largeObject);
       expect(Object.keys(result)).toHaveLength(1000);
     });
@@ -419,9 +459,12 @@ describe('ValidationService', () => {
     it('should handle circular reference detection in error messages', () => {
       const circularObj: any = { name: 'test' };
       circularObj.self = circularObj;
-      
+
       // This should not crash even with circular references
-      const result = service.safeValidate(z.object({ name: z.string() }), circularObj);
+      const result = service.safeValidate(
+        z.object({ name: z.string() }),
+        circularObj,
+      );
       expect(result).toEqual({ name: 'test' });
     });
   });

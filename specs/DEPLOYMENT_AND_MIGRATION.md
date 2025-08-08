@@ -283,8 +283,8 @@ Create a GitHub Actions workflow to automatically build and publish images:
        - name: Build and push Worker image
          uses: docker/build-push-action@v5
          with:
-           context: ./runner
-           file: ./runner/Dockerfile
+           context: ./worker
+           file: ./worker/Dockerfile
            push: true
            tags: ${{ steps.meta.outputs.tags }}
            labels: ${{ steps.meta.outputs.labels }}
@@ -320,7 +320,7 @@ Create a GitHub Actions workflow to automatically build and publish images:
    docker build -t ghcr.io/$GITHUB_REPOSITORY/app:latest ./app
    
    # Build worker image
-   docker build -t ghcr.io/$GITHUB_REPOSITORY/worker:latest ./runner
+   docker build -t ghcr.io/$GITHUB_REPOSITORY/worker:latest ./worker
    
    # Tag with version (optional)
    docker tag ghcr.io/$GITHUB_REPOSITORY/app:latest ghcr.io/$GITHUB_REPOSITORY/app:v1.0.0
@@ -617,7 +617,7 @@ The migration script includes comprehensive error handling and retry logic. Chec
    
      worker:
        build:
-         context: ./runner
+         context: ./worker
          dockerfile: Dockerfile
        ports:
          - "3001:3001"
@@ -701,7 +701,7 @@ docker run -d \
 docker run -d \
   --name supertest-worker-dev \
   -p 3001:3001 \
-  -v $(pwd)/runner:/app \
+  -v $(pwd)/worker:/app \
   -v /app/node_modules \
   -e DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/supercheck \
   -e REDIS_URL=redis://host.docker.internal:6379 \

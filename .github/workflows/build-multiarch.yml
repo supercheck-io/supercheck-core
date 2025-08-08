@@ -83,8 +83,8 @@ jobs:
       - name: Build and push worker image
         uses: docker/build-push-action@v5
         with:
-          context: ./runner
-          file: ./runner/Dockerfile
+          context: ./worker
+          file: ./worker/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.worker-meta.outputs.tags }}
