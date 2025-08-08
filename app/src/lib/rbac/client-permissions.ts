@@ -40,7 +40,7 @@ export function hasPermission(role: Role, resource: string, action: string): boo
     case Role.PROJECT_ADMIN:
       // Project admins have full control over assigned projects but limited organization access
       if (['test', 'job', 'monitor', 'run', 'apiKey', 'notification', 'tag'].includes(resource)) {
-        result = true; // Full access to project resources
+        result = true; // Full access to project resources including 'manage' action
       } else if (resource === 'project') {
         result = ['view', 'manage_members'].includes(action);
       } else if (['organization', 'member'].includes(resource)) {
@@ -51,11 +51,17 @@ export function hasPermission(role: Role, resource: string, action: string): boo
       break;
 
     case Role.PROJECT_EDITOR:
-      // Editors can edit tests, jobs, monitors, tags in assigned projects
+      // Editors can edit tests, jobs, monitors, tags in assigned projects and can delete resources they created
       if (['test', 'job', 'monitor'].includes(resource)) {
-        result = ['view', 'create', 'update', 'run', 'trigger'].includes(action);
+        result = ['view', 'create', 'update', 'delete', 'run', 'trigger'].includes(action);
       } else if (resource === 'tag') {
-        result = ['view', 'create', 'update', 'delete'].includes(action);
+        result = ['view', 'create', 'update', 'delete'].includes(action); // Can delete tags they created
+      } else if (resource === 'run') {
+        result = ['view', 'delete'].includes(action); // Can delete runs they created
+      } else if (resource === 'apiKey') {
+        result = ['view', 'create', 'update', 'delete'].includes(action); // Can manage API keys they created
+      } else if (resource === 'notification') {
+        result = ['create', 'update', 'delete', 'view'].includes(action); // Can delete notifications they created
       } else if (['organization', 'member', 'project'].includes(resource)) {
         result = action === 'view';
       } else {
@@ -231,6 +237,20 @@ export function canManageAPIKeys(role: Role): boolean {
 }
 
 /**
+ * Check if user can delete runs
+ */
+export function canDeleteRuns(role: Role): boolean {
+  return hasPermission(role, 'run', 'delete');
+}
+
+/**
+ * Check if user can manage runs (delete, export)
+ */
+export function canManageRuns(role: Role): boolean {
+  return hasPermission(role, 'run', 'delete') || hasPermission(role, 'run', 'export');
+}
+
+/**
  * Check if user can export results
  */
 export function canExportResults(role: Role): boolean {
@@ -277,4 +297,51 @@ export function canEditResources(role: Role): boolean {
  */
 export function canDeleteResources(role: Role): boolean {
   return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_ADMIN].includes(role);
+}
+
+/**
+ * Check if role can delete resources they created (includes PROJECT_EDITOR)
+ */
+export function canDeleteOwnResources(role: Role): boolean {
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_ADMIN, Role.PROJECT_EDITOR].includes(role);
+}
+
+/**
+ * Context-aware permission checking for client-side use
+ */
+export interface ClientPermissionContext {
+  userId: string;
+  role: Role;
+  resourceCreatorId?: string;
+  isAssignedProject?: boolean;
+}
+
+/**
+ * Check if user can delete a specific resource considering ownership
+ */
+export function canDeleteResource(
+  context: ClientPermissionContext,
+  resource: keyof typeof import('./permissions').statement
+): boolean {
+  const { role, userId, resourceCreatorId } = context;
+  
+  // Super admin, org owner, org admin can delete anything
+  if ([Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN].includes(role)) {
+    return true;
+  }
+  
+  // Project admin can delete all resources in assigned projects
+  if (role === Role.PROJECT_ADMIN && context.isAssignedProject) {
+    return true;
+  }
+  
+  // Project editor can delete resources they created
+  if (role === Role.PROJECT_EDITOR && 
+      ['test', 'job', 'monitor', 'notification', 'tag', 'run', 'apiKey'].includes(resource) &&
+      resourceCreatorId === userId &&
+      context.isAssignedProject) {
+    return true;
+  }
+  
+  return false;
 }

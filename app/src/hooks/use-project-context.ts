@@ -108,10 +108,12 @@ export function useProjectContextState(): ProjectContextState {
 
       if (data.success && data.project) {
         setCurrentProject(data.project);
-        toast.success(`Switched to ${data.project.name}`);
         
-        // Refresh the page to update all components with new context
-        window.location.reload();
+        // Store project name for toast after redirect
+        sessionStorage.setItem('projectSwitchSuccess', data.project.name);
+        
+        // Redirect immediately to root URL to prevent access to resources that don't belong to the new project
+        window.location.href = '/';
         return true;
       } else {
         throw new Error(data.error || 'Failed to switch project');

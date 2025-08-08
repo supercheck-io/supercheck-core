@@ -16,7 +16,7 @@ import {
   ActivityIcon,
   FolderOpen
 } from "lucide-react";
-import { canManageMonitors } from "@/lib/rbac/client-permissions";
+import { canManageRuns } from "@/lib/rbac/client-permissions";
 import { Role } from "@/lib/rbac/permissions";
 import { LoadingBadge, Spinner } from "@/components/ui/spinner";
 import { RunStatusListener } from "./run-status-listener";
@@ -253,7 +253,7 @@ export function RunDetails({ run }: { run: RunResponse }) {
             {permissionsLoading && <LoadingBadge />}
             
             {/* Access level badge */}
-            {!permissionsLoading && userRole && !canManageMonitors(userRole) && (
+            {!permissionsLoading && userRole && !canManageRuns(userRole) && (
               <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
                 <ActivityIcon className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs text-blue-700 dark:text-blue-300">
@@ -262,7 +262,7 @@ export function RunDetails({ run }: { run: RunResponse }) {
               </div>
             )}
             
-            {!permissionsLoading && userRole && canManageMonitors(userRole) && (
+            {!permissionsLoading && userRole && canManageRuns(userRole) && (
               <Button 
                 variant="outline"
                 size="sm"

@@ -58,12 +58,14 @@ export async function GET(
     }
 
     // Get user's effective role for the response
-    const hasManagePermission = await hasPermission('run', 'manage', {
+    const hasDeletePermission = await hasPermission('run', 'delete', {
       organizationId: run.organizationId,
       projectId: run.projectId
     });
 
-    const userRole = hasManagePermission ? Role.PROJECT_EDITOR : Role.PROJECT_VIEWER;
+    // If user can delete runs, they have management permissions (PROJECT_ADMIN or higher)
+    // Otherwise they only have view permissions (PROJECT_VIEWER or PROJECT_EDITOR without delete)
+    const userRole = hasDeletePermission ? Role.PROJECT_ADMIN : Role.PROJECT_VIEWER;
 
     return NextResponse.json({
       success: true,

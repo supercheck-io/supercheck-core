@@ -64,7 +64,7 @@ x-common-env: &common-env
   SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-test@gmail.com}
   
   # Resend Configuration (Fallback email delivery method)
-  RESEND_API_KEY: ${RESEND_API_KEY:-re_xxxxxxxxxxxxxxx}
+  RESEND_API_KEY: ${RESEND_API_KEY:-re_esRt3Mhv_NDTmUXhXpVgT2VrNR4pqwFUP}
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notifications@meditationblue.com}
 
   # For HTTP use IP or localhost 
@@ -82,7 +82,7 @@ x-common-env: &common-env
 services:
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:organization-5390e9c
+    image: ghcr.io/krish-kant/supercheck/app:organization-22538e9
     ports:
       - "3000:3000"
     environment:
@@ -119,7 +119,7 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:organization-5390e9c
+    image: ghcr.io/krish-kant/supercheck/worker:organization-22538e9
     environment:
       <<: *common-env
       # Worker-specific configuration

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, Search } from "lucide-react"
+import { ChevronsUpDown, Search, Loader2 } from "lucide-react"
 import { CheckIcon } from "@/components/logo/supercheck-logo"
 import { useProjectContext } from "@/hooks/use-project-context"
 
@@ -95,7 +95,10 @@ export function ProjectSwitcher() {
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">Supercheck</span>
-              <span className="truncate text-xs">Loading...</span>
+              <div className="flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span className="truncate text-xs">Loading...</span>
+              </div>
             </div>
           </SidebarMenuButton>
         </SidebarMenuItem>

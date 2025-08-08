@@ -1,7 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { jobs, apikey, jobTests } from "@/db/schema/schema";
+import { jobs, apikey, jobTests, runs, tests, JobTrigger } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
+import crypto from "crypto";
+import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
+
+declare const Buffer: {
+  from(data: string, encoding: string): { toString(encoding: string): string };
+};
+
+/**
+ * Helper function to decode base64-encoded test scripts
+ */
+async function decodeTestScript(base64Script: string): Promise<string> {
+  const base64Regex = /^[A-Za-z0-9+/=]+$/;
+  const isBase64 = base64Regex.test(base64Script);
+
+  if (!isBase64) {
+    return base64Script;
+  }
+
+  try {
+    if (typeof window === "undefined") {
+      const decoded = Buffer.from(base64Script, "base64").toString("utf-8");
+      return decoded;
+    }
+    return base64Script;
+  } catch (error) {
+    console.error("Error decoding base64:", error);
+    return base64Script;
+  }
+}
 
 // POST /api/jobs/[id]/trigger - Trigger job remotely via API key
 export async function POST(
@@ -125,6 +154,8 @@ export async function POST(
         name: jobs.name,
         status: jobs.status,
         createdByUserId: jobs.createdByUserId,
+        organizationId: jobs.organizationId,
+        projectId: jobs.projectId,
       })
       .from(jobs)
       .where(eq(jobs.id, jobId))
@@ -170,12 +201,11 @@ export async function POST(
       );
     }
 
-    // Parse optional request body for additional parameters
-    let triggerOptions = {};
+    // Parse optional request body for additional parameters (currently not used but reserved for future features)
     try {
       const body = await request.text();
       if (body && body.trim()) {
-        triggerOptions = JSON.parse(body);
+        JSON.parse(body); // Validate JSON format but don't store
       }
     } catch {
       // Ignore JSON parsing errors for optional body
@@ -195,40 +225,106 @@ export async function POST(
         console.error(`Failed to update API key usage for ${key.id}:`, error);
       });
 
-    // Trigger the job by calling the existing job run API
-    const runResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/jobs/run`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          jobId: jobId,
-          tests: jobTestsResult.map(test => ({ id: test.id })),
-          triggeredBy: "api",
-          apiKeyName: key.name,
-          apiKeyId: key.id,
-          trigger: "remote", // Add trigger value
-          ...triggerOptions, // Allow additional options from request body
-        }),
-      }
-    );
+    // Create run record and prepare test scripts directly
+    const runId = crypto.randomUUID();
+    const startTime = new Date();
+    
+    await db.insert(runs).values({
+      id: runId,
+      jobId,
+      projectId: job.projectId,
+      status: "running",
+      startedAt: startTime,
+      trigger: "remote" as JobTrigger,
+    });
 
-    if (!runResponse.ok) {
-      const errorData = await runResponse.json().catch(() => ({}));
-      console.error(`Job trigger failed for ${jobId}:`, errorData);
+    console.log(`[${jobId}/${runId}] Created running test run record: ${runId}`);
+
+    // Prepare test scripts
+    const testScripts = [];
+    
+    for (const testRef of jobTestsResult) {
+      console.log(`[${jobId}/${runId}] Fetching script for test ${testRef.id} from database`);
+      
+      // Fetch test directly from database
+      const testResult = await db
+        .select({
+          id: tests.id,
+          title: tests.title,
+          script: tests.script
+        })
+        .from(tests)
+        .where(eq(tests.id, testRef.id))
+        .limit(1);
+      
+      if (testResult.length > 0 && testResult[0].script) {
+        // Decode the base64 script
+        const testScript = await decodeTestScript(testResult[0].script);
+        const testName = testResult[0].title || `Test ${testResult[0].id}`;
+        testScripts.push({ id: testResult[0].id, name: testName, script: testScript });
+      } else {
+        console.error(`[${jobId}/${runId}] Failed to fetch script for test ${testRef.id}, skipping.`);
+        continue;
+      }
+    }
+
+    if (testScripts.length === 0) {
+      console.error(`[${jobId}/${runId}] No valid test scripts found after fetching. Aborting run.`);
+      await db.update(runs).set({ 
+        status: "failed", 
+        completedAt: new Date(), 
+        errorDetails: "No valid test scripts found for the job." 
+      }).where(eq(runs.id, runId));
       return NextResponse.json(
         { 
-          error: "Failed to trigger job", 
-          message: errorData.error || "An error occurred while triggering the job",
-          details: errorData.details || null
+          error: "No valid test scripts could be prepared for the job.",
+          message: "All tests associated with this job are invalid or missing scripts" 
         },
-        { status: 500 }
+        { status: 400 }
       );
     }
 
-    const runData = await runResponse.json();
+    console.log(`[${jobId}/${runId}] Prepared ${testScripts.length} test scripts for queuing.`);
+
+    // Create job execution task
+    const task: JobExecutionTask = {
+      jobId: jobId,
+      testScripts,
+      runId: runId,
+      originalJobId: jobId,
+      trigger: "remote",
+      organizationId: job.organizationId || '',
+      projectId: job.projectId || ''
+    };
+
+    try {
+      await addJobToQueue(task);
+    } catch (error) {
+      // Check if this is a queue capacity error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('capacity limit') || errorMessage.includes('Unable to verify queue capacity')) {
+        console.log(`[Job Trigger API] Capacity limit reached: ${errorMessage}`);
+        
+        // Update the run status to failed with capacity limit error
+        await db.update(runs)
+          .set({
+            status: "failed",
+            completedAt: new Date(),
+            errorDetails: errorMessage
+          })
+          .where(eq(runs.id, runId));
+          
+        return NextResponse.json(
+          { error: "Queue capacity limit reached", message: errorMessage },
+          { status: 429 }
+        );
+      }
+      
+      // For other errors, log and re-throw
+      console.error(`[${jobId}/${runId}] Error adding job to queue:`, error);
+      throw error;
+    }
 
     // Log successful API key usage
     console.log(`Job ${jobId} triggered successfully via API key ${key.name} (${key.id})`);
@@ -239,8 +335,8 @@ export async function POST(
       data: {
         jobId: jobId,
         jobName: job.name,
-        runId: runData.runId,
-        testCount: jobTestsResult.length,
+        runId: runId,
+        testCount: testScripts.length,
         triggeredBy: key.name,
         triggeredAt: now.toISOString(),
       },
@@ -248,12 +344,13 @@ export async function POST(
 
   } catch (error) {
     console.error(`Error triggering job via API key ${apiKeyUsed}...:`, error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
     
     return NextResponse.json(
       { 
-        error: "Internal server error", 
-        message: "An unexpected error occurred while triggering the job",
-        requestId: Date.now().toString(), // Simple request ID for debugging
+        error: "Failed to trigger job", 
+        message: errorMessage,
+        details: null
       },
       { status: 500 }
     );

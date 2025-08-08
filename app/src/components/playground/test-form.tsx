@@ -18,7 +18,7 @@ import { decodeTestScript } from "@/actions/save-test";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import { canDeleteTags, canCreateTags, convertStringToRole } from "@/lib/rbac/client-permissions";
+import { canDeleteTags, canCreateTags, canDeleteTests, convertStringToRole } from "@/lib/rbac/client-permissions";
 import { deleteTest } from "@/actions/delete-test";
 import {
   AlertDialog,
@@ -146,6 +146,7 @@ export function TestForm({
   const role = userRole ? convertStringToRole(userRole) : null;
   const canUserCreateTags = role ? canCreateTags(role) : false;
   const canUserDeleteTags = role ? canDeleteTags(role) : false;
+  const canUserDeleteTests = role ? canDeleteTests(role) : false;
 
   // Function to check if specific tag can be deleted by current user
   const canDeleteSpecificTag = (tag: Tag): boolean => {
@@ -808,7 +809,7 @@ export function TestForm({
                 type="button"
                 variant="outline"
                 onClick={() => setShowDeleteDialog(true)}
-                disabled={isRunning}
+                disabled={isRunning || !canUserDeleteTests}
                 className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
               >
                 <Trash2 className="h-4 w-4 mr-2" />

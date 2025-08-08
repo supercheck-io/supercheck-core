@@ -150,7 +150,7 @@ export const projectEditor = ac.newRole({
   job: ["create", "update", "delete", "view", "trigger"],
   monitor: ["create", "update", "delete", "view"],
   run: ["view", "delete"],
-  apiKey: ["view"],
+  apiKey: ["create", "update", "delete", "view"],
   notification: ["create", "update", "delete", "view"],
   tag: ["view", "create", "update", "delete"]
 });
@@ -296,7 +296,7 @@ export function hasPermission(
   // Special case: PROJECT_EDITOR can delete resources they created (PROJECT_ADMIN can delete all resources in assigned projects)
   if (context.role === Role.PROJECT_EDITOR && 
       action === 'delete' &&
-      ['test', 'job', 'monitor', 'notification', 'tag'].includes(resource) &&
+      ['test', 'job', 'monitor', 'notification', 'tag', 'run', 'apiKey'].includes(resource) &&
       context.resourceCreatorId &&
       context.resourceCreatorId !== context.userId) {
     return false;
