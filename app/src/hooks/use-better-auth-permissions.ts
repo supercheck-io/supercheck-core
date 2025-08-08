@@ -134,9 +134,8 @@ export function useCanEditJobs() {
           const data = await response.json();
           if (data.success && data.project?.userRole) {
             // Use client-side permission checking
-            import('@/lib/rbac/client-permissions').then(({ canEditJobs, normalizeRole }) => {
-              const userRole = normalizeRole(data.project.userRole);
-              setCanEdit(canEditJobs(userRole));
+            import('@/lib/rbac/client-permissions').then(({ canEditJobs }) => {
+              setCanEdit(canEditJobs(data.project.userRole));
             });
           } else {
             setCanEdit(false);
@@ -174,9 +173,8 @@ export function useCanDeleteJobs() {
           const data = await response.json();
           if (data.success && data.project?.userRole) {
             // Use client-side permission checking
-            import('@/lib/rbac/client-permissions').then(({ canDeleteJobs, normalizeRole }) => {
-              const userRole = normalizeRole(data.project.userRole);
-              setCanDelete(canDeleteJobs(userRole));
+            import('@/lib/rbac/client-permissions').then(({ canDeleteJobs }) => {
+              setCanDelete(canDeleteJobs(data.project.userRole));
             });
           } else {
             setCanDelete(false);
@@ -214,9 +212,8 @@ export function useCanEditTests() {
           const data = await response.json();
           if (data.success && data.project?.userRole) {
             // Use client-side permission checking
-            import('@/lib/rbac/client-permissions').then(({ canEditTests, normalizeRole }) => {
-              const userRole = normalizeRole(data.project.userRole);
-              setCanEdit(canEditTests(userRole));
+            import('@/lib/rbac/client-permissions').then(({ canEditTests }) => {
+              setCanEdit(canEditTests(data.project.userRole));
             });
           } else {
             setCanEdit(false);
@@ -254,9 +251,8 @@ export function useCanDeleteTests() {
           const data = await response.json();
           if (data.success && data.project?.userRole) {
             // Use client-side permission checking
-            import('@/lib/rbac/client-permissions').then(({ canDeleteTests, normalizeRole }) => {
-              const userRole = normalizeRole(data.project.userRole);
-              setCanDelete(canDeleteTests(userRole));
+            import('@/lib/rbac/client-permissions').then(({ canDeleteTests }) => {
+              setCanDelete(canDeleteTests(data.project.userRole));
             });
           } else {
             setCanDelete(false);
