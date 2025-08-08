@@ -4,47 +4,72 @@
 
 This document outlines the comprehensive job trigger system in Supertest, which supports three distinct trigger types: `manual`, `remote`, and `schedule`. The system provides full traceability and control over how jobs are initiated and executed.
 
-## Trigger Types
+## Trigger Types Architecture
+
+```mermaid
+graph TB
+    subgraph "Manual Triggers"
+        A1[Web UI] --> A2[User clicks Run] --> A3["Jobs Run API"]
+    end
+    
+    subgraph "Remote Triggers"
+        B1[External System] --> B2[API Key Auth] --> B3["Job Trigger API"]
+    end
+    
+    subgraph "Schedule Triggers"
+        C1[Cron Scheduler] --> C2[BullMQ Job] --> C3[Automated Execution]
+    end
+    
+    A3 --> D1[Job Execution Pipeline]
+    B3 --> D1
+    C3 --> D1
+    
+    D1 --> E1[Worker Service]
+    E1 --> F1[Test Execution]
+    F1 --> G1[Results & Reports]
+    
+    G1 --> H1[(Database)]
+    H1 --> I1[Runs Table with Trigger Type]
+```
 
 ### 1. Manual Trigger (`manual`)
 - **Source**: User-initiated job execution from the web UI
 - **Label**: "Manual"
-- **Flow**: User clicks "Run" button → API call to `/api/jobs/run` → Job execution
+- **Authentication**: Session-based user authentication
+- **Flow**: Interactive job execution with immediate feedback
 
 ### 2. Remote Trigger (`remote`)
 - **Source**: External API calls using API keys
-- **Label**: "Remote"
-- **Flow**: External system → API call to `/api/jobs/[id]/trigger` → Job execution
+- **Label**: "Remote"  
+- **Authentication**: API key validation required
+- **Flow**: Programmatic integration for CI/CD and external systems
 
 ### 3. Schedule Trigger (`schedule`)
 - **Source**: Automated execution based on cron schedules
 - **Label**: "Schedule"
-- **Flow**: Cron scheduler → BullMQ job → Job execution
+- **Authentication**: Internal system execution
+- **Flow**: Time-based automated job execution
 
 ## Database Schema Changes
 
-### Runs Table
-Added `trigger` field to the `runs` table:
+### Database Schema Implementation
 
-```sql
-ALTER TABLE "runs" ADD COLUMN "trigger" varchar(50) DEFAULT 'manual' NOT NULL;
-```
+The trigger system is implemented through database schema updates:
 
-### Schema Definitions
+**Runs Table Enhancement:**
+- Added `trigger` field to track job execution source
+- Field type: varchar(50) with default value 'manual'
+- Supports three trigger types: `manual`, `remote`, `schedule`
 
-As defined in the current database schema:
+**JobTrigger Type Definition:**
+- Enum-like type definition for trigger values
+- Ensures type safety across the application
+- Default value: 'manual' for backward compatibility
 
-```typescript
-export type JobTrigger = 
-  | "manual"   // User-initiated from web interface
-  | "remote"   // API key triggered execution  
-  | "schedule" // Cron-based automated execution
-```
-
-The `runs` table includes:
-```sql
-trigger: varchar("trigger", { length: 50 }).$type<JobTrigger>().notNull().default("manual")
-```
+**Database Migration:**
+- Migration adds trigger column to existing runs table
+- Maintains referential integrity with existing data
+- Supports historical trigger type tracking
 
 ## API Changes
 

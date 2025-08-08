@@ -10,6 +10,7 @@ interface MembersTableProps {
   onMemberUpdate: () => void;
   onInviteMember: () => void;
   canInviteMembers?: boolean;
+  projects?: { id: string; name: string; description?: string }[];
 }
 
 // Custom global filter function for members table
@@ -29,8 +30,8 @@ function memberGlobalFilterFn(row: any, _columnId: string, filterValue: string) 
   }
 }
 
-export function MembersTable({ members, onMemberUpdate, onInviteMember, canInviteMembers = false }: MembersTableProps) {
-  const columns = React.useMemo(() => createMemberColumns(onMemberUpdate), [onMemberUpdate]);
+export function MembersTable({ members, onMemberUpdate, onInviteMember, canInviteMembers = false, projects = [] }: MembersTableProps) {
+  const columns = React.useMemo(() => createMemberColumns(onMemberUpdate, projects), [onMemberUpdate, projects]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const CustomToolbar = React.useCallback(({ table }: { table: any }) => (

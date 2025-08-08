@@ -53,9 +53,31 @@ cp .env.example .env  # Configure your environment variables
 ```
 
 ### 2. Start Infrastructure Services
+
+**Option A: Using Docker Compose (Recommended)**
 ```bash
-# Start PostgreSQL, Redis, and MinIO
+# Start PostgreSQL, Redis, and MinIO together
 docker-compose up -d postgres redis minio
+```
+
+**Option B: Individual Service Commands**
+```bash
+# Start Redis
+docker run -d --name redis-supercheck -p 6379:6379 redis
+
+# Start PostgreSQL
+docker run -d --name postgres-supercheck \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=supercheck \
+  -p 5432:5432 postgres:16.2
+
+# Start MinIO
+docker run -d --name minio-supercheck \
+  -p 9000:9000 -p 9001:9001 \
+  -e "MINIO_ROOT_USER=minioadmin" \
+  -e "MINIO_ROOT_PASSWORD=minioadmin" \
+  minio/minio server /data --console-address ":9001"
 ```
 
 ### 3. Start Application Services
@@ -291,6 +313,20 @@ docker exec redis-supercheck redis-cli ping
 2. Review application logs: `docker-compose logs -f app`
 3. Check the [Security Documentation](./specs/SECURITY.md)
 4. For super admin issues, see [RBAC and Super Admin Setup Guide](./RBAC_DOCUMENTATION.md)
+
+## 📚 Complete Documentation
+
+### Essential Documentation
+- **[Technical Specifications](./specs/README.md)** - Complete technical documentation index
+- **[RBAC and Super Admin Setup](./RBAC_DOCUMENTATION.md)** - User management and admin setup
+- **[Security Guide](./specs/SECURITY.md)** - Production security configuration  
+- **[Development Guidelines](./CLAUDE.md)** - Project overview and coding standards
+
+### System Architecture
+- **[API Routes Analysis](./specs/API_ROUTES_ANALYSIS.md)** - Complete API reference and optimization guide
+- **[Test Execution Flow](./specs/TEST_EXECUTION_AND_JOB_QUEUE_FLOW.md)** - Job processing and execution pipeline
+- **[Monitoring System](./specs/MONITORING_SYSTEM.md)** - Health checks and uptime monitoring
+- **[Deployment Guide](./specs/DEPLOYMENT_AND_MIGRATION.md)** - Production deployment procedures
 
 ## 🤝 Contributing
 

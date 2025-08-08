@@ -27,7 +27,8 @@ import type { editor } from "monaco-editor";
 import type { ScriptType } from "@/lib/script-service";
 import { ReportViewer } from "@/components/shared/report-viewer";
 import { useProjectContext } from "@/hooks/use-project-context";
-import { canRunTests, convertStringToRole } from "@/lib/rbac/client-permissions";
+import { canRunTests } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 // Define our own TestCaseFormData interface
 interface TestCaseFormData {
@@ -60,7 +61,7 @@ const Playground: React.FC<PlaygroundProps> = ({
 }) => {
   // Permission checking
   const { currentProject } = useProjectContext();
-  const userCanRunTests = currentProject?.userRole ? canRunTests(convertStringToRole(currentProject.userRole)) : false;
+  const userCanRunTests = currentProject?.userRole ? canRunTests(normalizeRole(currentProject.userRole)) : false;
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
 
   // Fetch current user ID for permissions

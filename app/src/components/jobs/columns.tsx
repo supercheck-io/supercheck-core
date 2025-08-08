@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/popover";
 import { useState } from "react";
 import { useProjectContext } from "@/hooks/use-project-context";
-import { canTriggerJobs, convertStringToRole } from "@/lib/rbac/client-permissions";
+import { canTriggerJobs } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 // Type definition for the extended meta object used in this table
 interface JobsTableMeta {
@@ -113,7 +114,7 @@ function RunButton({ job }: { job: Job }) {
   const isRunning = isJobRunning(job.id);
   
   // Check if user has permission to trigger jobs
-  const hasPermission = currentProject?.userRole ? canTriggerJobs(convertStringToRole(currentProject.userRole)) : false;
+  const hasPermission = currentProject?.userRole ? canTriggerJobs(normalizeRole(currentProject.userRole)) : false;
 
   // Cleanup function to handle SSE connection close
   const closeSSEConnection = useCallback(() => {

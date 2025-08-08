@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/utils/db';
-import { member, user as userTable } from '@/db/schema/schema';
-import { eq, and } from 'drizzle-orm';
+import { member, user as userTable, projectMembers, projects } from '@/db/schema/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { requireAuth } from '@/lib/rbac/middleware';
 import { getActiveOrganization, getCurrentUser } from '@/lib/session';
 import { getUserOrgRole } from '@/lib/rbac/middleware';
@@ -36,7 +36,7 @@ export async function PUT(
       );
     }
 
-    const { role } = await request.json();
+    const { role, projectAssignments } = await request.json();
 
     if (!role || !['project_viewer', 'project_editor', 'project_admin', 'org_admin', 'org_owner'].includes(role)) {
       return NextResponse.json(
@@ -98,13 +98,131 @@ export async function PUT(
         eq(member.organizationId, activeOrg.id)
       ));
 
+    // Get current project assignments for audit logging
+    const currentProjectAssignments = await db
+      .select({
+        projectId: projectMembers.projectId,
+        projectName: projects.name
+      })
+      .from(projectMembers)
+      .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+      .where(
+        and(
+          eq(projectMembers.userId, resolvedParams.memberId),
+          eq(projects.organizationId, activeOrg.id)
+        )
+      );
+
+    const oldProjectIds = currentProjectAssignments.map(p => p.projectId);
+
+    // Handle project assignments if provided and not project_viewer
+    if (projectAssignments && Array.isArray(projectAssignments) && role !== 'project_viewer') {
+      // First, remove all existing project assignments for this user in this org
+      const orgProjectIds = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(eq(projects.organizationId, activeOrg.id));
+      
+      if (orgProjectIds.length > 0) {
+        await db
+          .delete(projectMembers)
+          .where(
+            and(
+              eq(projectMembers.userId, resolvedParams.memberId),
+              inArray(projectMembers.projectId, orgProjectIds.map(p => p.id))
+            )
+          );
+      }
+
+      // Then add new project assignments
+      if (projectAssignments.length > 0) {
+        const validProjectIds = await db
+          .select({ id: projects.id })
+          .from(projects)
+          .where(
+            and(
+              eq(projects.organizationId, activeOrg.id),
+              inArray(projects.id, projectAssignments.map((p: { projectId: string }) => p.projectId))
+            )
+          );
+
+        if (validProjectIds.length > 0) {
+          await db.insert(projectMembers).values(
+            validProjectIds.map(project => ({
+              userId: resolvedParams.memberId,
+              projectId: project.id,
+              role: role // Use the same role for all project assignments
+            }))
+          );
+        }
+      }
+    } else if (role === 'project_viewer') {
+      // For project_viewer, remove all specific project assignments since they get access to all
+      const orgProjectIds = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(eq(projects.organizationId, activeOrg.id));
+      
+      if (orgProjectIds.length > 0) {
+        await db
+          .delete(projectMembers)
+          .where(
+            and(
+              eq(projectMembers.userId, resolvedParams.memberId),
+              inArray(projectMembers.projectId, orgProjectIds.map(p => p.id))
+            )
+          );
+      }
+    }
+
+    // Get new project assignments after update for audit logging
+    const newProjectAssignments = role !== 'project_viewer' ? await db
+      .select({
+        projectId: projectMembers.projectId,
+        projectName: projects.name
+      })
+      .from(projectMembers)
+      .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+      .where(
+        and(
+          eq(projectMembers.userId, resolvedParams.memberId),
+          eq(projects.organizationId, activeOrg.id)
+        )
+      ) : [];
+
     // Role update completed successfully
 
-    // Log the audit event
+    // Calculate project assignment changes
+    const addedProjects = newProjectAssignments.filter(np => 
+      !oldProjectIds.includes(np.projectId)
+    );
+    const removedProjects = currentProjectAssignments.filter(cp => 
+      !newProjectAssignments.some(np => np.projectId === cp.projectId)
+    );
+
+    // Determine if this is a role change, project change, or both
+    const roleChanged = oldRole !== role;
+    const projectsChanged = addedProjects.length > 0 || removedProjects.length > 0;
+    
+    let action = 'member_updated';
+    let actionDescription = 'Member updated';
+    
+    if (roleChanged && projectsChanged) {
+      action = 'member_role_and_projects_updated';
+      actionDescription = 'Member role and project assignments updated';
+    } else if (roleChanged) {
+      action = 'member_role_updated';
+      actionDescription = 'Member role updated';
+    } else if (projectsChanged) {
+      action = 'member_projects_updated';
+      actionDescription = 'Member project assignments updated';
+    }
+
+    // Log the audit event with detailed project information
     await logAuditEvent({
       userId: currentUser.id,
       organizationId: activeOrg.id,
-      action: 'member_role_updated',
+      action,
       resource: 'member',
       resourceId: resolvedParams.memberId,
       metadata: {
@@ -112,7 +230,16 @@ export async function PUT(
         targetUserEmail: existingMember[0].userEmail,
         oldRole,
         newRole: role,
-        organizationName: activeOrg.name
+        roleChanged,
+        projectsChanged,
+        organizationName: activeOrg.name,
+        projectChanges: {
+          added: addedProjects.map(p => ({ id: p.projectId, name: p.projectName })),
+          removed: removedProjects.map(p => ({ id: p.projectId, name: p.projectName })),
+          currentProjects: newProjectAssignments.map(p => ({ id: p.projectId, name: p.projectName })),
+          previousProjects: currentProjectAssignments.map(p => ({ id: p.projectId, name: p.projectName }))
+        },
+        actionDescription
       },
       success: true
     });

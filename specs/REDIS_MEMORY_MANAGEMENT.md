@@ -1,6 +1,42 @@
 # Redis Memory Management and Cleanup System
 
-This document outlines Supertest's sophisticated Redis memory management strategy designed to prevent unbounded memory growth, ensure optimal performance, and maintain system stability in production environments with high job throughput.
+## System Architecture
+
+```mermaid
+graph TB
+    subgraph "Redis Memory Management"
+        A1[Job Queues] --> B1[TTL Management]
+        A2[Event Streams] --> B2[Stream Trimming]
+        A3[Cache Data] --> B3[Auto Expiration]
+        A4[Metrics Data] --> B4[Data Point Limits]
+    end
+    
+    subgraph "Cleanup Strategies"
+        C1[Automated Cleanup Jobs]
+        C2[Age-based Removal]
+        C3[Count-based Limits]
+        C4[Orphaned Key Detection]
+    end
+    
+    subgraph "TTL Hierarchy"
+        D1[Channel Data: 1 hour]
+        D2[Event Data: 24 hours] 
+        D3[Metrics: 48 hours]
+        D4[Job Data: 7 days]
+    end
+    
+    B1 --> C1
+    B2 --> C2
+    B3 --> C3
+    B4 --> C4
+    
+    C1 --> E1[Memory Optimization]
+    C2 --> E1
+    C3 --> E1  
+    C4 --> E1
+    
+    E1 --> F1[System Stability]
+```
 
 ## Overview
 
@@ -10,308 +46,142 @@ The application uses Redis extensively for job queuing (BullMQ), real-time statu
 
 ### 1. TTL (Time-To-Live) Settings
 
-The system implements different TTL values for different types of data:
+The system implements a hierarchical TTL strategy with different expiration times based on data importance and usage patterns:
 
-```typescript
-// Constants for Redis TTL
-const REDIS_CHANNEL_TTL = 60 * 60; // 1 hour in seconds
-const REDIS_JOB_TTL = 7 * 24 * 60 * 60; // 7 days for job data
-const REDIS_EVENT_TTL = 24 * 60 * 60; // 24 hours for events/stats
-const REDIS_METRICS_TTL = 48 * 60 * 60; // 48 hours for metrics data
-const REDIS_CLEANUP_BATCH_SIZE = 100; // Process keys in smaller batches
-```
-
-**TTL Breakdown:**
+**TTL Hierarchy:**
 - **Job Data (7 days)**: Completed and failed jobs are retained for analysis and debugging
-- **Event Streams (24 hours)**: Real-time status updates expire after a day
-- **Metrics Data (48 hours)**: Performance metrics are kept for two days
-- **Channel Data (1 hour)**: Temporary pub/sub channels expire quickly
+- **Metrics Data (48 hours)**: Performance metrics are kept for trend analysis  
+- **Event Streams (24 hours)**: Real-time status updates expire after operational relevance
+- **Channel Data (1 hour)**: Temporary pub/sub channels have the shortest lifespan
+
+**Processing Strategy:**
+- Keys are processed in small batches to prevent Redis blocking
+- TTL values are configurable through environment variables
+- Different data types have appropriate retention periods based on business needs
 
 ### 2. BullMQ Configuration
 
-The system uses BullMQ with memory-optimized settings:
+The system uses BullMQ with memory-optimized settings designed to prevent unbounded growth:
 
-```typescript
-// Memory-optimized job options
-const defaultJobOptions = {
-  removeOnComplete: { count: 500, age: 24 * 3600 }, // Keep completed jobs for 24 hours (500 max)
-  removeOnFail: { count: 1000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (1000 max)
-  attempts: 3,
-  backoff: { type: 'exponential', delay: 1000 }
-};
+**Job Retention Strategy:**
+- **Completed Jobs**: Limited to 500 jobs with 24-hour age limit
+- **Failed Jobs**: Limited to 1000 jobs with 7-day retention for debugging
+- **Automatic Removal**: Jobs are automatically cleaned based on count and age limits
+- **Retry Logic**: Failed jobs attempt up to 3 retries with exponential backoff
 
-// Queue settings with Redis TTL and auto-cleanup options
-const queueSettings = {
-  connection,
-  defaultJobOptions,
-  // Settings to prevent orphaned Redis keys
-  stalledInterval: 30000, // Check for stalled jobs every 30 seconds
-  metrics: {
-    maxDataPoints: 60, // Limit metrics storage to 60 data points (1 hour at 1 min interval)
-    collectDurations: true
-  }
-};
-```
+**Queue Optimization:**
+- **Stalled Job Detection**: Regular checks every 30 seconds prevent stuck jobs
+- **Metrics Limitation**: Only 60 data points stored to limit memory usage
+- **Connection Pooling**: Efficient Redis connection management
+- **Duration Tracking**: Performance metrics collection for monitoring
 
-**Key Features:**
-- **Limited Job Retention**: Only 500 completed jobs and 1000 failed jobs are kept
-- **Age-based Cleanup**: Jobs older than specified age are automatically removed
-- **Stalled Job Detection**: Jobs that haven't progressed are checked every 30 seconds
-- **Metrics Limitation**: Only 60 data points are stored for metrics
+**Memory Protection:**
+- Prevents orphaned Redis keys through proper cleanup
+- Configurable limits based on system capacity
+- Age-based expiration ensures temporal relevance
 
 ### 3. Automated Cleanup Mechanisms
 
 #### A. Job Cleanup
 
 The system performs regular cleanup of completed and failed jobs:
-
-```typescript
-// Clean up completed and failed jobs older than TTL
-await this.jobQueue.clean(REDIS_JOB_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-await this.jobQueue.clean(REDIS_JOB_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-await this.testQueue.clean(REDIS_JOB_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-await this.testQueue.clean(REDIS_JOB_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-```
+- **Batch Processing**: Jobs are cleaned in small batches to prevent Redis blocking
+- **Queue-Specific Cleanup**: Both job execution and test execution queues are maintained
+- **TTL Enforcement**: Jobs older than configured TTL are automatically removed
+- **Status-Based Cleanup**: Separate handling for completed and failed job states
 
 #### B. Event Stream Trimming
 
 Event streams are capped to prevent unbounded growth:
-
-```typescript
-// Trim event streams to reduce memory usage
-await this.jobQueue.trimEvents(1000);
-await this.testQueue.trimEvents(1000);
-```
+- **Stream Length Limits**: Event streams are trimmed to maximum number of entries
+- **Memory Pressure Relief**: Reduces Redis memory usage for high-throughput systems
+- **Historical Data**: Maintains recent events while removing older entries
+- **Multiple Queue Support**: Trimming applied to all job and test execution queues
 
 #### C. Orphaned Key Detection
 
 Background workers scan for keys without TTL and add expiration:
-
-```typescript
-/**
- * Cleans up orphaned Redis keys that might not have TTL set
- * Uses efficient SCAN pattern to reduce memory pressure
- */
-private async cleanupOrphanedKeys(queueName: string): Promise<void> {
-  try {
-    // Use scan instead of keys to reduce memory pressure
-    let cursor = '0';
-    let processedKeys = 0;
-    
-    do {
-      const [nextCursor, keys] = await this.redisClient.scan(
-        cursor, 
-        'MATCH', 
-        `bull:${queueName}:*`, 
-        'COUNT', 
-        '100'
-      );
-      
-      cursor = nextCursor;
-      processedKeys += keys.length;
-      
-      // Process this batch of keys
-      for (const key of keys) {
-        // Skip keys that BullMQ manages automatically
-        if (key.includes(':active') || key.includes(':wait') || 
-            key.includes(':delayed') || key.includes(':failed') ||
-            key.includes(':completed')) {
-          continue;
-        }
-        
-        // Check if the key has a TTL set
-        const ttl = await this.redisClient.ttl(key);
-        if (ttl === -1) { // -1 means key exists but no TTL is set
-          // Set appropriate TTL based on key type
-          let expiryTime = REDIS_JOB_TTL;
-          
-          if (key.includes(':events:')) {
-            expiryTime = REDIS_EVENT_TTL;
-          } else if (key.includes(':metrics')) {
-            expiryTime = REDIS_METRICS_TTL;
-          } else if (key.includes(':meta')) {
-            continue; // Skip meta keys as they should live as long as the app runs
-          }
-          
-          await this.redisClient.expire(key, expiryTime);
-          this.logger.debug(`Set TTL of ${expiryTime}s for key: ${key}`);
-        }
-      }
-    } while (cursor !== '0');
-    
-    this.logger.debug(`Processed ${processedKeys} Redis keys for queue: ${queueName}`);
-  } catch (error) {
-    this.logger.error(`Error cleaning up orphaned keys for ${queueName}:`, error);
-  }
-}
-```
+- **SCAN Pattern Usage**: Uses Redis SCAN command to efficiently iterate through keys
+- **Batch Processing**: Processes keys in small batches to prevent blocking Redis
+- **Queue-Specific Targeting**: Focuses on specific queue patterns to avoid unnecessary scans
+- **TTL Detection**: Identifies keys without expiration and applies appropriate TTL values
+- **Key Type Recognition**: Different expiration times based on key purpose (events, metrics, job data)
+- **BullMQ Awareness**: Skips keys that BullMQ manages automatically to prevent conflicts
+- **TTL Application**: Applies appropriate expiration times to orphaned keys
+- **Logging Integration**: Debug logging for cleanup operations and error handling  
+- **Error Handling**: Robust error handling to prevent cleanup failures from affecting operations
 
 ### 4. Memory Optimization Techniques
 
 #### A. Batched Processing
+- **Small Batch Sizes**: Processes 100 keys at a time to prevent Redis blocking
+- **Memory-Friendly**: Reduces memory pressure during cleanup operations
+- **Configurable**: Batch size can be adjusted based on system capacity
 
-Keys are processed in small batches to reduce memory pressure:
+#### B. Efficient Key Scanning  
+- **SCAN vs KEYS**: Uses Redis SCAN command instead of KEYS to avoid blocking
+- **Pattern Matching**: Targets specific queue patterns to reduce unnecessary work
+- **Cursor-Based**: Iterates through keys in a non-blocking manner
 
-```typescript
-const REDIS_CLEANUP_BATCH_SIZE = 100; // Process keys in smaller batches
-```
+#### C. Storage Limit Management
+- **Completed Jobs**: Limited to 500 jobs with 24-hour retention
+- **Failed Jobs**: Limited to 1000 jobs with 7-day retention for debugging
+- **Age and Count Limits**: Dual constraints prevent unbounded growth
 
-#### B. Efficient Key Scanning
+#### D. Scheduled Cleanup Operations
+- **12-Hour Intervals**: Regular cleanup runs every 12 hours
+- **Automatic Execution**: No manual intervention required
+- **Error Recovery**: Continues operations even if individual cleanup fails
 
-Uses Redis SCAN instead of KEYS to reduce memory pressure:
+## Implementation Architecture
 
-```typescript
-// Use scan instead of keys to reduce memory pressure
-const [nextCursor, keys] = await this.redisClient.scan(
-  cursor, 
-  'MATCH', 
-  `bull:${queueName}:*`, 
-  'COUNT', 
-  '100'
-);
-```
+### 1. Redis Service Implementation
 
-#### C. Reduced Storage Limits
+The Redis service provides the core memory management functionality:
 
-Lower limits for completed jobs (500) and failed jobs (1000):
+**Service Architecture:**
+- **NestJS Injectable Service**: Integrates with NestJS lifecycle and dependency injection
+- **Redis Connection Management**: Configurable connection with authentication support
+- **Queue Event Monitoring**: Monitors job and test execution queues
+- **Scheduled Cleanup**: Automatic periodic cleanup every 12 hours
 
-```typescript
-removeOnComplete: { count: 500, age: 24 * 3600 }, // Keep completed jobs for 24 hours (500 max)
-removeOnFail: { count: 1000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (1000 max)
-```
+**Key Responsibilities:**
+- **Connection Management**: Maintains Redis connection with retry logic
+- **Cleanup Scheduling**: Sets up and manages cleanup intervals
+- **Memory Monitoring**: Tracks Redis memory usage patterns
+- **Error Handling**: Graceful error handling for cleanup operations
 
-#### D. Frequent Cleanup
+### 2. Queue Client Architecture
 
-Cleanup operations run every 12 hours:
+The frontend queue client provides distributed cleanup capabilities:
 
-```typescript
-// Schedule cleanup every 12 hours - more frequent than before
-this.cleanupInterval = setInterval(async () => {
-  try {
-    await this.performRedisCleanup();
-  } catch (error) {
-    this.logger.error('Error during scheduled Redis cleanup:', error);
-  }
-}, 12 * 60 * 60 * 1000); // 12 hours
-```
+**Client Features:**
+- **Initial Startup Cleanup**: Cleans orphaned keys on application startup
+- **Periodic Maintenance**: Scheduled cleanup every 12 hours
+- **Process Lifecycle Management**: Proper cleanup on process exit
+- **Error Resilience**: Continues operations even with cleanup failures
 
-## Implementation Details
+**Integration Points:**
+- **Multi-Queue Support**: Handles multiple queue types simultaneously
+- **Connection Sharing**: Uses existing Redis connections efficiently
+- **Logging Integration**: Comprehensive logging for debugging and monitoring
 
-### 1. Redis Service
+### 3. Comprehensive Cleanup Operations
 
-The main Redis service handles cleanup operations:
+The system performs multi-layered cleanup operations:
 
-```typescript
-@Injectable()
-export class RedisService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(RedisService.name);
-  private redisClient: Redis;
-  private jobQueueEvents: QueueEvents;
-  private testQueueEvents: QueueEvents;
-  private cleanupInterval: NodeJS.Timeout;
+**Queue Types Managed:**
+- Test execution queues for individual test runs
+- Job execution queues for batch operations
+- Monitor execution queues for system monitoring
+- Heartbeat and notification queues for alerts
+- Scheduler queues for automated job execution
 
-  constructor(
-    private configService: ConfigService,
-    @InjectQueue(JOB_EXECUTION_QUEUE) private jobQueue: Queue,
-    @InjectQueue(TEST_EXECUTION_QUEUE) private testQueue: Queue,
-    private dbService: DbService
-  ) {
-    // Initialize Redis connection
-    this.redisClient = new Redis({
-      host: this.configService.get<string>('REDIS_HOST', 'redis'),
-      port: this.configService.get<number>('REDIS_PORT', 6379),
-      password: this.configService.get<string>('REDIS_PASSWORD'),
-      maxRetriesPerRequest: null,
-    });
-
-    // Set up periodic cleanup for orphaned Redis keys
-    this.setupRedisCleanup();
-  }
-
-  /**
-   * Sets up periodic cleanup of orphaned Redis keys to prevent unbounded growth
-   */
-  private setupRedisCleanup() {
-    this.logger.log('Setting up periodic Redis cleanup task');
-    
-    // Schedule cleanup every 12 hours
-    this.cleanupInterval = setInterval(async () => {
-      try {
-        await this.performRedisCleanup();
-      } catch (error) {
-        this.logger.error('Error during scheduled Redis cleanup:', error);
-      }
-    }, 12 * 60 * 60 * 1000); // 12 hours
-  }
-}
-```
-
-### 2. Queue Client Cleanup
-
-The frontend queue client also implements cleanup:
-
-```typescript
-/**
- * Sets up periodic cleanup of orphaned Redis keys to prevent unbounded growth
- */
-async function setupQueueCleanup(connection: Redis): Promise<void> {
-  try {
-    // Run initial cleanup on startup to clear any existing orphaned keys
-    await performQueueCleanup(connection);
-    
-    // Schedule queue cleanup every 12 hours
-    const cleanupInterval = setInterval(async () => {
-      try {
-        await performQueueCleanup(connection);
-      } catch (error) {
-        console.error('[Queue Client] Error during scheduled queue cleanup:', error);
-      }
-    }, 12 * 60 * 60 * 1000); // Run cleanup every 12 hours
-    
-    // Make sure interval is properly cleared on process exit
-    process.on('exit', () => clearInterval(cleanupInterval));
-  } catch (error) {
-    console.error('[Queue Client] Failed to set up queue cleanup:', error);
-  }
-}
-```
-
-### 3. Cleanup Operations
-
-The system performs comprehensive cleanup operations:
-
-```typescript
-/**
- * Performs the actual queue cleanup operations
- */
-async function performQueueCleanup(connection: Redis): Promise<void> {
-  console.log('[Queue Client] Running queue cleanup for Redis keys');
-  const queuesToClean = [
-    { name: TEST_EXECUTION_QUEUE, queue: testQueue },
-    { name: JOB_EXECUTION_QUEUE, queue: jobQueue },
-    { name: MONITOR_EXECUTION_QUEUE, queue: monitorExecution },
-    { name: HEARTBEAT_PING_NOTIFICATION_QUEUE, queue: heartbeatPingNotificationQueue },
-    { name: JOB_SCHEDULER_QUEUE, queue: jobSchedulerQueue },
-    { name: MONITOR_SCHEDULER_QUEUE, queue: monitorSchedulerQueue },
-  ];
-
-  for (const { name, queue } of queuesToClean) {
-    if (queue) {
-      console.log(`[Queue Client] Cleaning up queue: ${name}`);
-      await cleanupOrphanedKeys(connection, name);
-      
-      // Clean completed and failed jobs older than TTL
-      await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'completed');
-      await queue.clean(REDIS_JOB_KEY_TTL * 1000, REDIS_CLEANUP_BATCH_SIZE, 'failed');
-      
-      // Trim events to prevent Redis memory issues
-      await queue.trimEvents(1000);
-      console.log(`[Queue Client] Finished cleaning queue: ${name}`);
-    }
-  }
-  console.log('[Queue Client] Finished all queue cleanup tasks.');
-}
-```
+**Cleanup Operations:**
+- **Age-Based Removal**: Removes jobs older than configured TTL
+- **Count-Based Limits**: Enforces maximum job retention counts
+- **Event Stream Trimming**: Prevents event log growth
+- **Orphaned Key Detection**: Identifies and removes abandoned keys
 
 ## Benefits
 

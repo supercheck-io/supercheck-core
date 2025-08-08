@@ -25,9 +25,9 @@ flowchart TB
     end
     
     subgraph "API Layer"
-        C1[/api/test]
-        C2[/api/jobs/run]
-        C3[/api/test-results]
+        C1["API Test Route"]
+        C2["API Jobs Run Route"]
+        C3["API Test Results Route"]
     end
     
     subgraph "Queue System"

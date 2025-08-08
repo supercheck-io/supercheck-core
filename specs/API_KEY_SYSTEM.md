@@ -15,6 +15,33 @@ This document provides a comprehensive overview of the Supertest API key system,
 
 ## System Overview
 
+```mermaid
+graph TB
+    subgraph "API Key Creation"
+        A1[User Session] --> A2[Create API Key]
+        A2 --> A3[Direct DB Insert]
+        A3 --> A4[Job Association]
+    end
+    
+    subgraph "API Key Authentication"
+        B1[External Request] --> B2[API Key Header]
+        B2 --> B3[DB Validation]
+        B3 --> B4{Key Valid?}
+        B4 -->|Yes| B5[Job Access Granted]
+        B4 -->|No| B6[401 Unauthorized]
+    end
+    
+    subgraph "Database Relationships"
+        C1[(Users)] -->|no action on delete| C2[(API Keys)]
+        C2 -->|cascade on delete| C3[(Jobs)]
+        C2 --> C4[(Projects)]
+    end
+    
+    B5 --> D1[Job Execution]
+    D1 --> E1[Worker Service]
+    E1 --> F1[Test Results]
+```
+
 The Supertest API key system provides secure, programmatic access to job triggering functionality through a robust authentication and authorization mechanism. Each API key is directly associated with a specific job and provides scoped access for remote execution.
 
 ### Key Features
@@ -22,7 +49,7 @@ The Supertest API key system provides secure, programmatic access to job trigger
 - **Job-Specific Access**: Direct job association for precise access control
 - **Data Persistence**: API keys survive user deletion for audit trails
 - **Lifecycle Management**: Automatic cleanup when jobs are deleted
-- **Future Flexibility**: Permissions field maintained for future enhancements
+- **Rate Limiting**: Built-in rate limiting for API protection
 
 ## Authentication Fix
 
@@ -67,28 +94,29 @@ Restructured the API key system to:
 
 ## Database Schema
 
-The current API key schema as defined in the codebase:
+The API key system uses a comprehensive database schema with the following key components:
 
-```sql
-CREATE TABLE "apikey" (
-  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "name" text,
-  "start" text,        -- First 8 characters of the key for display
-  "prefix" text,       -- Key prefix (e.g., "job")
-  "key" text NOT NULL, -- Full API key value
-  "user_id" uuid NOT NULL REFERENCES "user"("id") ON DELETE no action,
-  "job_id" uuid REFERENCES "jobs"("id") ON DELETE cascade,
-  "enabled" boolean DEFAULT true,
-  "expires_at" timestamp,
-  "created_at" timestamp NOT NULL,
-  "updated_at" timestamp NOT NULL,
-  "permissions" text,  -- JSON string, maintained for future use
-  -- Rate limiting fields
-  "rate_limit_enabled" boolean DEFAULT true,
-  "rate_limit_time_window" text DEFAULT '60',
-  "rate_limit_max" text DEFAULT '100'
-);
-```
+**Core Fields:**
+- Primary key with UUID generation
+- Display name and key prefix for organization
+- Full API key value for authentication
+- User association with audit trail preservation
+
+**Access Control:**
+- Job-specific association for scoped access
+- Project-level association for context
+- Enabled/disabled status for key lifecycle management
+- Optional expiration timestamp for time-based access
+
+**Rate Limiting:**
+- Built-in rate limiting with configurable windows
+- Maximum request limits per time window
+- Refill interval and amount for token bucket implementation
+- Last refill tracking for accurate rate limiting
+
+**Foreign Key Relationships:**
+- User deletion does NOT cascade to API keys (audit trail preservation)
+- Job deletion DOES cascade to API keys (cleanup on job removal)
 
 ### Key Changes Made
 

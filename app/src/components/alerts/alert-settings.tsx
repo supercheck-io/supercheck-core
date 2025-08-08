@@ -69,8 +69,8 @@ export function AlertSettings({
     ...defaultConfig,
     ...value,
     notificationProviders: value?.notificationProviders || [],
-    // Auto-enable SSL alerts if SSL checking is enabled
-    alertOnSslExpiration: (monitorType === 'website' && sslCheckEnabled) ? true : (value?.alertOnSslExpiration || false),
+    // Auto-enable SSL alerts if SSL checking is enabled, force disable if SSL checking is disabled
+    alertOnSslExpiration: (monitorType === 'website' && sslCheckEnabled) ? true : (monitorType === 'website' && !sslCheckEnabled) ? false : (value?.alertOnSslExpiration || false),
     // Auto-enable job success alerts for job context
     alertOnSuccess: context === 'job' ? true : (value?.alertOnSuccess || false),
   });
@@ -115,8 +115,8 @@ export function AlertSettings({
       ...defaultConfig,
       ...value,
       notificationProviders: value?.notificationProviders || [],
-      // Auto-enable SSL alerts if SSL checking is enabled
-      alertOnSslExpiration: (monitorType === 'website' && sslCheckEnabled) ? true : (value?.alertOnSslExpiration || false),
+      // Auto-enable SSL alerts if SSL checking is enabled, force disable if SSL checking is disabled
+      alertOnSslExpiration: (monitorType === 'website' && sslCheckEnabled) ? true : (monitorType === 'website' && !sslCheckEnabled) ? false : (value?.alertOnSslExpiration || false),
       // Auto-enable job success alerts for job context
       alertOnSuccess: context === 'job' ? true : (value?.alertOnSuccess || false),
     };
@@ -133,10 +133,16 @@ export function AlertSettings({
     onChange?.(newConfig);
   }, [config, onChange]);
 
-  // Auto-enable SSL alerts when SSL checking is enabled
+  // Auto-enable SSL alerts when SSL checking is enabled, disable when disabled
   useEffect(() => {
-    if (monitorType === 'website' && sslCheckEnabled && !config.alertOnSslExpiration) {
-      updateConfig({ alertOnSslExpiration: true });
+    if (monitorType === 'website') {
+      if (sslCheckEnabled && !config.alertOnSslExpiration) {
+        // Auto-enable SSL alerts when SSL checking is enabled
+        updateConfig({ alertOnSslExpiration: true });
+      } else if (!sslCheckEnabled && config.alertOnSslExpiration) {
+        // Auto-disable SSL alerts when SSL checking is disabled
+        updateConfig({ alertOnSslExpiration: false });
+      }
     }
   }, [monitorType, sslCheckEnabled, config.alertOnSslExpiration, updateConfig]);
 

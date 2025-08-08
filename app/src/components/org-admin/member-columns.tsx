@@ -3,15 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { MemberAccessDialog } from "@/components/members/MemberAccessDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,9 +14,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreHorizontal, UserMinus, Crown, Shield, User, Eye } from "lucide-react";
+import { UserMinus, Crown, Shield, User, Eye, Edit3 } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import React, { useState } from "react";
 import { DataTableColumnHeader } from "@/components/tests/data-table-column-header";
 
 export interface OrgMember {
@@ -49,29 +41,6 @@ export interface PendingInvitation {
 
 export type MemberOrInvitation = OrgMember | PendingInvitation;
 
-const handleUpdateMemberRole = async (memberId: string, newRole: string, onUpdate: () => void) => {
-  try {
-    const response = await fetch(`/api/organizations/members/${memberId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ role: newRole }),
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      toast.success('Member role updated successfully');
-      onUpdate();
-    } else {
-      toast.error(data.error || 'Failed to update member role');
-    }
-  } catch (error) {
-    console.error('Error updating member role:', error);
-    toast.error('Failed to update member role');
-  }
-};
 
 const handleRemoveMember = async (memberId: string, memberName: string, onUpdate: () => void) => {
   try {
@@ -182,12 +151,56 @@ const getStatusColor = (status: string) => {
 // Member Actions Cell Component
 const MemberActionsCell = ({ 
   member, 
-  onMemberUpdate 
+  onMemberUpdate,
+  projects: initialProjects
 }: { 
   member: OrgMember; 
   onMemberUpdate: () => void;
+  projects: { id: string; name: string; description?: string }[];
 }) => {
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [memberData, setMemberData] = useState<{
+    email: string;
+    role: string;
+    selectedProjects: string[];
+  } | null>(null);
+  const [projects, setProjects] = useState<{ id: string; name: string; description?: string }[]>(initialProjects);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+
+  // Update projects when initialProjects prop changes
+  React.useEffect(() => {
+    setProjects(initialProjects);
+  }, [initialProjects]);
+
+  const fetchProjects = async () => {
+    // If projects are already loaded, don't fetch again
+    if (projects.length > 0) {
+      return projects;
+    }
+
+    setLoadingProjects(true);
+    try {
+      const response = await fetch('/api/projects');
+      const data = await response.json();
+
+      if (data.success) {
+        const activeProjects = data.data.filter((project: { id: string; name: string; description?: string; status: string }) => project.status === 'active');
+        setProjects(activeProjects);
+        return activeProjects;
+      } else {
+        console.error('Failed to fetch projects:', data.error);
+        toast.error('Failed to load projects');
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      toast.error('Failed to load projects');
+      return [];
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
 
   const handleRemoveClick = () => {
     setShowRemoveDialog(true);
@@ -196,6 +209,49 @@ const MemberActionsCell = ({
   const handleConfirmRemove = () => {
     handleRemoveMember(member.id, member.name, onMemberUpdate);
     setShowRemoveDialog(false);
+  };
+
+  const handleEditAccess = async () => {
+    try {
+      // Ensure projects are loaded first
+      await fetchProjects();
+      
+      // Fetch current member project assignments from projectMembers table
+      const response = await fetch(`/api/projects/members/${member.id}`);
+      
+      let selectedProjects: string[] = [];
+      
+      // Check if response is JSON and successful
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json') && response.ok) {
+        const data = await response.json();
+        if (data.success && data.projects) {
+          selectedProjects = data.projects.map((p: { projectId: string }) => p.projectId);
+        }
+      }
+      
+      // For project_viewer role, they should have access to all projects automatically
+      // But we don't need to set selectedProjects since our dialog handles this
+      if (member.role === 'project_viewer') {
+        selectedProjects = [];
+      }
+      
+      setMemberData({
+        email: member.email,
+        role: member.role,
+        selectedProjects
+      });
+      setShowEditDialog(true);
+    } catch (error) {
+      console.error('Error fetching member projects:', error);
+      // Fallback to default data
+      setMemberData({
+        email: member.email,
+        role: member.role,
+        selectedProjects: member.role === 'project_viewer' ? [] : []
+      });
+      setShowEditDialog(true);
+    }
   };
 
   if (member.role === 'org_owner') {
@@ -210,48 +266,30 @@ const MemberActionsCell = ({
 
   return (
     <>
-      <div className="flex items-center gap-2 py-1 justify-start">
-        <Select
-          value={member.role}
-          onValueChange={(value) => handleUpdateMemberRole(member.id, value, onMemberUpdate)}
+      <div className="flex items-center gap-2 py-1">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 w-8 p-0 bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-700 border-gray-200 hover:border-gray-300 transition-all duration-200 rounded-md shadow-sm"
+          onClick={handleEditAccess}
+          title="Edit Access"
+          disabled={loadingProjects}
         >
-          <SelectTrigger className="w-32 h-8 text-xs">
-            <SelectValue placeholder="Select role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="project_viewer">
-              <span className="text-left">Project Viewer</span>
-            </SelectItem>
-            <SelectItem value="project_editor">
-              <span className="text-left">Project Editor</span>
-            </SelectItem>
-            <SelectItem value="project_admin">
-              <span className="text-left">Project Admin</span>
-            </SelectItem>
-            <SelectItem value="org_admin">
-              <span className="text-left">Organization Admin</span>
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleRemoveClick}
-              className="text-red-600"
-            >
-              <UserMinus className="mr-2 h-4 w-4" />
-              Remove Member
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          {loadingProjects ? (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : (
+            <Edit3 className="h-4 w-4" />
+          )}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 w-8 p-0 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 transition-all duration-200 rounded-md shadow-sm"
+          onClick={handleRemoveClick}
+          title="Remove Member"
+        >
+          <UserMinus className="h-4 w-4" />
+        </Button>
       </div>
 
       <RemoveMemberConfirmDialog
@@ -260,11 +298,50 @@ const MemberActionsCell = ({
         onConfirm={handleConfirmRemove}
         memberName={member.name}
       />
+
+      {memberData && (
+        <MemberAccessDialog
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+          mode="edit"
+          member={{
+            id: member.id,
+            name: member.name,
+            email: memberData.email,
+            role: memberData.role,
+            selectedProjects: memberData.selectedProjects
+          }}
+          projects={projects}
+          onSubmit={async (updatedData) => {
+            const response = await fetch(`/api/organizations/members/${member.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                role: updatedData.role,
+                projectAssignments: updatedData.selectedProjects.map(projectId => ({
+                  projectId,
+                  role: updatedData.role
+                }))
+              }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              onMemberUpdate();
+            } else {
+              throw new Error(data.error || 'Failed to update member access');
+            }
+          }}
+        />
+      )}
     </>
   );
 };
 
-export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<MemberOrInvitation>[] => [
+export const createMemberColumns = (onMemberUpdate: () => void, projects: { id: string; name: string; description?: string }[] = []): ColumnDef<MemberOrInvitation>[] => [
   {
     accessorKey: "name",
     header: ({ column }) => (
@@ -413,7 +490,7 @@ export const createMemberColumns = (onMemberUpdate: () => void): ColumnDef<Membe
       }
 
       const member = item as OrgMember;
-      return <MemberActionsCell member={member} onMemberUpdate={onMemberUpdate} />;
+      return <MemberActionsCell member={member} onMemberUpdate={onMemberUpdate} projects={projects} />;
     },
   },
 ];

@@ -418,6 +418,15 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
       console.log("[SSL Debug] Not a website monitor, skipping SSL check");
       return null;
     }
+
+    // Check if SSL checking is currently enabled in monitor config
+    const sslCheckEnabled = monitor.config?.enableSslCheck;
+    console.log("[SSL Debug] SSL Check enabled in config:", sslCheckEnabled);
+    
+    if (!sslCheckEnabled) {
+      console.log("[SSL Debug] SSL checking is disabled in monitor config, not showing SSL info");
+      return null;
+    }
     
     if (!monitor.recentResults || monitor.recentResults.length === 0) {
       console.log("[SSL Debug] No recent results available");
@@ -555,7 +564,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                       </div>
                     </div>
                   )}
-                  {monitor.alertConfig.alertOnSslExpiration && monitor.type === 'website' && (
+                  {monitor.alertConfig.alertOnSslExpiration && monitor.type === 'website' && monitor.config?.enableSslCheck && (
                     <div className="relative group">
                       <Shield className="h-4 w-4 text-blue-600 dark:text-blue-500" />
                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
@@ -596,10 +605,10 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             )}
             
-            {/* Debug info for SSL when not showing */}
-            {monitor.type === 'website' && !sslCertificateInfo && (
+            {/* Debug info for SSL when enabled but no certificate data */}
+            {monitor.type === 'website' && monitor.config?.enableSslCheck && !sslCertificateInfo && (
               <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                title="SSL disabled">
+                title="SSL enabled but no certificate data available">
                 <Shield className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs text-blue-700 dark:text-blue-300">
                   SSL: No certificate data yet

@@ -12,8 +12,17 @@ export const inviteMemberSchema = z.object({
     }),
   selectedProjects: z
     .array(z.string())
-    .min(1, "At least one project must be selected")
     .max(50, "Cannot select more than 50 projects"),
+}).refine((data) => {
+  // Project viewers don't need specific project selection as they get access to all projects
+  if (data.role === "project_viewer") {
+    return true;
+  }
+  // Other roles require at least one project to be selected
+  return data.selectedProjects.length > 0;
+}, {
+  message: "At least one project must be selected for project-specific roles",
+  path: ["selectedProjects"]
 })
 
 export const updateMemberSchema = z.object({
@@ -23,8 +32,17 @@ export const updateMemberSchema = z.object({
     }),
   selectedProjects: z
     .array(z.string())
-    .min(1, "At least one project must be selected")
     .max(50, "Cannot select more than 50 projects"),
+}).refine((data) => {
+  // Project viewers don't need specific project selection as they get access to all projects
+  if (data.role === "project_viewer") {
+    return true;
+  }
+  // Other roles require at least one project to be selected
+  return data.selectedProjects.length > 0;
+}, {
+  message: "At least one project must be selected for project-specific roles",
+  path: ["selectedProjects"]
 })
 
 export type InviteMemberFormData = z.infer<typeof inviteMemberSchema>

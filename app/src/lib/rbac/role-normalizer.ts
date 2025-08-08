@@ -38,19 +38,14 @@ export function normalizeRole(roleInput: RoleStringVariant | Role | null | undef
   switch (roleString) {
     case 'super_admin':
       return Role.SUPER_ADMIN;
-
     case 'org_owner':
       return Role.ORG_OWNER;
-
     case 'org_admin':
       return Role.ORG_ADMIN;
-
     case 'project_admin':
       return Role.PROJECT_ADMIN;
-
     case 'project_editor':
       return Role.PROJECT_EDITOR;
-
     case 'project_viewer':
       return Role.PROJECT_VIEWER;
 

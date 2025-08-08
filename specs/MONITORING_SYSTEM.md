@@ -146,8 +146,8 @@ graph TD
     end
 
     subgraph app ["Main Application"]
-        K[/api/heartbeat/.../fail]
-        L[/api/heartbeat/.../pass]
+        K["/api/heartbeat/.../fail"]
+        L["/api/heartbeat/.../pass"]
         M{Adds job}
         N[heartbeat-ping-notification queue]
         

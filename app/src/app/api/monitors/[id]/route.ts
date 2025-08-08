@@ -133,9 +133,9 @@ export async function PUT(
         );
       }
       
-      const canManage = await hasPermission('monitor', 'manage', { organizationId: currentMonitor.organizationId, projectId: currentMonitor.projectId });
+      const canUpdate = await hasPermission('monitor', 'update', { organizationId: currentMonitor.organizationId, projectId: currentMonitor.projectId });
       
-      if (!canManage) {
+      if (!canUpdate) {
         return NextResponse.json(
           { error: 'Insufficient permissions' },
           { status: 403 }
@@ -401,9 +401,9 @@ export async function PATCH(
         );
       }
       
-      const canManage = await hasPermission('monitor', 'manage', { organizationId: currentMonitor.organizationId, projectId: currentMonitor.projectId });
+      const canUpdate = await hasPermission('monitor', 'update', { organizationId: currentMonitor.organizationId, projectId: currentMonitor.projectId });
       
-      if (!canManage) {
+      if (!canUpdate) {
         return NextResponse.json(
           { error: 'Insufficient permissions' },
           { status: 403 }

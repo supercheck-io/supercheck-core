@@ -2,6 +2,45 @@
 
 This comprehensive guide explains how to deploy the Supertest monitoring and testing platform using Docker Compose with published images from GitHub Container Registry, including database migration setup, multi-architecture support, and production deployment strategies.
 
+## Deployment Architecture
+
+```mermaid
+graph TB
+    subgraph "Docker Compose Services"
+        A1[PostgreSQL Database]
+        A2[Redis Queue]
+        A3[MinIO Storage]
+        A4[Migration Service]
+        A5[Next.js App]
+        A6[NestJS Worker]
+    end
+    
+    subgraph "External Services"
+        B1[GitHub Container Registry]
+        B2[Docker Runtime]
+    end
+    
+    subgraph "Data Flow"
+        C1[Database Migrations]
+        C2[Job Queues]
+        C3[File Storage]
+        C4[Health Checks]
+    end
+    
+    B1 --> A5
+    B1 --> A6
+    A1 --> C1
+    A2 --> C2
+    A3 --> C3
+    A4 --> C1
+    A5 --> C2
+    A6 --> C2
+    
+    A1 --> A4
+    A4 --> A5
+    A4 --> A6
+```
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -11,33 +50,20 @@ This comprehensive guide explains how to deploy the Supertest monitoring and tes
 - GitHub account with repository access (for private repositories)
 - Basic understanding of Docker containers and environment variables
 
-### 1. Clone and Setup
-```bash
-git clone <your-repo>
-cd supertest
-```
+### 1. Repository Setup
+Clone the repository and navigate to the project directory
 
-### 2. Set Environment Variable
-```bash
-# Set your GitHub repository name
-export GITHUB_REPOSITORY="your-username/supertest"
+### 2. Environment Configuration  
+Set your GitHub repository name for image pulling:
+- Export environment variable for the GitHub repository
+- Configure Docker Compose to use published images
+- Set up proper authentication if using private repositories
 
-# Or use it directly in docker-compose
-GITHUB_REPOSITORY=your-username/supertest docker-compose up -d
-```
-
-### 3. Start All Services
-```bash
-# Start all services in the background
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# View logs for a specific service
-docker-compose logs -f frontend
-docker-compose logs -f worker
-```
+### 3. Service Deployment
+Start all services with Docker Compose:
+- Background deployment for production use
+- Log monitoring for debugging and verification
+- Service-specific log access for troubleshooting
 
 ### 4. Access the Application
 - **Frontend**: ${NEXT_PUBLIC_APP_URL}
@@ -84,15 +110,15 @@ The migration setup follows the best practice of separating migration concerns f
 2. **App Service**: The Next.js application that starts after migrations complete
 3. **Worker Service**: The NestJS worker that starts after migrations complete
 
-### Flow
+### Migration Flow
 
-```
-PostgreSQL → Migration Service → App + Worker Services
-```
+The migration process follows a strict dependency chain:
 
-1. PostgreSQL starts and becomes healthy
-2. Migration service runs and applies all pending migrations
-3. App and Worker services start only after migrations complete successfully
+1. **PostgreSQL Database**: Starts first and establishes healthy connection
+2. **Migration Service**: Executes all pending database schema changes  
+3. **Application Services**: Start only after successful migration completion
+
+This approach ensures database consistency and prevents application startup with outdated schemas.
 
 ### Files
 

@@ -52,7 +52,8 @@ x-common-env: &common-env
   PLAYWRIGHT_WORKERS: 3
   
   # Better Auth Admin Configuration
-  SUPER_ADMIN_USER_IDS: ${SUPER_ADMIN_USER_IDS:-}
+  SUPER_ADMIN_USER_IDS: ${SUPER_ADMIN_USER_IDS:-4512347a-2ae6-413d-9cdc-91c22551ceb1,2b013c80-4fb4-4e9f-a3d1-48142e684dee}
+  SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-admin@example.com}
   MAX_ORGANIZATIONS_PER_USER: 5
   MAX_PROJECTS_PER_ORG: 10
   DEFAULT_PROJECT_NAME: "Default Project"
@@ -116,7 +117,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:organization-4a3871d
+    image: ghcr.io/krish-kant/supercheck/app:organization-514aa53
     expose:
       - "3000"
     environment:
@@ -166,7 +167,7 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:organization-4a3871d
+    image: ghcr.io/krish-kant/supercheck/worker:organization-514aa53
     environment:
       <<: *common-env
       # Worker-specific configuration

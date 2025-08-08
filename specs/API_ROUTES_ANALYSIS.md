@@ -14,24 +14,105 @@ The API is organized into logical groups:
 - **Real-time**: SSE endpoints for live status updates
 - **External Integration**: API keys, heartbeat endpoints, webhooks
 
-## 📊 **API ROUTES ANALYSIS**
+## 📊 **COMPLETE API ROUTES ANALYSIS**
 
-### **Essential Routes (Keep & Optimize)**
+```mermaid
+graph TB
+    subgraph "Authentication & Users"
+        A1["Auth Routes"]
+        A2["Admin Routes"]
+    end
+    
+    subgraph "Core Resources"
+        B1["Tests Routes"]
+        B2["Jobs Routes"] 
+        B3["Monitors Routes"]
+        B4["Runs Routes"]
+    end
+    
+    subgraph "Organization & Projects"
+        C1["Organizations Routes"]
+        C2["Projects Routes"]
+        C3["Members Routes"]
+    end
+    
+    subgraph "Real-time & Integration"
+        D1["Queue Stats SSE"]
+        D2["Job Status Events"]
+        D3["Heartbeat Routes"]
+        D4["Test Results Routes"]
+    end
+    
+    subgraph "Notifications & Alerts"
+        E1["Notification Providers"]
+        E2["Alerts Routes"]
+    end
+```
 
+### **Core API Routes by Category**
+
+#### **1. Authentication & Admin Management**
 | Route | Purpose | Status | Notes |
 |-------|---------|--------|-------|
-| `/api/monitors/route.ts` | Monitor CRUD operations | ✅ Essential | Well-implemented with proper validation |
-| `/api/dashboard/route.ts` | Dashboard statistics | ✅ Essential | Complex but necessary for UI |
-| `/api/jobs/route.ts` | Job management | ✅ Essential | Handles job creation and execution |
-| `/api/tests/route.ts` | Test listing | ✅ Essential | Simple and effective |
-| `/api/test/route.ts` | Test execution | ✅ Essential | Queues tests for execution |
-| `/api/runs/[runId]/route.ts` | Run management | ✅ Essential | Handles run deletion |
-| `/api/test-results/[...path]/route.ts` | Test result serving | ✅ Essential | Serves S3/MinIO reports |
-| `/api/notification-providers/route.ts` | Notification management | ✅ Essential | Manages alert channels |
-| `/api/alerts/history/route.ts` | Alert history | ✅ Essential | Tracks alert events |
-| `/api/heartbeat/[token]/route.ts` | Heartbeat monitoring | ✅ Essential | External health checks |
-| `/api/queue-stats/sse/route.ts` | Real-time queue stats | ✅ Essential | SSE for live updates |
-| `/api/job-status/events/[jobId]/route.ts` | Real-time job status | ✅ Essential | SSE for job progress |
+| `/api/auth/[...all]/route.ts` | Better Auth integration | ✅ Essential | Handles all auth operations |
+| `/api/auth/user/route.ts` | Current user info | ✅ Essential | User session management |
+| `/api/auth/impersonation-status/route.ts` | Admin impersonation | ✅ Essential | Super admin feature |
+| `/api/auth/setup-defaults/route.ts` | New user setup | ✅ Essential | Organization creation |
+| `/api/admin/check/route.ts` | Admin access check | ✅ Essential | Permission verification |
+| `/api/admin/organizations/route.ts` | Organization oversight | ✅ Essential | Super admin management |
+| `/api/admin/users/route.ts` | User management | ✅ Essential | Ban/unban users |
+| `/api/admin/stats/route.ts` | System statistics | ✅ Essential | Platform metrics |
+
+#### **2. Core Resource Management**  
+| Route | Purpose | Status | Notes |
+|-------|---------|--------|-------|
+| `/api/tests/route.ts` | Test CRUD operations | ✅ Essential | Test management |
+| `/api/test/route.ts` | Single test execution | ✅ Essential | Queue individual tests |
+| `/api/jobs/route.ts` | Job management | ✅ Essential | Multi-test job handling |
+| `/api/jobs/run/route.ts` | Job execution | ✅ Essential | Execute scheduled jobs |
+| `/api/monitors/route.ts` | Monitor CRUD operations | ✅ Essential | Health monitoring |
+| `/api/runs/route.ts` | Run management | ✅ Essential | Test execution history |
+| `/api/dashboard/route.ts` | Dashboard statistics | ✅ Essential | UI data aggregation |
+
+#### **3. Organization & Project Management**
+| Route | Purpose | Status | Notes |
+|-------|---------|--------|-------|
+| `/api/organizations/route.ts` | Organization CRUD | ✅ Essential | Multi-tenant support |
+| `/api/organizations/current/route.ts` | Active organization | ✅ Essential | Context management |
+| `/api/organizations/members/route.ts` | Member management | ✅ Essential | Team collaboration |
+| `/api/organizations/invitations/route.ts` | Member invitations | ✅ Essential | User onboarding |
+| `/api/projects/route.ts` | Project management | ✅ Essential | Resource grouping |
+| `/api/projects/switch/route.ts` | Project context | ✅ Essential | Multi-project support |
+
+#### **4. Real-time & Integration**
+| Route | Purpose | Status | Notes |
+|-------|---------|--------|-------|
+| `/api/queue-stats/sse/route.ts` | Live queue updates | ✅ Essential | SSE implementation |
+| `/api/job-status/events/[jobId]/route.ts` | Job progress | ✅ Essential | Real-time job status |
+| `/api/test-status/events/[testId]/route.ts` | Test progress | ✅ Essential | Live test updates |
+| `/api/test-results/[...path]/route.ts` | Report serving | ✅ Essential | S3/MinIO integration |
+| `/api/heartbeat/[token]/route.ts` | External monitoring | ✅ Essential | Health check endpoint |
+| `/api/validate-script/route.ts` | Script validation | ✅ Essential | Pre-execution checks |
+
+#### **5. Notifications & Alerts**
+| Route | Purpose | Status | Notes |
+|-------|---------|--------|-------|
+| `/api/notification-providers/route.ts` | Provider management | ✅ Essential | Multi-channel alerts |
+| `/api/alerts/history/route.ts` | Alert tracking | ✅ Essential | Notification history |
+| `/api/tags/route.ts` | Resource tagging | ✅ Essential | Organization system |
+
+#### **6. Health & Utilities**
+| Route | Purpose | Status | Notes |
+|-------|---------|--------|-------|
+| `/api/health/route.ts` | System health | ✅ Essential | **Already implemented!** |
+| `/api/audit/route.ts` | Activity logging | ✅ Essential | Compliance tracking |
+| `/api/invite/[token]/route.ts` | Invitation handling | ✅ Essential | User registration flow |
+
+### **Complete Route Coverage Summary**
+- **Total Routes Identified**: 50+ individual endpoints
+- **Route Categories**: 6 major functional areas
+- **Implementation Status**: All routes are essential and actively used
+- **Health Check**: Already exists (contrary to recommendations section)
 
 ### **Route-Specific Improvements**
 
@@ -41,23 +122,10 @@ The API is organized into logical groups:
 - Complex status calculation logic
 
 **Recommended Improvements:**
-```sql
--- Replace N+1 queries with a single JOIN query
-SELECT 
-  m.*,
-  mr.isUp as latest_is_up,
-  mr.responseTimeMs as latest_response_time,
-  mr.checkedAt as latest_check_time
-FROM monitors m
-LEFT JOIN LATERAL (
-  SELECT isUp, responseTimeMs, checkedAt
-  FROM monitor_results 
-  WHERE monitor_id = m.id 
-  ORDER BY checked_at DESC 
-  LIMIT 1
-) mr ON true
-ORDER BY m.created_at DESC;
-```
+- Replace N+1 queries with optimized JOIN operations
+- Use LATERAL JOIN for latest monitor results  
+- Order by creation date for consistent pagination
+- Reduce database round trips with aggregated queries
 
 #### 2. **Dashboard Route (`/api/dashboard/route.ts`)**
 **Current Issues:**
@@ -82,51 +150,22 @@ ORDER BY m.created_at DESC;
 ## 🚀 **PERFORMANCE OPTIMIZATIONS**
 
 ### 1. **Database Query Optimization**
-```typescript
-// Instead of N+1 queries in monitors GET
-const monitorsWithLatestResults = await db
-  .select({
-    monitor: monitors,
-    latestResult: monitorResults
-  })
-  .from(monitors)
-  .leftJoin(
-    db.select()
-      .from(monitorResults)
-      .orderBy(desc(monitorResults.checkedAt))
-      .limit(1)
-      .as('latest_result'),
-    eq(monitors.id, monitorResults.monitorId)
-  );
-```
+- Use optimized JOIN queries instead of N+1 patterns
+- Implement query result aggregation for monitors
+- Add proper indexing for frequently accessed columns  
+- Consider read replicas for heavy dashboard queries
 
 ### 2. **Caching Strategy**
-```typescript
-// Add Redis caching for frequently accessed data
-const cacheKey = `dashboard:${organizationId}`;
-const cachedData = await redis.get(cacheKey);
-if (cachedData) {
-  return NextResponse.json(JSON.parse(cachedData));
-}
-// ... fetch data ...
-await redis.setex(cacheKey, 300, JSON.stringify(data)); // 5 min TTL
-```
+- Implement Redis caching for dashboard data with 5-minute TTL
+- Cache monitor status calculations to reduce computation
+- Add organization-specific cache keys for isolation
+- Consider cache invalidation strategies for real-time updates
 
 ### 3. **Error Handling Standardization**
-```typescript
-// Create a standardized error handler
-const handleApiError = (error: unknown, context: string) => {
-  console.error(`[${context}] Error:`, error);
-  const isDev = process.env.NODE_ENV === 'development';
-  return NextResponse.json(
-    { 
-      error: "Internal server error",
-      details: isDev ? (error as Error).message : undefined
-    },
-    { status: 500 }
-  );
-};
-```
+- Create unified error handling middleware for consistent responses
+- Add contextual logging with correlation IDs for debugging
+- Implement proper error classification (client vs server errors)
+- Add development vs production error detail differences
 
 ## 🔧 **CODE QUALITY IMPROVEMENTS**
 
@@ -145,38 +184,21 @@ const handleApiError = (error: unknown, context: string) => {
 - Implement proper authorization checks
 - Add input sanitization
 
-## 📋 **RECOMMENDED NEW ROUTES**
+## 📋 **RECOMMENDED ENHANCEMENTS**
 
-### 1. **Health Check Endpoint**
-```typescript
-// /api/health/route.ts
-export async function GET() {
-  const checks = {
-    database: await checkDatabase(),
-    redis: await checkRedis(),
-    s3: await checkS3(),
-    queue: await checkQueue()
-  };
-  
-  const healthy = Object.values(checks).every(Boolean);
-  return NextResponse.json({ healthy, checks }, { 
-    status: healthy ? 200 : 503 
-  });
-}
-```
+### 1. **Enhanced Health Check Endpoint**
+Current health endpoint exists at `/api/health/route.ts` but could be enhanced with:
+- Database connectivity checks
+- Redis connection status  
+- MinIO/S3 storage verification
+- Queue system health monitoring
 
-### 2. **Metrics Endpoint**
-```typescript
-// /api/metrics/route.ts
-export async function GET() {
-  return NextResponse.json({
-    monitors: await getMonitorMetrics(),
-    jobs: await getJobMetrics(),
-    tests: await getTestMetrics(),
-    system: await getSystemMetrics()
-  });
-}
-```
+### 2. **System Metrics Endpoint**
+Consider adding comprehensive metrics endpoint that provides:
+- Monitor performance and availability metrics
+- Job execution statistics and success rates  
+- Test execution metrics and trending data
+- System resource utilization and queue health
 
 ## 🎯 **PRIORITY IMPLEMENTATION ORDER**
 

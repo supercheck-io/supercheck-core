@@ -44,7 +44,8 @@ import { UrlTriggerTooltip } from "./url-trigger-tooltip";
 import { JobTestDataTable } from "./job-test-data-table";
 import { createJobTestColumns } from "./job-test-columns";
 import { useProjectContext } from "@/hooks/use-project-context";
-import { convertStringToRole, canEditJobs } from "@/lib/rbac/client-permissions";
+import { canEditJobs } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 // Helper function to map incoming types to the valid Test["type"]
 function mapToTestType(type: string | undefined): Test["type"] {
@@ -73,7 +74,7 @@ export default function Jobs() {
   const { projectId, currentProject } = useProjectContext();
   
   // Check permissions
-  const userRole = currentProject?.userRole ? convertStringToRole(currentProject.userRole) : null;
+  const userRole = currentProject?.userRole ? normalizeRole(currentProject.userRole) : null;
   const hasEditPermission = userRole ? canEditJobs(userRole) : false;
 
   // Set mounted to true after initial render

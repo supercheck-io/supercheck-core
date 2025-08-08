@@ -30,7 +30,8 @@ import {
 import { useState } from "react";
 import { deleteJob } from "@/actions/delete-job";
 import { useProjectContext } from "@/hooks/use-project-context";
-import { convertStringToRole, canEditJobs, canDeleteJobs } from "@/lib/rbac/client-permissions";
+import { canEditJobs, canDeleteJobs } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 import { Job } from "./schema";
 
@@ -50,7 +51,7 @@ export function DataTableRowActions<TData>({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Check permissions using project context (same as toolbar approach)
-  const userRole = currentProject?.userRole ? convertStringToRole(currentProject.userRole) : null;
+  const userRole = currentProject?.userRole ? normalizeRole(currentProject.userRole) : null;
   const hasEditPermission = userRole ? canEditJobs(userRole) : false;
   const hasDeletePermission = userRole ? canDeleteJobs(userRole) : false;
   

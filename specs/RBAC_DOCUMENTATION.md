@@ -19,57 +19,77 @@ Supertest implements a **hybrid RBAC system** that combines Better Auth's built-
 
 The system uses multiple tables for different contexts:
 
+```mermaid
+erDiagram
+    USER {
+        uuid id PK
+        text email
+        text name
+        text role "System-level role (optional)"
+        boolean banned
+        text ban_reason
+        timestamp ban_expires
+    }
+    
+    ORGANIZATION {
+        uuid id PK
+        text name
+        text slug
+        timestamp created_at
+    }
+    
+    MEMBER {
+        uuid id PK
+        uuid organization_id FK
+        uuid user_id FK
+        text role "Organization-level role"
+        timestamp created_at
+    }
+    
+    PROJECTS {
+        uuid id PK
+        uuid organization_id FK
+        text name
+        text description
+    }
+    
+    PROJECT_MEMBERS {
+        uuid id PK
+        uuid user_id FK
+        uuid project_id FK
+        text role "Project-level role"
+        timestamp created_at
+    }
+    
+    USER ||--o{ MEMBER : "belongs to orgs"
+    USER ||--o{ PROJECT_MEMBERS : "assigned to projects"
+    ORGANIZATION ||--o{ MEMBER : "has members"
+    ORGANIZATION ||--o{ PROJECTS : "contains projects"
+    PROJECTS ||--o{ PROJECT_MEMBERS : "has members"
+```
+
+**Role Storage Context:**
+
 1. **`user` table**: Stores system-level roles (e.g., for super admins)
 2. **`member` table**: Organization-level roles for users in organizations
 3. **`project_members` table**: Project-specific roles for users within projects
 
 ### Current Database Role Values
 
-**Organization Roles (`member` table):**
-- `owner` → ORG_OWNER (organization owner)
-- `admin` → ORG_ADMIN (organization admin)  
-- `member` → PROJECT_EDITOR (basic member with editing rights)
-- `org_owner` → ORG_OWNER (normalized role name)
-- `org_admin` → ORG_ADMIN (normalized role name)
-- `project_editor` → PROJECT_EDITOR (explicit editor role)
-- `project_viewer` → PROJECT_VIEWER (read-only role)
-
-**Project Roles (`project_members` table):**
-- `owner` → ORG_OWNER (project owner)
-- `admin` → ORG_ADMIN (project admin)
-- `member` → PROJECT_EDITOR (project member with edit access)
-- `project_editor` → PROJECT_EDITOR (explicit editor role)
+**Role Names:**
+- `super_admin` → SUPER_ADMIN (system-wide control)
+- `org_owner` → ORG_OWNER (organization owner)
+- `org_admin` → ORG_ADMIN (organization admin)  
+- `project_admin` → PROJECT_ADMIN (project admin - full control within assigned projects)
+- `project_editor` → PROJECT_EDITOR (project editor - can create/edit/delete resources)
 - `project_viewer` → PROJECT_VIEWER (read-only access)
-- `viewer` → PROJECT_VIEWER (legacy viewer role)
+
+**Default Values:**
+- Both `member` and `project_members` tables default to `'project_viewer'`
 
 ### Role Conversion Logic
 
-The `convertStringToRole()` function handles mapping between database strings and RBAC enum values:
-
-```typescript
-export function convertStringToRole(roleString: string): Role {
-  switch (roleString) {
-    case 'org_owner':
-    case 'owner':
-      return Role.ORG_OWNER;
-    case 'org_admin':
-    case 'admin':
-      return Role.ORG_ADMIN;
-    case 'project_editor':
-    case 'editor':
-      return Role.PROJECT_EDITOR;
-    case 'project_viewer':
-    case 'viewer':
-      return Role.PROJECT_VIEWER;
-    case 'member':
-      return Role.PROJECT_EDITOR; // Default for project context
-    case 'super_admin':
-      return Role.SUPER_ADMIN;
-    default:
-      return Role.PROJECT_VIEWER;
-  }
-}
-```
+The system uses `normalizeRole()` from `role-normalizer.ts` to convert database role strings to RBAC enum values. This function handles all role format variations and provides safe defaults for unknown values.
 
 ## Better Auth Integration
 
@@ -80,31 +100,58 @@ export function convertStringToRole(roleString: string): Role {
 - **Custom Access Control**: Extends Better Auth with project-level resources
 - **Unified Permission System**: Combines Better Auth permissions with custom resources
 
+### RBAC Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "User Management"
+        U[User] --> SA{Super Admin?}
+        SA -->|Yes| SYS[System-wide Access]
+        SA -->|No| ORG[Organization Context]
+    end
+    
+    subgraph "Organization Level"
+        ORG --> OO{Org Owner?}
+        ORG --> OA{Org Admin?}
+        OO -->|Yes| ORGWIDE[Organization-wide Access]
+        OA -->|Yes| ORGMGMT[Organization Management]
+    end
+    
+    subgraph "Project Level"
+        ORGWIDE --> ALLPROJ[All Projects Access]
+        ORGMGMT --> ALLPROJ
+        ORG --> PA{Project Admin?}
+        ORG --> PE{Project Editor?}
+        ORG --> PV{Project Viewer?}
+        PA -->|Yes| ASSIGNED[Assigned Projects Only]
+        PE -->|Yes| ASSIGNED
+        PV -->|Yes| VIEWONLY[View Only Access]
+        ASSIGNED --> PROJMGMT[Project Management]
+        ASSIGNED --> RESWRITE[Resource Write Access]
+        VIEWONLY --> RESREAD[Resource Read Access]
+    end
+    
+    subgraph "Resource Access"
+        SYS --> FULL[Full System Control]
+        ALLPROJ --> FULL
+        PROJMGMT --> WRITE[Create/Update/Delete]
+        RESWRITE --> WRITE
+        RESREAD --> READ[View Only]
+    end
+    
+    style SYS fill:#ff6b6b,stroke:#d63031,color:#fff
+    style ORGWIDE fill:#fd79a8,stroke:#e84393,color:#fff
+    style ORGMGMT fill:#fdcb6e,stroke:#e17055,color:#fff
+    style ASSIGNED fill:#a29bfe,stroke:#6c5ce7,color:#fff
+    style VIEWONLY fill:#74b9ff,stroke:#0984e3,color:#fff
+    style FULL fill:#00b894,stroke:#00a085,color:#fff
+    style WRITE fill:#55a3ff,stroke:#2d96ff,color:#fff
+    style READ fill:#ddd,stroke:#999,color:#333
+```
+
 ### Core Configuration
 
-The system uses Better Auth's `createAccessControl` function with custom statements:
-
-```typescript
-export const statement = {
-  // System-level resources (admin plugin)
-  system: ["manage_users", "view_users", "impersonate_users", ...],
-  
-  // Organization resources (organization plugin)  
-  organization: ["create", "update", "delete", "view"],
-  member: ["create", "update", "delete", "view"],
-  invitation: ["create", "cancel", "view"],
-  
-  // Custom project-level resources
-  project: ["create", "update", "delete", "view", "manage_members"],
-  test: ["create", "update", "delete", "view", "run"],
-  job: ["create", "update", "delete", "view", "trigger"],
-  monitor: ["create", "update", "delete", "view", "manage"],
-  run: ["view", "delete", "export"],
-  apiKey: ["create", "update", "delete", "view"],
-  notification: ["create", "update", "delete", "view"],
-  tag: ["create", "update", "delete", "view"]
-} as const;
-```
+The system uses Better Auth's `createAccessControl` function with custom statements defining permissions for system-level resources (admin plugin), organization resources (organization plugin), and custom project-level resources including tests, jobs, monitors, runs, API keys, notifications, and tags.
 
 ## Role System with Better Auth
 
@@ -119,18 +166,67 @@ export const statement = {
 
 ### Better Auth Role Mapping
 
-```typescript
-export const roles = {
-  [Role.SUPER_ADMIN]: superAdmin,    // Full system access
-  [Role.ORG_OWNER]: orgOwner,        // Organization owner permissions
-  [Role.ORG_ADMIN]: orgAdmin,        // Organization admin permissions
-  [Role.PROJECT_ADMIN]: projectAdmin, // Project admin permissions
-  [Role.PROJECT_EDITOR]: projectEditor,  // Project editing permissions
-  [Role.PROJECT_VIEWER]: projectViewer   // Read-only permissions
-};
-```
+The system maps each RBAC role enum to its corresponding Better Auth role configuration with appropriate permission sets.
 
 ### Role Hierarchy & Access Levels
+
+```mermaid
+graph TD
+    subgraph "System Level"
+        SA[SUPER_ADMIN<br/>System-wide Control]
+        SA --> SA1[User Management]
+        SA --> SA2[System Impersonation]
+        SA --> SA3[All Org & Project Access]
+    end
+    
+    subgraph "Organization Level"
+        OO[ORG_OWNER<br/>Organization Control]
+        OA[ORG_ADMIN<br/>Organization Management]
+        
+        OO --> OO1[Delete Organization]
+        OO --> OO2[Full Member Management]
+        OO --> OO3[All Projects Access]
+        
+        OA --> OA1[Manage Organization]
+        OA --> OA2[Member Management]
+        OA --> OA3[All Projects Access]
+        OA -.->|Cannot| OO1
+    end
+    
+    subgraph "Project Level"
+        PA[PROJECT_ADMIN<br/>Assigned Projects Only]
+        PE[PROJECT_EDITOR<br/>Assigned Projects Only]
+        PV[PROJECT_VIEWER<br/>Read Only]
+        
+        PA --> PA1[Manage Project Members]
+        PA --> PA2[Full Project Resources]
+        PA --> PA3[Create/Edit/Delete]
+        
+        PE --> PE1[Edit Project Resources]
+        PE --> PE2[Create/Edit/Delete Own]
+        PE -.->|Cannot| PA1
+        
+        PV --> PV1[View All Resources]
+        PV -.->|Cannot| PE1
+        PV -.->|Cannot| PA1
+    end
+    
+    SA -.-> OO
+    SA -.-> OA
+    OO -.-> PA
+    OA -.-> PA
+    PA -.-> PE
+    PE -.-> PV
+    
+    style SA fill:#ff6b6b,stroke:#d63031,color:#fff
+    style OO fill:#fd79a8,stroke:#e84393,color:#fff
+    style OA fill:#fdcb6e,stroke:#e17055,color:#fff
+    style PA fill:#a29bfe,stroke:#6c5ce7,color:#fff
+    style PE fill:#55a3ff,stroke:#2d96ff,color:#fff
+    style PV fill:#74b9ff,stroke:#0984e3,color:#fff
+```
+
+**Text-based Hierarchy:**
 
 ```
 SUPER_ADMIN (System-wide via Environment Variables + Custom Logic)
@@ -187,23 +283,69 @@ PROJECT_VIEWER (Project-specific Role - Read Only)
 
 Legend: ✅ = Full Access, 👁️ = View Only, ❌ = No Access
 
+### Permission Matrix Diagram
+
+```mermaid
+flowchart TD
+    subgraph "Resource Access Control"
+        subgraph "System Resources"
+            SR1[User Management<br/>ban/unban] --> SA[SUPER_ADMIN ✅]
+            SR1 --> OTHERS1[All Others ❌]
+        end
+        
+        subgraph "Organization Resources"
+            OR1[Organization CRUD] --> SA
+            OR1 --> OO[ORG_OWNER ✅]
+            OR1 --> OA[ORG_ADMIN ✅*]
+            OR1 --> PROJ_ROLES1[Project Roles 👁️]
+            
+            OR2[Member Management] --> SA
+            OR2 --> OO
+            OR2 --> OA
+            OR2 --> PROJ_ROLES2[Project Roles 👁️]
+        end
+        
+        subgraph "Project Resources"
+            PR1[Project Management] --> SA
+            PR1 --> OO
+            PR1 --> OA
+            PR1 --> PA[PROJECT_ADMIN ✅*]
+            PR1 --> PE[PROJECT_EDITOR 👁️]
+            PR1 --> PV[PROJECT_VIEWER 👁️]
+            
+            PR2[Tests/Jobs/Monitors] --> SA
+            PR2 --> OO
+            PR2 --> OA
+            PR2 --> PA
+            PR2 --> PE2[PROJECT_EDITOR ✅*]
+            PR2 --> PV2[PROJECT_VIEWER 👁️]
+        end
+    end
+    
+    style SA fill:#ff6b6b,stroke:#d63031,color:#fff
+    style OO fill:#fd79a8,stroke:#e84393,color:#fff
+    style OA fill:#fdcb6e,stroke:#e17055,color:#fff
+    style PA fill:#a29bfe,stroke:#6c5ce7,color:#fff
+    style PE2 fill:#55a3ff,stroke:#2d96ff,color:#fff
+    style PV2 fill:#74b9ff,stroke:#0984e3,color:#fff
+```
+
+**Notes:**
+- ✅* = Access limited to assigned projects only (for project-specific roles)
+- OA cannot delete organizations (unlike OO)
+
 ## Current Implementation Details
 
 ### Permission Checking Architecture
 
 **UI Components use `useProjectContext()` approach:**
-```typescript
-// Consistent across all components
-const { currentProject } = useProjectContext();
-const userRole = currentProject?.userRole ? convertStringToRole(currentProject.userRole) : null;
-const hasEditPermission = userRole ? canEditJobs(userRole) : false;
-```
+UI components consistently check permissions by getting the current project context and normalizing the user's role for permission evaluation.
 
 **Project Context Resolution:**
 1. Gets active project from session table
-2. Queries `project_members` table for user's role in that project
-3. Returns role string (e.g., 'project_viewer', 'member', 'owner')
-4. Role string gets converted to RBAC enum via `convertStringToRole()`
+2. Queries `project_members` table for user's role in that project  
+3. Returns role string (e.g., 'project_viewer', 'project_editor', 'org_owner')
+4. Role string gets normalized to RBAC enum via `normalizeRole()`
 
 ### Super Admin User Management
 
@@ -214,14 +356,7 @@ const hasEditPermission = userRole ? canEditJobs(userRole) : false;
 - Shows organization count for multi-org users: "User Name (3 orgs)"
 
 **Ban/Unban Implementation:**
-```typescript
-// Direct database operations (not Better Auth admin plugin)
-await db.update(user).set({ 
-  banned: true, 
-  banReason: reason, 
-  banExpires: expireDate 
-}).where(eq(user.id, userId));
-```
+Uses direct database operations instead of Better Auth admin plugin due to environment variable restrictions.
 
 ## User Organization Management
 
@@ -253,226 +388,47 @@ The system uses multiple safeguards to prevent invited users from getting defaul
 ### Implementation Details
 
 **Setup Defaults Check:**
-```typescript
-// Check if user was recently invited (within last 24 hours)
-const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-const [recentInvitation] = await db
-  .select()
-  .from(invitation)
-  .where(
-    and(
-      eq(invitation.email, user.email),
-      gte(invitation.createdAt, oneDayAgo)
-    )
-  )
-  .orderBy(desc(invitation.createdAt))
-  .limit(1);
-
-if (recentInvitation) {
-  console.log(`User ${user.email} was recently invited - not creating default organization`);
-  return { success: true, message: 'User was recently invited - skipping default organization setup' };
-}
-```
+The system checks if a user was recently invited within the last 24 hours before creating default organizations.
 
 **Setup Checker Enhancement:**
-```typescript
-// Check if user is a member of any organization
-const membershipResponse = await fetch('/api/organizations');
-const membershipData = await membershipResponse.json();
-
-if (membershipData.success && membershipData.data && membershipData.data.length > 0) {
-  // User is a member of organizations but has no projects
-  // This is likely an invited user with restricted project access
-  console.log('User has organization membership but no projects - likely invited user, skipping defaults setup');
-  setIsSetupComplete(true);
-  return;
-}
-```
+The system verifies if users have existing organization membership to determine if they're invited users who shouldn't get default organizations.
 
 ## Known Issues & Troubleshooting
 
 ### Issue: Project Viewer Permissions Not Working During Impersonation
 
-**Symptoms:**
-- When impersonating a project_viewer user, edit/delete buttons remain enabled
-- Console shows role conversion and permission checks but buttons not disabled
+**Status: ✅ RESOLVED** - The permission system is now working correctly with the updated role normalization.
 
-**Root Cause Analysis:**
-1. Check what role string is returned from `currentProject?.userRole`
-2. Verify `convertStringToRole()` is mapping correctly
-3. Ensure permission functions (`canEditJobs`, etc.) return false for PROJECT_VIEWER
+**Previous Symptoms:**
+- When impersonating a project_viewer user, edit/delete buttons remained enabled
+- Console showed role conversion and permission checks but buttons weren't disabled
 
-**Debugging Commands:**
-```bash
-# Check project_members table roles
-node -e "
-const postgres = require('postgres');
-const client = postgres(process.env.DATABASE_URL);
-client\`SELECT DISTINCT role FROM project_members\`.then(console.log);
-"
+**Resolution:**
+The issue was resolved with the implementation of the `normalizeRole()` function and improved permission checking logic:
 
-# Check specific user's project role
-node -e "
-const postgres = require('postgres');
-const client = postgres(process.env.DATABASE_URL);
-client\`SELECT pm.role, p.name, u.email 
-FROM project_members pm 
-JOIN projects p ON pm.project_id = p.id 
-JOIN users u ON pm.user_id = u.id 
-WHERE u.email = 'user@example.com'\`.then(console.table);
-"
-```
+1. **Role Normalization**: `normalizeRole()` properly handles all role format variations
+2. **Permission Functions**: All `canEdit*()` functions correctly return `false` for `PROJECT_VIEWER`
+3. **UI Integration**: Components properly use `useProjectContext()` for consistent permission checking
 
-**Debug Console Logs to Check:**
-- Role conversion: "Converting role string: project_viewer"
-- Permission matrix: "Direct permission test: { role: 4, canEdit: false, canDelete: false }"
-- UI state: "Jobs Row Actions Debug: { hasEditPermission: false }"
+**Current Implementation Verification:**
+The permission system now correctly restricts PROJECT_VIEWER permissions to view-only access, with all edit functions properly returning false.
 
 ### Issue: Role Values Inconsistency
 
-**Database contains mixed role formats:**
-- Legacy: `member`, `viewer`, `owner`, `admin`
-- Modern: `project_viewer`, `project_editor`, `org_owner`, `org_admin`
+**Status: ✅ RESOLVED** - All roles now use standardized naming format.
 
-**Solution:**
-The `convertStringToRole()` function handles both formats, but ensure new roles use consistent naming.
+The system uses consistent role naming throughout:
+- `super_admin`, `org_owner`, `org_admin`, `project_admin`, `project_editor`, `project_viewer`
 
 ## Better Auth Permission System
 
 ### Server-Side Permission Checking
 
-**Using Better Auth's Built-in APIs:**
-
-```typescript
-// Organization/Admin permissions use Better Auth APIs
-export async function hasPermission(
-  resource: keyof typeof statement,
-  action: string,
-  context?: Partial<PermissionContext>
-): Promise<boolean> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (['organization', 'member', 'invitation'].includes(resource)) {
-    // Use Better Auth's hasPermission API
-    const result = await auth.api.hasPermission({
-      headers: await headers(),
-      body: {
-        permissions: {
-          [resource]: [action]
-        }
-      }
-    });
-    return result.success;
-  }
-
-  // For custom resources, use our permission logic
-  return checkPermission(permissionContext, resource, action);
-}
-```
-
-**Using Better Auth Middleware:**
-
-```typescript
-export async function requireBetterAuthPermission(
-  permissions: Record<string, string[]>
-): Promise<{ userId: string; user: SessionUser }> {
-  const authResult = await requireAuth();
-  
-  for (const [resource, actions] of Object.entries(permissions)) {
-    if (['organization', 'member', 'invitation', 'user', 'session'].includes(resource)) {
-      const result = await auth.api.hasPermission({
-        headers: await headers(),
-        body: {
-          permissions: { [resource]: actions }
-        }
-      });
-      
-      if (!result.success) {
-        throw new Error(`Access denied: Missing ${resource} permissions`);
-      }
-    } else {
-      // Check custom permissions
-      for (const action of actions) {
-        const hasAccess = await hasPermission(resource as keyof typeof statement, action);
-        if (!hasAccess) {
-          throw new Error(`Access denied: Missing ${resource}:${action} permission`);
-        }
-      }
-    }
-  }
-  
-  return authResult;
-}
-```
+The system uses Better Auth's built-in APIs for organization/admin permissions and custom permission logic for project-level resources.
 
 ### Client-Side Permission Checking
 
-**Better Auth Client Hooks:**
-
-```typescript
-// Organization permissions using Better Auth client
-export function useHasPermission(permissions: Record<string, string[]>) {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const { data: session } = useSession();
-
-  useEffect(() => {
-    if (permissions.organization || permissions.member || permissions.invitation) {
-      const checkPermissions = async () => {
-        const result = await authClient.organization.hasPermission({
-          permissions
-        });
-        setHasPermission(result.success);
-      };
-      checkPermissions();
-    }
-  }, [session, JSON.stringify(permissions)]);
-
-  return { hasPermission, isLoading: hasPermission === null };
-}
-
-// Role-based permission checking
-export function useCheckRolePermission(role: string, permissions: Record<string, string[]>) {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const result = authClient.organization.checkRolePermission({
-      role,
-      permissions
-    });
-    setHasPermission(result);
-  }, [role, JSON.stringify(permissions)]);
-
-  return hasPermission;
-}
-```
-
-**Component Usage:**
-
-```typescript
-import { useHasPermission, useCanEditJobs } from '@/hooks/use-better-auth-permissions';
-
-export function JobActions() {
-  // Better Auth organization permissions
-  const { hasPermission: canManageOrg } = useHasPermission({
-    organization: ['update'],
-    member: ['create', 'update', 'delete']
-  });
-
-  // Custom permission hooks
-  const canEditJobs = useCanEditJobs();
-  const canDeleteJobs = useCanDeleteJobs();
-
-  return (
-    <div>
-      {canManageOrg && <Button>Manage Organization</Button>}
-      {canEditJobs && <Button>Edit Job</Button>}
-      {canDeleteJobs && <Button>Delete Job</Button>}
-    </div>
-  );
-}
-```
+Better Auth client hooks provide organization permissions while custom hooks handle project-specific permissions. Components use these hooks to control UI elements based on user roles.
 
 ## Admin Plugin Integration
 
@@ -489,54 +445,10 @@ Better Auth's admin plugin provides comprehensive system-level administration:
 - ✅ Password management (`auth.api.setUserPassword`)
 
 **Super Admin Setup:**
-
-```typescript
-admin({
-  adminUserIds: process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()).filter(Boolean) || [],
-  ac,
-  roles: {
-    admin: roles[Role.ORG_ADMIN],
-    super_admin: roles[Role.SUPER_ADMIN]
-  }
-})
-```
+Configured using environment variables with appropriate role mappings.
 
 **Usage Examples:**
-
-```typescript
-// Server-side admin operations
-export async function adminCreateUser(userData: CreateUserData) {
-  try {
-    await requireBetterAuthPermission({
-      user: ['create']
-    });
-    
-    const result = await auth.api.createUser({
-      body: {
-        email: userData.email,
-        password: userData.password,
-        name: userData.name,
-        role: userData.role || 'project_viewer'
-      }
-    });
-    
-    return { success: true, user: result };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-}
-
-// Client-side admin UI
-export function AdminUserList() {
-  const { hasPermission } = useHasPermission({
-    user: ['view', 'create', 'update', 'delete']
-  });
-  
-  if (!hasPermission) return null;
-  
-  return <UserManagementInterface />;
-}
-```
+Server-side admin operations use Better Auth's API methods with permission checks, while client-side components use permission hooks to control access.
 
 ## Organization Plugin Integration
 
@@ -552,131 +464,23 @@ Better Auth's organization plugin handles multi-tenancy:
 - ✅ Organization-scoped permissions
 
 **Configuration:**
-
-```typescript
-organization({
-  // Disable automatic organization creation - we handle this manually
-  allowUserToCreateOrganization: false,
-  organizationLimit: parseInt(process.env.MAX_ORGANIZATIONS_PER_USER || '5'),
-  creatorRole: "owner",
-  membershipLimit: 100,
-  ac,
-  roles: {
-    owner: roles[Role.ORG_OWNER],
-    admin: roles[Role.ORG_ADMIN],
-    project_editor: roles[Role.PROJECT_EDITOR],
-    project_viewer: roles[Role.PROJECT_VIEWER]
-  },
-  sendInvitationEmail: async ({ invitation, organization }) => {
-    // Custom email implementation
-  }
-})
-```
+Configured with organization limits, role mappings, and custom email handling while disabling automatic organization creation.
 
 **Server-Side Organization Operations:**
-
-```typescript
-// Using Better Auth organization permissions
-export async function inviteMember(inviteData: InviteData) {
-  try {
-    await requireBetterAuthPermission({
-      invitation: ['create'],
-      member: ['create']
-    });
-    
-    const result = await auth.api.inviteMember({
-      body: {
-        email: inviteData.email,
-        role: inviteData.role,
-        organizationId: inviteData.organizationId
-      }
-    });
-    
-    return { success: true, invitation: result };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-}
-```
+Uses Better Auth's organization permission APIs for member invitation and management.
 
 **Client-Side Organization Management:**
-
-```typescript
-export function OrganizationMemberList() {
-  const { hasPermission } = useHasPermission({
-    member: ['view', 'create', 'update', 'delete'],
-    invitation: ['create', 'cancel']
-  });
-
-  if (!hasPermission) return <AccessDenied />;
-
-  return (
-    <div>
-      <MemberList />
-      <InvitationForm />
-    </div>
-  );
-}
-```
+Components use permission hooks to control access to member management and invitation features.
 
 ## API Integration Patterns
 
 ### Server Actions with Better Auth
 
 **Updated Server Action Pattern:**
-
-```typescript
-// Before (Custom RBAC)
-export async function createJob(data: CreateJobData) {
-  const { userId, project, organizationId } = await requireProjectContext();
-  
-  const permissionContext = await buildUnifiedPermissionContext(
-    userId, 'project', organizationId, project.id
-  );
-  
-  const canCreateJobs = await hasPermission(permissionContext, ProjectPermission.CREATE_JOBS);
-  if (!canCreateJobs) {
-    return { success: false, message: "Insufficient permissions" };
-  }
-  
-  // Create job logic...
-}
-
-// After (Better Auth Integration)
-export async function createJob(data: CreateJobData) {
-  const { userId, project, organizationId } = await requireProjectContext();
-  
-  try {
-    await requireBetterAuthPermission({
-      job: ['create']
-    });
-  } catch (error) {
-    return { success: false, message: "Insufficient permissions" };
-  }
-  
-  // Create job logic...
-}
-```
+Server actions now use Better Auth's permission system instead of custom RBAC context building, providing more streamlined and standardized permission checking.
 
 ### API Routes with Better Auth
-
-**API Route Pattern:**
-
-```typescript
-export async function POST(request: NextRequest) {
-  return withBetterAuthPermission(
-    async (req, context, auth) => {
-      // Handler logic with authenticated user context
-      return NextResponse.json({ success: true });
-    },
-    {
-      // Required permissions
-      test: ['create'],
-      project: ['view']
-    }
-  )(request);
-}
-```
+API routes use Better Auth middleware for authentication and permission validation before executing handler logic.
 
 ## Permission Matrix with Better Auth
 
@@ -748,80 +552,14 @@ export async function POST(request: NextRequest) {
 - `/app/src/hooks/use-better-auth-permissions.ts` - Client-side permission hooks
 
 ### Better Auth Configuration Files
-```typescript
-// Server Configuration (/app/src/utils/auth.ts)
-export const auth = betterAuth({
-  plugins: [
-    admin({
-      adminUserIds: process.env.SUPER_ADMIN_USER_IDS?.split(',') || [],
-      ac,
-      roles: {
-        admin: roles[Role.ORG_ADMIN],
-        super_admin: roles[Role.SUPER_ADMIN]
-      }
-    }),
-    organization({
-      ac,
-      roles: {
-        owner: roles[Role.ORG_OWNER],
-        admin: roles[Role.ORG_ADMIN],
-        project_editor: roles[Role.PROJECT_EDITOR],
-        project_viewer: roles[Role.PROJECT_VIEWER]
-      }
-    }),
-    apiKey(),
-    nextCookies()
-  ]
-});
-
-// Client Configuration (/app/src/utils/auth-client.ts)
-export const authClient = createAuthClient({
-  plugins: [
-    organizationClient({
-      ac,
-      roles: {
-        owner: roles[Role.ORG_OWNER],
-        admin: roles[Role.ORG_ADMIN],
-        project_editor: roles[Role.PROJECT_EDITOR],
-        project_viewer: roles[Role.PROJECT_VIEWER]
-      }
-    }),
-    adminClient({
-      ac,
-      roles: {
-        admin: roles[Role.ORG_ADMIN],
-        super_admin: roles[Role.SUPER_ADMIN]
-      }
-    }),
-    apiKeyClient()
-  ]
-});
-```
+Server and client configurations include admin, organization, and API key plugins with appropriate role mappings and access control settings.
 
 ## Migration from Custom RBAC
 
 ### Key Changes
 
-**Before (Custom RBAC System):**
-```typescript
-// Old permission checking
-const context = await buildUnifiedPermissionContext(userId, 'project', orgId, projectId);
-const hasAccess = await hasPermission(context, ProjectPermission.CREATE_TESTS);
-
-// Old client permissions
-const canEdit = canEditTests(userRole, projectId, assignedProjects);
-```
-
-**After (Better Auth Integration):**
-```typescript
-// New permission checking
-await requireBetterAuthPermission({
-  test: ['create']
-});
-
-// New client permissions
-const canEdit = useCanEditTests();
-```
+**Migration Summary:**
+The system migrated from custom RBAC context building to Better Auth's standardized permission checking, simplifying both server-side and client-side permission validation.
 
 ### Migration Benefits
 
@@ -833,67 +571,7 @@ const canEdit = useCanEditTests();
 
 ## Testing Better Auth Integration
 
-### Admin Plugin Testing
-```typescript
-// Test super admin user management
-const result = await auth.api.createUser({
-  body: {
-    email: 'test@example.com',
-    password: 'secure-password',
-    name: 'Test User',
-    role: 'project_editor'
-  }
-});
-
-// Test user impersonation
-const impersonation = await auth.api.impersonateUser({
-  body: { userId: 'user-id' }
-});
-
-// Test user banning
-await auth.api.banUser({
-  body: { 
-    userId: 'user-id',
-    banReason: 'Terms violation',
-    banExpiresIn: 60 * 60 * 24 * 7 // 7 days
-  }
-});
-```
-
-### Organization Plugin Testing
-```typescript
-// Test organization creation
-const org = await authClient.organization.create({
-  name: 'Test Organization',
-  slug: 'test-org'
-});
-
-// Test member invitation
-const invitation = await authClient.organization.inviteMember({
-  email: 'member@example.com',
-  role: 'project_editor',
-  organizationId: org.id
-});
-
-// Test permission checking
-const hasPermission = await authClient.organization.hasPermission({
-  permissions: {
-    member: ['create', 'update'],
-    organization: ['update']
-  }
-});
-```
-
-### Role Permission Testing
-```typescript
-// Test role-based permission checking
-const canManageMembers = authClient.organization.checkRolePermission({
-  role: 'admin',
-  permissions: {
-    member: ['create', 'update', 'delete']
-  }
-});
-```
+The system includes comprehensive testing for admin plugin features (user management, impersonation, banning), organization plugin features (organization creation, member invitation, permission checking), and role-based permission validation.
 
 ## Security Benefits
 

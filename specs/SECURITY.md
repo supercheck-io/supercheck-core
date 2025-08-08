@@ -1,5 +1,46 @@
 # Security Configuration Guide
 
+## Security Architecture
+
+```mermaid
+graph TB
+    subgraph "External Access"
+        A1[Internet]
+        A2[Load Balancer/Reverse Proxy]
+    end
+    
+    subgraph "Docker Network (Internal)"
+        B1[Next.js App]
+        B2[NestJS Worker]
+        B3[PostgreSQL]
+        B4[Redis with Auth]
+        B5[MinIO]
+    end
+    
+    subgraph "Security Layers"
+        C1[Network Isolation]
+        C2[Authentication]
+        C3[Environment Secrets]
+        C4[Rate Limiting]
+    end
+    
+    A1 -->|HTTPS Only| A2
+    A2 -->|Internal Network| B1
+    B1 -->|Authenticated| B3
+    B1 -->|Password Auth| B4
+    B1 -->|Secure Access| B5
+    B2 -->|Database Access| B3
+    B2 -->|Queue Access| B4
+    
+    C1 --> B3
+    C1 --> B4
+    C1 --> B5
+    C2 --> B1
+    C2 --> B2
+    C3 --> C2
+    C4 --> B1
+```
+
 This document outlines the security configurations required for production deployments.
 
 ## 🔐 Redis Security (Critical)
@@ -17,48 +58,36 @@ The updated `docker-compose.yml` includes the following security measures:
 ### Configuration
 
 #### Environment Variables
-Add to your `.env` file:
-```bash
-# Redis Security - CHANGE THIS PASSWORD!
-REDIS_PASSWORD=your-super-secure-redis-password-change-this-immediately
-```
+Configure Redis authentication in your environment configuration:
+- Set a strong, unique Redis password in your `.env` file
+- Use environment variable substitution for password management
+- Ensure the password is at least 32 characters long with mixed character types
 
-#### Docker Compose Changes
-```yaml
-# Redis is now configured with:
-# - Password authentication
-# - No public port exposure
-# - Protected mode enabled
-redis:
-  environment:
-    - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
-  command: redis-server --requirepass "${REDIS_PASSWORD}" --protected-mode yes
-  # No ports section - only accessible within Docker network
-```
+#### Docker Compose Security
+Redis container security configuration includes:
+- **Password Authentication**: Requires authentication for all connections
+- **Network Isolation**: No public port exposure, only accessible within Docker network
+- **Protected Mode**: Prevents external access when authentication is required
 
-#### Connection Strings
-Both services now use authenticated Redis URLs:
-```bash
-REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
-```
+#### Connection Authentication
+Application services use authenticated Redis connections:
+- Connection strings include password authentication
+- All Redis operations require proper authentication
+- Connection pooling maintains authenticated sessions
 
 ## 🚨 Production Deployment Checklist
 
 ### Before Deploying:
 
 1. **Change Default Passwords**
-   ```bash
-   # Update in .env file
-   REDIS_PASSWORD=your-unique-secure-password
-   BETTER_AUTH_SECRET=your-unique-auth-secret
-   ```
+   - Update Redis password in environment configuration
+   - Set unique Better Auth secret for session security
+   - Use strong, randomly generated passwords for all services
 
 2. **Verify Security Settings**
-   ```bash
-   # Check Redis is not publicly accessible
-   nmap -p 6379 your-server-ip
-   # Should show: 6379/tcp closed
-   ```
+   - Confirm Redis is not publicly accessible using network scanning tools
+   - Verify database connections are properly authenticated
+   - Test that services cannot be accessed without proper credentials
 
 3. **Database Security**
    - Use strong PostgreSQL passwords
@@ -90,22 +119,17 @@ REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
 ## 🔧 Testing Security
 
 ### Redis Security Test
-```bash
-# From outside Docker network - should fail
-redis-cli -h your-server-ip -p 6379 ping
-# Error: Could not connect
-
-# From inside Docker network - should work with password
-docker exec -it supercheck-redis-1 redis-cli -a your-password ping
-# PONG
-```
+Test Redis security configuration:
+- **External Access Test**: Attempts to connect from outside Docker network should fail
+- **Internal Access Test**: Connections from within Docker network should require password
+- **Authentication Test**: Valid password should allow successful connections
+- **Invalid Password Test**: Incorrect passwords should be rejected
 
 ### Port Scanning
-```bash
-# Check what ports are publicly accessible
-nmap -sS your-server-ip
-# Should only show necessary ports (80, 443, SSH)
-```
+Verify network security through port scanning:
+- Check what ports are publicly accessible on your server
+- Confirm only necessary ports are exposed (HTTP, HTTPS, SSH)
+- Ensure database and cache ports are not publicly accessible
 
 ## 📞 Incident Response
 

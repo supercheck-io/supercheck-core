@@ -30,7 +30,8 @@ import {
 import { toast } from "sonner";
 import { deleteMonitor } from "@/actions/delete-monitor";
 import { useProjectContext } from "@/hooks/use-project-context";
-import { canEditMonitors, canDeleteMonitors, convertStringToRole } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import { canEditMonitors, canDeleteMonitors } from "@/lib/rbac/client-permissions";
 
 import { monitorSchema } from "./schema";
 
@@ -47,8 +48,8 @@ export function DataTableRowActions<TData>({
   const { currentProject } = useProjectContext();
   
   // Check permissions using project context (same as toolbar approach)
-  const hasEditPermission = currentProject?.userRole ? canEditMonitors(convertStringToRole(currentProject.userRole)) : false;
-  const hasDeletePermission = currentProject?.userRole ? canDeleteMonitors(convertStringToRole(currentProject.userRole)) : false;
+  const hasEditPermission = currentProject?.userRole ? canEditMonitors(normalizeRole(currentProject.userRole)) : false;
+  const hasDeletePermission = currentProject?.userRole ? canDeleteMonitors(normalizeRole(currentProject.userRole)) : false;
   
   // Use safeParse instead of parse to handle validation errors
   const parsedMonitor = monitorSchema.safeParse(row.original);

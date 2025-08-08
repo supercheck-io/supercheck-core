@@ -3,15 +3,7 @@
  */
 
 import { Role } from './permissions';
-import { normalizeRole } from './role-normalizer';
 
-/**
- * Helper function to convert string role to Role enum
- * @deprecated Use normalizeRole from role-normalizer instead
- */
-export function convertStringToRole(roleString: string): Role {
-  return normalizeRole(roleString);
-}
 
 /**
  * Check if role has permission to perform action on resource

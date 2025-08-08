@@ -5,20 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { FolderOpen, Activity, TrendingUp, Calendar, Users, Eye, User, Shield } from "lucide-react";
+import { FolderOpen, Activity, TrendingUp, Calendar, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AuditLogsTable } from "@/components/admin/audit-logs-table";
 import { MembersTable } from "@/components/org-admin/members-table";
 import { ProjectsTable } from "@/components/org-admin/projects-table";
+import { MemberAccessDialog } from "@/components/members/MemberAccessDialog";
 import { FormInput } from "@/components/ui/form-input";
 import { createProjectSchema, type CreateProjectFormData } from "@/lib/validations/project";
-import { inviteMemberSchema } from "@/lib/validations/member";
 // import { useFormValidation } from "@/hooks/use-form-validation";
 import { useBreadcrumbs } from "@/components/breadcrumb-context";
-import { canCreateProjects, canInviteMembers, canManageProject, convertStringToRole } from "@/lib/rbac/client-permissions";
+import { canCreateProjects, canInviteMembers, canManageProject } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 import { z } from "zod";
 
 interface OrgStats {
@@ -90,15 +88,9 @@ export default function OrgAdminDashboard() {
   const [membersLoading, setMembersLoading] = useState(false);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviting, setInviting] = useState(false);
-  const [inviteData, setInviteData] = useState({
-    email: "",
-    role: "project_editor" as 'project_editor' | 'project_admin' | 'org_admin' | 'project_viewer',
-    selectedProjects: [] as string[]
-  });
   
   // Projects tab state
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(false);
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false);
   const [showEditProjectDialog, setShowEditProjectDialog] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -205,7 +197,6 @@ export default function OrgAdminDashboard() {
   };
 
   const fetchProjects = async () => {
-    setProjectsLoading(true);
     try {
       const response = await fetch('/api/projects');
       const data = await response.json();
@@ -246,90 +237,9 @@ export default function OrgAdminDashboard() {
     } catch (error) {
       console.error('Error fetching projects:', error);
       toast.error('Failed to load projects');
-    } finally {
-      setProjectsLoading(false);
     }
   };
 
-  // Helper functions for project selection
-  const handleProjectToggle = (projectId: string) => {
-    setInviteData(prev => ({
-      ...prev,
-      selectedProjects: prev.selectedProjects.includes(projectId)
-        ? prev.selectedProjects.filter(id => id !== projectId)
-        : [...prev.selectedProjects, projectId]
-    }));
-  };
-
-  const handleSelectAllProjects = () => {
-    const activeProjectIds = projects
-      .filter(project => project.status === 'active')
-      .map(project => project.id);
-    setInviteData(prev => ({
-      ...prev,
-      selectedProjects: activeProjectIds
-    }));
-  };
-
-  const handleClearProjectSelection = () => {
-    setInviteData(prev => ({
-      ...prev,
-      selectedProjects: []
-    }));
-  };
-
-  const handleInviteMember = async () => {
-    const inviteDataToValidate = {
-      email: inviteData.email.trim(),
-      role: inviteData.role,
-      selectedProjects: inviteData.selectedProjects
-    };
-
-    // Validate form data using Zod
-    try {
-      inviteMemberSchema.parse(inviteDataToValidate);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        if (error.errors && error.errors.length > 0) {
-          toast.error(error.errors[0].message);
-          return;
-        }
-      }
-      toast.error('Please fix the form errors');
-      return;
-    }
-
-    setInviting(true);
-    try {
-      const response = await fetch('/api/organizations/members/invite', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(inviteDataToValidate),
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success('Invitation sent successfully');
-        setShowInviteDialog(false);
-        setInviteData({
-          email: "",
-          role: "project_editor",
-          selectedProjects: []
-        });
-        fetchMembers();
-      } else {
-        toast.error(data.error || 'Failed to send invitation');
-      }
-    } catch (error) {
-      console.error('Error inviting member:', error);
-      toast.error('Failed to send invitation');
-    } finally {
-      setInviting(false);
-    }
-  };
 
   const handleCreateProject = async (formData?: CreateProjectFormData) => {
     const projectData = formData || {
@@ -611,8 +521,8 @@ export default function OrgAdminDashboard() {
                 projects={projects}
                 onCreateProject={() => setShowCreateProjectDialog(true)}
                 onEditProject={handleEditProject}
-                canCreateProjects={canCreateProjects(convertStringToRole(currentUserRole))}
-                canManageProject={canManageProject(convertStringToRole(currentUserRole))}
+                canCreateProjects={canCreateProjects(normalizeRole(currentUserRole))}
+                canManageProject={canManageProject(normalizeRole(currentUserRole))}
               />
           
           {/* Create Project Dialog */}
@@ -721,171 +631,51 @@ export default function OrgAdminDashboard() {
                       fetchProjects();
                     }
                   }}
-                  canInviteMembers={canInviteMembers(convertStringToRole(currentUserRole))}
+                  canInviteMembers={canInviteMembers(normalizeRole(currentUserRole))}
+                  projects={projects.filter(p => p.status === 'active')}
                 />
           )}
 
-          {/* Invite Member Dialog */}
-          <Dialog open={showInviteDialog} onOpenChange={(open) => {
-            setShowInviteDialog(open);
-            if (open && projects.length === 0) {
-              fetchProjects();
-            }
-          }}>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Invite New Member</DialogTitle>
-                <DialogDescription>
-                  Add a new member to your organization.
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4 py-4">
-                <FormInput
-                  id="email"
-                  label="Email"
-                  type="email"
-                  value={inviteData.email}
-                  onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
-                  placeholder="user@example.com"
-                  maxLength={255}
-                  showCharacterCount={false}
-                />
+          {/* Member Access Dialog - Invite Mode */}
+          <MemberAccessDialog
+            open={showInviteDialog}
+            onOpenChange={(open) => {
+              setShowInviteDialog(open);
+              if (open && projects.length === 0) {
+                fetchProjects();
+              }
+            }}
+            mode="invite"
+            projects={projects.filter(p => p.status === 'active')}
+            onSubmit={async (memberData) => {
+              setInviting(true);
+              try {
+                const response = await fetch('/api/organizations/members/invite', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    email: memberData.email,
+                    role: memberData.role,
+                    selectedProjects: memberData.selectedProjects
+                  }),
+                });
+
+                const data = await response.json();
                 
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select
-                    value={inviteData.role}
-                    onValueChange={(value) => setInviteData({ ...inviteData, role: value as 'project_editor' | 'project_admin' | 'org_admin' | 'project_viewer' })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="project_viewer">
-                        <div className="flex items-center space-x-2 text-left">
-                          <Eye className="h-4 w-4 text-gray-600" />
-                          <div>
-                            <div className="font-medium">Project Viewer</div>
-                            <div className="text-xs text-muted-foreground">View all projects</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="project_editor">
-                        <div className="flex items-center space-x-2 text-left">
-                          <User className="h-4 w-4 text-green-600" />
-                          <div>
-                            <div className="font-medium">Project Editor</div>
-                            <div className="text-xs text-muted-foreground">View all, edit selected projects</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="project_admin">
-                        <div className="flex items-center space-x-2 text-left">
-                          <Shield className="h-4 w-4 text-indigo-600" />
-                          <div>
-                            <div className="font-medium">Project Admin</div>
-                            <div className="text-xs text-muted-foreground">Full admin access to selected projects</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="org_admin">
-                        <div className="flex items-center space-x-2 text-left">
-                          <Shield className="h-4 w-4 text-blue-600" />
-                          <div>
-                            <div className="font-medium">Organization Admin</div>
-                            <div className="text-xs text-muted-foreground">Manage organization</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* Project Selection */}
-                {(inviteData.role === 'project_editor' || inviteData.role === 'project_admin') && (
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label>Project Access</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Select projects for {inviteData.role === 'project_admin' ? 'admin access' : 'editing'} (viewer access to all projects)
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        {inviteData.selectedProjects.length} selected
-                      </span>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleSelectAllProjects}
-                        >
-                          All
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleClearProjectSelection}
-                        >
-                          Clear
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="max-h-40 overflow-y-auto border rounded-md p-3 space-y-2">
-                      {projectsLoading ? (
-                        <div className="text-sm text-muted-foreground">Loading...</div>
-                      ) : projects.filter(p => p.status === 'active').length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No projects</div>
-                      ) : (
-                        projects
-                          .filter(project => project.status === 'active')
-                          .map((project) => (
-                            <div key={project.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`project-${project.id}`}
-                                checked={inviteData.selectedProjects.includes(project.id)}
-                                onCheckedChange={() => handleProjectToggle(project.id)}
-                              />
-                              <Label
-                                htmlFor={`project-${project.id}`}
-                                className="text-sm cursor-pointer flex-1"
-                              >
-                                <div>{project.name}</div>
-                                {project.description && (
-                                  <div className="text-xs text-muted-foreground truncate">
-                                    {project.description}
-                                  </div>
-                                )}
-                              </Label>
-                            </div>
-                          ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              <DialogFooter>
-                <Button 
-                  variant="outline"
-                  onClick={() => setShowInviteDialog(false)}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleInviteMember} 
-                  disabled={inviting || ((inviteData.role === 'project_editor' || inviteData.role === 'project_admin') && inviteData.selectedProjects.length === 0) || !inviteData.email.trim()}
-                >
-                  {inviting ? "Sending..." : "Send Invitation"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                if (data.success) {
+                  fetchMembers();
+                  fetchInvitations();
+                } else {
+                  throw new Error(data.error || 'Failed to send invitation');
+                }
+              } finally {
+                setInviting(false);
+              }
+            }}
+            isLoading={inviting}
+          />
         </TabsContent>
 
         <TabsContent value="audit" className="space-y-4">

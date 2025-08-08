@@ -18,7 +18,8 @@ import { decodeTestScript } from "@/actions/save-test";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import { canDeleteTags, canCreateTags, canDeleteTests, convertStringToRole } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import { canCreateTags, canDeleteTags, canDeleteTests } from "@/lib/rbac/client-permissions";
 import { deleteTest } from "@/actions/delete-test";
 import {
   AlertDialog,
@@ -143,7 +144,7 @@ export function TestForm({
   const [isLoadingTags, setIsLoadingTags] = useState(false);
 
   // Permission checks
-  const role = userRole ? convertStringToRole(userRole) : null;
+  const role = userRole ? normalizeRole(userRole) : null;
   const canUserCreateTags = role ? canCreateTags(role) : false;
   const canUserDeleteTags = role ? canDeleteTags(role) : false;
   const canUserDeleteTests = role ? canDeleteTests(role) : false;
