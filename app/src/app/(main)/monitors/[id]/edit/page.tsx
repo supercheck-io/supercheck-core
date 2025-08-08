@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { MonitorForm, type FormValues } from "@/components/monitors/monitor-form";
+import { MonitorFormSkeleton } from "@/components/monitors/monitor-form-skeleton";
 import { Monitor } from "@/components/monitors/schema";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { monitorTypes } from "@/components/monitors/data";
@@ -18,7 +19,7 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Get params on client side
+  // Get params on the client side
   useEffect(() => {
     params.then(({ id }) => setId(id));
   }, [params]);
@@ -37,7 +38,8 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
             setError('Monitor not found');
             return;
           }
-          throw new Error(`Failed to fetch monitor: ${response.statusText}`);
+          setError(`Failed to fetch monitor: ${response.statusText}`);
+          return;
         }
         
         const data = await response.json();
@@ -55,11 +57,13 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading monitor...</p>
-        </div>
+      <div>
+        <PageBreadcrumbs items={[
+          { label: "Home", href: "/" },
+          { label: "Monitors", href: "/monitors" },
+          { label: "Loading...", isCurrentPage: true },
+        ]} />
+        <MonitorFormSkeleton />
       </div>
     );
   }
@@ -142,7 +146,7 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
     interval: formInterval,
     httpConfig_authType: (monitor.config?.auth?.type as "none" | "basic" | "bearer") || "none",
 
-    // HTTP specific fields
+    // HTTP-specific fields
     httpConfig_method: formType === "http_request" ? (monitor.config?.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS") || "GET" : "GET",
     httpConfig_expectedStatusCodes: (formType === "http_request" || formType === "website") ? (monitor.config?.expectedStatusCodes || "200-299") : "200-299",
     httpConfig_headers: formType === "http_request" && monitor.config?.headers ? JSON.stringify(monitor.config.headers, null, 2) : "",
@@ -163,7 +167,7 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
     heartbeatConfig_expectedInterval: formType === "heartbeat" ? (monitor.config?.expectedIntervalMinutes ?? 60) : 60,
     heartbeatConfig_gracePeriod: formType === "heartbeat" ? (monitor.config?.gracePeriodMinutes ?? 10) : 10,
 
-    // Website SSL specific
+    // Website SSL-specific
     websiteConfig_enableSslCheck: formType === "website" ? (monitor.config?.enableSslCheck || false) : false,
     websiteConfig_sslDaysUntilExpirationWarning: formType === "website" ? (monitor.config?.sslDaysUntilExpirationWarning || 30) : 30,
   };

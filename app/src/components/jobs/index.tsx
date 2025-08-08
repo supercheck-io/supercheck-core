@@ -44,6 +44,7 @@ import { UrlTriggerTooltip } from "./url-trigger-tooltip";
 import { JobTestDataTable } from "./job-test-data-table";
 import { createJobTestColumns } from "./job-test-columns";
 import { useProjectContext } from "@/hooks/use-project-context";
+import { convertStringToRole, canEditJobs } from "@/lib/rbac/client-permissions";
 
 // Helper function to map incoming types to the valid Test["type"]
 function mapToTestType(type: string | undefined): Test["type"] {
@@ -69,7 +70,11 @@ export default function Jobs() {
   const {} = useJobContext();
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const { projectId } = useProjectContext();
+  const { projectId, currentProject } = useProjectContext();
+  
+  // Check permissions
+  const userRole = currentProject?.userRole ? convertStringToRole(currentProject.userRole) : null;
+  const hasEditPermission = userRole ? canEditJobs(userRole) : false;
 
   // Set mounted to true after initial render
   useEffect(() => {
@@ -389,10 +394,11 @@ export default function Jobs() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
+                      onClick={hasEditPermission ? () =>
                         router.push(`/jobs/edit/${selectedJob.id}`)
-                      }
-                      className="ml-2"
+                       : undefined}
+                      disabled={!hasEditPermission}
+                      className={`ml-2 ${!hasEditPermission ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
                       <Edit className="h-4 w-4 mr-2 " />
                       Edit Job

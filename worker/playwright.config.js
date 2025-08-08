@@ -10,8 +10,8 @@ const path = require('path');
 // Construct the path relative to the current file's directory
 const serviceRoot = path.resolve(__dirname); // __dirname is available in CommonJS
 
-// Use environment variables or default values
-const testDir = process.env.PLAYWRIGHT_TEST_DIR || path.join(serviceRoot, 'test');
+// Use environment variables or default values - no local test directory since tests are dynamically created
+const testDir = process.env.PLAYWRIGHT_TEST_DIR || '/tmp/playwright-tests';
 // Default output dir - REMOVED reliance on env var
 // const artifactOutputDir = process.env.PLAYWRIGHT_OUTPUT_DIR || path.join(serviceRoot, 'playwright-artifacts'); 
 const relativeOutputDir = 'report'; // Define relative path
