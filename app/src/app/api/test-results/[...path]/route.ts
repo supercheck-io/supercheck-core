@@ -324,7 +324,7 @@ export async function GET(request: Request) {
       const buffer = await streamToUint8Array(s3Response.Body);
       const contentType = s3Response.ContentType || 'application/octet-stream';
       
-      return new NextResponse(buffer, {
+      return new NextResponse(buffer as unknown as BodyInit, {
         status: 200,
         headers: {
           'Content-Type': contentType,

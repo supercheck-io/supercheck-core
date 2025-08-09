@@ -102,61 +102,98 @@ export async function deleteScheduledMonitor(schedulerId: string): Promise<boole
  * Called on application startup
  */
 export async function initializeMonitorSchedulers(): Promise<{ success: boolean; scheduled: number; failed: number }> {
-  try {
-    console.log("Initializing monitor schedulers...");
-    
-    const activeMonitors = await db
-      .select()
-      .from(monitorSchemaDb)
-      .where(and(
-        isNotNull(monitorSchemaDb.frequencyMinutes), 
-        eq(monitorSchemaDb.enabled, true)
-      ));
+  const maxRetries = 3;
+  const retryDelay = 2000; // 2 seconds
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Initializing monitor schedulers (attempt ${attempt}/${maxRetries})...`);
       
-    console.log(`Found ${activeMonitors.length} active monitors to initialize`);
-    
-    let scheduledCount = 0;
-    let failedCount = 0;
-    
-    for (const monitor of activeMonitors) {
-      if (monitor.frequencyMinutes && monitor.frequencyMinutes > 0) {
-        try {
-          const jobDataPayload: MonitorJobData = {
-            monitorId: monitor.id,
-            type: monitor.type as MonitorJobData['type'],
-            target: monitor.target,
-            config: monitor.config as MonitorConfig,
-            frequencyMinutes: monitor.frequencyMinutes,
-          };
-
-          const schedulerId = await scheduleMonitor({
-            monitorId: monitor.id,
-            frequencyMinutes: monitor.frequencyMinutes,
-            jobData: jobDataPayload,
-            retryLimit: 3
-          });
-          
-          // Update the monitor with the scheduler ID (like jobs do)
-          await db
-            .update(monitorSchemaDb)
-            .set({ scheduledJobId: schedulerId })
-            .where(eq(monitorSchemaDb.id, monitor.id));
+      // Test Redis connection first
+      const { monitorSchedulerQueue } = await getQueues();
+      const redisClient = await monitorSchedulerQueue.client;
+      await redisClient.ping();
+      console.log('✅ Redis connection verified for monitor scheduler');
+      
+      const activeMonitors = await db
+        .select()
+        .from(monitorSchemaDb)
+        .where(and(
+          isNotNull(monitorSchemaDb.frequencyMinutes), 
+          eq(monitorSchemaDb.enabled, true)
+        ));
+        
+      console.log(`Found ${activeMonitors.length} active monitors to initialize`);
+      
+      if (activeMonitors.length === 0) {
+        console.log('No monitors found to schedule - initialization complete');
+        return { success: true, scheduled: 0, failed: 0 };
+      }
+      
+      let scheduledCount = 0;
+      let failedCount = 0;
+      
+      for (const monitor of activeMonitors) {
+        if (monitor.frequencyMinutes && monitor.frequencyMinutes > 0) {
+          try {
+            console.log(`Scheduling monitor ${monitor.id} (${monitor.name}) with ${monitor.frequencyMinutes}min frequency`);
             
-          console.log(`Initialized monitor scheduler ${schedulerId} for monitor ${monitor.id}`);
-          scheduledCount++;
-        } catch (error) {
-          console.error(`Failed to initialize scheduler for monitor ${monitor.id}:`, error);
+            const jobDataPayload: MonitorJobData = {
+              monitorId: monitor.id,
+              type: monitor.type as MonitorJobData['type'],
+              target: monitor.target,
+              config: monitor.config as MonitorConfig,
+              frequencyMinutes: monitor.frequencyMinutes,
+            };
+
+            const schedulerId = await scheduleMonitor({
+              monitorId: monitor.id,
+              frequencyMinutes: monitor.frequencyMinutes,
+              jobData: jobDataPayload,
+              retryLimit: 3
+            });
+            
+            // Update the monitor with the scheduler ID (like jobs do)
+            await db
+              .update(monitorSchemaDb)
+              .set({ scheduledJobId: schedulerId })
+              .where(eq(monitorSchemaDb.id, monitor.id));
+              
+            console.log(`✅ Initialized monitor scheduler ${schedulerId} for monitor ${monitor.id} (${monitor.name})`);
+            scheduledCount++;
+          } catch (error) {
+            console.error(`❌ Failed to initialize scheduler for monitor ${monitor.id} (${monitor.name}):`, error);
+            failedCount++;
+          }
+        } else {
+          console.warn(`⚠️ Monitor ${monitor.id} has invalid frequency: ${monitor.frequencyMinutes}`);
           failedCount++;
         }
       }
+      
+      console.log(`Monitor scheduler initialization complete: ${scheduledCount} succeeded, ${failedCount} failed`);
+      
+      // Consider initialization successful if at least some monitors were scheduled
+      // or if there were no monitors to schedule
+      const success = scheduledCount > 0 || (scheduledCount === 0 && failedCount === 0);
+      return { success, scheduled: scheduledCount, failed: failedCount };
+      
+    } catch (error) {
+      console.error(`Failed to initialize monitor schedulers (attempt ${attempt}/${maxRetries}):`, error);
+      
+      if (attempt === maxRetries) {
+        console.error('❌ All retry attempts exhausted for monitor scheduler initialization');
+        return { success: false, scheduled: 0, failed: 0 };
+      }
+      
+      // Wait before retrying
+      console.log(`⏳ Retrying monitor scheduler initialization in ${retryDelay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
     }
-    
-    console.log(`Monitor scheduler initialization complete: ${scheduledCount} succeeded, ${failedCount} failed`);
-    return { success: true, scheduled: scheduledCount, failed: failedCount };
-  } catch (error) {
-    console.error(`Failed to initialize monitor schedulers:`, error);
-    return { success: false, scheduled: 0, failed: 0 };
   }
+  
+  // This should never be reached, but just in case
+  return { success: false, scheduled: 0, failed: 0 };
 }
 
 /**

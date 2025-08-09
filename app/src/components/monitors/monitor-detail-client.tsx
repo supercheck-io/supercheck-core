@@ -635,7 +635,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </CardHeader>
             <CardContent className="pb-4 px-4">
               <div className="text-xl font-semibold">
-                {statusInfo?.label ?? currentActualStatus?.charAt(0).toUpperCase() + currentActualStatus?.slice(1) ?? "Unknown"}
+                {statusInfo?.label ?? (currentActualStatus ? currentActualStatus.charAt(0).toUpperCase() + currentActualStatus.slice(1) : "Unknown")}
               </div>
             </CardContent>
           </Card>

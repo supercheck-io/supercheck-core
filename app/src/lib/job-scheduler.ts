@@ -329,11 +329,6 @@ export async function initializeJobSchedulers() {
   try {
     console.log("Initializing job scheduler...");
     
-    // DEPRECATED: Worker management is now external
-    // for (const [name, worker] of workerMap.entries()) { ... }
-    // workerMap.clear();
-    // await ensureSchedulerWorker();
-    
     const jobsWithSchedules = await db
       .select()
       .from(jobs)
@@ -400,12 +395,6 @@ export async function initializeJobSchedulers() {
 export async function cleanupJobScheduler() {
   try {
     console.log("Cleaning up job scheduler...");
-    
-    // DEPRECATED: Worker and queue management is now external / centralized
-    // for (const [name, worker] of workerMap.entries()) { ... }
-    // workerMap.clear();
-    // for (const [name, queue] of queueMap.entries()) { ... }
-    // queueMap.clear();
     
     // Clean up orphaned repeatable jobs in Redis
     try {

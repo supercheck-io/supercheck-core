@@ -1,20 +1,8 @@
 "use client";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { signUp } from "@/utils/auth-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { SignupForm } from "@/components/auth/signup-form";
 
 interface InviteData {
   organizationName: string;
@@ -118,58 +106,13 @@ export default function SignUpPage() {
   };
 
   return (
-    <Card className="w-full max-w-sm">
-      <form onSubmit={handleSubmit}>
-        <CardHeader>
-          <CardTitle className="text-2xl">
-            {inviteData ? `Join ${inviteData.organizationName}` : 'Sign Up'}
-          </CardTitle>
-          <CardDescription>
-            {inviteData 
-              ? `Create an account to join ${inviteData.organizationName} as ${inviteData.role}.`
-              : 'Enter your information to create an account'
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" name="name" placeholder="Max Robinson" required />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              name="email"
-              placeholder="m@example.com"
-              defaultValue={inviteData?.email || ''}
-              readOnly={!!inviteData}
-              required
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" name="password" required />
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-        </CardContent>
-        <CardFooter className="flex flex-col">
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create account
-          </Button>
-          <div className="mt-4 text-center text-sm">
-            Already have an account?{" "}
-            <Link 
-              href={inviteToken ? `/sign-in?invite=${inviteToken}` : "/sign-in"} 
-              className="underline"
-            >
-              Sign in
-            </Link>
-          </div>
-        </CardFooter>
-      </form>
-    </Card>
+    <SignupForm
+      className="w-full max-w-4xl"
+      onSubmit={handleSubmit}
+      isLoading={isLoading}
+      error={error}
+      inviteData={inviteData}
+      inviteToken={inviteToken}
+    />
   );
 } 

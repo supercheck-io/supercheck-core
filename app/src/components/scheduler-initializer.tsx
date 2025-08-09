@@ -20,22 +20,41 @@ export async function SchedulerInitializer() {
     try {
       console.log('🔄 Job scheduler initialization started');
       
-      // Initialize the job scheduler in the background
-      cleanupJobScheduler()
-        .then(() => initializeJobSchedulers())
-        .then((result) => {
+      // Initialize job scheduler synchronously to ensure it completes during startup
+      const initializeAsync = async () => {
+        try {
+          console.log('🧹 Cleaning up job scheduler...');
+          await cleanupJobScheduler();
+          
+          console.log('🚀 Starting job schedulers...');
+          const result = await initializeJobSchedulers();
+          
           if (result.success) {
             console.log('✅ Job scheduler initialized successfully');
             if (result.initialized && result.failed) {
               console.log(`Initialized ${result.initialized} jobs, ${result.failed} failed`);
             }
+            
+            if (result.failed && result.failed > 0) {
+              console.warn(`⚠️ ${result.failed} job(s) failed to initialize - this may cause scheduling gaps`);
+            }
           } else {
             console.error('❌ Job scheduler initialization failed', result.error);
           }
-        })
-        .catch((error: unknown) => {
+        } catch (error: unknown) {
           console.error('❌ Job scheduler initialization error:', error);
-        });
+          // Re-throw to ensure the error is visible in server logs
+          throw error;
+        }
+      };
+      
+      // Start initialization but don't block server component return
+      // However, make sure errors are properly caught and logged
+      initializeAsync().catch((error) => {
+        console.error('❌ Critical: Job scheduler failed to initialize during startup:', error);
+        // Could potentially set up a retry mechanism here
+      });
+      
     } catch (error) {
       console.error('❌ Error starting job scheduler initialization:', error);
     }
@@ -46,19 +65,40 @@ export async function SchedulerInitializer() {
   if (isMonitorSchedulerEnabled) {
     try {
       console.log('🔄 Monitor scheduler initialization started');
-      cleanupMonitorScheduler()
-        .then(() => initializeMonitorSchedulers())
-        .then((result) => {
+      
+      // Initialize monitor scheduler synchronously to ensure it completes during startup
+      const initializeAsync = async () => {
+        try {
+          console.log('🧹 Cleaning up monitor scheduler...');
+          await cleanupMonitorScheduler();
+          
+          console.log('🚀 Starting monitor schedulers...');
+          const result = await initializeMonitorSchedulers();
+          
           if (result.success) {
             console.log('✅ Monitor scheduler initialized successfully');
             console.log(`Initialized ${result.scheduled} monitors, ${result.failed} failed`);
+            
+            if (result.failed > 0) {
+              console.warn(`⚠️ ${result.failed} monitor(s) failed to initialize - this may cause monitoring gaps`);
+            }
           } else {
-            console.error('❌ Monitor scheduler initialization failed');
+            console.error('❌ Monitor scheduler initialization failed completely');
           }
-        })
-        .catch((error: unknown) => {
+        } catch (error: unknown) {
           console.error('❌ Monitor scheduler initialization error:', error);
-        });
+          // Re-throw to ensure the error is visible in server logs
+          throw error;
+        }
+      };
+      
+      // Start initialization but don't block server component return
+      // However, make sure errors are properly caught and logged
+      initializeAsync().catch((error) => {
+        console.error('❌ Critical: Monitor scheduler failed to initialize during startup:', error);
+        // Could potentially set up a retry mechanism here
+      });
+      
     } catch (error) {
       console.error('❌ Error starting monitor scheduler initialization:', error);
     }
