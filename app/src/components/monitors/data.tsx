@@ -4,7 +4,6 @@ import {
   Pause,
   RefreshCw,
   XCircle,
-  Activity,
   LaptopMinimal,
   EthernetPort,
   ChevronsLeftRightEllipsis,
@@ -79,12 +78,5 @@ export const monitorTypes = [
     icon: EthernetPort,
     color: "text-sky-600", 
     description: "Check specific TCP or UDP port",
-  },
-  {
-    label: "Heartbeat Monitor",
-    value: "heartbeat",
-    icon: Activity,
-    color: "text-cyan-600", 
-    description: "Passive monitoring expecting regular pings from your services",
   },
 ];

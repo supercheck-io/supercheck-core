@@ -47,3 +47,4 @@ export const updateMemberSchema = z.object({
 
 export type InviteMemberFormData = z.infer<typeof inviteMemberSchema>
 export type UpdateMemberFormData = z.infer<typeof updateMemberSchema>
+

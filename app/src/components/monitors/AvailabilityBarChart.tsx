@@ -27,15 +27,11 @@ const chartConfig = {
   },
 };
 
-export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChartProps) {
+export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
   // console.log("[AvailabilityBarChart] Received data:", JSON.stringify(data, null, 2)); // Keep for now if user still has issues
 
   const getEmptyMessage = () => {
-    if (monitorType === "heartbeat") {
-      return "No heartbeat events to display - waiting for pings.";
-    } else {
-      return "No availability data to display.";
-    }
+    return "No availability data to display.";
   };
 
   if (!data || data.length === 0) {
@@ -65,13 +61,9 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
 
 
 
-  // Different descriptions based on monitor type
+  // Description for monitor type
   const getDescription = () => {
-    if (monitorType === "heartbeat") {
-      return `Latest Heartbeat events (${data.length} pings/failures)`;
-    } else {
-      return `Status of latest individual checks (${data.length} data points)`;
-    }
+    return `Status of latest individual checks (${data.length} data points)`;
   };
 
   return (

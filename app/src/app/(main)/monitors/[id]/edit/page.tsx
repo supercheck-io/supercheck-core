@@ -89,7 +89,7 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
   const currentType = monitor.type;
 
   // Check if monitor.type is directly one of the FormValues types
-  const formValueTypes = ["http_request", "website", "ping_host", "port_check", "heartbeat"] as const;
+  const formValueTypes = ["http_request", "website", "ping_host", "port_check"] as const;
   
   if ((formValueTypes as readonly string[]).includes(currentType)) {
     formType = currentType as FormValues["type"];
@@ -163,9 +163,6 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
     portConfig_port: formType === "port_check" ? (monitor.config?.port || 80) : 80,
     portConfig_protocol: formType === "port_check" ? (monitor.config?.protocol as "tcp" | "udp") || "tcp" : "tcp",
 
-    // Heartbeat specific
-    heartbeatConfig_expectedInterval: formType === "heartbeat" ? (monitor.config?.expectedIntervalMinutes ?? 60) : 60,
-    heartbeatConfig_gracePeriod: formType === "heartbeat" ? (monitor.config?.gracePeriodMinutes ?? 10) : 10,
 
     // Website SSL-specific
     websiteConfig_enableSslCheck: formType === "website" ? (monitor.config?.enableSslCheck || false) : false,

@@ -27,7 +27,9 @@ export function MonitorCreationWizard() {
 
   // Get monitor type from URL for dynamic title
   const searchParams = useSearchParams();
-  const type = searchParams?.get('type') || 'http_request';
+  const urlType = searchParams?.get('type') || 'http_request';
+  const validTypes: MonitorType[] = ['http_request', 'website', 'ping_host', 'port_check'];
+  const type = validTypes.includes(urlType as MonitorType) ? (urlType as MonitorType) : 'http_request';
   const typeLabel = type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
   // Don't clear monitor data when URL changes - preserve form state
@@ -170,7 +172,7 @@ export function MonitorCreationWizard() {
               customMessage: config.customMessage,
             })}
             context="monitor"
-            monitorType={monitorData?.type || (type as MonitorType)}
+            monitorType={monitorData?.type || type}
             sslCheckEnabled={monitorData?.type === 'website' && !!monitorData?.websiteConfig_enableSslCheck}
           />
           <div className="flex justify-end gap-6 pt-4">

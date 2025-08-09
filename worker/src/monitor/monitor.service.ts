@@ -17,6 +17,10 @@ import type { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
 import { MonitorAlertService } from './services/monitor-alert.service';
 import { ValidationService } from '../common/validation/validation.service';
+import { EnhancedValidationService, SecurityConfig } from '../common/validation/enhanced-validation.service';
+import { CredentialSecurityService, CredentialData } from '../common/security/credential-security.service';
+import { StandardizedErrorHandler, ErrorContext } from '../common/errors/standardized-error-handler';
+import { ResourceManagerService } from '../common/resources/resource-manager.service';
 
 // Placeholder for actual execution libraries (axios, ping, net, dns, playwright-runner)
 
@@ -26,6 +30,184 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+// Security utility functions
+function maskCredentials(value: string): string {
+  if (!value || value.length <= 4) return '***';
+  return (
+    value.substring(0, 2) +
+    '*'.repeat(value.length - 4) +
+    value.substring(value.length - 2)
+  );
+}
+
+function sanitizeResponseBody(body: string, maxLength: number = 1000): string {
+  if (!body) return '';
+
+  // Remove potentially sensitive patterns (credit cards, social security numbers, etc.)
+  let sanitized = body
+    .replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[CARD-REDACTED]')
+    .replace(/\b\d{3}-?\d{2}-?\d{4}\b/g, '[SSN-REDACTED]')
+    .replace(
+      /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+      '[EMAIL-REDACTED]',
+    );
+
+  // Truncate to prevent memory issues
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.substring(0, maxLength) + '... [TRUNCATED]';
+  }
+
+  return sanitized;
+}
+
+function validateTargetUrl(target: string): { valid: boolean; error?: string } {
+  try {
+    const url = new URL(target);
+
+    // Check protocol
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return {
+        valid: false,
+        error: 'Only HTTP and HTTPS protocols are allowed',
+      };
+    }
+
+    // Check for localhost/internal IPs (basic SSRF protection)
+    const hostname = url.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('192.168.') ||
+      hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+      hostname === '::1' ||
+      hostname === '0.0.0.0'
+    ) {
+      // Allow if explicitly configured (could be added as environment variable)
+      if (!process.env.ALLOW_INTERNAL_TARGETS) {
+        return {
+          valid: false,
+          error:
+            'Internal/localhost targets are not allowed for security reasons',
+        };
+      }
+    }
+
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, error: 'Invalid URL format' };
+  }
+}
+
+function validatePingTarget(target: string): {
+  valid: boolean;
+  error?: string;
+} {
+  // Basic validation to prevent command injection
+  if (!target || typeof target !== 'string') {
+    return { valid: false, error: 'Target must be a non-empty string' };
+  }
+
+  // Remove leading/trailing whitespace
+  target = target.trim();
+
+  // Check length
+  if (target.length === 0 || target.length > 253) {
+    return {
+      valid: false,
+      error: 'Target must be between 1 and 253 characters',
+    };
+  }
+
+  // Check for command injection attempts
+  const dangerousChars = /[;&|`$(){}[\]<>'"\\]/;
+  if (dangerousChars.test(target)) {
+    return { valid: false, error: 'Target contains invalid characters' };
+  }
+
+  // Check for IPv4 address format
+  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (ipv4Regex.test(target)) {
+    // Validate IPv4 octets
+    const octets = target.split('.');
+    for (const octet of octets) {
+      const num = parseInt(octet, 10);
+      if (num < 0 || num > 255) {
+        return { valid: false, error: 'Invalid IPv4 address' };
+      }
+    }
+    return { valid: true };
+  }
+
+  // Check for IPv6 address format (basic)
+  const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^::/;
+  if (ipv6Regex.test(target)) {
+    return { valid: true };
+  }
+
+  // Check for hostname format
+  const hostnameRegex =
+    /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
+  if (!hostnameRegex.test(target)) {
+    return { valid: false, error: 'Invalid hostname format' };
+  }
+
+  // Additional security check for localhost/internal IPs
+  const lowerTarget = target.toLowerCase();
+  if (
+    lowerTarget === 'localhost' ||
+    target.startsWith('127.') ||
+    target.startsWith('10.') ||
+    target.startsWith('192.168.') ||
+    target.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)
+  ) {
+    // Allow if explicitly configured
+    if (!process.env.ALLOW_INTERNAL_TARGETS) {
+      return {
+        valid: false,
+        error:
+          'Internal/localhost targets are not allowed for security reasons',
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+function validatePortCheckTarget(
+  target: string,
+  port: number,
+  protocol: string,
+): { valid: boolean; error?: string } {
+  // Validate target (hostname or IP)
+  const targetValidation = validatePingTarget(target);
+  if (!targetValidation.valid) {
+    return targetValidation;
+  }
+
+  // Validate port range
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return {
+      valid: false,
+      error: 'Port must be an integer between 1 and 65535',
+    };
+  }
+
+  // Validate protocol
+  if (!['tcp', 'udp'].includes(protocol.toLowerCase())) {
+    return { valid: false, error: 'Protocol must be either "tcp" or "udp"' };
+  }
+
+  // Warn about common reserved ports in production
+  const reservedPorts = [22, 23, 25, 53, 80, 110, 143, 443, 993, 995];
+  if (reservedPorts.includes(port)) {
+    // This is just informational, don't block it
+    // Could log a debug message about checking a reserved port
+  }
+
+  return { valid: true };
 }
 
 // Use the Monitor type from schema
@@ -85,6 +267,10 @@ export class MonitorService {
     private readonly httpService: HttpService,
     private readonly monitorAlertService: MonitorAlertService,
     private readonly validationService: ValidationService,
+    private readonly enhancedValidationService: EnhancedValidationService,
+    private readonly credentialSecurityService: CredentialSecurityService,
+    private readonly errorHandler: StandardizedErrorHandler,
+    private readonly resourceManager: ResourceManagerService,
   ) {}
 
   async executeMonitor(
@@ -149,20 +335,21 @@ export class MonitorService {
             await this.executeHttpRequest(jobData.target, jobData.config));
           break;
         case 'website': {
-          // Website monitoring is essentially HTTP GET with simplified config
+          // Website monitoring - allow user configuration but provide sensible defaults
           const websiteConfig = {
             ...jobData.config,
-            method: 'GET' as const,
+            // Allow method override from user config, default to GET for websites
+            method: jobData.config?.method || 'GET',
+            // Allow user-configured status codes, default to 200-299 for websites
             expectedStatusCodes:
               jobData.config?.expectedStatusCodes || '200-299',
           };
           ({ status, details, responseTimeMs, isUp } =
             await this.executeHttpRequest(jobData.target, websiteConfig));
 
-          // Smart SSL checking - only check when needed
+          // SSL checking - check independently of website success for better monitoring
           if (
             jobData.config?.enableSslCheck &&
-            isUp &&
             jobData.target.startsWith('https://')
           ) {
             let shouldCheckSsl = true;
@@ -203,17 +390,33 @@ export class MonitorService {
                     .sslCertificate as any;
                 }
 
-                // If SSL check failed but website was up, show warning
-                if (!sslResult.isUp && sslResult.details?.warningMessage) {
-                  details.sslWarning = sslResult.details
-                    .warningMessage as string;
-                } else if (!sslResult.isUp) {
-                  // If SSL check completely failed, mark the overall check as down
-                  status = sslResult.status;
-                  isUp = false;
-                  details.errorMessage =
-                    (sslResult.details?.errorMessage as string) ||
-                    'SSL certificate check failed';
+                // Handle SSL check results more intelligently
+                if (!sslResult.isUp) {
+                  if (sslResult.details?.warningMessage) {
+                    // SSL warning (e.g., certificate expiring soon) - don't fail the website check
+                    details.sslWarning = sslResult.details
+                      .warningMessage as string;
+                  } else {
+                    // SSL critical failure (e.g., expired certificate, invalid certificate)
+                    // This should fail the overall website check as it affects security
+                    if (isUp) {
+                      // Website was up but SSL failed - combine the statuses
+                      status = 'down';
+                      isUp = false;
+                      const websiteStatus = details.statusCode
+                        ? ` (HTTP ${details.statusCode})`
+                        : '';
+                      details.errorMessage = `Website accessible${websiteStatus}, but SSL certificate check failed: ${
+                        (sslResult.details?.errorMessage as string) ||
+                        'SSL certificate invalid'
+                      }`;
+                    } else {
+                      // Website was already down - just add SSL info
+                      details.sslError =
+                        (sslResult.details?.errorMessage as string) ||
+                        'SSL certificate check failed';
+                    }
+                  }
                 }
               } catch (sslError) {
                 this.logger.warn(
@@ -248,27 +451,6 @@ export class MonitorService {
           };
           break;
 
-        case 'heartbeat': {
-          // Heartbeat monitors check for missed pings rather than actively pinging
-          const heartbeatResult = await this.checkHeartbeatMissedPing(
-            jobData.monitorId,
-            jobData.config,
-          );
-          if (heartbeatResult === null) {
-            // No result to record - heartbeat is still within acceptable range
-            this.logger.log(
-              `Heartbeat monitor ${jobData.monitorId} is within acceptable range, skipping result recording`,
-            );
-            return null; // Signal to skip result recording
-          }
-          ({ status, details, responseTimeMs, isUp } = heartbeatResult as {
-            status: MonitorResultStatus;
-            details: MonitorResultDetails;
-            responseTimeMs?: number;
-            isUp: boolean;
-          });
-          break;
-        }
         default: {
           const _exhaustiveCheck: never = jobData.type;
           this.logger.warn(`Unsupported monitor type: ${String(jobData.type)}`);
@@ -442,9 +624,108 @@ export class MonitorService {
     responseTimeMs?: number;
     isUp: boolean;
   }> {
-    this.logger.debug(
-      `HTTP Request: ${target}, Method: ${config?.method || 'GET'}, Config: ${JSON.stringify(config)}`,
-    );
+    const operationId = `http_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const errorContext: ErrorContext = {
+      monitorType: 'http_request',
+      target: target,
+      correlationId: operationId,
+    };
+
+    try {
+      // 🔴 CRITICAL: Enhanced validation with security config
+      const securityConfig: SecurityConfig = {
+        allowInternalTargets: process.env.ALLOW_INTERNAL_TARGETS === 'true',
+        maxStringLength: 2048,
+        allowedProtocols: ['http:', 'https:'],
+      };
+
+      const urlValidation = this.enhancedValidationService.validateAndSanitizeUrl(target, securityConfig);
+      if (!urlValidation.valid) {
+        const error = this.errorHandler.createValidationError(
+          urlValidation.error || 'Invalid target URL',
+          { target, validation: urlValidation },
+          errorContext
+        );
+        
+        return {
+          status: 'error',
+          details: {
+            errorMessage: error.actionable.userMessage,
+            errorType: 'validation_error',
+            correlationId: error.correlationId,
+          },
+          isUp: false,
+        };
+      }
+
+      const sanitizedTarget = urlValidation.sanitized || target;
+
+      // 🔴 CRITICAL: Validate configuration
+      if (config) {
+        const configValidation = this.enhancedValidationService.validateConfiguration(config);
+        if (!configValidation.valid) {
+          const error = this.errorHandler.createValidationError(
+            configValidation.error || 'Invalid monitor configuration',
+            { config, validation: configValidation },
+            errorContext
+          );
+          
+          return {
+            status: 'error',
+            details: {
+              errorMessage: error.actionable.userMessage,
+              errorType: 'validation_error',
+              correlationId: error.correlationId,
+            },
+            isUp: false,
+          };
+        }
+      }
+
+      // 🟡 Execute with resource management
+      return await this.resourceManager.executeWithResourceLimits(
+        operationId,
+        async () => this.performHttpRequest(sanitizedTarget, config, errorContext),
+        {
+          timeoutMs: (config?.timeoutSeconds || 30) * 1000,
+          maxMemoryMB: 50, // Limit per request
+        }
+      );
+    } catch (error) {
+      const standardError = this.errorHandler.mapError(error, errorContext);
+      
+      return {
+        status: 'error',
+        details: {
+          errorMessage: standardError.actionable.userMessage,
+          errorType: 'system_error',
+          correlationId: standardError.correlationId,
+        },
+        isUp: false,
+      };
+    }
+  }
+
+  private async performHttpRequest(
+    target: string,
+    config?: MonitorConfig,
+    errorContext?: ErrorContext,
+  ): Promise<{
+    status: MonitorResultStatus;
+    details: MonitorResultDetails;
+    responseTimeMs?: number;
+    isUp: boolean;
+  }> {
+
+    // 🔴 CRITICAL: Secure logging - mask sensitive data
+    const logConfig = this.credentialSecurityService.maskCredentials({
+      target,
+      method: config?.method || 'GET',
+      hasAuth: !!config?.auth,
+      hasHeaders: !!config?.headers,
+    });
+    
+    this.logger.debug('HTTP Request execution starting:', logConfig);
 
     let responseTimeMs: number | undefined;
     let details: MonitorResultDetails = {};
@@ -453,42 +734,65 @@ export class MonitorService {
 
     const timeout = config?.timeoutSeconds
       ? config.timeoutSeconds * 1000
-      : 10000; // Default 10s timeout
+      : 30000; // Default 30s timeout
     const httpMethod = (config?.method || 'GET').toUpperCase() as Method;
 
     // Use high-resolution timer for more accurate timing
     const startTime = process.hrtime.bigint();
 
     try {
-      const requestConfig: any = {
-        method: httpMethod,
-        url: target,
-        timeout,
-        // Default headers
-        headers: {
-          'User-Agent': 'SuperTest-Monitor/1.0',
-          Accept: 'application/json, text/plain, */*',
-          ...config?.headers,
-        },
-        // Enable automatic decompression for proper response parsing
-        decompress: true,
-        // Follow redirects but track timing
-        maxRedirects: 5,
-        // Handle various response types - let axios determine the best type
-        responseType: 'text', // Keep as text for consistent keyword searching
-        // Validate status codes
-        validateStatus: () => true, // Accept all status codes, we'll handle validation
-        // Transform response to ensure we get string data for keyword checking
-        transformResponse: [
-          (data) => {
-            // Return raw data as string for consistent keyword matching
-            return data;
-          },
-        ],
-      };
+      // 🟡 Get connection pool for better resource management
+      const url = new URL(target);
+      const connectionPool = await this.resourceManager.getConnectionPool(
+        url.hostname,
+        parseInt(url.port) || (url.protocol === 'https:' ? 443 : 80),
+        url.protocol as 'http:' | 'https:'
+      );
 
-      // Handle authentication
+      const connection = await this.resourceManager.acquireConnection(connectionPool.id);
+ 
+      // Build request configuration
+      let requestConfig: any = {
+          method: httpMethod,
+          url: target,
+          timeout,
+          // Default headers with security considerations
+          headers: {
+            'User-Agent': 'SuperTest-Monitor/1.0',
+            Accept: 'application/json, text/plain, */*',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            ...config?.headers,
+          },
+          // Enable automatic decompression for proper response parsing
+          decompress: true,
+          // Follow redirects but limit for security
+          maxRedirects: 5,
+          // Handle various response types - keep as text for consistent keyword searching
+          responseType: 'text',
+          // Accept all status codes, we'll handle validation
+          validateStatus: () => true,
+          // Limit response size for memory management
+          maxContentLength: this.resourceManager.getResourceStats().limits.maxResponseSizeMB * 1024 * 1024,
+          maxBodyLength: this.resourceManager.getResourceStats().limits.maxResponseSizeMB * 1024 * 1024,
+        };
+
+      // 🔴 CRITICAL: Secure authentication handling
       if (config?.auth && config.auth.type !== 'none') {
+        // Create credential object for secure handling
+        const credentialData: CredentialData = {
+          type: config.auth.type as 'basic' | 'bearer',
+          username: config.auth.username,
+          password: config.auth.password,
+          token: config.auth.token,
+        };
+
+        // Validate credential strength
+        const credentialValidation = this.credentialSecurityService.validateCredentialStrength(credentialData);
+        if (!credentialValidation.valid) {
+          this.logger.warn('Weak credential detected for HTTP request:', credentialValidation.warnings);
+        }
+
         if (
           config.auth.type === 'basic' &&
           config.auth.username &&
@@ -498,11 +802,18 @@ export class MonitorService {
             username: config.auth.username,
             password: config.auth.password,
           };
-          this.logger.debug('Using Basic authentication');
+          
+          // Secure logging
+          this.logger.debug(
+            `Using Basic authentication for user: ${this.credentialSecurityService.maskCredentials(config.auth.username)}`,
+          );
         } else if (config.auth.type === 'bearer' && config.auth.token) {
-          requestConfig.headers['Authorization'] =
-            `Bearer ${config.auth.token}`;
-          this.logger.debug('Using Bearer token authentication');
+          requestConfig.headers['Authorization'] = `Bearer ${config.auth.token}`;
+          
+          // Secure logging
+          this.logger.debug(
+            `Using Bearer authentication with token: ${this.credentialSecurityService.maskCredentials(config.auth.token)}`,
+          );
         } else {
           this.logger.warn(
             `Invalid auth configuration: type=${config.auth.type}, has credentials=${!!(config.auth.username || config.auth.token)}`,
@@ -553,13 +864,22 @@ export class MonitorService {
         }
       }
 
-      const response = await firstValueFrom(
-        this.httpService.request(requestConfig),
-      );
+        // Execute request with connection tracking
+        const response = await firstValueFrom(
+          this.httpService.request(requestConfig),
+        );
 
-      // Calculate response time in milliseconds with high precision
-      const endTime = process.hrtime.bigint();
-      responseTimeMs = Math.round(Number(endTime - startTime) / 1000000); // Convert nanoseconds to milliseconds
+        // Calculate response time in milliseconds with high precision
+        const endTime = process.hrtime.bigint();
+        responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
+
+        // Track connection usage
+        connection.trackRequest(responseTimeMs);
+
+        // 🔴 CRITICAL: Sanitize response data before processing
+        const sanitizedResponseData = this.credentialSecurityService.maskCredentials(
+          typeof response.data === 'string' ? response.data.substring(0, 10000) : String(response.data).substring(0, 10000)
+        );
 
       details = {
         statusCode: response.status,
@@ -589,11 +909,8 @@ export class MonitorService {
             .toLowerCase()
             .includes(keyword.toLowerCase());
 
-          // Store original response for debugging
-          details.responseBodySnippet =
-            bodyString.length > 1000
-              ? bodyString.substring(0, 1000) + '...'
-              : bodyString;
+          // Store sanitized response for debugging (security improvement)
+          details.responseBodySnippet = sanitizeResponseBody(bodyString, 1000);
 
           this.logger.debug(
             `Keyword search: looking for '${keyword}' in response body (${bodyString.length} chars): found=${keywordFound}`,
@@ -641,7 +958,8 @@ export class MonitorService {
         ) {
           status = 'timeout';
           isUp = false;
-          responseTimeMs = timeout; // Set to timeout value for timeout errors
+          // Keep the actual measured time, don't override with timeout value
+          // responseTimeMs already calculated above from startTime
         } else {
           // Check if the received status is unexpected, even on an AxiosError path
           if (
@@ -671,7 +989,8 @@ export class MonitorService {
           getErrorMessage(error) || 'An unexpected error occurred';
         status = 'error';
         isUp = false;
-        responseTimeMs = timeout; // Set to timeout for unexpected errors
+        // Keep the actual measured time for unexpected errors
+        // responseTimeMs already calculated above from startTime
       }
     }
 
@@ -690,6 +1009,19 @@ export class MonitorService {
     responseTimeMs?: number;
     isUp: boolean;
   }> {
+    // Validate target to prevent command injection
+    const validation = validatePingTarget(target);
+    if (!validation.valid) {
+      return {
+        status: 'error',
+        details: {
+          errorMessage: validation.error,
+          errorType: 'validation_error',
+        },
+        isUp: false,
+      };
+    }
+
     const timeout = (config?.timeoutSeconds || 5) * 1000; // Default 5s timeout for ping
     this.logger.debug(`Ping Host: ${target}, Timeout: ${timeout}ms`);
 
@@ -705,40 +1037,66 @@ export class MonitorService {
 
       // Use appropriate ping command based on OS
       const pingCommand = isWindows ? 'ping' : 'ping';
+      // Use shorter internal timeout to let our timeout handler manage the process
+      const pingTimeoutSeconds = Math.min(Math.ceil(timeout / 1000), 10);
       const pingArgs = isWindows
-        ? ['-n', '1', '-w', timeout.toString(), target] // Windows: -n count, -w timeout in ms
-        : ['-c', '1', '-W', Math.ceil(timeout / 1000).toString(), target]; // Linux/Mac: -c count, -W timeout in seconds
+        ? ['-n', '1', '-w', (pingTimeoutSeconds * 1000).toString(), target] // Windows: -n count, -w timeout in ms
+        : ['-c', '1', '-W', pingTimeoutSeconds.toString(), target]; // Linux/Mac: -c count, -W timeout in seconds
 
       const pingResult = await new Promise<{
         stdout: string;
         stderr: string;
         code: number;
       }>((resolve, reject) => {
-        const process = spawn(pingCommand, pingArgs);
+        const childProcess = spawn(pingCommand, pingArgs, {
+          stdio: ['ignore', 'pipe', 'pipe'], // Don't pipe stdin, only stdout and stderr
+        });
+
         let stdout = '';
         let stderr = '';
+        let isResolved = false;
 
+        // Improved timeout handling - kill process properly
         const timeoutHandle = setTimeout(() => {
-          process.kill();
-          reject(new Error('Ping timeout'));
-        }, timeout + 1000); // Add 1s buffer to the timeout
+          if (!isResolved) {
+            isResolved = true;
+            childProcess.kill('SIGTERM'); // Try graceful termination first
+            setTimeout(() => {
+              if (!childProcess.killed) {
+                childProcess.kill('SIGKILL'); // Force kill if needed
+              }
+            }, 1000);
+            reject(new Error('Ping timeout'));
+          }
+        }, timeout);
 
-        process.stdout.on('data', (data) => {
-          stdout += data.toString();
+        // Handle process output
+        if (childProcess.stdout) {
+          childProcess.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+        }
+
+        if (childProcess.stderr) {
+          childProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+        }
+
+        childProcess.on('close', (code) => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutHandle);
+            resolve({ stdout, stderr, code: code || 0 });
+          }
         });
 
-        process.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-
-        process.on('close', (code) => {
-          clearTimeout(timeoutHandle);
-          resolve({ stdout, stderr, code: code || 0 });
-        });
-
-        process.on('error', (error) => {
-          clearTimeout(timeoutHandle);
-          reject(error);
+        childProcess.on('error', (error) => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutHandle);
+            reject(error);
+          }
         });
       });
 
@@ -820,12 +1178,8 @@ export class MonitorService {
     isUp: boolean;
   }> {
     const port = config?.port;
-    const protocol = config?.protocol || 'tcp';
+    const protocol = (config?.protocol || 'tcp').toLowerCase();
     const timeout = (config?.timeoutSeconds || 10) * 1000; // Convert to milliseconds
-
-    this.logger.debug(
-      `Port Check: ${target}, Port: ${port}, Protocol: ${protocol}, Timeout: ${timeout}ms`,
-    );
 
     if (!port) {
       return {
@@ -834,6 +1188,23 @@ export class MonitorService {
         details: { errorMessage: 'Port not provided for port_check' },
       };
     }
+
+    // Validate target, port, and protocol
+    const validation = validatePortCheckTarget(target, port, protocol);
+    if (!validation.valid) {
+      return {
+        status: 'error',
+        details: {
+          errorMessage: validation.error,
+          errorType: 'validation_error',
+        },
+        isUp: false,
+      };
+    }
+
+    this.logger.debug(
+      `Port Check: ${target}, Port: ${port}, Protocol: ${protocol}, Timeout: ${timeout}ms`,
+    );
 
     const startTime = process.hrtime.bigint();
     let status: MonitorResultStatus = 'error';
@@ -881,38 +1252,55 @@ export class MonitorService {
       } else if (protocol === 'udp') {
         // UDP port check using dgram module
         const dgram = await import('dgram');
+        const net = await import('net');
+
+        // Determine socket type based on IP version
+        const isIPv6 = net.isIPv6(target);
+        const socketType = isIPv6 ? 'udp6' : 'udp4';
 
         await new Promise<void>((resolve, reject) => {
-          const client = dgram.createSocket('udp4');
+          const client = dgram.createSocket(socketType);
+          let isResolved = false;
 
           const timeoutHandle = setTimeout(() => {
-            client.close();
-            // For UDP, timeout doesn't necessarily mean the port is closed
-            // UDP is connectionless, so we assume it's open if no ICMP error
-            resolve();
+            if (!isResolved) {
+              isResolved = true;
+              client.close(() => {
+                // For UDP, timeout doesn't necessarily mean the port is closed
+                // UDP is connectionless, so we assume it's reachable if no ICMP error
+                // However, this is inherently unreliable for UDP
+                resolve();
+              });
+            }
           }, timeout);
 
           // Send a small test packet
           const message = Buffer.from('ping');
 
           client.send(message, port, target, (error) => {
-            if (error) {
+            if (!isResolved) {
+              isResolved = true;
               clearTimeout(timeoutHandle);
-              client.close();
-              reject(error);
-            } else {
-              // For UDP, successful send usually means the port is reachable
-              // (unless we get an ICMP port unreachable, which would trigger an error)
-              clearTimeout(timeoutHandle);
-              client.close();
-              resolve();
+              client.close(() => {
+                if (error) {
+                  reject(error);
+                } else {
+                  // For UDP, successful send usually means the port is reachable
+                  // (unless we get an ICMP port unreachable, which would trigger an error)
+                  resolve();
+                }
+              });
             }
           });
 
           client.on('error', (error) => {
-            clearTimeout(timeoutHandle);
-            client.close();
-            reject(error);
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timeoutHandle);
+              client.close(() => {
+                reject(error);
+              });
+            }
           });
         });
 
@@ -926,7 +1314,9 @@ export class MonitorService {
           protocol,
           packetSent: true,
           responseTimeMs,
-          note: 'UDP port appears reachable (no ICMP error received)',
+          note: "UDP packet sent successfully. Note: UDP checks are inherently unreliable - no response doesn't guarantee the port is closed.",
+          warning:
+            'UDP monitoring has limitations - consider using TCP where possible',
         };
       }
     } catch (error) {
@@ -964,151 +1354,6 @@ export class MonitorService {
     this.logger.debug(
       `Port Check completed: ${target}:${port} (${protocol}), Status: ${status}, Response Time: ${responseTimeMs}ms`,
     );
-    return { status, details, responseTimeMs, isUp };
-  }
-
-  private async checkHeartbeatMissedPing(
-    monitorId: string,
-    config?: MonitorConfig,
-  ): Promise<{
-    status: MonitorResultStatus;
-    details: MonitorResultDetails;
-    responseTimeMs?: number;
-    isUp: boolean;
-  } | null> {
-    const expectedIntervalMinutes = config?.expectedIntervalMinutes ?? 60;
-    const gracePeriodMinutes = config?.gracePeriodMinutes ?? 10;
-    const lastPingAt = config?.lastPingAt;
-    const now = new Date();
-    const totalWaitMinutes = expectedIntervalMinutes + gracePeriodMinutes;
-
-    this.logger.log(
-      `[HEARTBEAT-CHECK] Starting check for monitor ${monitorId}: Expected=${expectedIntervalMinutes}min, Grace=${gracePeriodMinutes}min, Total=${totalWaitMinutes}min, LastPing=${lastPingAt || 'none'}`,
-    );
-
-    let details: MonitorResultDetails = {};
-    let status: MonitorResultStatus = 'down'; // Default to down for heartbeat checks
-    let isUp = false; // Default to false - we only create entries for failures
-    const responseTimeMs = 0; // Heartbeat checks don't have response times
-
-    try {
-      // Get monitor from database to check creation time and get latest ping info
-      const monitor = await this.dbService.db.query.monitors.findFirst({
-        where: (monitors, { eq }) => eq(monitors.id, monitorId),
-      });
-
-      if (!monitor) {
-        throw new Error(`Monitor ${monitorId} not found`);
-      }
-
-      const createdAt = new Date(monitor.createdAt!);
-      const minutesSinceCreation =
-        (now.getTime() - createdAt.getTime()) / (1000 * 60);
-
-      let isOverdue = false;
-      let overdueMessage = '';
-      let currentLastPingAt = lastPingAt;
-
-      // Check if there's a more recent ping in the monitor config
-      if (
-        monitor.config &&
-        typeof monitor.config === 'object' &&
-        'lastPingAt' in monitor.config
-      ) {
-        const configLastPing = (monitor.config as any).lastPingAt;
-        if (configLastPing) {
-          currentLastPingAt = configLastPing;
-        }
-      }
-
-      if (!currentLastPingAt) {
-        // No ping received yet - check if monitor was created more than the expected interval ago
-        this.logger.log(
-          `[HEARTBEAT-CHECK] No ping received yet for ${monitorId}. Created ${Math.round(minutesSinceCreation)} minutes ago, waiting for ${totalWaitMinutes} minutes total`,
-        );
-
-        if (minutesSinceCreation > totalWaitMinutes) {
-          isOverdue = true;
-          overdueMessage = `No initial ping received within ${totalWaitMinutes} minutes of creation (${Math.round(minutesSinceCreation)} minutes ago)`;
-          this.logger.warn(
-            `[HEARTBEAT-CHECK] Monitor ${monitorId} OVERDUE: ${overdueMessage}`,
-          );
-        } else {
-          // Still within grace period for initial ping - don't create a result entry
-          this.logger.log(
-            `[HEARTBEAT-CHECK] Monitor ${monitorId} still within grace period (${Math.round(minutesSinceCreation)}/${totalWaitMinutes} min), skipping result creation`,
-          );
-          return null; // Signal to not create a result entry
-        }
-      } else {
-        // Check if last ping is too old
-        const lastPing = new Date(currentLastPingAt);
-        const minutesSinceLastPing =
-          (now.getTime() - lastPing.getTime()) / (1000 * 60);
-
-        this.logger.log(
-          `[HEARTBEAT-CHECK] Last ping for ${monitorId} was ${Math.round(minutesSinceLastPing)} minutes ago (limit: ${totalWaitMinutes} minutes)`,
-        );
-
-        if (minutesSinceLastPing > totalWaitMinutes) {
-          isOverdue = true;
-          overdueMessage = `Last ping was ${Math.round(minutesSinceLastPing)} minutes ago, expected every ${expectedIntervalMinutes} minutes (grace period: ${gracePeriodMinutes} minutes)`;
-          this.logger.warn(
-            `[HEARTBEAT-CHECK] Monitor ${monitorId} OVERDUE: ${overdueMessage}`,
-          );
-        } else {
-          // Ping is recent enough - don't create a result entry
-          // Success entries are only created when actual pings are received
-          this.logger.log(
-            `[HEARTBEAT-CHECK] Monitor ${monitorId} ping is recent enough (${Math.round(minutesSinceLastPing)}/${totalWaitMinutes} min), skipping result creation`,
-          );
-          return null; // Signal to not create a result entry
-        }
-      }
-
-      if (isOverdue) {
-        status = 'down';
-        isUp = false;
-        details = {
-          errorMessage: 'No ping received within expected interval',
-          detailedMessage: overdueMessage,
-          expectedInterval: expectedIntervalMinutes,
-          gracePeriod: gracePeriodMinutes,
-          lastPingAt: currentLastPingAt || null,
-          checkType: 'missed_heartbeat',
-          totalWaitMinutes,
-          ...(currentLastPingAt
-            ? {
-                minutesSinceLastPing: Math.round(
-                  (now.getTime() - new Date(currentLastPingAt).getTime()) /
-                    (1000 * 60),
-                ),
-              }
-            : {
-                minutesSinceCreation: Math.round(minutesSinceCreation),
-              }),
-        };
-      } else {
-        // Should not reach here based on logic above, but safety fallback
-        return null;
-      }
-    } catch (error) {
-      this.logger.error(
-        `Error checking heartbeat for monitor ${monitorId}:`,
-        error,
-      );
-      status = 'error';
-      isUp = false;
-      details = {
-        errorMessage: `Failed to check heartbeat: ${getErrorMessage(error)}`,
-        checkType: 'heartbeat_error',
-      };
-    }
-
-    this.logger.log(
-      `[HEARTBEAT-CHECK] Completed check for monitor ${monitorId}: status=${status}, isUp=${isUp}`,
-    );
-
     return { status, details, responseTimeMs, isUp };
   }
 
@@ -1163,46 +1408,52 @@ export class MonitorService {
         authorized: boolean;
         authorizationError?: Error;
       }>((resolve, reject) => {
+        let isResolved = false;
+
         const socket = tls.connect(
           {
             host: hostname,
             port: port,
-            timeout: timeout,
             rejectUnauthorized: false, // We want to check the cert even if it's invalid
             servername: hostname, // SNI support for proper certificate validation
             secureProtocol: 'TLS_method', // Use modern TLS
+            // Don't set socket timeout here to avoid dual timeout issue
           },
           () => {
-            const cert = socket.getPeerCertificate(true);
-            const authorized = socket.authorized;
-            const authorizationError = socket.authorizationError;
+            if (!isResolved) {
+              isResolved = true;
+              const cert = socket.getPeerCertificate(true);
+              const authorized = socket.authorized;
+              const authorizationError = socket.authorizationError;
 
-            socket.destroy();
-            resolve({
-              certificate: cert,
-              authorized,
-              authorizationError,
-            });
+              clearTimeout(timeoutHandle);
+              socket.destroy();
+              resolve({
+                certificate: cert,
+                authorized,
+                authorizationError,
+              });
+            }
           },
         );
 
-        socket.on('error', (error) => {
-          socket.destroy();
-          reject(error);
-        });
-
-        socket.on('timeout', () => {
-          socket.destroy();
-          reject(new Error(`SSL connection timeout after ${timeout}ms`));
-        });
-
-        // Set timeout manually as well
-        setTimeout(() => {
-          if (!socket.destroyed) {
+        // Single timeout mechanism to avoid conflicts
+        const timeoutHandle = setTimeout(() => {
+          if (!isResolved) {
+            isResolved = true;
             socket.destroy();
             reject(new Error(`SSL connection timeout after ${timeout}ms`));
           }
         }, timeout);
+
+        socket.on('error', (error) => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutHandle);
+            socket.destroy();
+            reject(error);
+          }
+        });
       });
 
       const endTime = process.hrtime.bigint();
@@ -1221,10 +1472,14 @@ export class MonitorService {
         const validFrom = new Date(cert.valid_from);
         const validTo = new Date(cert.valid_to);
         const now = new Date();
+
+        // Improved days remaining calculation accounting for timezone and precision
+        const msPerDay = 1000 * 60 * 60 * 24;
         const daysRemaining = Math.ceil(
-          (validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+          (validTo.getTime() - now.getTime()) / msPerDay,
         );
 
+        // SSL certificate information (compatible with schema)
         const sslCertificate = {
           valid: certificateInfo.authorized,
           issuer: cert.issuer?.CN || 'Unknown',
@@ -1234,6 +1489,12 @@ export class MonitorService {
           daysRemaining: daysRemaining,
           serialNumber: cert.serialNumber,
           fingerprint: cert.fingerprint,
+          // Additional info for debugging (as part of details)
+          ...(cert.issuerCertificate && { hasIssuerCert: true }),
+          ...(cert.subjectaltname && { altNames: cert.subjectaltname }),
+          ...(certificateInfo.authorizationError && {
+            authError: certificateInfo.authorizationError.message,
+          }),
         };
 
         // Determine status based on certificate validity

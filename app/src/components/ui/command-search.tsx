@@ -5,7 +5,6 @@ import { useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Settings,
-  Activity,
   Globe,
   Code2,
   Terminal,
@@ -64,7 +63,6 @@ export function CommandSearch({ className }: CommandSearchProps) {
       "create-monitor-website": "/monitors/create?type=website",
       "create-monitor-ping": "/monitors/create?type=ping_host",
       "create-monitor-port": "/monitors/create?type=port_check",
-      "create-monitor-heartbeat": "/monitors/create?type=heartbeat",
       "create-test-browser": "/playground?scriptType=browser",
       "create-test-api": "/playground?scriptType=api",
       "create-test-custom": "/playground?scriptType=custom",
@@ -183,10 +181,6 @@ export function CommandSearch({ className }: CommandSearchProps) {
                 <CommandItem onSelect={() => handleCommand("create-monitor-port")}>
                   <Network className="mr-2 h-4 w-4" />
                   <span>Port Monitor</span>
-                </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-heartbeat")}>
-                  <Activity className="mr-2 h-4 w-4" />
-                  <span>Heartbeat Monitor</span>
                 </CommandItem>
               </CommandGroup>
 

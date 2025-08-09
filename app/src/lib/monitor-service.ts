@@ -209,7 +209,6 @@ export async function deleteMonitorHandler(monitorId: string) {
 
 /**
  * Trigger immediate execution of a monitor for validation/testing.
- * Skips heartbeat monitors since they are passive.
  */
 export async function triggerImmediateMonitorExecution(monitorId: string) {
   console.log(`[IMMEDIATE_EXECUTION] Starting immediate execution for monitor ${monitorId}`);
@@ -227,11 +226,6 @@ export async function triggerImmediateMonitorExecution(monitorId: string) {
 
     console.log(`[IMMEDIATE_EXECUTION] Found monitor ${monitorId}: type=${monitor.type}, enabled=${monitor.enabled}, status=${monitor.status}`);
 
-    // Skip heartbeat monitors as they are passive (wait for pings)
-    if (monitor.type === 'heartbeat') {
-      console.log(`[IMMEDIATE_EXECUTION] Skipping heartbeat monitor ${monitorId}`);
-      return;
-    }
 
     // Skip disabled monitors
     if (!monitor.enabled || monitor.status === 'paused') {

@@ -121,8 +121,6 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
     for (const monitor of activeMonitors) {
       if (monitor.frequencyMinutes && monitor.frequencyMinutes > 0) {
         try {
-          // Include heartbeat monitors in standard scheduling
-          // They will be scheduled with their configured frequency (expected interval + grace period)
           const jobDataPayload: MonitorJobData = {
             monitorId: monitor.id,
             type: monitor.type as MonitorJobData['type'],

@@ -151,7 +151,7 @@ export class MonitorAlertService {
         type: monitor.type,
         status: type === 'recovery' ? 'up' : 'down',
         dashboardUrl,
-        targetUrl: monitor.type === 'heartbeat' ? undefined : monitor.target,
+        targetUrl: monitor.target,
         trigger: 'runner',
         reason: reason || 'Automated status change detection',
         monitorType: monitor.type,

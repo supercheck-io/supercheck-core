@@ -152,10 +152,6 @@ const data = {
           title: "Port Monitor",
           url: "/monitors/create?type=port_check",
         },
-        {
-          title: "Heartbeat Monitor",
-          url: "/monitors/create?type=heartbeat",
-        },
       ],
       
     },

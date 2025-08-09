@@ -366,8 +366,7 @@ export type MonitorType =
   | "http_request"
   | "website"
   | "ping_host"
-  | "port_check"
-  | "heartbeat";
+  | "port_check";
 
 /**
  * Represents the current status of a monitor.
@@ -399,10 +398,6 @@ export type MonitorConfig = {
   };
   port?: number;
   protocol?: "tcp" | "udp";
-  expectedIntervalMinutes?: number;
-  gracePeriodMinutes?: number;
-  heartbeatUrl?: string;
-  lastPingAt?: string;
   // SSL-specific settings
   enableSslCheck?: boolean;
   sslDaysUntilExpirationWarning?: number;

@@ -28,7 +28,7 @@ export interface JobExecutionTask {
 // Consider moving to a shared types location if used across app/worker extensively
 export interface MonitorJobData {
   monitorId: string;
-  type: "http_request" | "website" | "ping_host" | "port_check" | "heartbeat";
+  type: "http_request" | "website" | "ping_host" | "port_check";
   target: string;
   config?: unknown; // Using unknown for config for now, can be refined with shared MonitorConfig type
   frequencyMinutes?: number; 
@@ -50,7 +50,6 @@ export interface MonitorJobData {
 export const TEST_EXECUTION_QUEUE = 'test-execution';
 export const JOB_EXECUTION_QUEUE = 'job-execution';
 export const MONITOR_EXECUTION_QUEUE = 'monitor-execution';
-export const HEARTBEAT_PING_NOTIFICATION_QUEUE = 'heartbeat-ping-notification';
 
 // Scheduler-related queues
 export const JOB_SCHEDULER_QUEUE = "job-scheduler";
@@ -72,7 +71,6 @@ let redisClient: Redis | null = null;
 let testQueue: Queue | null = null;
 let jobQueue: Queue | null = null;
 let monitorExecution: Queue | null = null;
-let heartbeatPingNotificationQueue: Queue | null = null;
 let jobSchedulerQueue: Queue | null = null;
 let monitorSchedulerQueue: Queue | null = null;
 
@@ -146,7 +144,6 @@ async function getQueues(): Promise<{
   testQueue: Queue, 
   jobQueue: Queue, 
   monitorExecutionQueue: Queue,
-  heartbeatPingNotificationQueue: Queue,
   jobSchedulerQueue: Queue,
   monitorSchedulerQueue: Queue
 }> { 
@@ -184,7 +181,6 @@ async function getQueues(): Promise<{
         testQueue = new Queue(TEST_EXECUTION_QUEUE, queueSettings);
         jobQueue = new Queue(JOB_EXECUTION_QUEUE, queueSettings);
         monitorExecution = new Queue(MONITOR_EXECUTION_QUEUE, queueSettings);
-        heartbeatPingNotificationQueue = new Queue(HEARTBEAT_PING_NOTIFICATION_QUEUE, queueSettings);
         
         // Schedulers
         jobSchedulerQueue = new Queue(JOB_SCHEDULER_QUEUE, queueSettings);
@@ -196,7 +192,6 @@ async function getQueues(): Promise<{
         testQueue.on('error', (error) => console.error(`[Queue Client] Test Queue Error:`, error));
         jobQueue.on('error', (error) => console.error(`[Queue Client] Job Queue Error:`, error));
         monitorExecution.on('error', (error) => console.error(`[Queue Client] Monitor Execution Queue Error:`, error));
-        heartbeatPingNotificationQueue.on('error', (error) => console.error(`[Queue Client] Heartbeat Ping Notification Queue Error:`, error));
         jobSchedulerQueue.on('error', (error) => console.error(`[Queue Client] Job Scheduler Queue Error:`, error));
         monitorSchedulerQueue.on('error', (error) => console.error(`[Queue Client] Monitor Scheduler Queue Error:`, error));
         monitorExecutionEvents.on('error', (error) => console.error(`[Queue Client] Monitor Execution Queue Events Error:`, error));
@@ -215,10 +210,10 @@ async function getQueues(): Promise<{
   }
   await initPromise;
 
-  if (!testQueue || !jobQueue || !monitorExecution || !heartbeatPingNotificationQueue || !monitorExecutionEvents || !jobSchedulerQueue || !monitorSchedulerQueue) {
+  if (!testQueue || !jobQueue || !monitorExecution || !monitorExecutionEvents || !jobSchedulerQueue || !monitorSchedulerQueue) {
     throw new Error("One or more queues or event listeners could not be initialized.");
   }
-  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution, heartbeatPingNotificationQueue, jobSchedulerQueue, monitorSchedulerQueue };
+  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution, jobSchedulerQueue, monitorSchedulerQueue };
 }
 
 /**
@@ -255,7 +250,6 @@ async function performQueueCleanup(connection: Redis): Promise<void> {
     { name: TEST_EXECUTION_QUEUE, queue: testQueue },
     { name: JOB_EXECUTION_QUEUE, queue: jobQueue },
     { name: MONITOR_EXECUTION_QUEUE, queue: monitorExecution },
-    { name: HEARTBEAT_PING_NOTIFICATION_QUEUE, queue: heartbeatPingNotificationQueue },
     { name: JOB_SCHEDULER_QUEUE, queue: jobSchedulerQueue },
     { name: MONITOR_SCHEDULER_QUEUE, queue: monitorSchedulerQueue },
   ];
@@ -446,7 +440,6 @@ export async function closeQueue(): Promise<void> {
   if (testQueue) promises.push(testQueue.close());
   if (jobQueue) promises.push(jobQueue.close());
   if (monitorExecution) promises.push(monitorExecution.close());
-  if (heartbeatPingNotificationQueue) promises.push(heartbeatPingNotificationQueue.close());
   if (jobSchedulerQueue) promises.push(jobSchedulerQueue.close());
   if (monitorSchedulerQueue) promises.push(monitorSchedulerQueue.close());
   if (redisClient) promises.push(redisClient.quit());
@@ -462,7 +455,6 @@ export async function closeQueue(): Promise<void> {
     testQueue = null;
     jobQueue = null;
     monitorExecution = null;
-    heartbeatPingNotificationQueue = null;
     jobSchedulerQueue = null;
     monitorSchedulerQueue = null;
     redisClient = null;
@@ -523,27 +515,6 @@ export async function addMonitorExecutionJobToQueue(task: MonitorJobData): Promi
   }
 }
 
-export interface HeartbeatPingNotificationData {
-    monitorId: string;
-    type: 'recovery' | 'failure';
-    reason: string;
-    metadata?: Record<string, unknown>;
-}
-
-export async function addHeartbeatPingNotificationJob(data: HeartbeatPingNotificationData): Promise<string> {
-    const { heartbeatPingNotificationQueue } = await getQueues();
-    const job = await heartbeatPingNotificationQueue.add(`heartbeat-notification-${data.monitorId}-${Date.now()}`, data, {
-        removeOnComplete: true,
-        removeOnFail: { count: 10 },
-        attempts: 5,
-        backoff: {
-            type: 'exponential',
-            delay: 5000,
-        }
-    });
-    console.log(`[Queue Client] Added heartbeat ping notification job for monitor ${data.monitorId} to queue.`);
-    return job.id!;
-}
 
 
 

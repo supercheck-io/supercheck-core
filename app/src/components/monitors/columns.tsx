@@ -75,29 +75,8 @@ export const columns: ColumnDef<Monitor>[] = [
     ),
     cell: ({ row }) => {
       const target = row.getValue("target") as string;
-      const monitorType = row.original.type as string;
       const legacyUrl = row.original.url as string; // Fallback for legacy data
       
-      // For heartbeat monitors, show truncated URL without hyperlink styling
-      if (monitorType === "heartbeat") {
-        const config = row.original.config as Record<string, unknown>;
-        const heartbeatUrl = config?.heartbeatUrl as string;
-        
-        let displayUrl = "";
-        if (heartbeatUrl) {
-          displayUrl = heartbeatUrl;
-        } else {
-          // Fallback: construct URL from target token
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-          displayUrl = `${baseUrl}/api/heartbeat/${target}`;
-        }
-        
-        return (
-          <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block" title={displayUrl}>
-            {displayUrl}
-          </span>
-        );
-      }
       
       const displayValue = target || legacyUrl || "—";
       
