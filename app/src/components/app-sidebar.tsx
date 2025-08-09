@@ -17,7 +17,14 @@ import {
   History,
   Plus,
   Building2,
-  BarChart3
+  BarChart3,
+  Chrome,
+  ArrowLeftRight,
+  Database,
+  SquareFunction,
+  LaptopMinimal,
+  ChevronsLeftRightEllipsis,
+  EthernetPort,
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -95,18 +102,27 @@ const data = {
         {
           title: "Browser Test",
           url: "/playground?scriptType=browser",
+          icon: Chrome,
+          color: "!text-sky-600",
+          
         },
         {
           title: "API Test",
           url: "/playground?scriptType=api",
+          icon: ArrowLeftRight,
+          color: "!text-teal-600",
         }, 
         {
           title: "Database Test",
           url: "/playground?scriptType=database",
+          icon: Database,
+          color: "!text-cyan-600",
         },
         {
           title: "Custom Test",
           url: "/playground?scriptType=custom",
+          icon: SquareFunction,
+          color: "!text-blue-600",
         },
       ],
     },
@@ -139,18 +155,26 @@ const data = {
         {
           title: "HTTP Monitor",
           url: "/monitors/create?type=http_request",
+          icon: ArrowLeftRight,
+          color: "!text-teal-600",
         },
         {
           title: "Website Monitor",
           url: "/monitors/create?type=website",
+          icon: LaptopMinimal,
+          color: "!text-sky-600",
         },
         {
           title: "Ping Monitor",
           url: "/monitors/create?type=ping_host",
+          icon: ChevronsLeftRightEllipsis,
+          color: "!text-cyan-600",
         },
         {
           title: "Port Monitor",
           url: "/monitors/create?type=port_check",
+          icon: EthernetPort,
+          color: "!text-blue-600",
         },
       ],
       

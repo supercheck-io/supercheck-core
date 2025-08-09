@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Users, Building2, FolderOpen, Activity, TrendingUp, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { useBreadcrumbs } from "@/components/breadcrumb-context";
+import { AdminDashboardSkeleton } from "@/components/ui/table-skeleton";
+import { Loader2 } from "lucide-react";
 
 interface SystemStats {
   users: {
@@ -207,64 +209,7 @@ export default function AdminDashboard() {
   };
 
   if (loading) {
-    return (
-      <div>
-        <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
-          <CardContent className="p-6">
-            <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="users">Users</TabsTrigger>
-                <TabsTrigger value="organizations">Organizations</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="overview" className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="h-8 bg-gray-200 rounded w-32 animate-pulse mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
-                  </div>
-                </div>
-                
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  {[...Array(8)].map((_, i) => (
-                    <Card key={i}>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                        <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="h-8 bg-gray-200 rounded w-16 animate-pulse mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  {[...Array(2)].map((_, i) => (
-                    <Card key={i}>
-                      <CardHeader>
-                        <div className="h-5 bg-gray-200 rounded w-32 animate-pulse mb-2"></div>
-                        <div className="h-4 bg-gray-200 rounded w-48 animate-pulse"></div>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {[...Array(4)].map((_, j) => (
-                          <div key={j} className="flex items-center justify-between">
-                            <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
-                            <div className="h-4 bg-gray-200 rounded w-12 animate-pulse"></div>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <AdminDashboardSkeleton />;
   }
 
   if (!stats) {
@@ -464,40 +409,60 @@ export default function AdminDashboard() {
                 </DialogContent>
               </Dialog>
 
-              <UserTable 
-                users={users} 
-                onUserUpdate={() => { fetchUsers(); fetchStats(); }}
-              />
-              {usersPagination.hasMore && (
-                <div className="flex justify-center pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => fetchUsers(Math.floor(usersPagination.offset / usersPagination.limit) + 1, false)}
-                    disabled={usersLoading}
-                  >
-                    Load More Users
-                  </Button>
+              {usersLoading && users.length === 0 ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <span className="text-muted-foreground">Loading users...</span>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <UserTable 
+                    users={users} 
+                    onUserUpdate={() => { fetchUsers(); fetchStats(); }}
+                  />
+                  {usersPagination.hasMore && (
+                    <div className="flex justify-center pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => fetchUsers(Math.floor(usersPagination.offset / usersPagination.limit) + 1, false)}
+                        disabled={usersLoading}
+                      >
+                        Load More Users
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
         </TabsContent>
 
         <TabsContent value="organizations" className="space-y-4">
-         
-
-              <OrgTable 
-                organizations={organizations} 
-                onOrgUpdate={() => { fetchOrganizations(); fetchStats(); }}
-              />
-              {orgsPagination.hasMore && (
-                <div className="flex justify-center pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => fetchOrganizations(Math.floor(orgsPagination.offset / orgsPagination.limit) + 1, false)}
-                    disabled={orgsLoading}
-                  >
-                    Load More Organizations
-                  </Button>
+              {orgsLoading && organizations.length === 0 ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <span className="text-muted-foreground">Loading organizations...</span>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <OrgTable 
+                    organizations={organizations} 
+                    onOrgUpdate={() => { fetchOrganizations(); fetchStats(); }}
+                  />
+                  {orgsPagination.hasMore && (
+                    <div className="flex justify-center pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => fetchOrganizations(Math.floor(orgsPagination.offset / orgsPagination.limit) + 1, false)}
+                        disabled={orgsLoading}
+                      >
+                        Load More Organizations
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
         </TabsContent>
       </Tabs>

@@ -1,8 +1,8 @@
 import { Job } from 'bullmq';
 import { db } from "@/utils/db";
-import { jobs, jobTests, runs, testsSelectSchema } from "@/db/schema/schema";
+import { jobs, jobTests, runs, tests, testsSelectSchema } from "@/db/schema/schema";
 import { JobTrigger } from "@/db/schema/schema";
-import { eq, isNotNull, and } from "drizzle-orm";
+import { eq, isNotNull, and, inArray } from "drizzle-orm";
 import { getQueues, JobExecutionTask, JOB_EXECUTION_QUEUE } from "./queue";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
@@ -48,17 +48,31 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
 
     console.log(`Job has ${jobTestsList.length} tests. Setting up repeatable job...`);
 
-    // Fetch all test scripts upfront
-    const testCasePromises = jobTestsList.map(async (jobTest: { testId: string; orderPosition: number | null }) => {
-      const test = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/tests/${jobTest.testId}`);
-      const testData = await test.json();
+    // Fetch all test scripts upfront - directly from database to avoid auth issues
+    const testIds = jobTestsList.map(jt => jt.testId);
+    console.log(`Fetching test data for ${testIds.length} tests: ${testIds.join(', ')}`);
+    
+    const testData = await db
+      .select()
+      .from(tests)
+      .where(inArray(tests.id, testIds));
+      
+    console.log(`Retrieved ${testData.length} test records from database`);
+    
+    // Map tests with their order positions
+    const testCases = jobTestsList.map(jobTest => {
+      const test = testData.find(t => t.id === jobTest.testId);
+      if (!test) {
+        console.error(`Test not found for ID: ${jobTest.testId}`);
+        return null;
+      }
       return {
-        ...testData,
+        ...test,
         orderPosition: jobTest.orderPosition
       };
-    });
+    }).filter(Boolean); // Remove null entries
     
-    const testCases = await Promise.all(testCasePromises);
+    console.log(`Final testCases count: ${testCases.length}`);
 
     // Clean up any existing repeatable jobs for this job ID
     const repeatableJobs = await jobSchedulerQueue.getRepeatableJobs();

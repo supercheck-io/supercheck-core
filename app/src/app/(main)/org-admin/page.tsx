@@ -15,6 +15,8 @@ import { FormInput } from "@/components/ui/form-input";
 import { createProjectSchema, type CreateProjectFormData } from "@/lib/validations/project";
 // import { useFormValidation } from "@/hooks/use-form-validation";
 import { useBreadcrumbs } from "@/components/breadcrumb-context";
+import { OrgAdminDashboardSkeleton } from "@/components/ui/table-skeleton";
+import { Loader2 } from "lucide-react";
 import { canCreateProjects, canInviteMembers, canManageProject } from "@/lib/rbac/client-permissions";
 import { normalizeRole } from "@/lib/rbac/role-normalizer";
 import { z } from "zod";
@@ -368,46 +370,7 @@ export default function OrgAdminDashboard() {
 
 
   if (loading) {
-    return (
-      <div>
-        <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
-          <CardContent className="p-6">
-            <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="projects">Projects</TabsTrigger>
-                <TabsTrigger value="members">Members</TabsTrigger>
-                <TabsTrigger value="audit">Audit</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="overview" className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="h-8 bg-gray-200 rounded w-40 animate-pulse mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-80 animate-pulse"></div>
-                  </div>
-                </div>
-                
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {[...Array(6)].map((_, i) => (
-                    <Card key={i}>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                        <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="h-8 bg-gray-200 rounded w-16 animate-pulse mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <OrgAdminDashboardSkeleton />;
   }
 
   if (!stats || !orgDetails) {
@@ -602,9 +565,9 @@ export default function OrgAdminDashboard() {
 
         <TabsContent value="members" className="space-y-4">
           {membersLoading ? (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex justify-center items-center h-64">
               <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 <span className="text-muted-foreground">Loading members...</span>
               </div>
             </div>

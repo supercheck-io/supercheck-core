@@ -327,6 +327,9 @@ export const runs = pgTable('runs', {
   jobId: uuid('job_id')
     .notNull()
     .references(() => jobs.id),
+  projectId: uuid('project_id').references(() => projects.id, {
+    onDelete: 'cascade',
+  }),
   status: varchar('status', { length: 50 })
     .$type<TestRunStatus>()
     .notNull()
@@ -505,6 +508,10 @@ export const monitorResults = pgTable('monitor_results', {
   details: jsonb('details').$type<MonitorResultDetails>(),
   isUp: boolean('is_up').notNull(),
   isStatusChange: boolean('is_status_change').notNull().default(false),
+  consecutiveFailureCount: integer('consecutive_failure_count')
+    .notNull()
+    .default(0),
+  alertsSentForFailure: integer('alerts_sent_for_failure').notNull().default(0),
 });
 
 /**

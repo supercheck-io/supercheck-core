@@ -77,7 +77,7 @@ function RoleInfoPopover() {
           <Info className="h-4 w-4 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80" side="left" sideOffset={8}>
+      <PopoverContent className="w-80" side="right" sideOffset={8}>
         <div className="space-y-3">
           <h4 className="font-medium text-sm">Member Roles</h4>
           {accessLevels.map((level) => (

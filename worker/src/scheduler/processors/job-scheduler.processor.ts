@@ -67,18 +67,6 @@ export class JobSchedulerProcessor extends WorkerHost {
         return;
       }
 
-      const runId = crypto.randomUUID();
-
-      await this.dbService.db.insert(runs).values({
-        id: runId,
-        jobId: jobId,
-        status: 'running',
-        startedAt: new Date(),
-        trigger: 'schedule', // Set trigger to 'schedule'
-      });
-
-      this.logger.log(`Created run record ${runId} for scheduled job ${jobId}`);
-
       const now = new Date();
       const jobData = await this.dbService.db
         .select()
@@ -92,6 +80,19 @@ export class JobSchedulerProcessor extends WorkerHost {
       }
 
       const jobRecord = jobData[0];
+
+      const runId = crypto.randomUUID();
+
+      await this.dbService.db.insert(runs).values({
+        id: runId,
+        jobId: jobId,
+        status: 'running',
+        startedAt: new Date(),
+        trigger: 'schedule', // Set trigger to 'schedule'
+        projectId: jobRecord.projectId, // Add projectId for proper filtering
+      });
+
+      this.logger.log(`Created run record ${runId} for scheduled job ${jobId}`);
       const cronSchedule = jobRecord.cronSchedule;
       let nextRunAt: Date | null = null;
 

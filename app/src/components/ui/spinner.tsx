@@ -39,7 +39,7 @@ export function LoadingBadge({ className }: LoadingBadgeProps) {
     )}>
       <Spinner size="sm" className="text-muted-foreground" />
       <span className="text-xs text-muted-foreground">
-        Loading permissions...
+        Loading...
       </span>
     </div>
   );

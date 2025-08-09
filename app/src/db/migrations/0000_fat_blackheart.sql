@@ -147,7 +147,9 @@ CREATE TABLE "monitor_results" (
 	"response_time_ms" integer,
 	"details" jsonb,
 	"is_up" boolean NOT NULL,
-	"is_status_change" boolean DEFAULT false NOT NULL
+	"is_status_change" boolean DEFAULT false NOT NULL,
+	"consecutive_failure_count" integer DEFAULT 0 NOT NULL,
+	"alerts_sent_for_failure" integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "monitor_tags" (

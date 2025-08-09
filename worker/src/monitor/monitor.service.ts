@@ -17,9 +17,18 @@ import type { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
 import { MonitorAlertService } from './services/monitor-alert.service';
 import { ValidationService } from '../common/validation/validation.service';
-import { EnhancedValidationService, SecurityConfig } from '../common/validation/enhanced-validation.service';
-import { CredentialSecurityService, CredentialData } from '../common/security/credential-security.service';
-import { StandardizedErrorHandler, ErrorContext } from '../common/errors/standardized-error-handler';
+import {
+  EnhancedValidationService,
+  SecurityConfig,
+} from '../common/validation/enhanced-validation.service';
+import {
+  CredentialSecurityService,
+  CredentialData,
+} from '../common/security/credential-security.service';
+import {
+  StandardizedErrorHandler,
+  ErrorContext,
+} from '../common/errors/standardized-error-handler';
 import { ResourceManagerService } from '../common/resources/resource-manager.service';
 
 // Placeholder for actual execution libraries (axios, ping, net, dns, playwright-runner)
@@ -517,52 +526,65 @@ export class MonitorService {
           `Saved result for monitor ${resultData.monitorId}: ${currentStatus}. Status changed: ${isStatusChange}`,
         );
 
-        if (isStatusChange && monitor.alertConfig?.enabled) {
-          // Get recent monitor results to check thresholds
-          const alertConfig = monitor.alertConfig;
-          const recentResults = await this.getRecentMonitorResults(
-            resultData.monitorId,
-            Math.max(
-              alertConfig?.failureThreshold || 1,
-              alertConfig?.recoveryThreshold || 1,
-            ),
+        // Check alert thresholds on every result when alerts are enabled
+        if (monitor.alertConfig?.enabled) {
+          this.logger.debug(
+            `[ALERT_DEBUG] Checking alert thresholds for monitor ${resultData.monitorId}, currentStatus: ${currentStatus}, previousStatus: ${previousStatus}, isStatusChange: ${isStatusChange}`,
           );
 
-          // Calculate consecutive statuses
-          let consecutiveFailures = 0;
-          let consecutiveSuccesses = 0;
+          // Get the latest result we just saved to get accurate consecutive failure tracking
+          const latestResult =
+            await this.dbService.db.query.monitorResults.findFirst({
+              where: eq(schema.monitorResults.monitorId, resultData.monitorId),
+              orderBy: [desc(schema.monitorResults.checkedAt)],
+            });
 
-          // Count current result
+          const alertConfig = monitor.alertConfig;
+          const consecutiveFailureCount =
+            latestResult?.consecutiveFailureCount || 0;
+          const alertsSentForFailure = latestResult?.alertsSentForFailure || 0;
+
+          this.logger.debug(
+            `[ALERT_DEBUG] Monitor ${resultData.monitorId} - consecutiveFailureCount: ${consecutiveFailureCount}, alertsSentForFailure: ${alertsSentForFailure}, isStatusChange: ${isStatusChange}`,
+          );
+
+          // Determine if we should send alerts
+          let shouldSendFailureAlert = false;
+          let shouldSendRecoveryAlert = false;
+
           if (currentStatus === 'down') {
-            consecutiveFailures = 1;
-          } else if (currentStatus === 'up') {
-            consecutiveSuccesses = 1;
-          }
+            // Failure alert logic:
+            // 1st alert: when status changes from up to down
+            // 2nd & 3rd alerts: after every X failures (based on threshold) but max 3 total
+            const failureThreshold = alertConfig?.failureThreshold || 1;
 
-          // Count previous results until we hit a different status
-          for (const result of recentResults) {
-            if (currentStatus === 'down' && result.isUp === false) {
-              consecutiveFailures++;
-            } else if (currentStatus === 'down') {
-              break;
-            } else if (currentStatus === 'up' && result.isUp === true) {
-              consecutiveSuccesses++;
-            } else if (currentStatus === 'up') {
-              break;
+            if (isStatusChange) {
+              // First alert: status change from up to down
+              shouldSendFailureAlert =
+                alertConfig?.alertOnFailure &&
+                consecutiveFailureCount >= failureThreshold;
+            } else if (
+              consecutiveFailureCount > failureThreshold &&
+              (consecutiveFailureCount - failureThreshold) %
+                failureThreshold ===
+                0
+            ) {
+              // Subsequent alerts: every X failures after threshold, but max 3 total
+              shouldSendFailureAlert =
+                alertConfig?.alertOnFailure && alertsSentForFailure < 3;
             }
+          } else if (
+            currentStatus === 'up' &&
+            isStatusChange &&
+            previousStatus === 'down'
+          ) {
+            // Recovery alert logic: send when status changes from down to up
+            shouldSendRecoveryAlert = alertConfig?.alertOnRecovery || false;
           }
 
-          // Check threshold conditions
-          const shouldSendFailureAlert =
-            alertConfig?.alertOnFailure &&
-            currentStatus === 'down' &&
-            consecutiveFailures >= (alertConfig?.failureThreshold || 1);
-
-          const shouldSendRecoveryAlert =
-            alertConfig?.alertOnRecovery &&
-            currentStatus === 'up' &&
-            previousStatus === 'down' &&
-            consecutiveSuccesses >= (alertConfig?.recoveryThreshold || 1);
+          this.logger.debug(
+            `[ALERT_DEBUG] Monitor ${resultData.monitorId} - shouldSendFailureAlert: ${shouldSendFailureAlert}, shouldSendRecoveryAlert: ${shouldSendRecoveryAlert}`,
+          );
 
           if (shouldSendFailureAlert || shouldSendRecoveryAlert) {
             const type = currentStatus === 'up' ? 'recovery' : 'failure';
@@ -573,8 +595,9 @@ export class MonitorService {
                 : 'Monitor has recovered');
             const metadata = {
               responseTime: resultData.responseTimeMs,
-              consecutiveFailures,
-              consecutiveSuccesses,
+              consecutiveFailureCount: consecutiveFailureCount,
+              alertsSentForFailure: alertsSentForFailure,
+              isStatusChange: isStatusChange,
             };
 
             await this.monitorAlertService.sendNotification(
@@ -583,8 +606,21 @@ export class MonitorService {
               reason,
               metadata,
             );
+
+            // Update alert counter for failure alerts
+            if (shouldSendFailureAlert && latestResult) {
+              await this.dbService.db
+                .update(schema.monitorResults)
+                .set({ alertsSentForFailure: alertsSentForFailure + 1 })
+                .where(eq(schema.monitorResults.id, latestResult.id));
+            }
+
             this.logger.log(
-              `Delegated notification for monitor ${resultData.monitorId}`,
+              `Delegated ${type} notification for monitor ${resultData.monitorId} (alert #${alertsSentForFailure + 1} for this failure sequence)`,
+            );
+          } else if (currentStatus === 'down' && alertsSentForFailure >= 3) {
+            this.logger.debug(
+              `[ALERT_DEBUG] Skipping failure alert for monitor ${resultData.monitorId} - already sent 3 alerts for this failure sequence`,
             );
           }
         }
@@ -639,14 +675,18 @@ export class MonitorService {
         allowedProtocols: ['http:', 'https:'],
       };
 
-      const urlValidation = this.enhancedValidationService.validateAndSanitizeUrl(target, securityConfig);
+      const urlValidation =
+        this.enhancedValidationService.validateAndSanitizeUrl(
+          target,
+          securityConfig,
+        );
       if (!urlValidation.valid) {
         const error = this.errorHandler.createValidationError(
           urlValidation.error || 'Invalid target URL',
           { target, validation: urlValidation },
-          errorContext
+          errorContext,
         );
-        
+
         return {
           status: 'error',
           details: {
@@ -662,14 +702,15 @@ export class MonitorService {
 
       // 🔴 CRITICAL: Validate configuration
       if (config) {
-        const configValidation = this.enhancedValidationService.validateConfiguration(config);
+        const configValidation =
+          this.enhancedValidationService.validateConfiguration(config);
         if (!configValidation.valid) {
           const error = this.errorHandler.createValidationError(
             configValidation.error || 'Invalid monitor configuration',
             { config, validation: configValidation },
-            errorContext
+            errorContext,
           );
-          
+
           return {
             status: 'error',
             details: {
@@ -685,15 +726,16 @@ export class MonitorService {
       // 🟡 Execute with resource management
       return await this.resourceManager.executeWithResourceLimits(
         operationId,
-        async () => this.performHttpRequest(sanitizedTarget, config, errorContext),
+        async () =>
+          this.performHttpRequest(sanitizedTarget, config, errorContext),
         {
           timeoutMs: (config?.timeoutSeconds || 30) * 1000,
           maxMemoryMB: 50, // Limit per request
-        }
+        },
       );
     } catch (error) {
       const standardError = this.errorHandler.mapError(error, errorContext);
-      
+
       return {
         status: 'error',
         details: {
@@ -716,7 +758,6 @@ export class MonitorService {
     responseTimeMs?: number;
     isUp: boolean;
   }> {
-
     // 🔴 CRITICAL: Secure logging - mask sensitive data
     const logConfig = this.credentialSecurityService.maskCredentials({
       target,
@@ -724,7 +765,7 @@ export class MonitorService {
       hasAuth: !!config?.auth,
       hasHeaders: !!config?.headers,
     });
-    
+
     this.logger.debug('HTTP Request execution starting:', logConfig);
 
     let responseTimeMs: number | undefined;
@@ -746,51 +787,65 @@ export class MonitorService {
       const connectionPool = await this.resourceManager.getConnectionPool(
         url.hostname,
         parseInt(url.port) || (url.protocol === 'https:' ? 443 : 80),
-        url.protocol as 'http:' | 'https:'
+        url.protocol as 'http:' | 'https:',
       );
 
-      const connection = await this.resourceManager.acquireConnection(connectionPool.id);
- 
+      const connection = await this.resourceManager.acquireConnection(
+        connectionPool.id,
+      );
+
       // Build request configuration
-      let requestConfig: any = {
-          method: httpMethod,
-          url: target,
-          timeout,
-          // Default headers with security considerations
-          headers: {
-            'User-Agent': 'SuperTest-Monitor/1.0',
-            Accept: 'application/json, text/plain, */*',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-            ...config?.headers,
-          },
-          // Enable automatic decompression for proper response parsing
-          decompress: true,
-          // Follow redirects but limit for security
-          maxRedirects: 5,
-          // Handle various response types - keep as text for consistent keyword searching
-          responseType: 'text',
-          // Accept all status codes, we'll handle validation
-          validateStatus: () => true,
-          // Limit response size for memory management
-          maxContentLength: this.resourceManager.getResourceStats().limits.maxResponseSizeMB * 1024 * 1024,
-          maxBodyLength: this.resourceManager.getResourceStats().limits.maxResponseSizeMB * 1024 * 1024,
-        };
+      const requestConfig: any = {
+        method: httpMethod,
+        url: target,
+        timeout,
+        // Default headers with security considerations
+        headers: {
+          'User-Agent': 'SuperTest-Monitor/1.0',
+          Accept: 'application/json, text/plain, */*',
+          'Accept-Encoding': 'gzip, deflate',
+          Connection: 'keep-alive',
+          ...config?.headers,
+        },
+        // Enable automatic decompression for proper response parsing
+        decompress: true,
+        // Follow redirects but limit for security
+        maxRedirects: 5,
+        // Handle various response types - keep as text for consistent keyword searching
+        responseType: 'text',
+        // Accept all status codes, we'll handle validation
+        validateStatus: () => true,
+        // Limit response size for memory management
+        maxContentLength:
+          this.resourceManager.getResourceStats().limits.maxResponseSizeMB *
+          1024 *
+          1024,
+        maxBodyLength:
+          this.resourceManager.getResourceStats().limits.maxResponseSizeMB *
+          1024 *
+          1024,
+      };
 
       // 🔴 CRITICAL: Secure authentication handling
       if (config?.auth && config.auth.type !== 'none') {
         // Create credential object for secure handling
         const credentialData: CredentialData = {
-          type: config.auth.type as 'basic' | 'bearer',
+          type: config.auth.type,
           username: config.auth.username,
           password: config.auth.password,
           token: config.auth.token,
         };
 
         // Validate credential strength
-        const credentialValidation = this.credentialSecurityService.validateCredentialStrength(credentialData);
+        const credentialValidation =
+          this.credentialSecurityService.validateCredentialStrength(
+            credentialData,
+          );
         if (!credentialValidation.valid) {
-          this.logger.warn('Weak credential detected for HTTP request:', credentialValidation.warnings);
+          this.logger.warn(
+            'Weak credential detected for HTTP request:',
+            credentialValidation.warnings,
+          );
         }
 
         if (
@@ -802,14 +857,15 @@ export class MonitorService {
             username: config.auth.username,
             password: config.auth.password,
           };
-          
+
           // Secure logging
           this.logger.debug(
             `Using Basic authentication for user: ${this.credentialSecurityService.maskCredentials(config.auth.username)}`,
           );
         } else if (config.auth.type === 'bearer' && config.auth.token) {
-          requestConfig.headers['Authorization'] = `Bearer ${config.auth.token}`;
-          
+          requestConfig.headers['Authorization'] =
+            `Bearer ${config.auth.token}`;
+
           // Secure logging
           this.logger.debug(
             `Using Bearer authentication with token: ${this.credentialSecurityService.maskCredentials(config.auth.token)}`,
@@ -864,21 +920,24 @@ export class MonitorService {
         }
       }
 
-        // Execute request with connection tracking
-        const response = await firstValueFrom(
-          this.httpService.request(requestConfig),
-        );
+      // Execute request with connection tracking
+      const response = await firstValueFrom(
+        this.httpService.request(requestConfig),
+      );
 
-        // Calculate response time in milliseconds with high precision
-        const endTime = process.hrtime.bigint();
-        responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
+      // Calculate response time in milliseconds with high precision
+      const endTime = process.hrtime.bigint();
+      responseTimeMs = Math.round(Number(endTime - startTime) / 1000000);
 
-        // Track connection usage
-        connection.trackRequest(responseTimeMs);
+      // Track connection usage
+      connection.trackRequest(responseTimeMs);
 
-        // 🔴 CRITICAL: Sanitize response data before processing
-        const sanitizedResponseData = this.credentialSecurityService.maskCredentials(
-          typeof response.data === 'string' ? response.data.substring(0, 10000) : String(response.data).substring(0, 10000)
+      // 🔴 CRITICAL: Sanitize response data before processing
+      const sanitizedResponseData =
+        this.credentialSecurityService.maskCredentials(
+          typeof response.data === 'string'
+            ? response.data.substring(0, 10000)
+            : String(response.data).substring(0, 10000),
         );
 
       details = {
@@ -1855,6 +1914,40 @@ export class MonitorService {
     resultData: MonitorExecutionResult,
   ): Promise<void> {
     try {
+      // Get the last monitor result to track consecutive failures
+      const lastResult = await this.dbService.db.query.monitorResults.findFirst(
+        {
+          where: eq(schema.monitorResults.monitorId, resultData.monitorId),
+          orderBy: [desc(schema.monitorResults.checkedAt)],
+        },
+      );
+
+      let consecutiveFailureCount = 0;
+      let alertsSentForFailure = 0;
+
+      // Calculate consecutive failure count
+      if (!resultData.isUp) {
+        if (lastResult && !lastResult.isUp) {
+          // Continue failure sequence
+          consecutiveFailureCount =
+            (lastResult.consecutiveFailureCount || 0) + 1;
+          alertsSentForFailure = lastResult.alertsSentForFailure || 0;
+        } else {
+          // Start new failure sequence
+          consecutiveFailureCount = 1;
+          alertsSentForFailure = 0;
+        }
+      } else {
+        // Monitor is up - reset counters
+        consecutiveFailureCount = 0;
+        alertsSentForFailure = 0;
+      }
+
+      // Determine if this is a status change
+      const isStatusChange = lastResult
+        ? lastResult.isUp !== resultData.isUp
+        : true;
+
       await this.dbService.db.insert(schema.monitorResults).values({
         monitorId: resultData.monitorId,
         checkedAt: resultData.checkedAt,
@@ -1862,6 +1955,9 @@ export class MonitorService {
         responseTimeMs: resultData.responseTimeMs,
         details: resultData.details,
         isUp: resultData.isUp,
+        isStatusChange: isStatusChange,
+        consecutiveFailureCount: consecutiveFailureCount,
+        alertsSentForFailure: alertsSentForFailure,
       });
     } catch (error) {
       this.logger.error(

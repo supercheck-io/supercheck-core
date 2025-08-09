@@ -48,23 +48,23 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
   };
 
   const formatJsonWithSyntaxHighlight = (obj: unknown): React.JSX.Element => {
-    if (obj === null) return <span className="text-slate-400">null</span>;
-    if (obj === undefined) return <span className="text-slate-400">undefined</span>;
-    if (typeof obj === 'string') return <span className="text-green-400">&quot;{obj}&quot;</span>;
-    if (typeof obj === 'number') return <span className="text-blue-400">{obj}</span>;
-    if (typeof obj === 'boolean') return <span className="text-purple-400">{obj.toString()}</span>;
+    if (obj === null) return <span className="text-muted-foreground">null</span>;
+    if (obj === undefined) return <span className="text-muted-foreground">undefined</span>;
+    if (typeof obj === 'string') return <span className="text-green-600 dark:text-green-400">&quot;{obj}&quot;</span>;
+    if (typeof obj === 'number') return <span className="text-blue-600 dark:text-blue-400">{obj}</span>;
+    if (typeof obj === 'boolean') return <span className="text-purple-600 dark:text-purple-400">{obj.toString()}</span>;
     
     if (Array.isArray(obj)) {
       return (
         <div>
-          <span className="text-slate-300">[</span>
+          <span className="text-muted-foreground">[</span>
           {obj.map((item, index) => (
             <div key={index} className="ml-4">
               {formatJsonWithSyntaxHighlight(item)}
-              {index < obj.length - 1 && <span className="text-slate-300">,</span>}
+              {index < obj.length - 1 && <span className="text-muted-foreground">,</span>}
             </div>
           ))}
-          <span className="text-slate-300">]</span>
+          <span className="text-muted-foreground">]</span>
         </div>
       );
     }
@@ -72,16 +72,16 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
     if (typeof obj === 'object' && obj !== null) {
       return (
         <div>
-          <span className="text-slate-300">{'{'}</span>
+          <span className="text-muted-foreground">{'{'}</span>
           {Object.entries(obj as Record<string, unknown>).map(([key, value], index, array) => (
             <div key={key} className="ml-4">
-              <span className="text-red-400">&quot;{key}&quot;</span>
-              <span className="text-slate-300">: </span>
+              <span className="text-red-600 dark:text-red-400">&quot;{key}&quot;</span>
+              <span className="text-muted-foreground">: </span>
               {formatJsonWithSyntaxHighlight(value)}
-              {index < array.length - 1 && <span className="text-slate-300">,</span>}
+              {index < array.length - 1 && <span className="text-muted-foreground">,</span>}
             </div>
           ))}
-          <span className="text-slate-300">{'}'}</span>
+          <span className="text-muted-foreground">{'}'}</span>
         </div>
       );
     }
@@ -111,13 +111,13 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
         </TabsList>
         
         <TabsContent value="formatted" className="mt-4">
-          <div className="p-4 bg-slate-900 text-slate-100 rounded-lg border font-mono text-sm overflow-auto max-h-96">
+          <div className="p-4 bg-muted rounded-lg border font-mono text-sm overflow-auto max-h-96">
             {formatJsonWithSyntaxHighlight(data)}
           </div>
         </TabsContent>
         
         <TabsContent value="raw" className="mt-4">
-          <pre className="p-4 bg-slate-900 text-slate-100 rounded-lg border text-sm overflow-auto max-h-96 whitespace-pre-wrap">
+          <pre className="p-4 bg-muted rounded-lg border text-sm overflow-auto max-h-96 whitespace-pre-wrap">
             {JSON.stringify(data, null, 2)}
           </pre>
         </TabsContent>

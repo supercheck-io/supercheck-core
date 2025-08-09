@@ -54,6 +54,14 @@ export function ensureProperTraceConfiguration(
   testScript: string,
   testId?: string,
 ): string {
+  // Handle undefined or null testScript
+  if (!testScript || typeof testScript !== 'string') {
+    console.error(
+      `[ensureProperTraceConfiguration] Invalid testScript provided for test ${testId}: ${testScript}`,
+    );
+    throw new Error(`Test script is undefined or invalid for test ${testId}`);
+  }
+
   // Use a unique trace directory based on testId to prevent conflicts in parallel execution
   const traceDir = testId
     ? `./trace-${testId.substr(0, 8)}`
@@ -686,13 +694,57 @@ export class ExecutionService {
       });
 
       // Process each script, creating a Playwright test file for each
+      console.log(
+        `[${runId}] Processing ${testScripts.length} test scripts:`,
+        testScripts.map((t) => ({
+          id: t.id,
+          hasScript: !!t.script,
+          scriptLength: t.script?.length || 0,
+        })),
+      );
       for (let i = 0; i < testScripts.length; i++) {
         const { id, script: originalScript } = testScripts[i];
         const testId = id;
+        console.log(
+          `[${runId}] Processing test ${testId}, script type: ${typeof originalScript}, length: ${originalScript?.length || 0}`,
+        );
 
         try {
+          // Check if the script is Base64 encoded and decode it
+          let decodedScript = originalScript;
+          try {
+            // Check if it looks like Base64 (typical characteristics)
+            if (
+              originalScript &&
+              typeof originalScript === 'string' &&
+              originalScript.length > 100 &&
+              /^[A-Za-z0-9+/]+=*$/.test(originalScript)
+            ) {
+              const decoded = Buffer.from(originalScript, 'base64').toString(
+                'utf8',
+              );
+              // Verify it's actually JavaScript by checking for common patterns
+              if (
+                decoded.includes('import') ||
+                decoded.includes('test(') ||
+                decoded.includes('describe(')
+              ) {
+                decodedScript = decoded;
+                console.log(
+                  `[${runId}] Decoded Base64 script for test ${testId}`,
+                );
+              }
+            }
+          } catch (decodeError) {
+            console.warn(
+              `[${runId}] Failed to decode potential Base64 script for test ${testId}:`,
+              decodeError,
+            );
+            // Continue with original script if decoding fails
+          }
+
           // Ensure the script has proper trace configuration
-          const script = ensureProperTraceConfiguration(originalScript, testId);
+          const script = ensureProperTraceConfiguration(decodedScript, testId);
 
           // Create the test file with unique ID in filename
           const testFilePath = path.join(runDir, `${testId}.spec.js`);

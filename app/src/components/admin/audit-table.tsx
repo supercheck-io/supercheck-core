@@ -67,23 +67,23 @@ function JsonViewer({ data, title }: { data: any; title: string }) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formatJsonWithSyntaxHighlight = (obj: any): React.JSX.Element => {
-    if (obj === null) return <span className="text-gray-500">null</span>;
-    if (obj === undefined) return <span className="text-gray-500">undefined</span>;
-    if (typeof obj === 'string') return <span className="text-green-600">&quot;{obj}&quot;</span>;
-    if (typeof obj === 'number') return <span className="text-blue-600">{obj}</span>;
-    if (typeof obj === 'boolean') return <span className="text-purple-600">{obj.toString()}</span>;
+    if (obj === null) return <span className="text-muted-foreground">null</span>;
+    if (obj === undefined) return <span className="text-muted-foreground">undefined</span>;
+    if (typeof obj === 'string') return <span className="text-green-600 dark:text-green-400">&quot;{obj}&quot;</span>;
+    if (typeof obj === 'number') return <span className="text-blue-600 dark:text-blue-400">{obj}</span>;
+    if (typeof obj === 'boolean') return <span className="text-purple-600 dark:text-purple-400">{obj.toString()}</span>;
     
     if (Array.isArray(obj)) {
       return (
         <div>
-          <span className="text-gray-600">[</span>
+          <span className="text-muted-foreground">[</span>
           {obj.map((item, index) => (
             <div key={index} className="ml-4">
               {formatJsonWithSyntaxHighlight(item)}
-              {index < obj.length - 1 && <span className="text-gray-600">,</span>}
+              {index < obj.length - 1 && <span className="text-muted-foreground">,</span>}
             </div>
           ))}
-          <span className="text-gray-600">]</span>
+          <span className="text-muted-foreground">]</span>
         </div>
       );
     }
@@ -91,16 +91,16 @@ function JsonViewer({ data, title }: { data: any; title: string }) {
     if (typeof obj === 'object') {
       return (
         <div>
-          <span className="text-gray-600">{'{'}</span>
+          <span className="text-muted-foreground">{'{'}</span>
           {Object.entries(obj).map(([key, value], index, array) => (
             <div key={key} className="ml-4">
-              <span className="text-red-600">&quot;{key}&quot;</span>
-              <span className="text-gray-600">: </span>
+              <span className="text-red-600 dark:text-red-400">&quot;{key}&quot;</span>
+              <span className="text-muted-foreground">: </span>
               {formatJsonWithSyntaxHighlight(value)}
-              {index < array.length - 1 && <span className="text-gray-600">,</span>}
+              {index < array.length - 1 && <span className="text-muted-foreground">,</span>}
             </div>
           ))}
-          <span className="text-gray-600">{'}'}</span>
+          <span className="text-muted-foreground">{'}'}</span>
         </div>
       );
     }
@@ -130,13 +130,13 @@ function JsonViewer({ data, title }: { data: any; title: string }) {
         </TabsList>
         
         <TabsContent value="formatted" className="mt-4">
-          <div className="p-4 bg-gray-50 rounded-lg border font-mono text-sm overflow-auto max-h-96">
+          <div className="p-4 bg-muted rounded-lg border font-mono text-sm overflow-auto max-h-96">
             {formatJsonWithSyntaxHighlight(data)}
           </div>
         </TabsContent>
         
         <TabsContent value="raw" className="mt-4">
-          <pre className="p-4 bg-gray-50 rounded-lg border text-sm overflow-auto max-h-96 whitespace-pre-wrap">
+          <pre className="p-4 bg-muted rounded-lg border text-sm overflow-auto max-h-96 whitespace-pre-wrap">
             {JSON.stringify(data, null, 2)}
           </pre>
         </TabsContent>
@@ -264,12 +264,15 @@ export default function AuditTable({ className }: AuditTableProps) {
             Audit Logs
           </CardTitle>
           <CardDescription>
-            Loading audit trail...
+            Track all administrative actions and system events
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="h-8 w-8 animate-spin" />
+          <div className="flex justify-center items-center h-64">
+            <div className="flex items-center space-x-2">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="text-muted-foreground">Loading audit logs...</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -407,7 +410,7 @@ export default function AuditTable({ className }: AuditTableProps) {
                           <Eye className="h-4 w-4" />
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-3xl max-h-[80vh]">
+                      <DialogContent className="max-w-5xl max-h-[80vh]">
                         <DialogHeader>
                           <DialogTitle className="flex items-center gap-2">
                             <Activity className="h-5 w-5" />

@@ -19,13 +19,13 @@ export class EnhancedValidationService {
   private readonly logger = new Logger(EnhancedValidationService.name);
 
   // 🔴 CRITICAL: Comprehensive input validation and sanitization
-  
+
   /**
    * Validates and sanitizes URLs with comprehensive security checks
    */
   validateAndSanitizeUrl(
     url: string,
-    config: SecurityConfig = {}
+    config: SecurityConfig = {},
   ): ValidationResult {
     try {
       if (!url || typeof url !== 'string') {
@@ -34,7 +34,7 @@ export class EnhancedValidationService {
 
       // Sanitize: Remove leading/trailing whitespace and normalize
       const sanitized = url.trim().toLowerCase();
-      
+
       if (sanitized.length > (config.maxStringLength || 2048)) {
         return { valid: false, error: 'URL exceeds maximum allowed length' };
       }
@@ -59,17 +59,35 @@ export class EnhancedValidationService {
       // SSRF Protection: Check for internal/private addresses
       if (!config.allowInternalTargets) {
         const hostname = parsedUrl.hostname;
-        
+
         // Check for localhost variations
         const localhostPatterns = [
-          'localhost', '127.0.0.1', '::1', '0.0.0.0',
-          '10.', '172.16.', '172.17.', '172.18.', '172.19.',
-          '172.20.', '172.21.', '172.22.', '172.23.', '172.24.',
-          '172.25.', '172.26.', '172.27.', '172.28.', '172.29.',
-          '172.30.', '172.31.', '192.168.', '169.254.'
+          'localhost',
+          '127.0.0.1',
+          '::1',
+          '0.0.0.0',
+          '10.',
+          '172.16.',
+          '172.17.',
+          '172.18.',
+          '172.19.',
+          '172.20.',
+          '172.21.',
+          '172.22.',
+          '172.23.',
+          '172.24.',
+          '172.25.',
+          '172.26.',
+          '172.27.',
+          '172.28.',
+          '172.29.',
+          '172.30.',
+          '172.31.',
+          '192.168.',
+          '169.254.',
         ];
 
-        if (localhostPatterns.some(pattern => hostname.startsWith(pattern))) {
+        if (localhostPatterns.some((pattern) => hostname.startsWith(pattern))) {
           return {
             valid: false,
             error: 'Access to internal/private addresses is not allowed',
@@ -93,10 +111,10 @@ export class EnhancedValidationService {
         /ftp:/i,
         /gopher:/i,
         /@.*@/, // Multiple @ symbols
-        /\.\./,  // Path traversal attempts
+        /\.\./, // Path traversal attempts
       ];
 
-      if (suspiciousPatterns.some(pattern => pattern.test(sanitized))) {
+      if (suspiciousPatterns.some((pattern) => pattern.test(sanitized))) {
         return {
           valid: false,
           error: 'URL contains potentially dangerous patterns',
@@ -115,7 +133,7 @@ export class EnhancedValidationService {
    */
   validateAndSanitizeHostname(
     hostname: string,
-    config: SecurityConfig = {}
+    config: SecurityConfig = {},
   ): ValidationResult {
     try {
       if (!hostname || typeof hostname !== 'string') {
@@ -124,7 +142,7 @@ export class EnhancedValidationService {
 
       // Sanitize: Remove leading/trailing whitespace
       const sanitized = hostname.trim();
-      
+
       if (sanitized.length === 0 || sanitized.length > 253) {
         return {
           valid: false,
@@ -134,16 +152,16 @@ export class EnhancedValidationService {
 
       // Enhanced command injection prevention
       const dangerousPatterns = [
-        /[;&|`$(){}[\]<>'"\\]/,  // Command injection characters
-        /\s/,                    // No whitespace allowed
-        /\x00-\x1f/,            // Control characters
-        /\x7f-\x9f/,            // Extended control characters
-        /^-/,                   // Leading dash (can be dangerous in commands)
-        /\.\./,                 // Path traversal
-        /[%#]/,                 // URL encoding attempts
+        /[;&|`$(){}[\]<>'"\\]/, // Command injection characters
+        /\s/, // No whitespace allowed
+        /\x00-\x1f/, // Control characters
+        /\x7f-\x9f/, // Extended control characters
+        /^-/, // Leading dash (can be dangerous in commands)
+        /\.\./, // Path traversal
+        /[%#]/, // URL encoding attempts
       ];
 
-      if (dangerousPatterns.some(pattern => pattern.test(sanitized))) {
+      if (dangerousPatterns.some((pattern) => pattern.test(sanitized))) {
         return {
           valid: false,
           error: 'Hostname contains invalid or dangerous characters',
@@ -163,14 +181,15 @@ export class EnhancedValidationService {
       }
       // Validate hostname
       else {
-        const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
+        const hostnameRegex =
+          /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
         if (!hostnameRegex.test(sanitized)) {
           return { valid: false, error: 'Invalid hostname format' };
         }
 
         // Check for suspicious TLDs or patterns
         const suspiciousTlds = ['.local', '.localhost', '.test', '.invalid'];
-        if (suspiciousTlds.some(tld => sanitized.endsWith(tld))) {
+        if (suspiciousTlds.some((tld) => sanitized.endsWith(tld))) {
           if (!config.allowInternalTargets) {
             return {
               valid: false,
@@ -192,7 +211,7 @@ export class EnhancedValidationService {
    */
   private validateIPv4(ip: string, config: SecurityConfig): ValidationResult {
     const octets = ip.split('.');
-    
+
     for (const octet of octets) {
       const num = parseInt(octet, 10);
       if (num < 0 || num > 255 || octet !== num.toString()) {
@@ -217,15 +236,21 @@ export class EnhancedValidationService {
   private validateIPv6(ip: string, config: SecurityConfig): ValidationResult {
     // Basic IPv6 validation
     const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^::$/;
-    const ipv6CompressedRegex = /^([0-9a-fA-F]{1,4}:)*::([0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}$/;
-    
+    const ipv6CompressedRegex =
+      /^([0-9a-fA-F]{1,4}:)*::([0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}$/;
+
     if (!ipv6Regex.test(ip) && !ipv6CompressedRegex.test(ip)) {
       return { valid: false, error: 'Invalid IPv6 address format' };
     }
 
     // Check for localhost and private ranges
     if (!config.allowInternalTargets) {
-      if (ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('fc00:') || ip.startsWith('fd00:')) {
+      if (
+        ip === '::1' ||
+        ip.startsWith('fe80:') ||
+        ip.startsWith('fc00:') ||
+        ip.startsWith('fd00:')
+      ) {
         return {
           valid: false,
           error: 'Access to private IPv6 ranges is not allowed',
@@ -265,7 +290,7 @@ export class EnhancedValidationService {
     const ipNum = this.ipToNumber(ip);
     const startNum = this.ipToNumber(startIP);
     const endNum = this.ipToNumber(endIP);
-    
+
     return ipNum >= startNum && ipNum <= endNum;
   }
 
@@ -275,11 +300,12 @@ export class EnhancedValidationService {
   private ipToNumber(ip: string): number {
     const parts = ip.split('.');
     return (
-      (parseInt(parts[0]) << 24) +
-      (parseInt(parts[1]) << 16) +
-      (parseInt(parts[2]) << 8) +
-      parseInt(parts[3])
-    ) >>> 0; // Unsigned right shift to handle large numbers
+      ((parseInt(parts[0]) << 24) +
+        (parseInt(parts[1]) << 16) +
+        (parseInt(parts[2]) << 8) +
+        parseInt(parts[3])) >>>
+      0
+    ); // Unsigned right shift to handle large numbers
   }
 
   /**
@@ -288,7 +314,7 @@ export class EnhancedValidationService {
   validatePort(port: number | string): ValidationResult {
     try {
       const portNum = typeof port === 'string' ? parseInt(port, 10) : port;
-      
+
       if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
         return {
           valid: false,
@@ -298,11 +324,11 @@ export class EnhancedValidationService {
 
       // Check for well-known dangerous ports
       const restrictedPorts = [
-        22,   // SSH
-        23,   // Telnet
-        135,  // RPC
-        139,  // NetBIOS
-        445,  // SMB
+        22, // SSH
+        23, // Telnet
+        135, // RPC
+        139, // NetBIOS
+        445, // SMB
         1433, // SQL Server
         3306, // MySQL
         3389, // RDP
@@ -358,7 +384,15 @@ export class EnhancedValidationService {
 
       // Validate method
       if (config.method !== undefined) {
-        const allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
+        const allowedMethods = [
+          'GET',
+          'POST',
+          'PUT',
+          'DELETE',
+          'PATCH',
+          'HEAD',
+          'OPTIONS',
+        ];
         if (!allowedMethods.includes(config.method)) {
           return {
             valid: false,
@@ -380,11 +414,14 @@ export class EnhancedValidationService {
   private validateStatusCodes(codes: string): ValidationResult {
     try {
       if (typeof codes !== 'string' || codes.trim().length === 0) {
-        return { valid: false, error: 'Status codes must be a non-empty string' };
+        return {
+          valid: false,
+          error: 'Status codes must be a non-empty string',
+        };
       }
 
-      const parts = codes.split(',').map(part => part.trim());
-      
+      const parts = codes.split(',').map((part) => part.trim());
+
       for (const part of parts) {
         // Range format (e.g., "200-299")
         if (part.includes('-')) {
@@ -435,8 +472,13 @@ export class EnhancedValidationService {
 
       // Check for dangerous headers
       const dangerousHeaders = [
-        'host', 'authorization', 'cookie', 'set-cookie',
-        'x-forwarded-for', 'x-real-ip', 'x-forwarded-host'
+        'host',
+        'authorization',
+        'cookie',
+        'set-cookie',
+        'x-forwarded-for',
+        'x-real-ip',
+        'x-forwarded-host',
       ];
 
       for (const [key, value] of Object.entries(headers)) {

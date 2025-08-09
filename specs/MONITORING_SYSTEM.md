@@ -34,6 +34,7 @@ The monitoring system delivers comprehensive real-time monitoring capabilities w
 - **Real-time Updates**: Server-Sent Events (SSE) provide live status updates and immediate feedback
 - **Enterprise Alerting**: Multi-channel notification system supporting email, Slack, webhooks, Telegram, Discord, and Microsoft Teams
 - **Threshold-Based Logic**: Configurable failure and recovery thresholds to minimize alert fatigue
+- **Smart Alert Limiting**: Maximum 3 failure alerts per failure sequence to prevent notification spam
 - **Professional Notifications**: Rich HTML email templates and structured alert messages with comprehensive context
 - **Comprehensive Audit**: Complete alert history with delivery status tracking and error logging
 
@@ -619,6 +620,88 @@ interface AlertConfig {
   notificationProviders: string[];
 }
 ```
+
+### Smart Alert Limiting System
+
+The monitoring system implements intelligent alert limiting to prevent notification fatigue while ensuring critical status changes are communicated:
+
+#### Alert Limiting Rules
+
+**Failure Alerts (Maximum 3 per failure sequence):**
+1. **Status Change Alert**: Sent immediately when monitor status changes from 'up' to 'down'
+2. **Continuation Alerts**: Up to 2 additional alerts sent during extended failures
+3. **Alert Suppression**: After 3 alerts, no additional failure notifications until recovery
+
+**Recovery Alerts (Unlimited):**
+- Always sent when monitor status changes from 'down' to 'up'
+- Resets the failure alert counter for future failure sequences
+
+#### Database Schema Extensions
+
+```typescript
+// Additional fields in monitor_results table
+interface MonitorResultExtensions {
+  consecutiveFailureCount: number;     // Tracks consecutive failures
+  alertsSentForFailure: number;       // Tracks alerts sent for current failure sequence
+  isStatusChange: boolean;            // Indicates if this result represents a status change
+}
+```
+
+#### Alert Limiting Logic
+
+```mermaid
+graph TD
+    A[Monitor Check Complete] --> B{Is Monitor Down?}
+    B -->|Yes| C{Status Changed?}
+    B -->|No| D[Reset Alert Counters]
+    
+    C -->|Yes| E{Alerts Sent < 3?}
+    C -->|No| F{Meets Threshold & Alerts < 3?}
+    
+    E -->|Yes| G[Send Status Change Alert]
+    E -->|No| H[Suppress Alert - Limit Reached]
+    
+    F -->|Yes| I[Send Continuation Alert]
+    F -->|No| H
+    
+    G --> J[Increment Alert Counter]
+    I --> J
+    
+    D --> K{Status Changed to Up?}
+    K -->|Yes| L[Send Recovery Alert]
+    K -->|No| M[No Alert Needed]
+    
+    style G fill:#ff9999
+    style I fill:#ff9999
+    style L fill:#99ff99
+    style H fill:#cccccc
+```
+
+#### Implementation Details
+
+The alert limiting system is implemented in the `MonitorService.saveMonitorResult()` method with the following key features:
+
+1. **Consecutive Failure Tracking**: Each monitor result tracks the number of consecutive failures
+2. **Alert Counter Management**: Tracks how many alerts have been sent for the current failure sequence
+3. **Status Change Detection**: Identifies when a monitor transitions between up/down states
+4. **Threshold-Based Alerting**: Respects configured failure thresholds before triggering alerts
+5. **Counter Reset on Recovery**: Resets all counters when monitor returns to 'up' status
+
+**Example Alert Sequence:**
+```
+Monitor Status: UP → DOWN (Alert #1: Status Change)
+Monitor Status: DOWN → DOWN (Alert #2: Continuation)  
+Monitor Status: DOWN → DOWN (Alert #3: Continuation)
+Monitor Status: DOWN → DOWN (Suppressed: Limit reached)
+Monitor Status: DOWN → UP (Recovery Alert: Always sent)
+```
+
+#### Benefits
+
+- **Prevents Alert Fatigue**: Maximum 3 failure alerts per incident
+- **Maintains Visibility**: Critical status changes always reported
+- **Smart Recovery**: Recovery alerts always sent to confirm resolution
+- **Audit Trail**: Complete tracking of alert history and suppression decisions
 
 ## Performance & Monitoring
 

@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { monitorTypes } from "./data";
-import { Loader2, SaveIcon, ChevronDown, ChevronRight, Shield } from "lucide-react";
+import { Loader2, SaveIcon, ChevronDown, ChevronRight, Shield, BellIcon } from "lucide-react";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { MonitorTypesPopover } from "./monitor-types-popover";
 
@@ -294,12 +294,13 @@ export function MonitorForm({
 
   // (moved below after form initialization)
 
-  // Handle alert config changes
+  // Handle alert config changes - but never auto-show alerts in edit mode
   useEffect(() => {
-    if (alertConfig) {
+    // Only auto-show alerts for new monitor creation, never for edit mode
+    if (alertConfig && !editMode) {
       setShowAlerts(alertConfig.enabled);
     }
-  }, [alertConfig]);
+  }, [alertConfig, editMode]);
 
   // Create default values based on monitor type if provided
   const getDefaultValues = useCallback((): FormValues => {
@@ -430,6 +431,7 @@ export function MonitorForm({
       // Handle cases where one value might be undefined and the other an empty string for certain fields
       if (currentVal === undefined && defaultVal === "") return false;
       if (currentVal === "" && defaultVal === undefined) return false;
+      if (currentVal === undefined && defaultVal === undefined) return false;
 
       // Handle boolean fields - ensure proper comparison
       if (typeof currentVal === 'boolean' || typeof defaultVal === 'boolean') {
@@ -452,12 +454,28 @@ export function MonitorForm({
         return changed;
       }
 
-      // Debug SSL-related fields specifically
-      if (key === 'websiteConfig_sslDaysUntilExpirationWarning' || key === 'websiteConfig_enableSslCheck') {
-        console.log("[FORM_DEBUG] SSL field change detection:", { key, currentVal, defaultVal, changed: currentVal !== defaultVal });
+      // Handle number fields - ensure proper comparison
+      if (typeof currentVal === 'number' || typeof defaultVal === 'number') {
+        const currentNum = Number(currentVal) || 0;
+        const defaultNum = Number(defaultVal) || 0;
+        const changed = currentNum !== defaultNum;
+        console.log(`[FORM_DEBUG] Number field comparison for ${key}:`, {
+          currentVal,
+          defaultVal,
+          currentNum,
+          defaultNum,
+          changed
+        });
+        return changed;
       }
 
-      return currentVal !== defaultVal;
+      // Debug SSL-related fields and interval field specifically
+      if (key === 'websiteConfig_sslDaysUntilExpirationWarning' || key === 'websiteConfig_enableSslCheck' || key === 'interval') {
+        console.log("[FORM_DEBUG] Important field change detection:", { key, currentVal, defaultVal, changed: currentVal !== defaultVal });
+      }
+
+      const changed = currentVal !== defaultVal;
+      return changed;
     });
 
     // Check if alert configuration has changed
@@ -490,6 +508,17 @@ export function MonitorForm({
     const isFormReady = isNewMonitor ? hasRequiredFields : (hasChanged || alertChanged);
     
     setFormChanged(Boolean(isFormReady));
+    
+    // Debug form change detection
+    console.log("[FORM_DEBUG] Form change detection:", {
+      isNewMonitor,
+      hasRequiredFields,
+      hasChanged,
+      alertChanged,
+      isFormReady,
+      formChanged: Boolean(isFormReady),
+      watchedValues: JSON.stringify(watchedValues, null, 2)
+    });
   }, [watchedValues, initialData, editMode, alertConfig, initialAlertConfig]);
 
   async function onSubmit(data: FormValues) {
@@ -645,10 +674,16 @@ export function MonitorForm({
         return;
       }
 
-      // If edit mode and alerts not hidden, show alerts step
-      if (editMode && !hideAlerts) {
-        // Store both form data and API data for edit mode
-        console.log("[FORM_DEBUG] Edit mode: storing monitor data for alerts step");
+      // For edit mode, always go directly to save - never show alerts from form submission
+      // Alerts can only be accessed via the "Configure Alerts" button in edit mode
+      if (editMode) {
+        await handleDirectSave(apiData, true); // Include existing alert settings to preserve them
+        return;
+      }
+
+      // For creation mode, check if we should show alerts or save directly
+      if (!editMode && !hideAlerts && searchParams.get('tab') === 'alerts') {
+        console.log("[FORM_DEBUG] Creation mode: storing monitor data for alerts step");
         console.log("[FORM_DEBUG] API Data to store:", JSON.stringify(apiData, null, 2));
         setMonitorData({ formData: data, apiData });
         setShowAlerts(true);
@@ -656,7 +691,7 @@ export function MonitorForm({
         return;
       }
 
-      // Direct save mode (creation or edit without alerts)
+      // Direct save mode (creation without alerts)
       await handleDirectSave(apiData);
     } catch (error) {
       console.error("Error processing monitor:", error);
@@ -765,6 +800,13 @@ export function MonitorForm({
       const apiDataToSave = 'apiData' in monitorData ? (monitorData as { apiData: Record<string, unknown> }).apiData : monitorData;
       console.log("[FORM_DEBUG] Final submit with monitor data:", JSON.stringify(apiDataToSave, null, 2));
       await handleDirectSave(apiDataToSave, true);
+    } else if (editMode && id) {
+      // If we're just updating alerts for an existing monitor without form data changes
+      const alertOnlyData = {
+        alertConfig: alertConfig
+      };
+      console.log("[FORM_DEBUG] Alert-only update:", JSON.stringify(alertOnlyData, null, 2));
+      await handleDirectSave(alertOnlyData, true);
     }
   }
 
@@ -837,6 +879,23 @@ export function MonitorForm({
               {description || (editMode ? "Update monitor configuration" : "Configure a new uptime monitor")}
             </CardDescription>
           </div>
+          {editMode && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                // Set up monitor data and show alerts
+                const currentFormData = form.getValues();
+                setMonitorData({ formData: currentFormData, apiData: {} });
+                setShowAlerts(true);
+              }}
+              disabled={isSubmitting}
+              className="flex items-center gap-2"
+            >
+              <BellIcon className="h-4 w-4" />
+              Configure Alerts
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <Form {...form}>
@@ -889,7 +948,7 @@ export function MonitorForm({
                           <div className="md:w-40">
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -931,7 +990,7 @@ export function MonitorForm({
                           <FormControl>
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -1099,7 +1158,7 @@ export function MonitorForm({
                           render={({ field }) => (
                             <FormItem className="mb-4">
                               <FormLabel>Authentication Type</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
+                              <Select onValueChange={field.onChange} value={field.value || "none"}>
                                 <FormControl>
                                   <SelectTrigger>
                                     <SelectValue placeholder="Select authentication type" />
@@ -1214,7 +1273,7 @@ export function MonitorForm({
                               <FormControl>
                                 <Select
                                   onValueChange={(value) => field.onChange(value === "true" ? true : value === "false" ? false : undefined)}
-                                  defaultValue={typeof field.value === 'boolean' ? field.value.toString() : undefined}
+                                  value={typeof field.value === 'boolean' ? field.value.toString() : "true"}
                                 >
                                   <FormControl>
                                     <SelectTrigger className="w-full">
@@ -1407,7 +1466,7 @@ export function MonitorForm({
                           render={({ field }) => (
                             <FormItem className="mb-4">
                               <FormLabel>Authentication Type</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
+                              <Select onValueChange={field.onChange} value={field.value || "none"}>
                                 <FormControl>
                                   <SelectTrigger>
                                     <SelectValue placeholder="Select authentication type" />
@@ -1522,7 +1581,7 @@ export function MonitorForm({
                               <FormControl>
                                 <Select
                                   onValueChange={(value) => field.onChange(value === "true" ? true : value === "false" ? false : undefined)}
-                                  defaultValue={typeof field.value === 'boolean' ? field.value.toString() : undefined}
+                                  value={typeof field.value === 'boolean' ? field.value.toString() : "true"}
                                 >
                                   <FormControl>
                                     <SelectTrigger className="w-full">
@@ -1589,7 +1648,7 @@ export function MonitorForm({
                           <FormControl>
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -1617,26 +1676,26 @@ export function MonitorForm({
 
               <div className="flex justify-end space-x-4">
                 <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onCancel || (() => router.push("/monitors"))}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={isSubmitting}
-                  className="flex items-center"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <SaveIcon className="mr-2 h-4 w-4" />
-                  )}
-                  {hideAlerts ? "Next: Alerts" : (editMode ? "Next: Alerts" : "Create")}
-                </Button>
-              </div>
+                    type="button"
+                    variant="outline"
+                    onClick={onCancel || (() => router.push("/monitors"))}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting || (editMode && !formChanged)}
+                    className="flex items-center"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <SaveIcon className="mr-2 h-4 w-4" />
+                    )}
+                    {hideAlerts ? "Next: Alerts" : (editMode ? "Update Monitor" : "Create")}
+                  </Button>
+                </div>
             </form>
           </Form>
         </CardContent>

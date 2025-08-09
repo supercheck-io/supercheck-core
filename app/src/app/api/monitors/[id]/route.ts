@@ -177,22 +177,30 @@ export async function PUT(
       }
     }
 
+    // Prepare update data - preserve existing alert config if not provided
+    const updatePayload: Partial<typeof monitors.$inferInsert> = {
+      ...updateData,
+      updatedAt: new Date(),
+    };
+
+    // Only update alertConfig if it's explicitly provided
+    if (rawData.hasOwnProperty('alertConfig')) {
+      updatePayload.alertConfig = rawData.alertConfig ? {
+        enabled: Boolean(rawData.alertConfig.enabled),
+        notificationProviders: Array.isArray(rawData.alertConfig.notificationProviders) ? rawData.alertConfig.notificationProviders : [],
+        alertOnFailure: rawData.alertConfig.alertOnFailure !== undefined ? Boolean(rawData.alertConfig.alertOnFailure) : true,
+        alertOnRecovery: Boolean(rawData.alertConfig.alertOnRecovery),
+        alertOnSslExpiration: Boolean(rawData.alertConfig.alertOnSslExpiration),
+        failureThreshold: typeof rawData.alertConfig.failureThreshold === 'number' ? rawData.alertConfig.failureThreshold : 1,
+        recoveryThreshold: typeof rawData.alertConfig.recoveryThreshold === 'number' ? rawData.alertConfig.recoveryThreshold : 1,
+        customMessage: typeof rawData.alertConfig.customMessage === 'string' ? rawData.alertConfig.customMessage : "",
+      } : null;
+    }
+    // If alertConfig is not in rawData, existing alert settings are preserved
+
     const [updatedMonitor] = await db
       .update(monitors)
-      .set({
-        ...updateData,
-        alertConfig: rawData.alertConfig ? {
-          enabled: Boolean(rawData.alertConfig.enabled),
-          notificationProviders: Array.isArray(rawData.alertConfig.notificationProviders) ? rawData.alertConfig.notificationProviders : [],
-          alertOnFailure: rawData.alertConfig.alertOnFailure !== undefined ? Boolean(rawData.alertConfig.alertOnFailure) : true,
-          alertOnRecovery: Boolean(rawData.alertConfig.alertOnRecovery),
-          alertOnSslExpiration: Boolean(rawData.alertConfig.alertOnSslExpiration),
-          failureThreshold: typeof rawData.alertConfig.failureThreshold === 'number' ? rawData.alertConfig.failureThreshold : 1,
-          recoveryThreshold: typeof rawData.alertConfig.recoveryThreshold === 'number' ? rawData.alertConfig.recoveryThreshold : 1,
-          customMessage: typeof rawData.alertConfig.customMessage === 'string' ? rawData.alertConfig.customMessage : "",
-        } : null,
-        updatedAt: new Date(),
-      })
+      .set(updatePayload)
       .where(eq(monitors.id, id))
       .returning();
 

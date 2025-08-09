@@ -3,29 +3,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { 
   Activity, 
   AlertTriangle, 
   CheckCircle, 
   Monitor, 
-  Play, 
   RefreshCw,
-  Clock,
   Code2,
   Calendar,
   TrendingUp,
-  Zap,
-  FileText,
   AlertCircle
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-import { monitorTypes } from "@/components/monitors/data";
 import { toast } from "sonner";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
+import { StatsCardsSkeleton } from "@/components/ui/table-skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProjectStats {
   tests: number;
@@ -109,7 +103,6 @@ export default function Home() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -228,38 +221,54 @@ export default function Home() {
       <div>
         <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
           <CardContent className="p-6">
-            <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
-                <TabsTrigger value="automation">Automation</TabsTrigger>
-                <TabsTrigger value="testing">Testing</TabsTrigger>
-              </TabsList>
+            <div className="space-y-4">
+              {/* Tabs skeleton */}
+              <div className="flex space-x-1 rounded-lg bg-muted p-1">
+                {['Overview', 'Monitoring', 'Automation', 'Testing'].map((_, i) => (
+                  <Skeleton key={i} className="h-9 w-24" />
+                ))}
+              </div>
 
-              <TabsContent value="overview" className="space-y-4">
+              {/* Content skeleton */}
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="h-8 bg-gray-200 rounded w-40 animate-pulse mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-80 animate-pulse"></div>
+                    <Skeleton className="h-8 w-40 mb-2" />
+                    <Skeleton className="h-4 w-80" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-2 w-2 rounded-full" />
+                    <Skeleton className="h-3 w-20" />
                   </div>
                 </div>
                 
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  {[...Array(4)].map((_, i) => (
+                <StatsCardsSkeleton cards={6} />
+
+                {/* Detailed cards skeleton */}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
                     <Card key={i}>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                        <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-5 w-5" />
+                          <Skeleton className="h-5 w-32" />
+                        </div>
                       </CardHeader>
                       <CardContent>
-                        <div className="h-8 bg-gray-200 rounded w-16 animate-pulse mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
+                        <div className="space-y-3">
+                          {Array.from({ length: 4 }).map((_, j) => (
+                            <div key={j} className="flex items-center justify-between">
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-4 w-12" />
+                            </div>
+                          ))}
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -293,32 +302,6 @@ export default function Home() {
   }
 
   if (!dashboardData) return null;
-
-  const getMonitorTypeIcon = (type: string) => {
-    const monitorType = monitorTypes.find(t => t.value === type);
-    return monitorType ? monitorType.icon : Monitor;
-  };
-
-  const getMonitorTypeColor = (type: string) => {
-    const monitorType = monitorTypes.find(t => t.value === type);
-    return monitorType ? monitorType.color : "text-gray-500";
-  };
-
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'up':
-      case 'passed':
-        return 'default';
-      case 'down':
-      case 'failed':
-      case 'error':
-        return 'destructive';
-      case 'running':
-        return 'secondary';
-      default:
-        return 'outline';
-    }
-  };
 
   return (
     <div>
@@ -355,7 +338,7 @@ export default function Home() {
               {/* System Issues Alert */}
               {!dashboardData.system.healthy && dashboardData.system.issues.length > 0 && (
                 <Card className="border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20">
-                  <CardHeader className="pb-3">
+                  <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-red-800 dark:text-red-200 text-lg">
                       <AlertCircle className="h-5 w-5" />
                       System Issues Detected
@@ -364,30 +347,11 @@ export default function Home() {
                       {dashboardData.system.issues.length} issue{dashboardData.system.issues.length > 1 ? 's' : ''} requiring attention
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {dashboardData.system.issues.map((issue, index) => (
-                        <div key={index} className="flex items-start gap-3 p-3 bg-white/70 dark:bg-red-900/10 rounded-lg border border-red-100 dark:border-red-800/50">
-                          <div className={cn(
-                            "mt-1 h-2 w-2 rounded-full flex-shrink-0",
-                            issue.severity === 'critical' ? "bg-red-500" :
-                            issue.severity === 'high' ? "bg-orange-500" :
-                            issue.severity === 'medium' ? "bg-amber-500" : "bg-blue-500"
-                          )} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-red-900 dark:text-red-100">
-                              {issue.message}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
                 </Card>
               )}
 
               {/* Key Metrics Grid */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Tests</CardTitle>
@@ -396,11 +360,10 @@ export default function Home() {
                   <CardContent>
                     <div className="text-2xl font-bold">{dashboardData.stats.tests}</div>
                     <p className="text-xs text-muted-foreground">
-                      Test cases available
+                      Test cases
                     </p>
                   </CardContent>
                 </Card>
-                
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Jobs</CardTitle>
@@ -409,24 +372,197 @@ export default function Home() {
                   <CardContent>
                     <div className="text-2xl font-bold">{dashboardData.stats.jobs}</div>
                     <p className="text-xs text-muted-foreground">
-                      Automated jobs
+                      Scheduled jobs
                     </p>
                   </CardContent>
                 </Card>
-                
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Monitors</CardTitle>
-                    <Monitor className="h-4 w-4 text-muted-foreground" />
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{dashboardData.stats.monitors}</div>
                     <p className="text-xs text-muted-foreground">
-                      {dashboardData.monitors.uptime.toFixed(1)}% uptime
+                      Active monitors
                     </p>
                   </CardContent>
                 </Card>
-                
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Runs</CardTitle>
+                    <Activity className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardData.stats.runs}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Test executions
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+                    <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h > 0 
+                        ? Math.round((dashboardData.jobs.successfulRuns24h / (dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h)) * 100)
+                        : 100}%
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Last 24 hours
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Uptime</CardTitle>
+                    <Monitor className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardData.monitors.uptime.toFixed(1)}%</div>
+                    <p className="text-xs text-muted-foreground">
+                      Monitor uptime
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+            </TabsContent>
+          
+            <TabsContent value="monitoring" className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold">Monitor Overview</h2>
+                  <p className="text-muted-foreground text-sm">Real-time monitoring status, uptime metrics, and performance insights.</p>
+                </div>
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Monitors</CardTitle>
+                    <Monitor className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardData.monitors.total}</div>
+                    <p className="text-xs text-muted-foreground">
+                      All monitors
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Up</CardTitle>
+                    <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">{dashboardData.monitors.up}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Healthy monitors
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Down</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">{dashboardData.monitors.down}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Failed monitors
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Uptime</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardData.monitors.uptime.toFixed(1)}%</div>
+                    <p className="text-xs text-muted-foreground">
+                      Overall uptime
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Active</CardTitle>
+                    <Activity className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardData.monitors.active}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Active monitors
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Avg Response</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {dashboardData.monitors.responseTime.avg ? `${dashboardData.monitors.responseTime.avg}ms` : 'N/A'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Response time
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="automation" className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold">Automation Overview</h2>
+                  <p className="text-muted-foreground text-sm">Job execution statistics, success rates, and automation performance metrics.</p>
+                </div>
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Jobs</CardTitle>
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardData.jobs.total}</div>
+                    <p className="text-xs text-muted-foreground">
+                      All jobs
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Successful (24h)</CardTitle>
+                    <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">{dashboardData.jobs.successfulRuns24h}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Passed jobs
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Failed (24h)</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">{dashboardData.jobs.failedRuns24h}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Failed jobs
+                    </p>
+                  </CardContent>
+                </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
@@ -443,253 +579,28 @@ export default function Home() {
                     </p>
                   </CardContent>
                 </Card>
-              </div>
-
-              {/* Detailed Information Grid */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <TrendingUp className="h-5 w-5" />
-                      Performance Metrics
-                    </CardTitle>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Tests</CardTitle>
+                    <Code2 className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Response Time (Avg)</span>
-                        <span className="text-sm font-medium">
-                          {dashboardData.monitors.responseTime.avg ? `${dashboardData.monitors.responseTime.avg}ms` : 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Jobs Success Rate</span>
-                        <span className="text-sm font-medium">
-                          {dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h > 0 
-                            ? `${Math.round((dashboardData.jobs.successfulRuns24h / (dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h)) * 100)}%`
-                            : '100%'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Monitor Uptime</span>
-                        <span className="text-sm font-medium">{dashboardData.monitors.uptime.toFixed(2)}%</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Active Monitors</span>
-                        <span className="text-sm font-medium">{dashboardData.monitors.active}/{dashboardData.monitors.total}</span>
-                      </div>
-                    </div>
+                    <div className="text-2xl font-bold">{dashboardData.stats.tests}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Available tests
+                    </p>
                   </CardContent>
                 </Card>
-
                 <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Zap className="h-5 w-5" />
-                      Recent Activity
-                    </CardTitle>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Recent Runs</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Test Runs (7 days)</span>
-                        <span className="text-sm font-medium">{dashboardData.tests.recentActivity7d}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Successful Jobs (24h)</span>
-                        <span className="text-sm font-medium text-green-600">{dashboardData.jobs.successfulRuns24h}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Failed Jobs (24h)</span>
-                        <span className={cn(
-                          "text-sm font-medium",
-                          dashboardData.jobs.failedRuns24h > 0 ? "text-amber-600" : "text-muted-foreground"
-                        )}>{dashboardData.jobs.failedRuns24h}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Down Monitors</span>
-                        <span className={cn(
-                          "text-sm font-medium",
-                          dashboardData.monitors.down > 0 ? "text-amber-600" : "text-muted-foreground"
-                        )}>{dashboardData.monitors.down}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <FileText className="h-5 w-5" />
-                      Resource Breakdown
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {dashboardData.tests.byType.map((type) => (
-                        <div key={type.type} className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground capitalize">{type.type.replace('_', ' ')} Tests</span>
-                          <span className="text-sm font-medium">{type.count}</span>
-                        </div>
-                      ))}
-                      {dashboardData.monitors.byType.map((type) => (
-                        <div key={type.type} className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground capitalize">{type.type.replace('_', ' ')} Monitors</span>
-                          <span className="text-sm font-medium">{type.count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-            </TabsContent>
-          
-            <TabsContent value="monitoring" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2 h-full">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Monitor className="h-5 w-5" />
-                      Monitor Status
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-4 gap-3 mb-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">{dashboardData.monitors.total}</div>
-                        <div className="text-xs text-muted-foreground">Total</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">{dashboardData.monitors.up}</div>
-                        <div className="text-xs text-muted-foreground">Up</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-red-600">{dashboardData.monitors.down}</div>
-                        <div className="text-xs text-muted-foreground">Down</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-600">{dashboardData.monitors.active}</div>
-                        <div className="text-xs text-muted-foreground">Active</div>
-                      </div>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full"
-                      onClick={() => router.push('/monitors')}
-                    >
-                      View All Monitors
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg text-red-600">
-                      <AlertTriangle className="h-5 w-5" />
-                      Critical Alerts
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {dashboardData.monitors.criticalAlerts.length === 0 ? (
-                      <div className="text-center py-8">
-                        <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">All monitors are healthy!</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {dashboardData.monitors.criticalAlerts.slice(0, 3).map((alert) => {
-                          const IconComponent = getMonitorTypeIcon(alert.type);
-                          const colorClass = getMonitorTypeColor(alert.type);
-                          return (
-                            <div key={alert.id} className="flex items-center justify-between p-2 border rounded">
-                              <div className="flex items-center gap-2">
-                                <IconComponent className={cn("h-4 w-4", colorClass)} />
-                                <div>
-                                  <p className="text-sm font-medium">{alert.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {alert.lastCheckAt 
-                                      ? formatDistanceToNow(new Date(alert.lastCheckAt), { addSuffix: true })
-                                      : 'Never checked'
-                                    }
-                                  </p>
-                                </div>
-                              </div>
-                              <Badge variant="destructive">Down</Badge>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="automation" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2 h-full">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Play className="h-5 w-5 text-blue-500" />
-                      Job Performance
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-3 mb-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold">{dashboardData.jobs.total}</div>
-                        <div className="text-xs text-muted-foreground">Total Jobs</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">{dashboardData.jobs.successfulRuns24h}</div>
-                        <div className="text-xs text-muted-foreground">Passed (24h)</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-red-600">{dashboardData.jobs.failedRuns24h}</div>
-                        <div className="text-xs text-muted-foreground">Failed (24h)</div>
-                      </div>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full"
-                      onClick={() => router.push('/jobs')}
-                    >
-                      View All Jobs
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Clock className="h-5 w-5" />
-                      Recent Job Runs
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {dashboardData.jobs.recentRuns.slice(0, 5).map((run) => (
-                        <div key={run.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                          <div className="flex items-center gap-2">
-                            <Badge variant={getStatusBadgeVariant(run.status)} className="text-xs">
-                              {run.status}
-                            </Badge>
-                            <div>
-                              <p className="text-sm font-medium">{run.jobName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {run.duration}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <div className="text-2xl font-bold">{dashboardData.jobs.recentRuns.length}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Recent executions
+                    </p>
                   </CardContent>
                 </Card>
               </div>

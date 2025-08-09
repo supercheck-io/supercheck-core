@@ -6,7 +6,13 @@ export interface StandardError {
   details?: any;
   timestamp: string;
   correlationId?: string;
-  category: 'validation' | 'network' | 'authentication' | 'authorization' | 'system' | 'business';
+  category:
+    | 'validation'
+    | 'network'
+    | 'authentication'
+    | 'authorization'
+    | 'system'
+    | 'business';
   severity: 'low' | 'medium' | 'high' | 'critical';
   retryable: boolean;
   actionable: {
@@ -36,7 +42,7 @@ export class StandardizedErrorHandler {
   createValidationError(
     message: string,
     details: any,
-    context?: ErrorContext
+    context?: ErrorContext,
   ): StandardError {
     return this.createError({
       code: 'VALIDATION_ERROR',
@@ -51,11 +57,11 @@ export class StandardizedErrorHandler {
           'Verify all required fields are filled correctly',
           'Check that URLs are properly formatted',
           'Ensure port numbers are between 1-65535',
-          'Validate that hostnames contain only allowed characters'
+          'Validate that hostnames contain only allowed characters',
         ],
-        documentationUrl: '/docs/monitors/configuration'
+        documentationUrl: '/docs/monitors/configuration',
       },
-      context
+      context,
     });
   }
 
@@ -65,7 +71,7 @@ export class StandardizedErrorHandler {
   createNetworkError(
     message: string,
     details: any,
-    context?: ErrorContext
+    context?: ErrorContext,
   ): StandardError {
     return this.createError({
       code: 'NETWORK_ERROR',
@@ -75,16 +81,17 @@ export class StandardizedErrorHandler {
       severity: 'high',
       retryable: true,
       actionable: {
-        userMessage: 'Network connection failed. The target may be unreachable.',
+        userMessage:
+          'Network connection failed. The target may be unreachable.',
         suggestedActions: [
           'Check that the target URL/hostname is correct',
           'Verify the target is accessible from your network',
           'Check firewall settings if monitoring internal resources',
-          'Try again in a few minutes if the issue persists'
+          'Try again in a few minutes if the issue persists',
         ],
-        documentationUrl: '/docs/troubleshooting/network-issues'
+        documentationUrl: '/docs/troubleshooting/network-issues',
       },
-      context
+      context,
     });
   }
 
@@ -94,7 +101,7 @@ export class StandardizedErrorHandler {
   createTimeoutError(
     message: string,
     timeoutMs: number,
-    context?: ErrorContext
+    context?: ErrorContext,
   ): StandardError {
     return this.createError({
       code: 'TIMEOUT_ERROR',
@@ -109,11 +116,11 @@ export class StandardizedErrorHandler {
           'Check if the target service is running normally',
           'Consider increasing the timeout in monitor configuration',
           'Verify network connectivity to the target',
-          'Monitor the target\'s response time patterns'
+          "Monitor the target's response time patterns",
         ],
-        documentationUrl: '/docs/monitors/timeout-configuration'
+        documentationUrl: '/docs/monitors/timeout-configuration',
       },
-      context
+      context,
     });
   }
 
@@ -123,7 +130,7 @@ export class StandardizedErrorHandler {
   createAuthenticationError(
     message: string,
     details: any,
-    context?: ErrorContext
+    context?: ErrorContext,
   ): StandardError {
     return this.createError({
       code: 'AUTHENTICATION_ERROR',
@@ -138,11 +145,11 @@ export class StandardizedErrorHandler {
           'Verify username and password are correct',
           'Check if bearer token is valid and not expired',
           'Ensure API key has proper permissions',
-          'Test credentials manually against the target'
+          'Test credentials manually against the target',
         ],
-        documentationUrl: '/docs/monitors/authentication'
+        documentationUrl: '/docs/monitors/authentication',
       },
-      context
+      context,
     });
   }
 
@@ -152,7 +159,7 @@ export class StandardizedErrorHandler {
   createSslError(
     message: string,
     details: any,
-    context?: ErrorContext
+    context?: ErrorContext,
   ): StandardError {
     return this.createError({
       code: 'SSL_ERROR',
@@ -167,11 +174,11 @@ export class StandardizedErrorHandler {
           'Check if the SSL certificate is valid and not expired',
           'Verify the certificate chain is complete',
           'Ensure the hostname matches the certificate',
-          'Check if intermediate certificates are properly configured'
+          'Check if intermediate certificates are properly configured',
         ],
-        documentationUrl: '/docs/monitors/ssl-troubleshooting'
+        documentationUrl: '/docs/monitors/ssl-troubleshooting',
       },
-      context
+      context,
     });
   }
 
@@ -181,7 +188,7 @@ export class StandardizedErrorHandler {
   createStatusCodeError(
     actualStatus: number,
     expectedStatus: string,
-    context?: ErrorContext
+    context?: ErrorContext,
   ): StandardError {
     return this.createError({
       code: 'STATUS_CODE_ERROR',
@@ -196,11 +203,11 @@ export class StandardizedErrorHandler {
           'Check if the target endpoint is functioning correctly',
           'Verify the expected status codes configuration',
           'Review server logs for the target application',
-          'Test the endpoint manually to confirm behavior'
+          'Test the endpoint manually to confirm behavior',
         ],
-        documentationUrl: '/docs/monitors/status-codes'
+        documentationUrl: '/docs/monitors/status-codes',
       },
-      context
+      context,
     });
   }
 
@@ -210,7 +217,7 @@ export class StandardizedErrorHandler {
   createContentValidationError(
     message: string,
     details: any,
-    context?: ErrorContext
+    context?: ErrorContext,
   ): StandardError {
     return this.createError({
       code: 'CONTENT_VALIDATION_ERROR',
@@ -223,13 +230,13 @@ export class StandardizedErrorHandler {
         userMessage: 'Response content did not match expected criteria.',
         suggestedActions: [
           'Check if the expected keyword/content is still present',
-          'Verify the response format hasn\'t changed',
+          "Verify the response format hasn't changed",
           'Test the endpoint manually to see current response',
-          'Update content validation rules if the change is expected'
+          'Update content validation rules if the change is expected',
         ],
-        documentationUrl: '/docs/monitors/content-validation'
+        documentationUrl: '/docs/monitors/content-validation',
       },
-      context
+      context,
     });
   }
 
@@ -239,7 +246,7 @@ export class StandardizedErrorHandler {
   createSystemError(
     message: string,
     details: any,
-    context?: ErrorContext
+    context?: ErrorContext,
   ): StandardError {
     return this.createError({
       code: 'SYSTEM_ERROR',
@@ -253,11 +260,11 @@ export class StandardizedErrorHandler {
         suggestedActions: [
           'Try again in a few minutes',
           'Contact support if the issue persists',
-          'Check system status page for known issues'
+          'Check system status page for known issues',
         ],
-        documentationUrl: '/docs/support/system-errors'
+        documentationUrl: '/docs/support/system-errors',
       },
-      context
+      context,
     });
   }
 
@@ -279,7 +286,8 @@ export class StandardizedErrorHandler {
       message: params.message,
       details: params.details,
       timestamp: new Date().toISOString(),
-      correlationId: params.context?.correlationId || this.generateCorrelationId(),
+      correlationId:
+        params.context?.correlationId || this.generateCorrelationId(),
       category: params.category,
       severity: params.severity,
       retryable: params.retryable,
@@ -334,7 +342,7 @@ export class StandardizedErrorHandler {
       return this.createNetworkError(
         `Connection failed: ${error.message}`,
         { originalError: error.code },
-        context
+        context,
       );
     }
 
@@ -343,25 +351,31 @@ export class StandardizedErrorHandler {
       return this.createTimeoutError(
         'Request timed out',
         30000, // Default timeout
-        context
+        context,
       );
     }
 
     // SSL errors
-    if (error.code?.startsWith('CERT_') || error.message?.includes('certificate')) {
+    if (
+      error.code?.startsWith('CERT_') ||
+      error.message?.includes('certificate')
+    ) {
       return this.createSslError(
         `SSL/TLS error: ${error.message}`,
         { originalError: error.code },
-        context
+        context,
       );
     }
 
     // Authentication errors
-    if (error.message?.includes('authentication') || error.message?.includes('401')) {
+    if (
+      error.message?.includes('authentication') ||
+      error.message?.includes('401')
+    ) {
       return this.createAuthenticationError(
         'Authentication failed',
         { originalError: error.message },
-        context
+        context,
       );
     }
 
@@ -369,7 +383,7 @@ export class StandardizedErrorHandler {
     return this.createSystemError(
       error.message || 'Unknown error occurred',
       { originalError: error },
-      context
+      context,
     );
   }
 
@@ -404,8 +418,10 @@ export class StandardizedErrorHandler {
    * Check if error should trigger alert
    */
   shouldAlert(error: StandardError): boolean {
-    return error.severity === 'critical' || 
-           (error.severity === 'high' && !error.retryable);
+    return (
+      error.severity === 'critical' ||
+      (error.severity === 'high' && !error.retryable)
+    );
   }
 
   /**
@@ -418,11 +434,11 @@ export class StandardizedErrorHandler {
 
     // Exponential backoff with jitter
     const baseDelay = 1000; // 1 second
-    const maxDelay = 30000;  // 30 seconds
-    
+    const maxDelay = 30000; // 30 seconds
+
     const delay = Math.min(baseDelay * Math.pow(2, attemptCount), maxDelay);
     const jitter = Math.random() * 0.1 * delay; // 10% jitter
-    
+
     return delay + jitter;
   }
 }

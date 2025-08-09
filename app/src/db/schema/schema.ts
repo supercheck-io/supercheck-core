@@ -482,6 +482,8 @@ export const monitorResults = pgTable("monitor_results", {
   details: jsonb("details").$type<MonitorResultDetails>(),
   isUp: boolean("is_up").notNull(),
   isStatusChange: boolean("is_status_change").notNull().default(false),
+  consecutiveFailureCount: integer("consecutive_failure_count").notNull().default(0),
+  alertsSentForFailure: integer("alerts_sent_for_failure").notNull().default(0),
 });
 
 /**

@@ -26,7 +26,7 @@ export class CredentialSecurityService {
   private readonly keyLength = 32; // 256 bits
 
   // 🔴 CRITICAL: Credential encryption and rotation
-  
+
   /**
    * Generate a secure encryption key
    */
@@ -45,7 +45,9 @@ export class CredentialSecurityService {
     }
 
     // For development/testing - generate a key (NOT for production)
-    this.logger.warn('Using generated encryption key - NOT suitable for production');
+    this.logger.warn(
+      'Using generated encryption key - NOT suitable for production',
+    );
     return this.generateKey();
   }
 
@@ -54,21 +56,21 @@ export class CredentialSecurityService {
    */
   encryptCredential(
     credential: CredentialData,
-    keyId: string = 'default'
+    keyId: string = 'default',
   ): EncryptedCredential {
     try {
       const key = this.getEncryptionKey(keyId);
       const iv = crypto.randomBytes(16);
 
       const cipher = crypto.createCipheriv(this.algorithm, key, iv);
-      const gcmCipher = cipher as crypto.CipherGCM;
+      const gcmCipher = cipher;
       gcmCipher.setAAD(Buffer.from(keyId));
-      
+
       const serializedCredential = JSON.stringify(credential);
-      
+
       let encrypted = gcmCipher.update(serializedCredential, 'utf8', 'hex');
       encrypted += gcmCipher.final('hex');
-      
+
       const tag = gcmCipher.getAuthTag();
 
       return {
@@ -93,16 +95,20 @@ export class CredentialSecurityService {
       const decipher = crypto.createDecipheriv(
         encryptedData.algorithm,
         key,
-        Buffer.from(encryptedData.iv, 'hex')
+        Buffer.from(encryptedData.iv, 'hex'),
       );
       const gcmDecipher = decipher as crypto.DecipherGCM;
-      
+
       gcmDecipher.setAAD(Buffer.from(encryptedData.keyId));
       gcmDecipher.setAuthTag(Buffer.from(encryptedData.tag, 'hex'));
-      
-      let decrypted = gcmDecipher.update(encryptedData.encrypted, 'hex', 'utf8');
+
+      let decrypted = gcmDecipher.update(
+        encryptedData.encrypted,
+        'hex',
+        'utf8',
+      );
       decrypted += gcmDecipher.final('utf8');
-      
+
       return JSON.parse(decrypted);
     } catch (error) {
       this.logger.error('Credential decryption failed:', error);
@@ -115,32 +121,47 @@ export class CredentialSecurityService {
    */
   maskCredentials(data: any): any {
     if (!data) return data;
-    
+
     // Handle different data types
     if (typeof data === 'string') {
       return this.maskString(data);
     }
-    
+
     if (Array.isArray(data)) {
-      return data.map(item => this.maskCredentials(item));
+      return data.map((item) => this.maskCredentials(item));
     }
-    
+
     if (typeof data === 'object') {
       const masked = { ...data };
-      
+
       // Fields that should be masked
       const sensitiveFields = [
-        'password', 'token', 'apiKey', 'api_key', 'secret', 'key',
-        'authorization', 'auth', 'credential', 'credentials',
-        'bearer', 'basic', 'username', 'user', 'login',
-        'x-api-key', 'x-auth-token', 'cookie', 'set-cookie'
+        'password',
+        'token',
+        'apiKey',
+        'api_key',
+        'secret',
+        'key',
+        'authorization',
+        'auth',
+        'credential',
+        'credentials',
+        'bearer',
+        'basic',
+        'username',
+        'user',
+        'login',
+        'x-api-key',
+        'x-auth-token',
+        'cookie',
+        'set-cookie',
       ];
-      
+
       for (const [key, value] of Object.entries(masked)) {
         const lowerKey = key.toLowerCase();
-        
+
         // Mask sensitive fields
-        if (sensitiveFields.some(field => lowerKey.includes(field))) {
+        if (sensitiveFields.some((field) => lowerKey.includes(field))) {
           masked[key] = this.maskString(String(value));
         }
         // Recursively mask nested objects
@@ -148,10 +169,10 @@ export class CredentialSecurityService {
           masked[key] = this.maskCredentials(value);
         }
       }
-      
+
       return masked;
     }
-    
+
     return data;
   }
 
@@ -162,12 +183,16 @@ export class CredentialSecurityService {
     if (!value || typeof value !== 'string') {
       return '***';
     }
-    
+
     if (value.length <= 4) {
       return '***';
     }
-    
-    return value.substring(0, 2) + '*'.repeat(Math.max(3, value.length - 4)) + value.substring(value.length - 2);
+
+    return (
+      value.substring(0, 2) +
+      '*'.repeat(Math.max(3, value.length - 4)) +
+      value.substring(value.length - 2)
+    );
   }
 
   /**
@@ -177,10 +202,10 @@ export class CredentialSecurityService {
     if (!credential.rotationDate) {
       return true; // No rotation date means it should be rotated
     }
-    
+
     const ageMs = Date.now() - credential.rotationDate.getTime();
     const ageDays = ageMs / (1000 * 60 * 60 * 24);
-    
+
     return ageDays > maxAgeDays;
   }
 
@@ -236,7 +261,7 @@ export class CredentialSecurityService {
         warnings.push('Username should be at least 3 characters');
         score -= 20;
       }
-      
+
       if (!credential.password) {
         warnings.push('Password is required');
         score -= 50;
@@ -291,17 +316,17 @@ export class CredentialSecurityService {
    */
   sanitizeForStorage(credential: CredentialData): CredentialData {
     const sanitized = { ...credential };
-    
+
     // Remove any potential XSS or injection attempts
     if (sanitized.username) {
       sanitized.username = this.sanitizeString(sanitized.username);
     }
-    
+
     // Don't sanitize password/token content as it might be intentional
     // but ensure it's properly encrypted
     sanitized.encrypted = true;
     sanitized.rotationDate = new Date();
-    
+
     return sanitized;
   }
 
@@ -322,7 +347,7 @@ export class CredentialSecurityService {
     operation: 'create' | 'update' | 'delete' | 'access' | 'rotate',
     credentialId: string,
     userId?: string,
-    metadata?: any
+    metadata?: any,
   ): any {
     return {
       timestamp: new Date().toISOString(),
