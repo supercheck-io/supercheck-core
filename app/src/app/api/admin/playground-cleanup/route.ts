@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getPlaygroundCleanupService } from '@/lib/playground-cleanup';
 
 /**
  * GET /api/admin/playground-cleanup - Get playground cleanup status
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const playgroundCleanup = getPlaygroundCleanupService();
     
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/admin/playground-cleanup - Trigger manual cleanup
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const playgroundCleanup = getPlaygroundCleanupService();
     

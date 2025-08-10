@@ -198,7 +198,7 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
       console.log("[DELETE_JOB] Transaction successful, starting cleanup tasks...");
       
       // S3 cleanup - delete all report files from S3
-      if (transactionResult.reportsToDelete.length > 0) {
+      if (transactionResult.reportsToDelete && transactionResult.reportsToDelete.length > 0) {
         try {
           console.log(`[DELETE_JOB] Starting S3 cleanup for ${transactionResult.reportsToDelete.length} reports...`);
           const s3Service = createS3CleanupService();
@@ -236,9 +236,9 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
         resource: 'job',
         resourceId: jobId,
         metadata: {
-          jobName: transactionResult.jobData.name,
-          jobDescription: transactionResult.jobData.description,
-          cronSchedule: transactionResult.jobData.cronSchedule,
+          jobName: transactionResult.jobData?.name,
+          jobDescription: transactionResult.jobData?.description,
+          cronSchedule: transactionResult.jobData?.cronSchedule,
           projectId: project.id,
           projectName: project.name,
           runsDeleted: transactionResult.deletedRuns,

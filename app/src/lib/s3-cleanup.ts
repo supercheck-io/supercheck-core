@@ -74,7 +74,6 @@ export class S3CleanupService {
         secretAccessKey: this.config.secretAccessKey,
       },
       maxAttempts: this.config.maxRetries,
-      requestTimeout: this.config.operationTimeout,
     });
   }
 
@@ -337,8 +336,8 @@ export class S3CleanupService {
       `${entityId}/report/`,    // Specific report directory
     ];
 
-    let totalDeletedObjects: string[] = [];
-    let totalFailedObjects: Array<{key: string; error: string;}> = [];
+    const totalDeletedObjects: string[] = [];
+    const totalFailedObjects: Array<{key: string; error: string;}> = [];
     let totalAttempted = 0;
 
     for (const prefix of prefixesToTry) {

@@ -15,7 +15,7 @@ export interface AdminOrganization {
 }
 
 
-export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrganization>[] => [
+export const createOrgColumns = (): ColumnDef<AdminOrganization>[] => [
   {
     accessorKey: "name",
     header: ({ column }) => (

@@ -449,7 +449,6 @@ export default function AdminDashboard() {
                 <>
                   <OrgTable 
                     organizations={organizations} 
-                    onOrgUpdate={() => { fetchOrganizations(); fetchStats(); }}
                   />
                   {orgsPagination.hasMore && (
                     <div className="flex justify-center pt-4">

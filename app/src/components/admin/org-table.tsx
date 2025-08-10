@@ -7,11 +7,10 @@ import { createOrgColumns, AdminOrganization } from "./org-columns";
 
 interface OrgTableProps {
   organizations: AdminOrganization[];
-  onOrgUpdate: () => void;
 }
 
-export function OrgTable({ organizations, onOrgUpdate }: OrgTableProps) {
-  const columns = React.useMemo(() => createOrgColumns(onOrgUpdate), [onOrgUpdate]);
+export function OrgTable({ organizations }: OrgTableProps) {
+  const columns = React.useMemo(() => createOrgColumns(), []);
 
   return (
     <AdminDataTable

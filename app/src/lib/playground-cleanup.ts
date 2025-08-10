@@ -7,7 +7,8 @@
  */
 
 import { createS3CleanupService, type S3DeletionResult } from './s3-cleanup';
-import { Queue, Worker } from 'bullmq';
+import { Queue, Worker, QueueEvents } from 'bullmq';
+import type Redis from 'ioredis';
 
 // Configuration interface for playground cleanup
 export interface PlaygroundCleanupConfig {
@@ -26,6 +27,7 @@ export class PlaygroundCleanupService {
   private s3Service: ReturnType<typeof createS3CleanupService>;
   private cleanupQueue: Queue | null = null;
   private cleanupWorker: Worker | null = null;
+  private cleanupQueueEvents: QueueEvents | null = null;
 
   constructor(config: PlaygroundCleanupConfig) {
     this.config = config;
@@ -43,7 +45,7 @@ export class PlaygroundCleanupService {
   /**
    * Initialize the cleanup system with queue and worker
    */
-  async initialize(redisConnection: any): Promise<void> {
+  async initialize(redisConnection: Redis): Promise<void> {
     if (!this.config.enabled) {
       console.log('[PLAYGROUND_CLEANUP] Cleanup is disabled, skipping initialization');
       return;
@@ -64,6 +66,11 @@ export class PlaygroundCleanupService {
             delay: 5000,       // Start with 5 second delay
           },
         },
+      });
+
+      // Create queue events for monitoring job completion
+      this.cleanupQueueEvents = new QueueEvents('playground-cleanup', {
+        connection: redisConnection,
       });
 
       // Create the worker to process cleanup jobs
@@ -113,12 +120,14 @@ export class PlaygroundCleanupService {
     console.log(`[PLAYGROUND_CLEANUP] Scheduling cleanup job with cron: ${this.config.cronSchedule}`);
 
     try {
-      // Remove any existing jobs with the same ID first
-      await this.cleanupQueue.removeRepeatable('playground-cleanup-job', {
-        cron: this.config.cronSchedule,
-      }).catch(() => {
-        // Ignore errors if no existing job to remove
-      });
+      // Remove any existing jobs with the same name first
+      const existingJobs = await this.cleanupQueue.getRepeatableJobs();
+      const existingJob = existingJobs.find(job => job.name === 'playground-cleanup-job');
+      
+      if (existingJob) {
+        console.log(`[PLAYGROUND_CLEANUP] Removing existing repeatable job: ${existingJob.key}`);
+        await this.cleanupQueue.removeRepeatableByKey(existingJob.key);
+      }
 
       // Add the new recurring job
       await this.cleanupQueue.add(
@@ -131,7 +140,7 @@ export class PlaygroundCleanupService {
         {
           jobId: 'playground-cleanup-recurring', // Fixed ID prevents duplicates across instances
           repeat: {
-            cron: this.config.cronSchedule,
+            pattern: this.config.cronSchedule,
           },
         }
       );
@@ -301,7 +310,10 @@ export class PlaygroundCleanupService {
       console.log(`[PLAYGROUND_CLEANUP] Manual cleanup job queued: ${job.id}`);
       
       // Wait for the job to complete and return the result
-      const result = await job.waitUntilFinished();
+      if (!this.cleanupQueueEvents) {
+        throw new Error('Queue events not initialized');
+      }
+      const result = await job.waitUntilFinished(this.cleanupQueueEvents);
       return result as S3DeletionResult;
     } catch (error) {
       console.error('[PLAYGROUND_CLEANUP] Manual cleanup failed:', error);
@@ -365,6 +377,10 @@ export class PlaygroundCleanupService {
 
     if (this.cleanupQueue) {
       promises.push(this.cleanupQueue.close());
+    }
+
+    if (this.cleanupQueueEvents) {
+      promises.push(this.cleanupQueueEvents.close());
     }
 
     try {
