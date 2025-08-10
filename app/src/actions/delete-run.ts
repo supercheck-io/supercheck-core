@@ -2,11 +2,12 @@
 
 import { db } from "../utils/db";
 import { runs, reports } from "../db/schema/schema";
-import { eq, or, and } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
 import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { createS3CleanupService, type ReportDeletionInput } from "@/lib/s3-cleanup";
 
 type DeleteRunResult = {
   success: boolean;
@@ -14,6 +15,127 @@ type DeleteRunResult = {
   error?: string;
   details?: string;
 };
+
+type RunData = {
+  id: string;
+  projectId: string | null;
+  jobId: string;
+  status: string;
+  trigger: string;
+  startedAt: Date | null;
+};
+
+type ReportToDelete = {
+  id: string;
+  reportPath: string | null;
+  s3Url: string | null;
+  entityType: 'job' | 'test';
+};
+
+type DeleteTransactionResult = {
+  success: true;
+  message: string;
+  runData: RunData;
+  reportsCount: number;
+  reportsToDelete: ReportToDelete[];
+} | {
+  success: false;
+  message: string;
+  error: string;
+  details?: string;
+};
+
+/**
+ * Delete associated reports for a run and return S3 cleanup data
+ */
+async function deleteAssociatedReports(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], runId: string): Promise<{ count: number; reportsToDelete: ReportToDelete[] }> {
+  console.log(`[DELETE_RUN] Deleting reports for run ${runId}`);
+  const reportsToDelete: ReportToDelete[] = [];
+  
+  try {
+    // First, get the report data before deleting (for S3 cleanup)
+    const existingReports = await tx
+      .select({
+        id: reports.id,
+        reportPath: reports.reportPath,
+        s3Url: reports.s3Url,
+        entityType: reports.entityType,
+      })
+      .from(reports)
+      .where(eq(reports.entityId, runId));
+
+    console.log(`[DELETE_RUN] Found ${existingReports.length} reports to delete`);
+
+    // Store report data for S3 cleanup
+    for (const report of existingReports) {
+      reportsToDelete.push({
+        id: report.id,
+        reportPath: report.reportPath,
+        s3Url: report.s3Url,
+        entityType: report.entityType as 'job' | 'test',
+      });
+    }
+
+    // Delete job-type reports
+    const deletedJobReports = await tx
+      .delete(reports)
+      .where(and(eq(reports.entityId, runId), eq(reports.entityType, "job")))
+      .returning({ id: reports.id });
+    
+    console.log(`[DELETE_RUN] Deleted ${deletedJobReports.length} job-type reports`);
+
+    // Delete test-type reports  
+    const deletedTestReports = await tx
+      .delete(reports)
+      .where(and(eq(reports.entityId, runId), eq(reports.entityType, "test")))
+      .returning({ id: reports.id });
+      
+    console.log(`[DELETE_RUN] Deleted ${deletedTestReports.length} test-type reports`);
+    
+    const totalCount = deletedJobReports.length + deletedTestReports.length;
+    console.log(`[DELETE_RUN] Total reports deleted: ${totalCount}`);
+    
+    return {
+      count: totalCount,
+      reportsToDelete,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[DELETE_RUN] Error deleting reports:", message);
+    throw new Error(`Failed to delete reports: ${message}`);
+  }
+}
+
+/**
+ * Log audit event for run deletion
+ */
+async function logRunDeletionAudit(
+  userId: string,
+  organizationId: string,
+  runId: string,
+  runData: RunData,
+  projectId: string,
+  projectName: string,
+  reportsCount: number
+): Promise<void> {
+  return logAuditEvent({
+    userId,
+    organizationId,
+    action: 'run_deleted',
+    resource: 'run',
+    resourceId: runId,
+    metadata: {
+      jobId: runData.jobId,
+      status: runData.status,
+      trigger: runData.trigger,
+      startedAt: runData.startedAt?.toISOString(),
+      projectId,
+      projectName,
+      reportsDeleted: reportsCount
+    },
+    success: true
+  });
+}
 
 export async function deleteRun(runId: string): Promise<DeleteRunResult> {
   console.log("[DELETE_RUN] Starting deletion for run:", runId);
@@ -29,13 +151,17 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
 
   try {
     // Get current project context (includes auth verification)
+    console.log("[DELETE_RUN] Getting project context...");
     const { userId, project, organizationId } = await requireProjectContext();
+    console.log("[DELETE_RUN] Project context:", { userId: userId.substring(0, 8) + '...', projectId: project.id, organizationId: organizationId.substring(0, 8) + '...' });
 
     // Check DELETE_JOBS permission (runs are considered part of job management)
+    console.log("[DELETE_RUN] Checking permissions for run deletion...");
     const canDeleteJobs = await hasPermission('run', 'delete', { organizationId, projectId: project.id });
+    console.log("[DELETE_RUN] Permission check result:", canDeleteJobs);
     
     if (!canDeleteJobs) {
-      console.warn(`User ${userId} attempted to delete run ${runId} without DELETE_JOBS permission`);
+      console.warn(`[DELETE_RUN] User ${userId} attempted to delete run ${runId} without DELETE_JOBS permission`);
       return {
         success: false,
         message: "Failed to delete run",
@@ -44,7 +170,10 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
     }
 
     // Perform the deletion within a transaction
-    return await db.transaction(async (tx) => {
+    console.log("[DELETE_RUN] Starting database transaction...");
+    const transactionResult: DeleteTransactionResult = await db.transaction(async (tx) => {
+      console.log("[DELETE_RUN] Transaction started successfully");
+      
       // Check if the run exists and belongs to the current project
       const existingRun = await tx
         .select({
@@ -68,45 +197,14 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
           success: false,
           message: "Failed to delete run",
           error: "Run not found or access denied",
-        };
+        } as const;
       }
 
+      const runData = existingRun[0];
       console.log(`[DELETE_RUN] Found run ${runId}, proceeding with deletion`);
 
-      // First check for associated reports
-      console.log(`[DELETE_RUN] Checking for associated reports for run ${runId}`);
-      const associatedReports = await tx
-        .select({ id: reports.id, entityType: reports.entityType })
-        .from(reports)
-        .where(
-          or(
-            and(eq(reports.entityId, runId), eq(reports.entityType, "job")),
-            and(eq(reports.entityId, runId), eq(reports.entityType, "test"))
-          )
-        );
-
-      console.log(`[DELETE_RUN] Found ${associatedReports.length} associated reports with types: ${associatedReports.map(r => r.entityType).join(', ')}`);
-      
-      if (associatedReports.length > 0) {
-        // Delete the reports first
-        console.log(`[DELETE_RUN] Deleting ${associatedReports.length} reports for run ${runId}`);
-        try {
-          const deletedReports = await tx
-            .delete(reports)
-            .where(
-              or(
-                and(eq(reports.entityId, runId), eq(reports.entityType, "job")),
-                and(eq(reports.entityId, runId), eq(reports.entityType, "test"))
-              )
-            )
-            .returning({ id: reports.id });
-
-          console.log(`[DELETE_RUN] Successfully deleted ${deletedReports.length} reports`);
-        } catch (reportError) {
-          console.error("[DELETE_RUN] Error deleting reports:", reportError);
-          throw new Error(`Failed to delete reports: ${reportError instanceof Error ? reportError.message : String(reportError)}`);
-        }
-      }
+      // Delete associated reports 
+      const reportsResult = await deleteAssociatedReports(tx, runId);
 
       // Now delete the run
       console.log(`[DELETE_RUN] Now deleting run with ID: ${runId}`);
@@ -122,49 +220,101 @@ export async function deleteRun(runId: string): Promise<DeleteRunResult> {
           throw new Error(`Failed to delete run ${runId} - no rows affected`);
         }
         
-        // Log the audit event for run deletion
-        await logAuditEvent({
-          userId,
-          organizationId,
-          action: 'run_deleted',
-          resource: 'run',  
-          resourceId: runId,
-          metadata: {
-            jobId: existingRun[0].jobId,
-            status: existingRun[0].status,
-            trigger: existingRun[0].trigger,
-            startedAt: existingRun[0].startedAt?.toISOString(),
-            projectId: project.id,
-            projectName: project.name,
-            reportsDeleted: associatedReports.length
-          },
-          success: true
-        });
-        
-        // Revalidate paths to ensure UI is updated
-        revalidatePath("/runs");
-        revalidatePath("/");
-        revalidatePath("/jobs");
-
+        console.log("[DELETE_RUN] Transaction completed successfully - run and reports deleted");
         return {
           success: true,
-          message: `Run deleted successfully (including ${associatedReports.length} reports)`,
-        };
+          message: `Run deleted successfully (including ${reportsResult.count} reports)`,
+          runData,
+          reportsCount: reportsResult.count,
+          reportsToDelete: reportsResult.reportsToDelete,
+        } as const;
       } catch (runError) {
         console.error("[DELETE_RUN] Error deleting run:", runError);
+        console.error("[DELETE_RUN] Run error stack:", runError instanceof Error ? runError.stack : 'No stack available');
         throw new Error(`Failed to delete run: ${runError instanceof Error ? runError.message : String(runError)}`);
       }
     });
+
+    // Handle cleanup tasks outside the transaction
+    if (transactionResult.success) {
+      console.log("[DELETE_RUN] Transaction successful, starting cleanup tasks...");
+      
+      // S3 cleanup - delete report files from S3
+      if (transactionResult.reportsToDelete.length > 0) {
+        try {
+          console.log(`[DELETE_RUN] Starting S3 cleanup for ${transactionResult.reportsToDelete.length} reports...`);
+          const s3Service = createS3CleanupService();
+          
+          // Convert reports to S3 deletion format
+          const s3DeletionInputs: ReportDeletionInput[] = transactionResult.reportsToDelete.map(report => ({
+            reportPath: report.reportPath || undefined,
+            s3Url: report.s3Url || undefined,
+            entityId: runId,
+            entityType: report.entityType,
+          }));
+
+          const s3Result = await s3Service.deleteReports(s3DeletionInputs);
+          
+          if (s3Result.success) {
+            console.log(`[DELETE_RUN] S3 cleanup successful: ${s3Result.deletedObjects.length} objects deleted`);
+          } else {
+            console.warn(`[DELETE_RUN] S3 cleanup partially failed: ${s3Result.deletedObjects.length} succeeded, ${s3Result.failedObjects.length} failed`);
+            // Log failed objects for debugging
+            for (const failed of s3Result.failedObjects) {
+              console.warn(`[DELETE_RUN] S3 deletion failed for ${failed.key}: ${failed.error}`);
+            }
+          }
+        } catch (s3Error) {
+          console.error("[DELETE_RUN] S3 cleanup failed (run still deleted):", s3Error);
+        }
+      } else {
+        console.log("[DELETE_RUN] No S3 reports to clean up");
+      }
+      
+      // Log audit event (don't fail the whole operation if this fails)
+      await logRunDeletionAudit(
+        userId,
+        organizationId,
+        runId,
+        transactionResult.runData,
+        project.id,
+        project.name,
+        transactionResult.reportsCount
+      ).catch((auditError) => {
+        console.error("[DELETE_RUN] Error logging audit event (run still deleted):", auditError);
+      });
+
+      // Revalidate paths (don't fail the whole operation if this fails)
+      try {
+        console.log("[DELETE_RUN] Revalidating paths...");
+        revalidatePath("/runs");
+        revalidatePath("/");
+        revalidatePath("/jobs");
+        revalidatePath(`/runs/${runId}`);
+        console.log("[DELETE_RUN] Paths revalidated successfully");
+      } catch (revalidateError) {
+        console.error("[DELETE_RUN] Error revalidating paths (run still deleted):", revalidateError);
+      }
+    }
+
+    console.log("[DELETE_RUN] Returning final result");
+    if (transactionResult.success) {
+      return {
+        success: true,
+        message: transactionResult.message
+      };
+    } else {
+      return {
+        success: false,
+        message: transactionResult.message,
+        error: transactionResult.error
+      };
+    }
   } catch (error) {
-    console.error("[DELETE_RUN] Transaction error:", error);
-    
-    // More detailed error message for debugging
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    console.error("[DELETE_RUN] Error details:", {
+    console.error("[DELETE_RUN] Unexpected error:", {
       message: errorMessage,
-      stack: errorStack
+      stack: error instanceof Error ? error.stack : 'No stack available'
     });
     
     return {

@@ -34,9 +34,6 @@ x-common-env: &common-env
   S3_OPERATION_TIMEOUT: 10000
   S3_MAX_RETRIES: 3
   
-  # Scheduler Configuration
-  DISABLE_JOB_SCHEDULER: false
-  DISABLE_MONITOR_SCHEDULER: false
   
   # Notification Channel Limits
   MAX_JOB_NOTIFICATION_CHANNELS: 10

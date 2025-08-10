@@ -145,7 +145,8 @@ async function getQueues(): Promise<{
   jobQueue: Queue, 
   monitorExecutionQueue: Queue,
   jobSchedulerQueue: Queue,
-  monitorSchedulerQueue: Queue
+  monitorSchedulerQueue: Queue,
+  redisConnection: Redis
 }> { 
   if (!initPromise) {
     initPromise = (async () => {
@@ -210,10 +211,10 @@ async function getQueues(): Promise<{
   }
   await initPromise;
 
-  if (!testQueue || !jobQueue || !monitorExecution || !monitorExecutionEvents || !jobSchedulerQueue || !monitorSchedulerQueue) {
+  if (!testQueue || !jobQueue || !monitorExecution || !monitorExecutionEvents || !jobSchedulerQueue || !monitorSchedulerQueue || !redisClient) {
     throw new Error("One or more queues or event listeners could not be initialized.");
   }
-  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution, jobSchedulerQueue, monitorSchedulerQueue };
+  return { testQueue, jobQueue, monitorExecutionQueue: monitorExecution, jobSchedulerQueue, monitorSchedulerQueue, redisConnection: redisClient };
 }
 
 /**

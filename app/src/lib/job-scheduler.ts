@@ -7,6 +7,7 @@ import { getQueues, JobExecutionTask, JOB_EXECUTION_QUEUE } from "./queue";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
 import { z } from 'zod';
+import { createPlaygroundCleanupService, setPlaygroundCleanupInstance, type PlaygroundCleanupService } from './playground-cleanup';
 
 // Map to store the created queues - REMOVED for statelessness
 // const queueMap = new Map<string, Queue>();
@@ -389,6 +390,41 @@ export async function initializeJobSchedulers() {
 }
 
 /**
+ * Initialize playground cleanup service
+ * Called on application startup after job schedulers
+ */
+export async function initializePlaygroundCleanup(): Promise<PlaygroundCleanupService | null> {
+  try {
+    console.log("Initializing playground cleanup service...");
+    
+    // Check if playground cleanup is disabled
+    if (process.env.PLAYGROUND_CLEANUP_ENABLED !== 'true') {
+      console.log("Playground cleanup is disabled, skipping initialization");
+      return null;
+    }
+
+    // Create the playground cleanup service
+    const playgroundCleanup = createPlaygroundCleanupService();
+    
+    // Get Redis connection from existing queue system
+    const { redisConnection } = await getQueues();
+    
+    // Initialize the cleanup service with Redis connection
+    await playgroundCleanup.initialize(redisConnection);
+    
+    // Set the global instance for access throughout the app
+    setPlaygroundCleanupInstance(playgroundCleanup);
+    
+    console.log("Playground cleanup service initialized successfully");
+    return playgroundCleanup;
+  } catch (error) {
+    console.error("Failed to initialize playground cleanup service:", error);
+    // Don't fail the entire initialization if playground cleanup fails
+    return null;
+  }
+}
+
+/**
  * Cleanup function to close all queues and workers
  * Should be called when shutting down the application
  */
@@ -451,5 +487,28 @@ export async function cleanupJobScheduler() {
   } catch (error) {
     console.error("Failed to cleanup job scheduler:", error);
     return false;
+  }
+}
+
+/**
+ * Cleanup playground cleanup service
+ * Should be called when shutting down the application
+ */
+export async function cleanupPlaygroundCleanup(): Promise<void> {
+  try {
+    console.log("Cleaning up playground cleanup service...");
+    
+    const { getPlaygroundCleanupService } = await import('./playground-cleanup');
+    const playgroundCleanup = getPlaygroundCleanupService();
+    
+    if (playgroundCleanup) {
+      await playgroundCleanup.shutdown();
+      console.log("Playground cleanup service shutdown complete");
+    } else {
+      console.log("No playground cleanup service to shutdown");
+    }
+  } catch (error) {
+    console.error("Failed to cleanup playground cleanup service:", error);
+    // Don't fail the entire cleanup process
   }
 } 

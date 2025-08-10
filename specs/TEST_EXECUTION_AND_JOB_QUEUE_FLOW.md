@@ -28,17 +28,25 @@ flowchart TB
         C1["API Test Route"]
         C2["API Jobs Run Route"]
         C3["API Test Results Route"]
+        C4["Playground Cleanup API"]
     end
     
     subgraph "Queue System"
         D1[Redis]
         D2[BullMQ]
+        D3[Playground Cleanup Queue]
     end
     
     subgraph "Worker Service"
         E1[Worker Process]
         E2[Test Execution Service]
         E3[Report Generation]
+    end
+    
+    subgraph "Background Services"
+        G1[Playground Cleanup Service]
+        G2[S3 Cleanup Service]
+        G3[Scheduled Cleanup Worker]
     end
     
     subgraph "Storage"
@@ -66,6 +74,15 @@ flowchart TB
     F1 <-->|Store/Retrieve Metadata| C1
     F1 <-->|Store/Retrieve Metadata| C2
     F1 <-->|Retrieve Report Metadata| C3
+    
+    %% Playground Cleanup Flow
+    G1 -->|Schedule Cleanup Jobs| D3
+    D3 <-->|Store Cleanup Jobs| D1  
+    D3 -->|Process Cleanup| G3
+    G3 -->|Batch Delete S3 Objects| G2
+    G2 -->|Delete Reports| F3
+    C4 -->|Manual Trigger| G1
+    C4 -->|Status Check| G1
 ```
 
 ## Execution Sequence Diagram
@@ -240,6 +257,7 @@ The application uses BullMQ with Redis for job queuing:
 - **Queues**:
   - `test-execution`: For single test executions
   - `job-execution`: For running multiple tests as part of a job
+  - `playground-cleanup`: For scheduled cleanup of old playground test reports
 
 - **Benefits**:
   - **Reliability**: Failed jobs can be retried
@@ -254,12 +272,14 @@ The NestJS worker service processes queued jobs:
 - **Processors**:
   - `TestExecutionProcessor`: Handles single test execution and enforces running capacity
   - `JobExecutionProcessor`: Handles job execution with multiple tests and enforces running capacity
+  - `PlaygroundCleanupWorker`: Processes scheduled cleanup jobs for old playground reports
 
 - **Services**:
   - `ExecutionService`: Orchestrates test execution
   - `S3Service`: Handles artifact uploads to S3/MinIO
   - `DbService`: Manages database operations
   - `RedisService`: Handles real-time status updates and connection management
+  - `PlaygroundCleanupService`: Manages scheduled S3 cleanup with batch processing (1000 objects per batch)
 
 ### 3. Report Storage and Retrieval
 
@@ -346,6 +366,30 @@ The system implements several error handling mechanisms:
    - ReportViewer shows user-friendly error messages
    - Provides retry options and troubleshooting information
 
+## Playground Cleanup System
+
+### Background Process Integration
+
+The playground cleanup system operates as a separate background process that integrates seamlessly with the existing job execution architecture:
+
+**Process Characteristics:**
+- **Independence**: Operates independently from test execution workflows
+- **Multi-Instance Safe**: Uses Redis coordination to prevent duplicate cleanup across multiple app instances
+- **Configurable**: Environment-driven scheduling and retention policies
+- **Robust**: Comprehensive error handling and retry logic
+
+**Integration Points:**
+- **Initialization**: Starts after job schedulers during app startup sequence
+- **Redis Connection**: Leverages existing Redis connection pool from queue management
+- **S3 Service**: Reuses existing S3 cleanup service for consistency and reliability
+- **Monitoring**: Provides status and manual trigger endpoints for administrative control
+
+**Batch Processing Architecture:**
+- **Memory Optimization**: Processes 1000 S3 objects per batch to prevent memory overflow
+- **API Efficiency**: Aligns with AWS S3 DeleteObjects API limit (1000 objects max per request)
+- **Progress Tracking**: Logs progress every batch for operational visibility
+- **Interrupt Recovery**: Failure recovery limited to current batch, not entire operation
+
 ## Configuration Options
 
 The test execution system can be configured via environment variables:
@@ -369,6 +413,11 @@ AWS_SECRET_ACCESS_KEY=minioadmin
 RUNNING_CAPACITY=5                 # Maximum concurrent executions allowed to run
 QUEUED_CAPACITY=50                 # Maximum executions allowed in queued state
 TEST_EXECUTION_TIMEOUT_MS=900000   # 15 minutes default
+
+# Playground Cleanup Parameters
+PLAYGROUND_CLEANUP_ENABLED=true           # Enable/disable playground cleanup
+PLAYGROUND_CLEANUP_CRON=0 */12 * * *      # Cron schedule (default: every 12 hours)
+PLAYGROUND_CLEANUP_MAX_AGE_HOURS=24       # Delete reports older than 24 hours
 ```
 
 ## Start Services Quick Reference

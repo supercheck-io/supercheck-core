@@ -310,6 +310,8 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
                     onSelect={setExpiryDate}
                     disabled={(date) => date < new Date()}
                     initialFocus
+                    captionLayout="dropdown"
+                    className="rounded-md border shadow-sm"
                   />
                 </PopoverContent>
               </Popover>

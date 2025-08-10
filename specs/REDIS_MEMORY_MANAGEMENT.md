@@ -9,6 +9,7 @@ graph TB
         A2[Event Streams] --> B2[Stream Trimming]
         A3[Cache Data] --> B3[Auto Expiration]
         A4[Metrics Data] --> B4[Data Point Limits]
+        A5[Playground Cleanup Queue] --> B5[Scheduled Cleanup]
     end
     
     subgraph "Cleanup Strategies"
@@ -16,6 +17,7 @@ graph TB
         C2[Age-based Removal]
         C3[Count-based Limits]
         C4[Orphaned Key Detection]
+        C5[S3 Batch Deletion]
     end
     
     subgraph "TTL Hierarchy"
@@ -23,17 +25,20 @@ graph TB
         D2[Event Data: 24 hours] 
         D3[Metrics: 48 hours]
         D4[Job Data: 7 days]
+        D5[Cleanup Jobs: Auto-remove]
     end
     
     B1 --> C1
     B2 --> C2
     B3 --> C3
     B4 --> C4
+    B5 --> C5
     
     C1 --> E1[Memory Optimization]
     C2 --> E1
     C3 --> E1  
     C4 --> E1
+    C5 --> E1
     
     E1 --> F1[System Stability]
 ```
@@ -176,12 +181,14 @@ The system performs multi-layered cleanup operations:
 - Monitor execution queues for system monitoring
 - Heartbeat and notification queues for alerts
 - Scheduler queues for automated job execution
+- **Playground cleanup queues** for automated S3 report cleanup
 
 **Cleanup Operations:**
 - **Age-Based Removal**: Removes jobs older than configured TTL
 - **Count-Based Limits**: Enforces maximum job retention counts
 - **Event Stream Trimming**: Prevents event log growth
 - **Orphaned Key Detection**: Identifies and removes abandoned keys
+- **S3 Batch Deletion**: Playground cleanup processes 1000 objects per batch to optimize memory and API efficiency
 
 ## Benefits
 
@@ -243,6 +250,30 @@ The system tracks cleanup metrics for monitoring:
 - Cleanup operation duration
 - Error rates and types
 
+## Playground Cleanup Integration
+
+### New BullMQ Queue Added
+
+The playground cleanup system integrates seamlessly with the existing Redis memory management:
+
+**Queue Configuration:**
+- `playground-cleanup` queue uses same Redis connection pool as existing queues
+- Memory-optimized job options: 5 completed jobs retained, 10 failed jobs for debugging
+- Fixed job IDs prevent duplicate jobs across multiple app instances
+- Auto-removal of completed jobs minimizes Redis footprint
+
+**S3 Batch Processing:**
+- **Batch Size of 1000**: Optimizes memory usage by processing objects in chunks
+  - Prevents memory overflow when handling large numbers of S3 objects
+  - Matches AWS S3 DeleteObjects API limit (max 1000 objects per request)  
+  - Enables progress tracking and interrupt recovery
+  - Distributes system load over time to avoid spikes
+
+**Multi-Instance Coordination:**
+- Redis-based BullMQ job coordination prevents duplicate cleanup across instances
+- First instance to grab cleanup job wins, others skip automatically
+- High availability: if one instance fails, another picks up the scheduled job
+
 ## Configuration
 
 ### Environment Variables
@@ -260,6 +291,11 @@ REDIS_JOB_TTL=604800        # 7 days in seconds
 REDIS_EVENT_TTL=86400       # 24 hours in seconds
 REDIS_METRICS_TTL=172800    # 48 hours in seconds
 REDIS_CLEANUP_BATCH_SIZE=100
+
+# Playground Cleanup Configuration
+PLAYGROUND_CLEANUP_ENABLED=true
+PLAYGROUND_CLEANUP_CRON=0 */12 * * *      # Every 12 hours
+PLAYGROUND_CLEANUP_MAX_AGE_HOURS=24       # Delete reports older than 24 hours
 ```
 
 ### Docker Configuration
