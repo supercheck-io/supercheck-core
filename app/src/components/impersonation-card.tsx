@@ -5,6 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { UserX, User } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  useSidebar,
+} from '@/components/ui/sidebar';
 
 interface ImpersonationInfo {
   isImpersonating: boolean;
@@ -18,6 +24,7 @@ interface ImpersonationInfo {
 export function ImpersonationCard() {
   const [impersonationInfo, setImpersonationInfo] = useState<ImpersonationInfo>({ isImpersonating: false });
   const [stopping, setStopping] = useState(false);
+  const { state } = useSidebar();
 
   useEffect(() => {
     checkImpersonationStatus();
@@ -62,8 +69,30 @@ export function ImpersonationCard() {
     return null;
   }
 
+  const tooltipText = `Impersonating: ${impersonationInfo.impersonatedUser?.name || ''} (${impersonationInfo.impersonatedUser?.email || ''})`;
+
+  // Show compact button when sidebar is collapsed
+  if (state === 'collapsed') {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            tooltip={tooltipText}
+            onClick={stopImpersonation}
+            disabled={stopping}
+            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+          >
+            <User className="h-4 w-4" />
+            <span>Stop Impersonation</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
+
+  // Show detailed card when sidebar is expanded
   return (
-    <Card className="mx-2 mb-2  bg-card">
+    <Card className="mx-2 mb-2 bg-card">
       <CardContent className="p-2">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1">

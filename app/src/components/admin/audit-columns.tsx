@@ -127,23 +127,25 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
 }
 
 const getActionBadgeColor = (action: string) => {
-  if (action.includes('delete') || action.includes('remove')) return 'bg-red-100 text-red-700';
-  if (action.includes('create') || action.includes('add')) return 'bg-green-100 text-green-700';
-  if (action.includes('update') || action.includes('edit')) return 'bg-blue-100 text-blue-700';
-  if (action.includes('login') || action.includes('auth')) return 'bg-purple-100 text-purple-700';
-  return 'bg-gray-100 text-gray-700';
+  if (action.includes('delete') || action.includes('remove')) return 'bg-red-200 text-red-800';
+  if (action.includes('create') || action.includes('add')) return 'bg-green-200 text-green-800';
+  if (action.includes('update') || action.includes('edit')) return 'bg-blue-200 text-blue-800';
+  if (action.includes('login') || action.includes('auth')) return 'bg-purple-200 text-purple-800';
+  return 'bg-gray-200 text-gray-800';
 };
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
-  return date.toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
+  const formattedDate = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
+  const formattedTime = date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return { formattedDate, formattedTime };
 };
 
 
@@ -154,7 +156,7 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
       <DataTableColumnHeader column={column} title="Timestamp" />
     ),
     cell: ({ row }) => {
-      const dateTime = formatDate(row.getValue("createdAt"));
+      const { formattedDate, formattedTime } = formatDate(row.getValue("createdAt"));
       const date = new Date(row.getValue("createdAt"));
       const now = new Date();
       const diffMs = now.getTime() - date.getTime();
@@ -174,10 +176,11 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
       }
       
       return (
-        <div className="py-2 min-w-[140px] flex items-center">
+        <div className="py-1 min-w-[140px] flex items-center h-12">
           <div>
             <div className="text-sm font-medium text-foreground">
-              {dateTime}
+              <span>{formattedDate}</span>
+              <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
             </div>
             <div className="text-xs text-muted-foreground mt-1 font-medium">
               {timeAgo}
@@ -196,7 +199,7 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
       const action = row.getValue("action") as string;
       
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center h-12">
           <Badge 
             variant="outline" 
             className={`${getActionBadgeColor(action)} text-xs px-3 py-1.5 font-medium border-0`}
@@ -224,7 +227,7 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
       const user = row.original.user as AuditUser;
       
       return (
-        <div className="py-2 min-w-[160px] flex items-center">
+        <div className="py-1 min-w-[160px] flex items-center h-12">
           <div className="flex items-center gap-2.5">
             <div className="flex-shrink-0">
               <div className="w-7 h-7 bg-muted rounded-full flex items-center justify-center">
@@ -258,7 +261,7 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
       const log = row.original;
       
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center h-12">
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-muted transition-colors">
@@ -282,7 +285,17 @@ export const auditLogColumns: ColumnDef<AuditLog>[] = [
                       <label className="text-sm font-medium text-muted-foreground">Timestamp</label>
                       <div className="mt-1 flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-sm font-mono">{formatDate(log.createdAt)}</p>
+                        <p className="text-sm font-mono">
+                          {(() => {
+                            const { formattedDate, formattedTime } = formatDate(log.createdAt);
+                            return (
+                              <>
+                                <span>{formattedDate}</span>
+                                <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
+                              </>
+                            );
+                          })()}
+                        </p>
                       </div>
                     </div>
                     <div>

@@ -29,6 +29,7 @@ import { ReportViewer } from "@/components/shared/report-viewer";
 import { useProjectContext } from "@/hooks/use-project-context";
 import { canRunTests } from "@/lib/rbac/client-permissions";
 import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import RuntimeInfoPopover from "./runtime-info-popover";
 
 // Define our own TestCaseFormData interface
 interface TestCaseFormData {
@@ -699,6 +700,11 @@ const Playground: React.FC<PlaygroundProps> = ({
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
+                    
+                    {/* Runtime Libraries Info */}
+                    <div className="-ml-4">
+                      <RuntimeInfoPopover />
+                    </div>
                   </div>
                   <Button
                     onClick={runTest}

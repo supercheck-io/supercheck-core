@@ -257,9 +257,7 @@ const MemberActionsCell = ({
   if (member.role === 'org_owner') {
     return (
       <div className="py-1 flex justify-start">
-        <Badge variant="outline" className="bg-purple-50 text-purple-700 text-xs px-3 py-1.5 font-medium">
-          Owner
-        </Badge>
+        <span className="text-muted-foreground text-sm">None</span>
       </div>
     );
   }
@@ -353,7 +351,7 @@ export const createMemberColumns = (onMemberUpdate: () => void, projects: { id: 
       const isInvitation = item.type === 'invitation';
       
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center">
           <div>
             <div className="font-medium text-sm">
               {isInvitation ? (item as PendingInvitation).email : (item as OrgMember).name}
@@ -388,7 +386,7 @@ export const createMemberColumns = (onMemberUpdate: () => void, projects: { id: 
       const role = isInvitation ? (item as PendingInvitation).role : (item as OrgMember).role;
       
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center">
           <Badge 
             variant="outline" 
             className={`${getRoleColor(role, isInvitation)} text-xs px-3 py-1.5 font-medium capitalize`}
@@ -419,7 +417,7 @@ export const createMemberColumns = (onMemberUpdate: () => void, projects: { id: 
       const isInvitation = item.type === 'invitation';
       
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center">
           {isInvitation ? (
             <Badge variant="outline" className={`${getStatusColor((item as PendingInvitation).status)} text-xs px-3 py-1.5 font-medium capitalize`}>
               {(item as PendingInvitation).status}
@@ -449,19 +447,53 @@ export const createMemberColumns = (onMemberUpdate: () => void, projects: { id: 
       const isInvitation = item.type === 'invitation';
       
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center">
           {isInvitation ? (
-            <div className="text-xs">
-              <div className="text-muted-foreground">Expires:</div>
+            <div className="text-sm">
+              <div className="text-muted-foreground text-xs">Expires:</div>
               <div className="font-medium">
-                {new Date((item as PendingInvitation).expiresAt).toLocaleDateString()}
+                {(() => {
+                  const date = new Date((item as PendingInvitation).expiresAt);
+                  const formattedDate = date.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  });
+                  const formattedTime = date.toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                  return (
+                    <>
+                      <span>{formattedDate}</span>
+                      <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           ) : (
-            <div className="text-xs">
-              <div className="text-muted-foreground">Joined:</div>
+            <div className="text-sm">
+              <div className="text-muted-foreground text-xs">Joined:</div>
               <div className="font-medium">
-                {new Date((item as OrgMember).joinedAt).toLocaleDateString()}
+                {(() => {
+                  const date = new Date((item as OrgMember).joinedAt);
+                  const formattedDate = date.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  });
+                  const formattedTime = date.toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                  return (
+                    <>
+                      <span>{formattedDate}</span>
+                      <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -482,9 +514,7 @@ export const createMemberColumns = (onMemberUpdate: () => void, projects: { id: 
       if (isInvitation) {
         return (
           <div className="py-1 flex justify-start">
-            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 text-xs px-3 py-1.5 font-medium">
-              Pending
-            </Badge>
+            <span className="text-muted-foreground text-sm">None</span>
           </div>
         );
       }

@@ -41,11 +41,16 @@ const getStatusBadgeColor = (status: string) => {
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
+  const formattedDate = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
+  const formattedTime = date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return { formattedDate, formattedTime };
 };
 
 export function createProjectColumns(
@@ -62,7 +67,7 @@ export function createProjectColumns(
         const project = row.original;
         
         return (
-          <div className="py-2 min-w-[200px] flex items-center">
+          <div className="py-1 min-w-[200px] flex items-center">
             <div className="flex items-center gap-2.5">
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -104,7 +109,7 @@ export function createProjectColumns(
         const status = row.getValue("status") as string;
         
         return (
-          <div className="py-2 flex items-center">
+          <div className="py-1 flex items-center">
             <Badge 
               variant="outline" 
               className={`${getStatusBadgeColor(status)} text-xs px-3 py-1.5 font-medium capitalize`}
@@ -133,7 +138,7 @@ export function createProjectColumns(
         const remainingCount = Math.max(0, count - displayMembers.length);
         
         return (
-          <div className="py-2 flex items-center gap-2">
+          <div className="py-1 flex items-center gap-2">
             <div className="flex items-center">
               {displayMembers.length > 0 ? (
                 <>
@@ -180,12 +185,13 @@ export function createProjectColumns(
         <DataTableColumnHeader column={column} title="Created" />
       ),
       cell: ({ row }) => {
-        const dateTime = formatDate(row.getValue("createdAt"));
+        const { formattedDate, formattedTime } = formatDate(row.getValue("createdAt"));
         
         return (
-          <div className="py-2 flex items-center gap-2">
-            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">{dateTime}</span>
+          <div className="py-1 flex items-center text-sm">
+            <Calendar className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+            <span>{formattedDate}</span>
+            <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
           </div>
         );
       },

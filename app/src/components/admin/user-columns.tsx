@@ -57,7 +57,7 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
-      <div className="py-2 flex items-center font-medium">{row.getValue("name")}</div>
+      <div className="py-2 flex items-center font-medium h-12">{row.getValue("name")}</div>
     ),
   },
   {
@@ -66,13 +66,13 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
       <DataTableColumnHeader column={column} title="Email" />
     ),
     cell: ({ row }) => (
-      <div className="py-2 flex items-center text-sm">{row.getValue("email")}</div>
+      <div className="py-2 flex items-center text-sm h-12">{row.getValue("email")}</div>
     ),
   },
   {
     accessorKey: "role",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Role (View Only)" />
+      <DataTableColumnHeader column={column} title="Role" />
     ),
     cell: ({ row }) => {
       const rawRole = row.getValue("role") as string;
@@ -91,7 +91,7 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
       };
       
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center h-12">
           <Badge variant="outline" className={`${getRoleColor(role)} text-xs px-3 py-1.5 font-medium`}>
             {getRoleIcon(role)}
             {getDisplayRole(role)}
@@ -115,7 +115,7 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
     cell: ({ row }) => {
       const banned = row.original.banned as boolean;
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center h-12">
           {banned ? (
             <Badge variant="outline" className="bg-red-100 text-red-700 text-xs px-3 py-1.5 font-medium capitalize">Banned</Badge>
           ) : (
@@ -136,10 +136,24 @@ export const createUserColumns = (onUserUpdate: () => void): ColumnDef<AdminUser
       <DataTableColumnHeader column={column} title="Created" />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.getValue("createdAt"));
+      const createdAt = row.getValue("createdAt") as string;
+      if (!createdAt) return null;
+
+      const date = new Date(createdAt);
+      const formattedDate = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      const formattedTime = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
       return (
-        <div className="py-2 flex items-center text-sm">
-          {date.toLocaleDateString()}
+        <div className="py-1 flex items-center text-sm h-12">
+          <span>{formattedDate}</span>
+          <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
         </div>
       );
     },

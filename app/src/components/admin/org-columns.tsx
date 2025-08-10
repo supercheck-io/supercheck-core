@@ -2,17 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Trash2, Building } from "lucide-react";
-import { toast } from "sonner";
+import { Building } from "lucide-react";
 import { DataTableColumnHeader } from "@/components/tests/data-table-column-header";
 
 export interface AdminOrganization {
@@ -24,34 +14,6 @@ export interface AdminOrganization {
   createdAt: string;
 }
 
-const handleViewOrg = (orgId: string) => {
-  // Navigate to organization details
-  window.open(`/admin/organizations/${orgId}`, '_blank');
-};
-
-const handleDeleteOrg = async (orgId: string, orgName: string, onUpdate: () => void) => {
-  if (!confirm(`Are you sure you want to delete "${orgName}"? This action cannot be undone.`)) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/admin/organizations/${orgId}`, {
-      method: 'DELETE',
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      toast.success('Organization deleted successfully');
-      onUpdate();
-    } else {
-      toast.error(data.error || 'Failed to delete organization');
-    }
-  } catch (error) {
-    console.error('Error deleting organization:', error);
-    toast.error('Failed to delete organization');
-  }
-};
 
 export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrganization>[] => [
   {
@@ -60,7 +22,7 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
-      <div className="py-2 font-medium flex items-center">
+      <div className="py-2 font-medium flex items-center h-12">
         <Building className="mr-2 h-4 w-4 text-muted-foreground" />
         {row.getValue("name")}
       </div>
@@ -74,7 +36,7 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
     cell: ({ row }) => {
       const slug = row.getValue("slug") as string;
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center h-12">
           {slug ? (
             <span className=" text-xs">{slug}</span>
           ) : (
@@ -92,7 +54,7 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
     cell: ({ row }) => {
       const count = row.getValue("memberCount") as number;
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center h-12">
           {count !== undefined && count !== null ? (
             <Badge variant="outline" className="bg-blue-100 text-blue-700 text-xs px-3 py-1.5 font-medium">{count}</Badge>
           ) : (
@@ -110,7 +72,7 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
     cell: ({ row }) => {
       const count = row.getValue("projectCount") as number;
       return (
-        <div className="py-2 flex items-center">
+        <div className="py-1 flex items-center h-12">
           {count !== undefined && count !== null ? (
             <Badge variant="outline" className="bg-green-100 text-green-700 text-xs px-3 py-1.5 font-medium">{count}</Badge>
           ) : (
@@ -126,44 +88,25 @@ export const createOrgColumns = (onOrgUpdate: () => void): ColumnDef<AdminOrgani
       <DataTableColumnHeader column={column} title="Created" />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.getValue("createdAt"));
-      return (
-        <div className="py-2 flex items-center text-sm">
-          {date.toLocaleDateString()}
-        </div>
-      );
-    },
-  },
-  {
-    id: "actions",
-    cell: ({ row }) => {
-      const org = row.original;
+      const createdAt = row.getValue("createdAt") as string;
+      if (!createdAt) return null;
+
+      const date = new Date(createdAt);
+      const formattedDate = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      const formattedTime = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => handleViewOrg(org.id)}>
-              <Eye className="mr-2 h-4 w-4" />
-              View Details
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => handleDeleteOrg(org.id, org.name, onOrgUpdate)}
-              className="text-red-600"
-              disabled={(org.memberCount || 0) > 0}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="py-1 flex items-center text-sm">
+          <span>{formattedDate}</span>
+          <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
+        </div>
       );
     },
   },
