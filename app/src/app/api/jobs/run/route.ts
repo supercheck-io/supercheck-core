@@ -7,6 +7,7 @@ import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
 import { requireProjectContext } from '@/lib/project-context';
 import { hasPermission } from '@/lib/rbac/middleware';
 import { logAuditEvent } from '@/lib/audit-logger';
+import { resolveProjectVariables, extractVariableNames, generateVariableFunctions } from "@/lib/variable-resolver";
 
 declare const Buffer: {
   from(data: string, encoding: string): { toString(encoding: string): string };
@@ -163,14 +164,39 @@ export async function POST(request: Request) {
 
     console.log(`[${jobId}/${runId}] Prepared ${testScripts.length} test scripts for queuing.`);
 
+    // Resolve variables for the project
+    console.log(`[${jobId}/${runId}] Resolving project variables...`);
+    const variableResolution = await resolveProjectVariables(project.id);
+    
+    if (variableResolution.errors && variableResolution.errors.length > 0) {
+      console.warn(`[${jobId}/${runId}] Variable resolution errors:`, variableResolution.errors);
+      // Continue execution but log warnings
+    }
+    
+    // Generate both getVariable and getSecret function implementations
+    const variableFunctionCode = generateVariableFunctions(variableResolution.variables, variableResolution.secrets);
+    
+    // Prepend the variable functions to each test script
+    const processedTestScripts = testScripts.map(testScript => {
+      const usedVariables = extractVariableNames(testScript.script);
+      console.log(`[${jobId}/${runId}] Test ${testScript.name} uses ${usedVariables.length} variables: ${usedVariables.join(', ')}`);
+      
+      return {
+        ...testScript,
+        script: variableFunctionCode + '\n' + testScript.script
+      };
+    });
+
     const task: JobExecutionTask = {
       jobId: jobId,
-      testScripts,
+      testScripts: processedTestScripts,
       runId: runId,
       originalJobId: jobId,
       trigger: trigger,
       organizationId: jobDetails[0]?.organizationId || '',
-      projectId: jobDetails[0]?.projectId || ''
+      projectId: jobDetails[0]?.projectId || '',
+      variables: variableResolution.variables,
+      secrets: variableResolution.secrets
     };
 
     try {

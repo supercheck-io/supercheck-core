@@ -77,7 +77,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     setBreadcrumbs([
       { label: "Home", href: "/", isCurrentPage: false },
-      { label: "Settings", href: "/settings", isCurrentPage: false },
       { label: "Super Admin", href: "/super-admin", isCurrentPage: true }
     ]);
 

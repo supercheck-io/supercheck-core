@@ -5,6 +5,8 @@ import Redis, { RedisOptions } from 'ioredis';
 export interface TestExecutionTask {
   testId: string;
   code: string; // Pass code directly
+  variables?: Record<string, string>; // Resolved variables for the test
+  secrets?: Record<string, string>; // Resolved secrets for the test
 }
 
 export interface JobExecutionTask {
@@ -19,6 +21,8 @@ export interface JobExecutionTask {
   trigger?: 'manual' | 'remote' | 'schedule'; // Trigger type for the job execution
   organizationId: string; // Required for RBAC filtering
   projectId: string; // Required for RBAC filtering
+  variables?: Record<string, string>; // Resolved variables for job execution
+  secrets?: Record<string, string>; // Resolved secrets for job execution
 }
 
 // Health check task interface - REMOVING

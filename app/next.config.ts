@@ -23,9 +23,9 @@ const createNextConfig = (phase: string): NextConfig => {
     },
   };
 
-  // Only apply Webpack customizations when not running the dev server (so Turbopack won't warn)
-  if (!isDev) {
-    baseConfig.webpack = (config, { isServer }) => {
+  // Apply Webpack customizations for both dev and production
+  baseConfig.webpack = (config, { isServer }) => {
+    if (!isDev) {
       config.ignoreWarnings = [
         {
           module: /node_modules\/bullmq/,
@@ -37,10 +37,20 @@ const createNextConfig = (phase: string): NextConfig => {
           message: /the request of a dependency is an expression/,
         },
       ];
+    }
 
-      return config;
-    };
-  }
+    // Server-side only modules - no polyfills needed for client
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        crypto: false,
+        buffer: false,
+        stream: false,
+      };
+    }
+
+    return config;
+  };
 
   return baseConfig;
 };

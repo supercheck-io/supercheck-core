@@ -128,35 +128,7 @@ export class ValidationService {
       };
     }
 
-    // 2. Check for TypeScript syntax (not allowed)
-    const typeScriptPatterns = [
-      { pattern: /:\s*string\b/, message: "TypeScript type annotations are not allowed. Please use plain JavaScript only." },
-      { pattern: /:\s*number\b/, message: "TypeScript type annotations are not allowed. Please use plain JavaScript only." },
-      { pattern: /:\s*boolean\b/, message: "TypeScript type annotations are not allowed. Please use plain JavaScript only." },
-      { pattern: /:\s*void\b/, message: "TypeScript type annotations are not allowed. Please use plain JavaScript only." },
-      { pattern: /:\s*any\b/, message: "TypeScript type annotations are not allowed. Please use plain JavaScript only." },
-      { pattern: /:\s*\{[^}]*\}/, message: "TypeScript object type annotations are not allowed. Please use plain JavaScript only." },
-      { pattern: /:\s*[A-Z][a-zA-Z0-9]*\[\]/, message: "TypeScript array type annotations are not allowed. Please use plain JavaScript only." },
-      { pattern: /interface\s+\w+/, message: "TypeScript interfaces are not allowed. Please use plain JavaScript only." },
-      { pattern: /type\s+\w+\s*=/, message: "TypeScript type aliases are not allowed. Please use plain JavaScript only." },
-      { pattern: /enum\s+\w+/, message: "TypeScript enums are not allowed. Please use plain JavaScript only." },
-      { pattern: /public\s+\w+|private\s+\w+|protected\s+\w+/, message: "TypeScript access modifiers are not allowed. Please use plain JavaScript only." },
-    ];
-
-    for (const { pattern, message } of typeScriptPatterns) {
-      const match = pattern.exec(code);
-      if (match) {
-        const line = this.getLineNumber(code, match.index);
-        return { 
-          valid: false, 
-          error: `${message} (found at line ${line})`,
-          line,
-          errorType: 'syntax'
-        };
-      }
-    }
-
-    // 3. Enhanced dangerous patterns detection with balanced approach
+    // 2. Enhanced dangerous patterns detection with balanced approach
     const dangerousPatterns = [
       // Function constructors and eval
       { pattern: /\beval\s*\(/, message: "eval() is not allowed" },

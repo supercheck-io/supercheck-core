@@ -79,7 +79,7 @@ Start all services with Docker Compose:
 - **Purpose**: Web interface for managing tests, jobs, and monitors
 - **Health Check**: ${NEXT_PUBLIC_APP_URL}/api/health
 
-### Worker (NestJS Runner)
+### Worker (NestJS Worker)
 - **Port**: 3001
 - **Image**: `ghcr.io/your-username/supertest/worker:latest`
 - **Purpose**: Executes Playwright tests and processes job queues
@@ -570,8 +570,8 @@ The migration script includes comprehensive error handling and retry logic. Chec
 
 2. **Build Worker Container**:
    ```bash
-   # Navigate to runner directory
-   cd runner
+   # Navigate to worker directory
+   cd worker
    
    # Build the worker image
    docker build -t supertest-worker:latest .
@@ -814,7 +814,7 @@ npm install
 npm run dev
 
 # Run worker locally
-cd runner
+cd worker
 npm install
 npm run start:dev
 ```

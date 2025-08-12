@@ -977,10 +977,10 @@ export function MonitorForm({
 
               {/* Conditional fields based on type (formerly method) */}
               {type === "http_request" && (
-                <div className="space-y-4 border-t pt-6">
-                  <h3 className="text-lg font-medium">HTTP Request Settings</h3>
+                <div className="space-y-4 pt-2">
+                  {/* <h3 className=" font-medium">HTTP Request Settings</h3> */}
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="httpConfig_method"
@@ -1093,13 +1093,13 @@ export function MonitorForm({
 
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 -mt-4">
                     <FormField
                       control={form.control}
                       name="httpConfig_headers"
                       render={({ field }) => (
                         <FormItem className={`${(httpMethod === "POST" || httpMethod === "PUT" || httpMethod === "PATCH") ? '' : 'md:col-span-2'}`}>
-                          <FormLabel>HTTP Headers</FormLabel>
+                          <FormLabel>HTTP Headers <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></FormLabel>
                           <FormControl>
                             <Textarea
                               placeholder='{ "Authorization": "Bearer ..." }'
@@ -1134,7 +1134,7 @@ export function MonitorForm({
                   </div>
 
                   {/* Authentication and Response Content Validation sections side by side */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
                     {/* Authentication Section */}
                     <Card>
                       <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen}>
@@ -1299,8 +1299,8 @@ export function MonitorForm({
               )}
 
               {type === "website" && (
-                <div className="space-y-4 border-t pt-4">
-                  <h3 className="text-base font-medium">Website Check Settings</h3>
+                <div className="space-y-4 pt-4">
+                  {/* <h3 className="text-base font-medium">Website Check Settings</h3> */}
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Expected Status Code */}
@@ -1610,9 +1610,9 @@ export function MonitorForm({
 
 
               {type === "port_check" && (
-                <div className="space-y-4 border-t pt-6">
-                  <h3 className="text-lg font-medium">Port Check Settings</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4 pt-4">
+                  {/* <h3 className="text-lg font-medium">Port Check Settings</h3> */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="portConfig_port"

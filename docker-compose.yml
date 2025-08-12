@@ -74,6 +74,9 @@ x-common-env: &common-env
   # Resend Configuration (Fallback email delivery method)
   RESEND_API_KEY: ${RESEND_API_KEY:-re_esRt3Mhv_NDTmUXhXpVgT2VrNR4pqwFUP}
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-noreply@yourdomain.com}
+  
+  # Variable Encryption Configuration
+  VARIABLES_ENCRYPTION_KEY: ${VARIABLES_ENCRYPTION_KEY:-your-64-character-encryption-key-for-variable-secrets-change-this-in-prod}
 
 services:
   # Traefik Reverse Proxy with HTTPS

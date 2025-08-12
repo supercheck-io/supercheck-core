@@ -768,9 +768,31 @@ export const notificationProvidersSelectSchema = createSelectSchema(notification
 
 
 
+/**
+ * Stores variables and secrets for projects
+ */
+export const projectVariables = pgTable("project_variables", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  key: varchar("key", { length: 255 }).notNull(),
+  value: text("value").notNull(), // Encrypted for secrets
+  encryptedValue: text("encrypted_value"), // Base64 encrypted value for secrets
+  isSecret: boolean("is_secret").default(false).notNull(),
+  description: text("description"),
+  createdByUserId: uuid("created_by_user_id").references(() => user.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  uniqueKeyPerProject: unique().on(table.projectId, table.key),
+}));
+
 export const projectsInsertSchema = createInsertSchema(projects);
 export const projectsSelectSchema = createSelectSchema(projects);
 export const projectsUpdateSchema = createUpdateSchema(projects);
+
+export const projectVariablesInsertSchema = createInsertSchema(projectVariables);
+export const projectVariablesSelectSchema = createSelectSchema(projectVariables);
+export const projectVariablesUpdateSchema = createUpdateSchema(projectVariables);
 
 export const runsInsertSchema = createInsertSchema(runs);  
 export const runsSelectSchema = createSelectSchema(runs);

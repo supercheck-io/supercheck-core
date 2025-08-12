@@ -34,6 +34,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { NavUser } from "@/components/nav-user";
+import { CheckIcon } from "@/components/logo/supercheck-logo";
+import { Home } from "lucide-react";
 
 // Type based on the actual API response from /api/runs/[runId]
 type RunResponse = {
@@ -53,7 +56,7 @@ type RunResponse = {
   trigger?: string;
 };
 
-export function RunDetails({ run }: { run: RunResponse }) {
+export function RunDetails({ run, isNotificationView = false }: { run: RunResponse; isNotificationView?: boolean }) {
   const router = useRouter();
   const [reportUrl, setReportUrl] = useState('');
   const [duration, setDuration] = useState<string | undefined>(run.duration || undefined);
@@ -218,7 +221,7 @@ export function RunDetails({ run }: { run: RunResponse }) {
   };
 
   return (
-    <div className=" py-4 px-4 h-full overflow-hidden">
+    <div className="h-full overflow-hidden">
       {/* Status listener for real-time updates */}
       <RunStatusListener 
         runId={run.id} 
@@ -226,21 +229,44 @@ export function RunDetails({ run }: { run: RunResponse }) {
         onStatusUpdate={handleStatusUpdate}
       />
       
+      {/* Logo, breadcrumbs, and user nav for notification view */}
+      {isNotificationView && (
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <CheckIcon className="h-8 w-8" />
+            <div className="flex items-center gap-2 text-sm">
+              <Link href="/" className="text-xl font-semibold text-foreground hover:opacity-80 transition-opacity">
+                Supercheck
+              </Link>
+          
+              <Link href="/" className="flex items-center gap-1 hover:text-foreground transition-colors text-muted-foreground ml-5">
+                <Home className="h-4 w-4" />
+              </Link>
+              <span className="text-muted-foreground">/</span>
+              <span className="font-medium text-foreground">Job Run Report</span>
+            </div>
+          </div>
+          <NavUser />
+        </div>
+      )}
+      
       {/* Main header similar to monitor details */}
-      <div className="border rounded-lg p-4 mb-4 shadow-sm bg-card ">
+      <div className="border rounded-lg p-4 mb-4 shadow-sm bg-card">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="icon"
-              className="h-7 w-7"
-              asChild
-            >
-              <Link href="/runs">
-                <ChevronLeft className="h-3.5 w-3.5" />
-                <span className="sr-only">Back to runs</span>
-              </Link>
-            </Button>
+            {!isNotificationView && (
+              <Button 
+                variant="outline" 
+                size="icon"
+                className="h-7 w-7"
+                asChild
+              >
+                <Link href="/runs">
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <span className="sr-only">Back to runs</span>
+                </Link>
+              </Button>
+            )}
             <div>
               <h1 className="text-2xl font-semibold flex items-center gap-2">
                 {run.jobName && run.jobName.length > 40 ? run.jobName.slice(0, 40) + "..." : run.jobName || "Unknown Job"}
@@ -248,32 +274,34 @@ export function RunDetails({ run }: { run: RunResponse }) {
               
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Loading permissions */}
-            {permissionsLoading && <LoadingBadge />}
-            
-            {/* Access level badge */}
-            {!permissionsLoading && userRole && !canManageRuns(userRole) && (
-              <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                <ActivityIcon className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs text-blue-700 dark:text-blue-300">
-                  View-only Access
-                </span>
-              </div>
-            )}
-            
-            {!permissionsLoading && userRole && canManageRuns(userRole) && (
-              <Button 
-                variant="outline"
-                size="sm"
-                className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Delete
-              </Button>
-            )}
-          </div>
+          {!isNotificationView && (
+            <div className="flex items-center gap-2">
+              {/* Loading permissions */}
+              {permissionsLoading && <LoadingBadge />}
+              
+              {/* Access level badge */}
+              {!permissionsLoading && userRole && !canManageRuns(userRole) && (
+                <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                  <ActivityIcon className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs text-blue-700 dark:text-blue-300">
+                    View-only Access
+                  </span>
+                </div>
+              )}
+              
+              {!permissionsLoading && userRole && canManageRuns(userRole) && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Status cards - similar to monitor details but with appropriate content */}

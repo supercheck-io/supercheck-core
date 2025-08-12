@@ -83,6 +83,8 @@ graph TB
 | `/api/organizations/invitations/route.ts` | Member invitations | ✅ Essential | User onboarding |
 | `/api/projects/route.ts` | Project management | ✅ Essential | Resource grouping |
 | `/api/projects/switch/route.ts` | Project context | ✅ Essential | Multi-project support |
+| `/api/projects/[id]/variables/route.ts` | Project variables | ✅ Essential | Variable management |
+| `/api/projects/[id]/members/route.ts` | Project members | ✅ Essential | Project-level access |
 
 #### **4. Real-time & Integration**
 | Route | Purpose | Status | Notes |

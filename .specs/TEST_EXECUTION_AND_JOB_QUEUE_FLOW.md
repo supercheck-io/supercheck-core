@@ -499,7 +499,7 @@ export async function GET(request: Request) {
 The system implements sophisticated capacity management through environment-configurable limits:
 
 ```typescript
-// Capacity limits from runner/src/execution/constants.ts and app/src/lib/queue-stats.ts
+// Capacity limits from worker/src/execution/constants.ts and app/src/lib/queue-stats.ts
 export const RUNNING_CAPACITY = parseInt(process.env.RUNNING_CAPACITY || '5');
 export const QUEUED_CAPACITY = parseInt(process.env.QUEUED_CAPACITY || '50');
 

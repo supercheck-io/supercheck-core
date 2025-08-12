@@ -114,7 +114,7 @@ The trigger system is implemented through database schema updates:
 
 ## Backend Changes
 
-### 1. Runner Service
+### 1. Worker Service
 - **Schema**: Added `JobTrigger` type and `trigger` field
 - **Processor**: Updated to handle trigger field in job execution
 - **Scheduler**: Properly sets `schedule` trigger for scheduled jobs
@@ -130,7 +130,7 @@ The trigger system is implemented through database schema updates:
 2. Frontend sends POST to `/api/jobs/run` with `trigger: "manual"`
 3. API validates trigger and creates run record
 4. Job is queued for execution
-5. Runner processes job and updates status
+5. Worker processes job and updates status
 6. UI displays run with manual trigger icon
 
 ### Remote Trigger Flow
@@ -138,16 +138,16 @@ The trigger system is implemented through database schema updates:
 2. API validates API key and job existence
 3. API calls internal `/api/jobs/run` with `trigger: "remote"`
 4. Job is queued for execution
-5. Runner processes job and updates status
+5. Worker processes job and updates status
 6. UI displays run with remote trigger icon
 
 ### Schedule Trigger Flow
 1. Cron scheduler triggers based on schedule
 2. BullMQ job is created with job data
-3. Runner scheduler processor handles the job
+3. Worker scheduler processor handles the job
 4. Creates run record with `trigger: "schedule"`
 5. Job is queued for execution
-6. Runner processes job and updates status
+6. Worker processes job and updates status
 7. UI displays run with schedule trigger icon
 
 ## Improvements Made
@@ -161,7 +161,7 @@ The trigger system is implemented through database schema updates:
 ### 2. Type Safety
 - ✅ TypeScript interfaces updated
 - ✅ Proper validation in API endpoints
-- ✅ Schema definitions consistent across app and runner
+- ✅ Schema definitions consistent across app and worker
 
 ### 3. User Experience
 - ✅ Visual indicators for different trigger types

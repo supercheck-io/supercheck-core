@@ -8,6 +8,7 @@ import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
 import { z } from 'zod';
 import { createPlaygroundCleanupService, setPlaygroundCleanupInstance, type PlaygroundCleanupService } from './playground-cleanup';
+import { resolveProjectVariables, generateVariableFunctions, type VariableResolutionResult } from './variable-resolver';
 
 // Map to store the created queues - REMOVED for statelessness
 // const queueMap = new Map<string, Queue>();
@@ -217,18 +218,38 @@ export async function handleScheduledJobTrigger(job: Job) {
     // Get the queue for execution
     const { jobQueue } = await getQueues();
     
+    // Resolve variables for the project
+    let variableResolution: VariableResolutionResult = { variables: {}, secrets: {}, errors: undefined };
+    if (jobData.length > 0 && jobData[0].projectId) {
+      console.log(`[${jobId}/${runId}] Resolving project variables for scheduled job...`);
+      variableResolution = await resolveProjectVariables(jobData[0].projectId);
+      
+      if (variableResolution.errors && variableResolution.errors.length > 0) {
+        console.warn(`[${jobId}/${runId}] Variable resolution errors for scheduled job:`, variableResolution.errors);
+        // Continue execution but log warnings
+      }
+    }
+    
+    // Generate both getVariable and getSecret function implementations
+    const variableFunctionCode = generateVariableFunctions(variableResolution.variables, variableResolution.secrets);
+    
+    // Process test scripts to include variable resolution
+    const processedTestScripts = data.testCases.map((test: z.infer<typeof testsSelectSchema>) => ({
+      id: test.id,
+      script: variableFunctionCode + '\n' + test.script,
+      name: test.title
+    }));
+    
     // Create task for runner service with all necessary information
     const task: JobExecutionTask = {
       runId,
       jobId,
-      testScripts: data.testCases.map((test: z.infer<typeof testsSelectSchema>) => ({
-        id: test.id,
-        script: test.script,
-        name: test.title
-      })),
+      testScripts: processedTestScripts,
       trigger: 'schedule',
       organizationId: jobData[0]?.organizationId || '',
-      projectId: jobData[0]?.projectId || ''
+      projectId: jobData[0]?.projectId || '',
+      variables: variableResolution.variables,
+      secrets: variableResolution.secrets
     };
     
     // Add task to the execution queue - always use runId as both job name and ID

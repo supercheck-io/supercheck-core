@@ -4,6 +4,13 @@ import { redirect } from "next/navigation";
 import { getUserOrgRole } from "@/lib/rbac/middleware";
 import { Role } from "@/lib/rbac/permissions";
 import { getActiveOrganization, getCurrentUser } from "@/lib/session";
+import { Metadata } from "next/types";
+
+export const metadata: Metadata = {
+  title: "Admin | Supercheck",
+  description: "View and manage all organization settings",
+};
+
 
 export default async function OrgAdminLayout({
   children,

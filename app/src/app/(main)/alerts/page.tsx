@@ -365,9 +365,9 @@ export default function AlertsPage() {
                     
                     {providers.length === 0 ? (
                       <div className="text-center py-8">
-                        <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No notification channels</h3>
-                        <p className="text-muted-foreground mb-4">
+                        <Bell className="h-10 w-10 text-muted-foreground mx-auto" />
+                        <h3 className="text-lg font-medium">No notification channels</h3>
+                        <p className="text-muted-foreground text-sm">
                           Add your first notification channel to start receiving alerts
                         </p>
                        
@@ -392,9 +392,9 @@ export default function AlertsPage() {
                         </CardDescription>
                       </div>
                       <div className="text-center py-12">
-                        <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No alerts found</h3>
-                        <p className="text-muted-foreground">
+                        <Bell className="h-10 w-10 text-muted-foreground mx-auto" />
+                        <h3 className="text-lg font-medium">No alerts found</h3>
+                        <p className="text-muted-foreground text-sm">
                           Alerts will appear here when your monitors or jobs trigger notifications
                         </p>
                       </div>

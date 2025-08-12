@@ -27,6 +27,7 @@ The monitoring system delivers comprehensive real-time monitoring capabilities w
 - **Port Accessibility**: TCP/UDP port monitoring to verify service availability on specific ports
 
 #### System Features
+- **Project-Scoped Architecture**: Monitors organized within projects for better resource isolation and team collaboration
 - **Enterprise Security**: SSRF protection, credential encryption, input validation, and comprehensive audit logging
 - **Resource Management**: Connection pooling, memory limits, and automatic resource cleanup
 - **Adaptive SSL Certificate Monitoring**: Intelligent certificate expiration checking with frequency optimization
@@ -151,10 +152,11 @@ worker/
 ```
 
 ### Database Schema
-- **monitors**: Monitor configurations and metadata
+- **monitors**: Monitor configurations and metadata (organization and project scoped)
 - **monitor_results**: Historical monitoring results with correlation IDs
-- **notification_providers**: Alert channel configurations
+- **notification_providers**: Alert channel configurations (project scoped)
 - **monitor_notification_settings**: Monitor-to-provider relationships
+- **projects**: Project containers for monitoring resources
 - **jobs**: Scheduled monitoring jobs
 - **runs**: Job execution history with resource usage tracking
 

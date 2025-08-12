@@ -221,14 +221,14 @@ export class NotificationService {
       );
     }
 
-    // Generate dashboard URLs for easy navigation
+    // Generate dashboard URLs for easy navigation - use notification pages for clean view
     let dashboardUrl: string;
     if (payload.type.includes('monitor') || payload.type === 'ssl_expiring') {
-      dashboardUrl = `${baseUrl}/monitors/${payload.targetId}`;
+      dashboardUrl = `${baseUrl}/notification-monitor/${payload.targetId}`;
     } else if (payload.type.includes('job')) {
       dashboardUrl = `${baseUrl}/jobs`;
       if (payload.metadata?.runId) {
-        dashboardUrl = `${baseUrl}/runs/${payload.metadata.runId}`;
+        dashboardUrl = `${baseUrl}/notification-run/${payload.metadata.runId}`;
       }
     } else {
       dashboardUrl = `${baseUrl}/alerts`;

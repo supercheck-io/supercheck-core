@@ -22,7 +22,7 @@ This document provides a comprehensive overview of the alerts and notifications 
 The Supertest alerts and notifications system is built on a distributed architecture with two main components:
 
 1. **`app` (Next.js Frontend):** The user-facing application where users configure monitors, jobs, and their respective alert settings. It includes the API endpoints for alert configuration and notification provider management.
-2. **`runner` (NestJS Worker Service):** A background worker service responsible for executing monitors and jobs, evaluating alert conditions, and dispatching notifications through configured providers.
+2. **`worker` (NestJS Worker Service):** A background worker service responsible for executing monitors and jobs, evaluating alert conditions, and dispatching notifications through configured providers.
 
 The services communicate via **Redis** and **BullMQ** for reliable message queuing, with **PostgreSQL** storing all configuration and audit data. The system supports multiple notification channels including email, Slack, webhooks, Telegram, Discord, and Microsoft Teams.
 
@@ -79,20 +79,20 @@ The monitor alerting flow is a sophisticated process designed to be robust and s
 
 ### 3. Execution
 
-- **Where:** `runner`
+- **Where:** `worker`
 - **How:** The `MonitorProcessor` listens for jobs on the `monitor-execution` queue.
-- **Component:** `runner/src/monitor/monitor.processor.ts`
+- **Component:** `worker/src/monitor/monitor.processor.ts`
 - **Logic:**
     1. The `process` method picks up the job.
     2. It calls `this.monitorService.executeMonitor(job.data)`.
-    3. The `executeMonitor` method in `runner/src/monitor/monitor.service.ts` performs the actual check (e.g., HTTP request, ping) and returns a `MonitorExecutionResult`.
+    3. The `executeMonitor` method in `worker/src/monitor/monitor.service.ts` performs the actual check (e.g., HTTP request, ping) and returns a `MonitorExecutionResult`.
     4. Upon successful completion of the job, the `onCompleted` event handler in `MonitorProcessor` is triggered.
 
 ### 4. Result Processing & Alert Triggering
 
-- **Where:** `runner`
+- **Where:** `worker`
 - **How:** The `onCompleted` handler in `MonitorProcessor` calls `this.monitorService.saveMonitorResult(result)`.
-- **Component:** `runner/src/monitor/monitor.service.ts`
+- **Component:** `worker/src/monitor/monitor.service.ts`
 - **Logic (`saveMonitorResult`):**
     1. The new result is saved to the `monitor_results` table.
     2. The `status` on the `monitors` table is updated.
@@ -105,11 +105,11 @@ The monitor alerting flow is a sophisticated process designed to be robust and s
 
 ### 5. Notification Dispatch
 
-- **Where:** `runner`
+- **Where:** `worker`
 - **How:** The `MonitorAlertService` is responsible for preparing and sending the notification.
 - **Components:**
-    - `runner/src/monitor/services/monitor-alert.service.ts`
-    - `runner/src/notification/notification.service.ts` (generic service)
+    - `worker/src/monitor/services/monitor-alert.service.ts`
+    - `worker/src/notification/notification.service.ts` (generic service)
 - **Logic:**
     1. `sendNotification` in `MonitorAlertService` retrieves the full monitor details.
     2. It queries the `monitor_notification_settings` join table to get associated notification providers.
@@ -129,7 +129,7 @@ graph TD
         C --> E[DB: monitor_notification_settings];
     end
 
-    subgraph "runner (NestJS)"
+    subgraph "worker (NestJS)"
         F(MonitorSchedulerProcessor) -- "Listens for schedules" --> G[monitor-scheduler queue];
         D -- "Reads config" --> G;
         G -- "On schedule fire" --> H[Adds one-time job];
@@ -146,7 +146,7 @@ graph TD
     end
 
     style app fill:#e1f0ff,stroke:#333
-    style runner fill:#f1f1f1,stroke:#333
+    style worker fill:#f1f1f1,stroke:#333
 ```
 
 ## Job Alerting Flow
@@ -154,7 +154,7 @@ graph TD
 Job alerting follows a similar pattern but is triggered by the completion of a test job rather than a scheduled monitor.
 
 - **Trigger:** A job execution is completed by the `JobExecutionProcessor`.
-- **Component:** `runner/src/execution/processors/job-execution.processor.ts`
+- **Component:** `worker/src/execution/processors/job-execution.processor.ts`
 - **Logic (`handleJobNotifications`):**
     1. After a job finishes, the processor retrieves the job's configuration, which includes an `alertConfig` similar to monitors. This config is stored on the `jobs` table.
     2. It retrieves the associated notification providers from the `job_notification_settings` join table.

@@ -219,22 +219,22 @@ export default function Home() {
   if (loading) {
     return (
       <div>
+        {/* Breadcrumbs skeleton */}
+        
         <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
           <CardContent className="p-6">
-            <div className="space-y-4">
-              {/* Tabs skeleton */}
-              <div className="flex space-x-1 rounded-lg bg-muted p-1">
-                {['Overview', 'Monitoring', 'Automation', 'Testing'].map((_, i) => (
-                  <Skeleton key={i} className="h-9 w-24" />
-                ))}
-              </div>
+            <Tabs defaultValue="overview" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
+                <TabsTrigger value="automation">Automation</TabsTrigger>
+              </TabsList>
 
-              {/* Content skeleton */}
-              <div className="space-y-4">
+              <TabsContent value="overview" className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Skeleton className="h-8 w-40 mb-2" />
-                    <Skeleton className="h-4 w-80" />
+                    <Skeleton className="h-8 w-56 mb-2" />
+                    <Skeleton className="h-4 w-96" />
                   </div>
                   <div className="flex items-center gap-2">
                     <Skeleton className="h-2 w-2 rounded-full" />
@@ -242,33 +242,23 @@ export default function Home() {
                   </div>
                 </div>
                 
-                <StatsCardsSkeleton cards={6} />
-
-                {/* Detailed cards skeleton */}
+                {/* Key Metrics Grid - 6 cards in 3 columns */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
+                  {Array.from({ length: 6 }).map((_, i) => (
                     <Card key={i}>
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                          <Skeleton className="h-5 w-5" />
-                          <Skeleton className="h-5 w-32" />
-                        </div>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-4 w-4" />
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-3">
-                          {Array.from({ length: 4 }).map((_, j) => (
-                            <div key={j} className="flex items-center justify-between">
-                              <Skeleton className="h-4 w-32" />
-                              <Skeleton className="h-4 w-12" />
-                            </div>
-                          ))}
-                        </div>
+                        <Skeleton className="h-8 w-12 mb-1" />
+                        <Skeleton className="h-3 w-24" />
                       </CardContent>
                     </Card>
                   ))}
                 </div>
-              </div>
-            </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>

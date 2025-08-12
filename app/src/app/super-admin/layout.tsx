@@ -14,6 +14,12 @@ import { redirect } from "next/navigation";
 import { NavUser } from "@/components/nav-user";
 import { isAdmin } from "@/lib/admin";
 import { ProjectContextProvider } from "@/hooks/use-project-context";
+import { Metadata } from "next/types";
+
+export const metadata: Metadata = {
+  title: "Super Admin | Supercheck",
+  description: "View and manage all super admin settings",
+};
 
 export default async function AdminLayout({
   children,

@@ -285,6 +285,8 @@ erDiagram
         jsonb details
         boolean isUp
         boolean isStatusChange
+        integer consecutiveFailureCount
+        integer alertsSentForFailure
     }
     
     NOTIFICATION_PROVIDERS {
@@ -798,7 +800,7 @@ docker-compose logs -f worker
 
 # Development setup (local)
 cd app && npm run dev
-cd runner && npm run dev
+cd worker && npm run dev
 
 # Build multi-arch images
 ./scripts/docker-images.sh

@@ -73,53 +73,177 @@ export const MonacoEditorClient = memo(
           diagnosticCodesToIgnore: [],
         });
 
-        // Fetch and add Playwright types
-        fetch("/playwright-minimal.d.ts")
-          .then((response) => {
-            if (!response.ok) {
-              console.error(
-                `Failed to fetch Playwright types: ${response.status}`
-              );
-              return null;
-            }
-            return response.text();
-          })
-          .then((playwrightTypes) => {
-            if (playwrightTypes) {
-              // Check if model already exists to prevent the "model already exists" error
-              const uri = monaco.Uri.parse("file:///types/playwright.d.ts");
-              const existingModel = monaco.editor.getModel(uri);
-              
-              // Only create a new model if one doesn't already exist
-              if (!existingModel) {
-                // Create a model for the type definitions
-                const model = monaco.editor.createModel(
-                  playwrightTypes,
-                  "typescript",
-                  uri
-                );
+        // Load enhanced type definitions with secure error handling
+        const loadTypeDefinitions = async () => {
+          try {
+            // Load comprehensive Supercheck types (includes all Playwright types)
+            const typeFiles = [
+              { path: "/supercheck.d.ts", uri: "file:///types/supercheck.d.ts", name: "Supercheck" }
+            ];
 
-                // Add the model to the JavaScript defaults
-                monaco.languages.typescript.javascriptDefaults.addExtraLib(
-                  model.getValue(),
-                  model.uri.toString()
-                );
+            for (const typeFile of typeFiles) {
+              try {
+                const response = await fetch(typeFile.path);
+                if (!response.ok) {
+                  console.error(`Failed to fetch ${typeFile.name} types: ${response.status}`);
+                  continue;
+                }
 
-                console.log("Playwright types loaded successfully into Monaco.");
-              } else {
-                // If model already exists, just update the extra lib
-                monaco.languages.typescript.javascriptDefaults.addExtraLib(
-                  playwrightTypes,
-                  uri.toString()
-                );
-                console.log("Updated existing Playwright types in Monaco.");
+                const typeContent = await response.text();
+                if (!typeContent || typeContent.trim().length === 0) {
+                  console.warn(`Empty content for ${typeFile.name} types`);
+                  continue;
+                }
+
+                // Validate content is not malicious (basic check)
+                if (typeContent.includes('<script') || typeContent.includes('eval(')) {
+                  console.error(`${typeFile.name} types contain potentially malicious content`);
+                  continue;
+                }
+
+                const uri = monaco.Uri.parse(typeFile.uri);
+                const existingModel = monaco.editor.getModel(uri);
+
+                if (!existingModel) {
+                  // Create a new model for the type definitions
+                  const model = monaco.editor.createModel(
+                    typeContent,
+                    "typescript",
+                    uri
+                  );
+
+                  // Add to JavaScript defaults for IntelliSense
+                  monaco.languages.typescript.javascriptDefaults.addExtraLib(
+                    model.getValue(),
+                    model.uri.toString()
+                  );
+
+                  console.log(`${typeFile.name} types loaded successfully into Monaco.`);
+                } else {
+                  // Update existing model
+                  existingModel.setValue(typeContent);
+                  monaco.languages.typescript.javascriptDefaults.addExtraLib(
+                    typeContent,
+                    uri.toString()
+                  );
+                  console.log(`${typeFile.name} types updated in Monaco.`);
+                }
+              } catch (fileError) {
+                console.error(`Error loading ${typeFile.name} types:`, fileError);
               }
             }
-          })
-          .catch((error) => {
-            console.error("Error fetching or loading Playwright types:", error);
-          });
+          } catch (error) {
+            console.error("Error in loadTypeDefinitions:", error);
+          }
+        };
+
+        // Load type definitions
+        loadTypeDefinitions();
+
+        // Register enhanced hover documentation
+        const registerEnhancements = () => {
+          try {
+
+            // Register hover provider for enhanced documentation
+            monaco.languages.registerHoverProvider('typescript', {
+              provideHover: (model, position) => {
+                const word = model.getWordAtPosition(position);
+                if (!word) return null;
+
+                const hoverContent = {
+                  'getVariable': {
+                    contents: [
+                      { value: '**getVariable(key: string, options?): T**' },
+                      { value: 'Retrieves a project variable value with type safety.' },
+                      { value: '\\n**Security:** Regular variables are stored in plain text and can be logged.' },
+                      { value: '\\n**Example:**\\n```typescript\\nconst baseUrl = getVariable(\'BASE_URL\');\\nconst timeout = getVariable(\'TIMEOUT\', { type: \'number\', default: 5000 });\\n```' }
+                    ]
+                  },
+                  'getSecret': {
+                    contents: [
+                      { value: '**getSecret(key: string, options?): ProtectedSecret | T**' },
+                      { value: 'Retrieves a project secret with enhanced security protection.' },
+                      { value: '\\n**Security:** Secrets are encrypted at rest and protected from console logging.' },
+                      { value: '\\n**Example:**\\n```typescript\\nconst password = getSecret(\'PASSWORD\');\\nconst apiKey = getSecret(\'API_KEY\', { type: \'string\' });\\n```' }
+                    ]
+                  }
+                };
+
+                const content = hoverContent[word.word as keyof typeof hoverContent];
+                if (content) {
+                  return {
+                    range: new monaco.Range(
+                      position.lineNumber,
+                      word.startColumn,
+                      position.lineNumber,
+                      word.endColumn
+                    ),
+                    contents: content.contents
+                  };
+                }
+
+                return null;
+              }
+            });
+
+            // Register additional hover provider for ProtectedSecret interface
+            monaco.languages.registerHoverProvider('typescript', {
+              provideHover: (model, position) => {
+                const word = model.getWordAtPosition(position);
+                if (!word || word.word !== 'ProtectedSecret') return null;
+
+                return {
+                  range: new monaco.Range(
+                    position.lineNumber,
+                    word.startColumn,
+                    position.lineNumber,
+                    word.endColumn
+                  ),
+                  contents: [
+                    { value: '### ProtectedSecret Interface' },
+                    { value: 'Enterprise-grade secret protection that prevents accidental exposure.' },
+                    { value: '---' },
+                    { value: '**Protection Mechanisms:**' },
+                    { value: '• `toString()` → Returns "[SECRET]"' },
+                    { value: '• `toJSON()` → Returns "[SECRET]"' },
+                    { value: '• `valueOf()` → Returns actual secret value for APIs' },
+                    { value: '• `Symbol.toPrimitive` → Safe type coercion' },
+                    { value: '• `util.inspect` protection for Node.js debugging' },
+                    { value: '---' },
+                    { value: '**Usage:**' },
+                    { value: '```typescript' },
+                    { value: 'const secret = getSecret(\'API_TOKEN\');' },
+                    { value: 'console.log(secret);           // "[SECRET]"' },
+                    { value: 'String(secret);               // "[SECRET]"' },
+                    { value: 'JSON.stringify({secret});     // {"secret":"[SECRET]"}' },
+                    { value: '' },
+                    { value: '// But works perfectly with APIs:' },
+                    { value: 'fetch(url, {' },
+                    { value: '  headers: { "Authorization": `Bearer ${secret}` }' },
+                    { value: '});' },
+                    { value: '```' }
+                  ]
+                };
+              }
+            });
+
+            console.log('Professional Monaco completions and hover providers registered successfully.');
+          } catch (error) {
+            console.error('Error registering Monaco enhancements:', error);
+          }
+        };
+
+        // Register enhancements after a short delay to ensure Monaco is fully initialized
+        setTimeout(registerEnhancements, 100);
+
       }, [monaco]);
+
+      // Cleanup function to dispose of providers when component unmounts
+      useEffect(() => {
+        return () => {
+          // Monaco will handle cleanup automatically when the editor is disposed
+        };
+      }, []);
 
       // Add custom styles to remove all borders, but only once
       const beforeMount = useCallback((monaco: typeof import('monaco-editor')) => {

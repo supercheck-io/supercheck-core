@@ -24,7 +24,7 @@ type RunResponse = {
   trigger?: string;
 };
 
-export async function getRun(runId: string): Promise<RunResponse | null> {
+export async function getRun(runId: string, isNotificationView: boolean = false): Promise<RunResponse | null> {
   try {
     if (!runId) {
       throw new Error("Missing run ID");
@@ -71,13 +71,16 @@ export async function getRun(runId: string): Promise<RunResponse | null> {
     const run = result[0];
 
     // Check if user has access to this run's organization
-    const userRole = await getUserRole(userId);
-    
-    if (userRole !== Role.SUPER_ADMIN && run.organizationId) {
-      const orgRole = await getUserOrgRole(userId, run.organizationId);
+    // Skip org access checks for notification views (read-only access)
+    if (!isNotificationView) {
+      const userRole = await getUserRole(userId);
       
-      if (!orgRole) {
-        throw new Error('Access denied: Not a member of this organization');
+      if (userRole !== Role.SUPER_ADMIN && run.organizationId) {
+        const orgRole = await getUserOrgRole(userId, run.organizationId);
+        
+        if (!orgRole) {
+          throw new Error('Access denied: Not a member of this organization');
+        }
       }
     }
     

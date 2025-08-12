@@ -7,16 +7,19 @@ import {
   Settings,
   Globe,
   Code2,
-  Terminal,
   SearchIcon,
   BellRing,
-  Network,
   LaptopMinimal,
   ChartColumn,
   CalendarClock,
   NotepadText,
-  FileCode,
-  Calendar as CalendarIcon,
+  Chrome,
+  ArrowLeftRight,
+  Database,
+  SquareFunction,
+  ChevronsLeftRightEllipsis,
+  EthernetPort,
+  Variable,
 } from "lucide-react"
 
 import {
@@ -55,8 +58,8 @@ export function CommandSearch({ className }: CommandSearchProps) {
       "tests": "/tests",
       "jobs": "/jobs",
       "runs": "/runs",
+      "variables": "/variables",
       "alerts": "/alerts",
-      "settings": "/settings",
       
       // Create Actions
       "create-monitor-http": "/monitors/create?type=http_request",
@@ -141,9 +144,9 @@ export function CommandSearch({ className }: CommandSearchProps) {
                   <ChartColumn className="mr-2 h-4 w-4" />
                   <span>Dashboard</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("monitors")}>
-                  <Globe className="mr-2 h-4 w-4" />
-                  <span>Monitors</span>
+                <CommandItem onSelect={() => handleCommand("alerts")}>
+                  <BellRing className="mr-2 h-4 w-4" />
+                  <span>Alerts</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("tests")}>
                   <Code2 className="mr-2 h-4 w-4" />
@@ -157,30 +160,13 @@ export function CommandSearch({ className }: CommandSearchProps) {
                   <NotepadText className="mr-2 h-4 w-4" />
                   <span>Runs</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("alerts")}>
-                  <BellRing className="mr-2 h-4 w-4" />
-                  <span>Alerts</span>
+                <CommandItem onSelect={() => handleCommand("variables")}>
+                  <Variable className="mr-2 h-4 w-4" />
+                  <span>Variables</span>
                 </CommandItem>
-              </CommandGroup>
-
-              <CommandSeparator />
-
-              <CommandGroup heading="Create Monitors">
-                <CommandItem onSelect={() => handleCommand("create-monitor-http")}>
+                <CommandItem onSelect={() => handleCommand("monitors")}>
                   <Globe className="mr-2 h-4 w-4" />
-                  <span>HTTP Monitor</span>
-                </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-website")}>
-                  <LaptopMinimal className="mr-2 h-4 w-4" />
-                  <span>Website Monitor</span>
-                </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-ping")}>
-                  <Terminal className="mr-2 h-4 w-4" />
-                  <span>Ping Monitor</span>
-                </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-port")}>
-                  <Network className="mr-2 h-4 w-4" />
-                  <span>Port Monitor</span>
+                  <span>Monitors</span>
                 </CommandItem>
               </CommandGroup>
 
@@ -188,27 +174,42 @@ export function CommandSearch({ className }: CommandSearchProps) {
 
               <CommandGroup heading="Create Tests">
                 <CommandItem onSelect={() => handleCommand("create-test-browser")}>
-                  <LaptopMinimal className="mr-2 h-4 w-4" />
+                  <Chrome className="mr-2 h-4 w-4" />
                   <span>Browser Test</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-test-api")}>
-                  <FileCode className="mr-2 h-4 w-4" />
+                  <ArrowLeftRight className="mr-2 h-4 w-4" />
                   <span>API Test</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-job")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  <span>Automation Job</span>
+                <CommandItem onSelect={() => handleCommand("create-test-database")}>
+                  <Database className="mr-2 h-4 w-4" />
+                  <span>Database Test</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleCommand("create-test-custom")}>
+                  <SquareFunction className="mr-2 h-4 w-4" />
+                  <span>Custom Test</span>
                 </CommandItem>
               </CommandGroup>
 
               <CommandSeparator />
 
-              <CommandGroup heading="System">
-                <CommandItem onSelect={() => handleCommand("settings")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
+              <CommandGroup heading="Create Monitors">
+                <CommandItem onSelect={() => handleCommand("create-monitor-http")}>
+                  <ArrowLeftRight className="mr-2 h-4 w-4" />
+                  <span>HTTP Monitor</span>
                 </CommandItem>
-              
+                <CommandItem onSelect={() => handleCommand("create-monitor-website")}>
+                  <LaptopMinimal className="mr-2 h-4 w-4" />
+                  <span>Website Monitor</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleCommand("create-monitor-ping")}>
+                  <ChevronsLeftRightEllipsis className="mr-2 h-4 w-4" />
+                  <span>Ping Monitor</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleCommand("create-monitor-port")}>
+                  <EthernetPort className="mr-2 h-4 w-4" />
+                  <span>Port Monitor</span>
+                </CommandItem>
               </CommandGroup>
             </CommandList>
             <div className="flex justify-end items-center px-4 py-2 border-t text-xs text-muted-foreground select-none">

@@ -116,8 +116,7 @@ export default function OrgAdminDashboard() {
   // Set breadcrumbs
   useEffect(() => {
     setBreadcrumbs([
-      { label: "Home", href: "/", isCurrentPage: false },
-      { label: "Settings", href: "/settings", isCurrentPage: false },
+      { label: "Home", href: "/", isCurrentPage: false }, 
       { label: "Organization Admin", href: "/org-admin", isCurrentPage: true }
     ]);
 

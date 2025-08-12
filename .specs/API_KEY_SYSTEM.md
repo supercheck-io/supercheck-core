@@ -335,7 +335,7 @@ curl -X POST "${NEXT_PUBLIC_APP_URL}/api/jobs/{jobId}/trigger" \
 
 ### Schema Updates
 - `app/src/db/schema/schema.ts` - Updated API key table definition
-- `runner/src/db/schema.ts` - Updated runner schema to match
+- `worker/src/db/schema.ts` - Updated worker schema to match
 
 ## What Happens When User is Deleted
 

@@ -28,8 +28,8 @@ flowchart TB
         C1[Redis Channels]
         C2["test:${testId}:status"]
         C3["test:${testId}:complete"]
-        C4["job:${jobId}:status"]
-        C5["job:${jobId}:complete"]
+        C4["job:${runId}:status"]
+        C5["job:${runId}:complete"]
     end
     
     subgraph "Queue System"
@@ -168,8 +168,8 @@ The system uses a structured Redis channel naming convention:
 - `test:${testId}:complete` - Final completion notification with results
 
 **Job Channels:**
-- `job:${jobId}:status` - Job progress updates and intermediate results
-- `job:${jobId}:complete` - Job completion with final status and artifacts
+- `job:${runId}:status` - Job progress updates and intermediate results
+- `job:${runId}:complete` - Job completion with final status and artifacts
 
 ### Publisher Implementation
 

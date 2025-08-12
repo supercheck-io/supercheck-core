@@ -8,16 +8,13 @@ import {
   Globe,
   BellRing,
   SquarePlus,
-  Settings,
   DatabaseIcon,
   ClipboardListIcon,
   FileIcon,
   Code2,
   BookOpenText,
-  History,
+  // History,
   Plus,
-  Building2,
-  BarChart3,
   Chrome,
   ArrowLeftRight,
   Database,
@@ -25,6 +22,9 @@ import {
   LaptopMinimal,
   ChevronsLeftRightEllipsis,
   EthernetPort,
+  Variable,
+  UserCog,
+  type LucideIcon,
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -141,6 +141,11 @@ const data = {
       url: "/runs",
       icon: NotepadText,
     },
+    {
+      title: "Variables",
+      url: "/variables",
+      icon: Variable,
+    },
   
 
   ],
@@ -187,46 +192,33 @@ const data = {
   
   ],
 
-  Settings: [
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: Settings,
-    },
-  ],
-
-  Admin: [
+  SuperAdmin: [
     {
       title: "Super Admin",
       url: "/super-admin",
-      icon: BarChart3,
+      icon: UserCog,
     },
   ],
   OrgAdmin: [
     {
-      title: "Org Admin",
+      title: "Organization Admin",
       url: "/org-admin",
-      icon: Building2,
+      icon: UserCog,
     },
   ],
 
 
   navSecondary: [
-    // {
-    //   title: "Settings",
-    //   url: "/settings",
-    //   icon: Settings,
-    // },
     {
       title: "Docs",
       url: "#",
       icon: BookOpenText,
     },
-    {
-      title: "Changelog",
-      url: "#",
-      icon: History,
-    },
+    // {
+    //   title: "Changelog",
+    //   url: "#",
+    //   icon: History,
+    // },
   ],
   documents: [
     {
@@ -250,6 +242,7 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [isAdmin, setIsAdmin] = React.useState(false);
   const [isOrgAdmin, setIsOrgAdmin] = React.useState(false);
+  const [isAdminStatusLoaded, setIsAdminStatusLoaded] = React.useState(false);
 
   React.useEffect(() => {
     // Check if user is admin
@@ -281,22 +274,41 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
     };
 
-    checkAdminStatus();
-    checkOrgAdminStatus();
+    Promise.all([checkAdminStatus(), checkOrgAdminStatus()]).finally(() => {
+      setIsAdminStatusLoaded(true);
+    });
   }, []);
 
-  // Create combined settings items based on admin status
-  const getSettingsItems = () => {
-    const baseSettings = [...data.Settings];
+  // Create combined admin items based on admin status
+  const adminItems = React.useMemo(() => {
+    // Don't show admin items until status is loaded to prevent hydration issues
+    if (!isAdminStatusLoaded) {
+      return [];
+    }
+
+    type AdminItem = {
+      title: string;
+      url: string;
+      icon: LucideIcon;
+      isActive?: boolean;
+      items?: Array<{
+        title: string;
+        url: string;
+        icon?: LucideIcon;
+        color?: string;
+      }>;
+    };
+    
+    const baseSettings: AdminItem[] = [];
     
     if (isAdmin) {
-      baseSettings.push(...data.Admin);
+      baseSettings.push(...(data.SuperAdmin as AdminItem[]));
     } else if (isOrgAdmin) {
-      baseSettings.push(...data.OrgAdmin);
+      baseSettings.push(...(data.OrgAdmin as AdminItem[]));
     }
     
     return baseSettings;
-  };
+  }, [isAdmin, isOrgAdmin, isAdminStatusLoaded]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -322,7 +334,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain groupLabel="Communicate" items={data.Communicate} />
         <NavMain groupLabel="Automate" items={data.Automate} />
         <NavMain groupLabel="Monitor" items={data.Monitor} />
-        <NavMain groupLabel="Settings" items={getSettingsItems()} />
+        {adminItems.length > 0 && (
+          <NavMain groupLabel="Admin" items={adminItems} />
+        )}
       </SidebarContent>
       <NavMain groupLabel="" items={data.navSecondary} />
       <SidebarFooter>

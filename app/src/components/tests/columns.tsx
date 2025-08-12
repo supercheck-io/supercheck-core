@@ -311,7 +311,7 @@ export const columns: ColumnDef<Test>[] = [
       });
 
       return (
-        <div className="flex items-center w-[160px]">
+        <div className="flex items-center w-[170px]">
           <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
           <span>{formattedDate}</span>
           <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
@@ -340,7 +340,7 @@ export const columns: ColumnDef<Test>[] = [
       });
 
       return (
-        <div className="flex items-center w-[160px]">
+        <div className="flex items-center w-[170px]">
           <ClockIcon className="mr-2 h-4 w-4 text-muted-foreground" />
           <span>{formattedDate}</span>
           <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>

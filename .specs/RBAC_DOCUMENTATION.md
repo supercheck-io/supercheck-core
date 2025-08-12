@@ -49,23 +49,43 @@ erDiagram
     PROJECTS {
         uuid id PK
         uuid organization_id FK
-        text name
+        varchar name
+        varchar slug
         text description
+        boolean is_default
+        varchar status
+        timestamp created_at
+        timestamp updated_at
     }
     
     PROJECT_MEMBERS {
         uuid id PK
         uuid user_id FK
         uuid project_id FK
-        text role "Project-level role"
+        varchar role "Project-level role"
         timestamp created_at
+    }
+    
+    PROJECT_VARIABLES {
+        uuid id PK
+        uuid project_id FK
+        varchar key
+        text value
+        text encrypted_value
+        boolean is_secret
+        text description
+        uuid created_by_user_id FK
+        timestamp created_at
+        timestamp updated_at
     }
     
     USER ||--o{ MEMBER : "belongs to orgs"
     USER ||--o{ PROJECT_MEMBERS : "assigned to projects"
+    USER ||--o{ PROJECT_VARIABLES : "creates variables"
     ORGANIZATION ||--o{ MEMBER : "has members"
     ORGANIZATION ||--o{ PROJECTS : "contains projects"
     PROJECTS ||--o{ PROJECT_MEMBERS : "has members"
+    PROJECTS ||--o{ PROJECT_VARIABLES : "has variables"
 ```
 
 **Role Storage Context:**
@@ -73,6 +93,7 @@ erDiagram
 1. **`user` table**: Stores system-level roles (e.g., for super admins)
 2. **`member` table**: Organization-level roles for users in organizations
 3. **`project_members` table**: Project-specific roles for users within projects
+4. **`project_variables` table**: Project-specific variables and secrets with creator tracking
 
 ### Current Database Role Values
 

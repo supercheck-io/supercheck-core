@@ -34,7 +34,8 @@ export const statement = {
   run: ["view", "delete", "export"],
   apiKey: ["create", "update", "delete", "view"],
   notification: ["create", "update", "delete", "view"],
-  tag: ["create", "update", "delete", "view"]
+  tag: ["create", "update", "delete", "view"],
+  variable: ["create", "update", "delete", "view", "view_secrets"]
 } as const;
 
 // Create Better Auth access controller
@@ -68,7 +69,8 @@ export const superAdmin = ac.newRole({
   run: ["view", "delete", "export"],
   apiKey: ["create", "update", "delete", "view"],
   notification: ["create", "update", "delete", "view"],
-  tag: ["create", "update", "delete", "view"]
+  tag: ["create", "update", "delete", "view"],
+  variable: ["create", "update", "delete", "view", "view_secrets"]
 });
 
 // ORG_OWNER: Full organization control (no system permissions)
@@ -89,7 +91,8 @@ export const orgOwner = ac.newRole({
   run: ["view", "delete", "export"],
   apiKey: ["create", "update", "delete", "view"],
   notification: ["create", "update", "delete", "view"],
-  tag: ["create", "update", "delete", "view"]
+  tag: ["create", "update", "delete", "view"],
+  variable: ["create", "update", "delete", "view", "view_secrets"]
 });
 
 // ORG_ADMIN: Organization management (cannot delete org, no system permissions)
@@ -110,7 +113,8 @@ export const orgAdmin = ac.newRole({
   run: ["view", "delete", "export"],
   apiKey: ["create", "update", "delete", "view"],
   notification: ["create", "update", "delete", "view"],
-  tag: ["create", "update", "delete", "view"]
+  tag: ["create", "update", "delete", "view"],
+  variable: ["create", "update", "delete", "view", "view_secrets"]
 });
 
 // PROJECT_ADMIN: Full project management but limited to assigned projects (no system permissions)
@@ -131,7 +135,8 @@ export const projectAdmin = ac.newRole({
   run: ["view", "delete", "export"],
   apiKey: ["create", "update", "delete", "view"],
   notification: ["create", "update", "delete", "view"],
-  tag: ["create", "update", "delete", "view"]
+  tag: ["create", "update", "delete", "view"],
+  variable: ["create", "update", "delete", "view", "view_secrets"]
 });
 
 // PROJECT_EDITOR: Can edit assigned projects only (no system permissions)
@@ -152,7 +157,8 @@ export const projectEditor = ac.newRole({
   run: ["view", "delete"],
   apiKey: ["create", "update", "delete", "view"],
   notification: ["create", "update", "delete", "view"],
-  tag: ["view", "create", "update", "delete"]
+  tag: ["view", "create", "update", "delete"],
+  variable: ["view"]
 });
 
 // PROJECT_VIEWER: Read-only access (no system permissions)
@@ -173,7 +179,8 @@ export const projectViewer = ac.newRole({
   run: ["view"],
   apiKey: [],
   notification: ["view"],
-  tag: ["view"]
+  tag: ["view"],
+  variable: ["view"]
 });
 
 // Export role mapping for Better Auth integration

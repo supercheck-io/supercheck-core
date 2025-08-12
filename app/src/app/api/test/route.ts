@@ -5,6 +5,7 @@ import { validationService } from "@/lib/validation-service";
 import { requireProjectContext } from "@/lib/project-context";
 import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { resolveProjectVariables, extractVariableNames, generateVariableFunctions } from "@/lib/variable-resolver";
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,9 +66,40 @@ export async function POST(request: NextRequest) {
 
     const testId = crypto.randomUUID();
 
+    // Resolve variables for the project
+    console.log("Resolving project variables...");
+    const variableResolution = await resolveProjectVariables(project.id);
+    
+    if (variableResolution.errors && variableResolution.errors.length > 0) {
+      console.warn("Variable resolution errors:", variableResolution.errors);
+      // Continue execution but log warnings
+    }
+    
+    // Extract variable names used in the script for validation
+    const usedVariables = extractVariableNames(code);
+    console.log(`Script uses ${usedVariables.length} variables: ${usedVariables.join(', ')}`);
+    
+    // Check if all used variables are available (check both variables and secrets)
+    const missingVariables = usedVariables.filter(varName => 
+      !variableResolution.variables.hasOwnProperty(varName) && 
+      !variableResolution.secrets.hasOwnProperty(varName)
+    );
+    if (missingVariables.length > 0) {
+      console.warn(`Script references undefined variables: ${missingVariables.join(', ')}`);
+      // We'll continue execution and let getVariable/getSecret handle missing variables with defaults
+    }
+    
+    // Generate both getVariable and getSecret function implementations
+    const variableFunctionCode = generateVariableFunctions(variableResolution.variables, variableResolution.secrets);
+    
+    // Prepend the variable functions to the user's script
+    const scriptWithVariables = variableFunctionCode + '\n' + code;
+
     const task: TestExecutionTask = {
       testId,
-      code,
+      code: scriptWithVariables,
+      variables: variableResolution.variables,
+      secrets: variableResolution.secrets,
     };
 
     try {
@@ -84,7 +116,10 @@ export async function POST(request: NextRequest) {
           projectId: project.id,
           projectName: project.name,
           scriptLength: code.length,
-          executionMethod: 'playground'
+          executionMethod: 'playground',
+          variablesCount: Object.keys(variableResolution.variables).length + Object.keys(variableResolution.secrets).length,
+          usedVariables: usedVariables,
+          missingVariables: missingVariables.length > 0 ? missingVariables : undefined
         },
         success: true
       });

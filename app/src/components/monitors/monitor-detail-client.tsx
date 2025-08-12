@@ -62,6 +62,10 @@ import {
     MonitorResultStatus as DBMonitorResultStatusType, 
     MonitorResultDetails as DBMonitorResultDetailsType,
 } from "@/db/schema/schema";
+import { NavUser } from "@/components/nav-user";
+import Link from "next/link";
+import { CheckIcon } from "@/components/logo/supercheck-logo";
+import { Home } from "lucide-react";
 
 export interface MonitorResultItem {
   id: string;
@@ -80,6 +84,7 @@ export type MonitorWithResults = Monitor & {
 
 interface MonitorDetailClientProps {
   monitor: MonitorWithResults;
+  isNotificationView?: boolean;
 }
 
 const formatDateTime = (dateTimeInput?: string | Date): string => {
@@ -117,7 +122,7 @@ const StatusHeaderIcon = ({ status }: { status: string }) => {
   }
 };
 
-export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailClientProps) {
+export function MonitorDetailClient({ monitor: initialMonitor, isNotificationView = false }: MonitorDetailClientProps) {
   const router = useRouter();
   const [monitor, setMonitor] = useState<MonitorWithResults>(initialMonitor);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -438,21 +443,44 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   };
 
   return (
-    <div className=" p-4 h-full">
+    <div className="h-full">
+      
+      {/* Logo, breadcrumbs, and user nav for notification view */}
+      {isNotificationView && (
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <CheckIcon className="h-8 w-8" />
+            <div className="flex items-center gap-2 text-sm">
+              <Link href="/" className="text-xl font-semibold text-foreground hover:opacity-80 transition-opacity">
+                Supercheck
+              </Link>
+              
+              <Link href="/" className="flex items-center gap-1 hover:text-foreground transition-colors text-muted-foreground ml-5">
+                <Home className="h-4 w-4" />
+              </Link>
+              <span className="text-muted-foreground">/</span>
+              <span className="font-medium text-foreground">Monitor Details</span>
+            </div>
+          </div>
+          <NavUser />
+        </div>
+      )}
       
       {/* Status and Type Header */}
       <div className="border rounded-lg p-2 mb-4 shadow-sm bg-card">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => router.push('/monitors')}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span className="sr-only">Back to monitors</span>
-            </Button>
+            {!isNotificationView && (
+              <Button 
+                variant="outline" 
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => router.push('/monitors')}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span className="sr-only">Back to monitors</span>
+              </Button>
+            )}
             <div>
               <h1 className="text-2xl font-semibold flex items-center gap-2 mt-1">
                 {monitorTypeInfo?.icon && <monitorTypeInfo.icon className={`h-6 w-6 ${monitorTypeInfo.color}`} />}
@@ -564,8 +592,8 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             )}
             
-            {/* Project name and Action buttons - only show if user has manage permissions */}
-            {!permissionsLoading && userRole && canManageMonitors(userRole) && (
+            {/* Project name and Action buttons - only show if user has manage permissions and not notification view */}
+            {!isNotificationView && !permissionsLoading && userRole && canManageMonitors(userRole) && (
               <>
                 {monitor.projectName && (
                   <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
@@ -601,11 +629,11 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </>
             )}
             
-            {/* Show loading state while fetching permissions */}
-            {permissionsLoading && <LoadingBadge />}
+            {/* Show loading state while fetching permissions - only in non-notification view */}
+            {!isNotificationView && permissionsLoading && <LoadingBadge />}
             
-            {/* Show access level badge when user doesn't have management permissions */}
-            {!permissionsLoading && userRole && !canManageMonitors(userRole) && (
+            {/* Show access level badge when user doesn't have management permissions - only in non-notification view */}
+            {!isNotificationView && !permissionsLoading && userRole && !canManageMonitors(userRole) && (
               <div className="flex items-center gap-2">
                 {monitor.projectName && (
                   <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
@@ -621,6 +649,16 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                     View-only Access
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* In notification view, just show project name without action buttons */}
+            {isNotificationView && monitor.projectName && (
+              <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                <FolderOpen className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs text-blue-700 dark:text-blue-300">
+                  {monitor.projectName}
+                </span>
               </div>
             )}
             
@@ -705,7 +743,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" >
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* For all monitors, show charts and results in two columns */}
         <div className="flex flex-col space-y-6 ">
           {/* Availability Chart */}

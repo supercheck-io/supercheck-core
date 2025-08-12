@@ -153,6 +153,8 @@ erDiagram
         jsonb details
         boolean isUp
         boolean isStatusChange
+        integer consecutiveFailureCount
+        integer alertsSentForFailure
     }
     
     TAGS {
@@ -332,6 +334,19 @@ erDiagram
         timestamp createdAt
     }
     
+    PROJECT_VARIABLES {
+        uuid id PK
+        uuid projectId FK
+        varchar key
+        text value
+        text encryptedValue
+        boolean isSecret
+        text description
+        uuid createdByUserId FK
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    
     %% Core Relationships
     USER ||--o{ MEMBER : "belongs to"
     USER ||--o{ INVITATION : "invites"
@@ -341,6 +356,7 @@ erDiagram
     USER ||--o{ API_KEYS : "owns"
     USER ||--o{ NOTIFICATIONS : "receives"
     USER ||--o{ AUDIT_LOGS : "performs"
+    USER ||--o{ PROJECT_VARIABLES : "creates"
     
     ORGANIZATION ||--o{ MEMBER : "has members"
     ORGANIZATION ||--o{ INVITATION : "has invitations"
@@ -362,6 +378,7 @@ erDiagram
     PROJECTS ||--o{ NOTIFICATION_PROVIDERS : "uses"
     PROJECTS ||--o{ RUNS : "executes"
     PROJECTS ||--o{ API_KEYS : "accesses"
+    PROJECTS ||--o{ PROJECT_VARIABLES : "contains"
     
     %% Test & Job Relationships
     JOBS ||--o{ JOB_TESTS : "includes"
@@ -397,6 +414,7 @@ erDiagram
 ### Key Features
 - **Multi-tenant Architecture**: Organizations contain projects, users are members of organizations
 - **Project-based Access Control**: Users can have different roles in different projects
+- **Variable Management**: Project-scoped variables and secrets with encryption support
 - **Comprehensive Monitoring**: HTTP/website/ping/port/heartbeat monitoring with results tracking
 - **Test Automation**: Tests can be grouped into jobs with cron scheduling
 - **Flexible Notifications**: Multiple notification providers (email, Slack, webhooks, etc.)
