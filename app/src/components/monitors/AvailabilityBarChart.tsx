@@ -29,6 +29,23 @@ const chartConfig = {
 
 export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
   // console.log("[AvailabilityBarChart] Received data:", JSON.stringify(data, null, 2)); // Keep for now if user still has issues
+  const [visibleBars, setVisibleBars] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!data || data.length === 0) return;
+    
+    let currentBar = 0;
+    const interval = setInterval(() => {
+      currentBar++;
+      setVisibleBars(currentBar);
+      
+      if (currentBar >= data.length) {
+        clearInterval(interval);
+      }
+    },20); // 20ms delay between each bar
+
+    return () => clearInterval(interval);
+  }, [data]);
 
   const getEmptyMessage = () => {
     return "No availability data to display.";
@@ -49,7 +66,7 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
     );
   }
 
-  const processedData = data.map((item, index) => ({
+  const processedData = data.slice(0, visibleBars).map((item, index) => ({
     name: `Run ${index + 1}`, 
     status: item.status === 1 ? "up" : "down",
     fill: item.status === 1 ? chartConfig.up.color : chartConfig.down.color,

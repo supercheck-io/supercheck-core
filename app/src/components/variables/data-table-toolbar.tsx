@@ -75,14 +75,11 @@ export function DataTableToolbar<TData>({
                   <div>
                     <h3 className="font-medium text-sm">Variables & Secrets Usage</h3>
                     <p className="text-xs text-muted-foreground">
-                      Access methods in your test scripts
+                      Access methods for your test scripts in Playground
                     </p>
                   </div>
-                  
+                                   
                   <div className="space-y-3">
-                    
-                    
-              
 
                     <div className="space-y-2">
                       <h4 className="text-xs font-medium">Example Usage</h4>
@@ -168,25 +165,28 @@ await page.fill('#password', getSecret('PASSWORD'));` ? (
           </Button>
         )}
         <DataTableViewOptions table={table} />
-        {meta?.canManage && meta?.projectId && (
+        {meta?.projectId && (
           <>
             <Button 
               size="sm" 
               className="h-8"
+              disabled={!meta?.canManage}
               onClick={() => setDialogOpen(true)}
             >
               <Plus className="mr-2 h-4 w-4" />
               Add Variable
             </Button>
-            <VariableDialog
-              open={dialogOpen}
-              onOpenChange={setDialogOpen}
-              projectId={meta.projectId}
-              onSuccess={() => {
-                meta.onSuccess?.();
-                setDialogOpen(false);
-              }}
-            />
+            {meta?.canManage && (
+              <VariableDialog
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+                projectId={meta.projectId}
+                onSuccess={() => {
+                  meta.onSuccess?.();
+                  setDialogOpen(false);
+                }}
+              />
+            )}
           </>
         )}
       </div>

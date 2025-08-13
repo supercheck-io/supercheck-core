@@ -174,6 +174,9 @@ services:
       NEXT_PUBLIC_APP_URL: https://${DOMAIN:-supercheck.meditationblue.com}
       BETTER_AUTH_URL: https://${DOMAIN:-supercheck.meditationblue.com}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      # Memory management configuration
+      MAX_CONCURRENT_EXECUTIONS: 2
+      MEMORY_THRESHOLD_MB: 1536
       # Note: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD already in common-env
     # Use default CMD from Dockerfile
     volumes:

@@ -108,4 +108,4 @@ USER nodejs
 
 EXPOSE 3001
 
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "--expose-gc", "--max-old-space-size=2048", "dist/src/main.js"]

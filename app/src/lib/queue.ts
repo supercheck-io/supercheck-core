@@ -104,7 +104,7 @@ export async function getRedisConnection(): Promise<Redis> {
   const port = parseInt(process.env.REDIS_PORT || '6379');
   const password = process.env.REDIS_PASSWORD;
 
-  console.log(`[Queue Client] Connecting to Redis at ${host}:${port}`);
+  // Connecting to Redis
   
   const connectionOpts: RedisOptions = {
     host,
@@ -122,9 +122,9 @@ export async function getRedisConnection(): Promise<Redis> {
   redisClient = new Redis(connectionOpts);
 
   redisClient.on('error', (err) => console.error('[Queue Client] Redis Error:', err));
-  redisClient.on('connect', () => console.log('[Queue Client] Redis Connected'));
-  redisClient.on('ready', () => console.log('[Queue Client] Redis Ready'));
-  redisClient.on('close', () => console.log('[Queue Client] Redis Closed'));
+  redisClient.on('connect', () => {});
+  redisClient.on('ready', () => {});
+  redisClient.on('close', () => {});
 
   // Wait briefly for connection, but don't block indefinitely if Redis is down
   try {
@@ -204,7 +204,7 @@ async function getQueues(): Promise<{
         // Set up periodic cleanup for orphaned Redis keys
         await setupQueueCleanup(connection);
 
-        console.log('[Queue Client] BullMQ Queues initialized');
+        // BullMQ Queues initialized
       } catch (error) {
         console.error('[Queue Client] Failed to initialize queues:', error);
         // Reset promise to allow retrying later
@@ -250,7 +250,7 @@ async function setupQueueCleanup(connection: Redis): Promise<void> {
  * Extracted to a separate function for reuse in initial and scheduled cleanup
  */
 async function performQueueCleanup(connection: Redis): Promise<void> {
-  console.log('[Queue Client] Running queue cleanup for Redis keys');
+  // Running queue cleanup
   const queuesToClean = [
     { name: TEST_EXECUTION_QUEUE, queue: testQueue },
     { name: JOB_EXECUTION_QUEUE, queue: jobQueue },
@@ -261,7 +261,7 @@ async function performQueueCleanup(connection: Redis): Promise<void> {
 
   for (const { name, queue } of queuesToClean) {
     if (queue) {
-      console.log(`[Queue Client] Cleaning up queue: ${name}`);
+      // Cleaning up queue
       await cleanupOrphanedKeys(connection, name); // Cleans up BullMQ internal keys
       
       // Clean completed and failed jobs older than REDIS_JOB_KEY_TTL from the queue itself
@@ -270,10 +270,10 @@ async function performQueueCleanup(connection: Redis): Promise<void> {
       
       // Trim events to prevent Redis memory issues
       await queue.trimEvents(1000); // Keep last 1000 events
-      console.log(`[Queue Client] Finished cleaning queue: ${name}`);
+      // Finished cleaning queue
     }
   }
-  console.log('[Queue Client] Finished all queue cleanup tasks.');
+  // Finished queue cleanup
 }
 
 /**
@@ -318,7 +318,7 @@ async function cleanupOrphanedKeys(connection: Redis, queueName: string): Promis
           }
           
           await connection.expire(key, expiryTime);
-          console.log(`[Queue Client] Set TTL of ${expiryTime}s for key: ${key}`);
+          // Set TTL for key
         }
       }
     } while (cursor !== '0');
@@ -330,17 +330,16 @@ async function cleanupOrphanedKeys(connection: Redis, queueName: string): Promis
 /**
  * Add a test execution task to the queue.
  */
-export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: number = 15): Promise<string> {
+export async function addTestToQueue(task: TestExecutionTask): Promise<string> {
   const { testQueue } = await getQueues();
   const jobUuid = task.testId; // Use testId as the job ID for easier tracking
-  console.log(`[Queue Client] Adding test ${jobUuid} to queue ${TEST_EXECUTION_QUEUE}`);
+  // Adding test to queue
 
   try {
     // Check the current queue size against QUEUED_CAPACITY
     await verifyQueueCapacityOrThrow();
     
-    const timeoutMs = expiryMinutes * 60 * 1000; // Convert minutes to milliseconds
-    console.log(`[Queue Client] Setting timeout of ${timeoutMs}ms (${expiryMinutes} minutes)`);
+    // Setting timeout
     
     const jobOptions = {
       jobId: jobUuid,
@@ -348,7 +347,7 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
       // But timeout/duration is managed by worker instead
     };
     await testQueue.add(TEST_EXECUTION_QUEUE, task, jobOptions);
-    console.log(`[Queue Client] Test ${jobUuid} added successfully.`);
+    // Test added successfully
     return jobUuid;
   } catch (error) {
     console.error(`[Queue Client] Error adding test ${jobUuid} to queue:`, error);
@@ -359,17 +358,16 @@ export async function addTestToQueue(task: TestExecutionTask, expiryMinutes: num
 /**
  * Add a job execution task (multiple tests) to the queue.
  */
-export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: number = 30): Promise<string> {
+export async function addJobToQueue(task: JobExecutionTask): Promise<string> {
   const { jobQueue } = await getQueues();
   const runId = task.runId; // Use runId for consistency with scheduled jobs  
-  console.log(`[Queue Client] Adding job ${runId} (${task.testScripts.length} tests) to queue ${JOB_EXECUTION_QUEUE}`);
+  // Adding job to queue
   
   try {
     // Check the current queue size against QUEUED_CAPACITY
     await verifyQueueCapacityOrThrow();
     
-    const timeoutMs = expiryMinutes * 60 * 1000; // Convert minutes to milliseconds
-    console.log(`[Queue Client] Setting timeout of ${timeoutMs}ms (${expiryMinutes} minutes)`);
+    // Setting timeout
     
     const jobOptions = {
       jobId: runId, // Use runId as BullMQ job ID for consistency
@@ -384,7 +382,7 @@ export async function addJobToQueue(task: JobExecutionTask, expiryMinutes: numbe
     
     // Use runId as the job name (first parameter) to match scheduled jobs
     await jobQueue.add(runId, task, jobOptions);
-    console.log(`[Queue Client] Job ${runId} added successfully.`);
+    // Job added successfully
     return runId;
   } catch (error) {
     console.error(`[Queue Client] Error adding job ${runId} to queue:`, error);
@@ -404,7 +402,7 @@ export async function verifyQueueCapacityOrThrow(): Promise<void> {
     // Get real queue stats from Redis
     const stats = await fetchQueueStats();
     
-    console.log(`[Queue Client] Checking capacity - running: ${stats.running}/${stats.runningCapacity}, queued: ${stats.queued}/${stats.queuedCapacity}`);
+    // Checking capacity
     
     // First check: If running < RUNNING_CAPACITY, we can add more jobs immediately
     if (stats.running < stats.runningCapacity) {
@@ -453,7 +451,7 @@ export async function closeQueue(): Promise<void> {
 
   try {
     await Promise.all(promises);
-    console.log('[Queue Client] All queues and events closed successfully.');
+    // All queues closed
   } catch (error) {
     console.error('[Queue Client] Error closing queues and events:', error);
   } finally {
@@ -475,7 +473,7 @@ export async function setRunCapacityLimit(limit: number): Promise<void> {
   const redis = await getRedisConnection();
   try {
     await redis.set(RUNNING_CAPACITY_LIMIT_KEY, String(limit));
-    console.log(`Set running capacity limit to ${limit} in Redis`);
+    // Set running capacity limit
   } finally {
     await redis.quit();
   }
@@ -488,7 +486,7 @@ export async function setQueueCapacityLimit(limit: number): Promise<void> {
   const redis = await getRedisConnection();
   try {
     await redis.set(QUEUE_CAPACITY_LIMIT_KEY, String(limit));
-    console.log(`Set queue capacity limit to ${limit} in Redis`);
+    // Set queue capacity limit
   } finally {
     await redis.quit();
   }
@@ -498,7 +496,7 @@ export async function setQueueCapacityLimit(limit: number): Promise<void> {
  * Add a monitor execution task to the MONITOR_EXECUTION_QUEUE.
  */
 export async function addMonitorExecutionJobToQueue(task: MonitorJobData): Promise<string> {
-  console.log(`[Queue Client] Adding monitor execution job for monitor ${task.monitorId} to queue ${MONITOR_EXECUTION_QUEUE}`);
+  // Adding monitor execution job
   
   try {
     const { monitorExecutionQueue } = await getQueues();
@@ -512,7 +510,7 @@ export async function addMonitorExecutionJobToQueue(task: MonitorJobData): Promi
         priority: 1, // Higher priority for immediate execution
       }
     );
-    console.log(`[Queue Client] Monitor execution job ${job.id} added successfully for monitor ${task.monitorId}`);
+    // Monitor execution job added
     return job.id!;
   } catch (error) {
     console.error(`[Queue Client] Error adding monitor execution job for monitor ${task.monitorId}:`, error);

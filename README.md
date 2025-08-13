@@ -48,7 +48,7 @@ Supercheck is a powerful, scalable testing platform built with Next.js and NestJ
 ### 1. Clone and Setup
 ```bash
 git clone <repository-url>
-cd supertest
+cd supercheck
 cp .env.example .env  # Configure your environment variables
 ```
 

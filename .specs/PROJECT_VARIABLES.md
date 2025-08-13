@@ -1,7 +1,7 @@
 # Variable Management System - Implementation Complete
 
 ## Overview
-Complete end-to-end implementation of variable/secret management in the Supertest platform. Variables are managed centrally through the dedicated Variables page and accessed via `getVariable()` and `getSecret()` functions in test scripts with enterprise-grade security.
+Complete end-to-end implementation of variable/secret management in the Supercheck platform. Variables are managed centrally through the dedicated Variables page and accessed via `getVariable()` and `getSecret()` functions in test scripts with enterprise-grade security.
 
 ## Variable Management UI Location
 

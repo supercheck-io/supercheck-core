@@ -1,6 +1,6 @@
 # Alerts and Notifications System
 
-This document provides a comprehensive overview of the alerts and notifications system in Supertest, including configuration, implementation, and best practices for monitoring alerts and job notifications.
+This document provides a comprehensive overview of the alerts and notifications system in Supercheck, including configuration, implementation, and best practices for monitoring alerts and job notifications.
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@ This document provides a comprehensive overview of the alerts and notifications 
 
 ## System Overview
 
-The Supertest alerts and notifications system is built on a distributed architecture with two main components:
+The Supercheck alerts and notifications system is built on a distributed architecture with two main components:
 
 1. **`app` (Next.js Frontend):** The user-facing application where users configure monitors, jobs, and their respective alert settings. It includes the API endpoints for alert configuration and notification provider management.
 2. **`worker` (NestJS Worker Service):** A background worker service responsible for executing monitors and jobs, evaluating alert conditions, and dispatching notifications through configured providers.

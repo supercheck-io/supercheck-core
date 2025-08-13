@@ -29,6 +29,7 @@ export function NavMain({
     url: string;
     icon?: LucideIcon;
     isActive?: boolean;
+    badge?: string;
     items?: {
       title: string;
       url: string;
@@ -65,6 +66,9 @@ export function NavMain({
                   <Link href={item.url}>
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
+                    {item.badge && (
+                      <span className="ml-auto text-xs text-muted-foreground">{item.badge}</span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               )}

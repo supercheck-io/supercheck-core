@@ -1,6 +1,6 @@
 # Monitoring System Specification
 
-This document provides a comprehensive technical specification for the Supertest monitoring system, covering architecture design, queue management, active monitoring types, scheduling implementation, and production deployment considerations.
+This document provides a comprehensive technical specification for the Supercheck monitoring system, covering architecture design, queue management, active monitoring types, scheduling implementation, and production deployment considerations.
 
 ## Table of Contents
 

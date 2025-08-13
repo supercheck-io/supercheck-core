@@ -1,6 +1,6 @@
 # Parallel Execution and Capacity Management
 
-This document outlines Supertest's sophisticated parallel execution system that provides real-time visibility into test and job execution while enforcing configurable capacity limits to ensure system stability and optimal resource utilization.
+This document outlines Supercheck's sophisticated parallel execution system that provides real-time visibility into test and job execution while enforcing configurable capacity limits to ensure system stability and optimal resource utilization.
 
 ## Overview
 

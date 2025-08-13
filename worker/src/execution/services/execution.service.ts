@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { spawn, execSync } from 'child_process';
 import * as fs from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, createReadStream, createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { S3Service } from './s3.service';
@@ -103,12 +104,20 @@ interface PlaywrightExecutionResult {
 }
 
 @Injectable()
-export class ExecutionService {
+export class ExecutionService implements OnModuleDestroy {
   private readonly logger = new Logger(ExecutionService.name);
   private readonly testExecutionTimeoutMs: number;
   private readonly jobExecutionTimeoutMs: number;
   private readonly playwrightConfigPath: string;
   private readonly baseLocalRunDir: string;
+  private readonly maxConcurrentExecutions: number;
+  private readonly memoryThresholdMB: number;
+  private activeExecutions: Map<
+    string,
+    { pid?: number; startTime: number; memoryUsage: number }
+  > = new Map();
+  private memoryCleanupInterval: NodeJS.Timeout;
+  private readonly gcInterval: NodeJS.Timeout;
 
   constructor(
     private configService: ConfigService,
@@ -148,8 +157,29 @@ export class ExecutionService {
       `Using Playwright config (relative): ${path.relative(process.cwd(), this.playwrightConfigPath)}`,
     );
 
+    // Memory and concurrency configuration
+    this.maxConcurrentExecutions = this.configService.get<number>(
+      'MAX_CONCURRENT_EXECUTIONS',
+      3,
+    );
+    this.memoryThresholdMB = this.configService.get<number>(
+      'MEMORY_THRESHOLD_MB',
+      2048,
+    );
+
     // Ensure base local dir exists and has correct permissions
     void this.ensureBaseDirectoryPermissions();
+
+    // Set up memory monitoring and cleanup
+    this.setupMemoryMonitoring();
+
+    // Force garbage collection every 30 seconds
+    this.gcInterval = setInterval(() => {
+      if (global.gc) {
+        global.gc();
+        this.logger.debug('Forced garbage collection completed');
+      }
+    }, 30000);
   }
 
   /**
@@ -175,6 +205,114 @@ export class ExecutionService {
         error,
       );
       // Don't throw - cleanup failure shouldn't break the main flow
+    }
+  }
+
+  /**
+   * Sets up memory monitoring and cleanup mechanisms
+   */
+  private setupMemoryMonitoring(): void {
+    this.memoryCleanupInterval = setInterval(async () => {
+      try {
+        await this.performMemoryCleanup();
+      } catch (error) {
+        this.logger.warn(`Memory cleanup failed: ${(error as Error).message}`);
+      }
+    }, 60000); // Every minute
+
+    // Monitor active executions for memory leaks
+    setInterval(() => {
+      this.monitorActiveExecutions();
+    }, 30000); // Every 30 seconds
+  }
+
+  /**
+   * Monitors active executions and cleans up stale ones
+   */
+  private monitorActiveExecutions(): void {
+    const now = Date.now();
+    const staleTimeout = 30 * 60 * 1000; // 30 minutes
+
+    for (const [executionId, execution] of this.activeExecutions.entries()) {
+      const runtime = now - execution.startTime;
+
+      if (runtime > staleTimeout) {
+        this.logger.warn(
+          `Cleaning up stale execution ${executionId} after ${runtime}ms`,
+        );
+
+        if (execution.pid) {
+          this.killProcessTree(execution.pid);
+        }
+
+        this.activeExecutions.delete(executionId);
+      }
+    }
+
+    // Log current memory usage
+    const memUsage = process.memoryUsage();
+    const memUsageMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+
+    if (memUsageMB > this.memoryThresholdMB) {
+      this.logger.warn(
+        `High memory usage detected: ${memUsageMB}MB (threshold: ${this.memoryThresholdMB}MB)`,
+      );
+      void this.performMemoryCleanup();
+    }
+
+    this.logger.debug(
+      `Active executions: ${this.activeExecutions.size}, Memory: ${memUsageMB}MB`,
+    );
+  }
+
+  /**
+   * Performs memory cleanup operations
+   */
+  private async performMemoryCleanup(): Promise<void> {
+    try {
+      // Force garbage collection if available
+      if (global.gc) {
+        global.gc();
+      }
+
+      // Clean up temporary files older than 1 hour
+      await this.cleanupOldTempFiles();
+
+      // Clean up zombie processes
+      await this.cleanupBrowserProcesses();
+
+      const memUsage = process.memoryUsage();
+      this.logger.debug(
+        `Memory cleanup completed. Heap used: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error during memory cleanup: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * Cleans up old temporary files to prevent disk space issues
+   */
+  private async cleanupOldTempFiles(): Promise<void> {
+    try {
+      const dirs = await fs.readdir(this.baseLocalRunDir);
+      const oneHourAgo = Date.now() - 60 * 60 * 1000;
+
+      for (const dir of dirs) {
+        const dirPath = path.join(this.baseLocalRunDir, dir);
+        const stats = await fs.stat(dirPath);
+
+        if (stats.isDirectory() && stats.mtime.getTime() < oneHourAgo) {
+          await fs.rm(dirPath, { recursive: true, force: true });
+          this.logger.debug(`Cleaned up old temp directory: ${dirPath}`);
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to cleanup old temp files: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -274,6 +412,14 @@ export class ExecutionService {
    */
   async runSingleTest(task: TestExecutionTask): Promise<TestResult> {
     const { testId, code } = task;
+
+    // Check concurrency limits
+    if (this.activeExecutions.size >= this.maxConcurrentExecutions) {
+      throw new Error(
+        `Maximum concurrent executions limit reached: ${this.maxConcurrentExecutions}`,
+      );
+    }
+
     this.logger.log(`[${testId}] Starting single test execution.`);
 
     // Generate unique ID for this run to avoid conflicts in parallel executions
@@ -283,6 +429,12 @@ export class ExecutionService {
     const entityType = 'test';
     let finalResult: TestResult;
     let s3Url: string | null = null;
+
+    // Track this execution
+    this.activeExecutions.set(uniqueRunId, {
+      startTime: Date.now(),
+      memoryUsage: process.memoryUsage().heapUsed,
+    });
 
     try {
       // 1. Validate input
@@ -636,6 +788,9 @@ export class ExecutionService {
       // Propagate the error to the BullMQ processor so the job is marked as failed
       throw error;
     } finally {
+      // Remove from active executions
+      this.activeExecutions.delete(uniqueRunId);
+
       // 6. Cleanup local run directory after all processing is complete
       this.logger.log(
         `[${testId}] Cleaning up entire run directory: ${runDir}`,
@@ -645,6 +800,11 @@ export class ExecutionService {
           `[${testId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`,
         );
       });
+
+      // Force garbage collection after test completion
+      if (global.gc) {
+        global.gc();
+      }
     }
 
     return finalResult;
@@ -656,6 +816,14 @@ export class ExecutionService {
    */
   async runJob(task: JobExecutionTask): Promise<TestExecutionResult> {
     const { runId, testScripts } = task;
+
+    // Check concurrency limits
+    if (this.activeExecutions.size >= this.maxConcurrentExecutions) {
+      throw new Error(
+        `Maximum concurrent executions limit reached: ${this.maxConcurrentExecutions}`,
+      );
+    }
+
     const entityType = 'job';
     this.logger.log(
       `[${runId}] Starting job execution with ${testScripts.length} tests.`,
@@ -673,6 +841,12 @@ export class ExecutionService {
     let overallSuccess = false; // Default to failure
     let stdout_log = '';
     let stderr_log = '';
+
+    // Track this execution
+    this.activeExecutions.set(uniqueRunId, {
+      startTime: Date.now(),
+      memoryUsage: process.memoryUsage().heapUsed,
+    });
 
     try {
       // 1. Validate input
@@ -694,20 +868,13 @@ export class ExecutionService {
       });
 
       // Process each script, creating a Playwright test file for each
-      console.log(
-        `[${runId}] Processing ${testScripts.length} test scripts:`,
-        testScripts.map((t) => ({
-          id: t.id,
-          hasScript: !!t.script,
-          scriptLength: t.script?.length || 0,
-        })),
+      this.logger.log(
+        `[${runId}] Processing ${testScripts.length} test scripts`,
       );
       for (let i = 0; i < testScripts.length; i++) {
         const { id, script: originalScript } = testScripts[i];
         const testId = id;
-        console.log(
-          `[${runId}] Processing test ${testId}, script type: ${typeof originalScript}, length: ${originalScript?.length || 0}`,
-        );
+        this.logger.debug(`[${runId}] Processing test ${testId}`);
 
         try {
           // Check if the script is Base64 encoded and decode it
@@ -730,13 +897,13 @@ export class ExecutionService {
                 decoded.includes('describe(')
               ) {
                 decodedScript = decoded;
-                console.log(
+                this.logger.debug(
                   `[${runId}] Decoded Base64 script for test ${testId}`,
                 );
               }
             }
           } catch (decodeError) {
-            console.warn(
+            this.logger.warn(
               `[${runId}] Failed to decode potential Base64 script for test ${testId}:`,
               decodeError,
             );
@@ -1009,6 +1176,9 @@ export class ExecutionService {
       };
       throw error;
     } finally {
+      // Remove from active executions
+      this.activeExecutions.delete(uniqueRunId);
+
       // 7. Cleanup local run directory after all processing is complete
       this.logger.log(`[${runId}] Cleaning up entire run directory: ${runDir}`);
       await fs.rm(runDir, { recursive: true, force: true }).catch((err) => {
@@ -1016,6 +1186,11 @@ export class ExecutionService {
           `[${runId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`,
         );
       });
+
+      // Force garbage collection after job completion
+      if (global.gc) {
+        global.gc();
+      }
     }
 
     return finalResult;
@@ -1354,6 +1529,17 @@ export class ExecutionService {
           detached: !isWindows, // Only use detached on Unix-like systems
           windowsHide: isWindows, // Hide window on Windows
         });
+
+        // Update active executions with PID for better tracking
+        for (const [
+          executionId,
+          execution,
+        ] of this.activeExecutions.entries()) {
+          if (!execution.pid) {
+            execution.pid = childProcess.pid;
+            break;
+          }
+        }
 
         let stdout = '';
         let stderr = '';
@@ -1705,5 +1891,37 @@ test('Automated Test ${testId.substring(0, 8)}', async ({ page }) => {
    */
   private getDurationSeconds(durationMs: number): number {
     return Math.floor(durationMs / 1000);
+  }
+
+  /**
+   * Cleanup method called when service is being destroyed
+   */
+  onModuleDestroy() {
+    this.logger.log(
+      'ExecutionService cleanup: clearing intervals and active executions',
+    );
+
+    // Clear intervals
+    if (this.memoryCleanupInterval) {
+      clearInterval(this.memoryCleanupInterval);
+    }
+    if (this.gcInterval) {
+      clearInterval(this.gcInterval);
+    }
+
+    // Kill any remaining active executions
+    for (const [executionId, execution] of this.activeExecutions.entries()) {
+      this.logger.warn(
+        `Cleaning up active execution ${executionId} during shutdown`,
+      );
+      if (execution.pid) {
+        this.killProcessTree(execution.pid);
+      }
+    }
+
+    this.activeExecutions.clear();
+
+    // Final cleanup
+    void this.cleanupBrowserProcesses();
   }
 }

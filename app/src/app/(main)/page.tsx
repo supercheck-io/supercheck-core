@@ -18,7 +18,6 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
-import { StatsCardsSkeleton } from "@/components/ui/table-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProjectStats {

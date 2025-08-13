@@ -6,7 +6,7 @@ export const createVariableSchema = z.object({
     .min(4, "Variable name must be at least 4 characters")
     .max(20, "Variable name must be at most 20 characters")
     .regex(/^[A-Z][A-Z0-9_]*$/, "Variable name must start with a letter and contain only uppercase letters, numbers, and underscores")
-    .refine((key) => !key.startsWith('SUPERTEST_'), "Variable names cannot start with SUPERTEST_ (reserved)")
+    .refine((key) => !key.startsWith('SUPERCHECK_'), "Variable names cannot start with SUPERCHECK_ (reserved)")
     .refine((key) => !['PATH', 'HOME', 'USER', 'NODE_ENV', 'PORT'].includes(key), "Cannot use system reserved variable names"),
   value: z
     .string()
@@ -25,7 +25,7 @@ export const updateVariableSchema = z.object({
     .min(4, "Variable name must be at least 4 characters")
     .max(20, "Variable name must be at most 20 characters")
     .regex(/^[A-Z][A-Z0-9_]*$/, "Variable name must start with a letter and contain only uppercase letters, numbers, and underscores")
-    .refine((key) => !key.startsWith('SUPERTEST_'), "Variable names cannot start with SUPERTEST_ (reserved)")
+    .refine((key) => !key.startsWith('SUPERCHECK_'), "Variable names cannot start with SUPERCHECK_ (reserved)")
     .refine((key) => !['PATH', 'HOME', 'USER', 'NODE_ENV', 'PORT'].includes(key), "Cannot use system reserved variable names")
     .optional(),
   value: z

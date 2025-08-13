@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # Super Admin Setup Script
-# This script helps you set up your first super admin user for Supertest
+# This script helps you set up your first super admin user for Supercheck
 
 set -e
 
-echo "🔧 Supertest Super Admin Setup"
+echo "🔧 Supercheck Super Admin Setup"
 echo "================================"
 echo ""
 
 # Check if we're in the right directory
 if [ ! -f "docker-compose.yml" ]; then
-    echo "❌ Error: This script must be run from the root directory of the Supertest project"
+    echo "❌ Error: This script must be run from the root directory of the Supercheck project"
     exit 1
 fi
 

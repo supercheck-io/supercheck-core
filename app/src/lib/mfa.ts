@@ -216,7 +216,7 @@ export async function requireAdminWithMFA(
 export function generateMFAQRCodeData(
   userId: string, 
   secret: string, 
-  serviceName = 'Supertest',
+  serviceName = 'Supercheck',
   userEmail?: string
 ): string {
   const label = encodeURIComponent(`${serviceName}:${userEmail || userId}`);

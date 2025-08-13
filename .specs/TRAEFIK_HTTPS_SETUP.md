@@ -1,6 +1,6 @@
 # Traefik HTTPS Configuration
 
-This document provides comprehensive guidance for setting up Traefik reverse proxy with automatic HTTPS certificates for the Supertest application, specifically addressing Playwright trace viewer requirements.
+This document provides comprehensive guidance for setting up Traefik reverse proxy with automatic HTTPS certificates for the Supercheck application, specifically addressing Playwright trace viewer requirements.
 
 ## Table of Contents
 
@@ -335,7 +335,7 @@ Update the docker-compose.yml:
 ### Certificate Storage
 ```bash
 # Certificate files location
-/var/lib/docker/volumes/supertest_traefik-letsencrypt/_data/acme.json
+/var/lib/docker/volumes/supercheck_traefik-letsencrypt/_data/acme.json
 ```
 
 ### Manual Certificate Renewal
@@ -456,7 +456,7 @@ docker-compose logs traefik | grep -i "rate limit"
 
 # Clear certificate cache if needed
 docker-compose down
-docker volume rm supertest_traefik-letsencrypt
+docker volume rm supercheck_traefik-letsencrypt
 docker-compose up -d
 ```
 
@@ -683,4 +683,4 @@ Import Traefik dashboard for visualization:
 4. **Compression**: Enable gzip compression for responses
 5. **Load balancing**: Distribute traffic across multiple app instances
 
-This comprehensive setup ensures that Playwright trace viewers work correctly while maintaining security and reliability for the entire Supertest application.
+This comprehensive setup ensures that Playwright trace viewers work correctly while maintaining security and reliability for the entire Supercheck application.

@@ -33,7 +33,7 @@ interface ScheduleOptions {
  */
 export async function scheduleJob(options: ScheduleOptions): Promise<string> {
   try {
-    console.log(`Setting up scheduled job "${options.name}" (${options.jobId}) with cron pattern ${options.cron}`);
+    // Setting up scheduled job
 
     // Get queues from central management
     const { jobSchedulerQueue } = await getQueues();
@@ -48,18 +48,18 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
       .where(eq(jobTests.jobId, options.jobId))
       .orderBy(jobTests.orderPosition);
 
-    console.log(`Job has ${jobTestsList.length} tests. Setting up repeatable job...`);
+    // Setting up repeatable job
 
     // Fetch all test scripts upfront - directly from database to avoid auth issues
     const testIds = jobTestsList.map(jt => jt.testId);
-    console.log(`Fetching test data for ${testIds.length} tests: ${testIds.join(', ')}`);
+    // Fetching test data
     
     const testData = await db
       .select()
       .from(tests)
       .where(inArray(tests.id, testIds));
       
-    console.log(`Retrieved ${testData.length} test records from database`);
+    // Retrieved test records
     
     // Map tests with their order positions
     const testCases = jobTestsList.map(jobTest => {
@@ -74,7 +74,7 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
       };
     }).filter(Boolean); // Remove null entries
     
-    console.log(`Final testCases count: ${testCases.length}`);
+    // Prepared test cases
 
     // Clean up any existing repeatable jobs for this job ID
     const repeatableJobs = await jobSchedulerQueue.getRepeatableJobs();
@@ -85,7 +85,7 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     );
     
     if (existingJob) {
-      console.log(`Removing existing repeatable job: ${existingJob.key}`);
+      // Removing existing job
       await jobSchedulerQueue.removeRepeatableByKey(existingJob.key);
     }
 
@@ -132,7 +132,7 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     // WORKER LOGIC IS NOW IN A DEDICATED WORKER SERVICE
     // await ensureSchedulerWorker();
 
-    console.log(`Created job scheduler ${options.jobId} with cron pattern ${options.cron}`);
+    // Job scheduler created
     return options.jobId;
   } catch (error) {
     console.error(`Failed to schedule job:`, error);
@@ -153,7 +153,7 @@ export async function handleScheduledJobTrigger(job: Job) {
   try {
     const data = job.data;
     
-    console.log(`Handling scheduled job trigger for job ${jobId}`);
+    // Handling job trigger
     
     // Check if there's already a run in progress for this job
     const runningRuns = await db
@@ -165,7 +165,7 @@ export async function handleScheduledJobTrigger(job: Job) {
       ));
     
     if (runningRuns.length > 0) {
-      console.log(`Job ${jobId} already has a running execution, skipping`);
+      // Job already running, skipping
       return;
     }
 
@@ -183,7 +183,7 @@ export async function handleScheduledJobTrigger(job: Job) {
         trigger: "schedule" as JobTrigger,
       });
     
-    console.log(`Created run record ${runId} for scheduled job ${jobId}`);
+    // Created run record
     
     // Update job's lastRunAt field and calculate nextRunAt
     const now = new Date();
@@ -221,7 +221,7 @@ export async function handleScheduledJobTrigger(job: Job) {
     // Resolve variables for the project
     let variableResolution: VariableResolutionResult = { variables: {}, secrets: {}, errors: undefined };
     if (jobData.length > 0 && jobData[0].projectId) {
-      console.log(`[${jobId}/${runId}] Resolving project variables for scheduled job...`);
+      // Resolving project variables
       variableResolution = await resolveProjectVariables(jobData[0].projectId);
       
       if (variableResolution.errors && variableResolution.errors.length > 0) {
@@ -267,7 +267,7 @@ export async function handleScheduledJobTrigger(job: Job) {
     
     await jobQueue.add(runId, task, jobOptions);
     
-    console.log(`Created execution task for scheduled job ${jobId}, run ${runId} with jobId = runId`);
+    // Created execution task
     
   } catch (error) {
     console.error(`Failed to process scheduled job trigger:`, error);
@@ -305,7 +305,7 @@ export async function handleScheduledJobTrigger(job: Job) {
  */
 export async function deleteScheduledJob(schedulerId: string): Promise<boolean> {
   try {
-    console.log(`Removing job scheduler ${schedulerId}`);
+    // Removing job scheduler
     
     const { jobSchedulerQueue } = await getQueues();
     
@@ -326,15 +326,15 @@ export async function deleteScheduledJob(schedulerId: string): Promise<boolean> 
     if (jobsToRemove.length > 0) {
       // Remove all matching jobs
       const removePromises = jobsToRemove.map(async (job) => {
-        console.log(`Removing repeatable job with key ${job.key}`);
+        // Removing repeatable job
         return jobSchedulerQueue.removeRepeatableByKey(job.key);
       });
       
       await Promise.all(removePromises);
-      console.log(`Removed ${jobsToRemove.length} repeatable jobs for scheduler ${schedulerId}`);
+      // Removed repeatable jobs
       return true;
     } else {
-      console.log(`No repeatable jobs found for scheduler ${schedulerId}`);
+      // No repeatable jobs found
       return false;
     }
   } catch (error) {
@@ -349,14 +349,14 @@ export async function deleteScheduledJob(schedulerId: string): Promise<boolean> 
  */
 export async function initializeJobSchedulers() {
   try {
-    console.log("Initializing job scheduler...");
+    // Initializing job scheduler
     
     const jobsWithSchedules = await db
       .select()
       .from(jobs)
       .where(isNotNull(jobs.cronSchedule));
       
-    console.log(`Found ${jobsWithSchedules.length} scheduled jobs to initialize`);
+    // Found scheduled jobs to initialize
     
     let initializedCount = 0;
     let failedCount = 0;
@@ -394,7 +394,7 @@ export async function initializeJobSchedulers() {
             .where(eq(jobs.id, job.id));
         }
         
-        console.log(`Initialized job scheduler ${schedulerId} for job ${job.id}`);
+        // Initialized job scheduler
         initializedCount++;
       } catch (error) {
         console.error(`Failed to initialize scheduler for job ${job.id}:`, error);
@@ -402,7 +402,7 @@ export async function initializeJobSchedulers() {
       }
     }
     
-    console.log(`Job scheduler initialization complete: ${initializedCount} succeeded, ${failedCount} failed`);
+    // Job scheduler initialization complete
     return { success: true, initialized: initializedCount, failed: failedCount };
   } catch (error) {
     console.error(`Failed to initialize job schedulers:`, error);
@@ -416,11 +416,11 @@ export async function initializeJobSchedulers() {
  */
 export async function initializePlaygroundCleanup(): Promise<PlaygroundCleanupService | null> {
   try {
-    console.log("Initializing playground cleanup service...");
+    // Initializing playground cleanup
     
     // Check if playground cleanup is disabled
     if (process.env.PLAYGROUND_CLEANUP_ENABLED !== 'true') {
-      console.log("Playground cleanup is disabled, skipping initialization");
+      // Playground cleanup disabled
       return null;
     }
 
@@ -436,7 +436,7 @@ export async function initializePlaygroundCleanup(): Promise<PlaygroundCleanupSe
     // Set the global instance for access throughout the app
     setPlaygroundCleanupInstance(playgroundCleanup);
     
-    console.log("Playground cleanup service initialized successfully");
+    // Playground cleanup initialized
     return playgroundCleanup;
   } catch (error) {
     console.error("Failed to initialize playground cleanup service:", error);
@@ -451,16 +451,16 @@ export async function initializePlaygroundCleanup(): Promise<PlaygroundCleanupSe
  */
 export async function cleanupJobScheduler() {
   try {
-    console.log("Cleaning up job scheduler...");
+    // Cleaning up job scheduler
     
     // Clean up orphaned repeatable jobs in Redis
     try {
-      console.log("Cleaning up orphaned Redis entries...");
+      // Cleaning up orphaned entries
       const { jobSchedulerQueue } = await getQueues();
       
       // Get all repeatable jobs
       const repeatableJobs = await jobSchedulerQueue.getRepeatableJobs();
-      console.log(`Found ${repeatableJobs.length} repeatable jobs in Redis`);
+      // Found repeatable jobs in Redis
       
       // Get all jobs with schedules from the database
       const jobsWithSchedules = await db
@@ -482,18 +482,18 @@ export async function cleanupJobScheduler() {
       });
       
       if (orphanedJobs.length > 0) {
-        console.log(`Found ${orphanedJobs.length} orphaned repeatable jobs to clean up`);
+        // Found orphaned jobs to clean
         
         // Remove all orphaned jobs
         const removePromises = orphanedJobs.map(async (job) => {
-          console.log(`Removing orphaned repeatable job: ${job.key}`);
+          // Removing orphaned job
           return jobSchedulerQueue.removeRepeatableByKey(job.key);
         });
         
         await Promise.all(removePromises);
-        console.log(`Removed ${orphanedJobs.length} orphaned repeatable jobs`);
+        // Removed orphaned jobs
       } else {
-        console.log("No orphaned repeatable jobs found");
+        // No orphaned jobs found
       }
       
       // The queue is managed centrally, so we don't close it here.
@@ -503,7 +503,7 @@ export async function cleanupJobScheduler() {
       // Continue with initialization even if cleanup fails
     }
     
-    console.log("Job scheduler cleanup complete");
+    // Job scheduler cleanup complete
     return true;
   } catch (error) {
     console.error("Failed to cleanup job scheduler:", error);
@@ -517,16 +517,16 @@ export async function cleanupJobScheduler() {
  */
 export async function cleanupPlaygroundCleanup(): Promise<void> {
   try {
-    console.log("Cleaning up playground cleanup service...");
+    // Cleaning up playground service
     
     const { getPlaygroundCleanupService } = await import('./playground-cleanup');
     const playgroundCleanup = getPlaygroundCleanupService();
     
     if (playgroundCleanup) {
       await playgroundCleanup.shutdown();
-      console.log("Playground cleanup service shutdown complete");
+      // Playground cleanup shutdown
     } else {
-      console.log("No playground cleanup service to shutdown");
+      // No playground service to shutdown
     }
   } catch (error) {
     console.error("Failed to cleanup playground cleanup service:", error);

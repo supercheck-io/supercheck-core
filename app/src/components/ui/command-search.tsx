@@ -4,7 +4,6 @@ import * as React from "react"
 import { useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Settings,
   Globe,
   Code2,
   SearchIcon,

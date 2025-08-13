@@ -80,6 +80,24 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
 export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
   console.log('[ResponseTimeBarChart] Rendering with data:', data);
   console.log('[ResponseTimeBarChart] Data length:', data?.length);
+  
+  const [visiblePoints, setVisiblePoints] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!data || data.length === 0) return;
+    
+    let currentPoint = 0;
+    const interval = setInterval(() => {
+      currentPoint++;
+      setVisiblePoints(currentPoint);
+      
+      if (currentPoint >= data.length) {
+        clearInterval(interval);
+      }
+    }, 10); // 10ms delay between each point for smooth line drawing
+
+    return () => clearInterval(interval);
+  }, [data]);
 
   if (!data || data.length === 0) {
     console.log('[ResponseTimeBarChart] No data available');
@@ -113,6 +131,9 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
     const timeB = b.name;
     return timeA.localeCompare(timeB);
   });
+
+  // Only show data points up to the current visible point for animation
+  const animatedData = sortedData.slice(0, visiblePoints);
 
   // Get the Y-axis domain with some padding
   const values = sortedData.map(d => d.time).filter(t => t > 0);
@@ -164,7 +185,7 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
         >
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={sortedData}
+              data={animatedData}
               margin={{
                 left: 5,
                 right: 5,

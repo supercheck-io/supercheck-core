@@ -1,6 +1,6 @@
 # Real-Time Status Updates with Server-Sent Events (SSE)
 
-This document outlines the comprehensive Server-Sent Events (SSE) implementation in Supertest for real-time status updates, providing live feedback for test execution, job processing, and queue statistics using Redis pub/sub events.
+This document outlines the comprehensive Server-Sent Events (SSE) implementation in Supercheck for real-time status updates, providing live feedback for test execution, job processing, and queue statistics using Redis pub/sub events.
 
 ## Overview
 

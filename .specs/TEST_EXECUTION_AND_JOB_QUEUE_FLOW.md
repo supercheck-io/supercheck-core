@@ -1,6 +1,6 @@
 # Test Execution and Job Queue Flow
 
-This document explains the comprehensive end-to-end flow of test execution and job processing in Supertest, including queue management, parallel execution, capacity limits, and reporting mechanisms for both single tests and multi-test jobs.
+This document explains the comprehensive end-to-end flow of test execution and job processing in Supercheck, including queue management, parallel execution, capacity limits, and reporting mechanisms for both single tests and multi-test jobs.
 
 ## System Architecture
 
@@ -396,7 +396,7 @@ The test execution system can be configured via environment variables:
 
 ```bash
 # Database
-DATABASE_URL=postgres://user:password@${DB_HOST}:5432/supertest
+DATABASE_URL=postgres://user:password@${DB_HOST}:5432/supercheck
 
 # Redis (for queue)
 REDIS_URL=redis://${REDIS_HOST}:6379
@@ -424,13 +424,13 @@ PLAYGROUND_CLEANUP_MAX_AGE_HOURS=24       # Delete reports older than 24 hours
 
 ```bash
 # Start Redis
-docker run -d --name redis-supertest -p 6379:6379 redis
+docker run -d --name redis-supercheck -p 6379:6379 redis
 
 # Start Postgres
-docker run -d --name postgres-supertest -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supertest -p 5432:5432 postgres:16
+docker run -d --name postgres-supercheck -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supercheck -p 5432:5432 postgres:16
 
 # Start MinIO
-docker run -d --name minio-supertest -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
+docker run -d --name minio-supercheck -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
 ```
 
 ## Implementation Details

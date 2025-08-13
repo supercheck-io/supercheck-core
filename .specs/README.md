@@ -1,11 +1,11 @@
-# Supertest Technical Documentation
+# Supercheck Technical Documentation
 
-Welcome to the comprehensive technical documentation for **Supertest** (also known as **Supercheck**), an enterprise-grade end-to-end testing and monitoring platform built with modern distributed architecture.
+Welcome to the comprehensive technical documentation for **Supercheck** (also known as **Supercheck**), an enterprise-grade end-to-end testing and monitoring platform built with modern distributed architecture.
 
 > 📖 **For getting started**: See the [main README](../README.md) for quick setup instructions and usage guide.  
 > 📋 **For development**: See [CLAUDE.md](../CLAUDE.md) for project overview and development guidelines.
 
-This documentation provides in-depth technical specifications, architectural details, and implementation guides for developers and system administrators working with the Supertest platform.
+This documentation provides in-depth technical specifications, architectural details, and implementation guides for developers and system administrators working with the Supercheck platform.
 
 ## 📚 Documentation Index
 

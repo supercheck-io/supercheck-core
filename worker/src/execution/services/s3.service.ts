@@ -369,7 +369,7 @@ export class S3Service implements OnModuleInit {
             // Recursively walk into subdirectories
             await walk(fullLocalPath);
           } else if (entry.isFile()) {
-            // Push file upload promise to array - REPLACED with direct await
+            // Upload files directly with garbage collection
             try {
               this.logger.debug(
                 `[S3 UPLOAD] Uploading file ${fullLocalPath} to ${s3Key}`,
@@ -380,8 +380,13 @@ export class S3Service implements OnModuleInit {
                 undefined,
                 targetBucket,
               );
-              uploadedKeys.push(key); // Push key on success
+              uploadedKeys.push(key);
               this.logger.debug(`[S3 UPLOAD] Successfully uploaded ${key}`);
+
+              // Force garbage collection after each upload to manage memory
+              if (global.gc) {
+                global.gc();
+              }
             } catch (fileUploadError) {
               uploadErrors++;
               this.logger.error(
@@ -427,6 +432,11 @@ export class S3Service implements OnModuleInit {
         this.logger.log(
           `[S3 UPLOAD] Finished upload for ${localDirPath}. Successfully uploaded ${uploadedKeys.length} files to prefix ${normalizedPrefix} in bucket ${targetBucket}`,
         );
+      }
+
+      // Final garbage collection after all uploads
+      if (global.gc) {
+        global.gc();
       }
     } catch (error) {
       this.logger.error(

@@ -801,7 +801,7 @@ export class MonitorService {
         timeout,
         // Default headers with security considerations
         headers: {
-          'User-Agent': 'SuperTest-Monitor/1.0',
+          'User-Agent': 'Supercheck-Monitor/1.0',
           Accept: 'application/json, text/plain, */*',
           'Accept-Encoding': 'gzip, deflate',
           Connection: 'keep-alive',

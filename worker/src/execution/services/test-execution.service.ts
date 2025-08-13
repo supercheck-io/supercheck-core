@@ -112,7 +112,7 @@ const path = require('path');
         fs.mkdirSync(reportDir, { recursive: true });
     }
     
-    console.log('Starting test execution: ${testParams.testName}');
+    // Test execution started
     
     try {
         // Execute the actual test
@@ -121,7 +121,7 @@ const path = require('path');
         // Take a final screenshot for reference
         await page.screenshot({ path: path.join(reportDir, 'final-state.png') });
         
-        console.log('Test completed successfully');
+        // Test completed successfully
         process.exit(0);
     } catch (error) {
         console.error('Test failed:', error.message);
@@ -425,9 +425,9 @@ const { chromium } = require('@playwright/test');
     );
     
     if (results.success) {
-      console.log('✅ Test completed successfully');
+      // Test completed successfully
     } else {
-      console.error('❌ Test failed:', results.message);
+      // Test failed
       process.exit(1);
     }
   }

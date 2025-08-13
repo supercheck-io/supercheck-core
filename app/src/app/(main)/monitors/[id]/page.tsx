@@ -134,9 +134,11 @@ export default async function MonitorDetailsPage({ params }: MonitorDetailsPageP
   ];
 
   return (
-    <div className="w-full max-w-full">
+    <div>
       <PageBreadcrumbs items={breadcrumbs} />
+      <div className="m-4">
         <MonitorDetailClient monitor={monitorWithData} />
+      </div>
     </div>
   );
 } 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Supertest implements a **hybrid RBAC system** that combines Better Auth's built-in organization and admin plugins with custom role-based access control for project-level resources. The system supports user impersonation, multi-organization membership, and granular permissions across different contexts.
+Supercheck implements a **hybrid RBAC system** that combines Better Auth's built-in organization and admin plugins with custom role-based access control for project-level resources. The system supports user impersonation, multi-organization membership, and granular permissions across different contexts.
 
 ## Recent Updates (Current Implementation)
 

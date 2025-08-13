@@ -38,10 +38,7 @@ const drizzleProvider: Provider = {
       throw new Error('DATABASE_URL environment variable is not set!');
     }
 
-    console.log(
-      'Creating database connection with URL:',
-      connectionString.substring(0, 30) + '...',
-    );
+    // Creating database connection
 
     // Initialize the Postgres.js client
     const client = postgres(connectionString, { ssl: false });

@@ -1,6 +1,6 @@
 # API Key System
 
-This document provides a comprehensive overview of the Supertest API key system, including authentication implementation, job-specific access control, and testing procedures for remote job triggering.
+This document provides a comprehensive overview of the Supercheck API key system, including authentication implementation, job-specific access control, and testing procedures for remote job triggering.
 
 ## Table of Contents
 
@@ -42,7 +42,7 @@ graph TB
     E1 --> F1[Test Results]
 ```
 
-The Supertest API key system provides secure, programmatic access to job triggering functionality through a robust authentication and authorization mechanism. Each API key is directly associated with a specific job and provides scoped access for remote execution.
+The Supercheck API key system provides secure, programmatic access to job triggering functionality through a robust authentication and authorization mechanism. Each API key is directly associated with a specific job and provides scoped access for remote execution.
 
 ### Key Features
 - **Secure Authentication**: Session-based validation with direct database operations

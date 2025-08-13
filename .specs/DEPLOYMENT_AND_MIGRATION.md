@@ -1,6 +1,6 @@
 # Deployment and Migration Guide
 
-This comprehensive guide explains how to deploy the Supertest monitoring and testing platform using Docker Compose with published images from GitHub Container Registry, including database migration setup, multi-architecture support, and production deployment strategies.
+This comprehensive guide explains how to deploy the Supercheck monitoring and testing platform using Docker Compose with published images from GitHub Container Registry, including database migration setup, multi-architecture support, and production deployment strategies.
 
 ## Deployment Architecture
 
@@ -75,13 +75,13 @@ Start all services with Docker Compose:
 
 ### Frontend (Next.js App)
 - **Port**: 3000
-- **Image**: `ghcr.io/your-username/supertest/app:latest`
+- **Image**: `ghcr.io/your-username/supercheck/app:latest`
 - **Purpose**: Web interface for managing tests, jobs, and monitors
 - **Health Check**: ${NEXT_PUBLIC_APP_URL}/api/health
 
 ### Worker (NestJS Worker)
 - **Port**: 3001
-- **Image**: `ghcr.io/your-username/supertest/worker:latest`
+- **Image**: `ghcr.io/your-username/supercheck/worker:latest`
 - **Purpose**: Executes Playwright tests and processes job queues
 - **Health Check**: ${WORKER_URL}/health
 
@@ -175,7 +175,7 @@ The Docker Compose file includes all necessary environment variables. Key config
 
 ```yaml
 # Database
-DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supertest
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
 
 # Redis
 REDIS_URL=redis://redis:6379
@@ -205,10 +205,10 @@ The Docker Compose file is configured to use images from GitHub Container Regist
 
 ```yaml
 frontend:
-  image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supertest}/app:latest
+  image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supercheck}/app:latest
 
 worker:
-  image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supertest}/worker:latest
+  image: ghcr.io/${GITHUB_REPOSITORY:-your-username/supercheck}/worker:latest
 ```
 
 ### Building and Publishing Images
@@ -235,7 +235,7 @@ worker:
 
 3. **Set Repository Variable**:
    ```bash
-   export GITHUB_REPOSITORY="your-username/supertest"
+   export GITHUB_REPOSITORY="your-username/supercheck"
    ```
 
 #### Option 1: Using GitHub Actions (Recommended)
@@ -340,7 +340,7 @@ Create a GitHub Actions workflow to automatically build and publish images:
 1. **Build Images Locally**:
    ```bash
    # Set your GitHub repository name
-   export GITHUB_REPOSITORY="your-username/supertest"
+   export GITHUB_REPOSITORY="your-username/supercheck"
    
    # Build app image
    docker build -t ghcr.io/$GITHUB_REPOSITORY/app:latest ./app
@@ -396,16 +396,16 @@ chmod +x scripts/docker-images.sh
 
 1. **Set Environment Variable**:
    ```bash
-   export GITHUB_REPOSITORY="your-username/supertest"
+   export GITHUB_REPOSITORY="your-username/supercheck"
    ```
 
 2. **Start Services**:
    ```bash
    # Start with environment variable
-   GITHUB_REPOSITORY=your-username/supertest docker-compose up -d
+   GITHUB_REPOSITORY=your-username/supercheck docker-compose up -d
    
    # Or set it permanently
-   echo 'export GITHUB_REPOSITORY="your-username/supertest"' >> ~/.bashrc
+   echo 'export GITHUB_REPOSITORY="your-username/supercheck"' >> ~/.bashrc
    source ~/.bashrc
    docker-compose up -d
    ```
@@ -453,23 +453,23 @@ To deploy to Docker Swarm:
 docker swarm init
 
 # Set environment variable
-export GITHUB_REPOSITORY="your-username/supertest"
+export GITHUB_REPOSITORY="your-username/supercheck"
 
 # Deploy the stack
-docker stack deploy -c docker-compose.yml supertest
+docker stack deploy -c docker-compose.yml supercheck
 
 # View services
 docker service ls
 
 # View logs
-docker service logs supertest_frontend
-docker service logs supertest_worker
+docker service logs supercheck_frontend
+docker service logs supercheck_worker
 
 # Scale services
-docker service scale supertest_worker=3
+docker service scale supercheck_worker=3
 
 # Remove stack
-docker stack rm supertest
+docker stack rm supercheck
 ```
 
 ## 🔍 Monitoring and Troubleshooting
@@ -503,7 +503,7 @@ docker-compose logs -f worker
 ### Database Operations
 ```bash
 # Connect to PostgreSQL
-docker-compose exec postgres psql -U postgres -d supertest
+docker-compose exec postgres psql -U postgres -d supercheck
 
 # Run migrations
 docker-compose exec frontend npm run db:migrate
@@ -516,10 +516,10 @@ docker-compose exec worker npm run db:migrate
 docker volume ls
 
 # Backup PostgreSQL
-docker-compose exec postgres pg_dump -U postgres supertest > backup.sql
+docker-compose exec postgres pg_dump -U postgres supercheck > backup.sql
 
 # Restore PostgreSQL
-docker-compose exec -T postgres psql -U postgres supertest < backup.sql
+docker-compose exec -T postgres psql -U postgres supercheck < backup.sql
 ```
 
 ### Migration Troubleshooting
@@ -551,21 +551,21 @@ The migration script includes comprehensive error handling and retry logic. Chec
    cd app
    
    # Build the app image
-   docker build -t supertest-app:latest .
+   docker build -t supercheck-app:latest .
    
    # Run the app container
    docker run -d \
-     --name supertest-app \
-     --network supertest-network \
+     --name supercheck-app \
+     --network supercheck-network \
      -p 3000:3000 \
      -e DATABASE_URL=postgresql://postgres:postgres@postgres-supercheck:5432/supercheck \
-     -e REDIS_HOST=supertest-redis \
+     -e REDIS_HOST=supercheck-redis \
      -e REDIS_PORT=6379 \
-     -e NEXT_PUBLIC_APP_URL=http://supertest-app:3000 \
+     -e NEXT_PUBLIC_APP_URL=http://supercheck-app:3000 \
      -e S3_ENDPOINT=http://host.docker.internal:9000 \
      -e AWS_ACCESS_KEY_ID=minioadmin \
      -e AWS_SECRET_ACCESS_KEY=minioadmin \
-     supertest-app:latest
+     supercheck-app:latest
    ```
 
 2. **Build Worker Container**:
@@ -574,28 +574,28 @@ The migration script includes comprehensive error handling and retry logic. Chec
    cd worker
    
    # Build the worker image
-   docker build -t supertest-worker:latest .
+   docker build -t supercheck-worker:latest .
    
    # Run the worker container
    docker run -d \
-     --name supertest-worker \
-     --network supertest-network \
+     --name supercheck-worker \
+     --network supercheck-network \
      -p 3001:3001 \
      -e DATABASE_URL=postgresql://postgres:postgres@postgres-supercheck:5432/supercheck \
-     -e REDIS_HOST=supertest-redis \
+     -e REDIS_HOST=supercheck-redis \
      -e REDIS_PORT=6379 \
-     -e NEXT_PUBLIC_APP_URL=http://supertest-app:3000 \
+     -e NEXT_PUBLIC_APP_URL=http://supercheck-app:3000 \
      -e S3_ENDPOINT=http://host.docker.internal:9000 \
      -e AWS_ACCESS_KEY_ID=minioadmin \
      -e AWS_SECRET_ACCESS_KEY=minioadmin \
-     supertest-worker:latest
+     supercheck-worker:latest
    ```
 
 3. **Start Infrastructure Services**:
    ```bash
    # Start PostgreSQL
    docker run -d \
-     --name supertest-postgres \
+     --name supercheck-postgres \
      -p 5432:5432 \
      -e POSTGRES_PASSWORD=postgres \
      -e POSTGRES_DB=supercheck \
@@ -603,13 +603,13 @@ The migration script includes comprehensive error handling and retry logic. Chec
    
    # Start Redis
    docker run -d \
-     --name supertest-redis \
+     --name supercheck-redis \
      -p 6379:6379 \
      redis:7-alpine
    
    # Start MinIO
    docker run -d \
-     --name supertest-minio \
+     --name supercheck-minio \
      -p 9000:9000 \
      -p 9001:9001 \
      -e MINIO_ROOT_USER=minioadmin \
@@ -712,7 +712,7 @@ For development with hot reload, you can run the containers with volume mounts:
 ```bash
 # App with hot reload
 docker run -d \
-  --name supertest-app-dev \
+  --name supercheck-app-dev \
   -p 3000:3000 \
   -v $(pwd)/app:/app \
   -v /app/node_modules \
@@ -721,11 +721,11 @@ docker run -d \
   -e S3_ENDPOINT=http://host.docker.internal:9000 \
   -e AWS_ACCESS_KEY_ID=minioadmin \
   -e AWS_SECRET_ACCESS_KEY=minioadmin \
-  supertest-app:latest npm run dev
+  supercheck-app:latest npm run dev
 
 # Worker with hot reload
 docker run -d \
-  --name supertest-worker-dev \
+  --name supercheck-worker-dev \
   -p 3001:3001 \
   -v $(pwd)/worker:/app \
   -v /app/node_modules \
@@ -734,7 +734,7 @@ docker run -d \
   -e S3_ENDPOINT=http://host.docker.internal:9000 \
   -e AWS_ACCESS_KEY_ID=minioadmin \
   -e AWS_SECRET_ACCESS_KEY=minioadmin \
-  supertest-worker:latest npm run start:dev
+  supercheck-worker:latest npm run start:dev
 ```
 
 #### Managing Local Containers
@@ -748,32 +748,32 @@ docker ps
 docker ps -a
 
 # View container logs
-docker logs supertest-app
-docker logs supertest-worker
-docker logs supertest-postgres
-docker logs supertest-redis
-docker logs supertest-minio
+docker logs supercheck-app
+docker logs supercheck-worker
+docker logs supercheck-postgres
+docker logs supercheck-redis
+docker logs supercheck-minio
 
 # Follow logs in real-time
-docker logs -f supertest-app
+docker logs -f supercheck-app
 ```
 
 **Stop and remove containers**:
 ```bash
 # Stop containers
-docker stop supertest-app supertest-worker supertest-postgres supertest-redis supertest-minio
+docker stop supercheck-app supercheck-worker supercheck-postgres supercheck-redis supercheck-minio
 
 # Remove containers
-docker rm supertest-app supertest-worker supertest-postgres supertest-redis supertest-minio
+docker rm supercheck-app supercheck-worker supercheck-postgres supercheck-redis supercheck-minio
 
 # Stop and remove in one command
-docker rm -f supertest-app supertest-worker supertest-postgres supertest-redis supertest-minio
+docker rm -f supercheck-app supercheck-worker supercheck-postgres supercheck-redis supercheck-minio
 ```
 
 **Clean up images**:
 ```bash
 # Remove local images
-docker rmi supertest-app:latest supertest-worker:latest
+docker rmi supercheck-app:latest supercheck-worker:latest
 
 # Remove all unused images
 docker image prune -a
@@ -785,22 +785,22 @@ docker system prune -a
 **Access container shell**:
 ```bash
 # Access app container
-docker exec -it supertest-app /bin/bash
+docker exec -it supercheck-app /bin/bash
 
 # Access worker container
-docker exec -it supertest-worker /bin/bash
+docker exec -it supercheck-worker /bin/bash
 
 # Access PostgreSQL
-docker exec -it supertest-postgres psql -U postgres -d supercheck
+docker exec -it supercheck-postgres psql -U postgres -d supercheck
 ```
 
 **Run database migrations**:
 ```bash
 # Run migrations in app container
-docker exec supertest-app npm run db:migrate
+docker exec supercheck-app npm run db:migrate
 
 # Run migrations in worker container
-docker exec supertest-worker npm run db:migrate
+docker exec supercheck-worker npm run db:migrate
 ```
 
 ### Local Development with Published Images
@@ -833,12 +833,12 @@ Create a `.env` file in the root directory:
 
 ```bash
 # Database
-DATABASE_URL=postgresql://postgres:postgres@${DB_HOST}:5432/supertest
+DATABASE_URL=postgresql://postgres:postgres@${DB_HOST}:5432/supercheck
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=postgres
-DB_NAME=supertest
+DB_NAME=supercheck
 
 # Redis
 REDIS_HOST=localhost
@@ -872,7 +872,7 @@ MINIO_ROOT_PASSWORD=your-strong-password
 REDIS_PASSWORD=your-strong-password
 
 # Use external services
-DATABASE_URL=postgresql://user:pass@external-host:5432/supertest
+DATABASE_URL=postgresql://user:pass@external-host:5432/supercheck
 REDIS_URL=redis://:password@external-host:6379
 ```
 
@@ -890,7 +890,7 @@ REDIS_URL=redis://:password@external-host:6379
 docker-compose up -d --scale worker=3
 
 # Scale in Docker Swarm
-docker service scale supertest_worker=5
+docker service scale supercheck_worker=5
 ```
 
 ## 🚨 Troubleshooting

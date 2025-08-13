@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the comprehensive job trigger system in Supertest, which supports three distinct trigger types: `manual`, `remote`, and `schedule`. The system provides full traceability and control over how jobs are initiated and executed.
+This document outlines the comprehensive job trigger system in Supercheck, which supports three distinct trigger types: `manual`, `remote`, and `schedule`. The system provides full traceability and control over how jobs are initiated and executed.
 
 ## Trigger Types Architecture
 

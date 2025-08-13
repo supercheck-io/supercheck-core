@@ -42,11 +42,13 @@ export default async function RunPage({ params }: Params) {
     ];
 
     return (
-      <div className="w-full max-w-full">
+      <div>
         <PageBreadcrumbs items={breadcrumbs} />
-        <Suspense fallback={<DetailSkeleton />}>
-          <RunDetails run={run} />
-        </Suspense>
+        <div className="m-4">
+          <Suspense fallback={<DetailSkeleton />}>
+            <RunDetails run={run} />
+          </Suspense>
+        </div>
       </div>
     );
   } catch (error) {

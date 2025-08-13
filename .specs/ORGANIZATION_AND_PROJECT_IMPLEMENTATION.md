@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the **current implementation status** of the organization and project functionality in Supertest. Most features have been implemented and are working in production.
+This document outlines the **current implementation status** of the organization and project functionality in Supercheck. Most features have been implemented and are working in production.
 
 ## Current Implementation Status
 

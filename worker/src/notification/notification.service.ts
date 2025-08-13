@@ -699,7 +699,7 @@ export class NotificationService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'SuperTest-Monitor/1.0',
+          'User-Agent': 'Supercheck-Monitor/1.0',
         },
         body: JSON.stringify({
           text: formatted.title,
@@ -774,7 +774,7 @@ export class NotificationService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'SuperTest-Monitor/1.0',
+          'User-Agent': 'Supercheck-Monitor/1.0',
         },
         body: JSON.stringify(webhookPayload),
         signal: controller.signal,
@@ -858,7 +858,7 @@ export class NotificationService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'SuperTest-Monitor/1.0',
+          'User-Agent': 'Supercheck-Monitor/1.0',
         },
         body: JSON.stringify({
           content: formatted.title,
