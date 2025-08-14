@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { getNotificationProviderConfig } from "./data";
 import { Clock } from "lucide-react";
+import { TruncatedTextWithTooltip } from "@/components/ui/truncated-text-with-tooltip";
 
 const statusColors = {
   sent: "bg-green-100 text-green-800 hover:bg-green-200",
@@ -199,7 +200,12 @@ export const columns: ColumnDef<AlertHistory>[] = [
     cell: ({ row }) => {
       const targetName = row.getValue("targetName") as string;
       return (
-        <div className="font-medium max-w-[200px] truncate">{targetName}</div>
+        <TruncatedTextWithTooltip 
+          text={targetName}
+          className="font-medium"
+          maxWidth="200px"
+          maxLength={30}
+        />
       );
     },
   },

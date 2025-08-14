@@ -66,6 +66,7 @@ import { NavUser } from "@/components/nav-user";
 import Link from "next/link";
 import { CheckIcon } from "@/components/logo/supercheck-logo";
 import { Home } from "lucide-react";
+import { TruncatedTextWithTooltip } from "@/components/ui/truncated-text-with-tooltip";
 
 export interface MonitorResultItem {
   id: string;
@@ -838,16 +839,12 @@ export function MonitorDetailClient({ monitor: initialMonitor, isNotificationVie
                                 {result.isUp ? (
                                   <span className="text-muted-foreground text-xs">N/A</span>
                                 ) : (
-                                  <span 
-                                    className="text-muted-foreground text-xs cursor-help block truncate max-w-[150px]" 
-                                    title={result.details?.errorMessage || 'Check failed'}
-                                  >
-                                    {(() => {
-                                      const errorMsg = result.details?.errorMessage || 'Check failed';
-                                      // Truncate long messages
-                                      return errorMsg.length > 30 ? errorMsg.substring(0, 27) + '...' : errorMsg;
-                                    })()}
-                                  </span>
+                                  <TruncatedTextWithTooltip 
+                                    text={result.details?.errorMessage || 'Check failed'}
+                                    className="text-muted-foreground text-xs"
+                                    maxWidth="150px"
+                                    maxLength={30}
+                                  />
                                 )}
                               </td>
                             </tr>

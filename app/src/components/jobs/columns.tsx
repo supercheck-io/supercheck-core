@@ -10,15 +10,10 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useJobContext, JobStatusDisplay } from "./job-context";
 import { UUIDField } from "@/components/ui/uuid-field";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { useState } from "react";
 import { useProjectContext } from "@/hooks/use-project-context";
 import { canTriggerJobs } from "@/lib/rbac/client-permissions";
 import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import { TruncatedTextWithTooltip } from "@/components/ui/truncated-text-with-tooltip";
 
 // Type definition for the extended meta object used in this table
 interface JobsTableMeta {
@@ -31,76 +26,29 @@ interface JobsTableMeta {
 
 // Separate component for name with popover
 function NameWithPopover({ name }: { name: string }) {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  // Check if text is likely to be truncated (rough estimate)
-  const isTruncated = name.length > 20; // Approximate character limit for 200px width
-  
-  if (!isTruncated) {
-    return (
-      <div className="flex space-x-2">
-        <span className="font-medium max-w-[160px] truncate">
-          {name}
-        </span>
-      </div>
-    );
-  }
-  
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <div 
-          className="flex space-x-2 cursor-pointer"
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
-        >
-          <span className="max-w-[160px] truncate">
-            {name}
-          </span>
-        </div>
-      </PopoverTrigger>
-      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            {name}
-          </p>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className="flex space-x-2">
+      <TruncatedTextWithTooltip 
+        text={name}
+        className="font-medium"
+        maxWidth="160px"
+        maxLength={20}
+      />
+    </div>
   );
 }
 
 // Separate component for description with popover
 function DescriptionWithPopover({ description }: { description: string | null }) {
-  const [isOpen, setIsOpen] = useState(false);
   const displayText = description || "No description provided";
-  const isTruncated = displayText.length > 30; // Approximate character limit
-
-  if (!isTruncated) {
-    return (
-      <div className="max-w-[200px] truncate">
-        {displayText}
-      </div>
-    );
-  }
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <div
-          className="max-w-[160px] truncate cursor-pointer"
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
-        >
-          {displayText}
-        </div>
-      </PopoverTrigger>
-      <PopoverContent className="flex justify-center items-center w-auto max-w-[500px]">
-        <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-          {displayText}
-        </p>
-      </PopoverContent>
-    </Popover>
+    <TruncatedTextWithTooltip 
+      text={displayText}
+      className=""
+      maxWidth="200px"
+      maxLength={30}
+    />
   );
 }
 

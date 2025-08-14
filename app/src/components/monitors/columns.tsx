@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { MonitorStatusIndicator } from "./monitor-status-indicator";
 import { monitorTypes } from "./data";
 import { formatDurationMinutes } from "@/lib/date-utils";
+import { TruncatedTextWithTooltip } from "@/components/ui/truncated-text-with-tooltip";
 
 // Type definition for the extended meta object used in this table
 interface MonitorTableMeta {
@@ -46,24 +47,14 @@ export const columns: ColumnDef<Monitor>[] = [
     cell: ({ row }) => {
       const name = row.getValue("name") as string;
       
-      // Check if text is likely to be truncated (rough estimate)
-      const isTruncated = name.length > 20; // Approximate character limit for 200px width
-      
-      if (!isTruncated) {
-        return (
-          <div className="flex space-x-2">
-            <span className="font-medium max-w-[160px] truncate">
-              {name}
-            </span>
-          </div>
-        );
-      }
-      
       return (
         <div className="flex space-x-2">
-          <span className="font-medium max-w-[160px] truncate" title={name}>
-            {name}
-          </span>
+          <TruncatedTextWithTooltip 
+            text={name}
+            className="font-medium"
+            maxWidth="160px"
+            maxLength={20}
+          />
         </div>
       );
     },
@@ -81,9 +72,12 @@ export const columns: ColumnDef<Monitor>[] = [
       const displayValue = target || legacyUrl || "—";
       
       return (
-        <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block" title={displayValue}>
-          {displayValue}
-        </span>
+        <TruncatedTextWithTooltip 
+          text={displayValue}
+          className="font-mono text-sm block"
+          maxWidth="170px"
+          maxLength={30}
+        />
       );
     },
   },
