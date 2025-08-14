@@ -140,7 +140,7 @@ export async function updateMonitorHandler(monitorId: string, data: Partial<Moni
       }
     }
 
-    if (updatedMonitor.enabled && updatedMonitor.frequencyMinutes > 0) {
+    if (updatedMonitor.enabled && updatedMonitor.status !== 'paused' && updatedMonitor.frequencyMinutes > 0) {
       const jobDataPayload: MonitorJobData = {
         monitorId: updatedMonitor.id,
         type: updatedMonitor.type as MonitorJobData['type'],

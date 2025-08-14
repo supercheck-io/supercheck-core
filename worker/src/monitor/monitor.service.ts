@@ -314,15 +314,8 @@ export class MonitorService {
         this.logger.log(
           `Monitor ${jobData.monitorId} is paused, skipping execution`,
         );
-        return {
-          monitorId: jobData.monitorId,
-          status: 'error',
-          checkedAt: new Date(),
-          responseTimeMs: undefined,
-          details: { errorMessage: 'Monitor is paused' },
-          isUp: false,
-          error: 'Monitor is paused',
-        };
+        // Return null instead of a failed result - paused monitors shouldn't create results
+        return null;
       }
     } catch (dbError) {
       this.logger.error(

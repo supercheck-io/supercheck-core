@@ -244,14 +244,35 @@ export async function PUT(
       console.log(`Monitor ${id} status changed from ${oldStatus} to ${newStatus}`);
       
       if (newStatus === 'paused') {
-        // Pause monitor - remove from scheduler
+        // Pause monitor - remove from scheduler and clear scheduledJobId
         console.log(`Pausing monitor ${id} - removing from scheduler`);
-        await deleteScheduledMonitor(id);
+        
+        // Try both the stored scheduledJobId and the monitor ID
+        let deleteSuccess = false;
+        if (currentMonitor.scheduledJobId) {
+          deleteSuccess = await deleteScheduledMonitor(currentMonitor.scheduledJobId);
+        }
+        
+        if (!deleteSuccess) {
+          deleteSuccess = await deleteScheduledMonitor(id);
+        }
+        
+        // Clear the scheduled job ID from database
+        await db
+          .update(monitors)
+          .set({ scheduledJobId: null })
+          .where(eq(monitors.id, id));
       } else if (oldStatus === 'paused' && (newStatus === 'up' || newStatus === 'down')) {
         // Resume monitor - add to scheduler if it has valid frequency
         if (newFrequency && newFrequency > 0) {
           console.log(`Resuming monitor ${id} - adding to scheduler with ${newFrequency} minute frequency`);
-          await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
+          const schedulerId = await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
+          
+          // Update monitor with new scheduler ID
+          await db
+            .update(monitors)
+            .set({ scheduledJobId: schedulerId })
+            .where(eq(monitors.id, id));
         }
       }
     }
@@ -268,9 +289,20 @@ export async function PUT(
         
         if (newFrequency && newFrequency > 0) {
             console.log(`Scheduling monitor ${id} with updated configuration`);
-            await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
+            const schedulerId = await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
+            
+            // Update monitor with new scheduler ID
+            await db
+              .update(monitors)
+              .set({ scheduledJobId: schedulerId })
+              .where(eq(monitors.id, id));
         } else {
             console.log(`Monitor ${id} frequency set to ${newFrequency}, not scheduling.`);
+            // Clear scheduler ID if frequency is 0 or null
+            await db
+              .update(monitors)
+              .set({ scheduledJobId: null })
+              .where(eq(monitors.id, id));
         }
     }
 
@@ -452,6 +484,58 @@ export async function PATCH(
 
     if (!updatedMonitor) {
       return NextResponse.json({ error: "Failed to update monitor" }, { status: 404 });
+    }
+
+    // Handle pause/resume logic when status changes
+    if (rawData.status && rawData.status !== currentMonitor.status) {
+      console.log(`Monitor ${id} status changed from ${currentMonitor.status} to ${rawData.status}`);
+      
+      if (rawData.status === 'paused') {
+        // Pause monitor - remove from scheduler and clear scheduledJobId
+        console.log(`[PATCH] Pausing monitor ${id} - removing from scheduler`);
+        
+        // Try both the stored scheduledJobId and the monitor ID
+        let deleteSuccess = false;
+        if (currentMonitor.scheduledJobId) {
+          deleteSuccess = await deleteScheduledMonitor(currentMonitor.scheduledJobId);
+        }
+        
+        if (!deleteSuccess) {
+          deleteSuccess = await deleteScheduledMonitor(id);
+        }
+        
+        // Clear the scheduled job ID from database
+        await db
+          .update(monitors)
+          .set({ scheduledJobId: null })
+          .where(eq(monitors.id, id));
+      } else if (currentMonitor.status === 'paused' && (rawData.status === 'up' || rawData.status === 'down')) {
+        // Resume monitor - add to scheduler if it has valid frequency
+        if (updatedMonitor.frequencyMinutes && updatedMonitor.frequencyMinutes > 0) {
+          console.log(`Resuming monitor ${id} - adding to scheduler with ${updatedMonitor.frequencyMinutes} minute frequency`);
+          
+          const jobData: MonitorJobData = {
+            monitorId: updatedMonitor.id,
+            type: updatedMonitor.type as MonitorJobData['type'],
+            target: updatedMonitor.target,
+            config: updatedMonitor.config as Record<string, unknown>,
+            frequencyMinutes: updatedMonitor.frequencyMinutes,
+          };
+          
+          const schedulerId = await scheduleMonitor({ 
+            monitorId: id, 
+            frequencyMinutes: updatedMonitor.frequencyMinutes, 
+            jobData, 
+            retryLimit: 3 
+          });
+          
+          // Update monitor with new scheduler ID
+          await db
+            .update(monitors)
+            .set({ scheduledJobId: schedulerId })
+            .where(eq(monitors.id, id));
+        }
+      }
     }
 
     return NextResponse.json(updatedMonitor);

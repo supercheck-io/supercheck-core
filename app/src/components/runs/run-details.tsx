@@ -5,13 +5,13 @@ import { runStatuses, triggerTypes } from "./data";
 import { toast } from "sonner";
 import { ReportViewer } from "@/components/shared/report-viewer";
 import { formatDistanceToNow } from "date-fns";
-import { 
-  ClockIcon, 
+import {
+  ClockIcon,
   ChevronLeft,
   CalendarClock,
   Copy,
   Trash2,
-  Code2,
+  Code,
   CalendarDays,
   ActivityIcon,
   FolderOpen
@@ -68,8 +68,8 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
   // Helper to validate status is one of the allowed values
   const mapStatusForDisplay = (status: string): TestRunStatus => {
     const statusLower = status.toLowerCase();
-    
-    switch(statusLower) {
+
+    switch (statusLower) {
       case 'running':
         return 'running';
       case 'passed':
@@ -83,9 +83,9 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
         return 'running';
     }
   };
-  
+
   const [currentStatus, setCurrentStatus] = useState<TestRunStatus>(mapStatusForDisplay(run.status as TestRunStatus));
-  
+
   useEffect(() => {
     if (run.reportUrl) {
       // Use the API proxy with direct UUID format instead of /jobs/ prefix
@@ -98,22 +98,22 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
       console.log(`No direct reportUrl, trying API proxy path: ${apiUrl}`);
       setReportUrl(apiUrl);
     }
-    
+
     // Always update status and duration regardless of reportUrl
     setCurrentStatus(mapStatusForDisplay(run.status as TestRunStatus));
     setDuration(run.duration || undefined);
-    
+
     // Fetch user permissions for this run
     const fetchPermissions = async () => {
       try {
         setPermissionsLoading(true);
         const response = await fetch(`/api/runs/${run.id}/permissions`);
-        
+
         if (!response.ok) {
           console.error('Failed to fetch permissions:', response.status);
           return;
         }
-        
+
         const data = await response.json();
         if (data.success && data.data) {
           setUserRole(data.data.userRole);
@@ -126,49 +126,49 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
     };
 
     fetchPermissions();
-    
+
     // No need for refresh timer since we're using SSE for real-time updates
   }, [run.reportUrl, run.status, run.id, run.duration]);
 
   // Format the duration for display
   const formatDuration = (durationStr?: string) => {
     if (!durationStr) return "Unknown";
-    
+
     // If it's already a nicely formatted string like "3s" or "1m 30s", just return it
     if (typeof durationStr === 'string' && (durationStr.includes('s') || durationStr.includes('m'))) {
       return durationStr;
     }
-    
+
     // Try to parse as number of seconds
     const seconds = parseInt(durationStr, 10);
     if (!isNaN(seconds)) {
       if (seconds === 0) return "< 1s"; // Show something meaningful for zero seconds
-      
+
       // Format seconds into a readable string
       const minutes = Math.floor(seconds / 60);
       const remainingSeconds = seconds % 60;
-      
+
       if (minutes > 0) {
         return `${minutes}m ${remainingSeconds > 0 ? `${remainingSeconds}s` : ''}`.trim();
       } else {
         return `${seconds}s`;
       }
     }
-    
+
     // If we can't parse it, just return the original string
     return durationStr;
   };
 
- 
+
 
   // Handle status updates from SSE
   const handleStatusUpdate = (status: string, newReportUrl?: string, newDuration?: string) => {
     console.log(`Status update: ${status}, reportUrl: ${newReportUrl}, duration: ${newDuration}`);
-    
+
     if (status !== currentStatus) {
       setCurrentStatus(mapStatusForDisplay(status as TestRunStatus));
     }
-    
+
     if (newReportUrl) {
       // Regardless of the reportUrl from SSE, use our API proxy with direct UUID
       const apiUrl = `/api/test-results/${run.id}/report/index.html?t=${Date.now()}`;
@@ -184,7 +184,7 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
   };
 
   const statusInfo = runStatuses.find((s) => s.value === currentStatus);
-  
+
   const handleDeleteRun = async () => {
     setIsDeleting(true);
     try {
@@ -195,18 +195,18 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
           'Accept': 'application/json'
         }
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Error response:', errorText);
         throw new Error(`Failed to delete run (status ${response.status})`);
       }
-      
+
       toast.success('Run deleted successfully');
-      
+
       // Close dialog first
       setShowDeleteDialog(false);
-      
+
       // Use router for navigation without full page refresh
       router.push('/runs');
     } catch (error) {
@@ -223,12 +223,12 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
   return (
     <div className="h-full overflow-hidden">
       {/* Status listener for real-time updates */}
-      <RunStatusListener 
-        runId={run.id} 
+      <RunStatusListener
+        runId={run.id}
         status={run.status}
         onStatusUpdate={handleStatusUpdate}
       />
-      
+
       {/* Logo, breadcrumbs, and user nav for notification view */}
       {isNotificationView && (
         <div className="flex items-center justify-between mb-4">
@@ -238,7 +238,7 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
               <Link href="/" className="text-xl font-semibold text-foreground hover:opacity-80 transition-opacity">
                 Supercheck
               </Link>
-          
+
               <Link href="/" className="flex items-center gap-1 hover:text-foreground transition-colors text-muted-foreground ml-5">
                 <Home className="h-4 w-4" />
               </Link>
@@ -249,14 +249,14 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
           <NavUser />
         </div>
       )}
-      
+
       {/* Main header similar to monitor details */}
       <div className="border rounded-lg p-4 mb-4 shadow-sm bg-card">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             {!isNotificationView && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="icon"
                 className="h-7 w-7"
                 asChild
@@ -271,14 +271,14 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
               <h1 className="text-2xl font-semibold flex items-center gap-2">
                 {run.jobName && run.jobName.length > 40 ? run.jobName.slice(0, 40) + "..." : run.jobName || "Unknown Job"}
               </h1>
-              
+
             </div>
           </div>
           {!isNotificationView && (
             <div className="flex items-center gap-2">
               {/* Loading permissions */}
               {permissionsLoading && <LoadingBadge />}
-              
+
               {/* Access level badge */}
               {!permissionsLoading && userRole && !canManageRuns(userRole) && (
                 <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
@@ -288,9 +288,9 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
                   </span>
                 </div>
               )}
-              
+
               {!permissionsLoading && userRole && canManageRuns(userRole) && (
-                <Button 
+                <Button
                   variant="outline"
                   size="sm"
                   className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
@@ -319,10 +319,10 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
             {(() => {
               const triggerType = triggerTypes.find((t) => t.value === run.trigger);
-              const Icon = triggerType?.icon || Code2;
+              const Icon = triggerType?.icon || Code;
               const color = triggerType?.color || "text-gray-500";
               const label = triggerType?.label || "Unknown";
-              
+
               return (
                 <>
                   <Icon className={`h-6 w-6 min-w-6 mr-2 ${color}`} />
@@ -336,7 +336,7 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
           </div>
 
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
-            <Code2 className="h-6 w-6 min-w-6 mr-2 text-blue-500" />
+            <Code className="h-6 w-6 min-w-6 mr-2 text-blue-500" />
             <div className="min-w-0 w-full">
               <div className="text-xs font-medium text-muted-foreground">Tests Executed</div>
               <div className="text-sm font-semibold truncate">
@@ -344,7 +344,7 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
               </div>
             </div>
           </div>
-          
+
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
             <ClockIcon className="h-6 w-6 min-w-6 mr-2 text-orange-400" />
             <div className="min-w-0 w-full">
@@ -352,14 +352,14 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
               <div className="text-sm font-semibold truncate">{formatDuration(duration)}</div>
             </div>
           </div>
-   
+
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
             <CalendarDays className="h-6 w-6 min-w-6 mr-2 text-purple-500" />
             <div className="min-w-0 w-full">
               <div className="text-xs font-medium text-muted-foreground">Completed</div>
               <div className="text-sm font-semibold truncate">
-                {run.completedAt ? 
-                  formatDistanceToNow(new Date(run.completedAt), { addSuffix: true }) : 
+                {run.completedAt ?
+                  formatDistanceToNow(new Date(run.completedAt), { addSuffix: true }) :
                   currentStatus === "running" ? "In Progress" : "Unknown"}
               </div>
             </div>
@@ -374,15 +374,15 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
               </div>
             </div>
           </div>
-          
+
           <div className="bg-muted/30 rounded-lg p-2 border flex items-center overflow-hidden">
             <CalendarClock className="h-6 w-6 min-w-6 mr-2 text-sky-400" />
             <div className="min-w-0 w-full">
               <div className="flex justify-between items-center">
                 <div className="text-xs font-medium text-muted-foreground">Job ID</div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-5 w-5 p-0 ml-1"
                   onClick={() => {
                     navigator.clipboard.writeText(run.jobId);
@@ -432,7 +432,7 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
               disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700"
             >
-{isDeleting ? (
+              {isDeleting ? (
                 <div className="flex items-center gap-2">
                   <Spinner size="sm" />
                   Deleting...

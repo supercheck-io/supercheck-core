@@ -115,7 +115,7 @@ export class ValidationService {
     if (!code || typeof code !== 'string') {
       return {
         valid: false,
-        error: 'Invalid script content',
+        error: 'Invalid script content. Please provide valid code to proceed.',
         errorType: 'syntax',
       };
     }
@@ -123,12 +123,32 @@ export class ValidationService {
     if (code.length > MAX_SCRIPT_LENGTH) {
       return {
         valid: false,
-        error: `Script too long (${code.length} chars). Maximum allowed: ${MAX_SCRIPT_LENGTH} characters`,
+        error: `Script too long (${code.length} chars). Maximum allowed: ${MAX_SCRIPT_LENGTH} characters. Please reduce the script size to proceed.`,
         errorType: 'length',
       };
     }
 
-    // 2. Enhanced dangerous patterns detection with balanced approach
+    // 2. Screenshot detection - block all screenshot-related operations
+    const screenshotPatterns = [
+      { pattern: /\.screenshot\s*\(/i, message: "Screenshot operations are not allowed as Playwright Traces have live screenshot capabilities." },
+      { pattern: /toHaveScreenshot\s*\(/i, message: "Visual comparison screenshots (toHaveScreenshot) are not allowed." },
+      { pattern: /expect\s*\([^)]*\)\s*\.toHaveScreenshot/i, message: "Visual regression testing with screenshots is not allowed." },
+    ];
+
+    for (const { pattern, message } of screenshotPatterns) {
+      const match = pattern.exec(code);
+      if (match) {
+        const line = this.getLineNumber(code, match.index);
+        return { 
+          valid: false, 
+          error: `${message} Please remove screenshot related code to proceed.`,
+          line,
+          errorType: 'pattern'
+        };
+      }
+    }
+
+    // 3. Enhanced dangerous patterns detection with balanced approach
     const dangerousPatterns = [
       // Function constructors and eval
       { pattern: /\beval\s*\(/, message: "eval() is not allowed" },
@@ -194,14 +214,14 @@ export class ValidationService {
         const line = this.getLineNumber(code, match.index);
         return { 
           valid: false, 
-          error: `${message} at line ${line}`,
+          error: `${message}. Please review and remove the restricted code to proceed.`,
           line,
           errorType: 'security'
         };
       }
     }
 
-    // 3. Check for suspicious obfuscation patterns (with more nuanced detection)
+    // 4. Check for suspicious obfuscation patterns (with more nuanced detection)
     const suspiciousPatterns = [
       // Only block excessive use of character codes
       { pattern: /(String\.fromCharCode\s*\([^)]*\)){5,}/, message: "Excessive String.fromCharCode usage suggests obfuscation" },
@@ -219,14 +239,14 @@ export class ValidationService {
         const line = this.getLineNumber(code, match.index);
         return {
           valid: false,
-          error: `${message} at line ${line}`,
+          error: `${message}. Please review and simplify the code to proceed.`,
           line,
           errorType: 'security'
         };
       }
     }
 
-    // 4. Parse into AST with enhanced validation
+    // 5. Parse into AST with enhanced validation
     let ast: acorn.Node;
     try {
       ast = acorn.parse(code, {
@@ -244,18 +264,18 @@ export class ValidationService {
           const column = parseInt(lineMatch[2]);
           return { 
             valid: false, 
-            error: `Syntax error at line ${line}, column ${column}`,
+            error: `Syntax error. Please check your code structure and fix the syntax issue to proceed.`,
             line, 
             column,
             errorType: 'syntax'
           };
         }
-        return { valid: false, error: `Syntax error: ${err.message}`, errorType: 'syntax' };
+        return { valid: false, error: `Syntax error: ${err.message}. Please check your code structure and fix the syntax issues to proceed.`, errorType: 'syntax' };
       }
-      return { valid: false, error: "Code parsing failed", errorType: 'syntax' };
+      return { valid: false, error: "Code parsing failed. Please check your code structure and fix any syntax issues to proceed.", errorType: 'syntax' };
     }
 
-    // 5. Enhanced AST analysis with complexity checks and structural validation
+    // 6. Enhanced AST analysis with complexity checks and structural validation
     try {
       let statementCount = 0;
 
@@ -265,7 +285,7 @@ export class ValidationService {
         Statement: () => {
           statementCount++;
           if (statementCount > MAX_STATEMENTS) {
-            throw new Error(`Script too complex: more than ${MAX_STATEMENTS} statements`);
+            throw new Error(`Script too complex: more than ${MAX_STATEMENTS} statements. Please simplify your code to proceed.`);
           }
         },
 
@@ -275,20 +295,17 @@ export class ValidationService {
           // Enhanced require() validation
           if (callee.type === 'Identifier' && (callee as acorn.Identifier).name === 'require') {
             if (node.arguments.length !== 1) {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Invalid require() call at line ${line}`);
+              throw new Error(`Invalid require() call. Please review and remove the invalid require statement to proceed.`);
             }
             
             const arg = node.arguments[0];
             if (arg.type !== 'Literal' || typeof arg.value !== 'string') {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Dynamic require() calls are not allowed at line ${line}`);
+              throw new Error(`Dynamic require() calls are not allowed. Please review and remove the dynamic require to proceed.`);
             }
             
             const moduleName = arg.value as string;
             if (!ALLOWED_MODULES.has(moduleName) && !moduleName.startsWith('@playwright/')) {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Module '${moduleName}' is not allowed at line ${line}`);
+              throw new Error(`Module '${moduleName}' is not allowed. Please review and remove the restricted module import to proceed.`);
             }
           }
           
@@ -296,8 +313,7 @@ export class ValidationService {
           if (callee.type === 'MemberExpression') {
             const obj = (callee as acorn.MemberExpression).object as acorn.Node;
             if (obj.type === 'Identifier' && BLOCKED_IDENTIFIERS.has((obj as acorn.Identifier).name)) {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Access to '${(obj as acorn.Identifier).name}' is not allowed at line ${line}`);
+              throw new Error(`Access to '${(obj as acorn.Identifier).name}' is not allowed. Please review and remove the restricted code to proceed.`);
             }
           }
         },
@@ -306,8 +322,7 @@ export class ValidationService {
           if (node.source && node.source.type === 'Literal' && typeof node.source.value === 'string') {
             const moduleName = node.source.value as string;
             if (!ALLOWED_MODULES.has(moduleName) && !moduleName.startsWith('@playwright/')) {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Import of module '${moduleName}' is not allowed at line ${line}`);
+              throw new Error(`Import of module '${moduleName}' is not allowed. Please review and remove the restricted import to proceed.`);
             }
           }
         },
@@ -315,16 +330,14 @@ export class ValidationService {
         Identifier: (node: acorn.Identifier & acorn.Node) => {
           // More nuanced identifier checking
           if (BLOCKED_IDENTIFIERS.has(node.name) && !ALLOWED_BROWSER_APIS.has(node.name)) {
-            const line = node.loc?.start?.line || 1;
-            throw new Error(`Usage of '${node.name}' is not allowed at line ${line}`);
+            throw new Error(`Usage of '${node.name}' is not allowed. Please review and remove the restricted code to proceed.`);
           }
         },
 
         Literal: (node: acorn.Literal & acorn.Node) => {
           // Check for suspicious string literals (more reasonable limit)
           if (typeof node.value === 'string' && node.value.length > 5000) {
-            const line = node.loc?.start?.line || 1;
-            throw new Error(`Extremely long string literal (${node.value.length} chars) at line ${line}`);
+            throw new Error(`Extremely long string literal (${node.value.length} chars). Please break down large strings to proceed.`);
           }
         },
       });
@@ -346,7 +359,7 @@ export class ValidationService {
           errorType: error.message.includes('Too many') ? 'complexity' : 'security'
         };
       }
-      return { valid: false, error: "Validation failed", errorType: 'security' };
+      return { valid: false, error: "Validation failed. Please review your code and fix any issues to proceed.", errorType: 'security' };
     }
   }
 

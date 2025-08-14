@@ -3,13 +3,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { 
-  Activity, 
-  AlertTriangle, 
-  CheckCircle, 
-  Monitor, 
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  Monitor,
   RefreshCw,
-  Code2,
+  Code,
   Calendar,
   TrendingUp,
   AlertCircle
@@ -115,16 +115,16 @@ export default function Home() {
           fetch('/api/dashboard'),
           fetch('/api/alerts/history')
         ]);
-        
+
         if (!dashboardResponse.ok) {
           throw new Error('Failed to fetch dashboard data');
         }
-        
+
         const data = await dashboardResponse.json();
         const alertsData = alertsResponse.ok ? await alertsResponse.json() : [];
         // Transform the existing API response to match new interface
         const systemIssues = [];
-        
+
         // Analyze system health
         if (data.monitors?.down > 0) {
           systemIssues.push({
@@ -133,7 +133,7 @@ export default function Home() {
             severity: data.monitors.down > 2 ? 'critical' as const : 'high' as const
           });
         }
-        
+
         if (data.jobs?.failedRuns24h > 0) {
           systemIssues.push({
             type: 'job' as const,
@@ -141,7 +141,7 @@ export default function Home() {
             severity: data.jobs.failedRuns24h > 5 ? 'high' as const : 'medium' as const
           });
         }
-        
+
         if (data.queue?.running >= data.queue?.runningCapacity * 0.9) {
           systemIssues.push({
             type: 'queue' as const,
@@ -149,7 +149,7 @@ export default function Home() {
             severity: 'medium' as const
           });
         }
-        
+
         const transformedData: DashboardData = {
           stats: {
             tests: data.tests?.total || 0,
@@ -194,7 +194,7 @@ export default function Home() {
     };
 
     fetchDashboardData();
-    
+
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchDashboardData, 30000);
     return () => clearInterval(interval);
@@ -206,7 +206,7 @@ export default function Home() {
     if (projectName) {
       // Remove from sessionStorage immediately
       sessionStorage.removeItem('projectSwitchSuccess');
-      
+
       // Show toast with delay to let page settle
       setTimeout(() => {
         toast.success(`Switched to ${projectName}`);
@@ -219,7 +219,7 @@ export default function Home() {
     return (
       <div>
         {/* Breadcrumbs skeleton */}
-        
+
         <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
           <CardContent className="p-6">
             <Tabs defaultValue="overview" className="space-y-4">
@@ -240,7 +240,7 @@ export default function Home() {
                     <Skeleton className="h-3 w-20" />
                   </div>
                 </div>
-                
+
                 {/* Key Metrics Grid - 6 cards in 3 columns */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -323,7 +323,7 @@ export default function Home() {
                   </span>
                 </div>
               </div>
-              
+
               {/* System Issues Alert */}
               {!dashboardData.system.healthy && dashboardData.system.issues.length > 0 && (
                 <Card className="border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20">
@@ -344,7 +344,7 @@ export default function Home() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Tests</CardTitle>
-                    <Code2 className="h-4 w-4 text-muted-foreground" />
+                    <Code className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{dashboardData.stats.tests}</div>
@@ -396,7 +396,7 @@ export default function Home() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
-                      {dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h > 0 
+                      {dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h > 0
                         ? Math.round((dashboardData.jobs.successfulRuns24h / (dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h)) * 100)
                         : 100}%
                     </div>
@@ -420,7 +420,7 @@ export default function Home() {
               </div>
 
             </TabsContent>
-          
+
             <TabsContent value="monitoring" className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -428,7 +428,7 @@ export default function Home() {
                   <p className="text-muted-foreground text-sm">Real-time monitoring status, uptime metrics, and performance insights.</p>
                 </div>
               </div>
-              
+
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -514,7 +514,7 @@ export default function Home() {
                   <p className="text-muted-foreground text-sm">Job execution statistics, success rates, and automation performance metrics.</p>
                 </div>
               </div>
-              
+
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -559,7 +559,7 @@ export default function Home() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
-                      {dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h > 0 
+                      {dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h > 0
                         ? Math.round((dashboardData.jobs.successfulRuns24h / (dashboardData.jobs.successfulRuns24h + dashboardData.jobs.failedRuns24h)) * 100)
                         : 100}%
                     </div>
@@ -571,7 +571,7 @@ export default function Home() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Tests</CardTitle>
-                    <Code2 className="h-4 w-4 text-muted-foreground" />
+                    <Code className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{dashboardData.stats.tests}</div>

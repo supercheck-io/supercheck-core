@@ -487,7 +487,12 @@ export function MonitorDetailClient({ monitor: initialMonitor, isNotificationVie
                 {monitor.name.length > 40 ? monitor.name.slice(0, 40) + "..." : monitor.name}
               </h1>
               <div className="text-sm text-muted-foreground truncate max-w-md" title={monitor.url}>
-                {monitor.url} 
+                {monitor.type === 'port_check' && monitor.config?.port 
+                  ? `${monitor.target || monitor.url}:${monitor.config.port}`
+                  : monitor.type === 'http_request' && monitor.config?.method
+                  ? `${monitor.config.method.toUpperCase()} ${monitor.url || monitor.target}`
+                  : monitor.url || monitor.target
+                } 
               </div>
             </div>
           </div>

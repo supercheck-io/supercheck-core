@@ -11,7 +11,7 @@ import {
   DatabaseIcon,
   ClipboardListIcon,
   FileIcon,
-  Code2,
+  Code,
   BookOpenText,
   // History,
   Plus,
@@ -72,8 +72,8 @@ const data = {
     {
       name: "STU",
     },
-    
-  ], 
+
+  ],
 
   Communicate: [
     {
@@ -82,12 +82,12 @@ const data = {
       icon: ChartColumn,
       isActive: true,
     },
-    
-      {
-        title: "Alerts",
-        url: "/alerts",
-        icon: BellRing,
-      },
+
+    {
+      title: "Alerts",
+      url: "/alerts",
+      icon: BellRing,
+    },
 
   ],
 
@@ -104,14 +104,14 @@ const data = {
           url: "/playground?scriptType=browser",
           icon: Chrome,
           color: "!text-sky-600",
-          
+
         },
         {
           title: "API Test",
           url: "/playground?scriptType=api",
           icon: ArrowLeftRight,
           color: "!text-teal-600",
-        }, 
+        },
         {
           title: "Database Test",
           url: "/playground?scriptType=database",
@@ -129,7 +129,7 @@ const data = {
     {
       title: "Tests",
       url: "/tests",
-      icon: Code2,
+      icon: Code,
     },
     {
       title: "Jobs",
@@ -146,12 +146,12 @@ const data = {
       url: "/variables",
       icon: Variable,
     },
-  
+
 
   ],
 
   Monitor: [
-    
+
     {
       title: "Create",
       url: "#",
@@ -182,14 +182,14 @@ const data = {
           color: "!text-blue-600",
         },
       ],
-      
+
     },
     {
       title: "Monitors",
       url: "/monitors",
       icon: Globe,
     },
-  
+
   ],
 
   SuperAdmin: [
@@ -299,15 +299,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         color?: string;
       }>;
     };
-    
+
     const baseSettings: AdminItem[] = [];
-    
+
     if (isAdmin) {
       baseSettings.push(...(data.SuperAdmin as AdminItem[]));
     } else if (isOrgAdmin) {
       baseSettings.push(...(data.OrgAdmin as AdminItem[]));
     }
-    
+
     return baseSettings;
   }, [isAdmin, isOrgAdmin, isAdminStatusLoaded]);
 

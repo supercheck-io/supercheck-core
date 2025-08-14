@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import { RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Error({
@@ -16,24 +16,35 @@ export default function Error({
   
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-      <div className="flex flex-col items-center text-center max-w-md">
-        <AlertTriangle className="h-16 w-16 text-amber-500 mb-4" />
-        <h1 className="text-3xl font-bold mb-2">Something Went Wrong</h1>
-        <p className="text-muted-foreground mb-6">
-          An error occurred while trying to load this page.
-        </p>
-        <div className="flex gap-4">
+      <div className="flex flex-col items-center text-center max-w-md space-y-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-foreground">Oops! Something went wrong</h1>
+          <p className="text-muted-foreground text-lg">
+            We encountered an unexpected error. Please try refreshing the page or return home.
+          </p>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
           <Button
             onClick={() => reset()}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            className="flex items-center gap-2 flex-1"
           >
+            <RefreshCw className="h-4 w-4" />
             Try Again
           </Button>
-          <Link href="/">
-            <Button variant="outline">Back to Home</Button>
+          <Link href="/" className="flex-1">
+            <Button variant="outline" className="w-full flex items-center gap-2">
+              <Home className="h-4 w-4" />
+              Go Home
+            </Button>
           </Link>
+        </div>
+        
+        <div className="text-xs text-muted-foreground bg-muted/30 px-3 py-2 rounded-md">
+          Error ID: {error.digest || 'Unknown'}
         </div>
       </div>
     </div>
   );
 } 
+

@@ -167,9 +167,7 @@ await page.fill('#password', getSecret('PASSWORD'));` ? (
         <DataTableViewOptions table={table} />
         {meta?.projectId && (
           <>
-            <Button 
-              size="sm" 
-              className="h-8"
+            <Button
               disabled={!meta?.canManage}
               onClick={() => setDialogOpen(true)}
             >

@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     libxshmfence1 \
     ca-certificates \
+    iputils-ping \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

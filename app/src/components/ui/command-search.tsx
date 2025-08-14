@@ -5,7 +5,7 @@ import { useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Globe,
-  Code2,
+  Code,
   SearchIcon,
   BellRing,
   LaptopMinimal,
@@ -48,7 +48,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
 
   const handleCommand = useCallback((command: string) => {
     setOpen(false)
-    
+
     const routes: Record<string, string> = {
       // Navigation
       "home": "/",
@@ -59,7 +59,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
       "runs": "/runs",
       "variables": "/variables",
       "alerts": "/alerts",
-      
+
       // Create Actions
       "create-monitor-http": "/monitors/create?type=http_request",
       "create-monitor-website": "/monitors/create?type=website",
@@ -70,18 +70,18 @@ export function CommandSearch({ className }: CommandSearchProps) {
       "create-test-custom": "/playground?scriptType=custom",
       "create-test-database": "/playground?scriptType=database",
       "create-job": "/jobs/create",
-      
+
       // Quick Actions
       "view-critical-alerts": "/monitors?filter=down",
       "view-running-jobs": "/jobs?status=running",
       "view-recent-runs": "/runs?sort=recent",
       "view-failed-tests": "/tests?status=failed",
-      
+
       // System
       "queue-stats": "/api/queue-stats",
       "system-health": "/api/dashboard",
     }
-    
+
     const route = routes[command]
     if (route) {
       if (route.startsWith('/api/')) {
@@ -97,7 +97,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
     const down = (e: KeyboardEvent) => {
       const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
       const metaKey = isMac ? e.metaKey : e.ctrlKey
-      
+
       // Command palette toggle
       if (e.key === "k" && metaKey) {
         e.preventDefault()
@@ -137,7 +137,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
             <CommandInput placeholder="Type a command or search..." />
             <CommandList>
               <CommandEmpty>No results found.</CommandEmpty>
-              
+
               <CommandGroup heading="Navigation">
                 <CommandItem onSelect={() => handleCommand("home")}>
                   <ChartColumn className="mr-2 h-4 w-4" />
@@ -148,7 +148,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
                   <span>Alerts</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("tests")}>
-                  <Code2 className="mr-2 h-4 w-4" />
+                  <Code className="mr-2 h-4 w-4" />
                   <span>Tests</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("jobs")}>

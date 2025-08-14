@@ -40,6 +40,7 @@ export function ValidationError({
     if (type === 'security') return { label: 'Security', color: 'text-red-600' };
     if (type === 'complexity') return { label: 'Complexity', color: 'text-amber-600' };
     if (type === 'length') return { label: 'Length', color: 'text-amber-600' };
+    if (type === 'pattern') return { label: 'Validation', color: 'text-red-600' };
     return { label: 'Error', color: 'text-red-600' };
   };
 

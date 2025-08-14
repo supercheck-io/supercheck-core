@@ -1081,9 +1081,9 @@ export function MonitorForm({
                                 </SelectContent>
                               </Select>
                             </div>
-                            <FormDescription>
+                            {/* <FormDescription>
                               {isCustomStatusCode ? "Enter specific status codes (e.g., 200, 404, 500-599)" : "Current selection: " + (statusCodePresets.find(p => p.value === currentValue)?.label || "Any 2xx (Success)")}
-                            </FormDescription>
+                            </FormDescription> */}
                             <FormMessage />
                           </FormItem>
                         );
@@ -1093,7 +1093,7 @@ export function MonitorForm({
 
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 -mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
                     <FormField
                       control={form.control}
                       name="httpConfig_headers"

@@ -9,6 +9,7 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { MonitorJobData } from '../interfaces';
+import * as crypto from 'crypto';
 
 @Processor(MONITOR_SCHEDULER_QUEUE)
 export class MonitorSchedulerProcessor extends WorkerHost {
@@ -41,12 +42,15 @@ export class MonitorSchedulerProcessor extends WorkerHost {
       // Extract the jobData from the scheduler job and pass it to the execution queue
       const executionJobData = data.jobData as unknown;
 
+      // Generate a unique job ID to avoid conflicts (similar to job scheduler pattern)
+      const uniqueJobId = `${monitorId}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+
       // Add job to execution queue (like job scheduler does)
       await this.monitorExecutionQueue.add(
         EXECUTE_MONITOR_JOB_NAME,
         executionJobData,
         {
-          jobId: monitorId,
+          jobId: uniqueJobId,
           attempts: (data.retryLimit as number) || 3,
           backoff: { type: 'exponential', delay: 5000 },
           removeOnComplete: true,
@@ -55,7 +59,7 @@ export class MonitorSchedulerProcessor extends WorkerHost {
       );
 
       this.logger.log(
-        `Created execution task for scheduled monitor ${monitorId}`,
+        `Created execution task for scheduled monitor ${monitorId} with job ID ${uniqueJobId}`,
       );
     } catch (error) {
       this.logger.error(

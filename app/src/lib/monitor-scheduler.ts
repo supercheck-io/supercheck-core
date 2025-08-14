@@ -1,6 +1,6 @@
 import { db } from "@/utils/db";
 import { monitors as monitorSchemaDb, MonitorConfig } from "@/db/schema/schema";
-import { eq, isNotNull, and } from "drizzle-orm";
+import { eq, isNotNull, and, ne } from "drizzle-orm";
 import { getQueues, MonitorJobData } from "./queue";
 
 interface ScheduleMonitorOptions {
@@ -92,7 +92,7 @@ export async function deleteScheduledMonitor(schedulerId: string): Promise<boole
       return false;
     }
   } catch (error) {
-    console.error(`Failed to delete scheduled monitor:`, error);
+    console.error(`Failed to delete scheduled monitor ${schedulerId}:`, error);
     return false;
   }
 }
@@ -120,7 +120,8 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
         .from(monitorSchemaDb)
         .where(and(
           isNotNull(monitorSchemaDb.frequencyMinutes), 
-          eq(monitorSchemaDb.enabled, true)
+          eq(monitorSchemaDb.enabled, true),
+          ne(monitorSchemaDb.status, 'paused')
         ));
         
       console.log(`Found ${activeMonitors.length} active monitors to initialize`);

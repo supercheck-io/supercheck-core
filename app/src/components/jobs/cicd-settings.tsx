@@ -14,6 +14,7 @@ import {
   Ban,
   Shield
 } from "lucide-react";
+import { Spinner, LoadingBadge } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { ApiKeyDialog } from "./api-key-dialog";
 import {
@@ -50,6 +51,7 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
   const [error, setError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [keyToDelete, setKeyToDelete] = useState<string | null>(null);
+  const [operationLoadingStates, setOperationLoadingStates] = useState<{[keyId: string]: 'toggle' | 'delete' | null}>({});
 
   const loadApiKeys = useCallback(async () => {
     try {
@@ -96,6 +98,8 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
     if (!keyToDelete) return;
 
     try {
+      setOperationLoadingStates(prev => ({ ...prev, [keyToDelete]: 'delete' }));
+      
       const response = await fetch(`/api/jobs/${jobId}/api-keys/${keyToDelete}`, {
         method: "DELETE",
       });
@@ -113,12 +117,15 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
       toast.error(error instanceof Error ? error.message : "Failed to delete API key");
     } finally {
       setShowDeleteDialog(false);
+      setOperationLoadingStates(prev => ({ ...prev, [keyToDelete]: null }));
       setKeyToDelete(null);
     }
   };
 
   const handleToggleEnabled = async (keyId: string, currentEnabled: boolean) => {
     try {
+      setOperationLoadingStates(prev => ({ ...prev, [keyId]: 'toggle' }));
+      
       const response = await fetch(`/api/jobs/${jobId}/api-keys/${keyId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -136,6 +143,8 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
     } catch (error) {
       console.error("Error updating API key:", error);
       toast.error(error instanceof Error ? error.message : "Failed to update API key");
+    } finally {
+      setOperationLoadingStates(prev => ({ ...prev, [keyId]: null }));
     }
   };
 
@@ -192,9 +201,14 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="ml-2 text-xs text-muted-foreground">Loading API keys...</span>
+            <div className="flex items-center justify-center py-8">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Loading API keys...</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Please wait while we fetch your API keys</p>
+                </div>
+              </div>
             </div>
           ) : apiKeys.length === 0 ? (
             <div className="text-center py-6">
@@ -251,19 +265,29 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
                           variant="outline"
                           size="sm"
                           onClick={() => handleToggleEnabled(key.id, key.enabled)}
+                          disabled={operationLoadingStates[key.id] === 'toggle'}
                         className={key.enabled ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-gray-500 hover:text-gray-600 hover:bg-red-50"}
                           title={key.enabled ? "Disable key" : "Enable key"}
                         >
-                          {key.enabled ? <CheckCircle className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                          {operationLoadingStates[key.id] === 'toggle' ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            key.enabled ? <CheckCircle className="h-4 w-4" /> : <Ban className="h-4 w-4" />
+                          )}
                         </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleDelete(key.id)}
-                        className= "ml-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        disabled={operationLoadingStates[key.id] === 'delete'}
+                        className= "ml-1 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50"
                         title="Delete key"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {operationLoadingStates[key.id] === 'delete' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -301,9 +325,17 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-700"
+              disabled={keyToDelete ? operationLoadingStates[keyToDelete] === 'delete' : false}
+              className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
             >
-              Delete
+              {keyToDelete && operationLoadingStates[keyToDelete] === 'delete' ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </div>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
