@@ -239,11 +239,12 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
                 Supercheck
               </Link>
 
-              <Link href="/" className="flex items-center gap-1 hover:text-foreground transition-colors text-muted-foreground ml-5">
+                <span className="mx-2 text-muted-foreground/30">|</span>
+                <Link href="/" className="flex items-center gap-1 hover:text-foreground transition-colors text-muted-foreground">
                 <Home className="h-4 w-4" />
-              </Link>
-              <span className="text-muted-foreground">/</span>
-              <span className="font-medium text-foreground">Job Run Report</span>
+                </Link>
+                <span className="mx-1 text-muted-foreground">/</span>
+                <span className="text-foreground">Job Report</span>
             </div>
           </div>
           <NavUser />

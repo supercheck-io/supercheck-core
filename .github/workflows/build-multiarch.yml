@@ -2,10 +2,10 @@ name: Build Multi-Architecture Docker Images
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
+    branches: [main]
+    tags: ["v*"]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -31,7 +31,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.PAT_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check registry access
         run: |
@@ -96,5 +96,7 @@ jobs:
         run: |
           echo "App image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/app"
           echo "Worker image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker"
-          echo "Built tags:"
-          echo "${{ steps.meta.outputs.tags }}" 
+          echo "Built tags for app:"
+          echo "${{ steps.app-meta.outputs.tags }}"
+          echo "Built tags for worker:"
+          echo "${{ steps.worker-meta.outputs.tags }}"

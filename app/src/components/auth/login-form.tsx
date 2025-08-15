@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CheckIcon } from "@/components/logo/supercheck-logo"
-import { Loader2 } from "lucide-react"
+import { Loader2, Info } from "lucide-react"
 import Link from "next/link"
 
 interface InviteData {
@@ -20,6 +20,7 @@ interface LoginFormProps {
   error: string | null;
   inviteData: InviteData | null;
   inviteToken: string | null;
+  isFromNotification?: boolean;
 }
 
 export function LoginForm({
@@ -29,9 +30,32 @@ export function LoginForm({
   error,
   inviteData,
   inviteToken,
+  isFromNotification = false,
 }: LoginFormProps) {
   return (
     <div className={cn("flex flex-col gap-6", className)}>
+      {isFromNotification && (
+        <Card className="border-border">
+          <CardContent className="p-4">
+            <div className="flex gap-3">
+              <Info className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <div className="flex flex-col gap-2">
+                <h3 className="font-medium text-foreground">
+                  Organization Access Required
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  You&apos;re trying to access a notification link that requires organization membership. 
+                  If you don&apos;t have an account or need access to this organization, please contact 
+                  your administrator to request an invitation.
+                </p>
+                <p className="text-muted-foreground text-sm">
+                  If you already have an account with access, please sign in below to continue.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
           <form className="p-6 md:p-8" onSubmit={onSubmit}>
@@ -73,13 +97,21 @@ export function LoginForm({
                 Sign in
               </Button>
               <div className="text-center text-sm">
-                Don&apos;t have an account?{" "}
-                <Link 
-                  href={inviteToken ? `/sign-up?invite=${inviteToken}` : "/sign-up"} 
-                  className="underline underline-offset-4"
-                >
-                  Sign up
-                </Link>
+                {isFromNotification ? (
+                  <span className="text-muted-foreground">
+                    Need access? Contact your administrator for an organization invitation.
+                  </span>
+                ) : (
+                  <>
+                    Don&apos;t have an account?{" "}
+                    <Link 
+                      href={inviteToken ? `/sign-up?invite=${inviteToken}` : "/sign-up"} 
+                      className="underline underline-offset-4"
+                    >
+                      Sign up
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </form>

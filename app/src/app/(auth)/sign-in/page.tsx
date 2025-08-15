@@ -17,12 +17,19 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [inviteData, setInviteData] = useState<InviteData | null>(null);
+  const [isFromNotification, setIsFromNotification] = useState(false);
 
   useEffect(() => {
     const invite = searchParams.get('invite');
+    const from = searchParams.get('from');
+    
     if (invite) {
       setInviteToken(invite);
       fetchInviteData(invite);
+    }
+    
+    if (from === 'notification') {
+      setIsFromNotification(true);
     }
   }, [searchParams]);
 
@@ -69,6 +76,7 @@ export default function SignInPage() {
       error={error}
       inviteData={inviteData}
       inviteToken={inviteToken}
+      isFromNotification={isFromNotification}
     />
   );
 } 

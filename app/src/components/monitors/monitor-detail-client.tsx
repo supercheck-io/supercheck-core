@@ -455,12 +455,13 @@ export function MonitorDetailClient({ monitor: initialMonitor, isNotificationVie
               <Link href="/" className="text-xl font-semibold text-foreground hover:opacity-80 transition-opacity">
                 Supercheck
               </Link>
-              
-              <Link href="/" className="flex items-center gap-1 hover:text-foreground transition-colors text-muted-foreground ml-5">
+
+                <span className="mx-2 text-muted-foreground/30">|</span>
+                <Link href="/" className="flex items-center gap-1 hover:text-foreground transition-colors text-muted-foreground">
                 <Home className="h-4 w-4" />
-              </Link>
-              <span className="text-muted-foreground">/</span>
-              <span className="font-medium text-foreground">Monitor Details</span>
+                </Link>
+                <span className="mx-1 text-muted-foreground">/</span>
+                <span className="text-foreground">Monitor Report</span>
             </div>
           </div>
           <NavUser />

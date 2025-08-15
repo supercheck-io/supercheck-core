@@ -12,7 +12,7 @@ export default async function NotificationLayout({
   });
 
   if (!session) {
-    redirect("/sign-in");
+    redirect("/sign-in?from=notification");
   }
 
   return (
