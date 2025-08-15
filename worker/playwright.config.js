@@ -40,6 +40,9 @@ module.exports = defineConfig({
     // HTML reporter will be configured via CLI parameters
     ['list'] // Optional: console reporter
   ],
+  /* Test timeout - set to match execution service timeout */
+  timeout: 120000, // 2 minutes to match TEST_EXECUTION_TIMEOUT_MS
+  
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
@@ -49,6 +52,9 @@ module.exports = defineConfig({
     trace: 'on',
     screenshot: 'on',
     video: 'on',
+    
+    /* Action timeout - individual actions can take up to 30 seconds */
+    actionTimeout: 30000,
   },
   
   /* Directory for test artifacts such as screenshots, videos, traces, etc. */

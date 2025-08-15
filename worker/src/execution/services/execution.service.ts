@@ -170,16 +170,8 @@ export class ExecutionService implements OnModuleDestroy {
     // Ensure base local dir exists and has correct permissions
     void this.ensureBaseDirectoryPermissions();
 
-    // Set up memory monitoring and cleanup
-    this.setupMemoryMonitoring();
-
-    // Force garbage collection every 30 seconds
-    this.gcInterval = setInterval(() => {
-      if (global.gc) {
-        global.gc();
-        this.logger.debug('Forced garbage collection completed');
-      }
-    }, 30000);
+    // Minimal memory monitoring without aggressive cleanup
+    // Removed aggressive memory cleanup and forced GC
   }
 
   /**
@@ -209,21 +201,13 @@ export class ExecutionService implements OnModuleDestroy {
   }
 
   /**
-   * Sets up memory monitoring and cleanup mechanisms
+   * Sets up minimal memory monitoring without aggressive cleanup
    */
   private setupMemoryMonitoring(): void {
-    this.memoryCleanupInterval = setInterval(async () => {
-      try {
-        await this.performMemoryCleanup();
-      } catch (error) {
-        this.logger.warn(`Memory cleanup failed: ${(error as Error).message}`);
-      }
-    }, 60000); // Every minute
-
-    // Monitor active executions for memory leaks
+    // Just monitor active executions without aggressive cleanup
     setInterval(() => {
       this.monitorActiveExecutions();
-    }, 30000); // Every 30 seconds
+    }, 60000); // Every minute, less frequent
   }
 
   /**
@@ -241,10 +225,7 @@ export class ExecutionService implements OnModuleDestroy {
           `Cleaning up stale execution ${executionId} after ${runtime}ms`,
         );
 
-        if (execution.pid) {
-          this.killProcessTree(execution.pid);
-        }
-
+        // Just remove from tracking, don't kill processes
         this.activeExecutions.delete(executionId);
       }
     }
@@ -257,7 +238,7 @@ export class ExecutionService implements OnModuleDestroy {
       this.logger.warn(
         `High memory usage detected: ${memUsageMB}MB (threshold: ${this.memoryThresholdMB}MB)`,
       );
-      void this.performMemoryCleanup();
+      // Just log, don't perform aggressive cleanup
     }
 
     this.logger.debug(
@@ -266,29 +247,19 @@ export class ExecutionService implements OnModuleDestroy {
   }
 
   /**
-   * Performs memory cleanup operations
+   * Performs minimal cleanup operations
    */
   private async performMemoryCleanup(): Promise<void> {
     try {
-      // Force garbage collection if available
-      if (global.gc) {
-        global.gc();
-      }
-
-      // Clean up temporary files older than 1 hour
+      // Only clean up old temporary files
       await this.cleanupOldTempFiles();
-
-      // Clean up zombie processes
-      await this.cleanupBrowserProcesses();
 
       const memUsage = process.memoryUsage();
       this.logger.debug(
-        `Memory cleanup completed. Heap used: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+        `Memory check completed. Heap used: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
       );
     } catch (error) {
-      this.logger.error(
-        `Error during memory cleanup: ${(error as Error).message}`,
-      );
+      this.logger.error(`Error during cleanup: ${(error as Error).message}`);
     }
   }
 
@@ -801,10 +772,7 @@ export class ExecutionService implements OnModuleDestroy {
         );
       });
 
-      // Force garbage collection after test completion
-      if (global.gc) {
-        global.gc();
-      }
+      // Removed forced garbage collection
     }
 
     return finalResult;
@@ -1187,10 +1155,7 @@ export class ExecutionService implements OnModuleDestroy {
         );
       });
 
-      // Force garbage collection after job completion
-      if (global.gc) {
-        global.gc();
-      }
+      // Removed forced garbage collection
     }
 
     return finalResult;
@@ -1396,8 +1361,7 @@ export class ExecutionService implements OnModuleDestroy {
       );
     }
 
-    // Always perform browser process cleanup after a timeout
-    void this.cleanupBrowserProcesses();
+    // Removed automatic browser process cleanup
   }
 
   /**
@@ -1556,10 +1520,20 @@ export class ExecutionService implements OnModuleDestroy {
                 `Command execution timed out after ${options.timeout}ms: ${command} ${args.join(' ')}`,
               );
 
-              // More aggressive process cleanup for timeout scenarios
-              this.killProcessTree(childProcess.pid);
-              // Additional immediate cleanup to ensure processes are terminated
-              setTimeout(() => void this.cleanupBrowserProcesses(), 1000);
+              // Force kill the process and process tree to handle infinite loops
+              if (childProcess && !childProcess.killed) {
+                try {
+                  // Kill the process tree forcefully to handle infinite loops
+                  this.killProcessTree(childProcess.pid);
+
+                  // Also send SIGKILL as backup
+                  childProcess.kill('SIGKILL');
+                } catch (killError) {
+                  this.logger.error(
+                    `Failed to kill timed out process: ${(killError as Error).message}`,
+                  );
+                }
+              }
 
               resolve({
                 success: false,
@@ -1576,9 +1550,26 @@ export class ExecutionService implements OnModuleDestroy {
           if (timeoutHandle) {
             clearTimeout(timeoutHandle);
           }
-          // Ensure process is terminated if still running
+          // Ensure process is terminated if still running - use SIGKILL for infinite loops
           if (childProcess && !childProcess.killed) {
-            this.killProcessTree(childProcess.pid);
+            try {
+              // Try SIGTERM first, then SIGKILL
+              childProcess.kill('SIGTERM');
+              setTimeout(() => {
+                if (childProcess && !childProcess.killed) {
+                  childProcess.kill('SIGKILL');
+                }
+              }, 2000); // 2 second grace period
+            } catch (error) {
+              // If SIGTERM fails, try SIGKILL immediately
+              try {
+                childProcess.kill('SIGKILL');
+              } catch (killError) {
+                this.logger.warn(
+                  `Failed to kill process during cleanup: ${(killError as Error).message}`,
+                );
+              }
+            }
           }
         };
 
@@ -1909,19 +1900,9 @@ test('Automated Test ${testId.substring(0, 8)}', async ({ page }) => {
       clearInterval(this.gcInterval);
     }
 
-    // Kill any remaining active executions
-    for (const [executionId, execution] of this.activeExecutions.entries()) {
-      this.logger.warn(
-        `Cleaning up active execution ${executionId} during shutdown`,
-      );
-      if (execution.pid) {
-        this.killProcessTree(execution.pid);
-      }
-    }
-
+    // Clear active executions without killing processes
     this.activeExecutions.clear();
 
-    // Final cleanup
-    void this.cleanupBrowserProcesses();
+    // Removed aggressive browser process cleanup
   }
 }

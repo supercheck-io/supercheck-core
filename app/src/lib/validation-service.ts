@@ -170,11 +170,15 @@ export class ValidationService {
       { pattern: /data\s*:\s*text\/html/, message: "Data URLs with HTML are not allowed" },
       { pattern: /srcdoc\s*=/, message: "srcdoc attribute is not allowed" },
       
-      // Loop bombing patterns (more nuanced detection)
-      { pattern: /while\s*\(\s*true\s*\)(?![\s\S]*break)/, message: "Infinite loop without break: while(true)" },
-      { pattern: /for\s*\(\s*;\s*;\s*\)(?![\s\S]*break)/, message: "Infinite loop without break: for(;;)" },
-      { pattern: /while\s*\(\s*1\s*\)(?![\s\S]*break)/, message: "Infinite loop without break: while(1)" },
-      { pattern: /for\s*\([^{;]*;\s*true\s*;[^{)]*\)\s*{(?![\s\S]*break)[\s\S]*?}/, message: "Potential infinite loop without break" },
+      // Loop bombing patterns (enhanced detection for all infinite loop variants)
+      { pattern: /while\s*\(\s*true\s*\)/, message: "Infinite loop detected: while(true)" },
+      { pattern: /while\s*\(\s*1\s*\)/, message: "Infinite loop detected: while(1)" },
+      { pattern: /while\s*\(\s*!0\s*\)/, message: "Infinite loop detected: while(!0)" },
+      { pattern: /for\s*\(\s*;[^;]*;\s*\)/, message: "Infinite loop detected: for(;;) or for(;condition;)" },
+      { pattern: /for\s*\(\s*;\s*;\s*[^)]*\)/, message: "Infinite loop detected: for(;;) variant" },
+      { pattern: /for\s*\(\s*[^;]*;\s*true\s*;[^)]*\)/, message: "Infinite loop detected: for loop with true condition" },
+      { pattern: /for\s*\(\s*[^;]*;\s*1\s*;[^)]*\)/, message: "Infinite loop detected: for loop with 1 condition" },
+      { pattern: /for\s*\(\s*[^;]*;\s*!0\s*;[^)]*\)/, message: "Infinite loop detected: for loop with !0 condition" },
       
       // Prototype pollution
       { pattern: /__proto__/, message: "__proto__ manipulation is not allowed" },
@@ -322,6 +326,10 @@ export class ValidationService {
           if (node.source && node.source.type === 'Literal' && typeof node.source.value === 'string') {
             const moduleName = node.source.value as string;
             if (!ALLOWED_MODULES.has(moduleName) && !moduleName.startsWith('@playwright/')) {
+              // Special case for common @playwright mistake
+              if (moduleName === '@playwright') {
+                throw new Error(`Import of module '${moduleName}' is not allowed. Use '@playwright/test' instead for Playwright testing functionality.`);
+              }
               throw new Error(`Import of module '${moduleName}' is not allowed. Please review and remove the restricted import to proceed.`);
             }
           }
@@ -330,6 +338,10 @@ export class ValidationService {
         Identifier: (node: acorn.Identifier & acorn.Node) => {
           // More nuanced identifier checking
           if (BLOCKED_IDENTIFIERS.has(node.name) && !ALLOWED_BROWSER_APIS.has(node.name)) {
+            // Special case for require - suggest ES6 imports
+            if (node.name === 'require') {
+              throw new Error(`Usage of 'require' is not allowed. Use ES6 import statements instead (e.g., import { test } from '@playwright/test').`);
+            }
             throw new Error(`Usage of '${node.name}' is not allowed. Please review and remove the restricted code to proceed.`);
           }
         },
@@ -356,7 +368,8 @@ export class ValidationService {
           valid: false, 
           error: error.message, 
           line,
-          errorType: error.message.includes('Too many') ? 'complexity' : 'security'
+          errorType: error.message.includes('Too many') ? 'complexity' : 
+                    error.message.includes('Usage of \'require\'') ? 'pattern' : 'security'
         };
       }
       return { valid: false, error: "Validation failed. Please review your code and fix any issues to proceed.", errorType: 'security' };

@@ -65,7 +65,7 @@ const RuntimeInfoPopover: React.FC = () => {
           </ScrollArea>
           
           <div className="pt-2 border-t text-xs text-muted-foreground">
-            Scripts are validated for security and other modules are blocked.
+            Scripts are validated for security and other modules are blocked. Test execution has a 2-minute timeout.
           </div>
         </div>
       </PopoverContent>
