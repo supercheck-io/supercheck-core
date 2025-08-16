@@ -279,22 +279,6 @@ export function ReportViewer({
             timeoutInfo={timeoutInfo}
             backToLabel={backToLabel}
             backToUrl={backToUrl}
-            onRetry={() => {
-              // Retry by reloading the current report URL
-              if (currentReportUrl) {
-                setIsReportLoading(true);
-                setIframeError(false);
-                setTimeoutInfo(null);
-                setReportError(null);
-                
-                // Force a reload with a new timestamp
-                const baseUrl = currentReportUrl.split('?')[0];
-                const newUrl = `${baseUrl}?retry=true&t=${Date.now()}`;
-                setCurrentReportUrl(newUrl);
-              } else {
-                window.location.reload();
-              }
-            }}
             containerClassName={containerClassName}
           />
         </div>

@@ -110,8 +110,8 @@ export class ExecutionService implements OnModuleDestroy {
   private readonly jobExecutionTimeoutMs: number;
   private readonly playwrightConfigPath: string;
   private readonly baseLocalRunDir: string;
-  private readonly maxConcurrentExecutions: number;
-  private readonly memoryThresholdMB: number;
+  private readonly maxConcurrentExecutions = 1; // Simple: one execution at a time
+  private readonly memoryThresholdMB = 2048; // 2GB memory threshold
   private activeExecutions: Map<
     string,
     { pid?: number; startTime: number; memoryUsage: number }
@@ -125,15 +125,15 @@ export class ExecutionService implements OnModuleDestroy {
     private dbService: DbService,
     private redisService: RedisService,
   ) {
-    // Set timeouts: 2 minutes for tests, 15 minutes for jobs (as per user request)
+    // Set timeouts: configurable via env vars with sensible defaults
     this.testExecutionTimeoutMs = this.configService.get<number>(
       'TEST_EXECUTION_TIMEOUT_MS',
-      120000,
-    ); // 2 minutes
+      120000, // 2 minutes default
+    );
     this.jobExecutionTimeoutMs = this.configService.get<number>(
       'JOB_EXECUTION_TIMEOUT_MS',
-      900000,
-    ); // 15 minutes
+      900000, // 15 minutes default
+    );
 
     // Determine Playwright config path
     const configPath = path.join(process.cwd(), 'playwright.config.js');
@@ -157,21 +157,15 @@ export class ExecutionService implements OnModuleDestroy {
       `Using Playwright config (relative): ${path.relative(process.cwd(), this.playwrightConfigPath)}`,
     );
 
-    // Memory and concurrency configuration
-    this.maxConcurrentExecutions = this.configService.get<number>(
-      'MAX_CONCURRENT_EXECUTIONS',
-      3,
-    );
-    this.memoryThresholdMB = this.configService.get<number>(
-      'MEMORY_THRESHOLD_MB',
-      2048,
-    );
+    // Log configuration
+    this.logger.log(`Max concurrent executions: ${this.maxConcurrentExecutions}`);
+    this.logger.log(`Memory threshold: ${this.memoryThresholdMB}MB`);
 
     // Ensure base local dir exists and has correct permissions
     void this.ensureBaseDirectoryPermissions();
 
-    // Minimal memory monitoring without aggressive cleanup
-    // Removed aggressive memory cleanup and forced GC
+    // Setup basic memory monitoring
+    this.setupMemoryMonitoring();
   }
 
   /**
@@ -201,21 +195,44 @@ export class ExecutionService implements OnModuleDestroy {
   }
 
   /**
-   * Sets up minimal memory monitoring without aggressive cleanup
+   * Sets up optimized memory monitoring for reduced CPU usage
    */
   private setupMemoryMonitoring(): void {
-    // Just monitor active executions without aggressive cleanup
-    setInterval(() => {
-      this.monitorActiveExecutions();
-    }, 60000); // Every minute, less frequent
+    // Reduced frequency memory monitoring - only when needed
+    this.memoryCleanupInterval = setInterval(() => {
+      // Only monitor if we have active executions
+      if (this.activeExecutions.size > 0) {
+        this.monitorActiveExecutions();
+        void this.performMemoryCleanup();
+      }
+    }, 300000); // Every 5 minutes instead of 2
+
+    // Less aggressive garbage collection
+    if (global.gc) {
+      setInterval(() => {
+        const memUsage = process.memoryUsage();
+        const memUsageMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+        
+        // Only run GC if memory is critically high and we have active executions
+        if (memUsageMB > this.memoryThresholdMB * 0.9 && this.activeExecutions.size > 0) {
+          global.gc?.();
+          this.logger.debug(`Manual GC triggered at ${memUsageMB}MB`);
+        }
+      }, 600000); // Every 10 minutes instead of 5
+    }
   }
 
   /**
-   * Monitors active executions and cleans up stale ones
+   * Monitors active executions and cleans up stale ones - optimized for lower CPU usage
    */
   private monitorActiveExecutions(): void {
     const now = Date.now();
     const staleTimeout = 30 * 60 * 1000; // 30 minutes
+
+    // Only process if we have executions to monitor
+    if (this.activeExecutions.size === 0) {
+      return;
+    }
 
     for (const [executionId, execution] of this.activeExecutions.entries()) {
       const runtime = now - execution.startTime;
@@ -230,55 +247,93 @@ export class ExecutionService implements OnModuleDestroy {
       }
     }
 
-    // Log current memory usage
+    // Only check memory usage if we have active executions
     const memUsage = process.memoryUsage();
     const memUsageMB = Math.round(memUsage.heapUsed / 1024 / 1024);
 
-    if (memUsageMB > this.memoryThresholdMB) {
+    // Only log warnings if memory is critically high
+    if (memUsageMB > this.memoryThresholdMB * 1.1) {
       this.logger.warn(
-        `High memory usage detected: ${memUsageMB}MB (threshold: ${this.memoryThresholdMB}MB)`,
+        `Critical memory usage detected: ${memUsageMB}MB (threshold: ${this.memoryThresholdMB}MB)`,
       );
-      // Just log, don't perform aggressive cleanup
     }
 
-    this.logger.debug(
-      `Active executions: ${this.activeExecutions.size}, Memory: ${memUsageMB}MB`,
-    );
+    // Reduce debug logging frequency
+    if (this.activeExecutions.size > 0) {
+      this.logger.debug(
+        `Active executions: ${this.activeExecutions.size}, Memory: ${memUsageMB}MB`,
+      );
+    }
   }
 
   /**
-   * Performs minimal cleanup operations
+   * Performs optimized memory cleanup operations - only when needed
    */
   private async performMemoryCleanup(): Promise<void> {
     try {
-      // Only clean up old temporary files
-      await this.cleanupOldTempFiles();
-
       const memUsage = process.memoryUsage();
-      this.logger.debug(
-        `Memory check completed. Heap used: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
-      );
+      const memUsageMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+
+      // Only perform cleanup if memory is actually high or we have active executions
+      if (memUsageMB > this.memoryThresholdMB * 0.8 || this.activeExecutions.size > 0) {
+        await this.cleanupOldTempFiles();
+      }
+
+      // Reduced logging frequency
+      if (memUsageMB > this.memoryThresholdMB * 0.9) {
+        this.logger.debug(`Memory usage: ${memUsageMB}MB`);
+      }
+
     } catch (error) {
       this.logger.error(`Error during cleanup: ${(error as Error).message}`);
     }
   }
 
+
   /**
-   * Cleans up old temporary files to prevent disk space issues
+   * Cleans up old temporary files to prevent disk space issues - optimized for performance
    */
   private async cleanupOldTempFiles(): Promise<void> {
     try {
+      // Check if base directory exists before trying to read it
+      if (!existsSync(this.baseLocalRunDir)) {
+        return;
+      }
+
       const dirs = await fs.readdir(this.baseLocalRunDir);
-      const oneHourAgo = Date.now() - 60 * 60 * 1000;
+      
+      // Only clean up if there are many directories (performance optimization)
+      if (dirs.length < 10) {
+        return;
+      }
+
+      const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000; // Increased to 2 hours to reduce frequency
+      let cleanedCount = 0;
 
       for (const dir of dirs) {
         const dirPath = path.join(this.baseLocalRunDir, dir);
-        const stats = await fs.stat(dirPath);
+        
+        try {
+          const stats = await fs.stat(dirPath);
 
-        if (stats.isDirectory() && stats.mtime.getTime() < oneHourAgo) {
-          await fs.rm(dirPath, { recursive: true, force: true });
-          this.logger.debug(`Cleaned up old temp directory: ${dirPath}`);
+          if (stats.isDirectory() && stats.mtime.getTime() < twoHoursAgo) {
+            await fs.rm(dirPath, { recursive: true, force: true });
+            cleanedCount++;
+            this.logger.debug(`Cleaned up old temp directory: ${dirPath}`);
+            
+            // Limit cleanup operations per run to reduce CPU usage
+            if (cleanedCount >= 5) {
+              break;
+            }
+          }
+        } catch (statError) {
+          // Skip files that can't be stat'd (might be in use)
+          continue;
         }
+      }
+
+      if (cleanedCount > 0) {
+        this.logger.debug(`Cleaned up ${cleanedCount} old temp directories`);
       }
     } catch (error) {
       this.logger.warn(
@@ -1365,44 +1420,21 @@ export class ExecutionService implements OnModuleDestroy {
   }
 
   /**
-   * Cleanup any lingering browser processes that might be left behind
-   * This is especially important for infinite loop tests that consume CPU
+   * Cleanup browser processes only when explicitly needed - optimized for lower CPU usage
    */
   private async cleanupBrowserProcesses(): Promise<void> {
     try {
+      // Only run cleanup if we actually had active executions recently
+      if (this.activeExecutions.size === 0) {
+        return;
+      }
+
       if (isWindows) {
-        // More aggressive cleanup on Windows
-        const browserProcesses = [
-          'playwright.exe',
-          'node.exe',
-          'chromium.exe',
-          'chrome.exe',
-          'msedge.exe',
-          'firefox.exe',
-          'pwsh.exe', // PowerShell processes
-          'cmd.exe', // Command prompt processes that might be running tests
-        ];
-
-        // First, kill by process name
-        for (const processName of browserProcesses) {
-          try {
-            execSync(`taskkill /im ${processName} /f /t`, {
-              stdio: 'ignore',
-              timeout: 10000,
-              windowsHide: true,
-            });
-          } catch {
-            // Ignore errors if process doesn't exist
-          }
-        }
-
-        // Then kill by command line pattern (more specific)
+        // Minimal cleanup on Windows - only target obviously stuck processes
         const killPatterns = [
-          'playwright test',
+          'playwright.*test',
           'node.*spec.js',
-          'chromium.*test',
-          'for(;;100)',
-          'playwright.*runner',
+          'for.*;;.*100', // Infinite loop patterns
         ];
 
         for (const pattern of killPatterns) {
@@ -1411,7 +1443,7 @@ export class ExecutionService implements OnModuleDestroy {
               `wmic process where "commandline like '%${pattern}%'" delete`,
               {
                 stdio: 'ignore',
-                timeout: 10000,
+                timeout: 5000,
                 windowsHide: true,
               },
             );
@@ -1419,50 +1451,23 @@ export class ExecutionService implements OnModuleDestroy {
             // Ignore errors if no matching processes
           }
         }
-
-        // Final cleanup - kill specific test-related processes with high CPU usage
-        try {
-          // Only target processes that match our test patterns AND have high CPU
-          execSync(
-            `powershell "Get-Process | Where-Object {$_.CPU -gt 10 -and ($_.CommandLine -match 'spec\\.js|playwright.*test|for.*;;.*100')} | Stop-Process -Force"`,
-            {
-              stdio: 'ignore',
-              timeout: 15000,
-              windowsHide: true,
-            },
-          );
-        } catch {
-          // Ignore if PowerShell command fails
-        }
       } else {
-        // Enhanced Unix cleanup
+        // Minimal Unix cleanup - only target specific test processes
         const killCommands = [
-          'pkill -9 -f "playwright.*test"',
-          'pkill -9 -f "node.*playwright"',
           'pkill -9 -f "node.*spec.js"',
-          'pkill -9 -f chromium',
-          'pkill -9 -f chrome',
-          'pkill -9 -f firefox',
-          // Kill any processes consuming high CPU (likely infinite loops) - but only if they match our patterns
-          'pkill -9 -f "for.*;;.*100"',
-          // More targeted CPU cleanup - only kill node processes running our tests with high CPU
-          'ps -eo pid,pcpu,comm,args | awk \'$2 > 80.0 && ($3 == "node" || $3 == "playwright") && ($0 ~ /spec\\.js|playwright.*test/) {print $1}\' | xargs -r kill -9',
+          'pkill -9 -f "for.*;;.*100"', // Infinite loops
         ];
 
         for (const cmd of killCommands) {
           try {
-            execSync(cmd, { stdio: 'ignore', timeout: 10000 });
-            // Wait a bit between commands to ensure cleanup
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            execSync(cmd, { stdio: 'ignore', timeout: 5000 });
           } catch {
             // Ignore errors if processes don't exist
           }
         }
       }
 
-      this.logger.log(
-        'Completed comprehensive browser and test process cleanup',
-      );
+      this.logger.debug('Completed minimal browser process cleanup');
     } catch (cleanupError) {
       this.logger.warn(
         `Browser process cleanup failed: ${(cleanupError as Error).message}`,
@@ -1516,8 +1521,8 @@ export class ExecutionService implements OnModuleDestroy {
           timeoutHandle = setTimeout(() => {
             if (!resolved) {
               resolved = true;
-              this.logger.warn(
-                `Command execution timed out after ${options.timeout}ms: ${command} ${args.join(' ')}`,
+              this.logger.error(
+                `TIMEOUT: Command execution timed out after ${options.timeout}ms: ${command} ${args.join(' ')}`,
               );
 
               // Force kill the process and process tree to handle infinite loops
@@ -1528,6 +1533,9 @@ export class ExecutionService implements OnModuleDestroy {
 
                   // Also send SIGKILL as backup
                   childProcess.kill('SIGKILL');
+
+                  // Force browser cleanup in case browsers are stuck
+                  void this.cleanupBrowserProcesses();
                 } catch (killError) {
                   this.logger.error(
                     `Failed to kill timed out process: ${(killError as Error).message}`,
@@ -1537,10 +1545,10 @@ export class ExecutionService implements OnModuleDestroy {
 
               resolve({
                 success: false,
-                stdout: stdout + '\n[EXECUTION TIMEOUT]',
+                stdout: stdout + '\n[EXECUTION TIMEOUT - PROCESS KILLED]',
                 stderr:
                   stderr +
-                  `\n[ERROR] Execution timed out after ${options.timeout}ms`,
+                  `\n[ERROR] Execution timed out after ${options.timeout}ms - Process and children killed`,
               });
             }
           }, options.timeout);

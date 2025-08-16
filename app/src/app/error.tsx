@@ -25,13 +25,7 @@ export default function Error({
         </div>
         
         <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
-          <Button
-            onClick={() => reset()}
-            className="flex items-center gap-2 flex-1"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Try Again
-          </Button>
+       
           <Link href="/" className="flex-1">
             <Button variant="outline" className="w-full flex items-center gap-2">
               <Home className="h-4 w-4" />

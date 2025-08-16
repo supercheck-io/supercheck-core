@@ -43,9 +43,39 @@ x-common-env: &common-env
   # Monitor Configuration
   RECENT_MONITOR_RESULTS_LIMIT: 1000
   
-  # Playwright Configuration
-  PLAYWRIGHT_RETRIES: 1
-  PLAYWRIGHT_WORKERS: 3
+  # Playwright Configuration - Optimized for Supercheck execution service
+  PLAYWRIGHT_HEADLESS: true
+  PLAYWRIGHT_RETRIES: 2
+  PLAYWRIGHT_TRACE: ${PLAYWRIGHT_TRACE:-on}
+  PLAYWRIGHT_SCREENSHOT: ${PLAYWRIGHT_SCREENSHOT:-on}
+  PLAYWRIGHT_VIDEO: ${PLAYWRIGHT_VIDEO:-on}
+  
+  # Browser support (disabled by default for performance)
+  ENABLE_FIREFOX: false
+  ENABLE_WEBKIT: false
+  ENABLE_MOBILE: false
+  
+  # Advanced Playwright settings
+  ENABLE_JSON_REPORTER: false
+  
+  # Playground Cleanup Configuration
+  PLAYGROUND_CLEANUP_ENABLED: true
+  PLAYGROUND_CLEANUP_CRON: "0 */12 * * *"  # Every 12 hours
+  PLAYGROUND_CLEANUP_MAX_AGE_HOURS: 24
+  
+  # Security Configuration
+  CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-your-credential-encryption-key-change-this-in-production}
+  VARIABLES_ENCRYPTION_KEY: ${VARIABLES_ENCRYPTION_KEY:-your-64-character-encryption-key-for-variable-secrets-change-this-in-prod}
+  
+  # Better Auth Admin Configuration
+  SUPER_ADMIN_USER_IDS: ${SUPER_ADMIN_USER_IDS:-4512347a-2ae6-413d-9cdc-91c22551ceb1,2b013c80-4fb4-4e9f-a3d1-48142e684dee}
+  SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-admin@example.com}
+  MAX_ORGANIZATIONS_PER_USER: 5
+  MAX_PROJECTS_PER_ORG: 10
+  DEFAULT_PROJECT_NAME: "Default Project"
+  ENABLE_PROJECT_LEVEL_RBAC: true
+  ALLOW_CROSS_PROJECT_ACCESS: false
+  STRICT_ORGANIZATION_ISOLATION: true
   
   # Email Configuration for Notifications
   # Control which email services are enabled
@@ -64,16 +94,11 @@ x-common-env: &common-env
   RESEND_API_KEY: ${RESEND_API_KEY:-re_esRt3Mhv_NDTmUXhXpVgT2VrNR4pqwFUP}
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notifications@meditationblue.com}
 
-  # For HTTP use IP or localhost 
-  # NEXT_PUBLIC_APP_URL: http://91.98.19.170:3000 
-  # BETTER_AUTH_URL: http://91.98.19.170:3000 
+  # App URLs for HTTP deployment (localhost/IP)
   NEXT_PUBLIC_APP_URL: http://localhost:3000 
   BETTER_AUTH_URL: http://localhost:3000 
-
-  # For HTTPS use domain name 
-  # NEXT_PUBLIC_APP_URL: https://supercheck.meditationblue.com 
-  # BETTER_AUTH_URL: https://supercheck.meditationblue.com 
-
+  
+  # Auth Configuration
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-7pQ4ME2JCMxhcinoTtvUYpque24t2uh1}
 
 services:
@@ -85,6 +110,10 @@ services:
     environment:
       <<: *common-env
       # App-specific configuration
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-7pQ4ME2JCMxhcinoTtvUYpque24t2uh1}
+      BETTER_AUTH_URL: http://localhost:3000
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notifications@meditationblue.com}
     volumes:
       - ./app/public/tests:/app/public/tests
       - ./app/public/test-results:/app/public/test-results
@@ -120,6 +149,14 @@ services:
     environment:
       <<: *common-env
       # Worker-specific configuration
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      BETTER_AUTH_URL: http://localhost:3000
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notifications@meditationblue.com}
+      # Node.js memory optimization - Conservative heap size with CPU throttling
+      NODE_OPTIONS: "--max-old-space-size=2048 --max-semi-space-size=64 --expose-gc --experimental-worker"
+      # Additional performance optimizations
+      UV_THREADPOOL_SIZE: 4
+      NODE_ENV: production
     volumes:
       # Use named volumes instead of bind mounts to avoid permission issues
       - worker-playwright-reports:/app/playwright-reports
@@ -146,11 +183,11 @@ services:
       replicas: 2
       resources:
         limits:
-          cpus: '2.0'
-          memory: 4G
+          cpus: '1.5'
+          memory: 3G
         reservations:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.5'
+          memory: 1.5G
 
   # PostgreSQL Database
   postgres:

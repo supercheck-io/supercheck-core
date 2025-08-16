@@ -44,9 +44,28 @@ x-common-env: &common-env
   # Monitor Configuration
   RECENT_MONITOR_RESULTS_LIMIT: 1000
   
-  # Playwright Configuration
-  PLAYWRIGHT_RETRIES: 1
-  PLAYWRIGHT_WORKERS: 3
+  # Playwright Configuration - Optimized for Supercheck execution service
+  PLAYWRIGHT_HEADLESS: true
+  PLAYWRIGHT_RETRIES: 2
+  PLAYWRIGHT_TRACE: ${PLAYWRIGHT_TRACE:-on}
+  PLAYWRIGHT_SCREENSHOT: ${PLAYWRIGHT_SCREENSHOT:-on}
+  PLAYWRIGHT_VIDEO: ${PLAYWRIGHT_VIDEO:-on}
+  
+  # Browser support (disabled by default for performance)
+  ENABLE_FIREFOX: false
+  ENABLE_WEBKIT: false
+  ENABLE_MOBILE: false
+  
+  # Advanced Playwright settings
+  ENABLE_JSON_REPORTER: false
+  
+  # Playground Cleanup Configuration
+  PLAYGROUND_CLEANUP_ENABLED: true
+  PLAYGROUND_CLEANUP_CRON: "0 */12 * * *"  # Every 12 hours
+  PLAYGROUND_CLEANUP_MAX_AGE_HOURS: 24
+  
+  # Security Configuration
+  CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-your-credential-encryption-key-change-this-in-production}
   
   # Better Auth Admin Configuration
   SUPER_ADMIN_USER_IDS: ${SUPER_ADMIN_USER_IDS:-4512347a-2ae6-413d-9cdc-91c22551ceb1,2b013c80-4fb4-4e9f-a3d1-48142e684dee}
@@ -174,9 +193,12 @@ services:
       NEXT_PUBLIC_APP_URL: https://${DOMAIN:-supercheck.meditationblue.com}
       BETTER_AUTH_URL: https://${DOMAIN:-supercheck.meditationblue.com}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
-      # Memory management configuration
-      MAX_CONCURRENT_EXECUTIONS: 2
-      MEMORY_THRESHOLD_MB: 1536
+      # Simple configuration - concurrency and memory limits are hard-coded
+      # Node.js memory optimization - Conservative heap size with CPU throttling
+      NODE_OPTIONS: "--max-old-space-size=2048 --max-semi-space-size=64 --expose-gc --experimental-worker"
+      # Additional performance optimizations
+      UV_THREADPOOL_SIZE: 4
+      NODE_ENV: production
       # Note: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD already in common-env
     # Use default CMD from Dockerfile
     volumes:
@@ -205,11 +227,11 @@ services:
       replicas: 2
       resources:
         limits:
-          cpus: '2.0'
-          memory: 4G
+          cpus: '1.5'
+          memory: 3G
         reservations:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.5'
+          memory: 1.5G
 
   # PostgreSQL Database
   postgres:
