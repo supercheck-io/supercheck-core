@@ -64,6 +64,8 @@ export interface JobExecutionTask {
   trigger: JobTrigger; // Add trigger property
   organizationId: string; // Required for RBAC filtering
   projectId: string; // Required for RBAC filtering
+  variables?: Record<string, string>; // Resolved variables for job execution
+  secrets?: Record<string, string>; // Resolved secrets for job execution
 }
 
 // Optional: Interface for database report metadata storage

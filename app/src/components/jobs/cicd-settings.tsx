@@ -14,7 +14,6 @@ import {
   Ban,
   Shield
 } from "lucide-react";
-import { Spinner, LoadingBadge } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { ApiKeyDialog } from "./api-key-dialog";
 import {

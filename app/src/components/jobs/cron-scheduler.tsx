@@ -32,7 +32,7 @@ const CronScheduler: React.FC<CronSchedulerProps> = ({
     <div className="cron-widget-container space-y-2"> 
       {/* The Cron component for visual editing */}
       <Cron
-        value={value}
+        value={value || "0 0 * * 0"} // Default to "every week" (Sunday at midnight) if no value
         setValue={onChange}
         leadingZero // Use leading zeros for hours/minutes (e.g., 01 instead of 1)
         clearButton={false} // Hide the default clear button if desired
@@ -41,10 +41,12 @@ const CronScheduler: React.FC<CronSchedulerProps> = ({
         disabled={disabled}
         readOnly={readOnly}
         onError={onError} // Pass the error handler
-        // Only allow hourly and larger periods
+        // Only allow hourly and larger periods (no minutes)
         allowedPeriods={['year', 'month', 'week', 'day', 'hour']}
-        // Remove 'minutes' from dropdowns and force specific behavior
+        // Remove 'minutes' from dropdowns to prevent minute-level scheduling
         allowedDropdowns={['period', 'months', 'month-days', 'week-days', 'hours']}
+        // Set default period to week for weekly scheduling
+        defaultPeriod="week"
       />
       
       {/* Read-only input to display the generated cron string */}

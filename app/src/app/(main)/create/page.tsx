@@ -1,5 +1,6 @@
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { CreatePageContent } from "@/components/create/create-page-content";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function CreatePage() {
   const breadcrumbs = [
@@ -8,9 +9,13 @@ export default function CreatePage() {
   ];
 
   return (
-    <div className="w-full px-6 py-4">
+    <div>
       <PageBreadcrumbs items={breadcrumbs} />
-      <CreatePageContent />
+      <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 m-4">
+        <CardContent>
+          <CreatePageContent />
+        </CardContent>
+      </Card>
     </div>
   );
 }

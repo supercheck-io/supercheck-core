@@ -56,7 +56,7 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
     return (
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold">Availability Overview</CardTitle>
+          <CardTitle className="text-lg font-semibold">Availability Overview</CardTitle>
           <CardDescription className="text-sm ">Availability status for monitor checks.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center h-[125px]">
@@ -86,7 +86,7 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle className="text-2xl font-semibold">Availability Overview</CardTitle>
+        <CardTitle className="text-lg font-semibold">Availability Overview</CardTitle>
         <CardDescription>
           {getDescription()}
         </CardDescription>

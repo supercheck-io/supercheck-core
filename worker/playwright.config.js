@@ -1,4 +1,4 @@
-const { defineConfig, devices } = require("@playwright/test");
+const { defineConfig, devices } = require('@playwright/test');
 const path = require('path');
 
 /**
@@ -19,12 +19,12 @@ const getOptimalWorkerCount = () => {
   const isCI = !!process.env.CI;
   const isDevelopment = process.env.NODE_ENV === 'development';
   const isProduction = process.env.NODE_ENV === 'production';
-  
+
   // Align with execution service maxConcurrentExecutions = 1
   if (isProduction || isCI) {
     return 1; // Conservative for production/CI to prevent resource exhaustion
   }
-  
+
   // For development, allow slightly more parallelism but still conservative
   return isDevelopment ? 2 : 1;
 };
@@ -40,47 +40,49 @@ console.log(`Worker Count: ${getOptimalWorkerCount()}`);
  */
 module.exports = defineConfig({
   testDir: testDir,
-  
+
   /* Optimized parallel execution aligned with execution service */
   fullyParallel: true,
-  
+
   /* Worker count optimized for resource management */
   workers: getOptimalWorkerCount(),
-  
+
   /* Fail the build on CI if you accidentally left test.only in the source code */
   forbidOnly: !!process.env.CI,
-  
+
   /* Smart retry strategy */
-  retries: process.env.CI ? 2 : 1, // More retries in CI for flaky network conditions
-  
+  retries: process.env.CI ? 1 : 1, // More retries in CI for flaky network conditions
+
   /* Reporter configuration optimized for artifact storage */
   reporter: [
     ['html'], // Always generate HTML reports for S3 upload
     ['list'], // Console output for debugging
     // Add JSON reporter for metrics if needed
-    ...(process.env.ENABLE_JSON_REPORTER ? [['json', { outputFile: 'test-results.json' }]] : [])
+    ...(process.env.ENABLE_JSON_REPORTER
+      ? [['json', { outputFile: 'test-results.json' }]]
+      : []),
   ],
-  
+
   /* Timeouts aligned with execution service limits */
   timeout: 110000, // 110 seconds - slightly less than execution service timeout (120s) for cleanup time
   expect: {
     timeout: 15000, // 15 seconds for assertions
   },
-  
+
   /* Global test setup timeout */
   globalTimeout: 600000, // 10 minutes for entire test suite (job timeout is 15min)
-  
+
   /* Optimized settings for Supercheck execution environment */
   use: {
     /* Action timeout optimized for web application testing */
     actionTimeout: 20000, // 20 seconds - balanced for real-world conditions
     navigationTimeout: 30000, // 30 seconds for page loads
-    
+
     /* Artifact collection strategy - configurable via environment variables */
     trace: process.env.PLAYWRIGHT_TRACE || 'on',
     screenshot: process.env.PLAYWRIGHT_SCREENSHOT || 'on',
     video: process.env.PLAYWRIGHT_VIDEO || 'on',
-    
+
     /* Browser optimization for resource efficiency */
     launchOptions: {
       args: [
@@ -93,10 +95,10 @@ module.exports = defineConfig({
         '--disable-ipc-flooding-protection', // Prevent IPC flooding in heavy tests
         '--memory-pressure-off', // Disable memory pressure warnings
         '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows'
+        '--disable-backgrounding-occluded-windows',
       ],
     },
-    
+
     /* Context options for better isolation and performance */
     contextOptions: {
       // Reduce memory usage
@@ -104,11 +106,11 @@ module.exports = defineConfig({
       // Faster test execution
       strictSelectors: true,
     },
-    
+
     /* Ignore HTTPS errors for testing flexibility */
     ignoreHTTPSErrors: true,
   },
-  
+
   /* Directory for test artifacts such as screenshots, videos, traces, etc. */
   outputDir: relativeOutputDir, // Use the relative path
 
@@ -124,47 +126,57 @@ module.exports = defineConfig({
         headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
       },
     },
-    
+
     // Additional browsers can be enabled via environment variables
-    ...(process.env.ENABLE_FIREFOX === 'true' ? [{
-      name: 'firefox',
-      use: {
-        ...devices['Desktop Firefox'],
-        viewport: { width: 1280, height: 720 },
-        headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      },
-    }] : []),
-    
-    ...(process.env.ENABLE_WEBKIT === 'true' ? [{
-      name: 'webkit',
-      use: {
-        ...devices['Desktop Safari'],
-        viewport: { width: 1280, height: 720 },
-        headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-      },
-    }] : []),
-    
+    ...(process.env.ENABLE_FIREFOX === 'true'
+      ? [
+          {
+            name: 'firefox',
+            use: {
+              ...devices['Desktop Firefox'],
+              viewport: { width: 1280, height: 720 },
+              headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+            },
+          },
+        ]
+      : []),
+
+    ...(process.env.ENABLE_WEBKIT === 'true'
+      ? [
+          {
+            name: 'webkit',
+            use: {
+              ...devices['Desktop Safari'],
+              viewport: { width: 1280, height: 720 },
+              headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+            },
+          },
+        ]
+      : []),
+
     // Mobile testing projects (opt-in)
-    ...(process.env.ENABLE_MOBILE === 'true' ? [
-      {
-        name: 'mobile-chrome',
-        use: {
-          ...devices['Pixel 5'],
-          headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-        },
-      },
-      {
-        name: 'mobile-safari',
-        use: {
-          ...devices['iPhone 12'],
-          headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-        },
-      }
-    ] : []),
+    ...(process.env.ENABLE_MOBILE === 'true'
+      ? [
+          {
+            name: 'mobile-chrome',
+            use: {
+              ...devices['Pixel 5'],
+              headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+            },
+          },
+          {
+            name: 'mobile-safari',
+            use: {
+              ...devices['iPhone 12'],
+              headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+            },
+          },
+        ]
+      : []),
   ],
-  
+
   /* Performance and cleanup optimizations */
-  maxFailures: process.env.CI ? 2 : undefined, // Stop after 2 failures in CI
+  maxFailures: process.env.CI ? 5 : undefined, // Stop after 5 failures in CI
 
   /* Metadata for execution tracking */
   // metadata: {
@@ -179,4 +191,4 @@ module.exports = defineConfig({
   //   url: 'http://127.0.0.1:3000',
   //   reuseExistingServer: !process.env.CI,
   // },
-}); 
+});

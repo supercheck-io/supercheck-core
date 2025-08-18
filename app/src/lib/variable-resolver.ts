@@ -96,9 +96,18 @@ export function extractVariableNames(script: string): string[] {
  * Generate both getVariable and getSecret function implementations for test execution
  */
 export function generateVariableFunctions(variables: Record<string, string>, secrets: Record<string, string>): string {
+  // Use a more reliable approach for embedding JSON in JavaScript
+  const variableEntries = Object.entries(variables).map(([key, value]) => 
+    `"${key.replace(/"/g, '\\"')}": ${JSON.stringify(value)}`
+  ).join(', ');
+  
+  const secretEntries = Object.entries(secrets).map(([key, value]) => 
+    `"${key.replace(/"/g, '\\"')}": ${JSON.stringify(value)}`
+  ).join(', ');
+  
   return `
 function getVariable(key, options = {}) {
-  const variables = ${JSON.stringify(variables, null, 2)};
+  const variables = {${variableEntries}};
   
   const value = variables[key];
   
@@ -106,7 +115,7 @@ function getVariable(key, options = {}) {
     if (options.required) {
       throw new Error(\`Required variable '\${key}' is not defined\`);
     }
-    return options.default;
+    return options.default !== undefined ? options.default : '';
   }
   
   // Handle type conversion
@@ -130,7 +139,7 @@ function getVariable(key, options = {}) {
 }
 
 function getSecret(key, options = {}) {
-  const secrets = ${JSON.stringify(secrets, null, 2)};
+  const secrets = {${secretEntries}};
   
   const value = secrets[key];
   
@@ -138,7 +147,7 @@ function getSecret(key, options = {}) {
     if (options.required) {
       throw new Error(\`Required secret '\${key}' is not defined\`);
     }
-    return options.default;
+    return options.default !== undefined ? options.default : '';
   }
   
   // Create a protected secret object that prevents console logging

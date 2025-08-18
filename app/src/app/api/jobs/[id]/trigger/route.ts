@@ -1,36 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { jobs, apikey, jobTests, runs, tests, JobTrigger } from "@/db/schema/schema";
+import { jobs, apikey, runs, JobTrigger } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
-
-declare const Buffer: {
-  from(data: string, encoding: string): { toString(encoding: string): string };
-};
-
-/**
- * Helper function to decode base64-encoded test scripts
- */
-async function decodeTestScript(base64Script: string): Promise<string> {
-  const base64Regex = /^[A-Za-z0-9+/=]+$/;
-  const isBase64 = base64Regex.test(base64Script);
-
-  if (!isBase64) {
-    return base64Script;
-  }
-
-  try {
-    if (typeof window === "undefined") {
-      const decoded = Buffer.from(base64Script, "base64").toString("utf-8");
-      return decoded;
-    }
-    return base64Script;
-  } catch (error) {
-    console.error("Error decoding base64:", error);
-    return base64Script;
-  }
-}
+import { prepareJobTestScripts } from "@/lib/job-execution-utils";
 
 // POST /api/jobs/[id]/trigger - Trigger job remotely via API key
 export async function POST(
@@ -181,26 +155,6 @@ export async function POST(
       );
     }
 
-    // Get the tests associated with this job
-    const jobTestsResult = await db
-      .select({
-        id: jobTests.testId,
-        orderPosition: jobTests.orderPosition,
-      })
-      .from(jobTests)
-      .where(eq(jobTests.jobId, jobId))
-      .orderBy(jobTests.orderPosition);
-
-    if (jobTestsResult.length === 0) {
-      return NextResponse.json(
-        { 
-          error: "No tests found for job", 
-          message: "This job has no tests associated with it" 
-        },
-        { status: 400 }
-      );
-    }
-
     // Parse optional request body for additional parameters (currently not used but reserved for future features)
     try {
       const body = await request.text();
@@ -225,7 +179,7 @@ export async function POST(
         console.error(`Failed to update API key usage for ${key.id}:`, error);
       });
 
-    // Create run record and prepare test scripts directly
+    // Create run record
     const runId = crypto.randomUUID();
     const startTime = new Date();
     
@@ -240,61 +194,25 @@ export async function POST(
 
     console.log(`[${jobId}/${runId}] Created running test run record: ${runId}`);
 
-    // Prepare test scripts
-    const testScripts = [];
-    
-    for (const testRef of jobTestsResult) {
-      console.log(`[${jobId}/${runId}] Fetching script for test ${testRef.id} from database`);
-      
-      // Fetch test directly from database
-      const testResult = await db
-        .select({
-          id: tests.id,
-          title: tests.title,
-          script: tests.script
-        })
-        .from(tests)
-        .where(eq(tests.id, testRef.id))
-        .limit(1);
-      
-      if (testResult.length > 0 && testResult[0].script) {
-        // Decode the base64 script
-        const testScript = await decodeTestScript(testResult[0].script);
-        const testName = testResult[0].title || `Test ${testResult[0].id}`;
-        testScripts.push({ id: testResult[0].id, name: testName, script: testScript });
-      } else {
-        console.error(`[${jobId}/${runId}] Failed to fetch script for test ${testRef.id}, skipping.`);
-        continue;
-      }
-    }
-
-    if (testScripts.length === 0) {
-      console.error(`[${jobId}/${runId}] No valid test scripts found after fetching. Aborting run.`);
-      await db.update(runs).set({ 
-        status: "failed", 
-        completedAt: new Date(), 
-        errorDetails: "No valid test scripts found for the job." 
-      }).where(eq(runs.id, runId));
-      return NextResponse.json(
-        { 
-          error: "No valid test scripts could be prepared for the job.",
-          message: "All tests associated with this job are invalid or missing scripts" 
-        },
-        { status: 400 }
-      );
-    }
-
-    console.log(`[${jobId}/${runId}] Prepared ${testScripts.length} test scripts for queuing.`);
+    // Use unified test script preparation with proper variable resolution
+    const { testScripts: processedTestScripts, variableResolution } = await prepareJobTestScripts(
+      jobId,
+      job.projectId || '',
+      runId,
+      `[${jobId}/${runId}]`
+    );
 
     // Create job execution task
     const task: JobExecutionTask = {
       jobId: jobId,
-      testScripts,
+      testScripts: processedTestScripts,
       runId: runId,
       originalJobId: jobId,
       trigger: "remote",
       organizationId: job.organizationId || '',
-      projectId: job.projectId || ''
+      projectId: job.projectId || '',
+      variables: variableResolution.variables,
+      secrets: variableResolution.secrets
     };
 
     try {
@@ -336,7 +254,7 @@ export async function POST(
         jobId: jobId,
         jobName: job.name,
         runId: runId,
-        testCount: testScripts.length,
+        testCount: processedTestScripts.length,
         triggeredBy: key.name,
         triggeredAt: now.toISOString(),
       },

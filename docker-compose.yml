@@ -15,7 +15,7 @@ x-common-env: &common-env
   REDIS_URL: redis://:${REDIS_PASSWORD:-supersecure-redis-password-change-this}@redis:6379
   
   # App Configuration
-  NEXT_PUBLIC_APP_URL: https://${DOMAIN:-supercheck.meditationblue.com}
+  NEXT_PUBLIC_APP_URL: https://${DOMAIN:-demo.supercheck.io}
   NODE_ENV: production
   RUNNING_CAPACITY: 5
   QUEUED_CAPACITY: 50
@@ -109,7 +109,7 @@ services:
       - "--entrypoints.websecure.address=:443"
       - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
       - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-hello@meditationblue.com}"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-hello@demo.supercheck.io}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
       - "--certificatesresolvers.myresolver.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"
       - "--log.level=INFO"
@@ -123,7 +123,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Dashboard router (HTTPS only) - matches both /api and /dashboard per official docs
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN:-supercheck.meditationblue.com}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN:-demo.supercheck.io}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
       - "traefik.http.routers.dashboard.entrypoints=websecure"
       - "traefik.http.routers.dashboard.tls.certresolver=myresolver"
       - "traefik.http.routers.dashboard.service=api@internal"
@@ -136,16 +136,16 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:playground-variables-8bc9cf2
+    image: ghcr.io/krish-kant/supercheck/app:playground-variables-4cfbd73
     expose:
       - "3000"
     environment:
       <<: *common-env
-      NEXT_PUBLIC_APP_URL: https://${DOMAIN:-supercheck.meditationblue.com}
+      NEXT_PUBLIC_APP_URL: https://${DOMAIN:-demo.supercheck.io}
       # App-specific configuration
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-key-change-this-in-production}
-      BETTER_AUTH_URL: https://${DOMAIN:-supercheck.meditationblue.com}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notification@meditationblue.com}
+      BETTER_AUTH_URL: https://${DOMAIN:-demo.supercheck.io}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notification@demo.supercheck.io}
       # Migration Configuration
       # Migrations are always run on app startup
     # Use default CMD from Dockerfile which runs migrations then starts server
@@ -169,7 +169,7 @@ services:
       start_period: 120s  # Increased to allow for migrations
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`${DOMAIN:-supercheck.meditationblue.com}`)"
+      - "traefik.http.routers.app.rule=Host(`${DOMAIN:-demo.supercheck.io}`)"
       - "traefik.http.routers.app.entrypoints=websecure"
       - "traefik.http.routers.app.tls.certresolver=myresolver"
       - "traefik.http.services.app.loadbalancer.server.port=3000"
@@ -186,12 +186,12 @@ services:
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:playground-variables-8bc9cf2
+    image: ghcr.io/krish-kant/supercheck/worker:playground-variables-4cfbd73
     environment:
       <<: *common-env
       # Worker-specific configuration
-      NEXT_PUBLIC_APP_URL: https://${DOMAIN:-supercheck.meditationblue.com}
-      BETTER_AUTH_URL: https://${DOMAIN:-supercheck.meditationblue.com}
+      NEXT_PUBLIC_APP_URL: https://${DOMAIN:-demo.supercheck.io}
+      BETTER_AUTH_URL: https://${DOMAIN:-demo.supercheck.io}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
       # Simple configuration - concurrency and memory limits are hard-coded
       # Node.js memory optimization - Conservative heap size with CPU throttling

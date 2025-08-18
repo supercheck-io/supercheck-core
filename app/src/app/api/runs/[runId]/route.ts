@@ -4,7 +4,8 @@ import { runs, reports, jobs, jobTests } from "@/db/schema/schema";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth, getUserOrgRole } from '@/lib/rbac/middleware';
 import { isSuperAdmin } from '@/lib/admin';
-import { getActiveProject } from '@/lib/session';
+import { logAuditEvent } from '@/lib/audit-logger';
+import { canManageRuns } from '@/lib/rbac/client-permissions';
 
 // Get run handler - requires auth but no project restrictions
 export async function GET(
@@ -104,9 +105,13 @@ export async function DELETE(
   context: { params: Promise<{ runId: string }> }
 ) {
   const params = await context.params;
+  let userId: string | undefined;
+  let runId: string | undefined;
+  
   try {
-    await requireAuth();
-    const runId = params.runId;
+    const authResult = await requireAuth();
+    userId = authResult.userId;
+    runId = params.runId;
     console.log(`Attempting to delete run with ID: ${runId}`);
     
     if (!runId) {
@@ -117,33 +122,49 @@ export async function DELETE(
       );
     }
 
-    // Get active project for user
-    const activeProject = await getActiveProject();
-    if (!activeProject) {
-      return NextResponse.json(
-        { error: 'No active project found' },
-        { status: 400 }
-      );
-    }
-    
-    // First check if the run exists and belongs to the current project
-    const existingRun = await db
-      .select({ id: runs.id, jobId: runs.jobId })
+    // First get the run and its associated job/project (same pattern as GET method)
+    const existingRunData = await db
+      .select({
+        id: runs.id,
+        jobId: runs.jobId,
+        projectId: jobs.projectId,
+        organizationId: jobs.organizationId,
+      })
       .from(runs)
       .leftJoin(jobs, eq(runs.jobId, jobs.id))
-      .where(and(
-        eq(runs.id, runId),
-        eq(jobs.projectId, activeProject.id),
-        eq(jobs.organizationId, activeProject.organizationId)
-      ))
+      .where(eq(runs.id, runId))
       .limit(1);
-      
-    if (!existingRun.length) {
+
+    if (!existingRunData.length) {
       console.error(`Run with ID ${runId} not found`);
       return NextResponse.json(
         { success: false, error: "Run not found" },
         { status: 404 }
       );
+    }
+
+    const run = existingRunData[0];
+
+    // Check if user has access to this run's organization (same access pattern as GET method)
+    const userIsSuperAdmin = await isSuperAdmin();
+    
+    if (!userIsSuperAdmin && run.organizationId) {
+      const orgRole = await getUserOrgRole(userId, run.organizationId);
+      
+      if (!orgRole) {
+        return NextResponse.json(
+          { error: 'Access denied: Not a member of this organization' },
+          { status: 403 }
+        );
+      }
+
+      // Check if user has permission to manage runs
+      if (!canManageRuns(orgRole)) {
+        return NextResponse.json(
+          { error: 'Access denied: Insufficient permissions to delete runs' },
+          { status: 403 }
+        );
+      }
     }
     
     console.log(`Deleting reports for run: ${runId}`);
@@ -160,10 +181,50 @@ export async function DELETE(
       .delete(runs)
       .where(eq(runs.id, runId));
     
+    // Log audit event for run deletion
+    try {
+      await logAuditEvent({
+        userId,
+        organizationId: run.organizationId || undefined,
+        action: 'run_delete',
+        resource: 'run',
+        resourceId: runId,
+        metadata: {
+          jobId: run.jobId,
+          projectId: run.projectId
+        },
+        success: true
+      });
+    } catch (auditError) {
+      console.error('Failed to log audit event for run deletion:', auditError);
+      // Continue with success response as audit failure shouldn't break the operation
+    }
+    
     console.log(`Successfully deleted run: ${runId}`);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting run:', error);
+
+    // Log audit event for run deletion failure
+    if (userId && runId) {
+      try {
+        await logAuditEvent({
+          userId,
+          organizationId: undefined, // May not be available in error scenarios
+          action: 'run_delete',
+          resource: 'run',
+          resourceId: runId,
+          metadata: {
+            errorType: 'internal_error'
+          },
+          success: false,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        });
+      } catch (auditError) {
+        console.error('Failed to log audit event for run deletion failure:', auditError);
+      }
+    }
+
     return NextResponse.json(
       { success: false, error: 'Failed to delete run' },
       { status: 500 }

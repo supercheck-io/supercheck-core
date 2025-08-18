@@ -6,6 +6,7 @@ import { scheduleMonitor, deleteScheduledMonitor } from "@/lib/monitor-scheduler
 import { MonitorJobData } from "@/lib/queue";
 import { requireAuth, hasPermission, getUserOrgRole } from '@/lib/rbac/middleware';
 import { isSuperAdmin } from '@/lib/admin';
+import { logAuditEvent } from "@/lib/audit-logger";
 
 const RECENT_RESULTS_LIMIT = 1000; // Number of recent results to fetch
 
@@ -102,7 +103,7 @@ export async function PUT(
   }
 
   try {
-    await requireAuth();
+    const { userId } = await requireAuth();
     
     const rawData = await request.json();
     const validationResult = monitorsUpdateSchema.safeParse(rawData);
@@ -306,6 +307,28 @@ export async function PUT(
         }
     }
 
+    // Log the audit event for monitor update
+    await logAuditEvent({
+      userId,
+      organizationId: updatedMonitor.organizationId || undefined,
+      action: 'monitor_updated',
+      resource: 'monitor',
+      resourceId: id,
+      metadata: {
+        monitorName: updatedMonitor.name,
+        monitorType: updatedMonitor.type,
+        target: updatedMonitor.target,
+        frequencyMinutes: updatedMonitor.frequencyMinutes,
+        enabled: updatedMonitor.enabled,
+        projectId: updatedMonitor.projectId,
+        statusChanged: oldStatus !== newStatus,
+        oldStatus,
+        newStatus,
+        frequencyChanged: oldFrequency !== newFrequency
+      },
+      success: true
+    });
+
     return NextResponse.json(updatedMonitor);
   } catch (error) {
     console.error(`Error updating monitor ${id}:`, error);
@@ -417,7 +440,7 @@ export async function PATCH(
   }
 
   try {
-    await requireAuth();
+    const { userId } = await requireAuth();
     
     const rawData = await request.json();
 
@@ -537,6 +560,26 @@ export async function PATCH(
         }
       }
     }
+
+    // Log the audit event for monitor partial update
+    await logAuditEvent({
+      userId,
+      organizationId: updatedMonitor.organizationId || undefined,
+      action: 'monitor_updated',
+      resource: 'monitor',
+      resourceId: id,
+      metadata: {
+        monitorName: updatedMonitor.name,
+        updateType: 'partial',
+        statusChanged: rawData.status && rawData.status !== currentMonitor.status,
+        oldStatus: currentMonitor.status,
+        newStatus: rawData.status || currentMonitor.status,
+        configUpdated: !!rawData.config,
+        alertConfigUpdated: !!rawData.alertConfig,
+        projectId: updatedMonitor.projectId
+      },
+      success: true
+    });
 
     return NextResponse.json(updatedMonitor);
   } catch (error) {

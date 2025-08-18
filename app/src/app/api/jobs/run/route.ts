@@ -7,34 +7,7 @@ import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
 import { requireProjectContext } from '@/lib/project-context';
 import { hasPermission } from '@/lib/rbac/middleware';
 import { logAuditEvent } from '@/lib/audit-logger';
-import { resolveProjectVariables, extractVariableNames, generateVariableFunctions } from "@/lib/variable-resolver";
-
-declare const Buffer: {
-  from(data: string, encoding: string): { toString(encoding: string): string };
-};
-
-/**
- * Helper function to decode base64-encoded test scripts
- */
-async function decodeTestScript(base64Script: string): Promise<string> {
-  const base64Regex = /^[A-Za-z0-9+/=]+$/;
-  const isBase64 = base64Regex.test(base64Script);
-
-  if (!isBase64) {
-    return base64Script;
-  }
-
-  try {
-    if (typeof window === "undefined") {
-      const decoded = Buffer.from(base64Script, "base64").toString("utf-8");
-      return decoded;
-    }
-    return base64Script;
-  } catch (error) {
-    console.error("Error decoding base64:", error);
-    return base64Script;
-  }
-}
+import { applyVariablesToTestScripts, decodeTestScript } from "@/lib/job-execution-utils";
 
 export async function POST(request: Request) {
   let jobId: string | null = null;
@@ -164,28 +137,12 @@ export async function POST(request: Request) {
 
     console.log(`[${jobId}/${runId}] Prepared ${testScripts.length} test scripts for queuing.`);
 
-    // Resolve variables for the project
-    console.log(`[${jobId}/${runId}] Resolving project variables...`);
-    const variableResolution = await resolveProjectVariables(project.id);
-    
-    if (variableResolution.errors && variableResolution.errors.length > 0) {
-      console.warn(`[${jobId}/${runId}] Variable resolution errors:`, variableResolution.errors);
-      // Continue execution but log warnings
-    }
-    
-    // Generate both getVariable and getSecret function implementations
-    const variableFunctionCode = generateVariableFunctions(variableResolution.variables, variableResolution.secrets);
-    
-    // Prepend the variable functions to each test script
-    const processedTestScripts = testScripts.map(testScript => {
-      const usedVariables = extractVariableNames(testScript.script);
-      console.log(`[${jobId}/${runId}] Test ${testScript.name} uses ${usedVariables.length} variables: ${usedVariables.join(', ')}`);
-      
-      return {
-        ...testScript,
-        script: variableFunctionCode + '\n' + testScript.script
-      };
-    });
+    // Apply variable resolution using the unified function
+    const { processedTestScripts, variableResolution } = await applyVariablesToTestScripts(
+      testScripts,
+      project.id,
+      `[${jobId}/${runId}]`
+    );
 
     const task: JobExecutionTask = {
       jobId: jobId,

@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 import { z } from "zod";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 // Validation schemas
 const createApiKeySchema = z.object({
@@ -236,7 +237,31 @@ export async function POST(
 
     const apiKey = newApiKey[0];
 
+    // Get job info for audit logging
+    const jobInfo = await db
+      .select({ organizationId: jobs.organizationId, projectId: jobs.projectId, name: jobs.name })
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1);
+
     // Log API key creation for audit purposes
+    await logAuditEvent({
+      userId: session.user.id,
+      organizationId: jobInfo[0]?.organizationId || undefined,
+      action: 'api_key_created',
+      resource: 'api_key',
+      resourceId: apiKey.id,
+      metadata: {
+        apiKeyName: apiKey.name,
+        jobId: jobId,
+        jobName: jobInfo[0]?.name,
+        projectId: jobInfo[0]?.projectId,
+        expiresAt: expiresAt?.toISOString(),
+        hasExpiry: !!expiresAt
+      },
+      success: true
+    });
+
     console.log(`API key created: ${apiKey.name} (${apiKey.id}) for job ${jobId} by user ${session.user.id}`);
 
     return NextResponse.json({

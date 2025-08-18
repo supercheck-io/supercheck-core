@@ -9,6 +9,17 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { 
   MoreHorizontal, 
   Edit, 
@@ -269,19 +280,13 @@ export const columns: ColumnDef<Variable>[] = [
       if (!canManage) return null;
 
       const handleDelete = async () => {
-        if (!confirm("Are you sure you want to delete this variable? This action cannot be undone.")) {
-          return;
-        }
-
         try {
-          // Get project ID from the first variable's context or from meta
-          const projectId = (table.getRowModel().rows[0]?.original as Variable & { projectId?: string })?.projectId || 
-                          window.location.pathname.includes('/projects/') ? 
-                          window.location.pathname.split('/projects/')[1]?.split('/')[0] :
-                          null;
+          // Use project ID from meta (passed from parent component)
+          const projectId = meta?.projectId;
 
           if (!projectId) {
-            throw new Error("Project ID not found");
+            toast.error("Project context not available. Please refresh the page.");
+            return;
           }
 
           const response = await fetch(`/api/projects/${projectId}/variables/${variable.id}`, {
@@ -290,7 +295,7 @@ export const columns: ColumnDef<Variable>[] = [
 
           const data = await response.json();
 
-          if (data.success) {
+          if (response.ok && data.success) {
             toast.success("Variable deleted successfully");
             meta?.onDeleteVariable?.(variable.id);
           } else {
@@ -298,7 +303,7 @@ export const columns: ColumnDef<Variable>[] = [
           }
         } catch (error) {
           console.error("Error deleting variable:", error);
-          toast.error("Failed to delete variable");
+          toast.error("Failed to delete variable. Please try again.");
         }
       };
 
@@ -335,13 +340,35 @@ export const columns: ColumnDef<Variable>[] = [
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleDelete}
-                className="text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <DropdownMenuItem
+                    onSelect={(e) => e.preventDefault()}
+                    className="text-destructive cursor-pointer"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Variable</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete the variable <strong>{variable.key}</strong>? 
+                      This action cannot be undone and may affect any tests or jobs that use this variable.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete Variable
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </DropdownMenuContent>
           </DropdownMenu>
           {meta?.projectId && (

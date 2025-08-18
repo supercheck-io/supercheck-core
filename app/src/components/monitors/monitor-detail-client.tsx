@@ -259,13 +259,12 @@ export function MonitorDetailClient({ monitor: initialMonitor, isNotificationVie
     const recentResults = monitor.recentResults.slice(0, 50);
     
     const chartData = recentResults
-      .filter(r => r.responseTimeMs !== null && r.responseTimeMs !== undefined && r.responseTimeMs >= 0) // Include all valid response times including 0ms
       .map(r => {
         const date = typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt;
         
         return {
           name: format(date, 'HH:mm'), // Show only time (HH:MM) for cleaner x-axis
-          time: r.responseTimeMs!, // Safe to use ! since we filtered out null/undefined above
+          time: r.responseTimeMs ?? 0, // Use 0 for failed checks (null/undefined response times)
           fullDate: format(date, 'MMM dd, HH:mm'), // Keep full date for tooltips
           isUp: r.isUp, // Keep status for conditional styling
           status: r.status
@@ -672,7 +671,7 @@ export function MonitorDetailClient({ monitor: initialMonitor, isNotificationVie
           </div>
         </div>
 
-        <div className="grid gap-4 mt-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid gap-4 mt-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 m-2">
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
               <StatusHeaderIcon status={currentActualStatus} />
@@ -759,15 +758,15 @@ export function MonitorDetailClient({ monitor: initialMonitor, isNotificationVie
           </div>
 
           {/* Response Time Chart */}
-          <div className="flex-1">
+          <div className="flex-1 -mt-2">
             <ResponseTimeBarChart data={responseTimeData} />
           </div>
         </div>
 
-        <Card className="shadow-sm flex flex-col">
+        <Card className="shadow-sm flex flex-col ">
           <CardHeader className="flex-shrink-0">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-2xl font-semibold flex items-center">
+              <CardTitle className="text-lg font-semibold flex items-center">
                 Recent Check Results
               </CardTitle>
               <div className="flex items-center gap-2">

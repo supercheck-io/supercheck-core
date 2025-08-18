@@ -158,7 +158,9 @@ export class ExecutionService implements OnModuleDestroy {
     );
 
     // Log configuration
-    this.logger.log(`Max concurrent executions: ${this.maxConcurrentExecutions}`);
+    this.logger.log(
+      `Max concurrent executions: ${this.maxConcurrentExecutions}`,
+    );
     this.logger.log(`Memory threshold: ${this.memoryThresholdMB}MB`);
 
     // Ensure base local dir exists and has correct permissions
@@ -212,9 +214,12 @@ export class ExecutionService implements OnModuleDestroy {
       setInterval(() => {
         const memUsage = process.memoryUsage();
         const memUsageMB = Math.round(memUsage.heapUsed / 1024 / 1024);
-        
+
         // Only run GC if memory is critically high and we have active executions
-        if (memUsageMB > this.memoryThresholdMB * 0.9 && this.activeExecutions.size > 0) {
+        if (
+          memUsageMB > this.memoryThresholdMB * 0.9 &&
+          this.activeExecutions.size > 0
+        ) {
           global.gc?.();
           this.logger.debug(`Manual GC triggered at ${memUsageMB}MB`);
         }
@@ -275,7 +280,10 @@ export class ExecutionService implements OnModuleDestroy {
       const memUsageMB = Math.round(memUsage.heapUsed / 1024 / 1024);
 
       // Only perform cleanup if memory is actually high or we have active executions
-      if (memUsageMB > this.memoryThresholdMB * 0.8 || this.activeExecutions.size > 0) {
+      if (
+        memUsageMB > this.memoryThresholdMB * 0.8 ||
+        this.activeExecutions.size > 0
+      ) {
         await this.cleanupOldTempFiles();
       }
 
@@ -283,12 +291,10 @@ export class ExecutionService implements OnModuleDestroy {
       if (memUsageMB > this.memoryThresholdMB * 0.9) {
         this.logger.debug(`Memory usage: ${memUsageMB}MB`);
       }
-
     } catch (error) {
       this.logger.error(`Error during cleanup: ${(error as Error).message}`);
     }
   }
-
 
   /**
    * Cleans up old temporary files to prevent disk space issues - optimized for performance
@@ -301,7 +307,7 @@ export class ExecutionService implements OnModuleDestroy {
       }
 
       const dirs = await fs.readdir(this.baseLocalRunDir);
-      
+
       // Only clean up if there are many directories (performance optimization)
       if (dirs.length < 10) {
         return;
@@ -312,7 +318,7 @@ export class ExecutionService implements OnModuleDestroy {
 
       for (const dir of dirs) {
         const dirPath = path.join(this.baseLocalRunDir, dir);
-        
+
         try {
           const stats = await fs.stat(dirPath);
 
@@ -320,7 +326,7 @@ export class ExecutionService implements OnModuleDestroy {
             await fs.rm(dirPath, { recursive: true, force: true });
             cleanedCount++;
             this.logger.debug(`Cleaned up old temp directory: ${dirPath}`);
-            
+
             // Limit cleanup operations per run to reduce CPU usage
             if (cleanedCount >= 5) {
               break;

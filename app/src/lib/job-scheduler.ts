@@ -1,14 +1,13 @@
 import { Job } from 'bullmq';
 import { db } from "@/utils/db";
-import { jobs, jobTests, runs, tests, testsSelectSchema } from "@/db/schema/schema";
+import { jobs, runs } from "@/db/schema/schema";
 import { JobTrigger } from "@/db/schema/schema";
-import { eq, isNotNull, and, inArray } from "drizzle-orm";
+import { eq, isNotNull, and } from "drizzle-orm";
 import { getQueues, JobExecutionTask, JOB_EXECUTION_QUEUE } from "./queue";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
-import { z } from 'zod';
 import { createPlaygroundCleanupService, setPlaygroundCleanupInstance, type PlaygroundCleanupService } from './playground-cleanup';
-import { resolveProjectVariables, generateVariableFunctions, type VariableResolutionResult } from './variable-resolver';
+import { prepareJobTestScripts } from './job-execution-utils';
 
 // Map to store the created queues - REMOVED for statelessness
 // const queueMap = new Map<string, Queue>();
@@ -41,40 +40,40 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     // Generate a unique name for this scheduled job
     const schedulerJobName = `scheduled-job-${options.jobId}`;
 
-    // Fetch all tests associated with the job
-    const jobTestsList = await db
-      .select({ testId: jobTests.testId, orderPosition: jobTests.orderPosition })
-      .from(jobTests)
-      .where(eq(jobTests.jobId, options.jobId))
-      .orderBy(jobTests.orderPosition);
-
-    // Setting up repeatable job
-
-    // Fetch all test scripts upfront - directly from database to avoid auth issues
-    const testIds = jobTestsList.map(jt => jt.testId);
-    // Fetching test data
-    
-    const testData = await db
+    // First, get job information to access projectId
+    const jobData = await db
       .select()
-      .from(tests)
-      .where(inArray(tests.id, testIds));
-      
-    // Retrieved test records
+      .from(jobs)
+      .where(eq(jobs.id, options.jobId))
+      .limit(1);
     
-    // Map tests with their order positions
-    const testCases = jobTestsList.map(jobTest => {
-      const test = testData.find(t => t.id === jobTest.testId);
-      if (!test) {
-        console.error(`Test not found for ID: ${jobTest.testId}`);
-        return null;
-      }
-      return {
-        ...test,
-        orderPosition: jobTest.orderPosition
-      };
-    }).filter(Boolean); // Remove null entries
+    if (jobData.length === 0) {
+      throw new Error(`Job ${options.jobId} not found`);
+    }
     
-    // Prepared test cases
+    const job = jobData[0];
+    console.log(`[Schedule Job] Found job: ${job.name}, projectId: ${job.projectId}`);
+
+    // Use the same variable resolution logic as manual/remote jobs
+    // This ensures consistent behavior across all job trigger types
+    console.log(`[Schedule Job] Preparing test scripts with variable resolution for job ${options.jobId}...`);
+    const { testScripts, variableResolution } = await prepareJobTestScripts(
+      options.jobId,
+      job.projectId || '',
+      crypto.randomUUID(), // temporary runId for logging
+      `[Schedule Job ${options.jobId}]`
+    );
+    
+    console.log(`[Schedule Job] Resolved ${Object.keys(variableResolution.variables).length} variables and ${Object.keys(variableResolution.secrets).length} secrets`);
+    
+    // Convert to the format expected by the worker
+    const testCases = testScripts.map(script => ({
+      id: script.id,
+      title: script.name,
+      script: script.script // This is already decoded and has variables resolved
+    }));
+    
+    // Prepared test cases with variables resolved
 
     // Clean up any existing repeatable jobs for this job ID
     const repeatableJobs = await jobSchedulerQueue.getRepeatableJobs();
@@ -100,6 +99,11 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
         testCases,
         queue: JOB_EXECUTION_QUEUE, // Keep for handleScheduledJobTrigger
         retryLimit: options.retryLimit || 3,
+        // Pass resolved variables and job info to worker
+        variables: variableResolution.variables,
+        secrets: variableResolution.secrets,
+        projectId: job.projectId!,
+        organizationId: job.organizationId!,
       },
       {
         repeat: {
@@ -218,27 +222,33 @@ export async function handleScheduledJobTrigger(job: Job) {
     // Get the queue for execution
     const { jobQueue } = await getQueues();
     
-    // Resolve variables for the project
-    let variableResolution: VariableResolutionResult = { variables: {}, secrets: {}, errors: undefined };
-    if (jobData.length > 0 && jobData[0].projectId) {
-      // Resolving project variables
-      variableResolution = await resolveProjectVariables(jobData[0].projectId);
-      
-      if (variableResolution.errors && variableResolution.errors.length > 0) {
-        console.warn(`[${jobId}/${runId}] Variable resolution errors for scheduled job:`, variableResolution.errors);
-        // Continue execution but log warnings
-      }
+    // Process the test cases that were passed from the scheduler setup
+    // These contain the test scripts that were fetched at scheduling time
+    if (!data.testCases || data.testCases.length === 0) {
+      console.error(`[${jobId}/${runId}] No test cases found in scheduled job data`);
+      throw new Error("No test cases found for scheduled job");
     }
     
-    // Generate both getVariable and getSecret function implementations
-    const variableFunctionCode = generateVariableFunctions(variableResolution.variables, variableResolution.secrets);
-    
-    // Process test scripts to include variable resolution
-    const processedTestScripts = data.testCases.map((test: z.infer<typeof testsSelectSchema>) => ({
+    // Use pre-resolved test cases and variables from the scheduler data
+    // All scheduled jobs now have variables resolved on the app side for consistency
+    const processedTestScripts = data.testCases.map((test: { id: string; script: string; title: string }) => ({
       id: test.id,
-      script: variableFunctionCode + '\n' + test.script,
-      name: test.title
+      name: test.title || `Test ${test.id}`,
+      script: test.script // Script is already decoded and has variables resolved
     }));
+    
+    if (processedTestScripts.length === 0) {
+      console.error(`[${jobId}/${runId}] No test scripts found in scheduled job data`);
+      throw new Error("No test scripts found for scheduled job");
+    }
+    
+    console.log(`[${jobId}/${runId}] Using ${processedTestScripts.length} pre-resolved test scripts from scheduled job data`);
+    
+    // Use pre-resolved variables from the scheduler data
+    const variableResolution = {
+      variables: data.variables,
+      secrets: data.secrets
+    };
     
     // Create task for runner service with all necessary information
     const task: JobExecutionTask = {
@@ -246,8 +256,8 @@ export async function handleScheduledJobTrigger(job: Job) {
       jobId,
       testScripts: processedTestScripts,
       trigger: 'schedule',
-      organizationId: jobData[0]?.organizationId || '',
-      projectId: jobData[0]?.projectId || '',
+      organizationId: data.organizationId,
+      projectId: data.projectId,
       variables: variableResolution.variables,
       secrets: variableResolution.secrets
     };

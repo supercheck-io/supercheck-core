@@ -31,6 +31,10 @@ export class JobSchedulerProcessor extends WorkerHost {
         jobId: string;
         testCases: Array<{ id: string; script: string; title: string }>;
         retryLimit?: number;
+        variables: Record<string, string>;
+        secrets: Record<string, string>;
+        projectId: string;
+        organizationId: string;
       },
       any,
       string
@@ -48,6 +52,10 @@ export class JobSchedulerProcessor extends WorkerHost {
       jobId: string;
       testCases: Array<{ id: string; script: string; title: string }>;
       retryLimit?: number;
+      variables: Record<string, string>;
+      secrets: Record<string, string>;
+      projectId: string;
+      organizationId: string;
     }>,
   ) {
     const jobId = job.data.jobId;
@@ -80,8 +88,17 @@ export class JobSchedulerProcessor extends WorkerHost {
       }
 
       const jobRecord = jobData[0];
+      this.logger.log(`Job record for ${jobId}:`, {
+        id: jobRecord.id,
+        name: jobRecord.name,
+        projectId: jobRecord.projectId,
+        organizationId: jobRecord.organizationId,
+      });
 
       const runId = crypto.randomUUID();
+
+      // Use projectId from pre-resolved data
+      const projectId = data.projectId;
 
       await this.dbService.db.insert(runs).values({
         id: runId,
@@ -89,7 +106,7 @@ export class JobSchedulerProcessor extends WorkerHost {
         status: 'running',
         startedAt: new Date(),
         trigger: 'schedule', // Set trigger to 'schedule'
-        projectId: jobRecord.projectId, // Add projectId for proper filtering
+        projectId: projectId, // Add projectId for proper filtering
       });
 
       this.logger.log(`Created run record ${runId} for scheduled job ${jobId}`);
@@ -122,19 +139,37 @@ export class JobSchedulerProcessor extends WorkerHost {
         .set(updatePayload)
         .where(eq(jobs.id, jobId));
 
+      // Use pre-resolved variables and test scripts from app side
+      // All scheduled jobs should have variables resolved on app side for consistency
+      this.logger.log(
+        `[${jobId}/${runId}] Using pre-resolved variables: ${Object.keys(data.variables).length} variables, ${Object.keys(data.secrets).length} secrets`,
+      );
+
+      const processedTestScripts = data.testCases.map(
+        (test: { id: string; script: string; title: string }) => ({
+          id: test.id,
+          script: test.script, // Script is already decoded and has variables resolved
+          name: test.title,
+        }),
+      );
+
+      const variableResolution = {
+        variables: data.variables,
+        secrets: data.secrets,
+      };
+
+      // Use pre-resolved organization info
+      const organizationId = data.organizationId;
+
       const task: JobExecutionTask = {
         runId,
         jobId,
-        testScripts: data.testCases.map(
-          (test: { id: string; script: string; title: string }) => ({
-            id: test.id,
-            script: test.script,
-            name: test.title,
-          }),
-        ),
+        testScripts: processedTestScripts,
         trigger: 'schedule',
-        organizationId: jobRecord.organizationId!,
-        projectId: jobRecord.projectId!,
+        organizationId: organizationId,
+        projectId: projectId,
+        variables: variableResolution.variables,
+        secrets: variableResolution.secrets,
       };
 
       const jobOptions = {

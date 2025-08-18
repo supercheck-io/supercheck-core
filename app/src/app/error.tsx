@@ -1,15 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { RefreshCw, Home } from "lucide-react";
+import { Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Error({
-  error,
-  reset,
+  error
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
 }) {
   // Log the error for debugging purposes
   console.error('Application error:', error);

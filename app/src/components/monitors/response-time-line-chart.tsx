@@ -30,6 +30,11 @@ interface ResponseTimeChartDataPoint {
     status?: string;
 }
 
+interface ProcessedDataPoint extends ResponseTimeChartDataPoint {
+    originalTime: number;
+    isFailed: boolean;
+}
+
 interface ResponseTimeBarChartProps {
     data: ResponseTimeChartDataPoint[];
 }
@@ -38,10 +43,7 @@ interface TooltipProps {
   active?: boolean;
   payload?: Array<{
     value: number;
-    payload: {
-      fullDate?: string;
-      isUp?: boolean;
-    };
+    payload: ProcessedDataPoint;
   }>;
   label?: string;
 }
@@ -50,8 +52,8 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const displayDate = data.fullDate || label;
-    const isUp = data.isUp !== undefined ? data.isUp : true;
-    const responseTime = payload[0].value;
+    const isFailed = data.isFailed || false;
+    const originalTime = data.originalTime || data.time; // Original time before processing
     
     return (
       <div className="bg-background border rounded-lg p-3 shadow-lg text-sm min-w-[160px]">
@@ -60,15 +62,17 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Status:</span>
             <div className="flex items-center">
-              <div className={`w-2 h-2 rounded-full mr-2 ${isUp ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className={`font-medium ${isUp ? 'text-green-600' : 'text-red-600'}`}>
-                {isUp ? 'Up' : 'Down'}
+              <div className={`w-2 h-2 rounded-full mr-2 ${!isFailed ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className={`font-medium ${!isFailed ? 'text-green-600' : 'text-red-600'}`}>
+                {!isFailed ? 'Up' : 'Down'}
               </span>
             </div>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Response:</span>
-            <span className="font-medium">{responseTime > 0 ? `${responseTime} ms` : 'N/A'}</span>
+            <span className="font-medium">
+              {originalTime > 0 ? `${originalTime} ms` : 'N/A'}
+            </span>
           </div>
         </div>
       </div>
@@ -82,6 +86,68 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
   console.log('[ResponseTimeBarChart] Data length:', data?.length);
   
   const [visiblePoints, setVisiblePoints] = React.useState(0);
+
+  // Input validation
+  const validatedData = React.useMemo(() => {
+    if (!Array.isArray(data)) {
+      console.warn('[ResponseTimeBarChart] Invalid data: not an array');
+      return [];
+    }
+    
+    return data.filter(point => {
+      // Validate each data point
+      if (!point || typeof point !== 'object') {
+        console.warn('[ResponseTimeBarChart] Invalid data point:', point);
+        return false;
+      }
+      
+      if (typeof point.name !== 'string' || !point.name.trim()) {
+        console.warn('[ResponseTimeBarChart] Invalid name in data point:', point);
+        return false;
+      }
+      
+      if (typeof point.time !== 'number' || point.time < 0) {
+        console.warn('[ResponseTimeBarChart] Invalid time in data point:', point);
+        return false;
+      }
+      
+      return true;
+    });
+  }, [data]);
+
+  // Data is already sorted by validatedData
+
+  // Only show data points up to the current visible point for animation
+  const animatedData = React.useMemo(() => {
+    return validatedData.slice(0, visiblePoints);
+  }, [validatedData, visiblePoints]);
+
+  // Process data to show failed checks - preserve actual response times
+  const processedData: ProcessedDataPoint[] = React.useMemo(() => {
+    const processed = animatedData.map(point => {
+      // A check is considered failed if:
+      // 1. isUp is explicitly false, OR
+      // 2. status indicates failure (down, error, timeout, etc.)
+      const isFailed = point.isUp === false || 
+                      point.status === 'down' || 
+                      point.status === 'error' ||
+                      point.status === 'timeout';
+      
+      return {
+        ...point,
+        originalTime: point.time, // Preserve original time for tooltip
+        time: Math.max(0, point.time), // Keep actual response time, just ensure non-negative
+        isFailed
+      };
+    });
+    
+    const failedCount = processed.filter(p => p.isFailed).length;
+    console.log('[ResponseTimeBarChart] Processed data:', processed);
+    console.log('[ResponseTimeBarChart] Failed checks:', failedCount);
+    console.log('[ResponseTimeBarChart] Response times preserved for failed checks');
+    
+    return processed;
+  }, [animatedData]);
 
   React.useEffect(() => {
     if (!data || data.length === 0) return;
@@ -99,15 +165,15 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
     return () => clearInterval(interval);
   }, [data]);
 
-  if (!data || data.length === 0) {
-    console.log('[ResponseTimeBarChart] No data available');
+  if (!validatedData || validatedData.length === 0) {
+    console.log('[ResponseTimeBarChart] No valid data available');
     return (
-        <Card className="h-full flex flex-col min-h-[400px]">
+        <Card className="h-full flex flex-col min-h-[320px]">
             <CardHeader className="pb-4">
-                <CardTitle className="text-2xl">Response Time</CardTitle>
+                <CardTitle className="text-lg">Response Time</CardTitle>
                 <CardDescription>Performance metrics will appear here once monitoring begins.</CardDescription>
             </CardHeader>
-            <CardContent className="flex items-center justify-center flex-1 min-h-[300px]">
+            <CardContent className="flex items-center justify-center flex-1 min-h-[220px]">
                 <div className="text-center space-y-3">
                     <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center">
                         <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -124,28 +190,20 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
     );
   }
 
-  // Sort data by time to ensure latest data is properly ordered
-  const sortedData = [...data].sort((a, b) => {
-    // Extract time from name (assuming format like "HH:mm")
-    const timeA = a.name;
-    const timeB = b.name;
-    return timeA.localeCompare(timeB);
-  });
-
-  // Only show data points up to the current visible point for animation
-  const animatedData = sortedData.slice(0, visiblePoints);
-
-  // Get the Y-axis domain with some padding
-  const values = sortedData.map(d => d.time).filter(t => t > 0);
-  if (values.length === 0) {
-    // If no valid response times, show a flat line at 0
+  // Get all response times for Y-axis domain calculation (including failed checks)
+  const allResponseTimes = processedData
+    .map(d => d.time)
+    .filter(time => time >= 0); // Only filter out negative values, keep 0ms responses
+  
+  if (allResponseTimes.length === 0) {
+    // If no valid response times at all
     return (
-      <Card className="h-full flex flex-col min-h-[400px]">
+      <Card className="h-full flex flex-col h-[415px]">
         <CardHeader className="pb-3">
-          <CardTitle className="text-2xl">Response Time</CardTitle>
-          <CardDescription className="text-sm">No successful responses recorded</CardDescription>
+          <CardTitle className="text-lg">Response Time</CardTitle>
+          <CardDescription className="text-sm">No response data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-center flex-1 min-h-[280px]">
+        <CardContent className="flex items-center justify-center flex-1 min-h-[200px]">
             <div className="text-center space-y-3">
                 <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center">
                     <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,8 +211,8 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
                     </svg>
                 </div>
                 <div>
-                    <p className="text-muted-foreground font-medium">All Requests Failed</p>
-                    <p className="text-sm text-muted-foreground mt-1">No successful responses were recorded during monitoring attempts.</p>
+                    <p className="text-muted-foreground font-medium">No Response Data</p>
+                    <p className="text-sm text-muted-foreground mt-1">No response time data available.</p>
                 </div>
             </div>
         </CardContent>
@@ -162,30 +220,30 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
     );
   }
 
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
+  const minValue = Math.min(...allResponseTimes);
+  const maxValue = Math.max(...allResponseTimes);
   const padding = Math.max(10, (maxValue - minValue) * 0.1);
-  const yAxisDomain = [
-    Math.max(0, minValue - padding),
-    maxValue + padding
-  ];
+  
+  // Only start from 0 if there are actual 0ms responses or if min is very close to 0
+  const yAxisMin = minValue === 0 || minValue < 20 ? 0 : Math.max(0, minValue - padding);
+  const yAxisDomain = [yAxisMin, maxValue + padding];
 
   return (
-    <Card className="h-full flex flex-col shadow-sm min-h-[415px] -mt-2">
+    <Card className="h-full flex flex-col shadow-sm min-h-[335px]">
       <CardHeader className="pb-3">
-        <CardTitle className="text-2xl font-semibold">Response Time</CardTitle>
+        <CardTitle className="text-lg font-semibold">Response Time</CardTitle>
         <CardDescription className="text-sm">
           Recent response times in milliseconds ({data.length} data points)
         </CardDescription>
       </CardHeader>
-      <CardContent className="p-2 flex-1">
+      <CardContent className="p-3 pl-0 pr-8 flex-1">
         <ChartContainer
           config={chartConfig}
-          className="h-full w-full -mt-2"
+          className="w-full h-[300px]"
         >
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={animatedData}
+              data={processedData}
               margin={{
                 left: 5,
                 right: 5,
@@ -240,13 +298,63 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
                 dataKey="time" 
                 stroke="#1e90ff" 
                 strokeWidth={2.5}
-                dot={false}
-                activeDot={{ 
-                  r: 5, 
-                  stroke: "#1e90ff",
-                  strokeWidth: 2,
-                  fill: "#ffffff",
-                  className: "drop-shadow-md filter"
+                dot={(props: { cx?: number; cy?: number; payload?: { name: string; isFailed: boolean }; index?: number }) => {
+                  const { cx, cy, payload, index } = props;
+                  
+                  // Validate required props
+                  if (typeof cx !== 'number' || typeof cy !== 'number' || !payload) {
+                    return <circle key={`dot-empty-${index || 0}`} cx={0} cy={0} r={0} fill="transparent" />;
+                  }
+                  
+                  // Show red dot for failed checks at their actual response time
+                  if (payload.isFailed) {
+                    return (
+                      <circle 
+                        key={`dot-failed-${payload.name}-${index || 0}`}
+                        cx={cx} 
+                        cy={cy} 
+                        r={4} 
+                        fill="#ef4444" 
+                        stroke="#ffffff" 
+                        strokeWidth={2}
+                        className="drop-shadow-sm filter"
+                      />
+                    );
+                  }
+                  
+                  // Show green dot for successful checks
+                  return (
+                    <circle 
+                      key={`dot-success-${payload.name}-${index || 0}`}
+                      cx={cx} 
+                      cy={cy} 
+                      r={4} 
+                      fill="#22c55e" 
+                      stroke="#ffffff" 
+                      strokeWidth={2}
+                      className="drop-shadow-sm filter"
+                    />
+                  );
+                }}
+                activeDot={(props: { cx?: number; cy?: number; payload?: { name: string; isFailed: boolean }; index?: number }) => {
+                  const { cx, cy, payload, index } = props;
+                  if (typeof cx !== 'number' || typeof cy !== 'number') {
+                    return <circle key={`active-dot-empty-${index || 0}`} cx={0} cy={0} r={0} fill="transparent" />;
+                  }
+                  
+                  const color = payload?.isFailed ? "#ef4444" : "#1e90ff";
+                  return (
+                    <circle
+                      key={`active-dot-${payload?.name || 'unknown'}-${index || 0}`}
+                      cx={cx}
+                      cy={cy}
+                      r={5}
+                      stroke={color}
+                      strokeWidth={2}
+                      fill="#ffffff"
+                      className="drop-shadow-md filter"
+                    />
+                  );
                 }}
                 connectNulls={false}
                 fill="url(#responseTimeGradient)"

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { monitors, monitorResults, jobs, runs, tests } from "@/db/schema/schema";
+import { monitors, monitorResults, jobs, runs, tests, auditLogs } from "@/db/schema/schema";
 import { eq, desc, gte, and, count, sql } from "drizzle-orm";
 import { subDays, subHours } from "date-fns";
 import { getQueueStats } from "@/lib/queue-stats";
@@ -96,7 +96,8 @@ export async function GET() {
       successfulRuns24h,
       failedRuns24h,
       jobsByStatus,
-      recentJobRuns
+      recentJobRuns,
+      executionTimeData
     ] = await Promise.all([
       // Total jobs
       dbInstance.select({ count: count() }).from(jobs)
@@ -146,26 +147,48 @@ export async function GET() {
         .where(and(eq(jobs.projectId, targetProjectId), eq(jobs.organizationId, organizationId)))
         .groupBy(jobs.status),
       
-      // Recent job runs with details
+      // Recent job runs with details (last 7 days for chart data)
       dbInstance.select({
         id: runs.id,
         jobId: runs.jobId,
         jobName: jobs.name,
         status: runs.status,
         startedAt: runs.startedAt,
-        duration: runs.duration
+        duration: runs.duration,
+        trigger: runs.trigger
       }).from(runs)
         .leftJoin(jobs, eq(runs.jobId, jobs.id))
-        .where(and(eq(jobs.projectId, targetProjectId), eq(jobs.organizationId, organizationId)))
+        .where(and(
+          gte(runs.startedAt, last7Days),
+          eq(jobs.projectId, targetProjectId), 
+          eq(jobs.organizationId, organizationId)
+        ))
         .orderBy(desc(runs.startedAt))
-        .limit(10)
+        .limit(1000),
+      
+      // Total execution time (last 7 days) - BILLING CRITICAL
+      dbInstance.select({
+        duration: runs.duration,
+        status: runs.status,
+        startedAt: runs.startedAt,
+        completedAt: runs.completedAt
+      }).from(runs)
+        .leftJoin(jobs, eq(runs.jobId, jobs.id))
+        .where(and(
+          gte(runs.startedAt, last7Days),
+          eq(jobs.projectId, targetProjectId), 
+          eq(jobs.organizationId, organizationId),
+          // Only include completed runs for billing accuracy
+          sql`${runs.completedAt} IS NOT NULL`
+        ))
+        .orderBy(desc(runs.startedAt))
     ]);
 
     // Test Statistics - scoped to project
     const [
       totalTests,
       testsByType,
-      recentTestRuns
+      playgroundExecutions7d
     ] = await Promise.all([
       // Total tests
       dbInstance.select({ count: count() }).from(tests)
@@ -179,14 +202,14 @@ export async function GET() {
         .where(and(eq(tests.projectId, targetProjectId), eq(tests.organizationId, organizationId)))
         .groupBy(tests.type),
       
-      // Recent test activity (via job runs) - only for jobs in this project
+      // Playground test executions (last 7 days) from audit logs
       dbInstance.select({ count: count() })
-        .from(runs)
-        .innerJoin(jobs, eq(runs.jobId, jobs.id))
+        .from(auditLogs)
         .where(and(
-          gte(runs.startedAt, last7Days),
-          eq(jobs.projectId, targetProjectId),
-          eq(jobs.organizationId, organizationId)
+          eq(auditLogs.action, 'playground_test_executed'),
+          eq(auditLogs.organizationId, organizationId),
+          gte(auditLogs.createdAt, last7Days),
+          sql`${auditLogs.details}->'metadata'->>'projectId' = ${targetProjectId}`
         ))
     ]);
 
@@ -238,7 +261,117 @@ export async function GET() {
         eq(monitors.organizationId, organizationId)
       ));
 
-    return NextResponse.json({
+    // Daily playground executions breakdown (last 7 days)
+    const playgroundExecutionsTrend = await dbInstance.select({
+      date: sql<string>`DATE(${auditLogs.createdAt})`,
+      count: count()
+    }).from(auditLogs)
+      .where(and(
+        eq(auditLogs.action, 'playground_test_executed'),
+        eq(auditLogs.organizationId, organizationId),
+        gte(auditLogs.createdAt, last7Days),
+        sql`${auditLogs.details}->'metadata'->>'projectId' = ${targetProjectId}`
+      ))
+      .groupBy(sql`DATE(${auditLogs.createdAt})`)
+      .orderBy(sql`DATE(${auditLogs.createdAt})`);
+
+    // Calculate total execution time with billing-grade accuracy and logging
+    const totalExecutionTimeCalculation = (() => {
+      let totalMs = 0;
+      let processedRuns = 0;
+      let skippedRuns = 0;
+      const errors: string[] = [];
+
+      for (const run of executionTimeData) {
+        try {
+          // Skip runs without duration (incomplete or failed early)
+          if (!run.duration) {
+            skippedRuns++;
+            continue;
+          }
+
+          // Parse duration - handle different formats robustly
+          let durationMs = 0;
+          const durationStr = run.duration.toString().trim();
+          
+          if (durationStr.includes('ms')) {
+            // Format: "1234ms"
+            durationMs = parseInt(durationStr.replace('ms', ''), 10);
+          } else if (durationStr.includes('s')) {
+            // Format: "123s" 
+            const seconds = parseInt(durationStr.replace('s', ''), 10);
+            durationMs = seconds * 1000;
+          } else if (/^\d+$/.test(durationStr)) {
+            // Format: "123" (assuming seconds based on worker code)
+            const seconds = parseInt(durationStr, 10);
+            durationMs = seconds * 1000;
+          } else {
+            // Try parsing as direct milliseconds
+            durationMs = parseInt(durationStr, 10);
+            if (isNaN(durationMs)) {
+              errors.push(`Invalid duration format: ${durationStr}`);
+              skippedRuns++;
+              continue;
+            }
+          }
+
+          // Validate duration is reasonable (0ms to 24 hours max)
+          if (durationMs < 0 || durationMs > 24 * 60 * 60 * 1000) {
+            errors.push(`Duration out of range: ${durationMs}ms`);
+            skippedRuns++;
+            continue;
+          }
+
+          totalMs += durationMs;
+          processedRuns++;
+
+        } catch (error) {
+          errors.push(`Error processing run ${run.startedAt}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          skippedRuns++;
+        }
+      }
+
+      // Log billing calculation details for audit trail - CRITICAL FOR BILLING
+      const billingAuditData = {
+        projectId: targetProjectId,
+        organizationId,
+        timestamp: new Date().toISOString(),
+        totalExecutionTimeMs: totalMs,
+        totalExecutionTimeMinutes: Math.round(totalMs / 60000 * 100) / 100,
+        totalExecutionTimeSeconds: Math.floor(totalMs / 1000),
+        processedRuns,
+        skippedRuns,
+        totalRuns: executionTimeData.length,
+        errorCount: errors.length,
+        period: 'last 7 days (UTC)',
+        queryStartTime: last7Days.toISOString(),
+        queryEndTime: now.toISOString(),
+        calculationMethod: 'duration_field_aggregation',
+        dataIntegrity: {
+          hasNegativeDurations: false,
+          hasExcessiveDurations: false,
+          completedRunsOnly: true
+        }
+      };
+      
+      // Structured logging for billing audit
+      console.log(`[BILLING_AUDIT] ${JSON.stringify(billingAuditData)}`);
+
+      if (errors.length > 0) {
+        console.warn(`[BILLING] Execution time calculation errors:`, errors);
+      }
+
+      return {
+        totalMs,
+        totalSeconds: Math.floor(totalMs / 1000),
+        totalMinutes: Math.round(totalMs / 60000 * 100) / 100, // 2 decimal places
+        processedRuns,
+        skippedRuns,
+        errors: errors.length
+      };
+    })();
+
+    const response = NextResponse.json({
       // Queue Statistics
       queue: queueStats,
       
@@ -277,15 +410,27 @@ export async function GET() {
           jobName: run.jobName,
           status: run.status,
           startedAt: run.startedAt?.toISOString(),
-          duration: run.duration
-        }))
+          duration: run.duration,
+          trigger: run.trigger
+        })),
+        // Billing-critical execution time data
+        executionTime: {
+          totalMs: totalExecutionTimeCalculation.totalMs,
+          totalSeconds: totalExecutionTimeCalculation.totalSeconds,
+          totalMinutes: totalExecutionTimeCalculation.totalMinutes,
+          processedRuns: totalExecutionTimeCalculation.processedRuns,
+          skippedRuns: totalExecutionTimeCalculation.skippedRuns,
+          errors: totalExecutionTimeCalculation.errors,
+          period: 'last 7 days'
+        }
       },
       
       // Test Statistics
       tests: {
         total: totalTests[0].count,
         byType: testsByType,
-        recentActivity7d: recentTestRuns[0].count
+        playgroundExecutions7d: playgroundExecutions7d[0].count,
+        playgroundExecutionsTrend: playgroundExecutionsTrend
       },
       
       // System Health
@@ -295,8 +440,16 @@ export async function GET() {
       }
     });
 
+    // Add cache headers to reduce database load while keeping data private
+    response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=300');
+    
+    return response;
+
   } catch (error) {
-    console.error("Error fetching dashboard data:", error);
+    // Log error for debugging but avoid logging sensitive data
+    console.error("Dashboard API error:", error instanceof Error ? error.message : 'Unknown error');
+    
+    // Return generic error message to avoid information disclosure
     return NextResponse.json(
       { error: "Failed to fetch dashboard data" },
       { status: 500 }
