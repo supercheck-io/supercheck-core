@@ -13,10 +13,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Supertest (aka Supercheck) is a comprehensive end-to-end testing platform built with a distributed architecture. It consists of:
+Supercheck is a comprehensive end-to-end testing platform built with a distributed architecture. It consists of:
 
 - **Frontend (Next.js App)**: Located in `/app` - handles UI, API routes, job scheduling, and database migrations
-- **Worker Service (NestJS)**: Located in `/runner` - executes Playwright tests in parallel with capacity management
+- **Worker Service (NestJS)**: Located in `/worker` - executes Playwright tests in parallel with capacity management
 - **Infrastructure**: PostgreSQL, Redis (job queues), MinIO (S3-compatible storage for artifacts)
 
 The system uses BullMQ for job queuing, Better Auth for authentication, and Drizzle ORM with PostgreSQL for data persistence.
@@ -36,7 +36,7 @@ The system uses BullMQ for job queuing, Better Auth for authentication, and Driz
 - `/app/src/components/` - React components organized by feature (jobs, tests, monitors, playground)
 - `/app/src/lib/` - Core services (job scheduler, monitor service, queue management, validation)
 - `/app/src/db/schema/schema.ts` - Drizzle database schema with comprehensive table definitions
-- `/runner/src/` - NestJS worker service modules for test execution
+- `/worker/src/` - NestJS worker service modules for test execution
 
 ## Common Development Commands
 
@@ -54,7 +54,7 @@ npm run db:migrate:prod # Production migration script
 
 ### Worker Service (NestJS)
 ```bash
-cd runner
+cd worker
 npm run dev             # Start in watch mode
 npm run build           # Build the service
 npm run start:prod      # Start production build
@@ -126,11 +126,12 @@ Key environment variables are managed through Docker Compose and include:
 - Capacity limits (`RUNNING_CAPACITY`, `QUEUED_CAPACITY`)
 - Timeout configurations (`TEST_EXECUTION_TIMEOUT_MS`)
 - Scheduler toggles (`DISABLE_JOB_SCHEDULER`, `DISABLE_MONITOR_SCHEDULER`)
+- Super admin access (`SUPER_ADMIN_EMAILS`, `SUPER_ADMIN_USER_IDS`)
 
 ## Testing Infrastructure
 
 The platform includes comprehensive test execution capabilities:
-- Playwright configuration in both `/app` and `/runner`
+- Playwright configuration in both `/app` and `/worker`
 - Test artifact storage and retrieval
 - Report generation with HTML outputs
 - Parallel test execution with resource management
@@ -180,5 +181,21 @@ docker buildx imagetools inspect ghcr.io/krish-kant/supercheck/app:latest
 - Email credentials are environment-variable only
 - Change all default passwords and secrets
 - Regular security updates are essential
+
+### Super Admin Setup
+The platform requires at least one super admin user for system management. 
+
+**Quick Setup (Recommended):**
+```bash
+# Run the interactive setup script
+./scripts/setup-super-admin.sh
+```
+
+**Manual Setup:**
+See [RBAC_DOCUMENTATION.md](./RBAC_DOCUMENTATION.md) for detailed instructions on:
+- Creating your first super admin user
+- Managing admin privileges through the UI
+- Security best practices for admin accounts
+- Troubleshooting admin access issues
 
 

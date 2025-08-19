@@ -7,7 +7,9 @@ import {
   jobNotificationSettings,
   alertHistory
 } from "@/db/schema/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, and, like } from "drizzle-orm";
+import { hasPermission } from '@/lib/rbac/middleware';
+import { requireProjectContext } from '@/lib/project-context';
 
 export async function GET(
   req: NextRequest,
@@ -15,11 +17,29 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    const { project, organizationId } = await requireProjectContext();
+    
+    // Check permission to view notification providers
+    const canView = await hasPermission('monitor', 'view', {
+      organizationId,
+      projectId: project.id
+    });
+    
+    if (!canView) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
 
     const [provider] = await db
       .select()
       .from(notificationProviders)
-      .where(eq(notificationProviders.id, id));
+      .where(and(
+        eq(notificationProviders.id, id),
+        eq(notificationProviders.organizationId, organizationId),
+        eq(notificationProviders.projectId, project.id)
+      ));
 
     if (!provider) {
       return NextResponse.json(
@@ -33,8 +53,8 @@ export async function GET(
       .select({ sentAt: alertHistory.sentAt })
       .from(alertHistory)
       .where(
-        // Use LIKE to find provider type within comma-separated list
-        sql`${alertHistory.provider} LIKE ${'%' + provider.type + '%'}`
+        // Use safe LIKE operator to find provider type within comma-separated list
+        like(alertHistory.provider, `%${provider.type}%`)
       )
       .orderBy(desc(alertHistory.sentAt))
       .limit(1);

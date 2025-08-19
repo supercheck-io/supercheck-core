@@ -29,9 +29,12 @@ export function NavMain({
     url: string;
     icon?: LucideIcon;
     isActive?: boolean;
+    badge?: string;
     items?: {
       title: string;
       url: string;
+      icon?: LucideIcon;
+      color?: string;
     }[];
   }[];
 }) {
@@ -63,6 +66,9 @@ export function NavMain({
                   <Link href={item.url}>
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
+                    {item.badge && (
+                      <span className="ml-auto text-xs text-muted-foreground">{item.badge}</span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               )}
@@ -73,6 +79,7 @@ export function NavMain({
                     <SidebarMenuSubItem key={subItem.title}>
                       <SidebarMenuSubButton asChild>
                         <Link href={subItem.url}>
+                          {subItem.icon && <subItem.icon className={`h-4 w-4 ${subItem.color || ''}`} />}
                           <span>{subItem.title}</span>
                         </Link>
                       </SidebarMenuSubButton>

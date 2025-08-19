@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Clock, ArrowLeft, RotateCcw } from "lucide-react";
+import { AlertCircle, Clock, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -9,7 +9,6 @@ interface TimeoutErrorPageProps {
   timeoutInfo: TimeoutErrorInfo;
   backToLabel?: string;
   backToUrl?: string;
-  onRetry?: () => void;
   containerClassName?: string;
 }
 
@@ -17,7 +16,6 @@ export function TimeoutErrorPage({
   timeoutInfo,
   backToLabel,
   backToUrl,
-  onRetry,
   containerClassName = "w-full h-full relative"
 }: TimeoutErrorPageProps) {
   const errorMessages = getTimeoutErrorMessages(timeoutInfo);
@@ -59,7 +57,7 @@ export function TimeoutErrorPage({
           <Card className={`w-full mb-6 ${getBackgroundColor()}`}>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <AlertTriangle className="h-5 w-5" />
+                <AlertCircle className="h-5 w-5" />
                 What might be causing this?
               </CardTitle>
             </CardHeader>
@@ -71,30 +69,19 @@ export function TimeoutErrorPage({
           </Card>
 
           {/* Timeout Details */}
-          {timeoutInfo.timeoutDurationMinutes > 0 && (
+          {/* {timeoutInfo.timeoutDurationMinutes > 0 && (
             <div className="text-xs text-muted-foreground mb-6 p-3 bg-muted rounded-md">
               <span className="font-mono">
-                Timeout: {timeoutInfo.timeoutDurationMinutes} minute{timeoutInfo.timeoutDurationMinutes !== 1 ? 's' : ''} 
+                TIMEOUT: {timeoutInfo.timeoutDurationMinutes} MIN{timeoutInfo.timeoutDurationMinutes !== 1 ? 'S' : ''} 
               
               </span>
             </div>
-          )}
+          )} */}
 
           <Separator className="w-full mb-6" />
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            {onRetry && (
-              <Button
-                onClick={onRetry}
-                className="flex items-center gap-2"
-                size="lg"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Try Again
-              </Button>
-            )}
-            
             {backToUrl && (
               <Button
                 asChild
@@ -111,7 +98,7 @@ export function TimeoutErrorPage({
           </div>
 
           {/* Additional Help Text */}
-          <p className="text-xs text-muted-foreground mt-6 max-w-md">
+          <p className="text-sm text-muted-foreground  max-w-md">
             {timeoutInfo.timeoutType === 'test' 
               ? "Test scripts that take longer than 2 minutes are automatically terminated."
               : timeoutInfo.timeoutType === 'job'

@@ -3,39 +3,95 @@ import * as walk from 'acorn-walk';
 
 
 
-// Strictly allowed modules 
+// Strictly allowed modules with expanded safe libraries
 const ALLOWED_MODULES = new Set([
+  // Testing & Automation
   '@playwright/test',       // UI & E2E testing framework
   'playwright',             // Browser automation engine
   'expect',                 // Assertion library
+  
+  // Database Clients
   'mssql',                  // MSSQL database client
   'mysql',                  // Legacy MySQL client
+  'mysql2',                 // Improved MySQL client
   'pg',                     // PostgreSQL client
   'oracledb',               // Oracle DB client
-  'mysql2',                 // Improved MySQL client
   'mongodb',                // MongoDB driver
+  
+  // HTTP & Network (Safe)
+  'axios',                  // Promise-based HTTP client – safer than native http
+  'node-fetch',             // Fetch API for Node.js
+  
+  // Utilities & Data Processing
   'lodash',                 // Utility library
-  'axios',                  // Promise‑based HTTP client – simpler and safer than native http
-  'zod',                    // Type-safe input validation – lightweight and audited 
-  'uuid',                   // Solid pure-JS unique IDs, no side effects
-  'dayjs',                  // Lightweight date manipulation (safer than moment.js)
-  'validator',              // String validation (emails, URLs, etc.) – pure and audited
+  'zod',                    // Type-safe input validation
+  'joi',                    // Object schema validation
+  'yup',                    // Schema validation
+  'uuid',                   // Unique ID generation
+  'nanoid',                 // Alternative to UUID
+  
+  // Date/Time
+  'dayjs',                  // Lightweight date manipulation
+  'date-fns',               // Modular date utility library
+  
+  // String/Data Validation
+  'validator',              // String validation (emails, URLs, etc.)
+  'sanitize-html',          // HTML sanitization
+  'escape-html',            // HTML escaping
+  
+  // JSON & Data Formats
+  'csv-parser',             // CSV parsing
+  'xml2js',                 // XML to JSON conversion
+  'cheerio',                // Server-side jQuery-like HTML parsing
+  
+  // Cryptography (Safe operations)
+  'crypto-js',              // Cryptographic functions
+  'bcrypt',                 // Password hashing
+  
+  // Testing Utilities
+  'faker',                  // Generate fake data for testing
+  'chance',                 // Random data generator
+  '@faker-js/faker',        // Modern faker alternative
 ]);
 
 
-// Enhanced blocked identifiers with more coverage
+// Enhanced blocked identifiers with balanced security
 const BLOCKED_IDENTIFIERS = new Set([
+  // Core Node.js/System Access
   'process', 'Buffer', 'global', 'globalThis',
   '__dirname', '__filename',
   'require', 'module', 'exports', '__non_webpack_require__',
+  
+  // Code Execution
   'eval', 'Function', 'GeneratorFunction', 'AsyncFunction',
   'AsyncGeneratorFunction',
+  
+  // Timers (DoS potential) - but allow in controlled context
+  // Note: Playwright has built-in timeouts and wait functions
   'setTimeout', 'setInterval', 'setImmediate',
   'clearTimeout', 'clearInterval', 'clearImmediate',
-  'btoa', 'atob',
-  'Worker', 'SharedWorker', 'MessageChannel', 'postMessage',
+  
+  // Binary/Low-level operations
+  'btoa', 'atob', // Allow these for legitimate encoding needs
   'SharedArrayBuffer', 'Atomics',
   'WebAssembly',
+  
+  // File System
+  'fs', 'path', 'os', 'net', 'http', 'https', 'stream',
+  'child_process', 'cluster', 'worker_threads',
+  
+  // Dangerous globals (selectively block)
+  'location', 'window.location', 'document.cookie',
+]);
+
+// Allow certain browser APIs that are safe in Playwright context
+const ALLOWED_BROWSER_APIS = new Set([
+  'console', 'JSON', 'Math', 'Date', 'RegExp', 'Array', 'Object', 'String', 'Number',
+  'Promise', 'Map', 'Set', 'WeakMap', 'WeakSet',
+  'Intl', 'Error', 'TypeError', 'RangeError', 'SyntaxError',
+  'localStorage', 'sessionStorage', // Safe in browser context
+  'fetch', 'Request', 'Response', 'Headers', // Modern HTTP APIs
+  'URL', 'URLSearchParams', 'Blob', 'File', 'FileReader',
 ]);
 
 
@@ -59,7 +115,7 @@ export class ValidationService {
     if (!code || typeof code !== 'string') {
       return {
         valid: false,
-        error: 'Invalid script content',
+        error: 'Invalid script content. Please provide valid code to proceed.',
         errorType: 'syntax',
       };
     }
@@ -67,22 +123,42 @@ export class ValidationService {
     if (code.length > MAX_SCRIPT_LENGTH) {
       return {
         valid: false,
-        error: `Script too long (${code.length} chars). Maximum allowed: ${MAX_SCRIPT_LENGTH} characters`,
+        error: `Script too long (${code.length} chars). Maximum allowed: ${MAX_SCRIPT_LENGTH} characters. Please reduce the script size to proceed.`,
         errorType: 'length',
       };
     }
 
-    // 2. Enhanced dangerous patterns detection (removed network and DOM restrictions)
+    // 2. Screenshot detection - block all screenshot-related operations
+    const screenshotPatterns = [
+      { pattern: /\.screenshot\s*\(/i, message: "Screenshot operations are not allowed as Playwright Traces have live screenshot capabilities." },
+      { pattern: /toHaveScreenshot\s*\(/i, message: "Visual comparison screenshots (toHaveScreenshot) are not allowed." },
+      { pattern: /expect\s*\([^)]*\)\s*\.toHaveScreenshot/i, message: "Visual regression testing with screenshots is not allowed." },
+    ];
+
+    for (const { pattern, message } of screenshotPatterns) {
+      const match = pattern.exec(code);
+      if (match) {
+        const line = this.getLineNumber(code, match.index);
+        return { 
+          valid: false, 
+          error: `${message} Please remove screenshot related code to proceed.`,
+          line,
+          errorType: 'pattern'
+        };
+      }
+    }
+
+    // 3. Enhanced dangerous patterns detection with balanced approach
     const dangerousPatterns = [
       // Function constructors and eval
       { pattern: /\beval\s*\(/, message: "eval() is not allowed" },
       { pattern: /new\s+Function\s*\(/, message: "Function constructor is not allowed" },
       { pattern: /\bFunction\s*\(/, message: "Function constructor is not allowed" },
       
-      // Timer functions (DoS potential)
-      { pattern: /setTimeout\s*\(/, message: "setTimeout is not allowed" },
-      { pattern: /setInterval\s*\(/, message: "setInterval is not allowed" },
-      { pattern: /setImmediate\s*\(/, message: "setImmediate is not allowed" },
+      // Timer functions with DoS prevention (allow reasonable timeouts)
+      { pattern: /setTimeout\s*\([^,]*,\s*0\s*\)/, message: "Zero-delay setTimeout can cause performance issues" },
+      { pattern: /setInterval\s*\([^,]*,\s*[0-9]\s*\)/, message: "Very short setInterval (< 10ms) is not allowed" },
+      { pattern: /setImmediate\s*\(/, message: "setImmediate is not allowed in browser context" },
       
       // Process and system access
       { pattern: /process\s*\./, message: "Process access is not allowed" },
@@ -94,11 +170,15 @@ export class ValidationService {
       { pattern: /data\s*:\s*text\/html/, message: "Data URLs with HTML are not allowed" },
       { pattern: /srcdoc\s*=/, message: "srcdoc attribute is not allowed" },
       
-      // Loop bombing patterns
-      { pattern: /while\s*\(\s*true\s*\)/, message: "Infinite loop: while(true)" },
-      { pattern: /for\s*\(\s*;\s*;\s*\)/, message: "Infinite loop: for(;;)" },
-      { pattern: /while\s*\(\s*1\s*\)/, message: "Infinite loop: while(1)" },
-      { pattern: /for\s*\(\s*;[^;]*true[^;]*;\s*\)/, message: "Potential infinite loop in for statement" },
+      // Loop bombing patterns (enhanced detection for all infinite loop variants)
+      { pattern: /while\s*\(\s*true\s*\)/, message: "Infinite loop detected: while(true)" },
+      { pattern: /while\s*\(\s*1\s*\)/, message: "Infinite loop detected: while(1)" },
+      { pattern: /while\s*\(\s*!0\s*\)/, message: "Infinite loop detected: while(!0)" },
+      { pattern: /for\s*\(\s*;[^;]*;\s*\)/, message: "Infinite loop detected: for(;;) or for(;condition;)" },
+      { pattern: /for\s*\(\s*;\s*;\s*[^)]*\)/, message: "Infinite loop detected: for(;;) variant" },
+      { pattern: /for\s*\(\s*[^;]*;\s*true\s*;[^)]*\)/, message: "Infinite loop detected: for loop with true condition" },
+      { pattern: /for\s*\(\s*[^;]*;\s*1\s*;[^)]*\)/, message: "Infinite loop detected: for loop with 1 condition" },
+      { pattern: /for\s*\(\s*[^;]*;\s*!0\s*;[^)]*\)/, message: "Infinite loop detected: for loop with !0 condition" },
       
       // Prototype pollution
       { pattern: /__proto__/, message: "__proto__ manipulation is not allowed" },
@@ -138,35 +218,39 @@ export class ValidationService {
         const line = this.getLineNumber(code, match.index);
         return { 
           valid: false, 
-          error: `${message} at line ${line}`,
+          error: `${message}. Please review and remove the restricted code to proceed.`,
           line,
           errorType: 'security'
         };
       }
     }
 
-    // 3. Check for suspicious string patterns (potential obfuscation)
+    // 4. Check for suspicious obfuscation patterns (with more nuanced detection)
     const suspiciousPatterns = [
-      /String\.fromCharCode\s*\(/,
-      /\\x[0-9a-fA-F]{2}/,
-      /\\u[0-9a-fA-F]{4}/,
-      /\[(['"][^'"]*['"],?\s*){10,}\]/, // Large string arrays
+      // Only block excessive use of character codes
+      { pattern: /(String\.fromCharCode\s*\([^)]*\)){5,}/, message: "Excessive String.fromCharCode usage suggests obfuscation" },
+      // Allow occasional hex escapes but block large sequences
+      { pattern: /(\\x[0-9a-fA-F]{2}){20,}/, message: "Excessive hex escape sequences suggest obfuscation" },
+      // Allow unicode but block large sequences
+      { pattern: /(\\u[0-9a-fA-F]{4}){10,}/, message: "Excessive unicode escape sequences suggest obfuscation" },
+      // Very large string arrays might be suspicious
+      { pattern: /\[(['"][^'"]{50,}['"],?\s*){20,}\]/, message: "Extremely large string arrays suggest obfuscation" },
     ];
 
-    for (const pattern of suspiciousPatterns) {
-      if (pattern.test(code)) {
-        const match = pattern.exec(code);
-        const line = match ? this.getLineNumber(code, match.index) : 1;
+    for (const { pattern, message } of suspiciousPatterns) {
+      const match = pattern.exec(code);
+      if (match) {
+        const line = this.getLineNumber(code, match.index);
         return {
           valid: false,
-          error: `Suspicious code pattern detected at line ${line}`,
+          error: `${message}. Please review and simplify the code to proceed.`,
           line,
           errorType: 'security'
         };
       }
     }
 
-    // 4. Parse into AST with enhanced validation
+    // 5. Parse into AST with enhanced validation
     let ast: acorn.Node;
     try {
       ast = acorn.parse(code, {
@@ -184,26 +268,28 @@ export class ValidationService {
           const column = parseInt(lineMatch[2]);
           return { 
             valid: false, 
-            error: `Syntax error at line ${line}, column ${column}`,
+            error: `Syntax error. Please check your code structure and fix the syntax issue to proceed.`,
             line, 
             column,
             errorType: 'syntax'
           };
         }
-        return { valid: false, error: `Syntax error: ${err.message}`, errorType: 'syntax' };
+        return { valid: false, error: `Syntax error: ${err.message}. Please check your code structure and fix the syntax issues to proceed.`, errorType: 'syntax' };
       }
-      return { valid: false, error: "Code parsing failed", errorType: 'syntax' };
+      return { valid: false, error: "Code parsing failed. Please check your code structure and fix any syntax issues to proceed.", errorType: 'syntax' };
     }
 
-    // 5. Enhanced AST analysis with complexity checks (using walk.simple to avoid stack overflow)
+    // 6. Enhanced AST analysis with complexity checks and structural validation
     try {
       let statementCount = 0;
 
+      // Validate imports using simple approach - just check if they exist and are allowed
+      // The AST parsing itself will catch syntax errors like imports in wrong places
       walk.simple(ast, {
         Statement: () => {
           statementCount++;
           if (statementCount > MAX_STATEMENTS) {
-            throw new Error(`Script too complex: more than ${MAX_STATEMENTS} statements`);
+            throw new Error(`Script too complex: more than ${MAX_STATEMENTS} statements. Please simplify your code to proceed.`);
           }
         },
 
@@ -213,20 +299,17 @@ export class ValidationService {
           // Enhanced require() validation
           if (callee.type === 'Identifier' && (callee as acorn.Identifier).name === 'require') {
             if (node.arguments.length !== 1) {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Invalid require() call at line ${line}`);
+              throw new Error(`Invalid require() call. Please review and remove the invalid require statement to proceed.`);
             }
             
             const arg = node.arguments[0];
             if (arg.type !== 'Literal' || typeof arg.value !== 'string') {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Dynamic require() calls are not allowed at line ${line}`);
+              throw new Error(`Dynamic require() calls are not allowed. Please review and remove the dynamic require to proceed.`);
             }
             
             const moduleName = arg.value as string;
             if (!ALLOWED_MODULES.has(moduleName) && !moduleName.startsWith('@playwright/')) {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Module '${moduleName}' is not allowed at line ${line}`);
+              throw new Error(`Module '${moduleName}' is not allowed. Please review and remove the restricted module import to proceed.`);
             }
           }
           
@@ -234,8 +317,7 @@ export class ValidationService {
           if (callee.type === 'MemberExpression') {
             const obj = (callee as acorn.MemberExpression).object as acorn.Node;
             if (obj.type === 'Identifier' && BLOCKED_IDENTIFIERS.has((obj as acorn.Identifier).name)) {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Access to '${(obj as acorn.Identifier).name}' is not allowed at line ${line}`);
+              throw new Error(`Access to '${(obj as acorn.Identifier).name}' is not allowed. Please review and remove the restricted code to proceed.`);
             }
           }
         },
@@ -244,24 +326,30 @@ export class ValidationService {
           if (node.source && node.source.type === 'Literal' && typeof node.source.value === 'string') {
             const moduleName = node.source.value as string;
             if (!ALLOWED_MODULES.has(moduleName) && !moduleName.startsWith('@playwright/')) {
-              const line = node.loc?.start?.line || 1;
-              throw new Error(`Import of module '${moduleName}' is not allowed at line ${line}`);
+              // Special case for common @playwright mistake
+              if (moduleName === '@playwright') {
+                throw new Error(`Import of module '${moduleName}' is not allowed. Use '@playwright/test' instead for Playwright testing functionality.`);
+              }
+              throw new Error(`Import of module '${moduleName}' is not allowed. Please review and remove the restricted import to proceed.`);
             }
           }
         },
 
         Identifier: (node: acorn.Identifier & acorn.Node) => {
-          if (BLOCKED_IDENTIFIERS.has(node.name)) {
-            const line = node.loc?.start?.line || 1;
-            throw new Error(`Usage of '${node.name}' is not allowed at line ${line}`);
+          // More nuanced identifier checking
+          if (BLOCKED_IDENTIFIERS.has(node.name) && !ALLOWED_BROWSER_APIS.has(node.name)) {
+            // Special case for require - suggest ES6 imports
+            if (node.name === 'require') {
+              throw new Error(`Usage of 'require' is not allowed. Use ES6 import statements instead (e.g., import { test } from '@playwright/test').`);
+            }
+            throw new Error(`Usage of '${node.name}' is not allowed. Please review and remove the restricted code to proceed.`);
           }
         },
 
         Literal: (node: acorn.Literal & acorn.Node) => {
-          // Check for suspicious string literals
-          if (typeof node.value === 'string' && node.value.length > 1000) {
-            const line = node.loc?.start?.line || 1;
-            throw new Error(`Suspicious long string literal at line ${line}`);
+          // Check for suspicious string literals (more reasonable limit)
+          if (typeof node.value === 'string' && node.value.length > 5000) {
+            throw new Error(`Extremely long string literal (${node.value.length} chars). Please break down large strings to proceed.`);
           }
         },
       });
@@ -280,10 +368,11 @@ export class ValidationService {
           valid: false, 
           error: error.message, 
           line,
-          errorType: error.message.includes('Too many') ? 'complexity' : 'security'
+          errorType: error.message.includes('Too many') ? 'complexity' : 
+                    error.message.includes('Usage of \'require\'') ? 'pattern' : 'security'
         };
       }
-      return { valid: false, error: "Validation failed", errorType: 'security' };
+      return { valid: false, error: "Validation failed. Please review your code and fix any issues to proceed.", errorType: 'security' };
     }
   }
 
@@ -291,7 +380,21 @@ export class ValidationService {
     const lines = code.substring(0, index).split('\n');
     return lines.length;
   }
+  
+  // Helper method to get allowed modules for external use
+  getAllowedModules(): string[] {
+    return Array.from(ALLOWED_MODULES);
+  }
+  
+  // Helper method to check if a module is allowed
+  isModuleAllowed(moduleName: string): boolean {
+    return ALLOWED_MODULES.has(moduleName) || moduleName.startsWith('@playwright/');
+  }
 }
 
 // Export a singleton instance
-export const validationService = new ValidationService(); 
+export const validationService = new ValidationService();
+
+// Export the allowed modules list for UI components
+export const getAllowedModules = () => validationService.getAllowedModules();
+export const isModuleAllowed = (moduleName: string) => validationService.isModuleAllowed(moduleName); 

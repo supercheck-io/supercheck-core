@@ -4,20 +4,21 @@ import * as React from "react"
 import { useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Settings,
-  Activity,
   Globe,
-  Code2,
-  Terminal,
+  Code,
   SearchIcon,
   BellRing,
-  Network,
   LaptopMinimal,
   ChartColumn,
   CalendarClock,
   NotepadText,
-  FileCode,
-  Calendar as CalendarIcon,
+  Chrome,
+  ArrowLeftRight,
+  Database,
+  SquareFunction,
+  ChevronsLeftRightEllipsis,
+  EthernetPort,
+  Variable,
 } from "lucide-react"
 
 import {
@@ -47,7 +48,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
 
   const handleCommand = useCallback((command: string) => {
     setOpen(false)
-    
+
     const routes: Record<string, string> = {
       // Navigation
       "home": "/",
@@ -56,32 +57,31 @@ export function CommandSearch({ className }: CommandSearchProps) {
       "tests": "/tests",
       "jobs": "/jobs",
       "runs": "/runs",
+      "variables": "/variables",
       "alerts": "/alerts",
-      "settings": "/settings",
-      
+
       // Create Actions
       "create-monitor-http": "/monitors/create?type=http_request",
       "create-monitor-website": "/monitors/create?type=website",
       "create-monitor-ping": "/monitors/create?type=ping_host",
       "create-monitor-port": "/monitors/create?type=port_check",
-      "create-monitor-heartbeat": "/monitors/create?type=heartbeat",
       "create-test-browser": "/playground?scriptType=browser",
       "create-test-api": "/playground?scriptType=api",
       "create-test-custom": "/playground?scriptType=custom",
       "create-test-database": "/playground?scriptType=database",
       "create-job": "/jobs/create",
-      
+
       // Quick Actions
       "view-critical-alerts": "/monitors?filter=down",
       "view-running-jobs": "/jobs?status=running",
       "view-recent-runs": "/runs?sort=recent",
       "view-failed-tests": "/tests?status=failed",
-      
+
       // System
       "queue-stats": "/api/queue-stats",
       "system-health": "/api/dashboard",
     }
-    
+
     const route = routes[command]
     if (route) {
       if (route.startsWith('/api/')) {
@@ -97,7 +97,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
     const down = (e: KeyboardEvent) => {
       const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
       const metaKey = isMac ? e.metaKey : e.ctrlKey
-      
+
       // Command palette toggle
       if (e.key === "k" && metaKey) {
         e.preventDefault()
@@ -137,18 +137,18 @@ export function CommandSearch({ className }: CommandSearchProps) {
             <CommandInput placeholder="Type a command or search..." />
             <CommandList>
               <CommandEmpty>No results found.</CommandEmpty>
-              
+
               <CommandGroup heading="Navigation">
                 <CommandItem onSelect={() => handleCommand("home")}>
                   <ChartColumn className="mr-2 h-4 w-4" />
                   <span>Dashboard</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("monitors")}>
-                  <Globe className="mr-2 h-4 w-4" />
-                  <span>Monitors</span>
+                <CommandItem onSelect={() => handleCommand("alerts")}>
+                  <BellRing className="mr-2 h-4 w-4" />
+                  <span>Alerts</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("tests")}>
-                  <Code2 className="mr-2 h-4 w-4" />
+                  <Code className="mr-2 h-4 w-4" />
                   <span>Tests</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("jobs")}>
@@ -159,34 +159,13 @@ export function CommandSearch({ className }: CommandSearchProps) {
                   <NotepadText className="mr-2 h-4 w-4" />
                   <span>Runs</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("alerts")}>
-                  <BellRing className="mr-2 h-4 w-4" />
-                  <span>Alerts</span>
+                <CommandItem onSelect={() => handleCommand("variables")}>
+                  <Variable className="mr-2 h-4 w-4" />
+                  <span>Variables</span>
                 </CommandItem>
-              </CommandGroup>
-
-              <CommandSeparator />
-
-              <CommandGroup heading="Create Monitors">
-                <CommandItem onSelect={() => handleCommand("create-monitor-http")}>
+                <CommandItem onSelect={() => handleCommand("monitors")}>
                   <Globe className="mr-2 h-4 w-4" />
-                  <span>HTTP Monitor</span>
-                </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-website")}>
-                  <LaptopMinimal className="mr-2 h-4 w-4" />
-                  <span>Website Monitor</span>
-                </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-ping")}>
-                  <Terminal className="mr-2 h-4 w-4" />
-                  <span>Ping Monitor</span>
-                </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-port")}>
-                  <Network className="mr-2 h-4 w-4" />
-                  <span>Port Monitor</span>
-                </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-heartbeat")}>
-                  <Activity className="mr-2 h-4 w-4" />
-                  <span>Heartbeat Monitor</span>
+                  <span>Monitors</span>
                 </CommandItem>
               </CommandGroup>
 
@@ -194,27 +173,42 @@ export function CommandSearch({ className }: CommandSearchProps) {
 
               <CommandGroup heading="Create Tests">
                 <CommandItem onSelect={() => handleCommand("create-test-browser")}>
-                  <LaptopMinimal className="mr-2 h-4 w-4" />
+                  <Chrome className="mr-2 h-4 w-4" />
                   <span>Browser Test</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-test-api")}>
-                  <FileCode className="mr-2 h-4 w-4" />
+                  <ArrowLeftRight className="mr-2 h-4 w-4" />
                   <span>API Test</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-job")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  <span>Automation Job</span>
+                <CommandItem onSelect={() => handleCommand("create-test-database")}>
+                  <Database className="mr-2 h-4 w-4" />
+                  <span>Database Test</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleCommand("create-test-custom")}>
+                  <SquareFunction className="mr-2 h-4 w-4" />
+                  <span>Custom Test</span>
                 </CommandItem>
               </CommandGroup>
 
               <CommandSeparator />
 
-              <CommandGroup heading="System">
-                <CommandItem onSelect={() => handleCommand("settings")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
+              <CommandGroup heading="Create Monitors">
+                <CommandItem onSelect={() => handleCommand("create-monitor-http")}>
+                  <ArrowLeftRight className="mr-2 h-4 w-4" />
+                  <span>HTTP Monitor</span>
                 </CommandItem>
-              
+                <CommandItem onSelect={() => handleCommand("create-monitor-website")}>
+                  <LaptopMinimal className="mr-2 h-4 w-4" />
+                  <span>Website Monitor</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleCommand("create-monitor-ping")}>
+                  <ChevronsLeftRightEllipsis className="mr-2 h-4 w-4" />
+                  <span>Ping Monitor</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleCommand("create-monitor-port")}>
+                  <EthernetPort className="mr-2 h-4 w-4" />
+                  <span>Port Monitor</span>
+                </CommandItem>
               </CommandGroup>
             </CommandList>
             <div className="flex justify-end items-center px-4 py-2 border-t text-xs text-muted-foreground select-none">

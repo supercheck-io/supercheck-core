@@ -26,13 +26,41 @@ export function CopyButton({
       e.preventDefault();
 
       try {
-        await navigator.clipboard.writeText(value);
-        setCopied(true);
-        onCopy?.(value);
+        // Try modern clipboard API first
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          onCopy?.(value);
 
-        setTimeout(() => {
-          setCopied(false);
-        }, 2000);
+          setTimeout(() => {
+            setCopied(false);
+          }, 2000);
+          return;
+        }
+
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = value;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        if (successful) {
+          setCopied(true);
+          onCopy?.(value);
+
+          setTimeout(() => {
+            setCopied(false);
+          }, 2000);
+        } else {
+          throw new Error('Copy command failed');
+        }
       } catch (error) {
         console.error("Failed to copy text:", error);
       }

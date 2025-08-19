@@ -299,18 +299,22 @@ export const columns: ColumnDef<Test>[] = [
       const createdAt = row.getValue("createdAt") as string;
       if (!createdAt) return null;
 
-      // Format date without using date-fns
       const date = new Date(createdAt);
       const formattedDate = date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
       });
+      const formattedTime = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
       return (
-        <div className="flex items-center w-[120px]">
+        <div className="flex items-center w-[170px]">
           <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
           <span>{formattedDate}</span>
+          <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
         </div>
       );
     },
@@ -324,18 +328,22 @@ export const columns: ColumnDef<Test>[] = [
       const updatedAt = row.getValue("updatedAt") as string;
       if (!updatedAt) return null;
 
-      // Format date without using date-fns
       const date = new Date(updatedAt);
       const formattedDate = date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
       });
+      const formattedTime = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
       return (
-        <div className="flex items-center w-[120px]">
+        <div className="flex items-center w-[170px]">
           <ClockIcon className="mr-2 h-4 w-4 text-muted-foreground" />
           <span>{formattedDate}</span>
+          <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
         </div>
       );
     },

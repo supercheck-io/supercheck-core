@@ -7,9 +7,9 @@ import {
   timestamp,
   jsonb,
   uuid,
-  customType,
   uniqueIndex,
   boolean,
+  unique,
 } from "drizzle-orm/pg-core";
 
 import {
@@ -55,27 +55,17 @@ export const organization = pgTable("organization", {
 });
 
 /**
- * Represents a team within an organization.
- */
-export const team = pgTable("team", {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name').notNull(),
-	organizationId: uuid('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
-	createdAt: timestamp('created_at').notNull(),
-	updatedAt: timestamp('updated_at')
-});
-
-/**
- * Maps users to organizations and teams, defining their roles.
+ * Maps users to organizations, defining their roles.
  */
 export const member = pgTable("member", {
 	id: uuid('id').primaryKey().defaultRandom(),
 	organizationId: uuid('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
 	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-	role: text('role').default('member').notNull(),
-	teamId: uuid('team_id').references(() => team.id),
+	role: text('role').default('project_viewer').notNull(),
 	createdAt: timestamp('created_at').notNull()
-});
+}, (table) => ({
+	uniqueUserOrg: unique().on(table.userId, table.organizationId),
+}));
 
 /**
  * Stores pending invitations for users to join an organization.
@@ -85,10 +75,10 @@ export const invitation = pgTable("invitation", {
 	organizationId: uuid('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
 	email: text('email').notNull(),
 	role: text('role'),
-	teamId: uuid('team_id').references(() => team.id),
 	status: text('status').default('pending').notNull(),
 	expiresAt: timestamp('expires_at').notNull(),
-	inviterId: uuid('inviter_id').notNull().references(() => user.id, { onDelete: 'cascade' })
+	inviterId: uuid('inviter_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	selectedProjects: text('selected_projects') // JSON array of project IDs
 });
 
 /**
@@ -104,6 +94,7 @@ export const session = pgTable("session", {
 	userAgent: text('user_agent'),
 	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
 	activeOrganizationId: uuid('active_organization_id').references(() => organization.id),
+	activeProjectId: uuid('active_project_id').references(() => projects.id),
 	impersonatedBy: text('impersonated_by')
 });
 
@@ -149,6 +140,7 @@ export const apikey = pgTable("apikey", {
 	key: text('key').notNull(),
 	userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'no action' }),
 	jobId: uuid('job_id').references(() => jobs.id, { onDelete: 'cascade' }),
+	projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
 	refillInterval: text('refill_interval'),
 	refillAmount: text('refill_amount'),
 	lastRefillAt: timestamp('last_refill_at'),
@@ -183,7 +175,9 @@ export const projects = pgTable("projects", {
     .notNull()
     .references(() => organization.id),
   name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).unique(),
   description: text("description"),
+  isDefault: boolean("is_default").default(false).notNull(),
   status: varchar("status", { length: 50 })
     .$type<"active" | "archived" | "deleted">()
     .notNull()
@@ -191,6 +185,19 @@ export const projects = pgTable("projects", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+/**
+ * Maps users to projects, defining their roles within a project.
+ */
+export const projectMembers = pgTable("project_members", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => user.id, { onDelete: 'cascade' }),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  role: varchar("role", { length: 50 }).default('project_viewer').notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  uniqueUserProject: unique().on(table.userId, table.projectId),
+}));
 
 export type TestPriority = "low" | "medium" | "high";
 export type TestType = "browser" | "api" |  "database" | "custom" ;
@@ -201,6 +208,8 @@ export const tests = pgTable("tests", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
@@ -248,6 +257,8 @@ export const jobs = pgTable("jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
@@ -310,6 +321,8 @@ export const runs = pgTable("runs", {
   jobId: uuid("job_id")
     .notNull()
     .references(() => jobs.id),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   status: varchar("status", { length: 50 }).$type<TestRunStatus>().notNull().default("running"),
   duration: varchar("duration", { length: 100 }),
   startedAt: timestamp("started_at"),
@@ -353,8 +366,7 @@ export type MonitorType =
   | "http_request"
   | "website"
   | "ping_host"
-  | "port_check"
-  | "heartbeat";
+  | "port_check";
 
 /**
  * Represents the current status of a monitor.
@@ -386,10 +398,6 @@ export type MonitorConfig = {
   };
   port?: number;
   protocol?: "tcp" | "udp";
-  expectedIntervalMinutes?: number;
-  gracePeriodMinutes?: number;
-  heartbeatUrl?: string;
-  lastPingAt?: string;
   // SSL-specific settings
   enableSslCheck?: boolean;
   sslDaysUntilExpirationWarning?: number;
@@ -417,6 +425,8 @@ export const monitors = pgTable("monitors", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
@@ -472,6 +482,8 @@ export const monitorResults = pgTable("monitor_results", {
   details: jsonb("details").$type<MonitorResultDetails>(),
   isUp: boolean("is_up").notNull(),
   isStatusChange: boolean("is_status_change").notNull().default(false),
+  consecutiveFailureCount: integer("consecutive_failure_count").notNull().default(0),
+  alertsSentForFailure: integer("alerts_sent_for_failure").notNull().default(0),
 });
 
 /**
@@ -481,6 +493,8 @@ export const tags = pgTable("tags", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 100 }).notNull(),
   color: varchar("color", { length: 50 }),
@@ -488,8 +502,8 @@ export const tags = pgTable("tags", {
   updatedAt: timestamp("updated_at").defaultNow(),
 },
 (table) => ({
-    organizationTagNameUnique: uniqueIndex("tags_organization_name_idx").on(
-      table.organizationId,
+    projectTagNameUnique: uniqueIndex("tags_project_name_idx").on(
+      table.projectId,
       table.name
     ),
   })
@@ -574,6 +588,8 @@ export const notificationProviders = pgTable("notification_providers", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
     .references(() => organization.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" }),
   createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
   name: varchar("name", { length: 255 }).notNull(),
   type: varchar("type", { length: 50 }).$type<NotificationProviderType>().notNull(),
@@ -690,74 +706,6 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-/**
- * Defines the configuration for a third-party integration.
- */
-export type IntegrationConfig = {
-  webhookUrl?: string;
-  apiEndpoint?: string;
-  settings?: Record<string, unknown>;
-};
-
-const bytea = customType<{ data: Buffer; notNull: false; default: false }>({
-  dataType() {
-    return "bytea";
-  },
-});
-
-/**
- * Stores configuration for third-party integrations.
- */
-export const integrations = pgTable("integrations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  projectId: uuid("project_id")
-    .notNull()
-    .references(() => projects.id),
-  serviceName: varchar("service_name", { length: 255 }).notNull(),
-  config: jsonb("config").$type<IntegrationConfig>().notNull(),
-  encryptedApiToken: bytea("encrypted_api_token"),
-  lastUsedAt: timestamp("last_used_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-
-
-/**
- * Defines periods of scheduled maintenance during which monitoring alerts can be suppressed.
- */
-export const maintenanceWindows = pgTable("maintenance_windows", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id")
-    .references(() => organization.id, { onDelete: "cascade" }),
-  createdByUserId: uuid("created_by_user_id").references(() => user.id, { onDelete: "no action" }),
-  name: varchar("name", { length: 255 }).notNull(),
-  description: text("description"),
-  startTime: timestamp("start_time").notNull(),
-  endTime: timestamp("end_time").notNull(),
-  timezone: varchar("timezone", { length: 100 }),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-/**
- * Links monitors to maintenance windows.
- */
-export const monitorMaintenanceWindows = pgTable(
-  "monitor_maintenance_windows",
-  {
-    maintenanceWindowId: uuid("maintenance_window_id")
-      .notNull()
-      .references(() => maintenanceWindows.id, { onDelete: "cascade" }),
-    monitorId: uuid("monitor_id")
-      .notNull()
-      .references(() => monitors.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at").defaultNow(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.maintenanceWindowId, table.monitorId] }),
-  })
-);
 
 /**
  * Configures alert settings for monitors.
@@ -819,12 +767,32 @@ export const notificationProvidersSelectSchema = createSelectSchema(notification
 
 
 
-export const maintenanceWindowsInsertSchema = createInsertSchema(maintenanceWindows);
-export const maintenanceWindowsSelectSchema = createSelectSchema(maintenanceWindows);
+
+/**
+ * Stores variables and secrets for projects
+ */
+export const projectVariables = pgTable("project_variables", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  key: varchar("key", { length: 255 }).notNull(),
+  value: text("value").notNull(), // Encrypted for secrets
+  encryptedValue: text("encrypted_value"), // Base64 encrypted value for secrets
+  isSecret: boolean("is_secret").default(false).notNull(),
+  description: text("description"),
+  createdByUserId: uuid("created_by_user_id").references(() => user.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  uniqueKeyPerProject: unique().on(table.projectId, table.key),
+}));
 
 export const projectsInsertSchema = createInsertSchema(projects);
 export const projectsSelectSchema = createSelectSchema(projects);
 export const projectsUpdateSchema = createUpdateSchema(projects);
+
+export const projectVariablesInsertSchema = createInsertSchema(projectVariables);
+export const projectVariablesSelectSchema = createSelectSchema(projectVariables);
+export const projectVariablesUpdateSchema = createUpdateSchema(projectVariables);
 
 export const runsInsertSchema = createInsertSchema(runs);  
 export const runsSelectSchema = createSelectSchema(runs);
@@ -836,13 +804,11 @@ export const auditLogsSelectSchema = createSelectSchema(auditLogs);
 export const notificationsInsertSchema = createInsertSchema(notifications);
 export const notificationsSelectSchema = createSelectSchema(notifications);
 
-export const integrationsInsertSchema = createInsertSchema(integrations);
-export const integrationsSelectSchema = createSelectSchema(integrations);
 
 /* ================================
    AUTH SCHEMA EXPORT
    -------------------------------
    Object containing all tables required by the better-auth drizzle adapter.
 =================================== */
-export const authSchema = { user, organization, team, member, invitation, session, account, verification, apikey };
+export const authSchema = { user, organization, member, invitation, session, account, verification, apikey };
 

@@ -1,42 +1,87 @@
-import { Metadata } from "next";
+"use client";
+
+import { useState, useEffect } from "react";
 import { MonitorForm, type FormValues } from "@/components/monitors/monitor-form";
+import { MonitorFormSkeleton } from "@/components/monitors/monitor-form-skeleton";
 import { Monitor } from "@/components/monitors/schema";
-import { notFound } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { monitorTypes } from "@/components/monitors/data";
 
-export const metadata: Metadata = {
-  title: "Edit Monitor | Supercheck",
-  description: "Edit your monitor configuration",
-};
+// Can't use metadata in client components, remove this
+// export const metadata: Metadata = {
+//   title: "Edit Monitor | Supercheck",
+//   description: "Edit your monitor configuration",
+// };
 
-async function fetchMonitor(id: string): Promise<Monitor | null> {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/monitors/${id}`, {
-      cache: 'no-store'
-    });
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
+export default function EditMonitorPage({ params }: { params: Promise<{ id: string }> }) {
+  const [id, setId] = useState<string>("");
+  const [monitor, setMonitor] = useState<Monitor | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Get params on the client side
+  useEffect(() => {
+    params.then(({ id }) => setId(id));
+  }, [params]);
+
+  // Fetch monitor data
+  useEffect(() => {
+    if (!id) return;
+
+    async function fetchMonitor() {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/monitors/${id}`);
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError('Monitor not found');
+            return;
+          }
+          setError(`Failed to fetch monitor: ${response.statusText}`);
+          return;
+        }
+        
+        const data = await response.json();
+        setMonitor(data);
+      } catch (error) {
+        console.error("Error fetching monitor:", error);
+        setError(error instanceof Error ? error.message : 'Failed to fetch monitor');
+      } finally {
+        setLoading(false);
       }
-      throw new Error(`Failed to fetch monitor: ${response.statusText}`);
     }
-    
-    const monitor = await response.json();
-    return monitor;
-  } catch (error) {
-    console.error("Error fetching monitor:", error);
-    return null;
+
+    fetchMonitor();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div>
+        <PageBreadcrumbs items={[
+          { label: "Home", href: "/" },
+          { label: "Monitors", href: "/monitors" },
+          { label: "Loading...", isCurrentPage: true },
+        ]} />
+        <MonitorFormSkeleton />
+      </div>
+    );
   }
-}
 
-export default async function EditMonitorPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const monitor = await fetchMonitor(id);
-
-  if (!monitor) {
-    notFound();
+  if (error || !monitor) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-destructive mb-4">{error || 'Monitor not found'}</p>
+          <button 
+            onClick={() => window.history.back()} 
+            className="text-primary hover:underline"
+          >
+            Go back
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Map Monitor.type to FormValues.type first
@@ -44,7 +89,7 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
   const currentType = monitor.type;
 
   // Check if monitor.type is directly one of the FormValues types
-  const formValueTypes = ["http_request", "website", "ping_host", "port_check", "heartbeat"] as const;
+  const formValueTypes = ["http_request", "website", "ping_host", "port_check"] as const;
   
   if ((formValueTypes as readonly string[]).includes(currentType)) {
     formType = currentType as FormValues["type"];
@@ -101,7 +146,7 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
     interval: formInterval,
     httpConfig_authType: (monitor.config?.auth?.type as "none" | "basic" | "bearer") || "none",
 
-    // HTTP specific fields
+    // HTTP-specific fields
     httpConfig_method: formType === "http_request" ? (monitor.config?.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS") || "GET" : "GET",
     httpConfig_expectedStatusCodes: (formType === "http_request" || formType === "website") ? (monitor.config?.expectedStatusCodes || "200-299") : "200-299",
     httpConfig_headers: formType === "http_request" && monitor.config?.headers ? JSON.stringify(monitor.config.headers, null, 2) : "",
@@ -118,11 +163,8 @@ export default async function EditMonitorPage({ params }: { params: Promise<{ id
     portConfig_port: formType === "port_check" ? (monitor.config?.port || 80) : 80,
     portConfig_protocol: formType === "port_check" ? (monitor.config?.protocol as "tcp" | "udp") || "tcp" : "tcp",
 
-    // Heartbeat specific
-    heartbeatConfig_expectedInterval: formType === "heartbeat" ? (monitor.config?.expectedIntervalMinutes ?? 60) : 60,
-    heartbeatConfig_gracePeriod: formType === "heartbeat" ? (monitor.config?.gracePeriodMinutes ?? 10) : 10,
 
-    // Website SSL specific
+    // Website SSL-specific
     websiteConfig_enableSslCheck: formType === "website" ? (monitor.config?.enableSslCheck || false) : false,
     websiteConfig_sslDaysUntilExpirationWarning: formType === "website" ? (monitor.config?.sslDaysUntilExpirationWarning || 30) : 30,
   };

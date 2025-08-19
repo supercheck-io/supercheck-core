@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import { canManageMonitors } from "@/lib/rbac/client-permissions";
+import { Role } from "@/lib/rbac/permissions";
+import { LoadingBadge, Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { 
   ChevronLeft, 
@@ -14,15 +17,13 @@ import {
   Pause,
   Zap,
   TrendingUp,
-  ShieldCheck,
   XCircle,
   AlertCircle,
   X,
-  Copy,
   Shield,
   Bell,
   BellOff,
-  ActivityIcon,
+  FolderOpen,
 } from "lucide-react";
 import { 
   Card, 
@@ -59,8 +60,12 @@ import {
     MonitorStatus as DBMoniotorStatusType,
     MonitorResultStatus as DBMonitorResultStatusType, 
     MonitorResultDetails as DBMonitorResultDetailsType,
-    MonitorConfig
 } from "@/db/schema/schema";
+import { NavUser } from "@/components/nav-user";
+import Link from "next/link";
+import { CheckIcon } from "@/components/logo/supercheck-logo";
+import { Home } from "lucide-react";
+import { TruncatedTextWithTooltip } from "@/components/ui/truncated-text-with-tooltip";
 
 export interface MonitorResultItem {
   id: string;
@@ -79,6 +84,7 @@ export type MonitorWithResults = Monitor & {
 
 interface MonitorDetailClientProps {
   monitor: MonitorWithResults;
+  isNotificationView?: boolean;
 }
 
 const formatDateTime = (dateTimeInput?: string | Date): string => {
@@ -92,27 +98,6 @@ const formatDateTime = (dateTimeInput?: string | Date): string => {
     }
 };
 
-// Custom short format for last ping
-const formatShortDateTime = (dateTimeInput?: string | Date): string => {
-    if (!dateTimeInput) return "Never";
-    try {
-        const date = typeof dateTimeInput === 'string' ? parseISO(dateTimeInput) : dateTimeInput;
-        const now = new Date();
-        const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-        
-        if (diffInMinutes < 1) return "Now";
-        if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-        
-        const diffInHours = Math.floor(diffInMinutes / 60);
-        if (diffInHours < 24) return `${diffInHours}h ago`;
-        
-        const diffInDays = Math.floor(diffInHours / 24);
-        return `${diffInDays}d ago`;
-    } catch (error) {
-        console.warn("Failed to format date:", dateTimeInput, error);
-        return "Invalid date";
-    }
-};
 
 // Simple status icon component to replace the bar chart
 const SimpleStatusIcon = ({ isUp }: { isUp: boolean }) => {
@@ -137,7 +122,7 @@ const StatusHeaderIcon = ({ status }: { status: string }) => {
   }
 };
 
-export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailClientProps) {
+export function MonitorDetailClient({ monitor: initialMonitor, isNotificationView = false }: MonitorDetailClientProps) {
   const router = useRouter();
   const [monitor, setMonitor] = useState<MonitorWithResults>(initialMonitor);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -145,10 +130,35 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [userRole, setUserRole] = useState<Role | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const resultsPerPage = 10;
 
   console.log("[MonitorDetailClient] Initial Monitor Prop:", initialMonitor);
   console.log("[MonitorDetailClient] Monitor Results:", monitor.recentResults);
+
+  // Fetch user permissions for this monitor
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const response = await fetch(`/api/monitors/${monitor.id}/permissions`);
+        if (response.ok) {
+          const data = await response.json();
+          setUserRole(data.data.userRole || Role.PROJECT_VIEWER);
+        } else {
+          console.error('Failed to fetch permissions:', response.status);
+          setUserRole(Role.PROJECT_VIEWER); // Default to most restrictive role
+        }
+      } catch (error) {
+        console.error('Error fetching permissions:', error);
+        setUserRole(Role.PROJECT_VIEWER); // Default to most restrictive role
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    fetchPermissions();
+  }, [monitor.id]);
 
   useEffect(() => {
     console.log("[MonitorDetailClient] useEffect - initialMonitor changed:", initialMonitor);
@@ -248,13 +258,12 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
     const recentResults = monitor.recentResults.slice(0, 50);
     
     const chartData = recentResults
-      .filter(r => r.responseTimeMs !== null && r.responseTimeMs !== undefined && r.responseTimeMs >= 0) // Include all valid response times including 0ms
       .map(r => {
         const date = typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt;
         
         return {
           name: format(date, 'HH:mm'), // Show only time (HH:MM) for cleaner x-axis
-          time: r.responseTimeMs!, // Safe to use ! since we filtered out null/undefined above
+          time: r.responseTimeMs ?? 0, // Use 0 for failed checks (null/undefined response times)
           fullDate: format(date, 'MMM dd, HH:mm'), // Keep full date for tooltips
           isUp: r.isUp, // Keep status for conditional styling
           status: r.status
@@ -343,41 +352,13 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   const availabilityTimelineData = useMemo(() => {
     if (!monitor.recentResults || monitor.recentResults.length === 0) return [];
     
-    if (monitor.type === "heartbeat") {
-      // For heartbeat monitors: show all ping events and failures
-      const processedResults = [];
-      const recentResults = monitor.recentResults.slice(0, 50);
-      
-      for (let i = 0; i < recentResults.length; i++) {
-        const current = recentResults[i];
-        
-        if (current.isUp) {
-          // Always show successful pings as green bars
-          processedResults.push(current);
-        } else {
-          // Show all failures as red bars (both explicit failures and ping overdue)
-          // This includes:
-          // - Explicit failures reported via /fail endpoint
-          // - Ping overdue events detected by scheduler
-          // - Any other failure conditions
-          processedResults.push(current);
-        }
-      }
-      
-      return processedResults.map(r => ({
-        timestamp: (typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt).getTime(),
-        status: (r.isUp ? 1 : 0) as (0 | 1),
-        label: r.status
-      })).reverse();
-    } else {
-      // For other monitors: show all checks (original behavior)
-      return monitor.recentResults.slice(0, 50).map(r => ({
-        timestamp: (typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt).getTime(),
-        status: (r.isUp ? 1 : 0) as (0 | 1),
-        label: r.status
-      })).reverse();
-    }
-  }, [monitor.recentResults, monitor.type]);
+    // Show all checks (original behavior for all monitors)
+    return monitor.recentResults.slice(0, 50).map(r => ({
+      timestamp: (typeof r.checkedAt === 'string' ? parseISO(r.checkedAt) : r.checkedAt).getTime(),
+      status: (r.isUp ? 1 : 0) as (0 | 1),
+      label: r.status
+    })).reverse();
+  }, [monitor.recentResults]);
 
   // Extract SSL certificate info for website monitors
   const sslCertificateInfo = useMemo(() => {
@@ -387,6 +368,15 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
     
     if (monitor.type !== 'website') {
       console.log("[SSL Debug] Not a website monitor, skipping SSL check");
+      return null;
+    }
+
+    // Check if SSL checking is currently enabled in monitor config
+    const sslCheckEnabled = monitor.config?.enableSslCheck;
+    console.log("[SSL Debug] SSL Check enabled in config:", sslCheckEnabled);
+    
+    if (!sslCheckEnabled) {
+      console.log("[SSL Debug] SSL checking is disabled in monitor config, not showing SSL info");
       return null;
     }
     
@@ -452,28 +442,57 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   };
 
   return (
-    <div className=" p-4 h-full">
+    <div className="h-full">
+      
+      {/* Logo, breadcrumbs, and user nav for notification view */}
+      {isNotificationView && (
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <CheckIcon className="h-8 w-8" />
+            <div className="flex items-center gap-2 text-sm">
+              <Link href="/" className="text-xl font-semibold text-foreground hover:opacity-80 transition-opacity">
+                Supercheck
+              </Link>
+
+                <span className="mx-2 text-muted-foreground/30">|</span>
+                <Link href="/" className="flex items-center gap-1 hover:text-foreground transition-colors text-muted-foreground">
+                <Home className="h-4 w-4" />
+                </Link>
+                <span className="mx-1 text-muted-foreground">/</span>
+                <span className="text-foreground">Monitor Report</span>
+            </div>
+          </div>
+          <NavUser />
+        </div>
+      )}
       
       {/* Status and Type Header */}
       <div className="border rounded-lg p-2 mb-4 shadow-sm bg-card">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => router.push('/monitors')}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span className="sr-only">Back to monitors</span>
-            </Button>
+            {!isNotificationView && (
+              <Button 
+                variant="outline" 
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => router.push('/monitors')}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span className="sr-only">Back to monitors</span>
+              </Button>
+            )}
             <div>
               <h1 className="text-2xl font-semibold flex items-center gap-2 mt-1">
                 {monitorTypeInfo?.icon && <monitorTypeInfo.icon className={`h-6 w-6 ${monitorTypeInfo.color}`} />}
                 {monitor.name.length > 40 ? monitor.name.slice(0, 40) + "..." : monitor.name}
               </h1>
               <div className="text-sm text-muted-foreground truncate max-w-md" title={monitor.url}>
-                {monitor.url} 
+                {monitor.type === 'port_check' && monitor.config?.port 
+                  ? `${monitor.target || monitor.url}:${monitor.config.port}`
+                  : monitor.type === 'http_request' && monitor.config?.method
+                  ? `${monitor.config.method.toUpperCase()} ${monitor.url || monitor.target}`
+                  : monitor.url || monitor.target
+                } 
               </div>
             </div>
           </div>
@@ -526,7 +545,7 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                       </div>
                     </div>
                   )}
-                  {monitor.alertConfig.alertOnSslExpiration && monitor.type === 'website' && (
+                  {monitor.alertConfig.alertOnSslExpiration && monitor.type === 'website' && monitor.config?.enableSslCheck && (
                     <div className="relative group">
                       <Shield className="h-4 w-4 text-blue-600 dark:text-blue-500" />
                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
@@ -567,10 +586,10 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             )}
             
-            {/* Debug info for SSL when not showing */}
-            {monitor.type === 'website' && !sslCertificateInfo && (
+            {/* Debug info for SSL when enabled but no certificate data */}
+            {monitor.type === 'website' && monitor.config?.enableSslCheck && !sslCertificateInfo && (
               <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                title="SSL disabled">
+                title="SSL enabled but no certificate data available">
                 <Shield className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs text-blue-700 dark:text-blue-300">
                   SSL: No certificate data yet
@@ -578,33 +597,81 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
               </div>
             )}
             
-            <Button variant="outline" size="sm" onClick={handleToggleStatus}>
-              {monitor.status === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
-              {monitor.status === 'paused' ? 'Resume' : 'Pause'}
-            </Button>
-           
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => router.push(`/monitors/${monitor.id}/edit`)}
-              className="flex items-center"
-            >
-              <Edit3 className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Edit</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-              className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Delete</span>
-            </Button>
+            {/* Action buttons - only show if user has manage permissions and not notification view */}
+            {!isNotificationView && !permissionsLoading && userRole && canManageMonitors(userRole) && (
+              <>
+                <Button variant="outline" size="sm" onClick={handleToggleStatus}>
+                  {monitor.status === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
+                  {monitor.status === 'paused' ? 'Resume' : 'Pause'}
+                </Button>
+               
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => router.push(`/monitors/${monitor.id}/edit`)}
+                  className="flex items-center"
+                >
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Edit</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Delete</span>
+                </Button>
+              </>
+            )}
+            
+            {/* Show loading state while fetching permissions - only in non-notification view */}
+            {!isNotificationView && permissionsLoading && <LoadingBadge />}
+            
+            {/* Show disabled action buttons when user doesn't have management permissions - only in non-notification view */}
+            {!isNotificationView && !permissionsLoading && userRole && !canManageMonitors(userRole) && (
+              <>
+                <Button variant="outline" size="sm" disabled>
+                  {monitor.status === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
+                  {monitor.status === 'paused' ? 'Resume' : 'Pause'}
+                </Button>
+               
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled
+                  className="flex items-center"
+                >
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Edit</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled
+                  className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Delete</span>
+                </Button>
+              </>
+            )}
+
+            {/* In notification view, just show project name without action buttons */}
+            {isNotificationView && monitor.projectName && (
+              <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                <FolderOpen className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs text-blue-700 dark:text-blue-300">
+                  {monitor.projectName}
+                </span>
+              </div>
+            )}
+            
           </div>
         </div>
 
-        <div className={`grid gap-4 mt-4 ${monitor.type === "heartbeat" ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-6" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7"}`}>
+        <div className="grid gap-4 mt-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 m-2">
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
               <StatusHeaderIcon status={currentActualStatus} />
@@ -612,78 +679,30 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
             </CardHeader>
             <CardContent className="pb-4 px-4">
               <div className="text-xl font-semibold">
-                {statusInfo?.label ?? currentActualStatus?.charAt(0).toUpperCase() + currentActualStatus?.slice(1) ?? "Unknown"}
+                {statusInfo?.label ?? (currentActualStatus ? currentActualStatus.charAt(0).toUpperCase() + currentActualStatus.slice(1) : "Unknown")}
               </div>
             </CardContent>
           </Card>
 
-          {monitor.type === "heartbeat" ? (
-            <>
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <Clock className="h-5 w-5 text-purple-500" />
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Expected Interval</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-semibold">{(monitor.config as MonitorConfig)?.expectedIntervalMinutes ? `${(monitor.config as MonitorConfig).expectedIntervalMinutes}m` : "60m"}</div>
-                </CardContent>
-              </Card>
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
+              <Activity className="h-5 w-5 text-blue-500" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Response Time</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-xl font-semibold">{currentResponseTime}</div>
+            </CardContent>
+          </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <ShieldCheck className="h-5 w-5 text-blue-500" />
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Grace Period</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-bold">{(monitor.config as MonitorConfig)?.gracePeriodMinutes ? `${(monitor.config as MonitorConfig).gracePeriodMinutes}m` : "10m"}</div>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <ActivityIcon className="h-5 w-5 text-sky-500" />
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Last Ping</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-semibold">
-                    {formatShortDateTime((monitor.config as MonitorConfig)?.lastPingAt)}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <TrendingUp className="h-5 w-5 text-green-400" />
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-semibold">{calculatedMetrics.uptime30d}</div>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            <>
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <Activity className="h-5 w-5 text-blue-500" />
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Response Time</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-semibold">{currentResponseTime}</div>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <Clock className="h-5 w-5 text-purple-500" />
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Interval</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 px-4">
-                    <div className="text-xl font-semibold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
-                </CardContent>
-              </Card>
-            </>
-          )}
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
+              <Clock className="h-5 w-5 text-purple-500" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Interval</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+                <div className="text-xl font-semibold">{monitor.frequencyMinutes ? `${monitor.frequencyMinutes}m` : "N/A"}</div>
+            </CardContent>
+          </Card>
 
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
@@ -698,320 +717,102 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
   
           
 
-          {monitor.type !== "heartbeat" && (
-            <>
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <Zap className="h-5 w-5 text-sky-500" /> 
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (24h)</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-semibold">{calculatedMetrics.avgResponse24h}</div>
-                </CardContent>
-              </Card>
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
+              <Zap className="h-5 w-5 text-sky-500" /> 
+              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (24h)</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-xl font-semibold">{calculatedMetrics.avgResponse24h}</div>
+            </CardContent>
+          </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <TrendingUp className="h-5 w-5 text-green-400" />
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-semibold">{calculatedMetrics.uptime30d}</div>
-                </CardContent>
-              </Card>
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
+              <TrendingUp className="h-5 w-5 text-green-400" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Uptime (30d)</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-xl font-semibold">{calculatedMetrics.uptime30d}</div>
+            </CardContent>
+          </Card>
 
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-                <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-                  <Zap className="h-5 w-5 text-sky-500" /> 
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (30d)</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 px-4">
-                  <div className="text-xl font-semibold">{calculatedMetrics.avgResponse30d}</div>
-                </CardContent>
-              </Card>
-
-       
-              
-            </>
-          )}
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
+              <Zap className="h-5 w-5 text-sky-500" /> 
+              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Resp (30d)</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-xl font-semibold">{calculatedMetrics.avgResponse30d}</div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" >
-        {monitor.type === "heartbeat" ? (
-          <>
-            {/* Left column - Availability Chart */}
-            <div className="flex flex-col h-full">
-              <div className="flex-1">
-                <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
-              </div>
-              
-              {/* Heartbeat Configuration */}
-              <Card className="shadow-sm flex-1 mt-4 min-h-[410px]">
-                <CardHeader>
-                  <CardTitle className="text-2xl">Heartbeat Configuration</CardTitle>
-                  <CardDescription>
-                    Passive monitoring expecting regular pings from your services
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Heartbeat URLs */}
-                  <div className="space-y-4 pt-4 border-t">
-                    <p className="text-sm text-muted-foreground mt-5">
-                      Use these URLs to send pings from your services, scripts, or cron jobs
-                    </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* For all monitors, show charts and results in two columns */}
+        <div className="flex flex-col space-y-6 ">
+          {/* Availability Chart */}
+          <div className="flex-1">
+            <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
+          </div>
 
-                    {/* Success URL */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-muted-foreground">Success URL</label>
-                      <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group">
-                        <code className="flex-1 text-[13px] font-mono break-all">
-                          {(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/${monitor.id}`}
-                        </code>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const url = (monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/${monitor.id}`;
-                            navigator.clipboard.writeText(url);
-                            toast.success("URL copied to clipboard");
-                          }}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
+          {/* Response Time Chart */}
+          <div className="flex-1 -mt-2">
+            <ResponseTimeBarChart data={responseTimeData} />
+          </div>
+        </div>
 
-                    {/* Failure URL */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-muted-foreground">Failure URL</label>
-                      <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg group mb-5" >
-                        <code className="flex-1 text-[13px] font-mono break-all">
-                          {(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/${monitor.id}`}/fail
-                        </code>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const url = `${(monitor.config as MonitorConfig)?.heartbeatUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/${monitor.id}`}/fail`;
-                            navigator.clipboard.writeText(url);
-                            toast.success("URL copied to clipboard");
-                          }}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right column - Recent Check Results */}
-            <Card className="shadow-sm flex flex-col">
-              <CardHeader className="flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-2xl font-semibold flex items-center">
-                    Recent Check Results
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    {selectedDate && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={clearDateFilter}
-                        className="h-8"
-                      >
-                        <X className="h-3 w-3 mr-1" />
-                        Clear
-                      </Button>
-                    )}
-                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8">
-                          <CalendarIcon className="h-3 w-3 mr-1" />
-                          {selectedDate ? format(selectedDate, 'MMM dd') : 'Filter by date'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="end">
-                        <CalendarComponent
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date: Date | undefined) => {
-                            setSelectedDate(date);
-                            setIsCalendarOpen(false);
-                          }}
-                          disabled={(date: Date) =>
-                            date > new Date() || date < new Date("2020-01-01")
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-                <CardDescription>
-                  {selectedDate 
-                    ? `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} checks for ${format(selectedDate, 'MMMM dd, yyyy')}`
-                    : `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} recent checks.`
-                  }
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0 flex-1 flex flex-col">
-                {filteredResults && filteredResults.length > 0 ? (
-                  <div className="flex-1 overflow-y-auto">
-                    <div className="w-full">
-                      <table className="w-full divide-y divide-border">
-                        <thead className="bg-background sticky top-0 z-10 border-b">
-                          <tr>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-20">Result</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Checked At</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Details</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-card divide-y divide-border">
-                          {paginatedResults.map((result) => (
-                            <tr key={result.id} className="hover:bg-muted/25">
-                              <td className="px-4 py-3 whitespace-nowrap text-sm w-20">
-                                <div className="flex items-center gap-2">
-                                  <SimpleStatusIcon isUp={result.isUp} />
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-sm text-gray-400">{formatDateTime(result.checkedAt)}</td>
-                              <td className="px-4 py-3 text-sm text-muted-foreground">
-                                {result.isUp ? (
-                                  <span className="text-muted-foreground text-xs">
-                                    {typeof result.details?.message === 'string' ? result.details.message : "Ping received"}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground text-xs truncate max-w-[150px]" title={result.details?.errorMessage || "No ping within expected interval"}>
-                                    {(() => {
-                                      const errorMsg = result.details?.errorMessage || "No ping within expected interval";
-                                      // Simplify heartbeat error messages for better UX
-                                      if (errorMsg.includes('Waiting for initial heartbeat ping')) {
-                                        return 'Waiting for first ping';
-                                      }
-                                      if (errorMsg.includes('No ping received within expected interval')) {
-                                        return 'Ping overdue';
-                                      }
-                                      if (errorMsg.includes('No initial ping received')) {
-                                        return 'No initial ping';
-                                      }
-                                      return errorMsg;
-                                    })()}
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center">
-                      <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground">No check results available</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Heartbeat monitors use passive monitoring. Send a ping to the URL above to generate results.
-                      </p>
-                    </div>
-                  </div>
+        <Card className="shadow-sm flex flex-col ">
+          <CardHeader className="flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold flex items-center">
+                Recent Check Results
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {selectedDate && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearDateFilter}
+                    className="h-8"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Clear
+                  </Button>
                 )}
-                {filteredResults && filteredResults.length > 0 && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t flex-shrink-0 bg-card rounded-b-lg">
-                    <div className="text-sm text-muted-foreground">
-                      Page {currentPage} of {totalPages}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        disabled={currentPage === 1}
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </>
-        ) : (
-          // For other monitors, show charts and results in two columns
-          <>
-            <div className="flex flex-col space-y-6 ">
-              {/* Availability Chart */}
-              <div className="flex-1">
-                <AvailabilityBarChart data={availabilityTimelineData} monitorType={monitor.type} />
-              </div>
-
-              {/* Response Time Chart */}
-              <div className="flex-1">
-                <ResponseTimeBarChart data={responseTimeData} />
+                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8">
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      {selectedDate ? format(selectedDate, 'MMM dd') : 'Filter by date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <CalendarComponent
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={(date: Date | undefined) => {
+                        setSelectedDate(date);
+                        setIsCalendarOpen(false);
+                      }}
+                      disabled={(date: Date) =>
+                        date > new Date() || date < new Date("2020-01-01")
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
-
-            <Card className="shadow-sm flex flex-col">
-              <CardHeader className="flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-2xl font-semibold flex items-center">
-                    Recent Check Results
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    {selectedDate && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={clearDateFilter}
-                        className="h-8"
-                      >
-                        <X className="h-3 w-3 mr-1" />
-                        Clear
-                      </Button>
-                    )}
-                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8">
-                          <CalendarIcon className="h-3 w-3 mr-1" />
-                          {selectedDate ? format(selectedDate, 'MMM dd') : 'Filter by date'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="end">
-                        <CalendarComponent
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date: Date | undefined) => {
-                            setSelectedDate(date);
-                            setIsCalendarOpen(false);
-                          }}
-                          disabled={(date: Date) =>
-                            date > new Date() || date < new Date("2020-01-01")
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-                <CardDescription>
-                  {selectedDate 
-                    ? `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} checks for ${format(selectedDate, 'MMMM dd, yyyy')}`
-                    : `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} recent checks.`
-                  }
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0 flex-1 flex flex-col ">
+            <CardDescription>
+              {selectedDate 
+                ? `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} checks for ${format(selectedDate, 'MMMM dd, yyyy')}`
+                : `Showing ${paginatedResults.length} of ${filteredResults?.length || 0} recent checks.`
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0 flex-1 flex flex-col">
                 {filteredResults && filteredResults.length > 0 ? (
                   <div className="flex-1 overflow-y-auto">
                     <div className="w-full">
@@ -1038,16 +839,12 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                                 {result.isUp ? (
                                   <span className="text-muted-foreground text-xs">N/A</span>
                                 ) : (
-                                  <span 
-                                    className="text-muted-foreground text-xs cursor-help block truncate max-w-[150px]" 
-                                    title={result.details?.errorMessage || 'Check failed'}
-                                  >
-                                    {(() => {
-                                      const errorMsg = result.details?.errorMessage || 'Check failed';
-                                      // Truncate long messages
-                                      return errorMsg.length > 30 ? errorMsg.substring(0, 27) + '...' : errorMsg;
-                                    })()}
-                                  </span>
+                                  <TruncatedTextWithTooltip 
+                                    text={result.details?.errorMessage || 'Check failed'}
+                                    className="text-muted-foreground text-xs"
+                                    maxWidth="150px"
+                                    maxLength={30}
+                                  />
                                 )}
                               </td>
                             </tr>
@@ -1089,10 +886,8 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </>
-        )}
+          </CardContent>
+        </Card>
       </div>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -1107,7 +902,12 @@ export function MonitorDetailClient({ monitor: initialMonitor }: MonitorDetailCl
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
-              {isDeleting ? "Deleting..." : "Delete"}
+{isDeleting ? (
+                <div className="flex items-center gap-2">
+                  <Spinner size="sm" />
+                  Deleting...
+                </div>
+              ) : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -12,7 +12,6 @@ export const monitorSchema = z.object({
     "website", 
     "ping_host",
     "port_check",
-    "heartbeat",
   ]).default("http_request"),
   target: z.string(), // URL, IP, domain, etc.
   frequencyMinutes: z.number().default(5),
@@ -36,6 +35,7 @@ export const monitorSchema = z.object({
   mutedUntil: z.string().nullable().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
+  projectName: z.string().optional(),
   
   // Legacy fields for backward compatibility
   url: z.string().optional(),

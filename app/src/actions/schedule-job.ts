@@ -2,9 +2,11 @@
 
 import { db } from "../utils/db";
 import { jobs as jobsTable, jobsSelectSchema } from "../db/schema/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { scheduleJob } from "../lib/job-scheduler";
 import { z } from "zod";
+import { requireProjectContext } from "@/lib/project-context";
+import { hasPermission } from "@/lib/rbac/middleware";
 
 type Job = z.infer<typeof jobsSelectSchema>;
 
@@ -21,20 +23,24 @@ interface GetJobResponse {
 }
 
 /**
- * Local function to get a job by ID
+ * Local function to get a job by ID with project scoping
  */
-async function getJob(jobId: string): Promise<GetJobResponse> {
+async function getJob(jobId: string, projectId: string, organizationId: string): Promise<GetJobResponse> {
   try {
     const job = await db
       .select()
       .from(jobsTable)
-      .where(eq(jobsTable.id, jobId))
+      .where(and(
+        eq(jobsTable.id, jobId),
+        eq(jobsTable.projectId, projectId),
+        eq(jobsTable.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (job.length === 0) {
       return {
         success: false,
-        error: "Job not found"
+        error: "Job not found or access denied"
       };
     }
 
@@ -56,6 +62,20 @@ async function getJob(jobId: string): Promise<GetJobResponse> {
  */
 export async function scheduleCronJob(jobId: string, cronExpression: string): Promise<ScheduleJobResponse> {
   try {
+    // Get current project context (includes auth verification)
+    const { userId, project, organizationId } = await requireProjectContext();
+
+    // Check permission to update jobs
+    const canEditJobs = await hasPermission('job', 'update', { organizationId, projectId: project.id });
+    
+    if (!canEditJobs) {
+      console.warn(`User ${userId} attempted to schedule job ${jobId} without EDIT_JOBS permission`);
+      return {
+        success: false,
+        error: "Insufficient permissions to schedule jobs",
+      };
+    }
+
     // Validate cron expression
     if (!cronExpression) {
       return {
@@ -64,12 +84,12 @@ export async function scheduleCronJob(jobId: string, cronExpression: string): Pr
       };
     }
 
-    // Get job details
-    const jobResult = await getJob(jobId);
+    // Get job details with project scoping
+    const jobResult = await getJob(jobId, project.id, organizationId);
     if (!jobResult.success || !jobResult.job) {
       return {
         success: false,
-        error: "Job not found"
+        error: "Job not found or access denied"
       };
     }
 
@@ -111,14 +131,28 @@ export async function scheduleCronJob(jobId: string, cronExpression: string): Pr
  */
 export async function cancelScheduledJob(jobId: string): Promise<ScheduleJobResponse> {
   try {
-    // Get the job to find its scheduledJobId
-    const jobResult = await getJob(jobId);
+    // Get current project context (includes auth verification)
+    const { userId, project, organizationId } = await requireProjectContext();
+
+    // Check permission to update jobs
+    const canEditJobs = await hasPermission('job', 'update', { organizationId, projectId: project.id });
+    
+    if (!canEditJobs) {
+      console.warn(`User ${userId} attempted to cancel scheduled job ${jobId} without EDIT_JOBS permission`);
+      return {
+        success: false,
+        error: "Insufficient permissions to cancel scheduled jobs",
+      };
+    }
+
+    // Get the job to find its scheduledJobId with project scoping
+    const jobResult = await getJob(jobId, project.id, organizationId);
     if (!jobResult.success || !jobResult.job) {
-      console.warn(`Cannot cancel schedule for job ${jobId}: Job not found`);
+      console.warn(`Cannot cancel schedule for job ${jobId}: Job not found or access denied`);
       // Return success:true to allow job deletion to continue
       return {
         success: true,
-        error: "Job not found"
+        error: "Job not found or access denied"
       };
     }
 

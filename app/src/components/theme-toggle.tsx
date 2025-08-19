@@ -23,11 +23,23 @@ export function ThemeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
+        <DropdownMenuItem onClick={() => {
+          try {
+            setTheme("light");
+          } catch (error) {
+            console.error('Failed to set theme to light:', error);
+          }
+        }}>
           <Sun className="h-4 w-4" />
           Light
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
+        <DropdownMenuItem onClick={() => {
+          try {
+            setTheme("dark");
+          } catch (error) {
+            console.error('Failed to set theme to dark:', error);
+          }
+        }}>
           <Moon className="h-4 w-4" />
           Dark
         </DropdownMenuItem>

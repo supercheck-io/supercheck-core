@@ -11,6 +11,8 @@ import { BreadcrumbDisplay } from "@/components/breadcrumb-display";
 import { JobProvider } from "@/components/jobs/job-context";
 import { SchedulerInitializer } from "@/components/scheduler-initializer";
 import { CommandSearch } from "@/components/ui/command-search";
+import { SetupChecker } from "@/components/setup-checker";
+import { ProjectContextProvider } from "@/hooks/use-project-context";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -31,11 +33,14 @@ export default async function MainLayout({
 
   return (
     <BreadcrumbProvider >
-      <SidebarProvider>
-        <JobProvider>
-          {/* Initialize job scheduler */}
-          <SchedulerInitializer />
-          <AppSidebar />
+      <ProjectContextProvider>
+        <SidebarProvider>
+          <JobProvider>
+            {/* Initialize job scheduler */}
+            <SchedulerInitializer />
+            {/* Check and setup defaults for new users */}
+            <SetupChecker />
+            <AppSidebar />
           <SidebarInset>
             <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
               <div className="flex items-center gap-2 px-4">
@@ -59,8 +64,8 @@ export default async function MainLayout({
           </SidebarInset>
         </JobProvider>
       </SidebarProvider>
-
-    </BreadcrumbProvider>
+    </ProjectContextProvider>
+  </BreadcrumbProvider>
     
   );
 }

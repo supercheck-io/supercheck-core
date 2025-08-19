@@ -44,11 +44,9 @@ export function ReportViewer({
     console.log("ReportViewer: reportUrl changed:", reportUrl);
     if (reportUrl) {
       // Always ensure we have a timestamp parameter to prevent caching issues
-      const formattedUrl = reportUrl.includes('?') ? 
-        (reportUrl.includes('t=') ? `${reportUrl}&t=${Date.now()}` : `${reportUrl}&t=${Date.now()}`) : 
+      const finalUrl = reportUrl.includes('?') ? 
+        `${reportUrl}&t=${Date.now()}` : 
         `${reportUrl}?t=${Date.now()}`;
-      
-      const finalUrl = formattedUrl; // Use the timestamped URL directly
       
       console.log("ReportViewer: Setting currentReportUrl to:", finalUrl);
                 setCurrentReportUrl(finalUrl);
@@ -240,7 +238,7 @@ export function ReportViewer({
     console.log("ReportViewer: Test is running, showing running state");
     return (
       <div className={containerClassName}>
-        <div className="w-full h-full flex items-center justify-center">
+        <div className="w-full h-full flex items-center justify-center bg-card">
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Loader2Icon className="h-12 w-12 animate-spin" />
             <p className="text-muted-foreground text-lg">Please wait, running script...</p>
@@ -255,7 +253,7 @@ export function ReportViewer({
     console.log("ReportViewer: No reportUrl and not running, showing empty state");
     return (
       <div className={containerClassName}>
-        <div className="w-full h-full flex items-center justify-center">
+        <div className="w-full h-full flex items-center justify-center bg-card">
           <div className="flex flex-col items-center gap-3 text-muted-foreground ">
             {!hideEmptyMessage && (
               <>
@@ -281,22 +279,6 @@ export function ReportViewer({
             timeoutInfo={timeoutInfo}
             backToLabel={backToLabel}
             backToUrl={backToUrl}
-            onRetry={() => {
-              // Retry by reloading the current report URL
-              if (currentReportUrl) {
-                setIsReportLoading(true);
-                setIframeError(false);
-                setTimeoutInfo(null);
-                setReportError(null);
-                
-                // Force a reload with a new timestamp
-                const baseUrl = currentReportUrl.split('?')[0];
-                const newUrl = `${baseUrl}?retry=true&t=${Date.now()}`;
-                setCurrentReportUrl(newUrl);
-              } else {
-                window.location.reload();
-              }
-            }}
             containerClassName={containerClassName}
           />
         </div>
@@ -319,7 +301,7 @@ export function ReportViewer({
   return (
     <div className={containerClassName}>
       {isReportLoading && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-card">
           <Loader2Icon className="h-12 w-12 animate-spin mb-2 text-muted-foreground" />
           <p className="text-lg text-muted-foreground">{loadingMessage}</p>
         </div>
@@ -345,7 +327,7 @@ export function ReportViewer({
             ref={iframeRef}
             key={currentReportUrl}
             src={currentReportUrl}
-            className={`${iframeClassName} ${isReportLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${isValidationError ? 'h-4/5 flex-grow' : 'h-full'}`}
+            className={`${iframeClassName} ${isReportLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${isValidationError ? 'h-4/5 flex-grow' : 'h-full'} bg-card`}
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
             style={{ 
               visibility: isReportLoading ? 'hidden' : 'visible',

@@ -12,6 +12,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -23,6 +29,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { deleteMonitor } from "@/actions/delete-monitor";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import { canEditMonitors, canDeleteMonitors } from "@/lib/rbac/client-permissions";
 
 import { monitorSchema } from "./schema";
 
@@ -36,6 +45,11 @@ export function DataTableRowActions<TData>({
   onDelete,
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
+  const { currentProject } = useProjectContext();
+  
+  // Check permissions using project context (same as toolbar approach)
+  const hasEditPermission = currentProject?.userRole ? canEditMonitors(normalizeRole(currentProject.userRole)) : false;
+  const hasDeletePermission = currentProject?.userRole ? canDeleteMonitors(normalizeRole(currentProject.userRole)) : false;
   
   // Use safeParse instead of parse to handle validation errors
   const parsedMonitor = monitorSchema.safeParse(row.original);
@@ -146,7 +160,7 @@ export function DataTableRowActions<TData>({
   };
 
   return (
-    <>
+    <TooltipProvider>
       <DropdownMenu>
         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Button
@@ -158,36 +172,79 @@ export function DataTableRowActions<TData>({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[160px]">
-          <DropdownMenuItem onClick={handleEditMonitor}>
-            <PencilIcon className="mr-2 h-4 w-4" />
-            <span>Edit</span>
-          </DropdownMenuItem>
-          
-          <DropdownMenuItem onClick={handleTogglePauseResume} disabled={isPauseResumeLoading}>
-            {monitor.status === 'paused' ? (
-              <>
-                <PlayIcon className="mr-2 h-4 w-4 text-green-500" />
-                <span>Resume</span>
-              </>
-            ) : (
-              <>
-                <PauseIcon className="mr-2 h-4 w-4 text-amber-500" />
-                <span>Pause</span>
-              </>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <DropdownMenuItem 
+                  onClick={hasEditPermission ? handleEditMonitor : undefined}
+                  disabled={!hasEditPermission}
+                  className={!hasEditPermission ? "opacity-50 cursor-not-allowed" : ""}
+                >
+                  <PencilIcon className="mr-2 h-4 w-4" />
+                  <span>Edit</span>
+                </DropdownMenuItem>
+              </div>
+            </TooltipTrigger>
+            {!hasEditPermission && (
+              <TooltipContent>
+                <p>Insufficient permissions to edit monitors</p>
+              </TooltipContent>
             )}
-          </DropdownMenuItem>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <DropdownMenuItem 
+                  onClick={hasEditPermission ? handleTogglePauseResume : undefined} 
+                  disabled={!hasEditPermission || isPauseResumeLoading}
+                  className={!hasEditPermission ? "opacity-50 cursor-not-allowed" : ""}
+                >
+                  {monitor.status === 'paused' ? (
+                    <>
+                      <PlayIcon className="mr-2 h-4 w-4 text-green-500" />
+                      <span>Resume</span>
+                    </>
+                  ) : (
+                    <>
+                      <PauseIcon className="mr-2 h-4 w-4 text-amber-500" />
+                      <span>Pause</span>
+                    </>
+                  )}
+                </DropdownMenuItem>
+              </div>
+            </TooltipTrigger>
+            {!hasEditPermission && (
+              <TooltipContent>
+                <p>Insufficient permissions to control monitors</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
           
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowDeleteDialog(true);
-            }}
-            className="text-red-600"
-          >
-            <TrashIcon className="mr-2 h-4 w-4" />
-            <span>Delete</span>
-          </DropdownMenuItem>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <DropdownMenuItem
+                  onClick={hasDeletePermission ? (e) => {
+                    e.stopPropagation();
+                    setShowDeleteDialog(true);
+                  } : undefined}
+                  disabled={!hasDeletePermission}
+                  className={`${!hasDeletePermission ? "opacity-50 cursor-not-allowed" : "text-red-600"}`}
+                >
+                  <TrashIcon className="mr-2 h-4 w-4" />
+                  <span>Delete</span>
+                </DropdownMenuItem>
+              </div>
+            </TooltipTrigger>
+            {!hasDeletePermission && (
+              <TooltipContent>
+                <p>Insufficient permissions to delete monitors</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -214,6 +271,6 @@ export function DataTableRowActions<TData>({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </TooltipProvider>
   );
 } 

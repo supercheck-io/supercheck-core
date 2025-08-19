@@ -43,6 +43,9 @@ import { Bell, BellOff, CheckCircle, XCircle, Clock, Copy } from "lucide-react";
 import { UrlTriggerTooltip } from "./url-trigger-tooltip";
 import { JobTestDataTable } from "./job-test-data-table";
 import { createJobTestColumns } from "./job-test-columns";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { canEditJobs } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 // Helper function to map incoming types to the valid Test["type"]
 function mapToTestType(type: string | undefined): Test["type"] {
@@ -68,6 +71,11 @@ export default function Jobs() {
   const {} = useJobContext();
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const { projectId, currentProject } = useProjectContext();
+  
+  // Check permissions
+  const userRole = currentProject?.userRole ? normalizeRole(currentProject.userRole) : null;
+  const hasEditPermission = userRole ? canEditJobs(userRole) : false;
 
   // Set mounted to true after initial render
   useEffect(() => {
@@ -118,7 +126,14 @@ export default function Jobs() {
     async function fetchJobs() {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/jobs');
+        // Only fetch jobs if we have a projectId
+        if (!projectId) {
+          setJobs([]);
+          setIsLoading(false);
+          return;
+        }
+
+        const response = await fetch(`/api/jobs?projectId=${projectId}`);
         const data = await response.json();
         
         if (response.ok && data.success && data.jobs) {
@@ -145,6 +160,7 @@ export default function Jobs() {
           toast.error("Failed to fetch jobs", {
             description: data.error || "An unknown error occurred",
           });
+          setJobs([]);
         }
       } catch (error) {
         console.error("Error fetching jobs:", error);
@@ -154,13 +170,14 @@ export default function Jobs() {
               ? error.message
               : "An unknown error occurred",
         });
+        setJobs([]);
       } finally {
         setIsLoading(false);
       }
     }
 
     fetchJobs();
-  }, []);
+  }, [projectId]);
 
   // Handle URL parameter changes (for direct navigation to job details)
   useEffect(() => {
@@ -378,10 +395,11 @@ export default function Jobs() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
+                      onClick={hasEditPermission ? () =>
                         router.push(`/jobs/edit/${selectedJob.id}`)
-                      }
-                      className="ml-2"
+                       : undefined}
+                      disabled={!hasEditPermission}
+                      className={`ml-2 ${!hasEditPermission ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
                       <Edit className="h-4 w-4 mr-2 " />
                       Edit Job

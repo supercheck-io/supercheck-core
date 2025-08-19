@@ -34,14 +34,16 @@ export interface Tag {
   id: string
   name: string
   color?: string
+  createdByUserId?: string
 }
 
 interface TagSelectorProps {
   value: Tag[]
   onChange: (tags: Tag[]) => void
   availableTags: Tag[]
-  onCreateTag: (name: string, color?: string) => Promise<Tag>
+  onCreateTag?: (name: string, color?: string) => Promise<Tag>
   onDeleteTag?: (tagId: string) => Promise<void>
+  canDeleteTag?: (tag: Tag) => boolean // Function to check if specific tag can be deleted
   placeholder?: string
   className?: string
   disabled?: boolean
@@ -59,6 +61,7 @@ export function TagSelector({
   availableTags,
   onCreateTag,
   onDeleteTag,
+  canDeleteTag,
   placeholder = "Select tags...",
   className,
   disabled = false,
@@ -122,7 +125,7 @@ export function TagSelector({
   }
 
   const handleCreateTag = async (color?: string) => {
-    if (!inputValue.trim() || isCreating) return
+    if (!inputValue.trim() || isCreating || !onCreateTag) return
 
     const trimmedInput = inputValue.trim()
 
@@ -266,7 +269,7 @@ export function TagSelector({
             />
             <CommandList>
               <CommandEmpty>
-                {inputValue ? (
+                {inputValue && onCreateTag ? (
                   <div className="">
                     <Button
                       variant="ghost"
@@ -313,6 +316,12 @@ export function TagSelector({
                       </Button>
                     )}
                   </div>
+                ) : inputValue && !onCreateTag ? (
+                  <div className="text-center py-2 text-xs text-muted-foreground">
+                    No matching tags found.
+                    <br />
+                    No permission to create tags.
+                  </div>
                 ) : (
                   "No tags found."
                 )}
@@ -336,7 +345,7 @@ export function TagSelector({
                       {selectedIds.has(tag.id) && (
                         <Check className="h-4 w-4 text-primary" />
                       )}
-                      {onDeleteTag && (
+                      {onDeleteTag && canDeleteTag && canDeleteTag(tag) && (
                         <Button
                           variant="ghost"
                           size="sm"

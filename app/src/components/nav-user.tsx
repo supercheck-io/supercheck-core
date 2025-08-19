@@ -13,13 +13,24 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "next-themes";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, User } from "lucide-react";
+import { useProjectContext } from "@/hooks/use-project-context";
 
 export function NavUser() {
   const { data: session, isPending } = useSession();
   const [isClient, setIsClient] = useState(false);
   const user = session?.user;
   const { theme, setTheme } = useTheme();
+  
+  // Safely try to get project context, handle case where component is used outside provider
+  let currentProject = null;
+  try {
+    const projectContext = useProjectContext();
+    currentProject = projectContext.currentProject;
+  } catch {
+    // Component is used outside ProjectContextProvider, that's fine
+    console.debug('NavUser: Project context not available');
+  }
 
   useEffect(() => {
     setIsClient(true);
@@ -57,6 +68,16 @@ export function NavUser() {
             </p>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Role</DropdownMenuLabel>
+        <DropdownMenuItem className="text-sm">
+          <span className="mr-2 flex items-center">
+            <User className="h-4 w-4 mr-2" />
+            {currentProject?.userRole ? 
+              currentProject.userRole.charAt(0).toUpperCase() + currentProject.userRole.slice(1).replace('_', ' ') 
+              : 'No role assigned'}
+          </span>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs text-muted-foreground">Theme</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => setTheme("dark")}> 

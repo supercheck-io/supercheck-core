@@ -33,6 +33,8 @@ import { NotificationChannel } from "./notification-channels-schema";
 interface TableMeta {
   onEdit?: (channel: NotificationChannel) => void;
   onDelete?: (channel: NotificationChannel) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 interface DataTableProps<TData, TValue> {

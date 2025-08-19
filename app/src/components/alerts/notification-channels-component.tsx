@@ -5,6 +5,9 @@ import { notificationChannelColumns } from "./notification-channels-columns";
 import { NotificationChannelsDataTable } from "./notification-channels-data-table";
 import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { NotificationChannel } from "./notification-channels-schema";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { hasPermission } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 interface NotificationProvider {
   id: string;
@@ -29,6 +32,12 @@ export function NotificationChannelsComponent({
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+
+  // Get user permissions
+  const { currentProject } = useProjectContext();
+  const normalizedRole = normalizeRole(currentProject?.userRole);
+  const canEdit = hasPermission(normalizedRole, 'notification', 'update');
+  const canDelete = hasPermission(normalizedRole, 'notification', 'delete');
 
   // Set mounted to true after initial render
   useEffect(() => {
@@ -103,6 +112,8 @@ export function NotificationChannelsComponent({
         meta={{
           onEdit: onEditChannel,
           onDelete: onDeleteChannel,
+          canEdit,
+          canDelete,
         }}
       />
     </div>

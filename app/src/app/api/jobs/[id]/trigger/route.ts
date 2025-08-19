@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { jobs, apikey, jobTests } from "@/db/schema/schema";
+import { jobs, apikey, runs, JobTrigger } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
+import crypto from "crypto";
+import { addJobToQueue, JobExecutionTask } from "@/lib/queue";
+import { prepareJobTestScripts } from "@/lib/job-execution-utils";
 
 // POST /api/jobs/[id]/trigger - Trigger job remotely via API key
 export async function POST(
@@ -125,6 +128,8 @@ export async function POST(
         name: jobs.name,
         status: jobs.status,
         createdByUserId: jobs.createdByUserId,
+        organizationId: jobs.organizationId,
+        projectId: jobs.projectId,
       })
       .from(jobs)
       .where(eq(jobs.id, jobId))
@@ -150,32 +155,11 @@ export async function POST(
       );
     }
 
-    // Get the tests associated with this job
-    const jobTestsResult = await db
-      .select({
-        id: jobTests.testId,
-        orderPosition: jobTests.orderPosition,
-      })
-      .from(jobTests)
-      .where(eq(jobTests.jobId, jobId))
-      .orderBy(jobTests.orderPosition);
-
-    if (jobTestsResult.length === 0) {
-      return NextResponse.json(
-        { 
-          error: "No tests found for job", 
-          message: "This job has no tests associated with it" 
-        },
-        { status: 400 }
-      );
-    }
-
-    // Parse optional request body for additional parameters
-    let triggerOptions = {};
+    // Parse optional request body for additional parameters (currently not used but reserved for future features)
     try {
       const body = await request.text();
       if (body && body.trim()) {
-        triggerOptions = JSON.parse(body);
+        JSON.parse(body); // Validate JSON format but don't store
       }
     } catch {
       // Ignore JSON parsing errors for optional body
@@ -195,40 +179,70 @@ export async function POST(
         console.error(`Failed to update API key usage for ${key.id}:`, error);
       });
 
-    // Trigger the job by calling the existing job run API
-    const runResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/jobs/run`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          jobId: jobId,
-          tests: jobTestsResult.map(test => ({ id: test.id })),
-          triggeredBy: "api",
-          apiKeyName: key.name,
-          apiKeyId: key.id,
-          trigger: "remote", // Add trigger value
-          ...triggerOptions, // Allow additional options from request body
-        }),
-      }
+    // Create run record
+    const runId = crypto.randomUUID();
+    const startTime = new Date();
+    
+    await db.insert(runs).values({
+      id: runId,
+      jobId,
+      projectId: job.projectId,
+      status: "running",
+      startedAt: startTime,
+      trigger: "remote" as JobTrigger,
+    });
+
+    console.log(`[${jobId}/${runId}] Created running test run record: ${runId}`);
+
+    // Use unified test script preparation with proper variable resolution
+    const { testScripts: processedTestScripts, variableResolution } = await prepareJobTestScripts(
+      jobId,
+      job.projectId || '',
+      runId,
+      `[${jobId}/${runId}]`
     );
 
-    if (!runResponse.ok) {
-      const errorData = await runResponse.json().catch(() => ({}));
-      console.error(`Job trigger failed for ${jobId}:`, errorData);
-      return NextResponse.json(
-        { 
-          error: "Failed to trigger job", 
-          message: errorData.error || "An error occurred while triggering the job",
-          details: errorData.details || null
-        },
-        { status: 500 }
-      );
-    }
+    // Create job execution task
+    const task: JobExecutionTask = {
+      jobId: jobId,
+      testScripts: processedTestScripts,
+      runId: runId,
+      originalJobId: jobId,
+      trigger: "remote",
+      organizationId: job.organizationId || '',
+      projectId: job.projectId || '',
+      variables: variableResolution.variables,
+      secrets: variableResolution.secrets
+    };
 
-    const runData = await runResponse.json();
+    try {
+      await addJobToQueue(task);
+    } catch (error) {
+      // Check if this is a queue capacity error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('capacity limit') || errorMessage.includes('Unable to verify queue capacity')) {
+        console.log(`[Job Trigger API] Capacity limit reached: ${errorMessage}`);
+        
+        // Update the run status to failed with capacity limit error
+        await db.update(runs)
+          .set({
+            status: "failed",
+            completedAt: new Date(),
+            errorDetails: errorMessage
+          })
+          .where(eq(runs.id, runId));
+          
+        return NextResponse.json(
+          { error: "Queue capacity limit reached", message: errorMessage },
+          { status: 429 }
+        );
+      }
+      
+      // For other errors, log and re-throw
+      console.error(`[${jobId}/${runId}] Error adding job to queue:`, error);
+      throw error;
+    }
 
     // Log successful API key usage
     console.log(`Job ${jobId} triggered successfully via API key ${key.name} (${key.id})`);
@@ -239,8 +253,8 @@ export async function POST(
       data: {
         jobId: jobId,
         jobName: job.name,
-        runId: runData.runId,
-        testCount: jobTestsResult.length,
+        runId: runId,
+        testCount: processedTestScripts.length,
         triggeredBy: key.name,
         triggeredAt: now.toISOString(),
       },
@@ -248,12 +262,13 @@ export async function POST(
 
   } catch (error) {
     console.error(`Error triggering job via API key ${apiKeyUsed}...:`, error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
     
     return NextResponse.json(
       { 
-        error: "Internal server error", 
-        message: "An unexpected error occurred while triggering the job",
-        requestId: Date.now().toString(), // Simple request ID for debugging
+        error: "Failed to trigger job", 
+        message: errorMessage,
+        details: null
       },
       { status: 500 }
     );

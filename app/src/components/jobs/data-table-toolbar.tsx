@@ -8,6 +8,7 @@ import { DataTableViewOptions } from "./data-table-view-options";
 import { jobStatuses } from "./data";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 import { useRouter } from "next/navigation";
+import { useJobPermissions } from "@/hooks/use-rbac-permissions";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
@@ -18,6 +19,7 @@ export function DataTableToolbar<TData>({
 }: DataTableToolbarProps<TData>) {
 
   const router = useRouter();
+  const { canCreateJob } = useJobPermissions();
 
   return (
     <div className="flex items-center justify-between mb-4 -mt-2" >
@@ -75,8 +77,8 @@ export function DataTableToolbar<TData>({
         )} */}
         <DataTableViewOptions table={table} />
         <Button
-
           onClick={() => router.push("/jobs/create")}
+          disabled={!canCreateJob}
         >
           <PlusIcon className="h-4 w-4 mr-2" />
           Create Job

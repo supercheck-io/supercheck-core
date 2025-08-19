@@ -5,11 +5,13 @@ import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { AlertHistory } from "./schema";
+import { useProjectContext } from "@/hooks/use-project-context";
 
 export function AlertsComponent() {
   const [alerts, setAlerts] = useState<AlertHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const { projectId } = useProjectContext();
 
   // Set mounted to true after initial render
   useEffect(() => {
@@ -35,7 +37,14 @@ export function AlertsComponent() {
   const fetchAlerts = useCallback(async () => {
     safeSetIsLoading(true);
     try {
-      const response = await fetch('/api/alerts/history');
+      // Only fetch alerts if we have a projectId
+      if (!projectId) {
+        safeSetAlerts([]);
+        safeSetIsLoading(false);
+        return;
+      }
+
+      const response = await fetch(`/api/alerts/history?projectId=${projectId}`);
       if (response.ok) {
         const data = await response.json();
         safeSetAlerts(data);
@@ -49,7 +58,7 @@ export function AlertsComponent() {
     } finally {
       safeSetIsLoading(false);
     }
-  }, [safeSetAlerts, safeSetIsLoading]);
+  }, [safeSetAlerts, safeSetIsLoading, projectId]);
 
   useEffect(() => {
     fetchAlerts();

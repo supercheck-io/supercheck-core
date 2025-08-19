@@ -27,15 +27,28 @@ const chartConfig = {
   },
 };
 
-export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChartProps) {
+export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
   // console.log("[AvailabilityBarChart] Received data:", JSON.stringify(data, null, 2)); // Keep for now if user still has issues
+  const [visibleBars, setVisibleBars] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!data || data.length === 0) return;
+    
+    let currentBar = 0;
+    const interval = setInterval(() => {
+      currentBar++;
+      setVisibleBars(currentBar);
+      
+      if (currentBar >= data.length) {
+        clearInterval(interval);
+      }
+    },20); // 20ms delay between each bar
+
+    return () => clearInterval(interval);
+  }, [data]);
 
   const getEmptyMessage = () => {
-    if (monitorType === "heartbeat") {
-      return "No heartbeat events to display - waiting for pings.";
-    } else {
-      return "No availability data to display.";
-    }
+    return "No availability data to display.";
   };
 
   if (!data || data.length === 0) {
@@ -43,7 +56,7 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
     return (
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold">Availability Overview</CardTitle>
+          <CardTitle className="text-lg font-semibold">Availability Overview</CardTitle>
           <CardDescription className="text-sm ">Availability status for monitor checks.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center h-[125px]">
@@ -53,7 +66,7 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
     );
   }
 
-  const processedData = data.map((item, index) => ({
+  const processedData = data.slice(0, visibleBars).map((item, index) => ({
     name: `Run ${index + 1}`, 
     status: item.status === 1 ? "up" : "down",
     fill: item.status === 1 ? chartConfig.up.color : chartConfig.down.color,
@@ -65,19 +78,15 @@ export function AvailabilityBarChart({ data, monitorType }: AvailabilityBarChart
 
 
 
-  // Different descriptions based on monitor type
+  // Description for monitor type
   const getDescription = () => {
-    if (monitorType === "heartbeat") {
-      return `Latest Heartbeat events (${data.length} pings/failures)`;
-    } else {
-      return `Status of latest individual checks (${data.length} data points)`;
-    }
+    return `Status of latest individual checks (${data.length} data points)`;
   };
 
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle className="text-2xl font-semibold">Availability Overview</CardTitle>
+        <CardTitle className="text-lg font-semibold">Availability Overview</CardTitle>
         <CardDescription>
           {getDescription()}
         </CardDescription>

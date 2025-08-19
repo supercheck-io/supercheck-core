@@ -5,6 +5,7 @@ import { scheduleMonitor, deleteScheduledMonitor } from '@/lib/monitor-scheduler
 import { eq } from 'drizzle-orm';
 
 // This is a conceptual service layer, actual Next.js API routes would call these functions.
+// Updated to support dual scoping (organization + project) for multi-tenant architecture.
 
 interface MonitorApiData {
   name: string;
@@ -15,7 +16,8 @@ interface MonitorApiData {
   enabled?: boolean;
   config?: MonitorConfig | null;
   alertConfig?: AlertConfig | null; // Alert configuration for notifications
-  organizationId?: string; // Optional for now, will be required when organizations are implemented
+  organizationId: string; // Required for dual scoping
+  projectId: string; // Required for dual scoping
   createdByUserId?: string; // Assuming this comes from authenticated session
 }
 
@@ -36,7 +38,8 @@ export async function createMonitorHandler(data: MonitorApiData) {
     frequencyMinutes: validatedData.frequencyMinutes,
     config: validatedData.config,
     alertConfig: validatedData.alertConfig,
-    organizationId: validatedData.organizationId || null,
+    organizationId: validatedData.organizationId,
+    projectId: validatedData.projectId,
     createdByUserId: validatedData.createdByUserId,
     status: (validatedData.enabled === false ? 'paused' : 'pending') as DBMonitorStatus,
     // id, createdAt, updatedAt are typically auto-generated or set by DB/Drizzle
@@ -137,7 +140,7 @@ export async function updateMonitorHandler(monitorId: string, data: Partial<Moni
       }
     }
 
-    if (updatedMonitor.enabled && updatedMonitor.frequencyMinutes > 0) {
+    if (updatedMonitor.enabled && updatedMonitor.status !== 'paused' && updatedMonitor.frequencyMinutes > 0) {
       const jobDataPayload: MonitorJobData = {
         monitorId: updatedMonitor.id,
         type: updatedMonitor.type as MonitorJobData['type'],
@@ -206,7 +209,6 @@ export async function deleteMonitorHandler(monitorId: string) {
 
 /**
  * Trigger immediate execution of a monitor for validation/testing.
- * Skips heartbeat monitors since they are passive.
  */
 export async function triggerImmediateMonitorExecution(monitorId: string) {
   console.log(`[IMMEDIATE_EXECUTION] Starting immediate execution for monitor ${monitorId}`);
@@ -224,11 +226,6 @@ export async function triggerImmediateMonitorExecution(monitorId: string) {
 
     console.log(`[IMMEDIATE_EXECUTION] Found monitor ${monitorId}: type=${monitor.type}, enabled=${monitor.enabled}, status=${monitor.status}`);
 
-    // Skip heartbeat monitors as they are passive (wait for pings)
-    if (monitor.type === 'heartbeat') {
-      console.log(`[IMMEDIATE_EXECUTION] Skipping heartbeat monitor ${monitorId}`);
-      return;
-    }
 
     // Skip disabled monitors
     if (!monitor.enabled || monitor.status === 'paused') {

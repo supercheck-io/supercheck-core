@@ -4,19 +4,15 @@ import { tags, testTags } from '@/db/schema/schema';
 import { auth } from '@/utils/auth';
 import { eq, count } from 'drizzle-orm';
 import { headers } from 'next/headers';
+import { hasPermission } from '@/lib/rbac/middleware';
+import { requireProjectContext } from '@/lib/project-context';
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { project, organizationId } = await requireProjectContext();
 
     const resolvedParams = await params;
     const tagId = resolvedParams.id;
@@ -25,7 +21,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Tag ID is required' }, { status: 400 });
     }
 
-    // Check if the tag exists
+    // Check if the tag exists and get creator information
     const existingTag = await db
       .select()
       .from(tags)
@@ -34,6 +30,20 @@ export async function DELETE(
 
     if (existingTag.length === 0) {
       return NextResponse.json({ error: 'Tag not found' }, { status: 404 });
+    }
+
+    // Check permission to delete tag, including creator check for PROJECT_EDITOR
+    const canDelete = await hasPermission('tag', 'delete', { 
+      organizationId, 
+      projectId: project.id,
+      resourceCreatorId: existingTag[0].createdByUserId ?? undefined 
+    });
+    
+    if (!canDelete) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions to delete this tag' },
+        { status: 403 }
+      );
     }
 
     // Check if the tag is being used in any tests

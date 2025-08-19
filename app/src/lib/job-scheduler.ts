@@ -1,12 +1,13 @@
 import { Job } from 'bullmq';
 import { db } from "@/utils/db";
-import { jobs, jobTests, runs, testsSelectSchema } from "@/db/schema/schema";
+import { jobs, runs } from "@/db/schema/schema";
 import { JobTrigger } from "@/db/schema/schema";
 import { eq, isNotNull, and } from "drizzle-orm";
 import { getQueues, JobExecutionTask, JOB_EXECUTION_QUEUE } from "./queue";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
-import { z } from 'zod';
+import { createPlaygroundCleanupService, setPlaygroundCleanupInstance, type PlaygroundCleanupService } from './playground-cleanup';
+import { prepareJobTestScripts } from './job-execution-utils';
 
 // Map to store the created queues - REMOVED for statelessness
 // const queueMap = new Map<string, Queue>();
@@ -31,7 +32,7 @@ interface ScheduleOptions {
  */
 export async function scheduleJob(options: ScheduleOptions): Promise<string> {
   try {
-    console.log(`Setting up scheduled job "${options.name}" (${options.jobId}) with cron pattern ${options.cron}`);
+    // Setting up scheduled job
 
     // Get queues from central management
     const { jobSchedulerQueue } = await getQueues();
@@ -39,26 +40,40 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     // Generate a unique name for this scheduled job
     const schedulerJobName = `scheduled-job-${options.jobId}`;
 
-    // Fetch all tests associated with the job
-    const jobTestsList = await db
-      .select({ testId: jobTests.testId, orderPosition: jobTests.orderPosition })
-      .from(jobTests)
-      .where(eq(jobTests.jobId, options.jobId))
-      .orderBy(jobTests.orderPosition);
-
-    console.log(`Job has ${jobTestsList.length} tests. Setting up repeatable job...`);
-
-    // Fetch all test scripts upfront
-    const testCasePromises = jobTestsList.map(async (jobTest: { testId: string; orderPosition: number | null }) => {
-      const test = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/tests/${jobTest.testId}`);
-      const testData = await test.json();
-      return {
-        ...testData,
-        orderPosition: jobTest.orderPosition
-      };
-    });
+    // First, get job information to access projectId
+    const jobData = await db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.id, options.jobId))
+      .limit(1);
     
-    const testCases = await Promise.all(testCasePromises);
+    if (jobData.length === 0) {
+      throw new Error(`Job ${options.jobId} not found`);
+    }
+    
+    const job = jobData[0];
+    console.log(`[Schedule Job] Found job: ${job.name}, projectId: ${job.projectId}`);
+
+    // Use the same variable resolution logic as manual/remote jobs
+    // This ensures consistent behavior across all job trigger types
+    console.log(`[Schedule Job] Preparing test scripts with variable resolution for job ${options.jobId}...`);
+    const { testScripts, variableResolution } = await prepareJobTestScripts(
+      options.jobId,
+      job.projectId || '',
+      crypto.randomUUID(), // temporary runId for logging
+      `[Schedule Job ${options.jobId}]`
+    );
+    
+    console.log(`[Schedule Job] Resolved ${Object.keys(variableResolution.variables).length} variables and ${Object.keys(variableResolution.secrets).length} secrets`);
+    
+    // Convert to the format expected by the worker
+    const testCases = testScripts.map(script => ({
+      id: script.id,
+      title: script.name,
+      script: script.script // This is already decoded and has variables resolved
+    }));
+    
+    // Prepared test cases with variables resolved
 
     // Clean up any existing repeatable jobs for this job ID
     const repeatableJobs = await jobSchedulerQueue.getRepeatableJobs();
@@ -69,7 +84,7 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     );
     
     if (existingJob) {
-      console.log(`Removing existing repeatable job: ${existingJob.key}`);
+      // Removing existing job
       await jobSchedulerQueue.removeRepeatableByKey(existingJob.key);
     }
 
@@ -84,6 +99,11 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
         testCases,
         queue: JOB_EXECUTION_QUEUE, // Keep for handleScheduledJobTrigger
         retryLimit: options.retryLimit || 3,
+        // Pass resolved variables and job info to worker
+        variables: variableResolution.variables,
+        secrets: variableResolution.secrets,
+        projectId: job.projectId!,
+        organizationId: job.organizationId!,
       },
       {
         repeat: {
@@ -116,7 +136,7 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     // WORKER LOGIC IS NOW IN A DEDICATED WORKER SERVICE
     // await ensureSchedulerWorker();
 
-    console.log(`Created job scheduler ${options.jobId} with cron pattern ${options.cron}`);
+    // Job scheduler created
     return options.jobId;
   } catch (error) {
     console.error(`Failed to schedule job:`, error);
@@ -137,7 +157,7 @@ export async function handleScheduledJobTrigger(job: Job) {
   try {
     const data = job.data;
     
-    console.log(`Handling scheduled job trigger for job ${jobId}`);
+    // Handling job trigger
     
     // Check if there's already a run in progress for this job
     const runningRuns = await db
@@ -149,7 +169,7 @@ export async function handleScheduledJobTrigger(job: Job) {
       ));
     
     if (runningRuns.length > 0) {
-      console.log(`Job ${jobId} already has a running execution, skipping`);
+      // Job already running, skipping
       return;
     }
 
@@ -167,7 +187,7 @@ export async function handleScheduledJobTrigger(job: Job) {
         trigger: "schedule" as JobTrigger,
       });
     
-    console.log(`Created run record ${runId} for scheduled job ${jobId}`);
+    // Created run record
     
     // Update job's lastRunAt field and calculate nextRunAt
     const now = new Date();
@@ -202,16 +222,44 @@ export async function handleScheduledJobTrigger(job: Job) {
     // Get the queue for execution
     const { jobQueue } = await getQueues();
     
+    // Process the test cases that were passed from the scheduler setup
+    // These contain the test scripts that were fetched at scheduling time
+    if (!data.testCases || data.testCases.length === 0) {
+      console.error(`[${jobId}/${runId}] No test cases found in scheduled job data`);
+      throw new Error("No test cases found for scheduled job");
+    }
+    
+    // Use pre-resolved test cases and variables from the scheduler data
+    // All scheduled jobs now have variables resolved on the app side for consistency
+    const processedTestScripts = data.testCases.map((test: { id: string; script: string; title: string }) => ({
+      id: test.id,
+      name: test.title || `Test ${test.id}`,
+      script: test.script // Script is already decoded and has variables resolved
+    }));
+    
+    if (processedTestScripts.length === 0) {
+      console.error(`[${jobId}/${runId}] No test scripts found in scheduled job data`);
+      throw new Error("No test scripts found for scheduled job");
+    }
+    
+    console.log(`[${jobId}/${runId}] Using ${processedTestScripts.length} pre-resolved test scripts from scheduled job data`);
+    
+    // Use pre-resolved variables from the scheduler data
+    const variableResolution = {
+      variables: data.variables,
+      secrets: data.secrets
+    };
+    
     // Create task for runner service with all necessary information
     const task: JobExecutionTask = {
       runId,
       jobId,
-      testScripts: data.testCases.map((test: z.infer<typeof testsSelectSchema>) => ({
-        id: test.id,
-        script: test.script,
-        name: test.title
-      })),
-      trigger: 'schedule'
+      testScripts: processedTestScripts,
+      trigger: 'schedule',
+      organizationId: data.organizationId,
+      projectId: data.projectId,
+      variables: variableResolution.variables,
+      secrets: variableResolution.secrets
     };
     
     // Add task to the execution queue - always use runId as both job name and ID
@@ -229,7 +277,7 @@ export async function handleScheduledJobTrigger(job: Job) {
     
     await jobQueue.add(runId, task, jobOptions);
     
-    console.log(`Created execution task for scheduled job ${jobId}, run ${runId} with jobId = runId`);
+    // Created execution task
     
   } catch (error) {
     console.error(`Failed to process scheduled job trigger:`, error);
@@ -267,7 +315,7 @@ export async function handleScheduledJobTrigger(job: Job) {
  */
 export async function deleteScheduledJob(schedulerId: string): Promise<boolean> {
   try {
-    console.log(`Removing job scheduler ${schedulerId}`);
+    // Removing job scheduler
     
     const { jobSchedulerQueue } = await getQueues();
     
@@ -288,15 +336,15 @@ export async function deleteScheduledJob(schedulerId: string): Promise<boolean> 
     if (jobsToRemove.length > 0) {
       // Remove all matching jobs
       const removePromises = jobsToRemove.map(async (job) => {
-        console.log(`Removing repeatable job with key ${job.key}`);
+        // Removing repeatable job
         return jobSchedulerQueue.removeRepeatableByKey(job.key);
       });
       
       await Promise.all(removePromises);
-      console.log(`Removed ${jobsToRemove.length} repeatable jobs for scheduler ${schedulerId}`);
+      // Removed repeatable jobs
       return true;
     } else {
-      console.log(`No repeatable jobs found for scheduler ${schedulerId}`);
+      // No repeatable jobs found
       return false;
     }
   } catch (error) {
@@ -311,19 +359,14 @@ export async function deleteScheduledJob(schedulerId: string): Promise<boolean> 
  */
 export async function initializeJobSchedulers() {
   try {
-    console.log("Initializing job scheduler...");
-    
-    // DEPRECATED: Worker management is now external
-    // for (const [name, worker] of workerMap.entries()) { ... }
-    // workerMap.clear();
-    // await ensureSchedulerWorker();
+    // Initializing job scheduler
     
     const jobsWithSchedules = await db
       .select()
       .from(jobs)
       .where(isNotNull(jobs.cronSchedule));
       
-    console.log(`Found ${jobsWithSchedules.length} scheduled jobs to initialize`);
+    // Found scheduled jobs to initialize
     
     let initializedCount = 0;
     let failedCount = 0;
@@ -361,7 +404,7 @@ export async function initializeJobSchedulers() {
             .where(eq(jobs.id, job.id));
         }
         
-        console.log(`Initialized job scheduler ${schedulerId} for job ${job.id}`);
+        // Initialized job scheduler
         initializedCount++;
       } catch (error) {
         console.error(`Failed to initialize scheduler for job ${job.id}:`, error);
@@ -369,11 +412,46 @@ export async function initializeJobSchedulers() {
       }
     }
     
-    console.log(`Job scheduler initialization complete: ${initializedCount} succeeded, ${failedCount} failed`);
+    // Job scheduler initialization complete
     return { success: true, initialized: initializedCount, failed: failedCount };
   } catch (error) {
     console.error(`Failed to initialize job schedulers:`, error);
     return { success: false, error };
+  }
+}
+
+/**
+ * Initialize playground cleanup service
+ * Called on application startup after job schedulers
+ */
+export async function initializePlaygroundCleanup(): Promise<PlaygroundCleanupService | null> {
+  try {
+    // Initializing playground cleanup
+    
+    // Check if playground cleanup is disabled
+    if (process.env.PLAYGROUND_CLEANUP_ENABLED !== 'true') {
+      // Playground cleanup disabled
+      return null;
+    }
+
+    // Create the playground cleanup service
+    const playgroundCleanup = createPlaygroundCleanupService();
+    
+    // Get Redis connection from existing queue system
+    const { redisConnection } = await getQueues();
+    
+    // Initialize the cleanup service with Redis connection
+    await playgroundCleanup.initialize(redisConnection);
+    
+    // Set the global instance for access throughout the app
+    setPlaygroundCleanupInstance(playgroundCleanup);
+    
+    // Playground cleanup initialized
+    return playgroundCleanup;
+  } catch (error) {
+    console.error("Failed to initialize playground cleanup service:", error);
+    // Don't fail the entire initialization if playground cleanup fails
+    return null;
   }
 }
 
@@ -383,22 +461,16 @@ export async function initializeJobSchedulers() {
  */
 export async function cleanupJobScheduler() {
   try {
-    console.log("Cleaning up job scheduler...");
-    
-    // DEPRECATED: Worker and queue management is now external / centralized
-    // for (const [name, worker] of workerMap.entries()) { ... }
-    // workerMap.clear();
-    // for (const [name, queue] of queueMap.entries()) { ... }
-    // queueMap.clear();
+    // Cleaning up job scheduler
     
     // Clean up orphaned repeatable jobs in Redis
     try {
-      console.log("Cleaning up orphaned Redis entries...");
+      // Cleaning up orphaned entries
       const { jobSchedulerQueue } = await getQueues();
       
       // Get all repeatable jobs
       const repeatableJobs = await jobSchedulerQueue.getRepeatableJobs();
-      console.log(`Found ${repeatableJobs.length} repeatable jobs in Redis`);
+      // Found repeatable jobs in Redis
       
       // Get all jobs with schedules from the database
       const jobsWithSchedules = await db
@@ -420,18 +492,18 @@ export async function cleanupJobScheduler() {
       });
       
       if (orphanedJobs.length > 0) {
-        console.log(`Found ${orphanedJobs.length} orphaned repeatable jobs to clean up`);
+        // Found orphaned jobs to clean
         
         // Remove all orphaned jobs
         const removePromises = orphanedJobs.map(async (job) => {
-          console.log(`Removing orphaned repeatable job: ${job.key}`);
+          // Removing orphaned job
           return jobSchedulerQueue.removeRepeatableByKey(job.key);
         });
         
         await Promise.all(removePromises);
-        console.log(`Removed ${orphanedJobs.length} orphaned repeatable jobs`);
+        // Removed orphaned jobs
       } else {
-        console.log("No orphaned repeatable jobs found");
+        // No orphaned jobs found
       }
       
       // The queue is managed centrally, so we don't close it here.
@@ -441,10 +513,33 @@ export async function cleanupJobScheduler() {
       // Continue with initialization even if cleanup fails
     }
     
-    console.log("Job scheduler cleanup complete");
+    // Job scheduler cleanup complete
     return true;
   } catch (error) {
     console.error("Failed to cleanup job scheduler:", error);
     return false;
+  }
+}
+
+/**
+ * Cleanup playground cleanup service
+ * Should be called when shutting down the application
+ */
+export async function cleanupPlaygroundCleanup(): Promise<void> {
+  try {
+    // Cleaning up playground service
+    
+    const { getPlaygroundCleanupService } = await import('./playground-cleanup');
+    const playgroundCleanup = getPlaygroundCleanupService();
+    
+    if (playgroundCleanup) {
+      await playgroundCleanup.shutdown();
+      // Playground cleanup shutdown
+    } else {
+      // No playground service to shutdown
+    }
+  } catch (error) {
+    console.error("Failed to cleanup playground cleanup service:", error);
+    // Don't fail the entire cleanup process
   }
 } 

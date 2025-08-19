@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { monitorTypes } from "./data";
-import { Loader2, SaveIcon, ChevronDown, ChevronRight, Shield } from "lucide-react";
+import { Loader2, SaveIcon, ChevronDown, ChevronRight, Shield, BellIcon } from "lucide-react";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { MonitorTypesPopover } from "./monitor-types-popover";
 
@@ -44,7 +44,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
-import { formatDurationMinutes } from "@/lib/date-utils";
+import { canCreateMonitors } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import { useProjectContext } from "@/hooks/use-project-context";
 
 // Define presets for Expected Status Codes
 const statusCodePresets = [
@@ -67,31 +69,12 @@ const checkIntervalOptions = [
   { value: "86400", label: "24 hours" },
 ];
 
-// Helper function to calculate optimal check frequency for heartbeat monitors
-const calculateOptimalFrequency = (expected: number, grace: number) => {
-  // Total time to wait before considering the heartbeat failed
-  const totalWaitMinutes = expected + grace;
-  
-  // For very short total wait times (≤5min), check at half the total wait time
-  // but ensure we don't check more frequently than every minute
-  if (totalWaitMinutes <= 5) {
-    return Math.max(1, Math.round(totalWaitMinutes / 2));
-  }
-  
-  // For longer intervals, check at 1/3 of the total wait time
-  // This ensures failures are detected reasonably quickly after they occur
-  // but not so frequently as to waste resources
-  const optimalFrequency = Math.max(1, Math.round(totalWaitMinutes / 3));
-  
-  // Apply reasonable limits: minimum 1 minute, maximum 60 minutes
-  return Math.max(1, Math.min(optimalFrequency, 60));
-};
 
 // Create schema for the form with conditional validation
 const formSchema = z.object({
   name: z.string().min(10, "Name must be at least 10 characters").max(100, "Name must be 100 characters or less"),
   target: z.string().optional(),
-  type: z.enum(["http_request", "website", "ping_host", "port_check", "heartbeat"], {
+  type: z.enum(["http_request", "website", "ping_host", "port_check"], {
     required_error: "Please select a check type",
   }),
   interval: z.enum(["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"]).default("1800"),
@@ -119,15 +102,12 @@ const formSchema = z.object({
   // Port Check specific
   portConfig_port: z.coerce.number().int().min(1, "Port must be at least 1").max(65535, "Port must be 65535 or less").optional(),
   portConfig_protocol: z.enum(["tcp", "udp"]).default("tcp"),
-  // Heartbeat specific
-  heartbeatConfig_expectedInterval: z.coerce.number().int().min(1, "Expected interval must be at least 1 minute").max(10080, "Expected interval must be 1 week or less").optional(), // 1 minute to 1 week
-  heartbeatConfig_gracePeriod: z.coerce.number().int().min(0, "Grace period must be 0 or more minutes").max(1440, "Grace period must be 1 day or less").optional(), // 0 minutes to 1 day
   // Website SSL checking
   websiteConfig_enableSslCheck: z.boolean().default(false),
   websiteConfig_sslDaysUntilExpirationWarning: z.coerce.number().int().min(1, "SSL warning days must be at least 1").max(365, "SSL warning days must be 365 or less").default(30), // 1 day to 1 year
 }).superRefine((data, ctx) => {
-  // Target is required for all monitor types except heartbeat
-  if (data.type !== "heartbeat" && (!data.target || data.target.trim() === "")) {
+  // Target is required for all monitor types
+  if (!data.target || data.target.trim() === "") {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Target is required for this monitor type",
@@ -186,24 +166,6 @@ const formSchema = z.object({
     }
   }
 
-  // Expected interval is required for heartbeat
-  if (data.type === "heartbeat") {
-    if (!data.heartbeatConfig_expectedInterval) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Expected interval is required for heartbeat monitors",
-        path: ["heartbeatConfig_expectedInterval"],
-      });
-    }
-    
-    if (data.heartbeatConfig_gracePeriod === undefined || data.heartbeatConfig_gracePeriod === null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Grace period is required for heartbeat monitors (0 is allowed for no grace period)",
-        path: ["heartbeatConfig_gracePeriod"],
-      });
-    }
-  }
 
   // Authentication validation
   if (data.httpConfig_authType === "basic") {
@@ -266,8 +228,6 @@ const creationDefaultValues: FormValues = {
   httpConfig_authToken: "",
   portConfig_port: 80, // Default port instead of undefined
   portConfig_protocol: "tcp", // Default protocol instead of undefined
-  heartbeatConfig_expectedInterval: 60, // Default interval instead of undefined
-  heartbeatConfig_gracePeriod: 10, // Default grace period (0 is also valid for no grace)
   websiteConfig_enableSslCheck: false, // Default to false instead of undefined
   websiteConfig_sslDaysUntilExpirationWarning: 30, // Default to 30 days instead of undefined
 };
@@ -314,6 +274,11 @@ export function MonitorForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Get user permissions
+  const { currentProject } = useProjectContext();
+  const normalizedRole = normalizeRole(currentProject?.userRole);
+  const canCreate = canCreateMonitors(normalizedRole);
   const [formChanged, setFormChanged] = useState(false);
   const [isAuthSectionOpen, setIsAuthSectionOpen] = useState(false);
   const [isKeywordSectionOpen, setIsKeywordSectionOpen] = useState(false);
@@ -334,6 +299,16 @@ export function MonitorForm({
   // Get current monitor type from URL params if not provided as prop
   const urlType = searchParams.get('type') as FormValues["type"];
   const currentMonitorType = monitorType || urlType || 'http_request';
+
+  // (moved below after form initialization)
+
+  // Handle alert config changes - but never auto-show alerts in edit mode
+  useEffect(() => {
+    // Only auto-show alerts for new monitor creation, never for edit mode
+    if (alertConfig && !editMode) {
+      setShowAlerts(alertConfig.enabled);
+    }
+  }, [alertConfig, editMode]);
 
   // Create default values based on monitor type if provided
   const getDefaultValues = useCallback((): FormValues => {
@@ -362,8 +337,6 @@ export function MonitorForm({
         httpConfig_authToken: "",
         portConfig_port: typeToUse === "port_check" ? 80 : 80, // Always provide default
         portConfig_protocol: typeToUse === "port_check" ? "tcp" : "tcp", // Always provide default
-        heartbeatConfig_expectedInterval: typeToUse === "heartbeat" ? 60 : 60, // Always provide default
-        heartbeatConfig_gracePeriod: typeToUse === "heartbeat" ? 10 : 10, // Always provide default
         websiteConfig_enableSslCheck: typeToUse === "website" ? false : false, // Always provide default
         websiteConfig_sslDaysUntilExpirationWarning: typeToUse === "website" ? 30 : 30, // Always provide default
       };
@@ -379,9 +352,27 @@ export function MonitorForm({
     },
   });
 
+  // Handle monitor data changes (needs `form` to be initialized first)
+  useEffect(() => {
+    if (monitorData) {
+      form.reset({
+        ...getDefaultValues(),
+        ...monitorData,
+      });
+    }
+  }, [monitorData, form, getDefaultValues]);
+
   const type = form.watch("type");
   const httpMethod = form.watch("httpConfig_method");
   const authType = form.watch("httpConfig_authType");
+  const expectedStatusCodes = form.watch("httpConfig_expectedStatusCodes");
+
+  // Keep custom-status-code UI state in sync with the field value
+  useEffect(() => {
+    const presetValues = ["200-299", "300-399", "400-499", "500-599"];
+    const currentValue = expectedStatusCodes || "200-299";
+    setIsCustomStatusCode(!presetValues.includes(currentValue) && currentValue !== "");
+  }, [expectedStatusCodes]);
 
   // Reset form when URL params change (for monitor type)
   useEffect(() => {
@@ -430,7 +421,6 @@ export function MonitorForm({
     website: "e.g., https://example.com or https://mywebsite.com",
     ping_host: "e.g., example.com or 8.8.8.8 (IP address or hostname)",
     port_check: "e.g., example.com or 192.168.1.1 (hostname or IP address)",
-    heartbeat: "Unique URL will be auto-generated when monitor is saved",
   };
   
   const watchedValues = form.watch();
@@ -449,6 +439,7 @@ export function MonitorForm({
       // Handle cases where one value might be undefined and the other an empty string for certain fields
       if (currentVal === undefined && defaultVal === "") return false;
       if (currentVal === "" && defaultVal === undefined) return false;
+      if (currentVal === undefined && defaultVal === undefined) return false;
 
       // Handle boolean fields - ensure proper comparison
       if (typeof currentVal === 'boolean' || typeof defaultVal === 'boolean') {
@@ -471,12 +462,28 @@ export function MonitorForm({
         return changed;
       }
 
-      // Debug SSL-related fields specifically
-      if (key === 'websiteConfig_sslDaysUntilExpirationWarning' || key === 'websiteConfig_enableSslCheck') {
-        console.log("[FORM_DEBUG] SSL field change detection:", { key, currentVal, defaultVal, changed: currentVal !== defaultVal });
+      // Handle number fields - ensure proper comparison
+      if (typeof currentVal === 'number' || typeof defaultVal === 'number') {
+        const currentNum = Number(currentVal) || 0;
+        const defaultNum = Number(defaultVal) || 0;
+        const changed = currentNum !== defaultNum;
+        console.log(`[FORM_DEBUG] Number field comparison for ${key}:`, {
+          currentVal,
+          defaultVal,
+          currentNum,
+          defaultNum,
+          changed
+        });
+        return changed;
       }
 
-      return currentVal !== defaultVal;
+      // Debug SSL-related fields and interval field specifically
+      if (key === 'websiteConfig_sslDaysUntilExpirationWarning' || key === 'websiteConfig_enableSslCheck' || key === 'interval') {
+        console.log("[FORM_DEBUG] Important field change detection:", { key, currentVal, defaultVal, changed: currentVal !== defaultVal });
+      }
+
+      const changed = currentVal !== defaultVal;
+      return changed;
     });
 
     // Check if alert configuration has changed
@@ -504,11 +511,22 @@ export function MonitorForm({
     
     // For new monitors (not edit mode), consider the form changed if required fields are filled
     const isNewMonitor = !editMode && !initialData;
-    const hasRequiredFields = watchedValues.name && watchedValues.name.trim() !== "" && (watchedValues.type === "heartbeat" || (watchedValues.target && watchedValues.target.trim() !== ""));
+    const hasRequiredFields = watchedValues.name && watchedValues.name.trim() !== "" && watchedValues.target && watchedValues.target.trim() !== "";
     
     const isFormReady = isNewMonitor ? hasRequiredFields : (hasChanged || alertChanged);
     
     setFormChanged(Boolean(isFormReady));
+    
+    // Debug form change detection
+    console.log("[FORM_DEBUG] Form change detection:", {
+      isNewMonitor,
+      hasRequiredFields,
+      hasChanged,
+      alertChanged,
+      isFormReady,
+      formChanged: Boolean(isFormReady),
+      watchedValues: JSON.stringify(watchedValues, null, 2)
+    });
   }, [watchedValues, initialData, editMode, alertConfig, initialAlertConfig]);
 
   async function onSubmit(data: FormValues) {
@@ -653,68 +671,6 @@ export function MonitorForm({
       apiData.config = {
         timeoutSeconds: 5, // Default timeout for ping
       };
-    } else if (data.type === "heartbeat") {
-      try {
-        // Generate unique heartbeat token for new monitors, keep existing for edits
-        // Use a fallback UUID generation method for better browser compatibility
-        const generateUUID = () => {
-          try {
-            // Try modern crypto.randomUUID() first
-            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-              return crypto.randomUUID();
-            }
-          } catch {
-            console.warn('crypto.randomUUID() not available, using fallback');
-          }
-          
-          // Fallback to custom UUID generation
-          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-          });
-        };
-        
-        const heartbeatToken = editMode && data.target ? data.target : generateUUID();
-        
-        // For heartbeat monitors, target is the unique token
-        apiData.target = heartbeatToken;
-        
-        // Calculate optimal check frequency for heartbeat monitors
-        // Smart frequency: Check more often than expected interval for faster detection
-        const expectedIntervalMinutes = data.heartbeatConfig_expectedInterval ?? 60;
-        const gracePeriodMinutes = data.heartbeatConfig_gracePeriod ?? 10;
-        
-        const checkFrequencyMinutes = calculateOptimalFrequency(expectedIntervalMinutes, gracePeriodMinutes);
-        
-        apiData.frequencyMinutes = checkFrequencyMinutes;
-        
-        // Get the app URL with proper fallback
-        const getAppUrl = () => {
-          try {
-            if (typeof window !== 'undefined') {
-              // Client-side: use current origin
-              return window.location.origin;
-            }
-            // Server-side or fallback
-            return process.env.NEXT_PUBLIC_APP_URL;
-          } catch {
-            console.warn('Failed to determine app URL');
-            return process.env.NEXT_PUBLIC_APP_URL;
-          }
-        };
-
-        apiData.config = {
-          expectedIntervalMinutes: expectedIntervalMinutes,
-          gracePeriodMinutes: gracePeriodMinutes,
-          heartbeatUrl: `${getAppUrl()}/api/heartbeat/${heartbeatToken}`,
-          // Add check type to distinguish heartbeat checking logic
-          checkType: 'heartbeat_missed_ping',
-        };
-      } catch (heartbeatError) {
-        console.error('Error processing heartbeat configuration:', heartbeatError);
-        throw new Error(`Failed to configure heartbeat monitor: ${heartbeatError instanceof Error ? heartbeatError.message : String(heartbeatError)}`);
-      }
     }
 
     try {
@@ -726,10 +682,16 @@ export function MonitorForm({
         return;
       }
 
-      // If edit mode and alerts not hidden, show alerts step
-      if (editMode && !hideAlerts) {
-        // Store both form data and API data for edit mode
-        console.log("[FORM_DEBUG] Edit mode: storing monitor data for alerts step");
+      // For edit mode, always go directly to save - never show alerts from form submission
+      // Alerts can only be accessed via the "Configure Alerts" button in edit mode
+      if (editMode) {
+        await handleDirectSave(apiData, true); // Include existing alert settings to preserve them
+        return;
+      }
+
+      // For creation mode, check if we should show alerts or save directly
+      if (!editMode && !hideAlerts && searchParams.get('tab') === 'alerts') {
+        console.log("[FORM_DEBUG] Creation mode: storing monitor data for alerts step");
         console.log("[FORM_DEBUG] API Data to store:", JSON.stringify(apiData, null, 2));
         setMonitorData({ formData: data, apiData });
         setShowAlerts(true);
@@ -737,7 +699,7 @@ export function MonitorForm({
         return;
       }
 
-      // Direct save mode (creation or edit without alerts)
+      // Direct save mode (creation without alerts)
       await handleDirectSave(apiData);
     } catch (error) {
       console.error("Error processing monitor:", error);
@@ -846,6 +808,13 @@ export function MonitorForm({
       const apiDataToSave = 'apiData' in monitorData ? (monitorData as { apiData: Record<string, unknown> }).apiData : monitorData;
       console.log("[FORM_DEBUG] Final submit with monitor data:", JSON.stringify(apiDataToSave, null, 2));
       await handleDirectSave(apiDataToSave, true);
+    } else if (editMode && id) {
+      // If we're just updating alerts for an existing monitor without form data changes
+      const alertOnlyData = {
+        alertConfig: alertConfig
+      };
+      console.log("[FORM_DEBUG] Alert-only update:", JSON.stringify(alertOnlyData, null, 2));
+      await handleDirectSave(alertOnlyData, true);
     }
   }
 
@@ -918,6 +887,23 @@ export function MonitorForm({
               {description || (editMode ? "Update monitor configuration" : "Configure a new uptime monitor")}
             </CardDescription>
           </div>
+          {editMode && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                // Set up monitor data and show alerts
+                const currentFormData = form.getValues();
+                setMonitorData({ formData: currentFormData, apiData: {} });
+                setShowAlerts(true);
+              }}
+              disabled={isSubmitting}
+              className="flex items-center gap-2"
+            >
+              <BellIcon className="h-4 w-4" />
+              Configure Alerts
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <Form {...form}>
@@ -949,15 +935,9 @@ export function MonitorForm({
                         <FormControl>
                           <Input 
                             placeholder={type ? targetPlaceholders[type] : "Select Check Type for target hint"}
-                            disabled={type === "heartbeat"}
                             {...field} 
                           />
                         </FormControl>
-                        {/* {type === "heartbeat" && (
-                          <FormDescription>
-                            A unique heartbeat token will be auto-generated
-                          </FormDescription>
-                        )} */}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -966,8 +946,7 @@ export function MonitorForm({
 
                 {/* Right column */}
                 <div className="space-y-4">
-                  {/* Interval field - not shown for heartbeat monitors */}
-                  {type !== "heartbeat" && (
+                  {/* Interval field */}
                     <FormField
                       control={form.control}
                       name="interval"
@@ -977,7 +956,7 @@ export function MonitorForm({
                           <div className="md:w-40">
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -1000,35 +979,16 @@ export function MonitorForm({
                         </FormItem>
                       )}
                     />
-                  )}
 
-                  {/* Check frequency display for heartbeat monitors */}
-                  {type === "heartbeat" && (
-                    <div className="space-y-2">
-                      <FormLabel>Check Frequency</FormLabel>
-                      <div className="bg-muted/30 p-3 rounded-lg">
-                        <div className="text-sm text-muted-foreground">
-                                                      <p>
-                              This monitor will check every <strong className="text-foreground">
-                                {formatDurationMinutes(calculateOptimalFrequency(form.watch("heartbeatConfig_expectedInterval") ?? 60, form.watch("heartbeatConfig_gracePeriod") ?? 10))}
-                              </strong> for missed pings.
-                            </p>
-                          <p className="text-xs mt-1">
-                            (Failures trigger after {form.watch("heartbeatConfig_expectedInterval") ?? 60} min interval + {form.watch("heartbeatConfig_gracePeriod") ?? 10} min grace = {(form.watch("heartbeatConfig_expectedInterval") ?? 60) + (form.watch("heartbeatConfig_gracePeriod") ?? 10)} min total)
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
               {/* Conditional fields based on type (formerly method) */}
               {type === "http_request" && (
-                <div className="space-y-4 border-t pt-6">
-                  <h3 className="text-lg font-medium">HTTP Request Settings</h3>
+                <div className="space-y-4 pt-2">
+                  {/* <h3 className=" font-medium">HTTP Request Settings</h3> */}
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="httpConfig_method"
@@ -1038,7 +998,7 @@ export function MonitorForm({
                           <FormControl>
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -1070,12 +1030,15 @@ export function MonitorForm({
                         const currentValue = field.value || "200-299";
                         
                         // Determine if current value is a preset or custom
-                        const isCurrentValuePreset = presetValues.includes(currentValue);
+                        // Determine if current value is a preset or custom
                         
                         const handleDropdownChange = (value: string) => {
                           if (value === "custom") {
                             setIsCustomStatusCode(true);
-                            field.onChange("");
+                            // Don't clear the field, keep current value for editing
+                            if (!field.value || presetValues.includes(field.value)) {
+                              field.onChange("200"); // Default to a single code for custom
+                            }
                           } else {
                             setIsCustomStatusCode(false);
                             field.onChange(value);
@@ -1083,14 +1046,19 @@ export function MonitorForm({
                         };
 
                         const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-                          field.onChange(e.target.value);
-                          if (e.target.value && !isCustomStatusCode) {
+                          const newValue = e.target.value;
+                          field.onChange(newValue);
+                          
+                          // Auto-detect if the value matches a preset
+                          if (presetValues.includes(newValue)) {
+                            setIsCustomStatusCode(false);
+                          } else if (newValue && !isCustomStatusCode) {
                             setIsCustomStatusCode(true);
                           }
                         };
 
-                        // Determine dropdown value - sync with actual field value
-                        const dropdownValue = isCustomStatusCode ? "custom" : (isCurrentValuePreset ? currentValue : "200-299");
+                        // Determine dropdown value - ensure proper synchronization
+                        const dropdownValue = isCustomStatusCode ? "custom" : (presetValues.includes(currentValue) ? currentValue : "200-299");
                         
                         return (
                           <FormItem>
@@ -1099,7 +1067,7 @@ export function MonitorForm({
                               <FormControl className="flex-grow">
                                 <Input 
                                   placeholder="e.g., 200, 404, 500-599"
-                                  value={isCustomStatusCode ? currentValue : (isCurrentValuePreset ? currentValue : "")} 
+                                  value={currentValue}
                                   onChange={handleInputChange}
                                   disabled={!isCustomStatusCode}
                                   className={!isCustomStatusCode ? "bg-muted cursor-not-allowed" : ""}
@@ -1121,9 +1089,9 @@ export function MonitorForm({
                                 </SelectContent>
                               </Select>
                             </div>
-                            <FormDescription>
-                              {isCustomStatusCode ? "Enter specific status codes (e.g., 200, 404, 500-599)" : "Select 'Specific Code' to enter custom codes"}
-                            </FormDescription>
+                            {/* <FormDescription>
+                              {isCustomStatusCode ? "Enter specific status codes (e.g., 200, 404, 500-599)" : "Current selection: " + (statusCodePresets.find(p => p.value === currentValue)?.label || "Any 2xx (Success)")}
+                            </FormDescription> */}
                             <FormMessage />
                           </FormItem>
                         );
@@ -1133,13 +1101,13 @@ export function MonitorForm({
 
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
                     <FormField
                       control={form.control}
                       name="httpConfig_headers"
                       render={({ field }) => (
                         <FormItem className={`${(httpMethod === "POST" || httpMethod === "PUT" || httpMethod === "PATCH") ? '' : 'md:col-span-2'}`}>
-                          <FormLabel>HTTP Headers</FormLabel>
+                          <FormLabel>HTTP Headers <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></FormLabel>
                           <FormControl>
                             <Textarea
                               placeholder='{ "Authorization": "Bearer ..." }'
@@ -1174,7 +1142,7 @@ export function MonitorForm({
                   </div>
 
                   {/* Authentication and Response Content Validation sections side by side */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
                     {/* Authentication Section */}
                     <Card>
                       <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen}>
@@ -1198,7 +1166,7 @@ export function MonitorForm({
                           render={({ field }) => (
                             <FormItem className="mb-4">
                               <FormLabel>Authentication Type</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
+                              <Select onValueChange={field.onChange} value={field.value || "none"}>
                                 <FormControl>
                                   <SelectTrigger>
                                     <SelectValue placeholder="Select authentication type" />
@@ -1313,7 +1281,7 @@ export function MonitorForm({
                               <FormControl>
                                 <Select
                                   onValueChange={(value) => field.onChange(value === "true" ? true : value === "false" ? false : undefined)}
-                                  defaultValue={typeof field.value === 'boolean' ? field.value.toString() : undefined}
+                                  value={typeof field.value === 'boolean' ? field.value.toString() : "true"}
                                 >
                                   <FormControl>
                                     <SelectTrigger className="w-full">
@@ -1339,8 +1307,8 @@ export function MonitorForm({
               )}
 
               {type === "website" && (
-                <div className="space-y-4 border-t pt-4">
-                  <h3 className="text-base font-medium">Website Check Settings</h3>
+                <div className="space-y-4 pt-4">
+                  {/* <h3 className="text-base font-medium">Website Check Settings</h3> */}
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Expected Status Code */}
@@ -1352,12 +1320,15 @@ export function MonitorForm({
                         const currentValue = field.value || "200-299";
                         
                         // Determine if current value is a preset or custom
-                        const isCurrentValuePreset = presetValues.includes(currentValue);
+                        // Determine if current value is a preset or custom
                         
                         const handleDropdownChange = (value: string) => {
                           if (value === "custom") {
                             setIsCustomStatusCode(true);
-                            field.onChange("");
+                            // Don't clear the field, keep current value for editing
+                            if (!field.value || presetValues.includes(field.value)) {
+                              field.onChange("200"); // Default to a single code for custom
+                            }
                           } else {
                             setIsCustomStatusCode(false);
                             field.onChange(value);
@@ -1365,14 +1336,19 @@ export function MonitorForm({
                         };
 
                         const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-                          field.onChange(e.target.value);
-                          if (e.target.value && !isCustomStatusCode) {
+                          const newValue = e.target.value;
+                          field.onChange(newValue);
+                          
+                          // Auto-detect if the value matches a preset
+                          if (presetValues.includes(newValue)) {
+                            setIsCustomStatusCode(false);
+                          } else if (newValue && !isCustomStatusCode) {
                             setIsCustomStatusCode(true);
                           }
                         };
 
-                        // Determine dropdown value - sync with actual field value
-                        const dropdownValue = isCustomStatusCode ? "custom" : (isCurrentValuePreset ? currentValue : "200-299");
+                        // Determine dropdown value - ensure proper synchronization
+                        const dropdownValue = isCustomStatusCode ? "custom" : (presetValues.includes(currentValue) ? currentValue : "200-299");
                         
                         return (
                           <FormItem>
@@ -1381,7 +1357,7 @@ export function MonitorForm({
                               <FormControl className="flex-grow">
                                 <Input 
                                   placeholder="e.g., 200, 404, 500-599"
-                                  value={isCustomStatusCode ? currentValue : (isCurrentValuePreset ? currentValue : "")} 
+                                  value={currentValue}
                                   onChange={handleInputChange}
                                   disabled={!isCustomStatusCode}
                                   className={!isCustomStatusCode ? "bg-muted cursor-not-allowed" : ""}
@@ -1404,7 +1380,7 @@ export function MonitorForm({
                               </Select>
                             </div>
                             <FormDescription>
-                              {isCustomStatusCode ? "Enter specific status codes (e.g., 200, 404, 500-599)" : "Select 'Specific Code' to enter custom codes"}
+                              {isCustomStatusCode ? "Enter specific status codes (e.g., 200, 404, 500-599)" : "Current selection: " + (statusCodePresets.find(p => p.value === currentValue)?.label || "Any 2xx (Success)")}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1498,7 +1474,7 @@ export function MonitorForm({
                           render={({ field }) => (
                             <FormItem className="mb-4">
                               <FormLabel>Authentication Type</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
+                              <Select onValueChange={field.onChange} value={field.value || "none"}>
                                 <FormControl>
                                   <SelectTrigger>
                                     <SelectValue placeholder="Select authentication type" />
@@ -1613,7 +1589,7 @@ export function MonitorForm({
                               <FormControl>
                                 <Select
                                   onValueChange={(value) => field.onChange(value === "true" ? true : value === "false" ? false : undefined)}
-                                  defaultValue={typeof field.value === 'boolean' ? field.value.toString() : undefined}
+                                  value={typeof field.value === 'boolean' ? field.value.toString() : "true"}
                                 >
                                   <FormControl>
                                     <SelectTrigger className="w-full">
@@ -1640,101 +1616,11 @@ export function MonitorForm({
                 </div>
               )}
 
-              {type === "heartbeat" && (
-                <div className="space-y-4 border-t pt-6">
-                  <h3 className="text-lg font-medium">Heartbeat Settings</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="heartbeatConfig_expectedInterval"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Expected Interval <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">mins</span></FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="60"
-                              {...field}
-                              onChange={(e) => {
-                                const value = parseInt(e.target.value);
-                                if (!isNaN(value)) {
-                                  field.onChange(value);
-                                } else {
-                                  field.onChange(60); // Default expected interval
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            How often you expect to receive a ping (1-10080 mins)
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="heartbeatConfig_gracePeriod"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Grace Period <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">mins</span></FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="10"
-                              {...field}
-                              onChange={(e) => {
-                                const value = parseInt(e.target.value);
-                                if (!isNaN(value)) {
-                                  field.onChange(value);
-                                } else {
-                                  field.onChange(10); // Default grace period
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Additional time to wait before marking as down (1-1440 mins)
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Display calculated check frequency */}
-                  {/* <div className="bg-muted/30 p-4 rounded-lg">
-                    <h4 className="font-medium text-sm mb-2">Check Frequency:</h4>
-                    <div className="text-xs text-muted-foreground space-y-2">
-                                              <p>
-                          This monitor will check every <strong>
-                            {formatDurationMinutes((form.watch("heartbeatConfig_expectedInterval") ?? 60) + (form.watch("heartbeatConfig_gracePeriod") ?? 10))}
-                          </strong> for missed pings.
-                        </p>
-                      <p className="text-xs">
-                        (Expected interval: {form.watch("heartbeatConfig_expectedInterval") ?? 60} min + Grace period: {form.watch("heartbeatConfig_gracePeriod") ?? 10} min)
-                      </p>
-                    </div>
-                  </div> */}
-
-                  <div className="bg-muted/30 p-4 rounded-lg">
-                    <h4 className="font-medium text-sm mb-2">How to use this heartbeat:</h4>
-                    <div className="text-xs text-muted-foreground space-y-2">
-                      <p>1. Create this monitor to get a unique heartbeat URL</p>
-                      <p>2. Send GET or POST requests to the URL from your service/script</p>
-                      <p>3. If no ping is received within the expected interval + grace period, the monitor will be marked as down</p>
-                      <p className="font-medium">Example: <code className="bg-background px-1 rounded">curl {process.env.NEXT_PUBLIC_APP_URL}/api/heartbeat/YOUR_TOKEN</code></p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {type === "port_check" && (
-                <div className="space-y-4 border-t pt-6">
-                  <h3 className="text-lg font-medium">Port Check Settings</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4 pt-4">
+                  {/* <h3 className="text-lg font-medium">Port Check Settings</h3> */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="portConfig_port"
@@ -1770,7 +1656,7 @@ export function MonitorForm({
                           <FormControl>
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -1798,26 +1684,26 @@ export function MonitorForm({
 
               <div className="flex justify-end space-x-4">
                 <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onCancel || (() => router.push("/monitors"))}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={isSubmitting}
-                  className="flex items-center"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <SaveIcon className="mr-2 h-4 w-4" />
-                  )}
-                  {hideAlerts ? "Next: Alerts" : (editMode ? "Next: Alerts" : "Create")}
-                </Button>
-              </div>
+                    type="button"
+                    variant="outline"
+                    onClick={onCancel || (() => router.push("/monitors"))}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting || (editMode && !formChanged) || (!editMode && !canCreate)}
+                    className="flex items-center"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <SaveIcon className="mr-2 h-4 w-4" />
+                    )}
+                    {hideAlerts ? "Next: Alerts" : (editMode ? "Update Monitor" : "Create")}
+                  </Button>
+                </div>
             </form>
           </Form>
         </CardContent>

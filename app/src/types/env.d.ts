@@ -34,8 +34,10 @@ declare namespace NodeJS {
     REDIS_PASSWORD: string;
     REDIS_URL: string;
 
-    // Scheduler Configuration
-    DISABLE_JOB_SCHEDULER: string;
-    DISABLE_MONITOR_SCHEDULER: string;
+
+    // Playground Cleanup Configuration
+    PLAYGROUND_CLEANUP_ENABLED: string;
+    PLAYGROUND_CLEANUP_CRON: string;
+    PLAYGROUND_CLEANUP_MAX_AGE_HOURS: string;
   }
 } 

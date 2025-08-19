@@ -8,10 +8,10 @@ import {
 import { cn } from "@/lib/utils";
 
 
-interface CreateCardProps {
+interface CreateCardProps extends React.HTMLAttributes<HTMLDivElement> {
   icon: React.ReactNode;
   title: string;
-  description: string;
+  description?: string;
   onClick?: () => void;
   className?: string;
 }
@@ -22,7 +22,15 @@ export function CreateCard({
   description,
   onClick,
   className,
+  ...props
 }: CreateCardProps) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <Card
       className={cn(
@@ -30,13 +38,19 @@ export function CreateCard({
         className
       )}
       onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? handleKeyDown : undefined}
+      {...props}
     >
-      <div className="p-5">
-        <div className="flex items-center gap-3 mb-3">
+      <div className="p-4">
+        <div className="flex items-center gap-3">
           <div className="text-primary shrink-0">{icon}</div>
           <div className="font-medium">{title}</div>
         </div>
-        <div className="text-xs text-muted-foreground leading-relaxed mt-1">{description}</div>
+        {description && (
+          <div className="text-xs text-muted-foreground leading-relaxed mt-2">{description}</div>
+        )}
       </div>
     </Card>
   );

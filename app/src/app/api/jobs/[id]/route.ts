@@ -3,6 +3,7 @@ import { updateJob } from "@/actions/update-job";
 import { db } from "@/utils/db";
 import { jobs, jobTests, tests as testsTable, testTags, tags } from "@/db/schema/schema";
 import { eq, inArray } from "drizzle-orm";
+import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
 
 export async function GET(
   request: NextRequest,
@@ -10,9 +11,10 @@ export async function GET(
 ) {
   const params = await context.params;
   try {
+    await requireAuth();
     const jobId = params.id;
     
-    // Get the job details
+    // First, find the job without filtering by active project
     const jobResult = await db
       .select({
         id: jobs.id,
@@ -24,6 +26,7 @@ export async function GET(
         createdAt: jobs.createdAt,
         updatedAt: jobs.updatedAt,
         organizationId: jobs.organizationId,
+        projectId: jobs.projectId,
         createdByUserId: jobs.createdByUserId,
         lastRunAt: jobs.lastRunAt,
         nextRunAt: jobs.nextRunAt,
@@ -31,15 +34,35 @@ export async function GET(
       .from(jobs)
       .where(eq(jobs.id, jobId))
       .limit(1);
-    
+
     if (jobResult.length === 0) {
       return NextResponse.json(
         { error: "Job not found" },
         { status: 404 }
       );
     }
-    
+
     const job = jobResult[0];
+    
+    // Now check if user has access to this job's project
+    if (!job.organizationId || !job.projectId) {
+      return NextResponse.json(
+        { error: "Job data incomplete" },
+        { status: 500 }
+      );
+    }
+    
+    const canView = await hasPermission('job', 'view', {
+      organizationId: job.organizationId,
+      projectId: job.projectId
+    });
+    
+    if (!canView) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
     
     // Get associated tests for this job
     const testsResult = await db

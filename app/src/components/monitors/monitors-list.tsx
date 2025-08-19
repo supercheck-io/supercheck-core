@@ -7,6 +7,7 @@ import { DataTable } from "./data-table";
 import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 import { Monitor } from "./schema";
 import { Row } from "@tanstack/react-table";
+import { useProjectContext } from "@/hooks/use-project-context";
 
 export default function MonitorsList() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function MonitorsList() {
   const [isLoading, setIsLoading] = useState(true);
   const [tableKey, setTableKey] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
+  const { projectId, currentProject } = useProjectContext();
   
   // Set mounted state
   useEffect(() => {
@@ -31,7 +33,14 @@ export default function MonitorsList() {
       if (!isMounted) return;
       
       try {
-        const response = await fetch('/api/monitors', {
+        // Only fetch monitors if we have a projectId and organizationId
+        if (!projectId || !currentProject?.organizationId) {
+          setMonitors([]);
+          setIsLoading(false);
+          return;
+        }
+
+        const response = await fetch(`/api/monitors?projectId=${projectId}&organizationId=${currentProject.organizationId}`, {
           signal: abortController.signal
         });
         
@@ -71,7 +80,7 @@ export default function MonitorsList() {
     return () => {
       abortController.abort();
     };
-  }, [isMounted]);
+  }, [isMounted, projectId, currentProject?.organizationId]);
 
   // Handle row click to navigate to monitor detail
   const handleRowClick = useCallback((row: Row<Monitor>) => {
@@ -84,7 +93,13 @@ export default function MonitorsList() {
     if (!isMounted) return;
     
     try {
-      const response = await fetch('/api/monitors');
+      // Only fetch monitors if we have a projectId and organizationId
+      if (!projectId || !currentProject?.organizationId) {
+        setMonitors([]);
+        return;
+      }
+
+      const response = await fetch(`/api/monitors?projectId=${projectId}&organizationId=${currentProject.organizationId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch monitors');
       }
@@ -98,7 +113,7 @@ export default function MonitorsList() {
     } catch (error) {
       console.error('Error refreshing monitors:', error);
     }
-  }, [isMounted]);
+  }, [isMounted, projectId, currentProject?.organizationId]);
 
   // Don't render until mounted
   if (!isMounted) {

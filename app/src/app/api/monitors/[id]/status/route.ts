@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
+import { requireAuth } from '@/lib/rbac/middleware';
+import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function PATCH(
   request: NextRequest,
@@ -11,6 +13,7 @@ export async function PATCH(
   const { id } = params;
 
   try {
+    const { userId } = await requireAuth();
     const data = await request.json();
     const { status } = data;
 
@@ -18,6 +21,18 @@ export async function PATCH(
       return NextResponse.json(
         { error: "Invalid status value. Must be 'up', 'down', 'paused', 'pending', 'maintenance', or 'error'." },
         { status: 400 }
+      );
+    }
+
+    // Get current monitor status for audit logging
+    const currentMonitor = await db.query.monitors.findFirst({
+      where: eq(monitors.id, id),
+    });
+
+    if (!currentMonitor) {
+      return NextResponse.json(
+        { error: "Monitor not found" },
+        { status: 404 }
       );
     }
 
@@ -36,6 +51,30 @@ export async function PATCH(
         { error: "Monitor not found" },
         { status: 404 }
       );
+    }
+
+    // Log the audit event only for human actions (pause/unpause), not automated status changes
+    const humanActions = ['paused', 'maintenance'];
+    const isHumanAction = humanActions.includes(status) || 
+                         (currentMonitor.status === 'paused' && ['up', 'down'].includes(status));
+    
+    if (isHumanAction) {
+      await logAuditEvent({
+        userId,
+        organizationId: updatedMonitor.organizationId || undefined,
+        action: status === 'paused' ? 'monitor_paused' : 
+                currentMonitor.status === 'paused' ? 'monitor_resumed' : 
+                `monitor_status_${status}`,
+        resource: 'monitor',
+        resourceId: id,
+        metadata: {
+          monitorName: updatedMonitor.name,
+          previousStatus: currentMonitor.status,
+          newStatus: status,
+          projectId: updatedMonitor.projectId
+        },
+        success: true
+      });
     }
 
     return NextResponse.json({ 

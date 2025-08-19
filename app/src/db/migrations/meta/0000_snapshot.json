@@ -1,5 +1,5 @@
 {
-  "id": "57c60501-c2c3-4c06-bbba-f5b6da0121d7",
+  "id": "c67bec03-e72b-41b2-8a2e-0e8ab469ba11",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -407,6 +407,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "refill_interval": {
           "name": "refill_interval",
           "type": "text",
@@ -529,6 +535,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "apikey_project_id_projects_id_fk": {
+          "name": "apikey_project_id_projects_id_fk",
+          "tableFrom": "apikey",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -615,84 +634,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.integrations": {
-      "name": "integrations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "service_name": {
-          "name": "service_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "config": {
-          "name": "config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "encrypted_api_token": {
-          "name": "encrypted_api_token",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_used_at": {
-          "name": "last_used_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "integrations_project_id_projects_id_fk": {
-          "name": "integrations_project_id_projects_id_fk",
-          "tableFrom": "integrations",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.invitation": {
       "name": "invitation",
       "schema": "",
@@ -722,12 +663,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "team_id": {
-          "name": "team_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -746,6 +681,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "selected_projects": {
+          "name": "selected_projects",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -761,19 +702,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "invitation_team_id_team_id_fk": {
-          "name": "invitation_team_id_team_id_fk",
-          "tableFrom": "invitation",
-          "tableTo": "team",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "invitation_inviter_id_user_id_fk": {
@@ -946,6 +874,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by_user_id": {
           "name": "created_by_user_id",
           "type": "uuid",
@@ -1031,102 +965,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "jobs_created_by_user_id_user_id_fk": {
-          "name": "jobs_created_by_user_id_user_id_fk",
+        "jobs_project_id_projects_id_fk": {
+          "name": "jobs_project_id_projects_id_fk",
           "tableFrom": "jobs",
-          "tableTo": "user",
+          "tableTo": "projects",
           "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.maintenance_windows": {
-      "name": "maintenance_windows",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "start_time": {
-          "name": "start_time",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "end_time": {
-          "name": "end_time",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "timezone": {
-          "name": "timezone",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "maintenance_windows_organization_id_organization_id_fk": {
-          "name": "maintenance_windows_organization_id_organization_id_fk",
-          "tableFrom": "maintenance_windows",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -1134,9 +978,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "maintenance_windows_created_by_user_id_user_id_fk": {
-          "name": "maintenance_windows_created_by_user_id_user_id_fk",
-          "tableFrom": "maintenance_windows",
+        "jobs_created_by_user_id_user_id_fk": {
+          "name": "jobs_created_by_user_id_user_id_fk",
+          "tableFrom": "jobs",
           "tableTo": "user",
           "columnsFrom": [
             "created_by_user_id"
@@ -1182,13 +1026,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'member'"
-        },
-        "team_id": {
-          "name": "team_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "default": "'project_viewer'"
         },
         "created_at": {
           "name": "created_at",
@@ -1224,90 +1062,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "member_team_id_team_id_fk": {
-          "name": "member_team_id_team_id_fk",
-          "tableFrom": "member",
-          "tableTo": "team",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.monitor_maintenance_windows": {
-      "name": "monitor_maintenance_windows",
-      "schema": "",
-      "columns": {
-        "maintenance_window_id": {
-          "name": "maintenance_window_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "monitor_id": {
-          "name": "monitor_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "monitor_maintenance_windows_maintenance_window_id_maintenance_windows_id_fk": {
-          "name": "monitor_maintenance_windows_maintenance_window_id_maintenance_windows_id_fk",
-          "tableFrom": "monitor_maintenance_windows",
-          "tableTo": "maintenance_windows",
-          "columnsFrom": [
-            "maintenance_window_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "monitor_maintenance_windows_monitor_id_monitors_id_fk": {
-          "name": "monitor_maintenance_windows_monitor_id_monitors_id_fk",
-          "tableFrom": "monitor_maintenance_windows",
-          "tableTo": "monitors",
-          "columnsFrom": [
-            "monitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "monitor_maintenance_windows_maintenance_window_id_monitor_id_pk": {
-          "name": "monitor_maintenance_windows_maintenance_window_id_monitor_id_pk",
+      "uniqueConstraints": {
+        "member_user_id_organization_id_unique": {
+          "name": "member_user_id_organization_id_unique",
+          "nullsNotDistinct": false,
           "columns": [
-            "maintenance_window_id",
-            "monitor_id"
+            "user_id",
+            "organization_id"
           ]
         }
       },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1433,6 +1200,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "consecutive_failure_count": {
+          "name": "consecutive_failure_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "alerts_sent_for_failure": {
+          "name": "alerts_sent_for_failure",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {},
@@ -1537,6 +1318,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -1658,6 +1445,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "monitors_project_id_projects_id_fk": {
+          "name": "monitors_project_id_projects_id_fk",
+          "tableFrom": "monitors",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "monitors_created_by_user_id_user_id_fk": {
           "name": "monitors_created_by_user_id_user_id_fk",
           "tableFrom": "monitors",
@@ -1691,6 +1491,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -1749,6 +1555,19 @@
           "tableTo": "organization",
           "columnsFrom": [
             "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "notification_providers_project_id_projects_id_fk": {
+          "name": "notification_providers_project_id_projects_id_fk",
+          "tableFrom": "notification_providers",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -1907,6 +1726,201 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.project_members": {
+      "name": "project_members",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'project_viewer'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_members_user_id_user_id_fk": {
+          "name": "project_members_user_id_user_id_fk",
+          "tableFrom": "project_members",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_members_project_id_projects_id_fk": {
+          "name": "project_members_project_id_projects_id_fk",
+          "tableFrom": "project_members",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "project_members_user_id_project_id_unique": {
+          "name": "project_members_user_id_project_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "project_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_variables": {
+      "name": "project_variables",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "encrypted_value": {
+          "name": "encrypted_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_secret": {
+          "name": "is_secret",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_variables_project_id_projects_id_fk": {
+          "name": "project_variables_project_id_projects_id_fk",
+          "tableFrom": "project_variables",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_variables_created_by_user_id_user_id_fk": {
+          "name": "project_variables_created_by_user_id_user_id_fk",
+          "tableFrom": "project_variables",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "project_variables_project_id_key_unique": {
+          "name": "project_variables_project_id_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.projects": {
       "name": "projects",
       "schema": "",
@@ -1930,11 +1944,24 @@
           "primaryKey": false,
           "notNull": true
         },
+        "slug": {
+          "name": "slug",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "description": {
           "name": "description",
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "status": {
           "name": "status",
@@ -1975,7 +2002,15 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "projects_slug_unique": {
+          "name": "projects_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2123,6 +2158,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "varchar(50)",
@@ -2202,6 +2243,19 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "runs_project_id_projects_id_fk": {
+          "name": "runs_project_id_projects_id_fk",
+          "tableFrom": "runs",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -2269,6 +2323,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "active_project_id": {
+          "name": "active_project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "impersonated_by": {
           "name": "impersonated_by",
           "type": "text",
@@ -2297,6 +2357,19 @@
           "tableTo": "organization",
           "columnsFrom": [
             "active_organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "session_active_project_id_projects_id_fk": {
+          "name": "session_active_project_id_projects_id_fk",
+          "tableFrom": "session",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "active_project_id"
           ],
           "columnsTo": [
             "id"
@@ -2336,6 +2409,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "created_by_user_id": {
           "name": "created_by_user_id",
           "type": "uuid",
@@ -2370,11 +2449,11 @@
         }
       },
       "indexes": {
-        "tags_organization_name_idx": {
-          "name": "tags_organization_name_idx",
+        "tags_project_name_idx": {
+          "name": "tags_project_name_idx",
           "columns": [
             {
-              "expression": "organization_id",
+              "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2406,6 +2485,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "tags_project_id_projects_id_fk": {
+          "name": "tags_project_id_projects_id_fk",
+          "tableFrom": "tags",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "tags_created_by_user_id_user_id_fk": {
           "name": "tags_created_by_user_id_user_id_fk",
           "tableFrom": "tags",
@@ -2417,64 +2509,6 @@
             "id"
           ],
           "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.team": {
-      "name": "team",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "team_organization_id_organization_id_fk": {
-          "name": "team_organization_id_organization_id_fk",
-          "tableFrom": "team",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2568,6 +2602,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by_user_id": {
           "name": "created_by_user_id",
           "type": "uuid",
@@ -2630,6 +2670,19 @@
           "tableTo": "organization",
           "columnsFrom": [
             "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tests_project_id_projects_id_fk": {
+          "name": "tests_project_id_projects_id_fk",
+          "tableFrom": "tests",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
           ],
           "columnsTo": [
             "id"

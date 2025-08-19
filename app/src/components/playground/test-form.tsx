@@ -18,6 +18,8 @@ import { decodeTestScript } from "@/actions/save-test";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import { canCreateTags, canDeleteTags, canDeleteTests } from "@/lib/rbac/client-permissions";
 import { deleteTest } from "@/actions/delete-test";
 import {
   AlertDialog,
@@ -108,6 +110,8 @@ interface TestFormProps {
   isCurrentScriptValidated: boolean; // Strict validation control
   isCurrentScriptReadyToSave: boolean; // Both validated and test passed
   testExecutionStatus: 'none' | 'passed' | 'failed'; // Test execution status
+  userRole?: string; // User's role for permission checks
+  userId?: string; // Current user ID for permission checks
 }
 
 export function TestForm({
@@ -124,6 +128,8 @@ export function TestForm({
   isCurrentScriptValidated,
   isCurrentScriptReadyToSave,
   testExecutionStatus,
+  userRole,
+  userId,
 }: TestFormProps) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -136,6 +142,25 @@ export function TestForm({
   const [initialTags, setInitialTags] = useState<Tag[]>([]);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [isLoadingTags, setIsLoadingTags] = useState(false);
+
+  // Permission checks
+  const role = userRole ? normalizeRole(userRole) : null;
+  const canUserCreateTags = role ? canCreateTags(role) : false;
+  const canUserDeleteTags = role ? canDeleteTags(role) : false;
+  const canUserDeleteTests = role ? canDeleteTests(role) : false;
+
+  // Function to check if specific tag can be deleted by current user
+  const canDeleteSpecificTag = (tag: Tag): boolean => {
+    if (!canUserDeleteTags || !role) return false;
+    
+    // For PROJECT_EDITOR, check if they created the tag
+    if (role.toString() === 'project_editor') {
+      return tag.createdByUserId === userId;
+    }
+    
+    // For PROJECT_ADMIN, ORG_ADMIN, ORG_OWNER, SUPER_ADMIN - they can delete any tag
+    return ['project_admin', 'org_admin', 'org_owner', 'super_admin'].includes(role.toString());
+  };
 
   // Load available tags and test tags
   useEffect(() => {
@@ -766,8 +791,9 @@ export function TestForm({
           value={selectedTags}
           onChange={handleTagChange}
           availableTags={availableTags}
-          onCreateTag={handleCreateTag}
-          onDeleteTag={handleDeleteTag}
+          onCreateTag={canUserCreateTags ? handleCreateTag : undefined}
+          onDeleteTag={canUserDeleteTags ? handleDeleteTag : undefined}
+          canDeleteTag={canDeleteSpecificTag}
           placeholder="Select or create tags to organize tests..."
           disabled={isRunning || isLoadingTags}
         />
@@ -784,7 +810,7 @@ export function TestForm({
                 type="button"
                 variant="outline"
                 onClick={() => setShowDeleteDialog(true)}
-                disabled={isRunning}
+                disabled={isRunning || !canUserDeleteTests}
                 className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
               >
                 <Trash2 className="h-4 w-4 mr-2" />

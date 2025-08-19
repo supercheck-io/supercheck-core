@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors, monitorResults, monitorsUpdateSchema, monitorNotificationSettings } from "@/db/schema/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { scheduleMonitor, deleteScheduledMonitor } from "@/lib/monitor-scheduler";
 import { MonitorJobData } from "@/lib/queue";
+import { requireAuth, hasPermission, getUserOrgRole } from '@/lib/rbac/middleware';
+import { isSuperAdmin } from '@/lib/admin';
+import { logAuditEvent } from "@/lib/audit-logger";
 
 const RECENT_RESULTS_LIMIT = 1000; // Number of recent results to fetch
 
@@ -18,12 +21,45 @@ export async function GET(
   }
 
   try {
+    const { userId } = await requireAuth();
+    
+    // First, find the monitor without filtering by active project
     const monitor = await db.query.monitors.findFirst({
       where: eq(monitors.id, id),
     });
 
     if (!monitor) {
       return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+
+    // Check if user has access to this monitor
+    const userIsSuperAdmin = await isSuperAdmin();
+    
+    if (!userIsSuperAdmin && monitor.organizationId && monitor.projectId) {
+      // First, check if user is a member of the organization
+      const orgRole = await getUserOrgRole(userId, monitor.organizationId);
+      
+      if (!orgRole) {
+        return NextResponse.json(
+          { error: 'Access denied: Not a member of this organization' },
+          { status: 403 }
+        );
+      }
+
+      // Then check if they have permission to view monitors
+      try {
+        const canView = await hasPermission('monitor', 'view', { organizationId: monitor.organizationId, projectId: monitor.projectId });
+        
+        if (!canView) {
+          return NextResponse.json(
+            { error: 'Insufficient permissions to view this monitor' },
+            { status: 403 }
+          );
+        }
+      } catch (permissionError) {
+        // If permission check fails but user is org member, allow view access
+        console.log('Permission check failed, but user is org member:', permissionError);
+      }
     }
 
     const recentResults = await db
@@ -67,6 +103,8 @@ export async function PUT(
   }
 
   try {
+    const { userId } = await requireAuth();
+    
     const rawData = await request.json();
     const validationResult = monitorsUpdateSchema.safeParse(rawData);
 
@@ -76,9 +114,34 @@ export async function PUT(
 
     const updateData = validationResult.data;
 
-    const currentMonitor = await db.query.monitors.findFirst({ where: eq(monitors.id, id) });
+    // First, find the monitor without filtering by active project
+    const currentMonitor = await db.query.monitors.findFirst({ 
+      where: eq(monitors.id, id)
+    });
+
     if (!currentMonitor) {
         return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+    
+    // Now check if user has access to this monitor's project
+    const userIsSuperAdmin = await isSuperAdmin();
+    
+    if (!userIsSuperAdmin) {
+      if (!currentMonitor.organizationId || !currentMonitor.projectId) {
+        return NextResponse.json(
+          { error: "Monitor data incomplete" },
+          { status: 500 }
+        );
+      }
+      
+      const canUpdate = await hasPermission('monitor', 'update', { organizationId: currentMonitor.organizationId, projectId: currentMonitor.projectId });
+      
+      if (!canUpdate) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions' },
+          { status: 403 }
+        );
+      }
     }
 
     // Validate alert configuration if enabled
@@ -115,22 +178,30 @@ export async function PUT(
       }
     }
 
+    // Prepare update data - preserve existing alert config if not provided
+    const updatePayload: Partial<typeof monitors.$inferInsert> = {
+      ...updateData,
+      updatedAt: new Date(),
+    };
+
+    // Only update alertConfig if it's explicitly provided
+    if (rawData.hasOwnProperty('alertConfig')) {
+      updatePayload.alertConfig = rawData.alertConfig ? {
+        enabled: Boolean(rawData.alertConfig.enabled),
+        notificationProviders: Array.isArray(rawData.alertConfig.notificationProviders) ? rawData.alertConfig.notificationProviders : [],
+        alertOnFailure: rawData.alertConfig.alertOnFailure !== undefined ? Boolean(rawData.alertConfig.alertOnFailure) : true,
+        alertOnRecovery: Boolean(rawData.alertConfig.alertOnRecovery),
+        alertOnSslExpiration: Boolean(rawData.alertConfig.alertOnSslExpiration),
+        failureThreshold: typeof rawData.alertConfig.failureThreshold === 'number' ? rawData.alertConfig.failureThreshold : 1,
+        recoveryThreshold: typeof rawData.alertConfig.recoveryThreshold === 'number' ? rawData.alertConfig.recoveryThreshold : 1,
+        customMessage: typeof rawData.alertConfig.customMessage === 'string' ? rawData.alertConfig.customMessage : "",
+      } : null;
+    }
+    // If alertConfig is not in rawData, existing alert settings are preserved
+
     const [updatedMonitor] = await db
       .update(monitors)
-      .set({
-        ...updateData,
-        alertConfig: rawData.alertConfig ? {
-          enabled: Boolean(rawData.alertConfig.enabled),
-          notificationProviders: Array.isArray(rawData.alertConfig.notificationProviders) ? rawData.alertConfig.notificationProviders : [],
-          alertOnFailure: rawData.alertConfig.alertOnFailure !== undefined ? Boolean(rawData.alertConfig.alertOnFailure) : true,
-          alertOnRecovery: Boolean(rawData.alertConfig.alertOnRecovery),
-          alertOnSslExpiration: Boolean(rawData.alertConfig.alertOnSslExpiration),
-          failureThreshold: typeof rawData.alertConfig.failureThreshold === 'number' ? rawData.alertConfig.failureThreshold : 1,
-          recoveryThreshold: typeof rawData.alertConfig.recoveryThreshold === 'number' ? rawData.alertConfig.recoveryThreshold : 1,
-          customMessage: typeof rawData.alertConfig.customMessage === 'string' ? rawData.alertConfig.customMessage : "",
-        } : null,
-        updatedAt: new Date(),
-      })
+      .set(updatePayload)
       .where(eq(monitors.id, id))
       .returning();
 
@@ -174,14 +245,35 @@ export async function PUT(
       console.log(`Monitor ${id} status changed from ${oldStatus} to ${newStatus}`);
       
       if (newStatus === 'paused') {
-        // Pause monitor - remove from scheduler
+        // Pause monitor - remove from scheduler and clear scheduledJobId
         console.log(`Pausing monitor ${id} - removing from scheduler`);
-        await deleteScheduledMonitor(id);
+        
+        // Try both the stored scheduledJobId and the monitor ID
+        let deleteSuccess = false;
+        if (currentMonitor.scheduledJobId) {
+          deleteSuccess = await deleteScheduledMonitor(currentMonitor.scheduledJobId);
+        }
+        
+        if (!deleteSuccess) {
+          deleteSuccess = await deleteScheduledMonitor(id);
+        }
+        
+        // Clear the scheduled job ID from database
+        await db
+          .update(monitors)
+          .set({ scheduledJobId: null })
+          .where(eq(monitors.id, id));
       } else if (oldStatus === 'paused' && (newStatus === 'up' || newStatus === 'down')) {
         // Resume monitor - add to scheduler if it has valid frequency
         if (newFrequency && newFrequency > 0) {
           console.log(`Resuming monitor ${id} - adding to scheduler with ${newFrequency} minute frequency`);
-          await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
+          const schedulerId = await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
+          
+          // Update monitor with new scheduler ID
+          await db
+            .update(monitors)
+            .set({ scheduledJobId: schedulerId })
+            .where(eq(monitors.id, id));
         }
       }
     }
@@ -198,11 +290,44 @@ export async function PUT(
         
         if (newFrequency && newFrequency > 0) {
             console.log(`Scheduling monitor ${id} with updated configuration`);
-            await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
+            const schedulerId = await scheduleMonitor({ monitorId: id, frequencyMinutes: newFrequency, jobData, retryLimit: 3 });
+            
+            // Update monitor with new scheduler ID
+            await db
+              .update(monitors)
+              .set({ scheduledJobId: schedulerId })
+              .where(eq(monitors.id, id));
         } else {
             console.log(`Monitor ${id} frequency set to ${newFrequency}, not scheduling.`);
+            // Clear scheduler ID if frequency is 0 or null
+            await db
+              .update(monitors)
+              .set({ scheduledJobId: null })
+              .where(eq(monitors.id, id));
         }
     }
+
+    // Log the audit event for monitor update
+    await logAuditEvent({
+      userId,
+      organizationId: updatedMonitor.organizationId || undefined,
+      action: 'monitor_updated',
+      resource: 'monitor',
+      resourceId: id,
+      metadata: {
+        monitorName: updatedMonitor.name,
+        monitorType: updatedMonitor.type,
+        target: updatedMonitor.target,
+        frequencyMinutes: updatedMonitor.frequencyMinutes,
+        enabled: updatedMonitor.enabled,
+        projectId: updatedMonitor.projectId,
+        statusChanged: oldStatus !== newStatus,
+        oldStatus,
+        newStatus,
+        frequencyChanged: oldFrequency !== newFrequency
+      },
+      success: true
+    });
 
     return NextResponse.json(updatedMonitor);
   } catch (error) {
@@ -222,6 +347,34 @@ export async function DELETE(
   }
 
   try {
+    await requireAuth();
+    
+    // First, find the monitor without filtering by active project
+    const monitorToDelete = await db.query.monitors.findFirst({
+      where: eq(monitors.id, id)
+    });
+
+    if (!monitorToDelete) {
+      return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+    
+    // Now check if user has access to this monitor's project
+    if (!monitorToDelete.organizationId || !monitorToDelete.projectId) {
+      return NextResponse.json(
+        { error: "Monitor data incomplete" },
+        { status: 500 }
+      );
+    }
+    
+    const canManage = await hasPermission('monitor', 'delete', { organizationId: monitorToDelete.organizationId, projectId: monitorToDelete.projectId });
+    
+    if (!canManage) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
+
     // First, unschedule the monitor
     try {
         await deleteScheduledMonitor(id);
@@ -235,7 +388,11 @@ export async function DELETE(
     // Explicitly deleting them first can be safer depending on DB config / Drizzle behavior interpretation.
     await db.delete(monitorResults).where(eq(monitorResults.monitorId, id));
     
-    const [deletedMonitor] = await db.delete(monitors).where(eq(monitors.id, id)).returning();
+    const [deletedMonitor] = await db.delete(monitors).where(and(
+      eq(monitors.id, id),
+      eq(monitors.projectId, monitorToDelete.projectId),
+      eq(monitors.organizationId, monitorToDelete.organizationId)
+    )).returning();
 
     if (!deletedMonitor) {
       return NextResponse.json({ error: "Monitor not found or already deleted" }, { status: 404 });
@@ -283,12 +440,38 @@ export async function PATCH(
   }
 
   try {
+    const { userId } = await requireAuth();
+    
     const rawData = await request.json();
 
-    // Fetch the current monitor to merge the config
-    const currentMonitor = await db.query.monitors.findFirst({ where: eq(monitors.id, id) });
+    // First, find the monitor without filtering by active project
+    const currentMonitor = await db.query.monitors.findFirst({ 
+      where: eq(monitors.id, id)
+    });
+
     if (!currentMonitor) {
       return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
+    }
+    
+    // Now check if user has access to this monitor's project
+    const userIsSuperAdmin = await isSuperAdmin();
+    
+    if (!userIsSuperAdmin) {
+      if (!currentMonitor.organizationId || !currentMonitor.projectId) {
+        return NextResponse.json(
+          { error: "Monitor data incomplete" },
+          { status: 500 }
+        );
+      }
+      
+      const canUpdate = await hasPermission('monitor', 'update', { organizationId: currentMonitor.organizationId, projectId: currentMonitor.projectId });
+      
+      if (!canUpdate) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions' },
+          { status: 403 }
+        );
+      }
     }
     
     const updatePayload: Partial<{
@@ -325,6 +508,78 @@ export async function PATCH(
     if (!updatedMonitor) {
       return NextResponse.json({ error: "Failed to update monitor" }, { status: 404 });
     }
+
+    // Handle pause/resume logic when status changes
+    if (rawData.status && rawData.status !== currentMonitor.status) {
+      console.log(`Monitor ${id} status changed from ${currentMonitor.status} to ${rawData.status}`);
+      
+      if (rawData.status === 'paused') {
+        // Pause monitor - remove from scheduler and clear scheduledJobId
+        console.log(`[PATCH] Pausing monitor ${id} - removing from scheduler`);
+        
+        // Try both the stored scheduledJobId and the monitor ID
+        let deleteSuccess = false;
+        if (currentMonitor.scheduledJobId) {
+          deleteSuccess = await deleteScheduledMonitor(currentMonitor.scheduledJobId);
+        }
+        
+        if (!deleteSuccess) {
+          deleteSuccess = await deleteScheduledMonitor(id);
+        }
+        
+        // Clear the scheduled job ID from database
+        await db
+          .update(monitors)
+          .set({ scheduledJobId: null })
+          .where(eq(monitors.id, id));
+      } else if (currentMonitor.status === 'paused' && (rawData.status === 'up' || rawData.status === 'down')) {
+        // Resume monitor - add to scheduler if it has valid frequency
+        if (updatedMonitor.frequencyMinutes && updatedMonitor.frequencyMinutes > 0) {
+          console.log(`Resuming monitor ${id} - adding to scheduler with ${updatedMonitor.frequencyMinutes} minute frequency`);
+          
+          const jobData: MonitorJobData = {
+            monitorId: updatedMonitor.id,
+            type: updatedMonitor.type as MonitorJobData['type'],
+            target: updatedMonitor.target,
+            config: updatedMonitor.config as Record<string, unknown>,
+            frequencyMinutes: updatedMonitor.frequencyMinutes,
+          };
+          
+          const schedulerId = await scheduleMonitor({ 
+            monitorId: id, 
+            frequencyMinutes: updatedMonitor.frequencyMinutes, 
+            jobData, 
+            retryLimit: 3 
+          });
+          
+          // Update monitor with new scheduler ID
+          await db
+            .update(monitors)
+            .set({ scheduledJobId: schedulerId })
+            .where(eq(monitors.id, id));
+        }
+      }
+    }
+
+    // Log the audit event for monitor partial update
+    await logAuditEvent({
+      userId,
+      organizationId: updatedMonitor.organizationId || undefined,
+      action: 'monitor_updated',
+      resource: 'monitor',
+      resourceId: id,
+      metadata: {
+        monitorName: updatedMonitor.name,
+        updateType: 'partial',
+        statusChanged: rawData.status && rawData.status !== currentMonitor.status,
+        oldStatus: currentMonitor.status,
+        newStatus: rawData.status || currentMonitor.status,
+        configUpdated: !!rawData.config,
+        alertConfigUpdated: !!rawData.alertConfig,
+        projectId: updatedMonitor.projectId
+      },
+      success: true
+    });
 
     return NextResponse.json(updatedMonitor);
   } catch (error) {

@@ -9,6 +9,9 @@ import { useRouter } from "next/navigation";
 import { monitorStatuses, monitorTypes } from "@/components/monitors/data";
 
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import { canCreateMonitors } from "@/lib/rbac/client-permissions";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
@@ -19,6 +22,9 @@ export function DataTableToolbar<TData>({
 }: DataTableToolbarProps<TData>) {
 
   const router = useRouter();
+  const { currentProject } = useProjectContext();
+
+  const userCanCreateMonitors = currentProject?.userRole ? canCreateMonitors(normalizeRole(currentProject.userRole)) : false;
 
   return (
     <div className="flex items-center justify-between mb-4 -mt-2">
@@ -83,6 +89,7 @@ export function DataTableToolbar<TData>({
         <DataTableViewOptions table={table} />
         <Button
           onClick={() => router.push("/monitors/create")}
+          disabled={!userCanCreateMonitors}
         >
           <PlusIcon className="h-4 w-4 mr-2" />
           Create Monitor

@@ -34,6 +34,7 @@ export function detectTimeoutError(
   const timeoutPatterns = [
     /execution timed out after (\d+)ms/,
     /timed out after (\d+)ms/,
+    /timed out after ([^s]+)ms/, // handles malformed durations like "abcms"
     /timeout after (\d+)ms/,
     /execution timeout/,
     /\[execution timeout\]/,
@@ -46,7 +47,8 @@ export function detectTimeoutError(
       
       // Extract timeout duration if captured
       if (match[1]) {
-        timeoutMs = parseInt(match[1], 10);
+        const parsedTimeout = parseInt(match[1], 10);
+        timeoutMs = isNaN(parsedTimeout) ? 0 : parsedTimeout;
       } else {
         // Try to infer from known timeout values
         if (combinedErrorText.includes('120000ms') || combinedErrorText.includes('120000')) {
@@ -64,9 +66,9 @@ export function detectTimeoutError(
         timeoutType = 'test'; // 2 minutes
       } else if (timeoutMs === 900000) {
         timeoutType = 'job'; // 15 minutes
-      } else if (timeoutMinutes <= 2) {
+      } else if (timeoutMs > 0 && timeoutMinutes <= 2) {
         timeoutType = 'test'; // Assume test if ≤ 2 minutes
-      } else if (timeoutMinutes >= 10) {
+      } else if (timeoutMs > 0 && timeoutMinutes >= 10) {
         timeoutType = 'job'; // Assume job if ≥ 10 minutes
       }
 

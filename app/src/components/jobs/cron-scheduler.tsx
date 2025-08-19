@@ -27,23 +27,26 @@ const CronScheduler: React.FC<CronSchedulerProps> = ({
   disabled = false,
   readOnly = false,
 }) => {
+
   return (
     <div className="cron-widget-container space-y-2"> 
       {/* The Cron component for visual editing */}
       <Cron
-        value={value}
-        setValue={onChange} // react-js-cron uses setValue prop for onChange
+        value={value || "0 0 * * 0"} // Default to "every week" (Sunday at midnight) if no value
+        setValue={onChange}
         leadingZero // Use leading zeros for hours/minutes (e.g., 01 instead of 1)
         clearButton={false} // Hide the default clear button if desired
         shortcuts={false} // Disable shortcuts like @daily if not needed
-        // clockFormat="24-hour-clock" // Optional: set clock format
+        clockFormat="24-hour-clock" // Set 24-hour format
         disabled={disabled}
         readOnly={readOnly}
         onError={onError} // Pass the error handler
-        // locale={customLocale} // Pass custom locale if defined
-        // You can customize allowed periods, dropdowns, etc. here if needed
-        // allowedPeriods={['year', 'month', 'week', 'day', 'hour', 'minute']}
-        // allowedDropdowns={['period', 'months', 'month-days', 'week-days', 'hours', 'minutes']}
+        // Only allow hourly and larger periods (no minutes)
+        allowedPeriods={['year', 'month', 'week', 'day', 'hour']}
+        // Remove 'minutes' from dropdowns to prevent minute-level scheduling
+        allowedDropdowns={['period', 'months', 'month-days', 'week-days', 'hours']}
+        // Set default period to week for weekly scheduling
+        defaultPeriod="week"
       />
       
       {/* Read-only input to display the generated cron string */}
@@ -72,33 +75,6 @@ const CronScheduler: React.FC<CronSchedulerProps> = ({
           </Button>
         )}
       </div>
-
-      {/* Basic attempt to style antd components used by react-js-cron */}
-      {/* This might need refinement based on inspecting element classes */}
-      <style jsx global>{`
-        /* Override antd styles for better theme integration */
-        .react-js-cron {
-          --react-js-cron-select-bg: var(--background);
-          --react-js-cron-select-color: var(--foreground);
-          --react-js-cron-select-border-color: var(--input);
-          --react-js-cron-primary-color: var(--primary);
-          
-          /* Additional overrides may be needed */
-        }
-        
-        /* Dark mode support */
-        .dark .react-js-cron .ant-select-dropdown,
-        .dark .react-js-cron .ant-select-item,
-        .dark .react-js-cron .ant-select-selection-item {
-          background-color: hsl(var(--background));
-          color: hsl(var(--foreground));
-        }
-        
-        /* Fix dropdown positioning */
-        .ant-select-dropdown {
-          z-index: 1000;
-        }
-      `}</style>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { RunDetails } from "@/components/runs/run-details";
-// import { getRun } from "@/actions/get-runs"; // Replaced with API call
+import { getRun } from "@/actions/get-runs";
 import { notFound } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { Suspense } from "react";
@@ -27,30 +27,32 @@ function DetailSkeleton() {
 export default async function RunPage({ params }: Params) {
   const { id } = await params;
   
-  // Fetch run data from API
-  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/runs/${id}`, {
-    cache: 'no-store'
-  });
-  
-  if (!response.ok) {
+  try {
+    const run = await getRun(id);
+    
+    if (!run) {
+      notFound();
+    }
+    
+    const breadcrumbs = [
+      { label: "Home", href: "/" },
+      { label: "Runs", href: "/runs" },
+      { label: run.jobName && run.jobName.length > 20 ? `${run.jobName.substring(0, 20)}...` : run.jobName || id, href: `/jobs?job=${run.jobId}` },
+      { label: "Report", isCurrentPage: true },
+    ];
+
+    return (
+      <div>
+        <PageBreadcrumbs items={breadcrumbs} />
+        <div className="m-4">
+          <Suspense fallback={<DetailSkeleton />}>
+            <RunDetails run={run} />
+          </Suspense>
+        </div>
+      </div>
+    );
+  } catch (error) {
+    console.error('Error fetching run:', error);
     notFound();
   }
-  
-  const run = await response.json();
-  
-  const breadcrumbs = [
-    { label: "Home", href: "/" },
-    { label: "Runs", href: "/runs" },
-    { label: run.jobName && run.jobName.length > 20 ? `${run.jobName.substring(0, 20)}...` : run.jobName || id, href: `/jobs?job=${run.jobId}` },
-    { label: "Report", isCurrentPage: true },
-  ];
-
-  return (
-    <div className="w-full max-w-full">
-      <PageBreadcrumbs items={breadcrumbs} />
-      <Suspense fallback={<DetailSkeleton />}>
-        <RunDetails run={run} />
-      </Suspense>
-    </div>
-  );
 }

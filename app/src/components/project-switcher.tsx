@@ -1,16 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, Plus, Search } from "lucide-react"
+import { ChevronsUpDown, Search, Loader2 } from "lucide-react"
 import { CheckIcon } from "@/components/logo/supercheck-logo"
+import { useProjectContext } from "@/hooks/use-project-context"
 
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -21,25 +20,26 @@ import {
 } from "@/components/ui/sidebar"
 import { Input } from "@/components/ui/input"
 import { useRef, useEffect } from "react"
-import { toast } from "sonner"
 
-export function ProjectSwitcher({
-  projects,
-}: {
-  projects: {
-    name: string
-  }[]
-}) {
+export function ProjectSwitcher() {
   const { isMobile } = useSidebar()
-  const [activeProject, setActiveProject] = React.useState(projects[0])
+  const { 
+    currentProject, 
+    projects, 
+    loading, 
+    switchProject 
+  } = useProjectContext()
+  
   const [searchQuery, setSearchQuery] = React.useState("")
   const [isOpen, setIsOpen] = React.useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Filter projects based on search query
-  const filteredProjects = projects.filter(project =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  // Filter and sort projects based on search query
+  const filteredProjects = (projects || [])
+    .filter(project =>
+      project.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   // Reset search when dropdown closes
   useEffect(() => {
@@ -78,12 +78,32 @@ export function ProjectSwitcher({
     e.stopPropagation()
   }
 
-  const handleProjectSelect = (project: typeof projects[0]) => {
-    setActiveProject(project)
-    setIsOpen(false)
-    toast.success(`Switched to ${project.name}`, {
-      description: `You are now viewing the ${project.name} project.`,
-    })
+  const handleProjectSelect = async (project: { id: string; name: string }) => {
+    const success = await switchProject(project.id)
+    if (success) {
+      setIsOpen(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton size="lg" disabled>
+            <div className="text-foreground flex items-center justify-center">
+              <CheckIcon className="size-7" />
+            </div>
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium">Supercheck</span>
+              <div className="flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span className="truncate text-xs">Loading...</span>
+              </div>
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
   }
 
   return (
@@ -100,7 +120,7 @@ export function ProjectSwitcher({
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">Supercheck</span>
-                <span className="truncate text-xs">{activeProject.name}</span>
+                <span className="truncate text-xs">{currentProject?.name || "No project"}</span>
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>
@@ -134,14 +154,18 @@ export function ProjectSwitcher({
 
             {/* Project List */}
             <div className="max-h-48 overflow-y-auto">
-              {filteredProjects.map((project, index) => (
+              {filteredProjects.map((project) => (
                 <DropdownMenuItem
-                  key={project.name}
+                  key={project.id}
+                  className="gap-2 p-2 flex items-center justify-between"
                   onClick={() => handleProjectSelect(project)}
-                  className="gap-2 p-2"
                 >
-                  {project.name}
-                  <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+                  <div className="flex items-center justify-between flex-1">
+                    <span className="font-medium truncate">{project.name}</span>
+                    {currentProject?.id === project.id && (
+                      <div className="h-2.5 w-2.5 rounded-full bg-primary flex-shrink-0 ml-2" />
+                    )}
+                  </div>
                 </DropdownMenuItem>
               ))}
               {filteredProjects.length === 0 && (
@@ -150,17 +174,6 @@ export function ProjectSwitcher({
                 </div>
               )}
             </div>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              className="gap-2 p-2"
-              onClick={() => setIsOpen(false)}
-            >
-              <div className="bg-background flex size-6 items-center justify-center rounded-md border">
-                <Plus className="size-4" />
-              </div>
-              <div className="text-muted-foreground font-medium">Add project</div>
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

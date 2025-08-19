@@ -29,7 +29,7 @@ export function DataTablePagination<TData>({
        </div>
       <div className="flex items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium">Rows per page</p>
+          <p className="text-sm">Rows per page</p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
@@ -48,7 +48,7 @@ export function DataTablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+        <div className="flex w-[100px] items-center justify-center text-sm">
           Page {table.getState().pagination.pageIndex + 1} of{" "}
           {table.getPageCount()}
         </div>
@@ -60,7 +60,7 @@ export function DataTablePagination<TData>({
             disabled={!table.getCanPreviousPage()}
           >
             <span className="sr-only">Go to first page</span>
-            <ChevronsLeft className="h-4 w-4" />
+            <ChevronsLeft />
           </Button>
           <Button
             variant="outline"
@@ -69,7 +69,7 @@ export function DataTablePagination<TData>({
             disabled={!table.getCanPreviousPage()}
           >
             <span className="sr-only">Go to previous page</span>
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft />
           </Button>
           <Button
             variant="outline"
@@ -78,7 +78,7 @@ export function DataTablePagination<TData>({
             disabled={!table.getCanNextPage()}
           >
             <span className="sr-only">Go to next page</span>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight />
           </Button>
           <Button
             variant="outline"
@@ -87,7 +87,7 @@ export function DataTablePagination<TData>({
             disabled={!table.getCanNextPage()}
           >
             <span className="sr-only">Go to last page</span>
-            <ChevronsRight className="h-4 w-4" />
+            <ChevronsRight />
           </Button>
         </div>
       </div>

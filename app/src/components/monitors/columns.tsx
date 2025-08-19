@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { MonitorStatusIndicator } from "./monitor-status-indicator";
 import { monitorTypes } from "./data";
 import { formatDurationMinutes } from "@/lib/date-utils";
+import { TruncatedTextWithTooltip } from "@/components/ui/truncated-text-with-tooltip";
 
 // Type definition for the extended meta object used in this table
 interface MonitorTableMeta {
@@ -46,24 +47,14 @@ export const columns: ColumnDef<Monitor>[] = [
     cell: ({ row }) => {
       const name = row.getValue("name") as string;
       
-      // Check if text is likely to be truncated (rough estimate)
-      const isTruncated = name.length > 20; // Approximate character limit for 200px width
-      
-      if (!isTruncated) {
-        return (
-          <div className="flex space-x-2">
-            <span className="font-medium max-w-[160px] truncate">
-              {name}
-            </span>
-          </div>
-        );
-      }
-      
       return (
         <div className="flex space-x-2">
-          <span className="font-medium max-w-[160px] truncate" title={name}>
-            {name}
-          </span>
+          <TruncatedTextWithTooltip 
+            text={name}
+            className="font-medium"
+            maxWidth="160px"
+            maxLength={20}
+          />
         </div>
       );
     },
@@ -75,36 +66,18 @@ export const columns: ColumnDef<Monitor>[] = [
     ),
     cell: ({ row }) => {
       const target = row.getValue("target") as string;
-      const monitorType = row.original.type as string;
       const legacyUrl = row.original.url as string; // Fallback for legacy data
       
-      // For heartbeat monitors, show truncated URL without hyperlink styling
-      if (monitorType === "heartbeat") {
-        const config = row.original.config as Record<string, unknown>;
-        const heartbeatUrl = config?.heartbeatUrl as string;
-        
-        let displayUrl = "";
-        if (heartbeatUrl) {
-          displayUrl = heartbeatUrl;
-        } else {
-          // Fallback: construct URL from target token
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-          displayUrl = `${baseUrl}/api/heartbeat/${target}`;
-        }
-        
-        return (
-          <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block" title={displayUrl}>
-            {displayUrl}
-          </span>
-        );
-      }
       
       const displayValue = target || legacyUrl || "—";
       
       return (
-        <span className="w-[170px] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm block" title={displayValue}>
-          {displayValue}
-        </span>
+        <TruncatedTextWithTooltip 
+          text={displayValue}
+          className="font-mono text-sm block"
+          maxWidth="170px"
+          maxLength={30}
+        />
       );
     },
   },
@@ -173,18 +146,22 @@ export const columns: ColumnDef<Monitor>[] = [
       const createdAt = row.getValue("createdAt") as string;
       if (!createdAt) return null;
 
-      // Format date without using date-fns
       const date = new Date(createdAt);
       const formattedDate = date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
       });
+      const formattedTime = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
       return (
-        <div className="flex items-center w-[120px]">
+        <div className="flex items-center w-[170px]">
           <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
           <span>{formattedDate}</span>
+          <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
         </div>
       );
     },

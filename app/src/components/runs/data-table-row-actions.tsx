@@ -30,11 +30,13 @@ import { TestRun } from "./schema";
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
   onDelete?: () => void;
+  canDelete?: boolean;
 }
 
 export function DataTableRowActions<TData>({
   row,
   onDelete,
+  canDelete = true, // Default to true for backward compatibility
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const run = row.original as unknown as TestRun;
@@ -53,11 +55,25 @@ export function DataTableRowActions<TData>({
 
     try {
       // Use the server action to delete the run
-      const result = await deleteRun(run.id);
+      console.log("[DELETE_RUN_UI] Starting delete for run:", run.id);
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Delete operation timed out after 30 seconds')), 30000);
+      });
+      
+      const result = await Promise.race([
+        deleteRun(run.id),
+        timeoutPromise
+      ]) as Awaited<ReturnType<typeof deleteRun>>;
+      
+      console.log("[DELETE_RUN_UI] Delete result:", result);
 
       if (!result.success) {
+        console.log("[DELETE_RUN_UI] Delete failed:", result.error);
+        
         // If error is "Run not found", run may have been deleted already
-        if (result.error === "Run not found") {
+        if (result.error === "Run not found" || result.error === "Run not found or access denied") {
           // Show a warning instead of an error
           toast.warning("Run already deleted", {
             description: "This run was already deleted or doesn't exist."
@@ -67,27 +83,33 @@ export function DataTableRowActions<TData>({
           if (onDelete) {
             onDelete();
           }
-          return;
+          // Don't return early - let the finally block execute
+        } else {
+          // For other errors, throw the error to be caught below
+          throw new Error(result.error || "Failed to delete run");
         }
-        
-        // For other errors, throw the error to be caught below
-        throw new Error(result.error || "Failed to delete run");
-      }
-
-      toast.success("Run deleted successfully");
-  
-      // Call onDelete callback if provided to refresh data
-      if (onDelete) {
-        onDelete();
+      } else {
+        console.log("[DELETE_RUN_UI] Delete successful");
+        toast.success("Run deleted successfully");
+    
+        // Call onDelete callback if provided to refresh data
+        if (onDelete) {
+          onDelete();
+        }
       }
     } catch (error) {
-      console.error("Error deleting run:", error);
+      console.error("[DELETE_RUN_UI] Error deleting run:", error);
+      console.error("[DELETE_RUN_UI] Error details:", {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack available'
+      });
       toast.error("Error deleting run", {
         description:
           error instanceof Error ? error.message : "Failed to delete run",
         duration: 5000, // Add auto-dismiss after 5 seconds
       });
     } finally {
+      console.log("[DELETE_RUN_UI] Cleaning up dialog state");
       setIsDeleting(false);
       setShowDeleteDialog(false);
     }
@@ -113,9 +135,12 @@ export function DataTableRowActions<TData>({
           <DropdownMenuItem
             onClick={(e) => {
               e.stopPropagation();
-              setShowDeleteDialog(true);
+              if (canDelete) {
+                setShowDeleteDialog(true);
+              }
             }}
-            className="text-red-600"
+            disabled={!canDelete}
+            className={canDelete ? "text-red-600" : "text-muted-foreground"}
           >
             <Trash2 className="mr-2 h-4 w-4" />
             <span>Delete</span>

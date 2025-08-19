@@ -74,12 +74,38 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
 
   const copyToClipboard = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      toast.success("API key copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Failed to copy to clipboard");
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        toast.success("API key copied to clipboard");
+        setTimeout(() => setCopied(false), 2000);
+        return;
+      }
+      
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        setCopied(true);
+        toast.success("API key copied to clipboard");
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        throw new Error('Copy command failed');
+      }
+    } catch (error) {
+      console.error('Copy failed:', error);
+      toast.error("Failed to copy to clipboard. Please copy manually.");
     }
   };
 
@@ -284,6 +310,8 @@ export function ApiKeyDialog({ jobId, onApiKeyCreated }: ApiKeyDialogProps) {
                     onSelect={setExpiryDate}
                     disabled={(date) => date < new Date()}
                     initialFocus
+                    captionLayout="dropdown"
+                    className="rounded-md border shadow-sm"
                   />
                 </PopoverContent>
               </Popover>

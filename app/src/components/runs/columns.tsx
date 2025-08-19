@@ -55,8 +55,8 @@ function JobNameWithPopover({ jobName }: { jobName: string | undefined }) {
   );
 }
 
-// Create a function that returns the columns with the onDelete prop
-export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
+// Create a function that returns the columns with the onDelete prop and permissions
+export const createColumns = (onDelete?: () => void, canDelete?: boolean): ColumnDef<TestRun>[] => [
   {
     accessorKey: "id",
     header: ({ column }) => (
@@ -248,7 +248,7 @@ export const createColumns = (onDelete?: () => void): ColumnDef<TestRun>[] => [
   
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} onDelete={onDelete} />,
+    cell: ({ row }) => <DataTableRowActions row={row} onDelete={onDelete} canDelete={canDelete} />,
   },
 ];
 

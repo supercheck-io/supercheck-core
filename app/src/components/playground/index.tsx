@@ -19,13 +19,16 @@ import {
   FileTextIcon,
   Loader2Icon,
   ZapIcon,
-  Code2Icon,
   Text
 } from "lucide-react";
 import * as z from "zod";
 import type { editor } from "monaco-editor";
 import type { ScriptType } from "@/lib/script-service";
 import { ReportViewer } from "@/components/shared/report-viewer";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { canRunTests } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import RuntimeInfoPopover from "./runtime-info-popover";
 
 // Define our own TestCaseFormData interface
 interface TestCaseFormData {
@@ -56,6 +59,32 @@ const Playground: React.FC<PlaygroundProps> = ({
   initialTestData,
   initialTestId,
 }) => {
+  // Permission checking
+  const { currentProject } = useProjectContext();
+  const userCanRunTests = currentProject?.userRole ? canRunTests(normalizeRole(currentProject.userRole)) : false;
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+
+  // Fetch current user ID for permissions
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const response = await fetch('/api/auth/user');
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUserId(userData.user?.id);
+        }
+      } catch (error) {
+        console.error('Error fetching user ID:', error);
+      }
+    };
+    fetchUserId();
+  }, []);
+  
+  // Debug logging
+  if (currentProject?.userRole) {
+    console.log('Playground permissions:', currentProject.userRole, '→', userCanRunTests ? 'CAN' : 'CANNOT', 'run tests');
+  }
+  
   const [activeTab, setActiveTab] = useState<string>("editor");
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -418,6 +447,13 @@ const Playground: React.FC<PlaygroundProps> = ({
   };
 
   const runTest = async () => {
+    if (!userCanRunTests) {
+      toast.error("Insufficient permissions", {
+        description: "You don't have permission to run tests. Contact your organization admin for access.",
+      });
+      return;
+    }
+
     if (isRunning) {
       toast.warning("A script is already running", {
         description: "Please wait for the current script to complete, or cancel it before running a new script.",
@@ -447,12 +483,6 @@ const Playground: React.FC<PlaygroundProps> = ({
     }
 
     setIsRunning(true);
-
-    // Show a loading toast to indicate that the test is running
-    const loadingToastId = toast.loading(`Executing script${testId ? `: ${testCase.title.length > 25 ? testCase.title.substring(0, 25) + '...' : testCase.title}` : ''}`, {
-      description: "Script execution is in progress...",
-      duration: Infinity, // Keep this visible until execution completes
-    });
 
     try {
       console.log("Sending test data to API:", { id: testId, script: editorContent });
@@ -543,8 +573,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                   // Determine if it was a success or failure for the toast
                   const isSuccess = normalizedStatus === "completed" || normalizedStatus === "passed";
                   
-                  // Dismiss loading toast and show completion toast
-                  toast.dismiss(loadingToastId);
+                  // Show completion toast
                   toast[isSuccess ? "success" : "error"](
                     isSuccess ? "Script execution passed" : "Script execution failed",
                     { 
@@ -569,8 +598,6 @@ const Playground: React.FC<PlaygroundProps> = ({
           setIsRunning(false);
           setIsReportLoading(false);
           
-          // Dismiss the loading toast
-          toast.dismiss(loadingToastId);
           
           // Show error toast
           toast.error("Script execution error", {
@@ -595,7 +622,6 @@ const Playground: React.FC<PlaygroundProps> = ({
         };
       } else {
         // If we didn't get a report URL or test ID, something went wrong
-        toast.dismiss(loadingToastId);
         setIsReportLoading(false);
         setIsRunning(false);
         
@@ -629,7 +655,6 @@ const Playground: React.FC<PlaygroundProps> = ({
       }
     } catch (error) {
       console.error("Error running script:", error);
-      toast.dismiss(loadingToastId);
       toast.error("Error running script", {
         description: error instanceof Error ? error.message : "Unknown error",
         duration: 5000,
@@ -660,9 +685,12 @@ const Playground: React.FC<PlaygroundProps> = ({
                       <TabsList className="grid w-[400px] grid-cols-2">
                         <TabsTrigger
                           value="editor"
-                          className="flex items-center gap-2"
+                          className="flex items-center justify-center gap-2"
                         >
-                          <Code2Icon className="h-4 w-4" />
+                          <svg className="h-5 w-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="96" height="96" viewBox="0 0 48 48">
+                            <path fill="#ffd600" d="M6,42V6h36v36H6z"></path>
+                            <path fill="#000001" d="M29.538 32.947c.692 1.124 1.444 2.201 3.037 2.201 1.338 0 2.04-.665 2.04-1.585 0-1.101-.726-1.492-2.198-2.133l-.807-.344c-2.329-.988-3.878-2.226-3.878-4.841 0-2.41 1.845-4.244 4.728-4.244 2.053 0 3.528.711 4.592 2.573l-2.514 1.607c-.553-.988-1.151-1.377-2.078-1.377-.946 0-1.545.597-1.545 1.377 0 .964.6 1.354 1.985 1.951l.807.344C36.452 29.645 38 30.839 38 33.523 38 36.415 35.716 38 32.65 38c-2.999 0-4.702-1.505-5.65-3.368L29.538 32.947zM17.952 33.029c.506.906 1.275 1.603 2.381 1.603 1.058 0 1.667-.418 1.667-2.043V22h3.333v11.101c0 3.367-1.953 4.899-4.805 4.899-2.577 0-4.437-1.746-5.195-3.368L17.952 33.029z"></path>
+                          </svg>
                           <span>Editor</span>
                         </TabsTrigger>
                         <TabsTrigger
@@ -674,10 +702,15 @@ const Playground: React.FC<PlaygroundProps> = ({
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
+                    
+                    {/* Runtime Libraries Info */}
+                    <div className="-ml-4">
+                      <RuntimeInfoPopover />
+                    </div>
                   </div>
                   <Button
                     onClick={runTest}
-                    disabled={isRunning || isValidating}
+                    disabled={isRunning || isValidating || !userCanRunTests}
                     className="flex items-center gap-2 bg-[hsl(221.2,83.2%,53.3%)] text-white hover:bg-[hsl(221.2,83.2%,48%)] "
                     size="sm"
                   >
@@ -792,6 +825,8 @@ const Playground: React.FC<PlaygroundProps> = ({
                       isCurrentScriptValidated={isCurrentScriptValidated}
                       isCurrentScriptReadyToSave={isCurrentScriptReadyToSave}
                       testExecutionStatus={testExecutionStatus}
+                      userRole={currentProject?.userRole}
+                      userId={currentUserId}
                     />
                   </div>
                 </ScrollArea>

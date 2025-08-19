@@ -4,6 +4,7 @@ import { reports } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { notFound } from "next/navigation";
+import { requireAuth } from '@/lib/rbac/middleware';
 
 // Get S3 credentials from environment variables
 const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || 'minioadmin';
@@ -124,7 +125,18 @@ async function streamToUint8Array(
   throw new Error("Unsupported stream type");
 }
 
+
 export async function GET(request: Request) {
+  // Require authentication
+  try {
+    await requireAuth();
+  } catch {
+    return NextResponse.json(
+      { error: 'Authentication required' },
+      { status: 401 }
+    );
+  }
+
   // Extract path parameters from the URL
   const url = new URL(request.url);
   // Remove the initial part of the path to get the dynamic part
@@ -163,7 +175,7 @@ export async function GET(request: Request) {
   try {
     
     // Add debugging log to show full path information
-    console.log(`[TEST-RESULTS API] Processing request for path: ${path.join('/')} (entityId: ${entityId})`);
+    console.log(`[TEST-RESULTS API] Processing request for path: ${path.join('/')} (entityId: ${entityId}, reportFile: ${reportFile})`);
     
     // Query the reports table to get the s3Url for this entity
     const reportResult = await db.query.reports.findFirst({
@@ -267,6 +279,7 @@ export async function GET(request: Request) {
     
     // Determine the file path based on what's being requested
     const targetFile = reportFile || 'index.html';
+    console.log(`[TEST-RESULTS API] Target file: ${targetFile}, Original reportFile: ${reportFile}`);
     
     // Extract the base path without the file part and use only the entityId/report structure
     const entityIdIndex = pathParts.indexOf(entityId);
@@ -311,7 +324,7 @@ export async function GET(request: Request) {
       const buffer = await streamToUint8Array(s3Response.Body);
       const contentType = s3Response.ContentType || 'application/octet-stream';
       
-      return new NextResponse(buffer, {
+      return new NextResponse(buffer as unknown as BodyInit, {
         status: 200,
         headers: {
           'Content-Type': contentType,
@@ -326,7 +339,7 @@ export async function GET(request: Request) {
     } catch (error: unknown) {
       const s3Error = error as Error;
       console.error(`[TEST-RESULTS API] AWS SDK approach failed for ${bucket}/${s3Key}: ${s3Error.message}`, s3Error);
-      console.log('Trying final fallback with direct file construction...');
+      console.log('Trying final S3 fallback with direct file construction...');
       
       // 3. Last resort: try a simple file URL construction 
       try {
