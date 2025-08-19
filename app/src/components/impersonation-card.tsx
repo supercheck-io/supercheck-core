@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { UserX, User } from 'lucide-react';
@@ -25,6 +26,7 @@ export function ImpersonationCard() {
   const [impersonationInfo, setImpersonationInfo] = useState<ImpersonationInfo>({ isImpersonating: false });
   const [stopping, setStopping] = useState(false);
   const { state } = useSidebar();
+  const router = useRouter();
 
   useEffect(() => {
     checkImpersonationStatus();
@@ -53,7 +55,10 @@ export function ImpersonationCard() {
 
       if (data.success) {
         toast.success('Returned to admin account');
-        window.location.reload();
+        router.push('/');
+        setTimeout(() => {
+          window.location.reload();
+        }, 200);
       } else {
         toast.error(data.error || 'Failed to stop impersonation');
       }

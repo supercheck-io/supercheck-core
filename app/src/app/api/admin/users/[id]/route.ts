@@ -130,8 +130,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         );
       }
 
-      // Rate limiting for impersonation operations (max 5 per 5 minutes)
-      const rateLimitCheck = checkAdminRateLimit(sessionData.user.id, 'impersonate', 5);
+      // Rate limiting for impersonation operations (max 20 per 5 minutes)
+      const rateLimitCheck = checkAdminRateLimit(sessionData.user.id, 'impersonate', 20);
       if (!rateLimitCheck.allowed) {
         return NextResponse.json(
           { 
