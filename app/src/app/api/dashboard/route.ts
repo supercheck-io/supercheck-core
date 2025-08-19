@@ -440,8 +440,10 @@ export async function GET() {
       }
     });
 
-    // Add cache headers to reduce database load while keeping data private
-    response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=300');
+    // Disable caching to ensure fresh data after project switches
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
     
     return response;
 

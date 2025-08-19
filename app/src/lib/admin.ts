@@ -1,6 +1,6 @@
 import { db } from '@/utils/db';
 import { user, organization, projects, jobs, tests, monitors, runs, member } from '@/db/schema/schema';
-import { count, eq, desc, or, isNull, gte } from 'drizzle-orm';
+import { count, eq, desc, or, isNull, gte, and } from 'drizzle-orm';
 import { getCurrentUser, getActiveOrganization } from './session';
 import { getUserRole, getUserOrgRole } from './rbac/middleware';
 import { Role } from './rbac/permissions';
@@ -267,7 +267,7 @@ async function getUserOrgCount(userId: string): Promise<number> {
 export async function getAllOrganizations(limit = 50, offset = 0) {
   await requireAdmin();
   
-  return await db
+  const organizations = await db
     .select({
       id: organization.id,
       name: organization.name,
@@ -280,4 +280,42 @@ export async function getAllOrganizations(limit = 50, offset = 0) {
     .orderBy(desc(organization.createdAt))
     .limit(limit)
     .offset(offset);
+
+  // Enrich with owner information
+  const enrichedOrganizations = await Promise.all(
+    organizations.map(async (org) => {
+      try {
+        // Find the organization owner
+        const ownerResult = await db
+          .select({
+            ownerEmail: user.email,
+            ownerName: user.name
+          })
+          .from(member)
+          .innerJoin(user, eq(member.userId, user.id))
+          .where(
+            and(
+              eq(member.organizationId, org.id),
+              eq(member.role, 'org_owner')
+            )
+          )
+          .limit(1);
+
+        const ownerEmail = ownerResult.length > 0 ? ownerResult[0].ownerEmail : null;
+        
+        return {
+          ...org,
+          ownerEmail
+        };
+      } catch (error) {
+        console.error(`Error getting owner for organization ${org.id}:`, error);
+        return {
+          ...org,
+          ownerEmail: null
+        };
+      }
+    })
+  );
+
+  return enrichedOrganizations;
 }

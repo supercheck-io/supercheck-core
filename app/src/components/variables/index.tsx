@@ -23,6 +23,8 @@ export default function Variables() {
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [canCreateEdit, setCanCreateEdit] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
   const [secretVisibility, setSecretVisibility] = useState<{ [key: string]: boolean }>({});
   const [editDialogState, setEditDialogState] = useState<{ [key: string]: boolean }>({});
   const { projectId: currentProjectId, loading: projectLoading } = useProjectContext();
@@ -65,7 +67,9 @@ export default function Variables() {
             isSecret: String(variable.isSecret) // Convert boolean to string for faceted filtering
           }));
           safeSetVariables(transformedVariables);
-          setCanManage(data.canManage);
+          setCanManage(data.canManage || false);
+          setCanCreateEdit(data.canCreateEdit || false);
+          setCanDelete(data.canDelete || false);
         } else {
           console.error("Failed to fetch variables:", data.error);
           safeSetVariables([]);
@@ -114,6 +118,8 @@ export default function Variables() {
             isSecret: String(variable.isSecret) // Convert boolean to string for faceted filtering
           }));
           safeSetVariables(transformedVariables);
+          setCanCreateEdit(data.canCreateEdit || false);
+          setCanDelete(data.canDelete || false);
         }
       } catch (error) {
         console.error('Error refreshing variables:', error);
@@ -146,6 +152,8 @@ export default function Variables() {
             projectId: currentProjectId,
             onSuccess: handleSuccess,
             canManage,
+            canCreateEdit,
+            canDelete,
             editDialogState: editDialogState,
             setEditDialogState: handleSetEditDialogState,
           }}

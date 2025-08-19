@@ -2,13 +2,14 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Building } from "lucide-react";
+import { Building, User } from "lucide-react";
 import { DataTableColumnHeader } from "@/components/tests/data-table-column-header";
 
 export interface AdminOrganization {
   id: string;
   name: string;
   slug?: string;
+  ownerEmail?: string;
   memberCount?: number;
   projectCount?: number;
   createdAt: string;
@@ -29,18 +30,24 @@ export const createOrgColumns = (): ColumnDef<AdminOrganization>[] => [
     ),
   },
   {
-    accessorKey: "slug",
+    accessorKey: "ownerEmail",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Slug" />
+      <DataTableColumnHeader column={column} title="Owner" />
     ),
     cell: ({ row }) => {
-      const slug = row.getValue("slug") as string;
+      const ownerEmail = row.getValue("ownerEmail") as string;
       return (
         <div className="py-1 flex items-center h-12">
-          {slug ? (
-            <span className=" text-xs">{slug}</span>
+          {ownerEmail ? (
+            <div className="flex items-center">
+              <User className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">{ownerEmail}</span>
+            </div>
           ) : (
-            <span className="text-muted-foreground text-sm">—</span>
+            <div className="flex items-center">
+              <User className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground text-sm">No owner</span>
+            </div>
           )}
         </div>
       );

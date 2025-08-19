@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { useProjectContext } from "@/hooks/use-project-context";
+import { canDeleteRuns } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 export function Runs() {
   const [runs, setRuns] = useState<TestRun[]>([]);
@@ -17,6 +19,10 @@ export function Runs() {
   const [tableKey, setTableKey] = useState(Date.now()); // Add key to force remounting
   const [mounted, setMounted] = useState(false);
   const { projectId, currentProject } = useProjectContext();
+  
+  // Check if user can delete runs
+  const normalizedRole = normalizeRole(currentProject?.userRole);
+  const canDelete = canDeleteRuns(normalizedRole);
 
   // Set mounted to true after initial render
   useEffect(() => {
@@ -103,8 +109,8 @@ export function Runs() {
     );
   }
 
-  // Create columns with the delete handler
-  const columns = createColumns(handleDeleteRun);
+  // Create columns with the delete handler and permissions
+  const columns = createColumns(handleDeleteRun, canDelete);
 
   return (
     <div className="flex h-full flex-col space-y-4 p-2 mt-6 w-full max-w-full overflow-x-hidden">

@@ -48,6 +48,9 @@ import { AlertSettings } from "@/components/alerts/alert-settings";
 import { CicdSettings } from "./cicd-settings";
 import { EditJobSkeleton } from "./edit-job-skeleton";
 import { UrlTriggerTooltip } from "./url-trigger-tooltip";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { canDeleteJobs } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 
 interface AlertConfiguration {
@@ -84,6 +87,11 @@ export default function EditJob({ jobId }: EditJobProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [submissionAttempted, setSubmissionAttempted] = useState(false);
+
+  // Check permissions for job deletion
+  const { currentProject } = useProjectContext();
+  const userRole = currentProject?.userRole ? normalizeRole(currentProject.userRole) : null;
+  const canDeleteJob = userRole ? canDeleteJobs(userRole) : false;
   const [formChanged, setFormChanged] = useState(false);
   const [initialValues, setInitialValues] = useState({
     name: "",
@@ -506,9 +514,10 @@ export default function EditJob({ jobId }: EditJobProps) {
               type="button"
               variant="outline"
               onClick={() => setShowDeleteDialog(true)}
-              disabled={isSubmitting || isDeleting}
+              disabled={!canDeleteJob || isSubmitting || isDeleting}
               size="sm"
-              className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+              className={`flex items-center ${!canDeleteJob ? 'opacity-50 cursor-not-allowed text-muted-foreground' : 'text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50'}`}
+              title={canDeleteJob ? "Delete job" : "Insufficient permissions to delete jobs"}
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete

@@ -263,6 +263,8 @@ export const columns: ColumnDef<Variable>[] = [
       const variable = row.original;
       const meta = table.options.meta as {
         canManage?: boolean;
+        canCreateEdit?: boolean;
+        canDelete?: boolean;
         onDeleteVariable?: (id: string) => void;
         onEditVariable?: (variable: Variable) => void;
         secretVisibility?: { [key: string]: boolean };
@@ -273,11 +275,13 @@ export const columns: ColumnDef<Variable>[] = [
         setEditDialogState?: (id: string, open: boolean) => void;
       };
       const canManage = meta?.canManage || false;
+      const canCreateEdit = meta?.canCreateEdit || false; 
+      const canDelete = meta?.canDelete || false;
       const isSecret = row.getValue("isSecret") as string;
       const isSecretBool = isSecret === "true";
       const editDialogOpen = meta?.editDialogState?.[variable.id] || false;
 
-      if (!canManage) return null;
+      // Always show actions dropdown, but disable items based on permissions
 
       const handleDelete = async () => {
         try {
@@ -319,7 +323,9 @@ export const columns: ColumnDef<Variable>[] = [
             <DropdownMenuContent align="end">
               {isSecretBool && (
                 <DropdownMenuItem
-                  onClick={() => meta?.onToggleSecretVisibility?.(variable.id)}
+                  onClick={canManage ? () => meta?.onToggleSecretVisibility?.(variable.id) : undefined}
+                  disabled={!canManage}
+                  className={!canManage ? "opacity-50 cursor-not-allowed" : ""}
                 >
                   {meta?.secretVisibility?.[variable.id] ? (
                     <>
@@ -335,7 +341,9 @@ export const columns: ColumnDef<Variable>[] = [
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
-                onClick={() => meta?.setEditDialogState?.(variable.id, true)}
+                onClick={(canManage || canCreateEdit) ? () => meta?.setEditDialogState?.(variable.id, true) : undefined}
+                disabled={!(canManage || canCreateEdit)}
+                className={!(canManage || canCreateEdit) ? "opacity-50 cursor-not-allowed" : ""}
               >
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
@@ -343,31 +351,34 @@ export const columns: ColumnDef<Variable>[] = [
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <DropdownMenuItem
-                    onSelect={(e) => e.preventDefault()}
-                    className="text-destructive cursor-pointer"
+                    onSelect={(e) => !(canManage || canDelete) ? e.preventDefault() : e.preventDefault()}
+                    disabled={!(canManage || canDelete)}
+                    className={`text-destructive ${!(canManage || canDelete) ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
                   </DropdownMenuItem>
                 </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Variable</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete the variable <strong>{variable.key}</strong>? 
-                      This action cannot be undone and may affect any tests or jobs that use this variable.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Delete Variable
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
+                {(canManage || canDelete) && (
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Variable</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete the variable <strong>{variable.key}</strong>? 
+                        This action cannot be undone and may affect any tests or jobs that use this variable.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete Variable
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                )}
               </AlertDialog>
             </DropdownMenuContent>
           </DropdownMenu>

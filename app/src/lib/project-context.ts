@@ -341,10 +341,26 @@ export async function switchProject(projectId: string): Promise<{ success: boole
     }
 
     // Update session
-    await db
+    const updateResult = await db
       .update(sessionTable)
       .set({ activeProjectId: projectId })
-      .where(eq(sessionTable.token, sessionData.session.token));
+      .where(eq(sessionTable.token, sessionData.session.token))
+      .returning({ activeProjectId: sessionTable.activeProjectId });
+    
+    if (updateResult.length === 0) {
+      return { success: false, message: 'Failed to update session - please try logging in again' };
+    }
+    
+    // Verify the update worked by reading it back
+    const verifySession = await db
+      .select({ activeProjectId: sessionTable.activeProjectId })
+      .from(sessionTable)
+      .where(eq(sessionTable.token, sessionData.session.token))
+      .limit(1);
+    
+    if (verifySession.length === 0 || verifySession[0].activeProjectId !== projectId) {
+      return { success: false, message: 'Session update failed - please try again' };
+    }
 
     const projectContext: ProjectContext = {
       id: targetProject.id,

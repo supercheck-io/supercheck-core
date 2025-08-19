@@ -21,7 +21,7 @@ export function OrgTable({ organizations }: OrgTableProps) {
       description="Manage organizations and their settings"
       itemName="organizations"
       meta={{
-        globalFilterColumns: ["name", "slug"],
+        globalFilterColumns: ["name", "ownerEmail"],
       }}
     />
   );

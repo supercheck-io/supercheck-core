@@ -43,17 +43,17 @@ export function hasPermission(role: Role, resource: string, action: string): boo
       break;
 
     case Role.PROJECT_EDITOR:
-      // Editors can edit tests, jobs, monitors, tags in assigned projects and can delete resources they created
+      // Editors can create and edit but cannot delete any resources in assigned projects
       if (['test', 'job', 'monitor'].includes(resource)) {
-        result = ['view', 'create', 'update', 'delete', 'run', 'trigger'].includes(action);
+        result = ['view', 'create', 'update', 'run', 'trigger'].includes(action);
       } else if (resource === 'tag') {
-        result = ['view', 'create', 'update', 'delete'].includes(action); // Can delete tags they created
+        result = ['view', 'create', 'update'].includes(action); // Cannot delete tags
       } else if (resource === 'run') {
-        result = ['view', 'delete'].includes(action); // Can delete runs they created
+        result = ['view'].includes(action); // Cannot delete runs
       } else if (resource === 'apiKey') {
-        result = ['view', 'create', 'update', 'delete'].includes(action); // Can manage API keys they created
+        result = ['view', 'create', 'update'].includes(action); // Cannot delete API keys
       } else if (resource === 'notification') {
-        result = ['create', 'update', 'delete', 'view'].includes(action); // Can delete notifications they created
+        result = ['create', 'update', 'view'].includes(action); // Cannot delete notifications
       } else if (['organization', 'member', 'project'].includes(resource)) {
         result = action === 'view';
       } else {
@@ -264,6 +264,20 @@ export function canDeleteTags(role: Role): boolean {
 }
 
 /**
+ * Check if user can create notification channels
+ */
+export function canCreateNotifications(role: Role): boolean {
+  return hasPermission(role, 'notification', 'create');
+}
+
+/**
+ * Check if user can manage notification channels
+ */
+export function canManageNotifications(role: Role): boolean {
+  return hasPermission(role, 'notification', 'update') || hasPermission(role, 'notification', 'delete');
+}
+
+/**
  * Check if role has organization-wide access
  */
 export function hasOrganizationWideAccess(role: Role): boolean {
@@ -292,10 +306,10 @@ export function canDeleteResources(role: Role): boolean {
 }
 
 /**
- * Check if role can delete resources they created (includes PROJECT_EDITOR)
+ * Check if role can delete resources they created (PROJECT_EDITOR excluded)
  */
 export function canDeleteOwnResources(role: Role): boolean {
-  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_ADMIN, Role.PROJECT_EDITOR].includes(role);
+  return [Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN, Role.PROJECT_ADMIN].includes(role);
 }
 
 /**
@@ -327,13 +341,8 @@ export function canDeleteResource(
     return true;
   }
   
-  // Project editor can delete resources they created
-  if (role === Role.PROJECT_EDITOR && 
-      ['test', 'job', 'monitor', 'notification', 'tag', 'run', 'apiKey'].includes(resource) &&
-      resourceCreatorId === userId &&
-      context.isAssignedProject) {
-    return true;
-  }
+  // Project editor cannot delete any resources (removed delete permissions)
+  // This section is intentionally left empty as PROJECT_EDITOR no longer has delete access
   
   return false;
 }

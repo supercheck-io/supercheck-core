@@ -13,7 +13,6 @@ import {
   Trash2,
   Code,
   CalendarDays,
-  ActivityIcon,
   FolderOpen
 } from "lucide-react";
 import { canManageRuns } from "@/lib/rbac/client-permissions";
@@ -280,14 +279,17 @@ export function RunDetails({ run, isNotificationView = false }: { run: RunRespon
               {/* Loading permissions */}
               {permissionsLoading && <LoadingBadge />}
 
-              {/* Access level badge */}
+              {/* Show disabled delete button for viewer role */}
               {!permissionsLoading && userRole && !canManageRuns(userRole) && (
-                <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                  <ActivityIcon className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
-                  <span className="text-xs text-blue-700 dark:text-blue-300">
-                    View-only Access
-                  </span>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-3 flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+                  disabled
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
               )}
 
               {!permissionsLoading && userRole && canManageRuns(userRole) && (

@@ -12,6 +12,8 @@ Supercheck implements a **hybrid RBAC system** that combines Better Auth's built
 3. **Improved Permission System**: Unified approach using `useProjectContext()` for consistent permission checking across all UI components
 4. **Role Mapping**: Comprehensive role conversion between database values and RBAC enum values
 5. **Fixed Invited User Organization Creation**: Prevented invited users from getting unwanted default organizations
+6. **PROJECT_EDITOR Delete Restrictions**: Removed all delete permissions from PROJECT_EDITOR role - can only create/edit resources, cannot delete any resources including jobs, API keys, tests, monitors, runs, notifications, tags, or variables
+7. **Enhanced UI Permission Controls**: All delete buttons properly disabled for PROJECT_EDITOR role with appropriate tooltips and visual feedback
 
 ## Database Schema & Role Storage
 
@@ -102,7 +104,7 @@ erDiagram
 - `org_owner` → ORG_OWNER (organization owner)
 - `org_admin` → ORG_ADMIN (organization admin)  
 - `project_admin` → PROJECT_ADMIN (project admin - full control within assigned projects)
-- `project_editor` → PROJECT_EDITOR (project editor - can create/edit/delete resources)
+- `project_editor` → PROJECT_EDITOR (project editor - can create/edit resources but cannot delete)
 - `project_viewer` → PROJECT_VIEWER (read-only access)
 
 **Default Values:**
@@ -278,7 +280,8 @@ PROJECT_ADMIN (Project-specific Role)
 PROJECT_EDITOR (Project-specific Role)
     ├── View organization info
     ├── Edit access to assigned projects only
-    ├── Can create/edit/delete jobs, tests, monitors in assigned projects
+    ├── Can create/edit jobs, tests, monitors in assigned projects (but cannot delete)
+    ├── Can create/edit variables and secrets (but cannot delete or view secret values)
     └── Cannot manage organization or members
 
 PROJECT_VIEWER (Project-specific Role - Read Only)
@@ -297,12 +300,19 @@ PROJECT_VIEWER (Project-specific Role - Read Only)
 | Organization Members | ✅ | ✅ | ✅ | 👁️ (view) | 👁️ (view) | 👁️ (view) |
 | Projects | ✅ | ✅ | ✅ | ✅ (assigned) | 👁️ (assigned) | 👁️ (assigned) |
 | Project Members | ✅ | ✅ | ✅ | ✅ (assigned projects) | 👁️ (assigned projects) | 👁️ (assigned projects) |
-| Jobs | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | 👁️ (assigned projects) |
-| Tests | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | 👁️ (assigned projects) |
-| Monitors | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | 👁️ (assigned projects) |
-| Runs | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | 👁️ (assigned projects) |
+| Jobs | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Tests | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Monitors | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Runs | ✅ | ✅ | ✅ | ✅ (assigned projects) | 👁️ (assigned projects) | 👁️ (assigned projects) |
+| API Keys | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | ❌ |
+| Notifications | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Tags | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| **Variables/Secrets** |
+| Variable Create/Edit | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | ❌ |
+| Variable Delete | ✅ | ✅ | ✅ | ✅ (assigned projects) | ❌ | ❌ |
+| Secret Values View | ✅ | ✅ | ✅ | ✅ (assigned projects) | ❌ | ❌ |
 
-Legend: ✅ = Full Access, 👁️ = View Only, ❌ = No Access
+Legend: ✅ = Full Access, ✏️ = Create/Edit Only (no delete), 👁️ = View Only, ❌ = No Access
 
 ### Permission Matrix Diagram
 
@@ -356,6 +366,30 @@ flowchart TD
 - OA cannot delete organizations (unlike OO)
 
 ## Current Implementation Details
+
+### Variable & Secret Management Permissions
+
+**Enhanced Permission Model (Latest Update):**
+
+The variable management system now implements granular permission control, allowing `project_editor` roles to create and edit variables/secrets while restricting deletion and secret value viewing to admin roles.
+
+**Permission Functions:**
+- `canViewProjectVariables()`: All project members can view variable names and non-secret values
+- `canCreateEditProjectVariables()`: Allows creation and editing for `org_owner`, `org_admin`, `project_admin`, and `project_editor`
+- `canDeleteProjectVariables()`: Restricts deletion to `org_owner`, `org_admin`, and `project_admin` only
+- `canViewSecretVariables()`: Secret value viewing limited to full admin roles (`org_owner`, `org_admin`, `project_admin`)
+
+**Security Model:**
+- **Secret Values**: Only admin roles can view decrypted secret values
+- **Variable Management**: Editors can create/edit but cannot delete variables
+- **Audit Logging**: All variable operations are logged with user context
+- **Encryption**: Secrets are encrypted at rest with project-specific keys
+
+**Frontend Integration:**
+- **Add Variable Button**: Shows for users with create/edit permissions
+- **Edit Actions**: Available to users with create/edit permissions
+- **Delete Actions**: Restricted to users with delete permissions
+- **Secret Visibility Toggle**: Only available to users with secret viewing permissions
 
 ### Permission Checking Architecture
 
@@ -560,6 +594,39 @@ API routes use Better Auth middleware for authentication and permission validati
 | job:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | job:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | job:trigger | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Monitor Management** |
+| monitor:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| monitor:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| monitor:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| monitor:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Run Management** |
+| run:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| run:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| run:export | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **API Key Management** |
+| apiKey:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| apiKey:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| apiKey:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| apiKey:view | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Notification Management** |
+| notification:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| notification:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| notification:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| notification:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Tag Management** |
+| tag:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| tag:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| tag:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| tag:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Variable & Secret Management** |
+| variable:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| variable:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| variable:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| variable:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| secret:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| secret:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| secret:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| secret:view_values | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 
 *\* PROJECT_ADMIN and PROJECT_EDITOR permissions apply only to their assigned projects*
 
@@ -571,6 +638,21 @@ API routes use Better Auth middleware for authentication and permission validati
 - `/app/src/lib/rbac/permissions.ts` - Access control statements and roles
 - `/app/src/lib/rbac/middleware.ts` - Server-side permission checking
 - `/app/src/hooks/use-better-auth-permissions.ts` - Client-side permission hooks
+
+### Variable & Secret Management
+- `/app/src/lib/rbac/variable-permissions.ts` - Granular variable permission functions
+- `/app/src/app/api/projects/[id]/variables/route.ts` - Variable CRUD API with permission checks
+- `/app/src/app/api/projects/[id]/variables/[variableId]/route.ts` - Individual variable operations
+- `/app/src/components/variables/index.tsx` - Variable management UI with permission integration
+- `/app/src/components/variables/columns.tsx` - Table columns with conditional action rendering
+- `/app/src/components/variables/data-table-toolbar.tsx` - Toolbar with permission-based button visibility
+
+### Job & API Key Management
+- `/app/src/components/jobs/edit-job.tsx` - Job edit page with permission-controlled delete button
+- `/app/src/components/jobs/cicd-settings.tsx` - CI/CD settings with permission-controlled API key delete buttons
+- `/app/src/components/jobs/data-table-row-actions.tsx` - Job table row actions with permission checking
+- `/app/src/components/alerts/notification-channels-component.tsx` - Notification channel management with permission controls
+- `/app/src/components/alerts/notification-channels-columns.tsx` - Notification channel table columns with conditional delete buttons
 
 ### Better Auth Configuration Files
 Server and client configurations include admin, organization, and API key plugins with appropriate role mappings and access control settings.

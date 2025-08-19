@@ -196,9 +196,13 @@ export default function Home() {
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
       const [dashboardResponse, alertsResponse] = await Promise.all([
-        fetch('/api/dashboard', { 
+        fetch(`/api/dashboard?t=${Date.now()}`, { 
           signal: controller.signal,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
         }),
         fetch('/api/alerts/history', { 
           signal: controller.signal,
@@ -321,16 +325,23 @@ export default function Home() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Check for project switch success and show toast after delay
+  // Check for project switch success and refresh data
   useEffect(() => {
     const projectName = sessionStorage.getItem('projectSwitchSuccess');
     if (projectName) {
       sessionStorage.removeItem('projectSwitchSuccess');
+      
+      // Force refresh dashboard data when project is switched
+      // Add a small delay to ensure session has propagated
+      setTimeout(() => {
+        fetchDashboardData();
+      }, 100);
+      
       setTimeout(() => {
         toast.success(`Switched to ${projectName}`);
       }, 500);
     }
-  }, []);
+  }, [fetchDashboardData]);
 
   // Memoized chart data to prevent unnecessary recalculations
   const chartData = useMemo(() => {
@@ -724,8 +735,16 @@ export default function Home() {
                 <NotepadText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{dashboardData.stats.runs}</div>
-                <p className="text-sm text-muted-foreground">Last 7 days</p>
+                {dashboardData.stats.runs > 0 ? (
+                  <>
+                    <div className="text-2xl font-bold">{dashboardData.stats.runs}</div>
+                    <p className="text-sm text-muted-foreground">Last 7 days</p>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-muted-foreground">No runs available</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
             
@@ -792,7 +811,7 @@ export default function Home() {
                   <div className="h-40 flex items-center justify-center">
                     <div className="text-center">
                       <NotepadText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">No job runs</p>
+                      <p className="text-sm text-muted-foreground">No job runs</p>
                     </div>
                   </div>
                 )}
@@ -828,7 +847,7 @@ export default function Home() {
                   <div className="h-40 flex items-center justify-center">
                     <div className="text-center">
                       <Monitor className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">No monitors configured</p>
+                      <p className="text-sm text-muted-foreground">No monitors configured</p>
                     </div>
                   </div>
                 )}
@@ -879,7 +898,7 @@ export default function Home() {
                   <div className="h-40 flex items-center justify-center">
                     <div className="text-center">
                       <Code className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">No test types data</p>
+                      <p className="text-sm text-muted-foreground">No test types data</p>
                     </div>
                   </div>
                 )}
@@ -983,7 +1002,7 @@ export default function Home() {
                   <div className="h-40 flex items-center justify-center">
                     <div className="text-center">
                       <CalendarClock className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">No job activity</p>
+                      <p className="text-sm text-muted-foreground">No job activity</p>
                     </div>
                   </div>
                 )}
@@ -1025,7 +1044,7 @@ export default function Home() {
                   <div className="h-40 flex items-center justify-center">
                     <div className="text-center">
                       <TrendingUp className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">No uptime data</p>
+                      <p className="text-sm text-muted-foreground">No uptime data</p>
                     </div>
                   </div>
                 )}

@@ -13,6 +13,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { getNotificationProviderConfig } from "@/components/alerts/data";
 import { toast } from "sonner";
 import { type NotificationProviderType, type NotificationProviderConfig, type AlertConfig, type MonitorType } from "@/db/schema/schema";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { canCreateNotifications } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 // Get limits from environment variables
 const MAX_JOB_NOTIFICATION_CHANNELS = parseInt(process.env.NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS || '10', 10);
@@ -80,6 +83,11 @@ export function AlertSettings({
     notificationProviders?: string;
     alertTypes?: string;
   }>({});
+
+  // Get user permissions
+  const { currentProject } = useProjectContext();
+  const normalizedRole = normalizeRole(currentProject?.userRole);
+  const canCreate = canCreateNotifications(normalizedRole);
 
   useEffect(() => {
     // Load providers from API
@@ -374,7 +382,7 @@ export function AlertSettings({
                 <Label className="text-sm font-medium">Notification Channels</Label>
                 <Dialog open={isProviderDialogOpen} onOpenChange={setIsProviderDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" disabled={!canCreate}>
                       <Plus className="h-4 w-4 mr-2" />
                       Add Channel
                     </Button>

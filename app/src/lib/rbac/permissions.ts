@@ -149,15 +149,15 @@ export const projectEditor = ac.newRole({
   member: ["view"],
   invitation: ["view"],
   
-  // Project editing permissions (can delete resources they created)
+  // Project editing permissions (cannot delete any resources)
   project: ["view"],
-  test: ["create", "update", "delete", "view", "run"],
-  job: ["create", "update", "delete", "view", "trigger"],
-  monitor: ["create", "update", "delete", "view"],
-  run: ["view", "delete"],
-  apiKey: ["create", "update", "delete", "view"],
-  notification: ["create", "update", "delete", "view"],
-  tag: ["view", "create", "update", "delete"],
+  test: ["create", "update", "view", "run"],
+  job: ["create", "update", "view", "trigger"],
+  monitor: ["create", "update", "view"],
+  run: ["view"],
+  apiKey: ["create", "update", "view"],
+  notification: ["create", "update", "view"],
+  tag: ["view", "create", "update"],
   variable: ["view"]
 });
 
@@ -300,12 +300,8 @@ export function hasPermission(
     }
   }
 
-  // Special case: PROJECT_EDITOR can delete resources they created (PROJECT_ADMIN can delete all resources in assigned projects)
-  if (context.role === Role.PROJECT_EDITOR && 
-      action === 'delete' &&
-      ['test', 'job', 'monitor', 'notification', 'tag', 'run', 'apiKey'].includes(resource) &&
-      context.resourceCreatorId &&
-      context.resourceCreatorId !== context.userId) {
+  // Special case: PROJECT_EDITOR cannot delete any resources (delete permissions removed)
+  if (context.role === Role.PROJECT_EDITOR && action === 'delete') {
     return false;
   }
   

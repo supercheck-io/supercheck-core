@@ -3,7 +3,7 @@ import { db } from "@/utils/db";
 import { projectVariables, projects } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from '@/lib/rbac/middleware';
-import { canManageProjectVariables } from "@/lib/rbac/variable-permissions";
+import { canCreateEditProjectVariables, canDeleteProjectVariables } from "@/lib/rbac/variable-permissions";
 import { updateVariableSchema } from "@/lib/validations/variable";
 import { encryptValue, decryptValue } from "@/lib/encryption";
 import { logAuditEvent } from "@/lib/audit-logger";
@@ -26,9 +26,9 @@ export async function PUT(
     projectId = resolvedParams.id;
     variableId = resolvedParams.variableId;
 
-    // Check if user has permission to manage variables
-    const hasManageAccess = await canManageProjectVariables(userId, projectId);
-    if (!hasManageAccess) {
+    // Check if user has permission to edit variables
+    const hasEditAccess = await canCreateEditProjectVariables(userId, projectId);
+    if (!hasEditAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -238,9 +238,9 @@ export async function DELETE(
     projectId = resolvedParams.id;
     variableId = resolvedParams.variableId;
 
-    // Check if user has permission to manage variables
-    const hasManageAccess = await canManageProjectVariables(userId, projectId);
-    if (!hasManageAccess) {
+    // Check if user has permission to delete variables
+    const hasDeleteAccess = await canDeleteProjectVariables(userId, projectId);
+    if (!hasDeleteAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

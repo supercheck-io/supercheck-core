@@ -44,6 +44,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
+import { canCreateMonitors } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
+import { useProjectContext } from "@/hooks/use-project-context";
 
 // Define presets for Expected Status Codes
 const statusCodePresets = [
@@ -271,6 +274,11 @@ export function MonitorForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Get user permissions
+  const { currentProject } = useProjectContext();
+  const normalizedRole = normalizeRole(currentProject?.userRole);
+  const canCreate = canCreateMonitors(normalizedRole);
   const [formChanged, setFormChanged] = useState(false);
   const [isAuthSectionOpen, setIsAuthSectionOpen] = useState(false);
   const [isKeywordSectionOpen, setIsKeywordSectionOpen] = useState(false);
@@ -1685,7 +1693,7 @@ export function MonitorForm({
                   </Button>
                   <Button 
                     type="submit" 
-                    disabled={isSubmitting || (editMode && !formChanged)}
+                    disabled={isSubmitting || (editMode && !formChanged) || (!editMode && !canCreate)}
                     className="flex items-center"
                   >
                     {isSubmitting ? (

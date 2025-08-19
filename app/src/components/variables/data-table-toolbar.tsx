@@ -23,6 +23,8 @@ interface DataTableToolbarProps<TData> {
 
 interface TableMeta {
   canManage?: boolean;
+  canCreateEdit?: boolean;
+  canDelete?: boolean;
   onCreateVariable?: () => void;
   projectId?: string;
   onSuccess?: () => void;
@@ -168,13 +170,13 @@ await page.fill('#password', getSecret('PASSWORD'));` ? (
         {meta?.projectId && (
           <>
             <Button
-              disabled={!meta?.canManage}
               onClick={() => setDialogOpen(true)}
+              disabled={!meta?.canManage && !meta?.canCreateEdit}
             >
               <Plus className="mr-2 h-4 w-4" />
               Add Variable
             </Button>
-            {meta?.canManage && (
+            {(meta?.canManage || meta?.canCreateEdit) && (
               <VariableDialog
                 open={dialogOpen}
                 onOpenChange={setDialogOpen}

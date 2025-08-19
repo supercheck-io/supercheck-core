@@ -16,6 +16,9 @@ import { toast } from "sonner";
 import { NotificationChannelsComponent } from "@/components/alerts/notification-channels-component";
 import { NotificationChannel } from "@/components/alerts/notification-channels-schema";
 import { type NotificationProviderType, type NotificationProviderConfig } from "@/db/schema/schema";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { canCreateNotifications } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 
 type NotificationProvider = {
   id: string;
@@ -33,6 +36,11 @@ export default function AlertsPage() {
   const [providers, setProviders] = useState<NotificationProvider[]>([]);
   const [alertHistory, setAlertHistory] = useState<AlertHistory[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  
+  // Get user permissions
+  const { currentProject } = useProjectContext();
+  const normalizedRole = normalizeRole(currentProject?.userRole);
+  const canCreate = canCreateNotifications(normalizedRole);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<NotificationProvider | null>(null);
@@ -282,7 +290,7 @@ export default function AlertsPage() {
                   <div className="flex items-center space-x-2">
                     <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button>
+                        <Button disabled={!canCreate}>
                           <Plus className="h-4 w-4 mr-2" />
                           Add Channel
                         </Button>
@@ -367,7 +375,7 @@ export default function AlertsPage() {
                       <div className="text-center py-8">
                         <Bell className="h-10 w-10 text-muted-foreground mx-auto" />
                         <h3 className="text-lg font-medium">No notification channels</h3>
-                        <p className="text-muted-foreground text-sm">
+                        <p className="text-muted-foreground text-sm mb-4">
                           Add your first notification channel to start receiving alerts
                         </p>
                        

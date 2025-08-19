@@ -30,11 +30,13 @@ import { TestRun } from "./schema";
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
   onDelete?: () => void;
+  canDelete?: boolean;
 }
 
 export function DataTableRowActions<TData>({
   row,
   onDelete,
+  canDelete = true, // Default to true for backward compatibility
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const run = row.original as unknown as TestRun;
@@ -133,9 +135,12 @@ export function DataTableRowActions<TData>({
           <DropdownMenuItem
             onClick={(e) => {
               e.stopPropagation();
-              setShowDeleteDialog(true);
+              if (canDelete) {
+                setShowDeleteDialog(true);
+              }
             }}
-            className="text-red-600"
+            disabled={!canDelete}
+            className={canDelete ? "text-red-600" : "text-muted-foreground"}
           >
             <Trash2 className="mr-2 h-4 w-4" />
             <span>Delete</span>

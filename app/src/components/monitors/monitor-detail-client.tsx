@@ -23,7 +23,6 @@ import {
   Shield,
   Bell,
   BellOff,
-  ActivityIcon,
   FolderOpen,
 } from "lucide-react";
 import { 
@@ -598,17 +597,9 @@ export function MonitorDetailClient({ monitor: initialMonitor, isNotificationVie
               </div>
             )}
             
-            {/* Project name and Action buttons - only show if user has manage permissions and not notification view */}
+            {/* Action buttons - only show if user has manage permissions and not notification view */}
             {!isNotificationView && !permissionsLoading && userRole && canManageMonitors(userRole) && (
               <>
-                {monitor.projectName && (
-                  <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                    <FolderOpen className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
-                    <span className="text-xs text-blue-700 dark:text-blue-300">
-                      {monitor.projectName}
-                    </span>
-                  </div>
-                )}
                 <Button variant="outline" size="sm" onClick={handleToggleStatus}>
                   {monitor.status === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
                   {monitor.status === 'paused' ? 'Resume' : 'Pause'}
@@ -638,24 +629,33 @@ export function MonitorDetailClient({ monitor: initialMonitor, isNotificationVie
             {/* Show loading state while fetching permissions - only in non-notification view */}
             {!isNotificationView && permissionsLoading && <LoadingBadge />}
             
-            {/* Show access level badge when user doesn't have management permissions - only in non-notification view */}
+            {/* Show disabled action buttons when user doesn't have management permissions - only in non-notification view */}
             {!isNotificationView && !permissionsLoading && userRole && !canManageMonitors(userRole) && (
-              <div className="flex items-center gap-2">
-                {monitor.projectName && (
-                  <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                    <FolderOpen className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
-                    <span className="text-xs text-blue-700 dark:text-blue-300">
-                      {monitor.projectName}
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-center px-2 py-2 rounded-md border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                  <ActivityIcon className="h-4 w-4 mr-1 text-blue-600 dark:text-blue-400" />
-                  <span className="text-xs text-blue-700 dark:text-blue-300">
-                    View-only Access
-                  </span>
-                </div>
-              </div>
+              <>
+                <Button variant="outline" size="sm" disabled>
+                  {monitor.status === 'paused' ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
+                  {monitor.status === 'paused' ? 'Resume' : 'Pause'}
+                </Button>
+               
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled
+                  className="flex items-center"
+                >
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Edit</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled
+                  className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Delete</span>
+                </Button>
+              </>
             )}
 
             {/* In notification view, just show project name without action buttons */}

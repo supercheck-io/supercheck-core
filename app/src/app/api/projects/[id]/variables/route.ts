@@ -3,7 +3,7 @@ import { db } from "@/utils/db";
 import { projectVariables, projects } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from '@/lib/rbac/middleware';
-import { canManageProjectVariables, canViewProjectVariables } from "@/lib/rbac/variable-permissions";
+import { canManageProjectVariables, canCreateEditProjectVariables, canDeleteProjectVariables, canViewProjectVariables } from "@/lib/rbac/variable-permissions";
 import { createVariableSchema } from "@/lib/validations/variable";
 import { encryptValue, decryptValue } from "@/lib/encryption";
 import { logAuditEvent } from "@/lib/audit-logger";
@@ -24,8 +24,10 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Check if user has manage access (to see secret values)
+    // Check permissions for different operations
     const hasManageAccess = await canManageProjectVariables(userId, projectId);
+    const hasCreateEditAccess = await canCreateEditProjectVariables(userId, projectId);
+    const hasDeleteAccess = await canDeleteProjectVariables(userId, projectId);
 
     // Fetch variables
     const variables = await db
@@ -72,7 +74,9 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: processedVariables,
-      canManage: hasManageAccess,
+      canManage: hasManageAccess, // Deprecated: for backward compatibility
+      canCreateEdit: hasCreateEditAccess,
+      canDelete: hasDeleteAccess,
     });
   } catch (error) {
     console.error("Error fetching project variables:", error);
@@ -98,9 +102,9 @@ export async function POST(
     const resolvedParams = await params;
     projectId = resolvedParams.id;
 
-    // Check if user has permission to manage variables
-    const hasManageAccess = await canManageProjectVariables(userId, projectId);
-    if (!hasManageAccess) {
+    // Check if user has permission to create variables
+    const hasCreateAccess = await canCreateEditProjectVariables(userId, projectId);
+    if (!hasCreateAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

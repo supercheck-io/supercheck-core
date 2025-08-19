@@ -112,7 +112,11 @@ export function useProjectContextState(): ProjectContextState {
         // Store project name for toast after redirect
         sessionStorage.setItem('projectSwitchSuccess', data.project.name);
         
-        // Redirect immediately to root URL to prevent access to resources that don't belong to the new project
+        // Add a small delay to ensure database transaction is committed before redirect
+        // This prevents race conditions where the redirect happens before session is updated
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Redirect to root URL to prevent access to resources that don't belong to the new project
         window.location.href = '/';
         return true;
       } else {

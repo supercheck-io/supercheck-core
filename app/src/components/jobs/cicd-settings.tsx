@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ApiKeyDialog } from "./api-key-dialog";
+import { useProjectContext } from "@/hooks/use-project-context";
+import { canDeleteJobs } from "@/lib/rbac/client-permissions";
+import { normalizeRole } from "@/lib/rbac/role-normalizer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +54,11 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [keyToDelete, setKeyToDelete] = useState<string | null>(null);
   const [operationLoadingStates, setOperationLoadingStates] = useState<{[keyId: string]: 'toggle' | 'delete' | null}>({});
+
+  // Check permissions for API key deletion (using job delete permission as proxy for API key management)
+  const { currentProject } = useProjectContext();
+  const userRole = currentProject?.userRole ? normalizeRole(currentProject.userRole) : null;
+  const canDeleteApiKeys = userRole ? canDeleteJobs(userRole) : false;
 
   const loadApiKeys = useCallback(async () => {
     try {
@@ -278,9 +286,9 @@ export function CicdSettings({ jobId, onChange }: CicdSettingsProps) {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDelete(key.id)}
-                        disabled={operationLoadingStates[key.id] === 'delete'}
-                        className= "ml-1 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50"
-                        title="Delete key"
+                        disabled={!canDeleteApiKeys || operationLoadingStates[key.id] === 'delete'}
+                        className={`ml-1 ${!canDeleteApiKeys ? 'opacity-50 cursor-not-allowed text-muted-foreground' : 'text-red-600 hover:text-red-700 hover:bg-red-50'} disabled:opacity-50`}
+                        title={canDeleteApiKeys ? "Delete key" : "Insufficient permissions to delete API keys"}
                       >
                         {operationLoadingStates[key.id] === 'delete' ? (
                           <Loader2 className="h-4 w-4 animate-spin" />

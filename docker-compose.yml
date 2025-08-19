@@ -1,19 +1,18 @@
 # YAML anchors for shared configuration
-x-common-env: &common-env
-  # Database Configuration
+x-common-env: &common-env # Database Configuration
   DATABASE_URL: postgresql://postgres:postgres@postgres:5432/supercheck
   DB_HOST: postgres
   DB_PORT: 5432
   DB_USER: postgres
   DB_PASSWORD: postgres
   DB_NAME: supercheck
-  
+
   # Redis Configuration
   REDIS_HOST: redis
   REDIS_PORT: 6379
   REDIS_PASSWORD: ${REDIS_PASSWORD:-supersecure-redis-password-change-this}
   REDIS_URL: redis://:${REDIS_PASSWORD:-supersecure-redis-password-change-this}@redis:6379
-  
+
   # App Configuration
   NEXT_PUBLIC_APP_URL: https://${DOMAIN:-demo.supercheck.io}
   NODE_ENV: production
@@ -22,7 +21,7 @@ x-common-env: &common-env
   TEST_EXECUTION_TIMEOUT_MS: 120000
   JOB_EXECUTION_TIMEOUT_MS: 900000
   TRACE_RECOVERY_INTERVAL_MS: 300000
-  
+
   # AWS S3 / MinIO Configuration
   AWS_REGION: us-east-1
   AWS_ACCESS_KEY_ID: minioadmin
@@ -33,40 +32,39 @@ x-common-env: &common-env
   S3_FORCE_PATH_STYLE: true
   S3_OPERATION_TIMEOUT: 10000
   S3_MAX_RETRIES: 3
-  
-  
+
   # Notification Channel Limits
   MAX_JOB_NOTIFICATION_CHANNELS: 10
   MAX_MONITOR_NOTIFICATION_CHANNELS: 10
   NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS: 10
   NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS: 10
-  
+
   # Monitor Configuration
   RECENT_MONITOR_RESULTS_LIMIT: 1000
-  
+
   # Playwright Configuration - Optimized for Supercheck execution service
   PLAYWRIGHT_HEADLESS: true
   PLAYWRIGHT_RETRIES: 2
   PLAYWRIGHT_TRACE: ${PLAYWRIGHT_TRACE:-on}
   PLAYWRIGHT_SCREENSHOT: ${PLAYWRIGHT_SCREENSHOT:-on}
   PLAYWRIGHT_VIDEO: ${PLAYWRIGHT_VIDEO:-on}
-  
+
   # Browser support (disabled by default for performance)
   ENABLE_FIREFOX: false
   ENABLE_WEBKIT: false
   ENABLE_MOBILE: false
-  
+
   # Advanced Playwright settings
   ENABLE_JSON_REPORTER: false
-  
+
   # Playground Cleanup Configuration
   PLAYGROUND_CLEANUP_ENABLED: true
-  PLAYGROUND_CLEANUP_CRON: "0 */12 * * *"  # Every 12 hours
+  PLAYGROUND_CLEANUP_CRON: "0 */12 * * *" # Every 12 hours
   PLAYGROUND_CLEANUP_MAX_AGE_HOURS: 24
-  
+
   # Security Configuration
   CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-your-credential-encryption-key-change-this-in-production}
-  
+
   # Better Auth Admin Configuration
   SUPER_ADMIN_USER_IDS: ${SUPER_ADMIN_USER_IDS:-4512347a-2ae6-413d-9cdc-91c22551ceb1,2b013c80-4fb4-4e9f-a3d1-48142e684dee}
   SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-admin@example.com}
@@ -76,12 +74,12 @@ x-common-env: &common-env
   ENABLE_PROJECT_LEVEL_RBAC: true
   ALLOW_CROSS_PROJECT_ACCESS: false
   STRICT_ORGANIZATION_ISOLATION: true
-  
+
   # Email Configuration for Notifications
   # Control which email services are enabled
   SMTP_ENABLED: ${SMTP_ENABLED:-true}
   RESEND_ENABLED: ${RESEND_ENABLED:-true}
-  
+
   # SMTP Configuration (Primary email delivery method)
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}
@@ -89,11 +87,11 @@ x-common-env: &common-env
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_SECURE: ${SMTP_SECURE:-false}
   SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
-  
+
   # Resend Configuration (Fallback email delivery method)
   RESEND_API_KEY: ${RESEND_API_KEY:-re_esRt3Mhv_NDTmUXhXpVgT2VrNR4pqwFUP}
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-noreply@yourdomain.com}
-  
+
   # Variable Encryption Configuration
   VARIABLES_ENCRYPTION_KEY: ${VARIABLES_ENCRYPTION_KEY:-your-64-character-encryption-key-for-variable-secrets-change-this-in-prod}
 
@@ -136,7 +134,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:playground-variables-4cfbd73
+    image: ghcr.io/krish-kant/supercheck/app:playground-variables-f34e520
     expose:
       - "3000"
     environment:
@@ -162,11 +160,17 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3000, path: '/', timeout: 5000}, (res) => process.exit(res.statusCode < 400 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3000, path: '/', timeout: 5000}, (res) => process.exit(res.statusCode < 400 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s  # Increased to allow for migrations
+      start_period: 120s # Increased to allow for migrations
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.app.rule=Host(`${DOMAIN:-demo.supercheck.io}`)"
@@ -178,15 +182,15 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
+          cpus: "1.0"
           memory: 2G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 1G
 
   # Worker (NestJS Runner) - 2 replicas
   worker:
-    image: ghcr.io/krish-kant/supercheck/worker:playground-variables-4cfbd73
+    image: ghcr.io/krish-kant/supercheck/worker:playground-variables-f34e520
     environment:
       <<: *common-env
       # Worker-specific configuration
@@ -209,14 +213,20 @@ services:
       postgres:
         condition: service_healthy
       app:
-        condition: service_healthy  # Wait for app to complete migrations
+        condition: service_healthy # Wait for app to complete migrations
       redis:
         condition: service_healthy
       minio:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3001, path: '/health', timeout: 5000}, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3001, path: '/health', timeout: 5000}, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -227,10 +237,10 @@ services:
       replicas: 2
       resources:
         limits:
-          cpus: '1.5'
+          cpus: "1.5"
           memory: 3G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 1.5G
 
   # PostgreSQL Database
@@ -259,10 +269,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
+          cpus: "1.0"
           memory: 2G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 1G
 
   # Redis (for job queues) - Secured with authentication
@@ -276,7 +286,14 @@ services:
       - redis-data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-supersecure-redis-password-change-this}", "ping"]
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "-a",
+          "${REDIS_PASSWORD:-supersecure-redis-password-change-this}",
+          "ping",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -286,10 +303,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 512M
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 256M
 
   # MinIO (S3-compatible storage)
@@ -315,10 +332,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 1G
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 512M
 
 volumes:
@@ -337,4 +354,4 @@ volumes:
 
 networks:
   supercheck-network:
-    driver: bridge 
+    driver: bridge
