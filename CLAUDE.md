@@ -24,6 +24,7 @@ The system uses BullMQ for job queuing, Better Auth for authentication, and Driz
 ## Architecture
 
 ### Core Services
+
 - **App Service**: Next.js frontend with internal API routes and schedulers
 - **Worker Service**: NestJS service that processes test execution jobs from Redis queues
 - **Database**: PostgreSQL with Drizzle ORM, auto-migrated on app startup
@@ -31,6 +32,7 @@ The system uses BullMQ for job queuing, Better Auth for authentication, and Driz
 - **Storage**: MinIO for storing Playwright reports and test artifacts
 
 ### Key Directories
+
 - `/app/src/actions/` - Server actions for job, test, and monitor operations
 - `/app/src/app/api/` - Next.js API routes
 - `/app/src/components/` - React components organized by feature (jobs, tests, monitors, playground)
@@ -41,6 +43,7 @@ The system uses BullMQ for job queuing, Better Auth for authentication, and Driz
 ## Common Development Commands
 
 ### App Service (Next.js)
+
 ```bash
 cd app
 npm run dev              # Start development server with Turbopack
@@ -53,6 +56,7 @@ npm run db:migrate:prod # Production migration script
 ```
 
 ### Worker Service (NestJS)
+
 ```bash
 cd worker
 npm run dev             # Start in watch mode
@@ -64,6 +68,7 @@ npm run test:watch      # Run tests in watch mode
 ```
 
 ### Docker Development
+
 ```bash
 docker-compose up -d                    # Start all services
 docker-compose up -d postgres redis minio  # Start just infrastructure
@@ -76,6 +81,7 @@ docker buildx ls                        # List available builders
 ## Database Schema
 
 The database schema includes comprehensive tables for:
+
 - **Authentication**: `user`, `session`, `account` (Better Auth integration)
 - **Organizations**: `organization`, `member` (multi-tenant support)
 - **Core Entities**: `test`, `job`, `run` (test execution pipeline)
@@ -86,24 +92,28 @@ The database schema includes comprehensive tables for:
 ## Key Features
 
 ### Test Execution
+
 - Playwright-based end-to-end testing with parallel execution
 - Configurable timeouts, capacity limits, and retry logic
 - Real-time status updates via Server-Sent Events (SSE)
 - Artifact storage in MinIO with presigned URL access
 
 ### Job Scheduling
+
 - Cron-based job scheduling with `cron-parser`
 - Manual job triggers via API keys or UI
 - Queue-based execution with capacity management
 - Job history and run tracking
 
 ### Monitoring System
+
 - HTTP/HTTPS endpoint monitoring with configurable intervals
 - Heartbeat monitoring with availability tracking
 - Response time metrics and uptime calculations
 - Integration with alerting system
 
 ### Alerting & Notifications
+
 - Multi-channel notification support (email, webhooks)
 - Rule-based alerting with customizable conditions
 - Provider limits and quota management
@@ -120,17 +130,18 @@ The database schema includes comprehensive tables for:
 ## Environment Configuration
 
 Key environment variables are managed through Docker Compose and include:
+
 - Database connection settings (`DATABASE_URL`, `DB_*`)
 - Redis configuration (`REDIS_URL`, `REDIS_HOST`)
 - MinIO/S3 settings (`AWS_*`, `S3_*`)
 - Capacity limits (`RUNNING_CAPACITY`, `QUEUED_CAPACITY`)
 - Timeout configurations (`TEST_EXECUTION_TIMEOUT_MS`)
-- Scheduler toggles (`DISABLE_JOB_SCHEDULER`, `DISABLE_MONITOR_SCHEDULER`)
 - Super admin access (`SUPER_ADMIN_EMAILS`, `SUPER_ADMIN_USER_IDS`)
 
 ## Testing Infrastructure
 
 The platform includes comprehensive test execution capabilities:
+
 - Playwright configuration in both `/app` and `/worker`
 - Test artifact storage and retrieval
 - Report generation with HTML outputs
@@ -139,6 +150,7 @@ The platform includes comprehensive test execution capabilities:
 ## Migration Strategy
 
 Database migrations are handled automatically by the app service on startup using Drizzle ORM:
+
 - **Migration Script**: `/app/scripts/migrate-node.js` - Uses proper Drizzle migration tracking
 - **Startup Flow**: `/app/scripts/start.sh` - Runs migrations then starts Next.js server
 - **Migration Tracking**: Uses `__drizzle_migrations` table to track applied migrations
@@ -147,12 +159,14 @@ Database migrations are handled automatically by the app service on startup usin
 ## Docker Multi-Architecture Support
 
 The project supports both `linux/amd64` and `linux/arm64` architectures:
+
 - **Build Script**: `./scripts/docker-images.sh` - Automated multi-arch builds with Docker Buildx
 - **Registry Caching**: Uses GitHub Container Registry for layer caching
 - **Platform Detection**: Automatically detects and builds for target architectures
 - **Hetzner Compatibility**: Optimized for deployment on Hetzner servers
 
 ### Building Images
+
 ```bash
 # Build and push multi-architecture images
 ./scripts/docker-images.sh
@@ -164,6 +178,7 @@ docker buildx imagetools inspect ghcr.io/krish-kant/supercheck/app:latest
 ## Deployment Best Practices
 
 ### For Dokploy/Hetzner Deployment:
+
 1. **Pre-built Images**: Use pre-built multi-arch images from GHCR
 2. **Health Checks**: Proper health checks ensure services are ready before dependent services start
 3. **Migration Order**: App service handles migrations before worker services start
@@ -176,6 +191,7 @@ docker buildx imagetools inspect ghcr.io/krish-kant/supercheck/app:latest
 ⚠️ **IMPORTANT**: Before deploying to production, read and follow the [SECURITY.md](./SECURITY.md) guide.
 
 ### Key Security Points:
+
 - Redis authentication is required (set `REDIS_PASSWORD`)
 - Redis is not publicly accessible (no port exposure)
 - Email credentials are environment-variable only
@@ -183,9 +199,11 @@ docker buildx imagetools inspect ghcr.io/krish-kant/supercheck/app:latest
 - Regular security updates are essential
 
 ### Super Admin Setup
-The platform requires at least one super admin user for system management. 
+
+The platform requires at least one super admin user for system management.
 
 **Quick Setup (Recommended):**
+
 ```bash
 # Run the interactive setup script
 ./scripts/setup-super-admin.sh
@@ -193,9 +211,8 @@ The platform requires at least one super admin user for system management.
 
 **Manual Setup:**
 See [RBAC_DOCUMENTATION.md](./RBAC_DOCUMENTATION.md) for detailed instructions on:
+
 - Creating your first super admin user
 - Managing admin privileges through the UI
 - Security best practices for admin accounts
 - Troubleshooting admin access issues
-
-

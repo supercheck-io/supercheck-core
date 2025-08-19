@@ -5,6 +5,8 @@
 
 This diagram represents the complete database schema for the Supercheck application, based on the main app schema.
 
+> **Updated:** January 2025 - Table names corrected to match actual schema implementation (camelCase naming convention)
+
 ```mermaid
 erDiagram
     USER {
@@ -61,7 +63,7 @@ erDiagram
         timestamp updatedAt
     }
     
-    PROJECT_MEMBERS {
+    projectMembers {
         uuid id PK
         uuid userId FK
         uuid projectId FK
@@ -100,7 +102,7 @@ erDiagram
         timestamp updatedAt
     }
     
-    JOB_TESTS {
+    jobTests {
         uuid jobId FK
         uuid testId FK
         integer orderPosition
@@ -144,7 +146,7 @@ erDiagram
         timestamp updatedAt
     }
     
-    MONITOR_RESULTS {
+    monitorResults {
         uuid id PK
         uuid monitorId FK
         timestamp checkedAt
@@ -168,19 +170,19 @@ erDiagram
         timestamp updatedAt
     }
     
-    MONITOR_TAGS {
+    monitorTags {
         uuid monitorId FK
         uuid tagId FK
         timestamp assignedAt
     }
     
-    TEST_TAGS {
+    testTags {
         uuid testId FK
         uuid tagId FK
         timestamp assignedAt
     }
     
-    NOTIFICATION_PROVIDERS {
+    notificationProviders {
         uuid id PK
         uuid organizationId FK
         uuid projectId FK
@@ -193,13 +195,13 @@ erDiagram
         timestamp updatedAt
     }
     
-    MONITOR_NOTIFICATION_SETTINGS {
+    monitorNotificationSettings {
         uuid monitorId FK
         uuid notificationProviderId FK
         timestamp createdAt
     }
     
-    JOB_NOTIFICATION_SETTINGS {
+    jobNotificationSettings {
         uuid jobId FK
         uuid notificationProviderId FK
         timestamp createdAt
@@ -236,7 +238,7 @@ erDiagram
         timestamp updatedAt
     }
     
-    ALERT_HISTORY {
+    alertHistory {
         uuid id PK
         text message
         varchar type
@@ -250,7 +252,7 @@ erDiagram
         text errorMessage
     }
     
-    API_KEYS {
+    apikey {
         uuid id PK
         text name
         text start
@@ -315,7 +317,7 @@ erDiagram
         timestamp updatedAt
     }
     
-    AUDIT_LOGS {
+    auditLogs {
         uuid id PK
         uuid userId FK
         uuid organizationId FK
@@ -334,7 +336,7 @@ erDiagram
         timestamp createdAt
     }
     
-    PROJECT_VARIABLES {
+    projectVariables {
         uuid id PK
         uuid projectId FK
         varchar key
@@ -350,13 +352,13 @@ erDiagram
     %% Core Relationships
     USER ||--o{ MEMBER : "belongs to"
     USER ||--o{ INVITATION : "invites"
-    USER ||--o{ PROJECT_MEMBERS : "member of"
+    USER ||--o{ projectMembers : "member of"
     USER ||--o{ SESSION : "has"
     USER ||--o{ ACCOUNT : "linked to"
-    USER ||--o{ API_KEYS : "owns"
+    USER ||--o{ apikey : "owns"
     USER ||--o{ NOTIFICATIONS : "receives"
-    USER ||--o{ AUDIT_LOGS : "performs"
-    USER ||--o{ PROJECT_VARIABLES : "creates"
+    USER ||--o{ auditLogs : "performs"
+    USER ||--o{ projectVariables : "creates"
     
     ORGANIZATION ||--o{ MEMBER : "has members"
     ORGANIZATION ||--o{ INVITATION : "has invitations"
@@ -365,44 +367,44 @@ erDiagram
     ORGANIZATION ||--o{ JOBS : "owns"
     ORGANIZATION ||--o{ MONITORS : "owns"
     ORGANIZATION ||--o{ TAGS : "owns"
-    ORGANIZATION ||--o{ NOTIFICATION_PROVIDERS : "configures"
+    ORGANIZATION ||--o{ notificationProviders : "configures"
     ORGANIZATION ||--o{ REPORTS : "generates"
     ORGANIZATION ||--o{ ALERTS : "manages"
-    ORGANIZATION ||--o{ AUDIT_LOGS : "tracks"
+    ORGANIZATION ||--o{ auditLogs : "tracks"
     
-    PROJECTS ||--o{ PROJECT_MEMBERS : "has members"
+    PROJECTS ||--o{ projectMembers : "has members"
     PROJECTS ||--o{ TESTS : "contains"
     PROJECTS ||--o{ JOBS : "contains"
     PROJECTS ||--o{ MONITORS : "contains"
     PROJECTS ||--o{ TAGS : "organizes"
-    PROJECTS ||--o{ NOTIFICATION_PROVIDERS : "uses"
+    PROJECTS ||--o{ notificationProviders : "uses"
     PROJECTS ||--o{ RUNS : "executes"
-    PROJECTS ||--o{ API_KEYS : "accesses"
-    PROJECTS ||--o{ PROJECT_VARIABLES : "contains"
+    PROJECTS ||--o{ apikey : "accesses"
+    PROJECTS ||--o{ projectVariables : "contains"
     
     %% Test & Job Relationships
-    JOBS ||--o{ JOB_TESTS : "includes"
-    TESTS ||--o{ JOB_TESTS : "used in"
+    JOBS ||--o{ jobTests : "includes"
+    TESTS ||--o{ jobTests : "used in"
     JOBS ||--o{ RUNS : "executes"
-    JOBS ||--o{ ALERT_HISTORY : "triggers"
-    JOBS ||--o{ JOB_NOTIFICATION_SETTINGS : "notifies via"
-    JOBS ||--o{ API_KEYS : "accessed by"
+    JOBS ||--o{ alertHistory : "triggers"
+    JOBS ||--o{ jobNotificationSettings : "notifies via"
+    JOBS ||--o{ apikey : "accessed by"
     
     %% Monitor Relationships
-    MONITORS ||--o{ MONITOR_RESULTS : "produces"
+    MONITORS ||--o{ monitorResults : "produces"
     MONITORS ||--o{ ALERTS : "configured for"
-    MONITORS ||--o{ ALERT_HISTORY : "triggers"
-    MONITORS ||--o{ MONITOR_NOTIFICATION_SETTINGS : "notifies via"
-    MONITORS ||--o{ MONITOR_TAGS : "tagged with"
+    MONITORS ||--o{ alertHistory : "triggers"
+    MONITORS ||--o{ monitorNotificationSettings : "notifies via"
+    MONITORS ||--o{ monitorTags : "tagged with"
     
     %% Tag Relationships
-    TAGS ||--o{ MONITOR_TAGS : "applied to monitors"
-    TAGS ||--o{ TEST_TAGS : "applied to tests"
-    TESTS ||--o{ TEST_TAGS : "tagged with"
+    TAGS ||--o{ monitorTags : "applied to monitors"
+    TAGS ||--o{ testTags : "applied to tests"
+    TESTS ||--o{ testTags : "tagged with"
     
     %% Notification Relationships
-    NOTIFICATION_PROVIDERS ||--o{ MONITOR_NOTIFICATION_SETTINGS : "used by monitors"
-    NOTIFICATION_PROVIDERS ||--o{ JOB_NOTIFICATION_SETTINGS : "used by jobs"
+    notificationProviders ||--o{ monitorNotificationSettings : "used by monitors"
+    notificationProviders ||--o{ jobNotificationSettings : "used by jobs"
     
     %% Session & Auth Relationships
     SESSION ||--o{ ORGANIZATION : "active org"

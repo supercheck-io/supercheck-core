@@ -74,7 +74,7 @@ export function NavUser() {
           <span className="mr-2 flex items-center">
             <User className="h-4 w-4 mr-2" />
             {currentProject?.userRole ? 
-              currentProject.userRole.charAt(0).toUpperCase() + currentProject.userRole.slice(1).replace('_', ' ') 
+              currentProject.userRole.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
               : 'No role assigned'}
           </span>
         </DropdownMenuItem>

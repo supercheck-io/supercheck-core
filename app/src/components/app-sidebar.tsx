@@ -201,7 +201,7 @@ const data = {
   ],
   OrgAdmin: [
     {
-      title: "Org Admin",
+      title: "Organization Admin",
       url: "/org-admin",
       icon: UserCog,
     },

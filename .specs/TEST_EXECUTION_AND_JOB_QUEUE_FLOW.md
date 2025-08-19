@@ -29,6 +29,7 @@ flowchart TB
         C2["API Jobs Run Route"]
         C3["API Test Results Route"]
         C4["Playground Cleanup API"]
+        C5["Script Validation API"]
     end
     
     subgraph "Queue System"
@@ -41,6 +42,8 @@ flowchart TB
         E1[Worker Process]
         E2[Test Execution Service]
         E3[Report Generation]
+        E4[Enhanced Validation Service]
+        E5[General Validation Service]
     end
     
     subgraph "Background Services"
@@ -55,12 +58,16 @@ flowchart TB
         F3[MinIO/S3]
     end
     
+    A1 -->|Validate Script| C5
+    C5 -->|Validation Response| A1
     A1 -->|Execute Test/Job| C1
     A1 -->|Execute Job| C2
     C1 -->|Queue Test| D2
     C2 -->|Queue Job| D2
     D2 <-->|Store Jobs| D1
     D2 -->|Process Jobs| E1
+    E1 -->|Validate Monitor Config| E4
+    E4 -->|Validation Response| E1
     E1 -->|Execute Tests| E2
     E2 -->|Generate Reports| E3
     E3 -->|Store Results| F2
@@ -100,11 +107,17 @@ sequenceDiagram
 
     %% Individual Test Execution Flow (e.g., Playground)
     Client->>NextFE: Submit test script
-    NextFE->>NextFE: Show loading toast notification
-    NextFE->>NextAPI: POST /api/test
-    NextAPI->>Redis: Add test to 'test-execution' queue
-    NextAPI-->>NextFE: Return testId, success status
-    NextFE->>NextAPI: Open SSE connection /api/test-status/events/[testId]
+    NextFE->>NextAPI: POST /api/validate-script (pre-validation)
+    NextAPI-->>NextFE: Validation response
+    alt Validation fails
+        NextFE-->>Client: Show validation error
+    else Validation passes
+        NextFE->>NextFE: Show loading toast notification
+        NextFE->>NextAPI: POST /api/test
+        NextAPI->>Redis: Add test to 'test-execution' queue
+        NextAPI-->>NextFE: Return testId, success status
+        NextFE->>NextAPI: Open SSE connection /api/test-status/events/[testId]
+    end
     NextAPI->>Redis: Subscribe to test status and complete channels
     NextAPI-->>NextFE: Establish SSE stream
 
@@ -272,14 +285,13 @@ The NestJS worker service processes queued jobs:
 - **Processors**:
   - `TestExecutionProcessor`: Handles single test execution and enforces running capacity
   - `JobExecutionProcessor`: Handles job execution with multiple tests and enforces running capacity
-  - `PlaygroundCleanupWorker`: Processes scheduled cleanup jobs for old playground reports
 
 - **Services**:
   - `ExecutionService`: Orchestrates test execution
   - `S3Service`: Handles artifact uploads to S3/MinIO
   - `DbService`: Manages database operations
   - `RedisService`: Handles real-time status updates and connection management
-  - `PlaygroundCleanupService`: Manages scheduled S3 cleanup with batch processing (1000 objects per batch)
+  - `PlaygroundCleanupService`: Manages scheduled S3 cleanup with batch processing (1000 objects per batch) using BullMQ Worker
 
 ### 3. Report Storage and Retrieval
 
@@ -310,7 +322,34 @@ Status updates use a publish/subscribe pattern:
   - Frontend subscribes to updates via Server-Sent Events (SSE)
   - Updates are used to show real-time progress and status
 
-### 5. Redis Memory Management
+### 5. Validation Services
+
+The system includes comprehensive validation services to ensure security and reliability:
+
+- **Script Validation Service** (`ValidationService`):
+  - Pre-execution validation of test scripts
+  - Security checks for dangerous patterns and blocked identifiers
+  - Module import validation (only allows approved libraries)
+  - Syntax validation and complexity analysis
+  - Protection against code injection and infinite loops
+
+- **Enhanced Validation Service** (`EnhancedValidationService`):
+  - URL and hostname validation with SSRF protection
+  - HTTP configuration validation
+  - Port and security validation
+  - Private IP range detection and blocking
+
+- **General Validation Service** (Zod-based):
+  - Schema-based input validation
+  - Type-safe data transformation
+  - Structured error handling
+
+- **Script Validation API** (`/api/validate-script`):
+  - Pre-execution endpoint for client-side validation
+  - Real-time feedback during script editing
+  - Integration with playground UI for immediate validation
+
+### 6. Redis Memory Management
 
 The system includes a sophisticated Redis memory management strategy to prevent unbounded memory growth:
 
