@@ -612,8 +612,7 @@ export type NotificationProviderType =
   | 'slack'
   | 'webhook'
   | 'telegram'
-  | 'discord'
-  | 'teams';
+  | 'discord';
 /**
  * Holds the configuration details for different notification provider types.
  */
@@ -640,9 +639,6 @@ export type NotificationProviderConfig = {
 
   // Discord configuration
   discordWebhookUrl?: string;
-
-  // Microsoft Teams configuration
-  teamsWebhookUrl?: string;
 
   [key: string]: unknown;
 };

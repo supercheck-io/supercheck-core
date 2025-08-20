@@ -15,7 +15,7 @@ import { type NotificationProviderType, type NotificationProviderConfig } from "
 import { getUserFriendlyError, VALIDATION_PATTERNS, CHARACTER_LIMITS } from "@/lib/error-utils";
 
 const notificationProviderSchema = z.object({
-  type: z.enum(["email", "slack", "webhook", "telegram", "discord", "teams"] as const),
+  type: z.enum(["email", "slack", "webhook", "telegram", "discord"] as const),
   config: z.object({
     name: z.string().min(1, "Name is required"),
     
@@ -100,15 +100,6 @@ const notificationProviderSchema = z.object({
         message: "Please enter a valid Discord webhook URL"
       }),
     
-    // Microsoft Teams fields
-    teamsWebhookUrl: z.string()
-      .optional()
-      .refine((url) => {
-        if (!url) return true;
-        return VALIDATION_PATTERNS.teamsWebhook.test(url);
-      }, {
-        message: "Please enter a valid Microsoft Teams webhook URL"
-      }),
   }),
 }).refine((data) => {
   // Validate required fields based on type
@@ -127,9 +118,6 @@ const notificationProviderSchema = z.object({
   }
   if (data.type === "discord") {
     return data.config.discordWebhookUrl;
-  }
-  if (data.type === "teams") {
-    return data.config.teamsWebhookUrl;
   }
   return true;
 }, {
@@ -167,7 +155,6 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
         botToken: initialData.config.botToken || "",
         chatId: initialData.config.chatId || "",
         discordWebhookUrl: initialData.config.discordWebhookUrl || "",
-        teamsWebhookUrl: initialData.config.teamsWebhookUrl || "",
       },
     } : {
       type: "email",
@@ -183,7 +170,6 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
         botToken: "",
         chatId: "",
         discordWebhookUrl: "",
-        teamsWebhookUrl: "",
       },
     },
   });
@@ -267,7 +253,6 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
                         <SelectItem value="webhook">Webhook</SelectItem>
                         <SelectItem value="telegram">Telegram</SelectItem>
                         <SelectItem value="discord">Discord</SelectItem>
-                        <SelectItem value="teams">Microsoft Teams</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -468,28 +453,6 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
               </div>
             )}
 
-            {/* Microsoft Teams Configuration */}
-            {selectedType === "teams" && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Microsoft Teams Configuration</h3>
-                <FormField
-                  control={form.control}
-                  name="config.teamsWebhookUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Webhook URL</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://your-org.webhook.office.com/webhookb2/..." {...field} />
-                      </FormControl>
-                      <div className="text-sm text-muted-foreground">
-                        Create an Incoming Webhook connector in your Teams channel and paste the URL here.
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
 
             <div className="flex justify-between">
               <Button 

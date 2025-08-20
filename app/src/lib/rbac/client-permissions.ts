@@ -327,9 +327,10 @@ export interface ClientPermissionContext {
  */
 export function canDeleteResource(
   context: ClientPermissionContext,
-  resource: keyof typeof import('./permissions').statement
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _resource: keyof typeof import('./permissions').statement
 ): boolean {
-  const { role, userId, resourceCreatorId } = context;
+  const { role } = context;
   
   // Super admin, org owner, org admin can delete anything
   if ([Role.SUPER_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN].includes(role)) {
