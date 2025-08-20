@@ -107,7 +107,7 @@ Each chart uses optimized data processing:
 
 ### 1. Key Metrics Cards (5 Cards)
 - **Total Tests**: Available test cases in project
-- **Active Jobs**: Currently running/scheduled jobs
+- **Active Jobs**: Currently running/scheduled jobs  
 - **Active Monitors**: Enabled monitoring endpoints
 - **Total Runs**: Job executions in last 7 days
 - **Execution Time**: Total Playwright execution time for billing (last 7 days)

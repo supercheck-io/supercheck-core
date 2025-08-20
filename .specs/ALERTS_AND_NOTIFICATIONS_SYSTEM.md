@@ -24,7 +24,7 @@ The Supercheck alerts and notifications system is built on a distributed archite
 1. **`app` (Next.js Frontend):** The user-facing application where users configure monitors, jobs, and their respective alert settings. It includes the API endpoints for alert configuration and notification provider management.
 2. **`worker` (NestJS Worker Service):** A background worker service responsible for executing monitors and jobs, evaluating alert conditions, and dispatching notifications through configured providers.
 
-The services communicate via **Redis** and **BullMQ** for reliable message queuing, with **PostgreSQL** storing all configuration and audit data. The system supports multiple notification channels including email, Slack, webhooks, Telegram, Discord, and Microsoft Teams.
+The services communicate via **Redis** and **BullMQ** for reliable message queuing, with **PostgreSQL** storing all configuration and audit data. The system supports multiple notification channels including email, Slack, webhooks, Telegram, and Discord.
 
 ## Alert Configuration Validation
 
@@ -62,6 +62,7 @@ The monitor alerting flow is a sophisticated process designed to be robust and s
 - **How:** Users create or edit a monitor and configure its `alertConfig`. This configuration is stored as a JSONB object in the `alertConfig` column of the `monitors` table in the database.
 
 **Key `alertConfig` properties:**
+
 - `enabled`: A boolean to toggle alerts for the monitor.
 - `notificationProviders`: An array of `notification_provider` IDs to send alerts to.
 - `alertOnFailure`: A boolean to send an alert when the monitor status changes to `down`.
@@ -75,7 +76,7 @@ The monitor alerting flow is a sophisticated process designed to be robust and s
 - **Where:** `app` (Frontend UI)
 - **How:** When a monitor is created or updated, the system schedules it using BullMQ repeatable jobs.
 - **Component:** `app/src/lib/monitor-scheduler.ts`
-- **Logic:** When a scheduled job fires, the `MonitorSchedulerProcessor`'s only responsibility is to add a *new, one-time* job to the `monitor-execution` queue. This pattern effectively creates a distributed cron system.
+- **Logic:** When a scheduled job fires, the `MonitorSchedulerProcessor`'s only responsibility is to add a _new, one-time_ job to the `monitor-execution` queue. This pattern effectively creates a distributed cron system.
 
 ### 3. Execution
 
@@ -83,10 +84,10 @@ The monitor alerting flow is a sophisticated process designed to be robust and s
 - **How:** The `MonitorProcessor` listens for jobs on the `monitor-execution` queue.
 - **Component:** `worker/src/monitor/monitor.processor.ts`
 - **Logic:**
-    1. The `process` method picks up the job.
-    2. It calls `this.monitorService.executeMonitor(job.data)`.
-    3. The `executeMonitor` method in `worker/src/monitor/monitor.service.ts` performs the actual check (e.g., HTTP request, ping) and returns a `MonitorExecutionResult`.
-    4. Upon successful completion of the job, the `onCompleted` event handler in `MonitorProcessor` is triggered.
+  1. The `process` method picks up the job.
+  2. It calls `this.monitorService.executeMonitor(job.data)`.
+  3. The `executeMonitor` method in `worker/src/monitor/monitor.service.ts` performs the actual check (e.g., HTTP request, ping) and returns a `MonitorExecutionResult`.
+  4. Upon successful completion of the job, the `onCompleted` event handler in `MonitorProcessor` is triggered.
 
 ### 4. Result Processing & Alert Triggering
 
@@ -94,29 +95,29 @@ The monitor alerting flow is a sophisticated process designed to be robust and s
 - **How:** The `onCompleted` handler in `MonitorProcessor` calls `this.monitorService.saveMonitorResult(result)`.
 - **Component:** `worker/src/monitor/monitor.service.ts`
 - **Logic (`saveMonitorResult`):**
-    1. The new result is saved to the `monitor_results` table.
-    2. The `status` on the `monitors` table is updated.
-    3. It compares the `currentStatus` (`up`/`down`) with the `previousStatus`.
-    4. **Threshold Logic:** If `isStatusChange` is `true` and `monitor.alertConfig.enabled` is `true`, it fetches recent monitor results and calculates consecutive failures/successes.
-    5. **Alert Conditions:** An alert is sent only if:
-       - For failures: `alertOnFailure` is true AND consecutive failures >= `failureThreshold`
-       - For recoveries: `alertOnRecovery` is true AND consecutive successes >= `recoveryThreshold`
-    6. If conditions are met, it calls `this.monitorAlertService.sendNotification(...)`.
+  1. The new result is saved to the `monitor_results` table.
+  2. The `status` on the `monitors` table is updated.
+  3. It compares the `currentStatus` (`up`/`down`) with the `previousStatus`.
+  4. **Threshold Logic:** If `isStatusChange` is `true` and `monitor.alertConfig.enabled` is `true`, it fetches recent monitor results and calculates consecutive failures/successes.
+  5. **Alert Conditions:** An alert is sent only if:
+     - For failures: `alertOnFailure` is true AND consecutive failures >= `failureThreshold`
+     - For recoveries: `alertOnRecovery` is true AND consecutive successes >= `recoveryThreshold`
+  6. If conditions are met, it calls `this.monitorAlertService.sendNotification(...)`.
 
 ### 5. Notification Dispatch
 
 - **Where:** `worker`
 - **How:** The `MonitorAlertService` is responsible for preparing and sending the notification.
 - **Components:**
-    - `worker/src/monitor/services/monitor-alert.service.ts`
-    - `worker/src/notification/notification.service.ts` (generic service)
+  - `worker/src/monitor/services/monitor-alert.service.ts`
+  - `worker/src/notification/notification.service.ts` (generic service)
 - **Logic:**
-    1. `sendNotification` in `MonitorAlertService` retrieves the full monitor details.
-    2. It queries the `monitor_notification_settings` join table to get associated notification providers.
-    3. It constructs a `NotificationPayload` containing details like title, message, severity, and metadata. It will use `customMessage` from `alertConfig` if present.
-    4. It then calls the generic `this.notificationService.sendNotificationToMultipleProviders(...)`.
-    5. This generic service iterates through the providers (e.g., Slack, Email) and sends the notification using the specific logic for each provider type.
-    6. **Alert History:** After sending notifications, it saves a record to the `alert_history` table with the notification status and any error messages.
+  1. `sendNotification` in `MonitorAlertService` retrieves the full monitor details.
+  2. It queries the `monitor_notification_settings` join table to get associated notification providers.
+  3. It constructs a `NotificationPayload` containing details like title, message, severity, and metadata. It will use `customMessage` from `alertConfig` if present.
+  4. It then calls the generic `this.notificationService.sendNotificationToMultipleProviders(...)`.
+  5. This generic service iterates through the providers (e.g., Slack, Email) and sends the notification using the specific logic for each provider type.
+  6. **Alert History:** After sending notifications, it saves a record to the `alert_history` table with the notification status and any error messages.
 
 ### Flow Diagram: Monitor Alerting
 
@@ -134,7 +135,7 @@ graph TD
         D -- "Reads config" --> G;
         G -- "On schedule fire" --> H[Adds one-time job];
         H --> I[monitor-execution queue];
-        
+
         J(MonitorProcessor) -- "Picks up job" --> I;
         J -- "Executes check via" --> K(MonitorService);
         K -- "On status change" --> L[Check thresholds];
@@ -156,12 +157,12 @@ Job alerting follows a similar pattern but is triggered by the completion of a t
 - **Trigger:** A job execution is completed by the `JobExecutionProcessor`.
 - **Component:** `worker/src/execution/processors/job-execution.processor.ts`
 - **Logic (`handleJobNotifications`):**
-    1. After a job finishes, the processor retrieves the job's configuration, which includes an `alertConfig` similar to monitors. This config is stored on the `jobs` table.
-    2. It retrieves the associated notification providers from the `job_notification_settings` join table.
-    3. **Threshold Logic:** Job alerting explicitly checks for `failureThreshold` and `recoveryThreshold`. It fetches recent job runs and counts consecutive successes or failures.
-    4. **Alert Triggering:** An alert is sent only if the number of consecutive statuses meets the configured threshold (e.g., alert on the 3rd consecutive failure).
-    5. **Dispatch:** If an alert is warranted, it constructs a `NotificationPayload` and uses the same generic `NotificationService` to send it.
-    6. **Alert History:** After sending notifications, it saves a record to the `alert_history` table.
+  1. After a job finishes, the processor retrieves the job's configuration, which includes an `alertConfig` similar to monitors. This config is stored on the `jobs` table.
+  2. It retrieves the associated notification providers from the `job_notification_settings` join table.
+  3. **Threshold Logic:** Job alerting explicitly checks for `failureThreshold` and `recoveryThreshold`. It fetches recent job runs and counts consecutive successes or failures.
+  4. **Alert Triggering:** An alert is sent only if the number of consecutive statuses meets the configured threshold (e.g., alert on the 3rd consecutive failure).
+  5. **Dispatch:** If an alert is warranted, it constructs a `NotificationPayload` and uses the same generic `NotificationService` to send it.
+  6. **Alert History:** After sending notifications, it saves a record to the `alert_history` table.
 
 ### Key Differences from Monitor Alerting
 
@@ -205,9 +206,10 @@ The threshold logic prevents alert spam by ensuring alerts are only sent after a
 The system supports multiple notification provider types:
 
 ### Email
+
 - **Configuration:** Environment-based SMTP and Resend configuration
 - **Use Case:** Professional email notifications with automatic fallback
-- **Features:** 
+- **Features:**
   - Dual delivery methods (SMTP primary, Resend fallback)
   - Professional HTML templates with responsive design
   - Automatic fallback for enhanced reliability
@@ -216,29 +218,28 @@ The system supports multiple notification provider types:
   - Security-focused configuration (no hardcoded credentials)
 
 ### Slack
+
 - **Configuration:** Webhook URL, channel name
 - **Use Case:** Team collaboration, real-time notifications
 - **Features:** Rich formatting, @mentions, custom emojis
 
 ### Webhook
+
 - **Configuration:** URL, HTTP method, headers, body template
 - **Use Case:** Integration with external systems
 - **Features:** Custom payloads, authentication
 
 ### Telegram
+
 - **Configuration:** Bot token, chat ID
 - **Use Case:** Mobile notifications, personal alerts
 - **Features:** Instant delivery, mobile-friendly
 
 ### Discord
+
 - **Configuration:** Webhook URL
 - **Use Case:** Gaming communities, developer teams
 - **Features:** Rich embeds, custom formatting
-
-### Microsoft Teams
-- **Configuration:** Webhook URL
-- **Use Case:** Corporate team communication, business alerts
-- **Features:** MessageCard format, action buttons, rich formatting
 
 ## Notification Provider Creation
 
@@ -251,7 +252,6 @@ The system supports the following notification provider types:
 - **webhook**: Generic HTTP webhook notifications
 - **telegram**: Telegram bot notifications
 - **discord**: Discord webhook notifications
-- **teams**: Microsoft Teams webhook notifications
 
 ### Database Schema
 
@@ -286,6 +286,7 @@ CREATE TABLE notification_providers (
 **Endpoint**: `POST /api/notification-providers`
 
 **Request Body**:
+
 ```json
 {
   "name": "Production Slack Alerts",
@@ -301,6 +302,7 @@ CREATE TABLE notification_providers (
 ```
 
 **Response**:
+
 ```json
 {
   "id": "uuid",
@@ -324,6 +326,7 @@ CREATE TABLE notification_providers (
 **Endpoint**: `GET /api/notification-providers`
 
 **Response**:
+
 ```json
 [
   {
@@ -362,6 +365,7 @@ The email notification system supports dual delivery methods with automatic fall
 The system uses environment variables for email configuration and supports both SMTP and Resend delivery methods:
 
 **SMTP Configuration (Primary Method):**
+
 - `SMTP_ENABLED` - Enable/disable SMTP delivery (default: true)
 - `SMTP_HOST` - SMTP server hostname (e.g., "smtp.gmail.com")
 - `SMTP_PORT` - SMTP server port (default: 587)
@@ -371,6 +375,7 @@ The system uses environment variables for email configuration and supports both 
 - `SMTP_FROM_EMAIL` - Sender email address (optional, defaults to SMTP_USER)
 
 **Resend Configuration (Fallback Method):**
+
 - `RESEND_ENABLED` - Enable/disable Resend delivery (default: true)
 - `RESEND_API_KEY` - Resend service API key
 - `RESEND_FROM_EMAIL` - Sender email address for Resend (must be from verified domain)
@@ -448,18 +453,6 @@ The system uses environment variables for email configuration and supports both 
 }
 ```
 
-#### Microsoft Teams Provider
-
-```json
-{
-  "type": "teams",
-  "config": {
-    "teamsWebhookUrl": "https://your-org.webhook.office.com/webhookb2/...",
-    "isDefault": false
-  }
-}
-```
-
 ### Frontend Integration
 
 #### Form Validation
@@ -499,6 +492,7 @@ The system includes comprehensive testing for email providers:
 ```
 
 **Test Response**:
+
 ```json
 {
   "success": true,
@@ -519,6 +513,7 @@ The system includes comprehensive testing for email providers:
 ```
 
 **Test Features**:
+
 - Tests both SMTP and Resend connections
 - Sends actual test emails to verify delivery
 - Provides detailed results for each method
@@ -563,6 +558,7 @@ VALUES ('job-uuid', 'provider-uuid');
 ### Environment Variables
 
 **Email Notification Environment Variables:**
+
 - `SMTP_ENABLED` - Enable/disable SMTP delivery (default: true)
 - `SMTP_HOST` - SMTP server hostname
 - `SMTP_PORT` - SMTP server port (default: 587)
@@ -575,6 +571,7 @@ VALUES ('job-uuid', 'provider-uuid');
 - `RESEND_FROM_EMAIL` - Sender email address for Resend (must be from verified domain)
 
 **Notification Channel Limits:**
+
 - `MAX_JOB_NOTIFICATION_CHANNELS` - Maximum channels for jobs (default: 10)
 - `MAX_MONITOR_NOTIFICATION_CHANNELS` - Maximum channels for monitors (default: 10)
 - `NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS` - Frontend limit for jobs (default: 10)
@@ -585,6 +582,7 @@ VALUES ('job-uuid', 'provider-uuid');
 #### 1. Environment Variable Configuration
 
 **Files Modified:**
+
 - All API routes and components now use environment variables instead of hardcoded constants
 - Frontend components use `NEXT_PUBLIC_` prefixed variables
 - Backend API routes use non-prefixed variables
@@ -592,6 +590,7 @@ VALUES ('job-uuid', 'provider-uuid');
 #### 2. Frontend Validation
 
 **Files Modified:**
+
 - `app/src/components/alerts/alert-settings.tsx`
 - `app/src/components/jobs/job-creation-wizard.tsx`
 - `app/src/components/jobs/edit-job.tsx`
@@ -599,6 +598,7 @@ VALUES ('job-uuid', 'provider-uuid');
 - `app/src/components/monitors/monitor-creation-wizard.tsx`
 
 **Changes:**
+
 - Added toast error message when trying to select more than the configured limit
 - Added channel count display showing "X of Y channels selected"
 - Updated `toggleProvider` function to check limit before adding channels
@@ -611,6 +611,7 @@ VALUES ('job-uuid', 'provider-uuid');
 #### 3. Server-Side Validation
 
 **Files Modified:**
+
 - `app/src/app/api/jobs/route.ts`
 - `app/src/app/api/jobs/[id]/route.ts`
 - `app/src/app/api/monitors/route.ts`
@@ -618,6 +619,7 @@ VALUES ('job-uuid', 'provider-uuid');
 - `app/src/actions/update-job.ts`
 
 **Changes:**
+
 - Added validation to check notification provider count before saving
 - Returns 400 error with descriptive message when limit is exceeded
 - Validation applies to both creation and update operations
@@ -626,16 +628,19 @@ VALUES ('job-uuid', 'provider-uuid');
 #### 4. User Experience Features
 
 **Toast Messages:**
+
 - "Channel limit reached" with description showing the configured limit
 - Appears when user tries to select more than the allowed channels
 
 **UI Indicators:**
+
 - Channel count display: "X of Y channels selected"
 - **Removed:** "Maximum X channels allowed" text as requested
 - **New:** 4-column grid layout with pagination
 - **New:** Page navigation with current page indicator
 
 **Pagination Features:**
+
 - 8 items per page (4 columns × 2 rows)
 - Previous/Next navigation buttons
 - Current page indicator
@@ -645,12 +650,14 @@ VALUES ('job-uuid', 'provider-uuid');
 ### Validation Flow
 
 1. **Frontend Validation:**
+
    - Real-time validation in AlertSettings component
    - Toast error when trying to exceed limit
    - Form submission validation in wizards and edit forms
    - Uses `NEXT_PUBLIC_` environment variables
 
 2. **Server-Side Validation:**
+
    - API route validation before database operations
    - Consistent error messages across all endpoints
    - Validation for both jobs and monitors
@@ -663,12 +670,14 @@ VALUES ('job-uuid', 'provider-uuid');
 ### Error Messages
 
 **Frontend Toast:**
+
 ```
 "Channel limit reached"
 "You can only select up to X notification channels"
 ```
 
 **API Error Response:**
+
 ```json
 {
   "error": "You can only select up to X notification channels"
@@ -678,12 +687,14 @@ VALUES ('job-uuid', 'provider-uuid');
 ### UI Improvements
 
 #### Grid Layout
+
 - **4 columns** on extra-large screens (xl:grid-cols-4)
 - **3 columns** on large screens (lg:grid-cols-3)
 - **2 columns** on small screens (sm:grid-cols-2)
 - **1 column** on mobile (grid-cols-1)
 
 #### Pagination
+
 - **8 items per page** (4 columns × 2 rows)
 - **Navigation buttons** with chevron icons
 - **Page indicator** showing "Page X of Y"
@@ -766,11 +777,13 @@ The notification system includes comprehensive error handling:
 ### Alert Configuration
 
 1. **Threshold Settings:**
+
    - Use `failureThreshold: 2-3` for most monitors to avoid false alarms
    - Use `recoveryThreshold: 1-2` for quick recovery notifications
    - Adjust based on monitor frequency and criticality
 
 2. **Notification Providers:**
+
    - Configure multiple providers for redundancy
    - Use different providers for different alert types
    - Test provider configurations regularly
@@ -784,16 +797,19 @@ The notification system includes comprehensive error handling:
 ### Email Configuration Best Practices
 
 1. **Dual Method Setup:**
+
    - Configure both SMTP and Resend for automatic fallback
    - Use environment variables for secure credential management
    - Test both methods during initial setup
 
 2. **Environment Variables:**
+
    - Set `SMTP_ENABLED=true` and `RESEND_ENABLED=true` for dual redundancy
    - Use `SMTP_ENABLED=false` to disable SMTP and use only Resend
    - Use `RESEND_ENABLED=false` to disable Resend and use only SMTP
 
 3. **Security Considerations:**
+
    - Store sensitive credentials in environment variables, not configuration
    - Use verified domains for sender addresses
    - Regularly rotate API keys and passwords
@@ -807,6 +823,7 @@ The notification system includes comprehensive error handling:
 ### Monitor Configuration
 
 1. **Check Frequency:**
+
    - Balance between responsiveness and system load
    - More critical monitors can use higher frequencies
    - Consider provider rate limits
@@ -855,13 +872,13 @@ The notification system includes comprehensive error handling:
 
 ### Common Issues
 
-1. **Email Delivery Failed**: 
+1. **Email Delivery Failed**:
    - Check both SMTP and Resend configurations
    - Verify `SMTP_ENABLED` and `RESEND_ENABLED` environment variables
    - Ensure email addresses are properly formatted
    - Check API keys and credentials
    - Verify from email domains are authorized
-2. **SMTP Connection Failed**: 
+2. **SMTP Connection Failed**:
    - Verify SMTP host, port, and authentication credentials
    - Check firewall and network connectivity
    - Ensure SMTP_SECURE setting matches server requirements
@@ -919,4 +936,4 @@ The notification system includes comprehensive error handling:
 4. **Provider Scheduling:** Configure different providers for different times
 5. **Provider Escalation:** Chain multiple providers for critical alerts
 
-This document provides a solid foundation for understanding the current system and planning future improvements. 
+This document provides a solid foundation for understanding the current system and planning future improvements.

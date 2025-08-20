@@ -60,7 +60,6 @@ export const VALIDATION_PATTERNS = {
   telegramBotToken: /^\d+:[A-Za-z0-9_-]+$/,
   telegramChatId: /^-?\d+$/,
   discordWebhook: /^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//,
-  teamsWebhook: /^https:\/\/.*\.webhook\.office\.com\//,
   httpUrl: /^https?:\/\/.+/,
 } as const;
 

@@ -21,19 +21,21 @@ The monitoring system delivers comprehensive real-time monitoring capabilities w
 ### Core Capabilities
 
 #### Active Monitoring Types
+
 - **HTTP/HTTPS Request Monitoring**: Full-featured web service monitoring with custom headers, authentication, response validation, and SSL certificate tracking
 - **Website Monitoring**: Simplified web page monitoring with SSL certificate checking and keyword validation
-- **Network Connectivity (Ping)**: ICMP ping monitoring for server availability and network path verification  
+- **Network Connectivity (Ping)**: ICMP ping monitoring for server availability and network path verification
 - **Port Accessibility**: TCP/UDP port monitoring to verify service availability on specific ports
 
 #### System Features
+
 - **Project-Scoped Architecture**: Monitors organized within projects for better resource isolation and team collaboration
 - **Enterprise Security**: SSRF protection, credential encryption, input validation, and comprehensive audit logging
 - **Resource Management**: Connection pooling, memory limits, and automatic resource cleanup
 - **Adaptive SSL Certificate Monitoring**: Intelligent certificate expiration checking with frequency optimization
 - **Immediate Validation**: New monitors execute immediately upon creation for instant configuration verification
 - **Real-time Updates**: Server-Sent Events (SSE) provide live status updates and immediate feedback
-- **Enterprise Alerting**: Multi-channel notification system supporting email, Slack, webhooks, Telegram, Discord, and Microsoft Teams
+- **Enterprise Alerting**: Multi-channel notification system supporting email, Slack, webhooks, Telegram, and Discord.
 - **Threshold-Based Logic**: Configurable failure and recovery thresholds to minimize alert fatigue
 - **Smart Alert Limiting**: Maximum 3 failure alerts per failure sequence to prevent notification spam
 - **Professional Notifications**: Rich HTML email templates and structured alert messages with comprehensive context
@@ -50,7 +52,7 @@ graph TB
         API[API Routes]
         SSE[Server-Sent Events]
     end
-    
+
     subgraph "Backend Services"
         MS[Monitor Service]
         VS[Validation Service]
@@ -58,48 +60,48 @@ graph TB
         RM[Resource Manager]
         EH[Error Handler]
     end
-    
+
     subgraph "Queue System"
         RS[Redis]
         MSQ[Monitor Scheduler Queue]
         MEQ[Monitor Execution Queue]
     end
-    
+
     subgraph "Worker Services"
         WS[NestJS Worker]
         MP[Monitor Processor]
         AS[Alert Service]
     end
-    
+
     subgraph "Data Layer"
         PG[(PostgreSQL)]
         S3[(MinIO/S3)]
     end
-    
+
     subgraph "External Services"
         ES[Monitored Services]
         NS[Notification Services]
     end
-    
+
     UI --> API
     API --> MS
     MS --> VS
     MS --> CS
     MS --> RM
     MS --> EH
-    
+
     MS --> MSQ
     MSQ --> MEQ
     MEQ --> WS
     WS --> MP
     MP --> AS
     AS --> NS
-    
+
     MP --> ES
     MP --> PG
     AS --> PG
     WS --> S3
-    
+
     style UI fill:#e1f0ff
     style WS fill:#f1f1f1
     style PG fill:#f0f8e1
@@ -107,6 +109,7 @@ graph TB
 ```
 
 ### Frontend (Next.js App)
+
 ```
 app/
 ├── src/app/
@@ -126,6 +129,7 @@ app/
 ```
 
 ### Backend (NestJS Worker)
+
 ```
 worker/
 ├── src/
@@ -152,6 +156,7 @@ worker/
 ```
 
 ### Database Schema
+
 - **monitors**: Monitor configurations and metadata (organization and project scoped)
 - **monitor_results**: Historical monitoring results with correlation IDs
 - **notification_providers**: Alert channel configurations (project scoped)
@@ -176,13 +181,14 @@ graph LR
     F --> G[SSL Check Optional]
     G --> H[Status Evaluation]
     H --> I[Alert Processing]
-    
+
     style A fill:#e1f0ff
     style H fill:#e8f5e8
     style I fill:#fff3e0
 ```
 
 **Features**:
+
 - Support for all HTTP methods (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)
 - Secure authentication (Basic Auth, Bearer Token) with credential encryption
 - Custom headers with validation and sanitization
@@ -194,6 +200,7 @@ graph LR
 - SSL certificate monitoring with expiration tracking
 
 **Security Measures**:
+
 - SSRF protection with configurable internal target blocking
 - Credential masking in all logs and debug output
 - Response content sanitization to remove sensitive data
@@ -213,12 +220,13 @@ graph LR
     E --> F[Keyword Validation]
     F --> G[SSL Expiration Check]
     G --> H[Combined Status]
-    
+
     style A fill:#f0f8ff
     style H fill:#e8f5e8
 ```
 
 **Features**:
+
 - Automatic GET request execution
 - Integrated SSL certificate monitoring
 - Keyword presence/absence checking
@@ -238,12 +246,13 @@ graph LR
     D --> E[Response Parsing]
     E --> F[Resource Cleanup]
     F --> G[Status Determination]
-    
+
     style A fill:#f0fff0
     style G fill:#e8f5e8
 ```
 
 **Features**:
+
 - IPv4 and IPv6 support with automatic detection
 - Command injection prevention with comprehensive input validation
 - Configurable ping count and timeout
@@ -252,6 +261,7 @@ graph LR
 - Internal network protection (configurable)
 
 **Security Measures**:
+
 - Complete protection against command injection attacks
 - Hostname and IP address validation
 - Internal target protection with configuration override
@@ -269,12 +279,13 @@ graph LR
     D --> E[Socket Connection]
     E --> F[Resource Management]
     F --> G[Status Evaluation]
-    
+
     style A fill:#fff0f0
     style G fill:#e8f5e8
 ```
 
 **Features**:
+
 - TCP and UDP protocol support
 - IPv4 and IPv6 address support with automatic detection
 - Port range validation (1-65535)
@@ -283,6 +294,7 @@ graph LR
 - Socket resource management with guaranteed cleanup
 
 **Security Measures**:
+
 - Input validation for targets, ports, and protocols
 - Protection against invalid port ranges
 - Internal network protection inherited from validation service
@@ -300,23 +312,23 @@ graph TD
         B --> C[Schedule Validation]
         C --> D[Queue Job Creation]
     end
-    
+
     subgraph "Queue Layer"
         D --> E[monitor-scheduler Queue]
         E --> F[Scheduled Execution]
         F --> G[monitor-execution Queue]
     end
-    
+
     subgraph "Worker Layer"
         H[Monitor Scheduler Processor]
         I[Monitor Processor]
         J[Enhanced Monitor Service]
-        
+
         H --> E
         I --> G
         I --> J
     end
-    
+
     subgraph "Execution Layer"
         J --> K[Input Validation]
         K --> L[Resource Management]
@@ -324,7 +336,7 @@ graph TD
         M --> N[Result Processing]
         N --> O[Alert Processing]
     end
-    
+
     style A fill:#e1f0ff
     style J fill:#f1f1f1
     style O fill:#e8f5e8
@@ -333,12 +345,14 @@ graph TD
 ### Active Monitor Scheduling & Execution
 
 #### 1. **`monitor-scheduler`**
+
 - **Purpose**: Manages the schedules for all active monitors
 - **Job Type**: Repeating jobs with cron-like scheduling
 - **Reliability**: Job persistence, failure recovery, and dead letter handling
 - **How it Works**: Creates repeating jobs for each monitor based on frequency configuration. When triggered, adds execution jobs to the monitor-execution queue.
 
 #### 2. **`monitor-execution`**
+
 - **Purpose**: Executes actual monitor checks with enterprise-grade reliability
 - **Job Type**: One-time jobs with retry logic and resource management
 - **Security**: All jobs validated, credentials encrypted, and resources managed
@@ -347,18 +361,21 @@ graph TD
 ### Queue Benefits
 
 #### **Reliability**
+
 - Job persistence ensures no monitor checks are lost
 - Retry logic with exponential backoff handles transient failures
 - Dead letter queues capture failed jobs for analysis
 - Resource limits prevent system overload
 
 #### **Scalability**
+
 - Horizontal worker scaling for increased throughput
 - Connection pooling optimizes resource utilization
 - Memory management prevents resource exhaustion
 - Load balancing across multiple worker instances
 
 #### **Security**
+
 - All job data encrypted in transit and at rest
 - Credential masking in queue job data
 - Input validation before job processing
@@ -375,27 +392,27 @@ graph TB
         B --> C[SSRF Protection]
         C --> D[Command Injection Prevention]
     end
-    
+
     subgraph "Credential Layer"
         D --> E[Credential Security Service]
         E --> F[AES-256-GCM Encryption]
         F --> G[Secure Masking]
         G --> H[Rotation Tracking]
     end
-    
+
     subgraph "Processing Layer"
         H --> I[Resource Manager]
         I --> J[Connection Pooling]
         J --> K[Memory Limits]
         K --> L[Execution Timeout]
     end
-    
+
     subgraph "Output Layer"
         L --> M[Response Sanitization]
         M --> N[Error Standardization]
         N --> O[Audit Logging]
     end
-    
+
     style A fill:#ffebee
     style E fill:#e8f5e8
     style I fill:#e1f0ff
@@ -405,12 +422,14 @@ graph TB
 ### Security Implementations
 
 #### **Input Validation & Sanitization**
+
 - **SSRF Protection**: Blocks access to internal/private networks with configurable overrides
 - **Command Injection Prevention**: Comprehensive filtering of dangerous characters and patterns
 - **URL Validation**: Protocol validation, hostname verification, and suspicious pattern detection
 - **Configuration Validation**: Validates all monitor parameters including timeouts, status codes, and headers
 
 #### **Credential Security**
+
 - **Encryption**: AES-256-GCM encryption for all stored credentials
 - **Masking**: Smart credential masking in logs (shows only first 2 + last 2 characters)
 - **Rotation**: Automatic credential rotation tracking and validation
@@ -418,6 +437,7 @@ graph TB
 - **Audit Logging**: Complete audit trail for all credential operations
 
 #### **Resource Management**
+
 - **Connection Pooling**: Efficient connection reuse with automatic cleanup
 - **Memory Limits**: Per-operation and system-wide memory limits
 - **Execution Timeout**: Configurable timeouts with proper cleanup
@@ -434,13 +454,14 @@ graph LR
     E --> F[Actionable Guidance]
     F --> G[Retry Logic]
     G --> H[Audit Logging]
-    
+
     style A fill:#ffebee
     style E fill:#e8f5e8
     style H fill:#f3e5f5
 ```
 
 #### **Standardized Error Handling**
+
 - **Unified Format**: Consistent error structure across all monitor types
 - **Correlation IDs**: Request tracking for debugging and audit purposes
 - **Actionable Messages**: User-friendly error messages with specific troubleshooting steps
@@ -448,6 +469,7 @@ graph LR
 - **Severity Classification**: Critical, High, Medium, and Low severity levels
 
 #### **Resource Management Benefits**
+
 - **60-80% reduction** in connection overhead through pooling
 - **50% improvement** in resource utilization efficiency
 - **99% reduction** in memory leaks through automatic cleanup
@@ -465,12 +487,12 @@ sequenceDiagram
     participant MQ as Monitor Queue
     participant W as Worker Service
     participant ES as External Service
-    
+
     U->>A: Create/Update Monitor
     A->>A: Validate Configuration
     A->>MS: Schedule Monitor Job
     MS->>MQ: Add Recurring Job
-    
+
     loop Every Monitor Interval
         MQ->>W: Execute Monitor Check
         W->>W: Apply Security Validations
@@ -484,18 +506,21 @@ sequenceDiagram
 ### Scheduling Features
 
 #### **Intelligent Frequency Management**
+
 - Configurable check intervals from 1 minute to 24 hours
 - Automatic frequency optimization for SSL certificate monitoring
 - Load balancing across time intervals to prevent resource spikes
 - Dynamic scheduling adjustments based on monitor type and requirements
 
 #### **Execution Reliability**
+
 - Job persistence with Redis ensures no missed executions
 - Retry logic with exponential backoff for failed executions
 - Dead letter queues for permanent failure analysis
 - Resource-aware scheduling to prevent system overload
 
 #### **Performance Optimization**
+
 - Connection pooling reduces execution overhead
 - Batch processing for related monitor checks
 - Resource limits prevent memory exhaustion
@@ -518,7 +543,7 @@ graph TD
     I --> J[Store Results]
     J --> K[Release Resources]
     K --> L[Complete Execution]
-    
+
     style A fill:#e1f0ff
     style D fill:#ffebee
     style L fill:#e8f5e8
@@ -536,7 +561,7 @@ graph TD
     F --> G{All Validations Pass?}
     G -->|No| H[Standardized Error Response]
     G -->|Yes| I[Proceed with Execution]
-    
+
     style A fill:#f0f0f0
     style H fill:#ffebee
     style I fill:#e8f5e8
@@ -545,12 +570,14 @@ graph TD
 ### Database Interaction Pattern
 
 #### **Efficient Data Management**
+
 - **Connection Pooling**: Database connections managed through connection pools
 - **Transaction Management**: Proper transaction boundaries for data consistency
 - **Result Storage**: Optimized storage with indexing for query performance
 - **Audit Logging**: Complete audit trail for compliance requirements
 
 #### **Performance Optimizations**
+
 - **Batch Operations**: Multiple operations combined for efficiency
 - **Index Optimization**: Strategic indexing for common query patterns
 - **Connection Management**: Automatic connection cleanup and reuse
@@ -563,30 +590,30 @@ graph TD
 ```typescript
 interface MonitorConfig {
   // HTTP/Website specific
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
   headers?: Record<string, string>;
   body?: string;
   expectedStatusCodes?: string;
   keywordInBody?: string;
   keywordInBodyShouldBePresent?: boolean;
-  
+
   // Authentication (encrypted at rest)
   auth?: {
-    type: 'none' | 'basic' | 'bearer';
+    type: "none" | "basic" | "bearer";
     username?: string;
     password?: string;
     token?: string;
   };
-  
+
   // SSL monitoring
   enableSslCheck?: boolean;
   sslDaysUntilExpirationWarning?: number;
-  
+
   // Timing and validation
   timeoutSeconds?: number;
-  
+
   // Port monitoring
-  protocol?: 'tcp' | 'udp';
+  protocol?: "tcp" | "udp";
   port?: number;
 }
 ```
@@ -599,7 +626,7 @@ interface SecurityConfig {
   maxStringLength?: number;
   allowedProtocols?: string[];
   requiredTlsVersion?: string;
-  
+
   // Resource limits
   maxConcurrentConnections?: number;
   maxMemoryUsageMB?: number;
@@ -630,11 +657,13 @@ The monitoring system implements intelligent alert limiting to prevent notificat
 #### Alert Limiting Rules
 
 **Failure Alerts (Maximum 3 per failure sequence):**
+
 1. **Status Change Alert**: Sent immediately when monitor status changes from 'up' to 'down'
 2. **Continuation Alerts**: Up to 2 additional alerts sent during extended failures
 3. **Alert Suppression**: After 3 alerts, no additional failure notifications until recovery
 
 **Recovery Alerts (Unlimited):**
+
 - Always sent when monitor status changes from 'down' to 'up'
 - Resets the failure alert counter for future failure sequences
 
@@ -643,9 +672,9 @@ The monitoring system implements intelligent alert limiting to prevent notificat
 ```typescript
 // Additional fields in monitor_results table
 interface MonitorResultExtensions {
-  consecutiveFailureCount: number;     // Tracks consecutive failures
-  alertsSentForFailure: number;       // Tracks alerts sent for current failure sequence
-  isStatusChange: boolean;            // Indicates if this result represents a status change
+  consecutiveFailureCount: number; // Tracks consecutive failures
+  alertsSentForFailure: number; // Tracks alerts sent for current failure sequence
+  isStatusChange: boolean; // Indicates if this result represents a status change
 }
 ```
 
@@ -656,23 +685,23 @@ graph TD
     A[Monitor Check Complete] --> B{Is Monitor Down?}
     B -->|Yes| C{Status Changed?}
     B -->|No| D[Reset Alert Counters]
-    
+
     C -->|Yes| E{Alerts Sent < 3?}
     C -->|No| F{Meets Threshold & Alerts < 3?}
-    
+
     E -->|Yes| G[Send Status Change Alert]
     E -->|No| H[Suppress Alert - Limit Reached]
-    
+
     F -->|Yes| I[Send Continuation Alert]
     F -->|No| H
-    
+
     G --> J[Increment Alert Counter]
     I --> J
-    
+
     D --> K{Status Changed to Up?}
     K -->|Yes| L[Send Recovery Alert]
     K -->|No| M[No Alert Needed]
-    
+
     style G fill:#ff9999
     style I fill:#ff9999
     style L fill:#99ff99
@@ -690,9 +719,10 @@ The alert limiting system is implemented in the `MonitorService.saveMonitorResul
 5. **Counter Reset on Recovery**: Resets all counters when monitor returns to 'up' status
 
 **Example Alert Sequence:**
+
 ```
 Monitor Status: UP → DOWN (Alert #1: Status Change)
-Monitor Status: DOWN → DOWN (Alert #2: Continuation)  
+Monitor Status: DOWN → DOWN (Alert #2: Continuation)
 Monitor Status: DOWN → DOWN (Alert #3: Continuation)
 Monitor Status: DOWN → DOWN (Suppressed: Limit reached)
 Monitor Status: DOWN → UP (Recovery Alert: Always sent)
@@ -717,21 +747,21 @@ graph TB
         C[Connection Pool Statistics]
         D[Error Rate Analysis]
     end
-    
+
     subgraph "Operational Metrics"
         E[Job Queue Depth]
         F[Worker Health Status]
         G[Database Performance]
         H[Alert Delivery Stats]
     end
-    
+
     subgraph "Security Metrics"
         I[Failed Validation Attempts]
         J[Credential Usage Tracking]
         K[SSRF Attack Prevention]
         L[Resource Limit Violations]
     end
-    
+
     A --> M[Monitoring Dashboard]
     B --> M
     C --> M
@@ -749,18 +779,21 @@ graph TB
 ### Performance Optimizations
 
 #### **Connection Management**
+
 - Connection pooling reduces overhead by 60-80%
 - Automatic connection cleanup prevents resource leaks
 - Smart connection reuse optimizes throughput
 - Resource limits prevent system overload
 
 #### **Memory Management**
+
 - Per-operation memory limits prevent OOM conditions
 - Automatic garbage collection optimization
 - Response size limits prevent memory exhaustion
 - Resource monitoring enables proactive scaling
 
 #### **Execution Efficiency**
+
 - Batch processing for related operations
 - Intelligent retry logic reduces unnecessary requests
 - Connection reuse improves performance
@@ -769,18 +802,21 @@ graph TB
 ### Reliability Features
 
 #### **Fault Tolerance**
+
 - Multiple retry attempts with exponential backoff
 - Circuit breaker pattern for failing services
 - Graceful degradation under high load
 - Automatic recovery mechanisms
 
 #### **Data Integrity**
+
 - Transaction management for data consistency
 - Audit logging for compliance requirements
 - Backup and recovery procedures
 - Data validation at all layers
 
 #### **Monitoring & Alerting**
+
 - Real-time health monitoring
 - Performance metric collection
 - Automated alert escalation

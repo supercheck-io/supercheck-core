@@ -44,10 +44,6 @@ interface DiscordConfig {
   discordWebhookUrl?: string;
 }
 
-interface TeamsConfig {
-  teamsWebhookUrl?: string;
-}
-
 interface WebhookConfig {
   url?: string;
   method?: string;
@@ -165,13 +161,6 @@ export class NotificationService {
           success = await this.sendDiscordNotification(
             provider.config,
             formattedNotification,
-          );
-          break;
-        case 'teams':
-          success = await this.sendTeamsNotification(
-            provider.config,
-            formattedNotification,
-            enhancedPayload,
           );
           break;
         default: {
@@ -387,10 +376,6 @@ export class NotificationService {
         case 'discord': {
           const discordConfig = provider.config as DiscordConfig;
           return !!discordConfig.discordWebhookUrl;
-        }
-        case 'teams': {
-          const teamsConfig = provider.config as TeamsConfig;
-          return !!teamsConfig.teamsWebhookUrl;
         }
         default:
           return false;
@@ -900,88 +885,6 @@ export class NotificationService {
       } else {
         this.logger.error(
           `Failed to send Discord notification: ${getErrorMessage(error)}`,
-        );
-      }
-      return false;
-    }
-  }
-
-  private async sendTeamsNotification(
-    config: any,
-    formatted: FormattedNotification,
-    payload: NotificationPayload,
-  ): Promise<boolean> {
-    try {
-      const webhookUrl = config.teamsWebhookUrl;
-      if (!webhookUrl) {
-        throw new Error('Microsoft Teams webhook URL is required');
-      }
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-      // Create Teams MessageCard format
-      const teamsPayload = {
-        '@type': 'MessageCard',
-        '@context': 'http://schema.org/extensions',
-        themeColor: formatted.color.replace('#', ''),
-        title: formatted.title,
-        summary: formatted.message,
-        sections: [
-          {
-            activityTitle: formatted.title,
-            activitySubtitle: formatted.message,
-            facts: formatted.fields.map((field) => ({
-              name: field.title,
-              value: field.value,
-            })),
-          },
-        ],
-        potentialAction: payload.metadata?.dashboardUrl
-          ? [
-              {
-                '@type': 'OpenUri',
-                name: 'View Dashboard',
-                targets: [
-                  {
-                    os: 'default',
-                    uri: payload.metadata.dashboardUrl,
-                  },
-                ],
-              },
-            ]
-          : undefined,
-      };
-
-      const response = await fetch(webhookUrl as string, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(teamsPayload),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const responseText = await response
-          .text()
-          .catch(() => 'Unable to read response');
-        throw new Error(
-          `Microsoft Teams API returned ${response.status}: ${response.statusText}. Response: ${responseText}`,
-        );
-      }
-
-      return true;
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        this.logger.error(
-          `Microsoft Teams notification timed out after 10 seconds`,
-        );
-      } else {
-        this.logger.error(
-          `Failed to send Microsoft Teams notification: ${getErrorMessage(error)}`,
         );
       }
       return false;

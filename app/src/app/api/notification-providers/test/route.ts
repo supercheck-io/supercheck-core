@@ -18,8 +18,6 @@ export async function POST(req: NextRequest) {
         return await testTelegramConnection(config);
       case 'discord':
         return await testDiscordConnection(config);
-      case 'teams':
-        return await testTeamsConnection(config);
       default:
         return NextResponse.json(
           { success: false, error: "Unsupported provider type" },
@@ -362,51 +360,4 @@ async function testDiscordConnection(config: NotificationProviderConfig) {
   }
 }
 
-async function testTeamsConnection(config: NotificationProviderConfig) {
-  try {
-    if (!config.teamsWebhookUrl) {
-      throw new Error("Microsoft Teams webhook URL is required");
-    }
-
-    const response = await fetch(config.teamsWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        "@type": "MessageCard",
-        "@context": "http://schema.org/extensions",
-        "themeColor": "0078D4",
-        "title": "Supercheck Connection Test",
-        "text": "Test message from Supercheck - Connection test successful!",
-        "sections": [
-          {
-            "activityTitle": "Test Notification",
-            "activitySubtitle": "This is a test notification to verify your Teams integration is working correctly.",
-            "facts": [
-              {
-                "name": "Status",
-                "value": "Connection Successful"
-              },
-              {
-                "name": "Source",
-                "value": "Supercheck Notification System"
-              }
-            ]
-          }
-        ]
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return NextResponse.json({ success: true, message: "Microsoft Teams connection successful" });
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, error: `Microsoft Teams connection failed: ${error instanceof Error ? error.message : String(error)}` },
-      { status: 400 }
-    );
-  }
-} 
+ 

@@ -60,31 +60,59 @@ graph TB
 | `/api/auth/setup-defaults/route.ts` | New user setup | ✅ Essential | Organization creation |
 | `/api/admin/check/route.ts` | Admin access check | ✅ Essential | Permission verification |
 | `/api/admin/organizations/route.ts` | Organization oversight | ✅ Essential | Super admin management |
+| `/api/admin/organizations/[id]/route.ts` | Single org management | ✅ Essential | Organization details |
 | `/api/admin/users/route.ts` | User management | ✅ Essential | Ban/unban users |
+| `/api/admin/users/[id]/route.ts` | Single user management | ✅ Essential | User details/actions |
+| `/api/admin/users/[id]/organizations/route.ts` | User org management | ✅ Essential | User organization access |
 | `/api/admin/stats/route.ts` | System statistics | ✅ Essential | Platform metrics |
+| `/api/admin/playground-cleanup/route.ts` | Playground maintenance | ✅ Essential | Clean up test data |
+| `/api/admin/scheduler/init/route.ts` | Scheduler initialization | ✅ Essential | System scheduler setup |
+| `/api/admin/scheduler/status/route.ts` | Scheduler status | ✅ Essential | Monitor scheduler health |
+| `/api/admin/stop-impersonation/route.ts` | Stop impersonation | ✅ Essential | Exit impersonation mode |
 
 #### **2. Core Resource Management**  
 | Route | Purpose | Status | Notes |
 |-------|---------|--------|-------|
 | `/api/tests/route.ts` | Test CRUD operations | ✅ Essential | Test management |
+| `/api/tests/[id]/route.ts` | Single test operations | ✅ Essential | Individual test management |
+| `/api/tests/[id]/tags/route.ts` | Test tagging | ✅ Essential | Test organization |
 | `/api/test/route.ts` | Single test execution | ✅ Essential | Queue individual tests |
 | `/api/jobs/route.ts` | Job management | ✅ Essential | Multi-test job handling |
+| `/api/jobs/[id]/route.ts` | Single job operations | ✅ Essential | Individual job management |
+| `/api/jobs/[id]/api-keys/route.ts` | Job API key management | ✅ Essential | Job-specific API keys |
+| `/api/jobs/[id]/api-keys/[keyId]/route.ts` | Individual API key ops | ✅ Essential | API key CRUD |
+| `/api/jobs/[id]/trigger/route.ts` | Job trigger endpoint | ✅ Essential | API-triggered job execution |
 | `/api/jobs/run/route.ts` | Job execution | ✅ Essential | Execute scheduled jobs |
+| `/api/jobs/status/running/route.ts` | Running jobs status | ✅ Essential | Active job monitoring |
 | `/api/monitors/route.ts` | Monitor CRUD operations | ✅ Essential | Health monitoring |
+| `/api/monitors/[id]/route.ts` | Single monitor operations | ✅ Essential | Individual monitor management |
+| `/api/monitors/[id]/notifications/route.ts` | Monitor notifications | ✅ Essential | Monitor alert settings |
+| `/api/monitors/[id]/permissions/route.ts` | Monitor permissions | ✅ Essential | Access control |
+| `/api/monitors/[id]/status/route.ts` | Monitor status | ✅ Essential | Current monitor state |
 | `/api/runs/route.ts` | Run management | ✅ Essential | Test execution history |
+| `/api/runs/[runId]/route.ts` | Single run operations | ✅ Essential | Individual run details |
+| `/api/runs/[runId]/permissions/route.ts` | Run permissions | ✅ Essential | Run access control |
+| `/api/runs/[runId]/status/route.ts` | Run status | ✅ Essential | Real-time run status |
 | `/api/dashboard/route.ts` | Dashboard statistics | ✅ Essential | UI data aggregation |
 
 #### **3. Organization & Project Management**
 | Route | Purpose | Status | Notes |
 |-------|---------|--------|-------|
 | `/api/organizations/route.ts` | Organization CRUD | ✅ Essential | Multi-tenant support |
+| `/api/organizations/[id]/route.ts` | Single organization ops | ✅ Essential | Individual org management |
 | `/api/organizations/current/route.ts` | Active organization | ✅ Essential | Context management |
 | `/api/organizations/members/route.ts` | Member management | ✅ Essential | Team collaboration |
-| `/api/organizations/invitations/route.ts` | Member invitations | ✅ Essential | User onboarding |
+| `/api/organizations/members/[memberId]/route.ts` | Single member ops | ✅ Essential | Individual member management |
+| `/api/organizations/members/invite/route.ts` | Member invitation | ✅ Essential | Send invitations |
+| `/api/organizations/invitations/route.ts` | Invitation management | ✅ Essential | User onboarding |
+| `/api/organizations/stats/route.ts` | Organization statistics | ✅ Essential | Org-level metrics |
 | `/api/projects/route.ts` | Project management | ✅ Essential | Resource grouping |
+| `/api/projects/[id]/route.ts` | Single project operations | ✅ Essential | Individual project management |
 | `/api/projects/switch/route.ts` | Project context | ✅ Essential | Multi-project support |
 | `/api/projects/[id]/variables/route.ts` | Project variables | ✅ Essential | Variable management |
+| `/api/projects/[id]/variables/[variableId]/route.ts` | Single variable ops | ✅ Essential | Individual variable management |
 | `/api/projects/[id]/members/route.ts` | Project members | ✅ Essential | Project-level access |
+| `/api/projects/members/[userId]/route.ts` | Single project member | ✅ Essential | Individual member management |
 
 #### **4. Real-time & Integration**
 | Route | Purpose | Status | Notes |
@@ -93,15 +121,18 @@ graph TB
 | `/api/job-status/events/[jobId]/route.ts` | Job progress | ✅ Essential | Real-time job status |
 | `/api/test-status/events/[testId]/route.ts` | Test progress | ✅ Essential | Live test updates |
 | `/api/test-results/[...path]/route.ts` | Report serving | ✅ Essential | S3/MinIO integration |
-| `/api/heartbeat/[token]/route.ts` | External monitoring | ✅ Essential | Health check endpoint |
 | `/api/validate-script/route.ts` | Script validation | ✅ Essential | Pre-execution checks |
 
 #### **5. Notifications & Alerts**
 | Route | Purpose | Status | Notes |
 |-------|---------|--------|-------|
 | `/api/notification-providers/route.ts` | Provider management | ✅ Essential | Multi-channel alerts |
+| `/api/notification-providers/[id]/route.ts` | Single provider ops | ✅ Essential | Individual provider management |
+| `/api/notification-providers/[id]/usage/route.ts` | Provider usage stats | ✅ Essential | Usage analytics |
+| `/api/notification-providers/test/route.ts` | Provider testing | ✅ Essential | Test notification delivery |
 | `/api/alerts/history/route.ts` | Alert tracking | ✅ Essential | Notification history |
-| `/api/tags/route.ts` | Resource tagging | ✅ Essential | Organization system |
+| `/api/tags/route.ts` | Resource tagging | ✅ Essential | Tag management |
+| `/api/tags/[id]/route.ts` | Single tag operations | ✅ Essential | Individual tag management |
 
 #### **6. Health & Utilities**
 | Route | Purpose | Status | Notes |
@@ -111,10 +142,19 @@ graph TB
 | `/api/invite/[token]/route.ts` | Invitation handling | ✅ Essential | User registration flow |
 
 ### **Complete Route Coverage Summary**
-- **Total Routes Identified**: 50+ individual endpoints
+- **Total Routes Identified**: 60+ individual endpoints (Updated from previous count)
 - **Route Categories**: 6 major functional areas
 - **Implementation Status**: All routes are essential and actively used
-- **Health Check**: Already exists (contrary to recommendations section)
+- **Health Check**: Already exists at `/api/health/route.ts`
+- **Latest Update**: Documentation updated to reflect current codebase (January 2025)
+
+### **Updated Route Count by Category**
+- **Authentication & Admin Management**: 15 routes (increased from 8)
+- **Core Resource Management**: 21 routes (significantly expanded)
+- **Organization & Project Management**: 15 routes (increased from 8)
+- **Real-time & Integration**: 5 routes (heartbeat route removed as it doesn't exist)
+- **Notifications & Alerts**: 7 routes (increased from 3)
+- **Health & Utilities**: 3 routes (unchanged)
 
 ### **Route-Specific Improvements**
 
@@ -148,6 +188,26 @@ graph TB
 - Simplify stream handling with a unified approach
 - Add proper error handling for S3/MinIO failures
 - Consider implementing a CDN for static assets
+
+## ⚠️ **RECENT DOCUMENTATION UPDATES (January 2025)**
+
+### **Major Corrections Applied:**
+1. **Removed Non-existent Routes**: 
+   - `/api/heartbeat/[token]/route.ts` - This route doesn't exist in the codebase
+   
+2. **Added Missing Routes**: 
+   - 15+ additional admin routes for comprehensive system management
+   - Enhanced job management with API key endpoints
+   - Extended notification provider management with testing capabilities
+   - Granular permissions and status endpoints for all resources
+   
+3. **Updated Route Counts**: 
+   - Total routes increased from ~50 to 60+
+   - All categories have been expanded with actual implemented endpoints
+   
+4. **Corrected Implementation Status**: 
+   - All documented routes now exist in the actual codebase
+   - Removed speculation about missing features
 
 ## 🚀 **PERFORMANCE OPTIMIZATIONS**
 

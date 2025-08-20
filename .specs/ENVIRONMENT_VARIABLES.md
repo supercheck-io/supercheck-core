@@ -1,11 +1,13 @@
 # Environment Variables Reference
 
 ## Overview
+
 This document provides a comprehensive reference for all environment variables used in the Supercheck application.
 
 ## Docker Compose Variables
 
 ### Core Database & Infrastructure
+
 ```env
 # Database Configuration
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/supercheck
@@ -34,18 +36,20 @@ S3_MAX_RETRIES=3
 ```
 
 ### Application Configuration
+
 ```env
 # App Settings
 NEXT_PUBLIC_APP_URL=https://supercheck.meditationblue.com
 NODE_ENV=production
 RUNNING_CAPACITY=5          # Max concurrent test executions
 QUEUED_CAPACITY=50          # Max queued jobs
-TEST_EXECUTION_TIMEOUT_MS=120000    # 2 minutes
+TEST_EXECUTION_TIMEOUT_MS=900000    # 15 minutes
 JOB_EXECUTION_TIMEOUT_MS=900000     # 15 minutes
 TRACE_RECOVERY_INTERVAL_MS=300000   # 5 minutes
 ```
 
 ### Playwright Configuration ⭐ (New Optimized Settings)
+
 ```env
 # Core Playwright Settings
 PLAYWRIGHT_HEADLESS=true
@@ -61,6 +65,7 @@ ENABLE_JSON_REPORTER=false
 ```
 
 ### Playground Cleanup ⭐ (Added)
+
 ```env
 # Playground Cleanup Configuration
 PLAYGROUND_CLEANUP_ENABLED=true
@@ -69,8 +74,10 @@ PLAYGROUND_CLEANUP_MAX_AGE_HOURS=24
 ```
 
 ### Resource Management (Monitor-specific - Optional)
+
 These variables are only used for HTTP monitoring tasks, not Playwright test execution.
 They have sensible defaults and can be omitted:
+
 ```env
 # Monitor Resource Limits (Optional - defaults provided)
 # MAX_CONCURRENT_CONNECTIONS=100
@@ -83,6 +90,7 @@ They have sensible defaults and can be omitted:
 ```
 
 ### Security Configuration ⭐ (Added)
+
 ```env
 # Security Configuration
 CREDENTIAL_ENCRYPTION_KEY=your-credential-encryption-key-change-this-in-production
@@ -90,6 +98,7 @@ VARIABLES_ENCRYPTION_KEY=your-64-character-encryption-key-for-variable-secrets-c
 ```
 
 ### Authentication & Authorization
+
 ```env
 # Better Auth Configuration
 BETTER_AUTH_SECRET=your-super-secret-key-change-this-in-production
@@ -109,6 +118,7 @@ STRICT_ORGANIZATION_ISOLATION=true
 ```
 
 ### Notification System
+
 ```env
 # Notification Limits
 MAX_JOB_NOTIFICATION_CHANNELS=10
@@ -134,6 +144,7 @@ RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
 ### Monitoring
+
 ```env
 # Monitor Configuration
 RECENT_MONITOR_RESULTS_LIMIT=1000
@@ -142,6 +153,7 @@ RECENT_MONITOR_RESULTS_LIMIT=1000
 ## Environment-Specific Overrides
 
 ### Development (.env files)
+
 ```env
 # Development overrides
 NODE_ENV=development
@@ -151,6 +163,7 @@ ENABLE_FIREFOX=true            # Enable additional browsers for testing
 ```
 
 ### Production (.env.production)
+
 ```env
 # Production settings
 NODE_ENV=production
@@ -163,7 +176,9 @@ ENABLE_MOBILE=false
 ## Variable Categories
 
 ### 🔴 Critical Security Variables
+
 **Must be changed in production:**
+
 - `REDIS_PASSWORD`
 - `BETTER_AUTH_SECRET`
 - `VARIABLES_ENCRYPTION_KEY`
@@ -172,7 +187,9 @@ ENABLE_MOBILE=false
 - `RESEND_API_KEY`
 
 ### 🟡 Configuration Variables
+
 **Should be customized per environment:**
+
 - `NEXT_PUBLIC_APP_URL`
 - `SUPER_ADMIN_USER_IDS`
 - `SUPER_ADMIN_EMAILS`
@@ -180,21 +197,27 @@ ENABLE_MOBILE=false
 - `QUEUED_CAPACITY`
 
 ### 🟢 Optional Optimization Variables
+
 **Can be tuned for performance:**
+
 - `PLAYWRIGHT_RETRIES`
 - Monitor resource limits (only for HTTP monitoring, not test execution)
 
 ## Variable Validation
 
 ### Required Variables
+
 These variables must be set for the application to function:
+
 - `DATABASE_URL`
 - `REDIS_URL` or (`REDIS_HOST` + `REDIS_PORT`)
 - `BETTER_AUTH_SECRET`
 - `NEXT_PUBLIC_APP_URL`
 
 ### Optional with Defaults
+
 These variables have sensible defaults but can be customized:
+
 - `RUNNING_CAPACITY` (default: 5)
 - `QUEUED_CAPACITY` (default: 50)
 - `PLAYWRIGHT_RETRIES` (default: 2)
@@ -202,7 +225,9 @@ These variables have sensible defaults but can be customized:
 ## Common Issues & Solutions
 
 ### 1. Memory Issues
+
 If experiencing high memory usage:
+
 ```env
 ENABLE_FIREFOX=false          # Disable additional browsers
 ENABLE_WEBKIT=false
@@ -210,14 +235,18 @@ ENABLE_MOBILE=false
 ```
 
 ### 2. Performance Issues
+
 For better performance:
+
 ```env
 RUNNING_CAPACITY=3            # Reduce concurrent executions
 PLAYWRIGHT_HEADLESS=true      # Ensure headless mode
 ```
 
 ### 3. Storage Issues
+
 For storage optimization:
+
 ```env
 PLAYGROUND_CLEANUP_ENABLED=true
 PLAYGROUND_CLEANUP_CRON="0 */6 * * *"  # Clean every 6 hours
@@ -227,12 +256,16 @@ PLAYGROUND_CLEANUP_MAX_AGE_HOURS=12     # Shorter retention
 ## Migration from Previous Configuration
 
 ### Deprecated Variables
+
 The following variables are no longer used:
+
 - `PLAYWRIGHT_WORKERS` → Now auto-calculated based on environment
 - `NOTIFICATION_JWT_SECRET` → No longer needed
 
 ### New Required Variables
+
 Add these to your environment:
+
 ```env
 PLAYGROUND_CLEANUP_ENABLED=true
 CREDENTIAL_ENCRYPTION_KEY=your-key-here
