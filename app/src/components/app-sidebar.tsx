@@ -47,7 +47,7 @@ import {
 const data = {
   user: {
     name: "test user",
-    email: "m@example.com",
+    email: "test@example.com",
     avatar: "https://ui-avatars.com/api/?name=Test+User&background=random",
   },
   projects: [
