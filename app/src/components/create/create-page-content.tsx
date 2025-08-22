@@ -101,7 +101,7 @@ export function CreatePageContent() {
         ))}
       </div>
 
-      <div className="mt-10 mb-2 pl-1">
+      <div className="mt-8 mb-2 pl-1">
         <h2 className="text-lg font-semibold">Create New Job</h2>
         <p className="text-muted-foreground text-sm mt-1"> Configure a new automated or manual job</p>
       </div>
@@ -117,7 +117,7 @@ export function CreatePageContent() {
         ))}
       </div>
 
-      <div className="mt-10 mb-2 pl-1">
+      <div className="mt-8 mb-2 pl-1">
         <h2 className="text-lg font-semibold">Create New Monitor</h2>
         <p className="text-muted-foreground text-sm mt-1">Select the type of uptime monitor you want to create</p>
       </div>
@@ -136,7 +136,7 @@ export function CreatePageContent() {
         })}
       </div>
 
-      <div className="mt-10 mb-2 pl-1">
+      <div className="mt-8 mb-2 pl-1">
         <h2 className="text-lg font-semibold">Create Variables & Secrets</h2>
         <p className="text-muted-foreground text-sm mt-1">Configure environment variables and secure secrets</p>
       </div>
@@ -152,12 +152,12 @@ export function CreatePageContent() {
         ))}
       </div>
 
-      <div className="mt-10 mb-2 pl-1">
+      <div className="mt-8 mb-2 pl-1">
         <h2 className="text-lg font-semibold">Create Notification Provider</h2>
         <p className="text-muted-foreground text-sm mt-1">Configure alert notifications and view delivery history</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-2">
         {notificationTypes.map((notificationType) => (
           <CreateCard
             key={notificationType.title}

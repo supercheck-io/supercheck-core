@@ -32,6 +32,8 @@ export const {
     signUp, 
     useSession, 
     signOut,
+    forgetPassword,
+    resetPassword,
     // Organization methods
     organization: {
         create: createOrganization,

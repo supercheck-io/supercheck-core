@@ -7,10 +7,21 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Beta version tag - beta-1.0.0"
+        required: false
+        type: string
+      push_latest:
+        description: "Also tag as latest"
+        required: false
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: krish-kant/supercheck
+  PRIMARY_IMAGE_NAME: krish-kant/supercheck
+  SECONDARY_IMAGE_NAME: supercheck-io/supercheck
 
 jobs:
   build-and-push:
@@ -41,12 +52,16 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Event: ${{ github.event_name }}"
           echo "Ref: ${{ github.ref }}"
+          echo "Custom Version: ${{ github.event.inputs.version }}"
+          echo "Push Latest: ${{ github.event.inputs.push_latest }}"
 
       - name: Extract app metadata
         id: app-meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/app
+          images: |
+            ${{ env.REGISTRY }}/${{ env.PRIMARY_IMAGE_NAME }}/app
+            ${{ env.REGISTRY }}/${{ env.SECONDARY_IMAGE_NAME }}/app
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -54,12 +69,18 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=beta-1.0.0
+            type=raw,value=latest
+            type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != '' }}
+            type=raw,value=latest,enable=${{ github.event.inputs.push_latest == 'true' }}
 
       - name: Extract worker metadata
         id: worker-meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker
+          images: |
+            ${{ env.REGISTRY }}/${{ env.PRIMARY_IMAGE_NAME }}/worker
+            ${{ env.REGISTRY }}/${{ env.SECONDARY_IMAGE_NAME }}/worker
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -67,6 +88,10 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=1.0
+            type=raw,value=latest
+            type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != '' }}
+            type=raw,value=latest,enable=${{ github.event.inputs.push_latest == 'true' }}
 
       - name: Build and push app image
         uses: docker/build-push-action@v5
@@ -94,7 +119,11 @@ jobs:
 
       - name: Output image names
         run: |
-          echo "App image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/app"
-          echo "Worker image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker"
-          echo "Built tags:"
-          echo "${{ steps.meta.outputs.tags }}"
+          echo "Primary App image: ${{ env.REGISTRY }}/${{ env.PRIMARY_IMAGE_NAME }}/app"
+          echo "Primary Worker image: ${{ env.REGISTRY }}/${{ env.PRIMARY_IMAGE_NAME }}/worker"
+          echo "Secondary App image: ${{ env.REGISTRY }}/${{ env.SECONDARY_IMAGE_NAME }}/app"
+          echo "Secondary Worker image: ${{ env.REGISTRY }}/${{ env.SECONDARY_IMAGE_NAME }}/worker"
+          echo "App tags:"
+          echo "${{ steps.app-meta.outputs.tags }}"
+          echo "Worker tags:"
+          echo "${{ steps.worker-meta.outputs.tags }}"

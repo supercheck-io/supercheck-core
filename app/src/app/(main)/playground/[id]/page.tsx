@@ -27,7 +27,7 @@ export default function PlaygroundPage() {
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Tests", href: "/tests" },
-    { label: testData?.title && testData.title.length > 20 ? `${testData?.title?.substring(0, 20)}...` : testData?.title || id, href: `/playground/${id}` },
+    { label: testData?.title && testData.title.length > 20 ? `${testData?.title?.substring(0, 20)}...` : testData?.title || 'Test name', href: `/playground/${id}` },
     { label: "Playground", isCurrentPage: true },
   ];
 

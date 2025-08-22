@@ -86,7 +86,15 @@ export function LoginForm({
                 />
               </div>
               <div className="grid gap-3">
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Link 
+                    href="/forgot-password" 
+                    className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <div className="relative">
                   <Input 
                     id="password" 
