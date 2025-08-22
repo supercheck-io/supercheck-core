@@ -31,7 +31,6 @@
     "acorn-walk": "^8.3.4",
     "axios": "^1.10.0",
     "bullmq": "^5.52.2",
-    "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",
     "drizzle-orm": "^0.43.1",
     "drizzle-zod": "^0.7.1",

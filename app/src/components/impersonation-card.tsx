@@ -58,7 +58,7 @@ export function ImpersonationCard() {
         router.push('/');
         setTimeout(() => {
           window.location.reload();
-        }, 200);
+        }, 500);
       } else {
         toast.error(data.error || 'Failed to stop impersonation');
       }

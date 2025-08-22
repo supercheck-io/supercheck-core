@@ -497,7 +497,7 @@ export class ExecutionService implements OnModuleDestroy {
       this.logger.log(
         `[${testId}] Executing test script with ${this.testExecutionTimeoutMs}ms timeout...`,
       );
-      // Pass the directory path to the runner (the runner will find the .spec.js file inside)
+      // Pass the directory path to the runner (the runner will find the .spec.mjs file inside)
       const execResult = await this._executePlaywrightNativeRunner(
         testDirPath,
         false,
@@ -942,8 +942,8 @@ export class ExecutionService implements OnModuleDestroy {
           // Ensure the script has proper trace configuration
           const script = ensureProperTraceConfiguration(decodedScript, testId);
 
-          // Create the test file with unique ID in filename
-          const testFilePath = path.join(runDir, `${testId}.spec.js`);
+          // Create the test file with unique ID in filename (using .mjs for ES module support)
+          const testFilePath = path.join(runDir, `${testId}.spec.mjs`);
 
           // Write the individual test script content
           // No need to remove require/import as each is a standalone file
@@ -1265,12 +1265,12 @@ export class ExecutionService implements OnModuleDestroy {
           `[Job Execution ${executionId}] Running tests in directory: ${targetPath}`,
         );
       } else {
-        // For single tests, find the specific test.spec.js file
+        // For single tests, find the specific test spec file (.mjs for ES module support)
         const files = await fs.readdir(runDir);
-        const singleTestFile = files.find((file) => file.endsWith('.spec.js'));
+        const singleTestFile = files.find((file) => file.endsWith('.spec.mjs'));
         if (!singleTestFile) {
           throw new Error(
-            `No .spec.js file found in ${runDir} for single test execution. Files present: ${files.join(', ')}`,
+            `No .spec.mjs file found in ${runDir} for single test execution. Files present: ${files.join(', ')}`,
           );
         }
         targetPath = path.join(runDir, singleTestFile);
@@ -1439,7 +1439,7 @@ export class ExecutionService implements OnModuleDestroy {
         // Minimal cleanup on Windows - only target obviously stuck processes
         const killPatterns = [
           'playwright.*test',
-          'node.*spec.js',
+          'node.*spec.mjs',
           'for.*;;.*100', // Infinite loop patterns
         ];
 
@@ -1460,7 +1460,7 @@ export class ExecutionService implements OnModuleDestroy {
       } else {
         // Minimal Unix cleanup - only target specific test processes
         const killCommands = [
-          'pkill -9 -f "node.*spec.js"',
+          'pkill -9 -f "node.*spec.mjs"',
           'pkill -9 -f "for.*;;.*100"', // Infinite loops
         ];
 
@@ -1815,49 +1815,16 @@ export class ExecutionService implements OnModuleDestroy {
       // Ensure proper trace configuration to avoid path issues
       const enhancedScript = ensureProperTraceConfiguration(testScript, testId);
 
-      // Create the test file with the test ID in the filename for consistent identification
-      const testFilePath = path.join(runDir, `${testId}.spec.js`);
+      // Use .mjs extension for ES module support in test files only
+      const testFilePath = path.join(runDir, `${testId}.spec.mjs`);
 
       // Ensure the directory exists before writing to it
       await this.createRunDirectoryWithPermissions(runDir, testId);
 
-      // Prepare the script content for the test file
-      let scriptForRunner = enhancedScript;
-      // Ensure require('@playwright/test') is present if imports were used or if test/expect are used directly
-      const usesPlaywrightTest = enhancedScript.includes('@playwright/test');
-      const requiresPlaywrightTest =
-        enhancedScript.includes('require("@playwright/test")') ||
-        enhancedScript.includes("require('@playwright/test')");
+      // Use the script exactly as provided - no conversion at all
+      const scriptForRunner = enhancedScript;
 
-      if (usesPlaywrightTest && !requiresPlaywrightTest) {
-        // Add require if import was used but require wasn't
-        scriptForRunner = `const { test, expect } = require('@playwright/test');\n${enhancedScript}`;
-        // Remove the ES6 import statement as we added require
-        scriptForRunner = scriptForRunner.replace(
-          /import\s+{[^}]*}\s+from\s+['"]@playwright\/test['"];?/g,
-          '',
-        );
-      } else if (
-        !usesPlaywrightTest &&
-        !requiresPlaywrightTest &&
-        (enhancedScript.includes('test(') || enhancedScript.includes('expect('))
-      ) {
-        // If no import/require detected, but test() or expect() seem to be used, add the require statement
-        scriptForRunner = `const { test, expect } = require('@playwright/test');\n${enhancedScript}`;
-      }
-
-      // Create a simple, descriptive test name for better reporting
-      if (!scriptForRunner.includes('test(')) {
-        // If we don't see any test definition, wrap the code in a test block
-        scriptForRunner = `
-const { test, expect } = require('@playwright/test');
-
-test('Automated Test ${testId.substring(0, 8)}', async ({ page }) => {
-    ${scriptForRunner}
-});`;
-      }
-
-      // Write the script to the test file
+      // Write the script to the test file exactly as provided
       await fs.writeFile(testFilePath, scriptForRunner);
       this.logger.log(`[${testId}] Created test file at: ${testFilePath}`);
 

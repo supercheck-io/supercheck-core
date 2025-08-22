@@ -77,7 +77,7 @@ x-common-env: &common-env # Database Configuration
 
   # Email Configuration for Notifications
   # Control which email services are enabled
-  SMTP_ENABLED: ${SMTP_ENABLED:-true}
+  SMTP_ENABLED: ${SMTP_ENABLED:-false}
   RESEND_ENABLED: ${RESEND_ENABLED:-true}
 
   # SMTP Configuration (Primary email delivery method)
@@ -89,8 +89,8 @@ x-common-env: &common-env # Database Configuration
   SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
 
   # Resend Configuration (Fallback email delivery method)
-  RESEND_API_KEY: ${RESEND_API_KEY:-re_esRt3Mhv_NDTmUXhXpVgT2VrNR4pqwFUP}
-  RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-noreply@yourdomain.com}
+  RESEND_API_KEY: ${RESEND_API_KEY:-re_884Swhji_ATQ26fsZGbveY9xmzPCay7YM}
+  RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-hello@supercheck.io}
 
   # Variable Encryption Configuration
   VARIABLES_ENCRYPTION_KEY: ${VARIABLES_ENCRYPTION_KEY:-your-64-character-encryption-key-for-variable-secrets-change-this-in-prod}
@@ -134,7 +134,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/krish-kant/supercheck/app:playground-variables-f34e520
+    image: ghcr.io/krish-kant/supercheck/app:main-3be3a88
     expose:
       - "3000"
     environment:
@@ -143,7 +143,7 @@ services:
       # App-specific configuration
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-key-change-this-in-production}
       BETTER_AUTH_URL: https://${DOMAIN:-demo.supercheck.io}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notification@demo.supercheck.io}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-hello@supercheck.io}
       # Migration Configuration
       # Migrations are always run on app startup
     # Use default CMD from Dockerfile which runs migrations then starts server
@@ -196,7 +196,7 @@ services:
       # Worker-specific configuration
       NEXT_PUBLIC_APP_URL: https://${DOMAIN:-demo.supercheck.io}
       BETTER_AUTH_URL: https://${DOMAIN:-demo.supercheck.io}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-hello@supercheck.io}
       # Simple configuration - concurrency and memory limits are hard-coded
       # Node.js memory optimization - Conservative heap size with CPU throttling
       NODE_OPTIONS: "--max-old-space-size=2048 --max-semi-space-size=64 --expose-gc --experimental-worker"

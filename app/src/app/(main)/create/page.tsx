@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 export default function CreatePage() {
   const breadcrumbs = [
     { label: "Home", href: "/" },
-    { label: "Create", isCurrentPage: true },
+    { label: "Quick Create", isCurrentPage: true },
   ];
 
   return (

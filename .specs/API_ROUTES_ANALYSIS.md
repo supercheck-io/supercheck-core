@@ -19,7 +19,7 @@ The API is organized into logical groups:
 ```mermaid
 graph TB
     subgraph "Authentication & Users"
-        A1["Auth Routes"]
+        A1["Auth Routes<br/>• Sign In/Up<br/>• Password Reset<br/>• Rate Limiting"]
         A2["Admin Routes"]
     end
     
@@ -54,7 +54,7 @@ graph TB
 #### **1. Authentication & Admin Management**
 | Route | Purpose | Status | Notes |
 |-------|---------|--------|-------|
-| `/api/auth/[...all]/route.ts` | Better Auth integration | ✅ Essential | Handles all auth operations |
+| `/api/auth/[...all]/route.ts` | Better Auth integration | ✅ Essential | Handles all auth operations including new password reset |
 | `/api/auth/user/route.ts` | Current user info | ✅ Essential | User session management |
 | `/api/auth/impersonation-status/route.ts` | Admin impersonation | ✅ Essential | Super admin feature |
 | `/api/auth/setup-defaults/route.ts` | New user setup | ✅ Essential | Organization creation |
@@ -149,12 +149,18 @@ graph TB
 - **Latest Update**: Documentation updated to reflect current codebase (January 2025)
 
 ### **Updated Route Count by Category**
-- **Authentication & Admin Management**: 15 routes (increased from 8)
+- **Authentication & Admin Management**: 15 routes (enhanced with password reset functionality)
 - **Core Resource Management**: 21 routes (significantly expanded)
 - **Organization & Project Management**: 15 routes (increased from 8)
 - **Real-time & Integration**: 5 routes (heartbeat route removed as it doesn't exist)
 - **Notifications & Alerts**: 7 routes (increased from 3)
 - **Health & Utilities**: 3 routes (unchanged)
+
+### **New Authentication Features (August 2025)**
+- **Password Reset API**: Integrated into Better Auth's `/api/auth/[...all]` endpoint
+- **Forgot Password Flow**: Email-based password reset with professional templates
+- **Rate Limiting System**: Multi-layer protection against abuse
+- **Security Enhancements**: Token expiration, strong password requirements, dual rate limiting
 
 ### **Route-Specific Improvements**
 
@@ -191,21 +197,32 @@ graph TB
 
 ## ⚠️ **RECENT DOCUMENTATION UPDATES (January 2025)**
 
-### **Major Corrections Applied:**
-1. **Removed Non-existent Routes**: 
+### **Major Updates Applied:**
+1. **Enhanced Authentication System (August 2025)**:
+   - **Password Reset Flow**: Complete forgot password and reset password functionality
+   - **Rate Limiting**: Advanced rate limiting with email and IP-based protection (3 attempts per 15 minutes)
+   - **Email Integration**: Professional email templates with SMTP/Resend fallback
+   - **Security Features**: Token expiration (1 hour), strong password requirements, dual rate limiting
+   
+2. **Authentication API Enhancements**:
+   - `/api/auth/forget-password` - Password reset request with rate limiting
+   - `/api/auth/reset-password` - Password reset execution with token validation
+   - Enhanced Better Auth integration with email service and security features
+   
+3. **Removed Non-existent Routes**: 
    - `/api/heartbeat/[token]/route.ts` - This route doesn't exist in the codebase
    
-2. **Added Missing Routes**: 
+4. **Added Missing Routes**: 
    - 15+ additional admin routes for comprehensive system management
    - Enhanced job management with API key endpoints
    - Extended notification provider management with testing capabilities
    - Granular permissions and status endpoints for all resources
    
-3. **Updated Route Counts**: 
+5. **Updated Route Counts**: 
    - Total routes increased from ~50 to 60+
    - All categories have been expanded with actual implemented endpoints
    
-4. **Corrected Implementation Status**: 
+6. **Corrected Implementation Status**: 
    - All documented routes now exist in the actual codebase
    - Removed speculation about missing features
 
@@ -242,6 +259,9 @@ graph TB
 - Add health check endpoints
 
 ### 3. **Security Enhancements**
+- ✅ **Password Reset Security**: Implemented comprehensive rate limiting (3 attempts per 15 minutes per email/IP)
+- ✅ **Token Security**: 1-hour expiration, cryptographically secure tokens
+- ✅ **Email Security**: Professional templates with security warnings
 - Add authentication middleware where missing
 - Implement proper authorization checks
 - Add input sanitization

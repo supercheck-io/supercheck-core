@@ -42,7 +42,6 @@ const ALLOWED_MODULES = new Set([
   // JSON & Data Formats
   'csv-parser',             // CSV parsing
   'xml2js',                 // XML to JSON conversion
-  'cheerio',                // Server-side jQuery-like HTML parsing
   
   // Cryptography (Safe operations)
   'crypto-js',              // Cryptographic functions

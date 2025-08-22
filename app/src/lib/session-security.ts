@@ -86,9 +86,9 @@ export function validateSessionContext(
 }
 
 /**
- * Rate limiting for admin operations
+ * Rate limiting for admin and auth operations
  */
-const adminOperationCounts = new Map<string, { count: number; resetTime: number }>();
+const operationCounts = new Map<string, { count: number; resetTime: number }>();
 
 export function checkAdminRateLimit(
   userId: string,
@@ -96,14 +96,46 @@ export function checkAdminRateLimit(
   maxOperations = 5,
   windowMs = 5 * 60 * 1000 // 5 minutes
 ): { allowed: boolean; resetTime?: number } {
-  const key = `${userId}:${operation}`;
-  const now = Date.now();
+  return checkRateLimit(`admin:${userId}:${operation}`, maxOperations, windowMs);
+}
+
+/**
+ * Rate limiting for password reset requests
+ * More restrictive than admin operations for security
+ */
+export function checkPasswordResetRateLimit(
+  identifier: string, // email or IP address
+  maxAttempts = 3,
+  windowMs = 15 * 60 * 1000 // 15 minutes
+): { allowed: boolean; resetTime?: number; attemptsLeft?: number } {
+  const result = checkRateLimit(`password-reset:${identifier}`, maxAttempts, windowMs);
   
-  const current = adminOperationCounts.get(key);
+  if (!result.allowed) {
+    return result;
+  }
+  
+  // Calculate attempts left
+  const key = `password-reset:${identifier}`;
+  const current = operationCounts.get(key);
+  const attemptsLeft = maxAttempts - (current?.count || 0);
+  
+  return { ...result, attemptsLeft };
+}
+
+/**
+ * Generic rate limiting function
+ */
+function checkRateLimit(
+  key: string,
+  maxOperations: number,
+  windowMs: number
+): { allowed: boolean; resetTime?: number } {
+  const now = Date.now();
+  const current = operationCounts.get(key);
   
   if (!current || now > current.resetTime) {
     // First operation or window expired
-    adminOperationCounts.set(key, { count: 1, resetTime: now + windowMs });
+    operationCounts.set(key, { count: 1, resetTime: now + windowMs });
     return { allowed: true };
   }
   
@@ -121,11 +153,35 @@ export function checkAdminRateLimit(
  */
 export function cleanupRateLimitEntries(): void {
   const now = Date.now();
-  for (const [key, data] of adminOperationCounts.entries()) {
+  for (const [key, data] of operationCounts.entries()) {
     if (now > data.resetTime) {
-      adminOperationCounts.delete(key);
+      operationCounts.delete(key);
     }
   }
+}
+
+/**
+ * Get client IP address from request headers
+ */
+export function getClientIP(headers: Headers): string {
+  // Check common proxy headers
+  const forwarded = headers.get('x-forwarded-for');
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  
+  const realIP = headers.get('x-real-ip');
+  if (realIP) {
+    return realIP.trim();
+  }
+  
+  const remoteAddr = headers.get('x-remote-addr');
+  if (remoteAddr) {
+    return remoteAddr.trim();
+  }
+  
+  // Fallback
+  return 'unknown';
 }
 
 /**

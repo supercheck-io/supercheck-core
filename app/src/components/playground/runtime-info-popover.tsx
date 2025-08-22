@@ -26,7 +26,6 @@ const allowedLibraries = [
   { name: 'node-fetch', description: 'Fetch API for Node.js' }, 
   { name: 'joi', description: 'Object schema validation' },
   { name: 'date-fns', description: 'Modular date utility library' },
-  { name: 'cheerio', description: 'Server-side jQuery-like HTML parsing' },
   { name: 'crypto-js', description: 'Cryptographic functions' },
   { name: 'faker', description: 'Generate fake data for testing' }
 ];

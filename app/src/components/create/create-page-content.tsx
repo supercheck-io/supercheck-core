@@ -25,13 +25,13 @@ export function CreatePageContent() {
 
   const testTypes = [
     ...types.map((type) => ({
-      icon: <type.icon size={24} className={type.color} />,
+      icon: <type.icon size={20} className={type.color} />,
       title: type.label,
       path: `/create/${type.value}`,
       scriptType: type.value as ScriptType,
     })),
     {
-      icon: <Video size={24} className="text-red-500" />,
+      icon: <Video size={20} className="text-red-500" />,
       title: "Record",
       path: "https://chromewebstore.google.com/detail/playwright-crx/jambeljnbnfbkcpnoiaedcabbgmnnlcd",
       scriptType: "record" as ScriptType,
@@ -40,12 +40,12 @@ export function CreatePageContent() {
 
   const jobTypes = [
     {
-      icon: <Clock size={24} className="text-blue-500" />,
+      icon: <Clock size={20} className="text-blue-500" />,
       title: "Scheduled Job",
       onClick: () => router.push("/jobs/create"),
     },
     {
-      icon: <Zap size={24} className="text-amber-500" />,
+      icon: <Zap size={20} className="text-amber-500" />,
       title: "Immediate Job",
       onClick: () => router.push("/jobs/create"),
     },
@@ -53,12 +53,12 @@ export function CreatePageContent() {
 
   const variableTypes = [
     {
-      icon: <Variable size={24} className="text-green-500" />,
+      icon: <Variable size={20} className="text-green-500" />,
       title: "Variable",
       onClick: () => router.push("/variables"),
     },
     {
-      icon: <Shield size={24} className="text-purple-500" />,
+      icon: <Shield size={20} className="text-purple-500" />,
       title: "Secret",
       onClick: () => router.push("/variables?filter=secrets"),
     },
@@ -66,7 +66,7 @@ export function CreatePageContent() {
 
   const notificationTypes = [
     {
-      icon: <Bell size={24} className="text-orange-500" />,
+      icon: <Bell size={20} className="text-orange-500" />,
       title: "Notification Channel",
       onClick: () => router.push("/alerts"),
     },
@@ -75,7 +75,7 @@ export function CreatePageContent() {
   return (
     <div className="mx-auto p-4 mt-5">
       <div className="mb-2 pl-1">
-        <h2 className="text-xl font-bold">Create New Test</h2>
+        <h2 className="text-lg font-semibold">Create New Test</h2>
         <p className="text-muted-foreground text-sm mt-1">
           Select the type of test you want to create
         </p>
@@ -101,8 +101,8 @@ export function CreatePageContent() {
         ))}
       </div>
 
-      <div className="mt-10 mb-2 pl-1">
-        <h2 className="text-xl font-bold">Create New Job</h2>
+      <div className="mt-8 mb-2 pl-1">
+        <h2 className="text-lg font-semibold">Create New Job</h2>
         <p className="text-muted-foreground text-sm mt-1"> Configure a new automated or manual job</p>
       </div>
 
@@ -117,8 +117,8 @@ export function CreatePageContent() {
         ))}
       </div>
 
-      <div className="mt-10 mb-2 pl-1">
-        <h2 className="text-xl font-bold">Create New Monitor</h2>
+      <div className="mt-8 mb-2 pl-1">
+        <h2 className="text-lg font-semibold">Create New Monitor</h2>
         <p className="text-muted-foreground text-sm mt-1">Select the type of uptime monitor you want to create</p>
       </div>
 
@@ -128,7 +128,7 @@ export function CreatePageContent() {
           return (
             <CreateCard
               key={monitorType.value}
-              icon={<IconComponent size={24} className={monitorType.color} />}
+              icon={<IconComponent size={20} className={monitorType.color} />}
               title={monitorType.label}
               onClick={() => router.push(`/monitors/create?type=${monitorType.value}`)}
             />
@@ -136,8 +136,8 @@ export function CreatePageContent() {
         })}
       </div>
 
-      <div className="mt-10 mb-2 pl-1">
-        <h2 className="text-xl font-bold">Create Variables & Secrets</h2>
+      <div className="mt-8 mb-2 pl-1">
+        <h2 className="text-lg font-semibold">Create Variables & Secrets</h2>
         <p className="text-muted-foreground text-sm mt-1">Configure environment variables and secure secrets</p>
       </div>
 
@@ -152,12 +152,12 @@ export function CreatePageContent() {
         ))}
       </div>
 
-      <div className="mt-10 mb-2 pl-1">
-        <h2 className="text-xl font-bold">Create Notification Provider</h2>
+      <div className="mt-8 mb-2 pl-1">
+        <h2 className="text-lg font-semibold">Create Notification Provider</h2>
         <p className="text-muted-foreground text-sm mt-1">Configure alert notifications and view delivery history</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-2">
         {notificationTypes.map((notificationType) => (
           <CreateCard
             key={notificationType.title}

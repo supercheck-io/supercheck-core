@@ -4,8 +4,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CheckIcon } from "@/components/logo/supercheck-logo"
-import { Loader2, Info } from "lucide-react"
+import { Loader2, Info, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
 
 interface InviteData {
   organizationName: string;
@@ -32,6 +33,9 @@ export function LoginForm({
   inviteToken,
   isFromNotification = false,
 }: LoginFormProps) {
+  const [showPassword, setShowPassword] = useState(false)
+  const [passwordValue, setPasswordValue] = useState("")
+
   return (
     <div className={cn("flex flex-col gap-6", className)}>
       {isFromNotification && (
@@ -75,21 +79,47 @@ export function LoginForm({
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="test@example.com"
                   defaultValue={inviteData?.email || ''}
                   required
                   autoComplete="email"
                 />
               </div>
               <div className="grid gap-3">
-                <Label htmlFor="password">Password</Label>
-                <Input 
-                  id="password" 
-                  name="password"
-                  type="password" 
-                  required 
-                  autoComplete="current-password"
-                />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Link 
+                    href="/forgot-password" 
+                    className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <Input 
+                    id="password" 
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={passwordValue}
+                    onChange={(e) => setPasswordValue(e.target.value)}
+                    required 
+                    autoComplete="current-password"
+                    className={passwordValue ? "pr-10" : ""}
+                  />
+                  {passwordValue && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
               {error && <p className="text-red-500 text-sm">{error}</p>}
               <Button type="submit" className="w-full" disabled={isLoading}>
@@ -128,12 +158,12 @@ export function LoginForm({
           </div>
         </CardContent>
       </Card>
-      <div className="text-muted-foreground text-center text-xs text-balance">
+      {/* <div className="text-muted-foreground text-center text-xs text-balance">
         By continuing, you agree to our{" "}
         <a href="#" className="underline underline-offset-4 hover:text-primary">Terms of Service</a>{" "}
         and{" "}
         <a href="#" className="underline underline-offset-4 hover:text-primary">Privacy Policy</a>.
-      </div>
+      </div> */}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import {
 
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { ExternalLink } from "lucide-react";
 
 
 interface CreateCardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -24,6 +25,8 @@ export function CreateCard({
   className,
   ...props
 }: CreateCardProps) {
+  const showExternalIcon = title === "Record";
+  
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (onClick && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
@@ -46,7 +49,12 @@ export function CreateCard({
       <div className="p-4">
         <div className="flex items-center gap-3">
           <div className="text-primary shrink-0">{icon}</div>
-          <div className="font-medium">{title}</div>
+          <div className="font-medium text-sm flex-1">{title}</div>
+          {showExternalIcon && (
+            <div className="text-muted-foreground shrink-0">
+              <ExternalLink className="h-4 w-4" />
+            </div>
+          )}
         </div>
         {description && (
           <div className="text-xs text-muted-foreground leading-relaxed mt-2">{description}</div>

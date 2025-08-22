@@ -4,6 +4,8 @@ import { db } from "@/utils/db";
 import { authSchema } from "../db/schema/schema";
 import { apiKey, organization, admin } from "better-auth/plugins";
 import { ac, roles, Role } from "@/lib/rbac/permissions";
+import { EmailService } from "@/lib/email-service";
+import { checkPasswordResetRateLimit, getClientIP } from "@/lib/session-security";
 
 import { nextCookies } from "better-auth/next-js";
 
@@ -11,7 +13,60 @@ export const auth = betterAuth({
     secret: process.env.BETTER_AUTH_SECRET!,
     emailAndPassword: {  
         enabled: true,
-        requireEmailVerification: false
+        requireEmailVerification: false,
+        sendResetPassword: async ({ user, url }, request) => {
+            const emailService = EmailService.getInstance();
+            
+            // Extract IP from request for rate limiting
+            const clientIP = request ? getClientIP(request.headers) : 'unknown';
+            
+            // Rate limit by email address
+            const emailRateLimit = checkPasswordResetRateLimit(user.email);
+            if (!emailRateLimit.allowed) {
+                const resetTime = emailRateLimit.resetTime ? new Date(emailRateLimit.resetTime) : new Date();
+                const remainingTime = Math.ceil((resetTime.getTime() - Date.now()) / 1000 / 60);
+                throw new Error(`Too many password reset attempts. Please try again in ${remainingTime} minutes.`);
+            }
+            
+            // Rate limit by IP address as additional protection
+            const ipRateLimit = checkPasswordResetRateLimit(clientIP);
+            if (!ipRateLimit.allowed) {
+                const resetTime = ipRateLimit.resetTime ? new Date(ipRateLimit.resetTime) : new Date();
+                const remainingTime = Math.ceil((resetTime.getTime() - Date.now()) / 1000 / 60);
+                throw new Error(`Too many password reset attempts from this location. Please try again in ${remainingTime} minutes.`);
+            }
+            
+            try {
+                const result = await emailService.sendEmail({
+                    to: user.email,
+                    subject: "Reset your Supercheck password",
+                    text: `You requested a password reset for your Supercheck account. Click the link below to reset your password:\n\n${url}\n\nThis link will expire in 1 hour for security reasons.\n\nIf you didn't request this reset, please ignore this email.`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #333;">Reset your Supercheck password</h2>
+                            <p>You requested a password reset for your Supercheck account.</p>
+                            <p>Click the button below to reset your password:</p>
+                            <a href="${url}" style="display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 16px 0;">Reset Password</a>
+                            <p style="color: #666; font-size: 14px;">This link will expire in 1 hour for security reasons.</p>
+                            <p style="color: #666; font-size: 14px;">If you didn't request this reset, please ignore this email.</p>
+                            <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
+                            <p style="color: #999; font-size: 12px;">Supercheck - Automation & Monitoring Platform</p>
+                        </div>
+                    `
+                });
+
+                if (!result.success) {
+                    console.error('Failed to send password reset email:', result.error);
+                    throw new Error('Failed to send password reset email');
+                }
+
+                console.log('Password reset email sent successfully:', result.message);
+            } catch (error) {
+                console.error('Error sending password reset email:', error);
+                throw error;
+            }
+        },
+        resetPasswordTokenExpiresIn: 3600 // 1 hour in seconds
     },
     database: drizzleAdapter(db, {
         provider: "pg", // PostgreSQL
