@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Beta version tag - beta-1.0.0"
+        description: "Custom version tag (e.g. beta-1.0.0)"
         required: false
         type: string
       push_latest:
@@ -37,16 +37,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry with PAT
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.PAT_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check registry access
         run: |
-          echo "Testing registry access with PAT..."
+          echo "Testing registry access..."
           echo "Registry: ${{ env.REGISTRY }}"
           echo "Username: ${{ github.actor }}"
           echo "Repository: ${{ github.repository }}"
@@ -63,15 +63,19 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.PRIMARY_IMAGE_NAME }}/app
             ${{ env.REGISTRY }}/${{ env.SECONDARY_IMAGE_NAME }}/app
           tags: |
+            # Branch names for development (e.g. main, feature-branch)
             type=ref,event=branch
+            # PR numbers for pull requests (e.g. pr-123)
             type=ref,event=pr
+            # Full version for releases (e.g. 1.2.3)
             type=semver,pattern={{version}}
+            # Major.minor for releases (e.g. 1.2)
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=beta-1.0.0
-            type=raw,value=latest
+            # Custom version from manual workflow input
             type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != '' }}
+            # Latest tag only for version releases (v1.0.0, v2.1.0, etc.)
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            # Latest tag override for manual builds
             type=raw,value=latest,enable=${{ github.event.inputs.push_latest == 'true' }}
 
       - name: Extract worker metadata
@@ -82,15 +86,19 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.PRIMARY_IMAGE_NAME }}/worker
             ${{ env.REGISTRY }}/${{ env.SECONDARY_IMAGE_NAME }}/worker
           tags: |
+            # Branch names for development (e.g. main, feature-branch)
             type=ref,event=branch
+            # PR numbers for pull requests (e.g. pr-123)
             type=ref,event=pr
+            # Full version for releases (e.g. 1.2.3)
             type=semver,pattern={{version}}
+            # Major.minor for releases (e.g. 1.2)
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=1.0
-            type=raw,value=latest
+            # Custom version from manual workflow input
             type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != '' }}
+            # Latest tag only for version releases (v1.0.0, v2.1.0, etc.)
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            # Latest tag override for manual builds
             type=raw,value=latest,enable=${{ github.event.inputs.push_latest == 'true' }}
 
       - name: Build and push app image

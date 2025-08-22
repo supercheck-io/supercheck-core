@@ -2,7 +2,7 @@ import { Module, Provider } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import * as postgres from 'postgres';
+const postgres = require('postgres');
 
 // Import Services and Processors
 import { ExecutionService } from './execution/services/execution.service';

@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
       });
 
       if (result.error) {
-        setError(result.error.message || "An error occurred while sending the reset email");
+        setError("Too many password reset attempts. Please try again after some time.");
       } else {
         setIsSuccess(true);
       }
@@ -83,8 +83,8 @@ export default function ForgotPasswordPage() {
               <form onSubmit={handleSubmit}>
                 <div className="flex flex-col gap-6">
                   <div className="flex flex-col items-center text-center">
-                    <h1 className="text-2xl font-bold">Forgot password</h1>
-                    <p className="text-muted-foreground text-balance">
+                    <h1 className="text-2xl font-bold mb-1">Forgot password</h1>
+                    <p className="text-muted-foreground text-balance text-sm">
                       Enter your email address and we&apos;ll send you a link to reset your password.
                     </p>
                   </div>
@@ -125,7 +125,7 @@ export default function ForgotPasswordPage() {
                 <CheckIcon className="h-10 w-10" />
                 <div className="grid text-left text-sm leading-tight">
                   <span className="font-semibold text-lg">Supercheck</span>
-                  <span className="text-muted-foreground">Automation & Monitoring Platform</span>
+                  <span className="text-muted-foreground">Automation & Monitoring for Modern Apps</span>
                 </div>
               </div>
             </div>

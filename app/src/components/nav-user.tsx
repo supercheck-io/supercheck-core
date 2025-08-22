@@ -68,17 +68,22 @@ export function NavUser() {
             </p>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs text-muted-foreground">Role</DropdownMenuLabel>
-        <DropdownMenuItem className="text-sm">
-          <span className="mr-2 flex items-center">
-            <User className="h-4 w-4 mr-2" />
-            {currentProject?.userRole ? 
-              currentProject.userRole.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-              : 'No role assigned'}
-          </span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        {currentProject?.userRole && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs text-muted-foreground">Role</DropdownMenuLabel>
+            <DropdownMenuItem className="text-sm">
+              <span className="mr-2 flex items-center">
+                <User className="h-4 w-4 mr-2" />
+                {currentProject.userRole.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {!currentProject?.userRole && currentProject !== null && (
+          <DropdownMenuSeparator />
+        )}
         <DropdownMenuLabel className="text-xs text-muted-foreground">Theme</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => setTheme("dark")}> 
           <span className="mr-2 flex items-center"><Moon className="h-4 w-4 mr-2" />Dark</span>

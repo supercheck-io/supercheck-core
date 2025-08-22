@@ -196,7 +196,7 @@ If you need to rollback to GHCR:
 
 1. Revert the workflow file changes
 2. Remove the Docker Hub secrets
-3. Ensure the `PAT_TOKEN` secret is still configured for GHCR access
+3. The workflow will automatically use `GITHUB_TOKEN` for GHCR access
 
 ## Security Considerations
 

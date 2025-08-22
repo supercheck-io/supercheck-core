@@ -1,6 +1,6 @@
 # Supercheck
 
-**Comprehensive End-to-End Testing Platform with Distributed Architecture**
+**Comprehensive Automation & Monitoring for Modern Apps with Distributed Architecture**
 
 Supercheck is a powerful, scalable testing platform built with Next.js and NestJS that provides comprehensive end-to-end testing capabilities with real-time monitoring, job scheduling, and parallel test execution.
 

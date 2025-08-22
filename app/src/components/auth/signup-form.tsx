@@ -121,7 +121,7 @@ export function SignupForm({
                 <CheckIcon className="h-10 w-10" />
                 <div className="grid text-left text-sm leading-tight">
                   <span className="font-semibold text-lg">Supercheck</span>
-                  <span className="text-muted-foreground">Automation & Monitoring Platform</span>
+                  <span className="text-muted-foreground">Automation & Monitoring for Modern Apps</span>
                 </div>
               </div>
             </div>

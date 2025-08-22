@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Supercheck is a comprehensive end-to-end testing platform built with a distributed architecture. It consists of:
+Supercheck is a comprehensive Automation & Monitoring for Modern Apps built with a distributed architecture. It consists of:
 
 - **Frontend (Next.js App)**: Located in `/app` - handles UI, API routes, job scheduling, and database migrations
 - **Worker Service (NestJS)**: Located in `/worker` - executes Playwright tests in parallel with capacity management
