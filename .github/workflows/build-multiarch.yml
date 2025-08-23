@@ -20,7 +20,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  PRIMARY_IMAGE_NAME: krish-kant/supercheck
+  PRIMARY_IMAGE_NAME: supercheck-io/supercheck-core
   SECONDARY_IMAGE_NAME: supercheck-io/supercheck
 
 jobs:
