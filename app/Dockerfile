@@ -52,7 +52,7 @@ WORKDIR /app
 # Add OCI labels to link package to repository
 LABEL org.opencontainers.image.source=https://github.com/supercheck-io/supercheck
 LABEL org.opencontainers.image.title="Supercheck App"
-LABEL org.opencontainers.image.description="Supercheck automation and monitoring platform - App service"
+LABEL org.opencontainers.image.description="Next.js frontend service for Supercheck - A comprehensive automation & monitoring platform for modern apps. Includes dashboard, job scheduling, test execution, and monitoring capabilities with multi-tenant support."
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

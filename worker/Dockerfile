@@ -73,7 +73,7 @@ WORKDIR /app
 # Add OCI labels to link package to repository
 LABEL org.opencontainers.image.source=https://github.com/supercheck-io/supercheck
 LABEL org.opencontainers.image.title="Supercheck Worker"
-LABEL org.opencontainers.image.description="Supercheck automation and monitoring platform - Worker service"
+LABEL org.opencontainers.image.description="NestJS worker service for Supercheck - Executes Playwright tests, monitors endpoints, and processes background jobs with parallel execution capabilities. Includes Chromium browser and supports multi-architecture deployment."
 
 ENV NODE_ENV=production
 
