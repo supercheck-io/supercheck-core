@@ -211,9 +211,9 @@ const data = {
   navSecondary: [
     {
       title: "Docs",
-      url: "#",
+      url: "https://github.com/supercheck-io/supercheck",
       icon: BookOpenText,
-      badge: "v1.0",
+      badge: "v1.0.0-beta",
     },
     // {
     //   title: "Changelog",
