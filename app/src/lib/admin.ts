@@ -204,13 +204,8 @@ export async function getAllUsers(limit = 50, offset = 0) {
  * Get the user's highest role across all organizations for super admin display
  */
 async function getUserHighestRole(userId: string): Promise<string> {
-  // First check if user is SUPER_ADMIN via env vars
-  const adminUserIds = process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()) || [];
+  // Check if user is SUPER_ADMIN via email
   const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
-  
-  if (adminUserIds.includes(userId)) {
-    return 'super_admin';
-  }
 
   // Check by email
   const userRecord = await db.select({ email: user.email })

@@ -295,7 +295,7 @@ export default function AlertsPage() {
                           Add Channel
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
+                      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                           <DialogTitle>Create Notification Channel</DialogTitle>
                           <DialogDescription>
@@ -310,7 +310,7 @@ export default function AlertsPage() {
                     </Dialog>
 
                     <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                      <DialogContent className="max-w-2xl">
+                      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                           <DialogTitle>Edit Notification Channel</DialogTitle>
                           <DialogDescription>

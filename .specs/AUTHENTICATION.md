@@ -25,7 +25,7 @@ graph TB
     
     subgraph "Infrastructure"
         H --> K[In-Memory Store]
-        I --> L[SMTP/Resend]
+        I --> L[SMTP Email]
         J --> M[PostgreSQL]
     end
     
@@ -222,14 +222,11 @@ graph TB
 ```mermaid
 graph TB
     A[Email Request] --> B[EmailService]
-    B --> C{Try SMTP First}
+    B --> C{SMTP Connection}
     C -->|Success| D[Email Sent]
-    C -->|Failed| E{Try Resend Fallback}
-    E -->|Success| D
-    E -->|Failed| F[Both Methods Failed]
+    C -->|Failed| E[Connection Failed]
     
     G[SMTP Config] --> C
-    H[Resend Config] --> E
 ```
 
 ### Email Templates
@@ -246,8 +243,6 @@ graph TB
 
 **Environment Variables:**
 - **SMTP**: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE`, `SMTP_FROM_EMAIL`
-- **Resend**: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`
-- **Control**: `SMTP_ENABLED`, `RESEND_ENABLED`
 
 ## Organization Integration
 
@@ -325,7 +320,7 @@ graph TB
 
 **Required Security Setup:**
 1. **Change Default Secrets**: Generate strong `BETTER_AUTH_SECRET`
-2. **Configure Email**: Set up SMTP or Resend for production email delivery
+2. **Configure Email**: Set up SMTP for production email delivery
 3. **Environment Variables**: Secure all email credentials
 4. **HTTPS Only**: Ensure all authentication happens over HTTPS
 5. **Rate Limiting**: Monitor and adjust rate limits based on usage patterns

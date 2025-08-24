@@ -387,7 +387,7 @@ export function AlertSettings({
                       Add Channel
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Add Notification Channel</DialogTitle>
                       <DialogDescription>

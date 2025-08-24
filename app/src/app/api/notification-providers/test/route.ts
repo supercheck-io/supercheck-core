@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
-import { Resend } from "resend";
 import { type NotificationProviderConfig } from "@/db/schema/schema";
 
 export async function POST(req: NextRequest) {
@@ -50,36 +49,21 @@ async function testEmailConnection(config: NotificationProviderConfig) {
       }
     }
 
-    const testResults = {
-      smtp: { success: false, message: '', error: '' },
-      resend: { success: false, message: '', error: '' }
-    };
-
-    // Try SMTP first
-    const smtpSuccess = await testSMTPConnection(emailList[0]);
-    testResults.smtp = smtpSuccess;
-
-    // Try Resend as fallback
-    const resendSuccess = await testResendConnection(emailList[0]);
-    testResults.resend = resendSuccess;
-
-    // Determine overall success
-    if (testResults.smtp.success || testResults.resend.success) {
-      const methods = [];
-      if (testResults.smtp.success) methods.push('SMTP');
-      if (testResults.resend.success) methods.push('Resend');
-      
+    // Test SMTP connection
+    const smtpResult = await testSMTPConnection(emailList[0]);
+    
+    if (smtpResult.success) {
       return NextResponse.json({ 
         success: true, 
-        message: `Email connection successful via ${methods.join(' and ')}. Test email sent to ${emailList[0]}.`,
-        details: testResults
+        message: `Email connection successful via SMTP. Test email sent to ${emailList[0]}.`,
+        details: smtpResult
       });
     } else {
       return NextResponse.json(
         { 
           success: false, 
-          error: `All email methods failed. SMTP: ${testResults.smtp.error}. Resend: ${testResults.resend.error}`,
-          details: testResults
+          error: `SMTP email connection failed: ${smtpResult.error}`,
+          details: smtpResult
         },
         { status: 400 }
       );
@@ -94,16 +78,6 @@ async function testEmailConnection(config: NotificationProviderConfig) {
 
 async function testSMTPConnection(testEmail: string): Promise<{ success: boolean; message: string; error: string }> {
   try {
-    const smtpEnabled = process.env.SMTP_ENABLED !== 'false';
-
-    if (!smtpEnabled) {
-      return {
-        success: false,
-        message: '',
-        error: 'SMTP is disabled via SMTP_ENABLED environment variable'
-      };
-    }
-
     // Use environment variables for SMTP configuration
     const smtpConfig = {
       host: process.env.SMTP_HOST,
@@ -120,15 +94,6 @@ async function testSMTPConnection(testEmail: string): Promise<{ success: boolean
         success: false,
         message: '',
         error: 'SMTP not configured (missing environment variables)'
-      };
-    }
-
-    // Prevent localhost connections for security
-    if (smtpConfig.host === 'localhost' || smtpConfig.host === '127.0.0.1') {
-      return {
-        success: false,
-        message: '',
-        error: 'Localhost SMTP connections are not allowed'
       };
     }
 
@@ -167,62 +132,6 @@ async function testSMTPConnection(testEmail: string): Promise<{ success: boolean
     return {
       success: true,
       message: 'SMTP connection successful',
-      error: ''
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: '',
-      error: error instanceof Error ? error.message : String(error)
-    };
-  }
-}
-
-async function testResendConnection(testEmail: string): Promise<{ success: boolean; message: string; error: string }> {
-  try {
-    const resendEnabled = process.env.RESEND_ENABLED !== 'false';
-
-    if (!resendEnabled) {
-      return {
-        success: false,
-        message: '',
-        error: 'Resend is disabled via RESEND_ENABLED environment variable'
-      };
-    }
-
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const resendFromEmail = process.env.RESEND_FROM_EMAIL;
-
-    if (!resendApiKey) {
-      return {
-        success: false,
-        message: '',
-        error: 'Resend not configured (missing RESEND_API_KEY)'
-      };
-    }
-
-    const resend = new Resend(resendApiKey);
-    const fromEmail = resendFromEmail || 'test@yourdomain.com';
-
-    const result = await resend.emails.send({
-      from: fromEmail,
-      to: [testEmail],
-      subject: 'Supercheck - Resend Test Email',
-      text: 'This is a test email to verify your Resend configuration is working correctly.',
-      html: '<p>This is a test email to verify your <strong>Resend configuration</strong> is working correctly.</p>',
-    });
-
-    if (result.error) {
-      return {
-        success: false,
-        message: '',
-        error: result.error.message
-      };
-    }
-
-    return {
-      success: true,
-      message: `Resend connection successful (ID: ${result.data?.id})`,
       error: ''
     };
   } catch (error) {
@@ -359,5 +268,3 @@ async function testDiscordConnection(config: NotificationProviderConfig) {
     );
   }
 }
-
- 

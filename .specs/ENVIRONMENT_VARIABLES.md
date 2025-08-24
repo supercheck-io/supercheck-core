@@ -45,7 +45,6 @@ RUNNING_CAPACITY=5          # Max concurrent test executions
 QUEUED_CAPACITY=50          # Max queued jobs
 TEST_EXECUTION_TIMEOUT_MS=900000    # 15 minutes
 JOB_EXECUTION_TIMEOUT_MS=900000     # 15 minutes
-TRACE_RECOVERY_INTERVAL_MS=300000   # 5 minutes
 ```
 
 ### Playwright Configuration ⭐ (New Optimized Settings)
@@ -105,16 +104,11 @@ BETTER_AUTH_SECRET=your-super-secret-key-change-this-in-production
 BETTER_AUTH_URL=https://supercheck.meditationblue.com
 
 # Admin Configuration
-SUPER_ADMIN_USER_IDS=4512347a-2ae6-413d-9cdc-91c22551ceb1,2b013c80-4fb4-4e9f-a3d1-48142e684dee
 SUPER_ADMIN_EMAILS=admin@example.com
 
 # RBAC Settings
-MAX_ORGANIZATIONS_PER_USER=5
 MAX_PROJECTS_PER_ORG=10
 DEFAULT_PROJECT_NAME="Default Project"
-ENABLE_PROJECT_LEVEL_RBAC=true
-ALLOW_CROSS_PROJECT_ACCESS=false
-STRICT_ORGANIZATION_ISOLATION=true
 ```
 
 ### Notification System
@@ -126,21 +120,14 @@ MAX_MONITOR_NOTIFICATION_CHANNELS=10
 NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS=10
 NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS=10
 
-# Email Configuration
-SMTP_ENABLED=true
-RESEND_ENABLED=true
-
-# SMTP Settings
-SMTP_HOST=smtp.gmail.com
+# SMTP Email Configuration
+# Supports any SMTP provider including Resend SMTP, Gmail, SendGrid, etc.
+SMTP_HOST=smtp.resend.com
 SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-password
+SMTP_USER=resend
+SMTP_PASSWORD=your-api-key
 SMTP_SECURE=false
-SMTP_FROM_EMAIL=your-email@gmail.com
-
-# Resend Configuration
-RESEND_API_KEY=re_your_api_key_here
-RESEND_FROM_EMAIL=noreply@yourdomain.com
+SMTP_FROM_EMAIL=hello@yourdomain.com
 ```
 
 ### Monitoring
@@ -184,14 +171,12 @@ ENABLE_MOBILE=false
 - `VARIABLES_ENCRYPTION_KEY`
 - `CREDENTIAL_ENCRYPTION_KEY`
 - `SMTP_PASSWORD`
-- `RESEND_API_KEY`
 
 ### 🟡 Configuration Variables
 
 **Should be customized per environment:**
 
 - `NEXT_PUBLIC_APP_URL`
-- `SUPER_ADMIN_USER_IDS`
 - `SUPER_ADMIN_EMAILS`
 - `RUNNING_CAPACITY`
 - `QUEUED_CAPACITY`

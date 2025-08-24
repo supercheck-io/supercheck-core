@@ -1,5 +1,4 @@
 import nodemailer from "nodemailer";
-import { Resend } from "resend";
 
 export interface EmailOptions {
   to: string;
@@ -19,41 +18,14 @@ export class EmailService {
   }
 
   /**
-   * Send email using available methods (SMTP or Resend)
+   * Send email using SMTP
    */
   async sendEmail(options: EmailOptions): Promise<{ success: boolean; message: string; error?: string }> {
-    // Try SMTP first
-    const smtpResult = await this.sendViaSMTP(options);
-    if (smtpResult.success) {
-      return smtpResult;
-    }
-
-    // Fallback to Resend
-    const resendResult = await this.sendViaResend(options);
-    if (resendResult.success) {
-      return resendResult;
-    }
-
-    // Both methods failed
-    return {
-      success: false,
-      message: 'Email delivery failed',
-      error: `SMTP failed: ${smtpResult.error}. Resend failed: ${resendResult.error}`
-    };
+    return await this.sendViaSMTP(options);
   }
 
   private async sendViaSMTP(options: EmailOptions): Promise<{ success: boolean; message: string; error?: string }> {
     try {
-      const smtpEnabled = process.env.SMTP_ENABLED !== 'false';
-
-      if (!smtpEnabled) {
-        return {
-          success: false,
-          message: '',
-          error: 'SMTP is disabled via SMTP_ENABLED environment variable'
-        };
-      }
-
       // Use environment variables for SMTP configuration
       const smtpConfig = {
         host: process.env.SMTP_HOST,
@@ -70,15 +42,6 @@ export class EmailService {
           success: false,
           message: '',
           error: 'SMTP not configured (missing environment variables)'
-        };
-      }
-
-      // Prevent localhost connections for security
-      if (smtpConfig.host === 'localhost' || smtpConfig.host === '127.0.0.1') {
-        return {
-          success: false,
-          message: '',
-          error: 'Localhost SMTP connections are not allowed'
         };
       }
 
@@ -109,61 +72,6 @@ export class EmailService {
       return {
         success: true,
         message: 'Email sent successfully via SMTP'
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: '',
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  }
-
-  private async sendViaResend(options: EmailOptions): Promise<{ success: boolean; message: string; error?: string }> {
-    try {
-      const resendEnabled = process.env.RESEND_ENABLED !== 'false';
-
-      if (!resendEnabled) {
-        return {
-          success: false,
-          message: '',
-          error: 'Resend is disabled via RESEND_ENABLED environment variable'
-        };
-      }
-
-      const resendApiKey = process.env.RESEND_API_KEY;
-      const resendFromEmail = process.env.RESEND_FROM_EMAIL;
-
-      if (!resendApiKey) {
-        return {
-          success: false,
-          message: '',
-          error: 'Resend not configured (missing RESEND_API_KEY)'
-        };
-      }
-
-      const resend = new Resend(resendApiKey);
-      const fromEmail = resendFromEmail || 'noreply@yourdomain.com';
-
-      const result = await resend.emails.send({
-        from: fromEmail,
-        to: [options.to],
-        subject: options.subject,
-        text: options.text,
-        html: options.html,
-      });
-
-      if (result.error) {
-        return {
-          success: false,
-          message: '',
-          error: result.error.message
-        };
-      }
-
-      return {
-        success: true,
-        message: `Email sent successfully via Resend (ID: ${result.data?.id})`
       };
     } catch (error) {
       return {

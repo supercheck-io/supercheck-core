@@ -201,7 +201,7 @@ graph TB
 1. **Enhanced Authentication System (August 2025)**:
    - **Password Reset Flow**: Complete forgot password and reset password functionality
    - **Rate Limiting**: Advanced rate limiting with email and IP-based protection (3 attempts per 15 minutes)
-   - **Email Integration**: Professional email templates with SMTP/Resend fallback
+   - **Email Integration**: Professional email templates with SMTP delivery
    - **Security Features**: Token expiration (1 hour), strong password requirements, dual rate limiting
    
 2. **Authentication API Enhancements**:

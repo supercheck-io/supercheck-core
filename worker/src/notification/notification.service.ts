@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
-import { Resend } from 'resend';
 import { AlertType, NotificationProviderType } from '../db/schema';
 
 // Utility function to safely get error message
@@ -447,7 +446,7 @@ export class NotificationService {
 
       const emailContent = this.formatEmailContent(formatted, payload);
 
-      // Try SMTP first, then fallback to Resend
+      // Send via SMTP
       const smtpSuccess = await this.trySMTPDelivery(
         config,
         formatted,
@@ -461,20 +460,7 @@ export class NotificationService {
         return true;
       }
 
-      // Fallback to Resend if SMTP fails
-      const resendSuccess = await this.tryResendDelivery(
-        formatted,
-        emailContent,
-        emailAddresses,
-      );
-      if (resendSuccess) {
-        this.logger.log(
-          `Email notification sent successfully via Resend to ${emailAddresses.length} recipient(s)`,
-        );
-        return true;
-      }
-
-      this.logger.error('All email delivery methods failed (SMTP and Resend)');
+      this.logger.error('SMTP email delivery failed');
       return false;
     } catch (error) {
       this.logger.error(
@@ -508,15 +494,6 @@ export class NotificationService {
     emailAddresses: string[],
   ): Promise<boolean> {
     try {
-      const smtpEnabled = process.env.SMTP_ENABLED !== 'false'; // Default to enabled
-
-      if (!smtpEnabled) {
-        this.logger.debug(
-          'SMTP is disabled via SMTP_ENABLED environment variable',
-        );
-        return false;
-      }
-
       // Use environment variables for SMTP configuration
       const smtpConfig = {
         host: process.env.SMTP_HOST,
@@ -535,8 +512,8 @@ export class NotificationService {
 
       // Check if all required SMTP environment variables are present
       if (!smtpConfig.host || !smtpConfig.auth.user || !smtpConfig.auth.pass) {
-        this.logger.debug(
-          'SMTP environment variables not configured, skipping SMTP delivery',
+        this.logger.error(
+          'SMTP environment variables not configured (missing SMTP_HOST, SMTP_USER, or SMTP_PASSWORD)',
         );
         return false;
       }
@@ -568,99 +545,11 @@ export class NotificationService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      this.logger.warn(`SMTP delivery failed: ${errorMessage}`);
+      this.logger.error(`SMTP delivery failed: ${errorMessage}`);
       return false;
     }
   }
 
-  private async tryResendDelivery(
-    formatted: FormattedNotification,
-    emailContent: { html: string; text: string },
-    emailAddresses: string[],
-  ): Promise<boolean> {
-    try {
-      const resendApiKey = process.env.RESEND_API_KEY;
-      const resendFromEmail = process.env.RESEND_FROM_EMAIL;
-      const resendEnabled = process.env.RESEND_ENABLED !== 'false'; // Default to enabled
-
-      if (!resendEnabled) {
-        this.logger.debug(
-          'Resend is disabled via RESEND_ENABLED environment variable',
-        );
-        return false;
-      }
-
-      if (!resendApiKey) {
-        this.logger.debug(
-          'Resend API key not configured, skipping Resend delivery',
-        );
-        return false;
-      }
-
-      if (!resendFromEmail) {
-        this.logger.warn(
-          'RESEND_FROM_EMAIL not configured, using default from domain',
-        );
-      }
-
-      const resend = new Resend(resendApiKey);
-
-      // Validate from email format for Resend (must be from verified domain)
-      const fromEmail = resendFromEmail || 'notifications@yourdomain.com';
-
-      // Send emails in batches to respect rate limits
-      const batchSize = 10; // Resend allows up to 100 recipients per request
-      const batches: string[][] = [];
-
-      for (let i = 0; i < emailAddresses.length; i += batchSize) {
-        batches.push(emailAddresses.slice(i, i + batchSize));
-      }
-
-      for (const batch of batches) {
-        try {
-          const result = await resend.emails.send({
-            from: fromEmail,
-            to: batch,
-            subject: formatted.title,
-            html: emailContent.html,
-            text: emailContent.text,
-            // Add headers for better deliverability
-            headers: {
-              'X-Entity-Ref-ID': `notification-${Date.now()}`,
-            },
-          });
-
-          if (result.error) {
-            const errorMessage =
-              result.error?.message || String(result.error) || 'Unknown error';
-            this.logger.error(
-              `Resend batch delivery failed: ${errorMessage}`,
-              result.error,
-            );
-            return false;
-          }
-
-          this.logger.debug(
-            `Resend batch sent successfully: ${result.data?.id}`,
-          );
-        } catch (batchError) {
-          const errorMessage =
-            batchError instanceof Error
-              ? batchError.message
-              : String(batchError);
-          this.logger.error(`Resend batch error: ${errorMessage}`, batchError);
-          return false;
-        }
-      }
-
-      return true;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Resend delivery failed: ${errorMessage}`, error);
-      return false;
-    }
-  }
 
   private async sendSlackNotification(
     config: any,

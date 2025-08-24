@@ -207,14 +207,14 @@ The system supports multiple notification provider types:
 
 ### Email
 
-- **Configuration:** Environment-based SMTP and Resend configuration
-- **Use Case:** Professional email notifications with automatic fallback
+- **Configuration:** Environment-based SMTP configuration
+- **Use Case:** Professional email notifications via SMTP
 - **Features:**
-  - Dual delivery methods (SMTP primary, Resend fallback)
+  - SMTP delivery with support for multiple providers (Resend SMTP, Gmail, SendGrid, etc.)
   - Professional HTML templates with responsive design
-  - Automatic fallback for enhanced reliability
+  - Reliable SMTP delivery with connection verification
   - Batch processing for multiple recipients
-  - Environment-controlled enable/disable toggles
+  - Environment-controlled configuration
   - Security-focused configuration (no hardcoded credentials)
 
 ### Slack
@@ -247,7 +247,7 @@ The system supports multiple notification provider types:
 
 The system supports the following notification provider types:
 
-- **email**: Dual-method email notifications (SMTP + Resend fallback)
+- **email**: SMTP email notifications
 - **slack**: Slack webhook notifications
 - **webhook**: Generic HTTP webhook notifications
 - **telegram**: Telegram bot notifications
@@ -348,7 +348,7 @@ CREATE TABLE notification_providers (
 
 #### Email Provider
 
-The email notification system supports dual delivery methods with automatic fallback between SMTP and Resend for enhanced reliability.
+The email notification system uses SMTP for reliable email delivery with support for multiple SMTP providers.
 
 ```json
 {
@@ -362,31 +362,24 @@ The email notification system supports dual delivery methods with automatic fall
 
 #### Email Provider Configuration
 
-The system uses environment variables for email configuration and supports both SMTP and Resend delivery methods:
+The system uses environment variables for SMTP email configuration:
 
-**SMTP Configuration (Primary Method):**
+**SMTP Configuration:**
 
-- `SMTP_ENABLED` - Enable/disable SMTP delivery (default: true)
-- `SMTP_HOST` - SMTP server hostname (e.g., "smtp.gmail.com")
-- `SMTP_PORT` - SMTP server port (default: 587)
-- `SMTP_USER` - SMTP username/email
-- `SMTP_PASSWORD` - SMTP password or app password
+- `SMTP_HOST` - SMTP server hostname (e.g., "smtp.resend.com", "smtp.gmail.com", "smtp.sendgrid.net")
+- `SMTP_PORT` - SMTP server port (default: 587 for STARTTLS, 465 for SSL)
+- `SMTP_USER` - SMTP username (e.g., "resend" for Resend SMTP, your email for Gmail)
+- `SMTP_PASSWORD` - SMTP password or API key (e.g., Resend API key, Gmail app password)
 - `SMTP_SECURE` - "true" for SSL (port 465), "false" for STARTTLS (default: false)
-- `SMTP_FROM_EMAIL` - Sender email address (optional, defaults to SMTP_USER)
-
-**Resend Configuration (Fallback Method):**
-
-- `RESEND_ENABLED` - Enable/disable Resend delivery (default: true)
-- `RESEND_API_KEY` - Resend service API key
-- `RESEND_FROM_EMAIL` - Sender email address for Resend (must be from verified domain)
+- `SMTP_FROM_EMAIL` - Sender email address (must be from verified domain)
 
 #### Email Delivery Behavior
 
-1. **Primary Delivery**: The system first attempts to send emails via SMTP if configured and enabled
-2. **Fallback Delivery**: If SMTP fails or is disabled, the system automatically falls back to Resend
-3. **Dual Redundancy**: Both methods can be enabled simultaneously for maximum reliability
+1. **SMTP Delivery**: The system sends emails via the configured SMTP server
+2. **Provider Flexibility**: Supports any SMTP provider including Resend SMTP, Gmail, SendGrid, etc.
+3. **Connection Verification**: Verifies SMTP connection before sending
 4. **Professional Templates**: All emails use responsive HTML templates with consistent branding
-5. **Batch Processing**: Resend emails are sent in batches of up to 10 recipients for optimal performance
+5. **Batch Processing**: Efficiently processes multiple recipients
 
 #### Email Template Features
 
@@ -496,27 +489,20 @@ The system includes comprehensive testing for email providers:
 ```json
 {
   "success": true,
-  "message": "Email connection successful via SMTP and Resend. Test email sent to test@example.com.",
+  "message": "Email connection successful via SMTP. Test email sent to test@example.com.",
   "details": {
-    "smtp": {
-      "success": true,
-      "message": "SMTP connection successful",
-      "error": ""
-    },
-    "resend": {
-      "success": true,
-      "message": "Resend connection successful (ID: abc123)",
-      "error": ""
-    }
+    "success": true,
+    "message": "SMTP connection successful",
+    "error": ""
   }
 }
 ```
 
 **Test Features**:
 
-- Tests both SMTP and Resend connections
-- Sends actual test emails to verify delivery
-- Provides detailed results for each method
+- Tests SMTP connection and configuration
+- Sends actual test email to verify delivery
+- Provides detailed results and error messages
 - Validates email address format
 - Respects environment variable settings
 - Security checks prevent localhost connections
@@ -563,12 +549,9 @@ VALUES ('job-uuid', 'provider-uuid');
 - `SMTP_HOST` - SMTP server hostname
 - `SMTP_PORT` - SMTP server port (default: 587)
 - `SMTP_USER` - SMTP username/email
-- `SMTP_PASSWORD` - SMTP password or app password
+- `SMTP_PASSWORD` - SMTP password or API key
 - `SMTP_SECURE` - "true" for SSL, "false" for STARTTLS (default: false)
-- `SMTP_FROM_EMAIL` - Sender email address (optional, defaults to SMTP_USER)
-- `RESEND_ENABLED` - Enable/disable Resend delivery (default: true)
-- `RESEND_API_KEY` - Resend service API key
-- `RESEND_FROM_EMAIL` - Sender email address for Resend (must be from verified domain)
+- `SMTP_FROM_EMAIL` - Sender email address (must be from verified domain)
 
 **Notification Channel Limits:**
 
@@ -787,7 +770,7 @@ The notification system includes comprehensive error handling:
    - Configure multiple providers for redundancy
    - Use different providers for different alert types
    - Test provider configurations regularly
-   - **Email-specific**: Enable both SMTP and Resend for maximum reliability
+   - **Email-specific**: Configure SMTP with reliable provider for maximum reliability
 
 3. **Custom Messages:**
    - Include relevant context in custom messages
@@ -796,17 +779,16 @@ The notification system includes comprehensive error handling:
 
 ### Email Configuration Best Practices
 
-1. **Dual Method Setup:**
+1. **SMTP Setup:**
 
-   - Configure both SMTP and Resend for automatic fallback
+   - Configure SMTP with your preferred provider (Resend SMTP, Gmail, SendGrid, etc.)
    - Use environment variables for secure credential management
-   - Test both methods during initial setup
+   - Test SMTP connection during initial setup
 
 2. **Environment Variables:**
 
-   - Set `SMTP_ENABLED=true` and `RESEND_ENABLED=true` for dual redundancy
-   - Use `SMTP_ENABLED=false` to disable SMTP and use only Resend
-   - Use `RESEND_ENABLED=false` to disable Resend and use only SMTP
+   - Configure SMTP settings: `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`
+   - Use provider-specific settings (e.g., Resend SMTP: host=smtp.resend.com, user=resend, password=API_KEY)
 
 3. **Security Considerations:**
 
@@ -818,7 +800,7 @@ The notification system includes comprehensive error handling:
 4. **Performance Optimization:**
    - Use batch processing for multiple recipients
    - Configure appropriate timeouts for SMTP connections
-   - Monitor rate limits for Resend service
+   - Monitor rate limits for your SMTP provider
 
 ### Monitor Configuration
 
@@ -860,10 +842,10 @@ The notification system includes comprehensive error handling:
 1. Create providers of each supported type
 2. **Email Provider Testing**:
    - Use the `/api/notification-providers/test` endpoint
-   - Test both SMTP and Resend delivery methods
+   - Test SMTP connection and delivery
    - Verify professional HTML email templates
    - Test multiple recipient email addresses
-   - Verify fallback behavior when one method fails
+   - Verify SMTP configuration and credentials
 3. Test webhook delivery to external services
 4. Test Slack/Discord message formatting
 5. Verify Telegram bot message delivery
@@ -873,20 +855,20 @@ The notification system includes comprehensive error handling:
 ### Common Issues
 
 1. **Email Delivery Failed**:
-   - Check both SMTP and Resend configurations
-   - Verify `SMTP_ENABLED` and `RESEND_ENABLED` environment variables
+   - Check SMTP configuration and credentials
+   - Verify SMTP environment variables are set correctly
    - Ensure email addresses are properly formatted
-   - Check API keys and credentials
-   - Verify from email domains are authorized
+   - Check SMTP password or API key
+   - Verify from email domain is authorized
 2. **SMTP Connection Failed**:
    - Verify SMTP host, port, and authentication credentials
    - Check firewall and network connectivity
    - Ensure SMTP_SECURE setting matches server requirements
    - Verify SMTP_FROM_EMAIL domain is authorized
-3. **Resend Delivery Failed**:
-   - Verify RESEND_API_KEY is valid and active
-   - Ensure RESEND_FROM_EMAIL is from a verified domain
-   - Check Resend service status and rate limits
+3. **SMTP Provider Issues**:
+   - Verify API key or password is valid and active
+   - Ensure sender email is from a verified domain
+   - Check provider service status and rate limits
    - Verify recipient email addresses are valid
 4. **Webhook Delivery Failed**: Verify URL and authentication
 5. **Slack Message Not Delivered**: Check webhook URL and channel permissions
@@ -898,11 +880,11 @@ The notification system includes comprehensive error handling:
 1. Check application logs for error messages
 2. Verify provider configuration in database
 3. **Email-specific debugging**:
-   - Use the test API endpoint to verify both SMTP and Resend connections
-   - Check environment variables: `SMTP_ENABLED`, `RESEND_ENABLED`
-   - Verify SMTP credentials and Resend API key
+   - Use the test API endpoint to verify SMTP connection
+   - Check SMTP environment variables are configured correctly
+   - Verify SMTP credentials and API key
    - Check email domain authorization and DNS settings
-   - Review logs for specific error messages from each delivery method
+   - Review logs for specific error messages from SMTP delivery
 4. Test webhook endpoints manually
 5. Check network connectivity to external services
 6. Verify API keys and tokens are valid

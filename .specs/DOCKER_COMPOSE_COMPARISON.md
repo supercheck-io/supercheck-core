@@ -3,14 +3,14 @@
 ## Overview
 The project has two Docker Compose files for different deployment scenarios:
 
-1. **`docker-compose.yml`** - Production HTTPS deployment with Traefik
-2. **`docker-compose-http.yml`** - Development/HTTP deployment without reverse proxy
+1. **`docker-compose.yml`** - Development/HTTP deployment without reverse proxy
+2. **`docker-compose-secure.yml`** - Production HTTPS deployment with Traefik
 
 ## Key Differences
 
 ### 🌐 **Network & URLs**
 
-#### HTTPS Version (`docker-compose.yml`)
+#### HTTPS Version (`docker-compose-secure.yml`)
 ```env
 NEXT_PUBLIC_APP_URL: https://${DOMAIN:-supercheck.meditationblue.com}
 BETTER_AUTH_URL: https://${DOMAIN:-supercheck.meditationblue.com}
@@ -19,7 +19,7 @@ BETTER_AUTH_URL: https://${DOMAIN:-supercheck.meditationblue.com}
 - Domain-based routing with HTTPS
 - Let's Encrypt automatic SSL certificates
 
-#### HTTP Version (`docker-compose-http.yml`)
+#### HTTP Version (`docker-compose.yml`)
 ```env
 NEXT_PUBLIC_APP_URL: http://localhost:3000
 BETTER_AUTH_URL: http://localhost:3000
@@ -81,14 +81,14 @@ reservations:
 
 ## 🎯 **When to Use Each**
 
-### Use `docker-compose.yml` (HTTPS) when:
+### Use `docker-compose-secure.yml` (HTTPS) when:
 - **Production deployment**
 - Need SSL certificates
 - Domain-based routing
 - Security is critical
 - Public internet access
 
-### Use `docker-compose-http.yml` when:
+### Use `docker-compose.yml` when:
 - **Development/testing**
 - Local development
 - Internal network deployment  
@@ -100,19 +100,19 @@ reservations:
 ### HTTPS Deployment
 ```bash
 # Production with HTTPS
-docker-compose up -d
+docker-compose -f docker-compose-secure.yml up -d
 
 # With custom domain
-DOMAIN=yourdomain.com docker-compose up -d
+DOMAIN=yourdomain.com docker-compose -f docker-compose-secure.yml up -d
 ```
 
 ### HTTP Deployment
 ```bash
 # Development/HTTP
-docker-compose -f docker-compose-http.yml up -d
+docker-compose up -d
 
 # View logs
-docker-compose -f docker-compose-http.yml logs -f
+docker-compose logs -f
 ```
 
 ## 🔐 **Security Considerations**
@@ -142,8 +142,8 @@ docker-compose -f docker-compose-http.yml logs -f
 ```bash
 #!/bin/bash
 # Check if both docker-compose files have same env vars
-diff <(grep -A 100 "x-common-env:" docker-compose.yml | grep -E "^  [A-Z_]") \
-     <(grep -A 100 "x-common-env:" docker-compose-http.yml | grep -E "^  [A-Z_]")
+diff <(grep -A 100 "x-common-env:" docker-compose-secure.yml | grep -E "^  [A-Z_]") \
+     <(grep -A 100 "x-common-env:" docker-compose.yml | grep -E "^  [A-Z_]")
 ```
 
 ## 📝 **Migration Between Environments**
@@ -155,7 +155,7 @@ diff <(grep -A 100 "x-common-env:" docker-compose.yml | grep -E "^  [A-Z_]") \
 4. Traefik will automatically get SSL certificates
 
 ### From HTTPS to HTTP (for testing):
-1. Use docker-compose-http.yml
+1. Use docker-compose.yml
 2. Update any hardcoded HTTPS URLs in your app
 3. Access via localhost:3000
 

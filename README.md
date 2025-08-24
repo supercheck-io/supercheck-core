@@ -123,8 +123,6 @@ cd worker && npm run dev  # Worker service (in separate terminal)
    ```bash
    # Get your user ID from the database
    docker exec postgres-supercheck psql -U postgres -d supercheck -c "SELECT id FROM \"user\" WHERE email = 'your-email@example.com';"
-   # Add to environment
-   echo "SUPER_ADMIN_USER_IDS=your-user-id-here" >> .env
    docker-compose restart app
    ```
 
@@ -227,8 +225,7 @@ RUNNING_CAPACITY=5         # Max concurrent test executions
 QUEUED_CAPACITY=50         # Max queued jobs
 
 # Security
-SUPER_ADMIN_EMAILS=admin@example.com,admin2@example.com  # Comma-separated super admin emails (preferred)
-SUPER_ADMIN_USER_IDS=user-id-1,user-id-2                # Comma-separated super admin user IDs (legacy)
+SUPER_ADMIN_EMAILS=admin@example.com,admin2@example.com  # Comma-separated super admin emails
 
 ### Production Configuration
 See [Security Guide](./specs/SECURITY.md) for production security settings:
@@ -305,7 +302,6 @@ docker exec postgres-supercheck psql -U postgres -d supercheck \
 
 # Check environment variables
 docker-compose exec app env | grep SUPER_ADMIN_EMAILS
-docker-compose exec app env | grep SUPER_ADMIN_USER_IDS
 ```
 
 **Database Connection Issues**

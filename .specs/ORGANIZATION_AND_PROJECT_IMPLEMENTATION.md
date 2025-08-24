@@ -260,21 +260,14 @@ CREATE TABLE session (
 ```bash
 # Super Admin Configuration
 SUPER_ADMIN_EMAILS=admin@example.com,admin2@example.com
-SUPER_ADMIN_USER_IDS=user_id_1,user_id_2  # Legacy support
 
 # Organization & Project Limits
 MAX_PROJECTS_PER_ORG=50
-MAX_ORGANIZATIONS_PER_USER=5
 MAX_MEMBERS_PER_ORGANIZATION=100
 MAX_MEMBERS_PER_PROJECT=25
 
 # Default Project Settings
 DEFAULT_PROJECT_NAME="Default Project"
-
-# Security Settings
-ENABLE_PROJECT_LEVEL_RBAC=true
-ALLOW_CROSS_PROJECT_ACCESS=false
-STRICT_ORGANIZATION_ISOLATION=true
 ```
 
 ## User Experience

@@ -75,7 +75,7 @@ export const auth = betterAuth({
     plugins: [ 
         // openAPI(),
         admin({
-            adminUserIds: process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()).filter(Boolean) || [],
+            adminUserIds: [],
             ac,
             roles: {
                 org_admin: roles[Role.ORG_ADMIN],
@@ -104,7 +104,7 @@ export const auth = betterAuth({
             sendInvitationEmail: async ({ invitation, organization }) => {
                 try {
                     // For now, we'll use a simple implementation that can be extended
-                    // In a real environment, you'd use services like SendGrid, Resend, etc.
+                    // In a real environment, you'd use SMTP services like Gmail, SendGrid, etc.
                     
                     const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitation.id}`;
                     

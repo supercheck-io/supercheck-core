@@ -101,8 +101,7 @@ export async function POST(request: NextRequest) {
       
       // Check if they're in super admin environment list
       const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(e => e.trim()) || [];
-      const adminUserIds = process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()) || [];
-      const isEnvAdmin = adminEmails.includes(user.email) || adminUserIds.includes(user.id);
+      const isEnvAdmin = adminEmails.includes(user.email);
       
       // Check if they're an admin in any other organization
       const adminMemberships = await db

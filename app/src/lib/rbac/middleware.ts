@@ -81,22 +81,8 @@ export async function requirePermission(
  * Get user's role (prioritizes organization membership role)
  */
 export async function getUserRole(userId: string, organizationId?: string): Promise<Role> {
-  // First check if user is SUPER_ADMIN via env vars
-  // TODO: Move to database-backed super admin validation for production
-  const adminUserIds = process.env.SUPER_ADMIN_USER_IDS?.split(',').map(id => id.trim()).filter(Boolean) || [];
+  // Check if user is SUPER_ADMIN via email
   const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim().toLowerCase()).filter(Boolean) || [];
-  
-  // Validate UUID format for user IDs to prevent injection
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (adminUserIds.some(id => !uuidRegex.test(id))) {
-    console.warn('⚠️ Invalid UUID format in SUPER_ADMIN_USER_IDS environment variable');
-  }
-  
-  // Check user ID against validated admin IDs
-  if (userId && uuidRegex.test(userId) && adminUserIds.includes(userId)) {
-    console.log(`✅ Super admin access granted to user ID: ${userId.substring(0, 8)}...`);
-    return Role.SUPER_ADMIN;
-  }
 
   // Check by email with additional validation
   if (adminEmails.length > 0) {

@@ -233,7 +233,7 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-full">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -288,7 +288,7 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
                       <FormControl>
                         <Textarea 
                           placeholder="admin@yourcompany.com, team@yourcompany.com, alerts@yourcompany.com"
-                          className="min-h-[100px] resize-y"
+                          className="min-h-[80px] max-h-[150px] resize-y"
                           maxLength={CHARACTER_LIMITS.emails}
                           {...field} 
                         />

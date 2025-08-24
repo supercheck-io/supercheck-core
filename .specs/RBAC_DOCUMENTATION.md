@@ -7,6 +7,7 @@ Supercheck implements a **hybrid RBAC system** that combines Better Auth's built
 ## Recent Updates (Current Implementation)
 
 ### Key Changes Made:
+
 1. **Fixed Ban/Unban Functionality**: Now uses direct database operations instead of Better Auth admin plugin due to environment variable restrictions
 2. **Enhanced Role Display**: Super admin interface shows highest role across all organizations with organization count for multi-org users
 3. **Improved Permission System**: Unified approach using `useProjectContext()` for consistent permission checking across all UI components
@@ -32,14 +33,14 @@ erDiagram
         text ban_reason
         timestamp ban_expires
     }
-    
+
     ORGANIZATION {
         uuid id PK
         text name
         text slug
         timestamp created_at
     }
-    
+
     MEMBER {
         uuid id PK
         uuid organization_id FK
@@ -47,7 +48,7 @@ erDiagram
         text role "Organization-level role"
         timestamp created_at
     }
-    
+
     PROJECTS {
         uuid id PK
         uuid organization_id FK
@@ -59,7 +60,7 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    
+
     PROJECT_MEMBERS {
         uuid id PK
         uuid user_id FK
@@ -67,7 +68,7 @@ erDiagram
         varchar role "Project-level role"
         timestamp created_at
     }
-    
+
     PROJECT_VARIABLES {
         uuid id PK
         uuid project_id FK
@@ -80,7 +81,7 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    
+
     USER ||--o{ MEMBER : "belongs to orgs"
     USER ||--o{ PROJECT_MEMBERS : "assigned to projects"
     USER ||--o{ PROJECT_VARIABLES : "creates variables"
@@ -100,14 +101,16 @@ erDiagram
 ### Current Database Role Values
 
 **Role Names:**
+
 - `super_admin` → SUPER_ADMIN (system-wide control)
 - `org_owner` → ORG_OWNER (organization owner)
-- `org_admin` → ORG_ADMIN (organization admin)  
+- `org_admin` → ORG_ADMIN (organization admin)
 - `project_admin` → PROJECT_ADMIN (project admin - full control within assigned projects)
 - `project_editor` → PROJECT_EDITOR (project editor - can create/edit resources but cannot delete)
 - `project_viewer` → PROJECT_VIEWER (read-only access)
 
 **Default Values:**
+
 - Both `member` and `project_members` tables default to `'project_viewer'`
 
 ### Role Conversion Logic
@@ -132,14 +135,14 @@ graph TB
         SA -->|Yes| SYS[System-wide Access]
         SA -->|No| ORG[Organization Context]
     end
-    
+
     subgraph "Organization Level"
         ORG --> OO{Org Owner?}
         ORG --> OA{Org Admin?}
         OO -->|Yes| ORGWIDE[Organization-wide Access]
         OA -->|Yes| ORGMGMT[Organization Management]
     end
-    
+
     subgraph "Project Level"
         ORGWIDE --> ALLPROJ[All Projects Access]
         ORGMGMT --> ALLPROJ
@@ -153,7 +156,7 @@ graph TB
         ASSIGNED --> RESWRITE[Resource Write Access]
         VIEWONLY --> RESREAD[Resource Read Access]
     end
-    
+
     subgraph "Resource Access"
         SYS --> FULL[Full System Control]
         ALLPROJ --> FULL
@@ -161,7 +164,7 @@ graph TB
         RESWRITE --> WRITE
         RESREAD --> READ[View Only]
     end
-    
+
     style SYS fill:#ff6b6b,stroke:#d63031,color:#fff
     style ORGWIDE fill:#fd79a8,stroke:#e84393,color:#fff
     style ORGMGMT fill:#fdcb6e,stroke:#e17055,color:#fff
@@ -181,7 +184,7 @@ The system uses Better Auth's `createAccessControl` function with custom stateme
 ### The 6 Unified Roles
 
 1. **SUPER_ADMIN** (`super_admin`) - System-wide access using Better Auth admin plugin
-2. **ORG_OWNER** (`owner`) - Full organization control via Better Auth organization plugin  
+2. **ORG_OWNER** (`owner`) - Full organization control via Better Auth organization plugin
 3. **ORG_ADMIN** (`admin`) - Organization management via Better Auth organization plugin
 4. **PROJECT_ADMIN** (`project_admin`) - Custom role for full project administration within assigned projects
 5. **PROJECT_EDITOR** (`project_editor`) - Custom role for project-specific editing
@@ -201,46 +204,46 @@ graph TD
         SA --> SA2[System Impersonation]
         SA --> SA3[All Org & Project Access]
     end
-    
+
     subgraph "Organization Level"
         OO[ORG_OWNER<br/>Organization Control]
         OA[ORG_ADMIN<br/>Organization Management]
-        
+
         OO --> OO1[Delete Organization]
         OO --> OO2[Full Member Management]
         OO --> OO3[All Projects Access]
-        
+
         OA --> OA1[Manage Organization]
         OA --> OA2[Member Management]
         OA --> OA3[All Projects Access]
         OA -.->|Cannot| OO1
     end
-    
+
     subgraph "Project Level"
         PA[PROJECT_ADMIN<br/>Assigned Projects Only]
         PE[PROJECT_EDITOR<br/>Assigned Projects Only]
         PV[PROJECT_VIEWER<br/>Read Only]
-        
+
         PA --> PA1[Manage Project Members]
         PA --> PA2[Full Project Resources]
         PA --> PA3[Create/Edit/Delete]
-        
+
         PE --> PE1[Edit Project Resources]
         PE --> PE2[Create/Edit/Delete Own]
         PE -.->|Cannot| PA1
-        
+
         PV --> PV1[View All Resources]
         PV -.->|Cannot| PE1
         PV -.->|Cannot| PA1
     end
-    
+
     SA -.-> OO
     SA -.-> OA
     OO -.-> PA
     OA -.-> PA
     PA -.-> PE
     PE -.-> PV
-    
+
     style SA fill:#ff6b6b,stroke:#d63031,color:#fff
     style OO fill:#fd79a8,stroke:#e84393,color:#fff
     style OA fill:#fdcb6e,stroke:#e17055,color:#fff
@@ -264,7 +267,7 @@ ORG_OWNER (Organization-wide via Better Auth Organization Plugin)
     ├── Full access to all projects in organization
     └── Can create/edit/delete jobs, tests, monitors
 
-ORG_ADMIN (Organization-wide via Better Auth Organization Plugin)  
+ORG_ADMIN (Organization-wide via Better Auth Organization Plugin)
     ├── Organization management (cannot delete organization)
     ├── Member management features
     ├── Full access to all projects in organization
@@ -293,24 +296,24 @@ PROJECT_VIEWER (Project-specific Role - Read Only)
 
 ### Current Permission Matrix
 
-| Resource | Super Admin | Org Owner | Org Admin | Project Admin | Project Editor | Project Viewer |
-|----------|-------------|-----------|-----------|---------------|----------------|----------------|
-| Users (ban/unban) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Organizations | ✅ | ✅ (own) | ✅ (own) | 👁️ (view) | 👁️ (view) | 👁️ (view) |
-| Organization Members | ✅ | ✅ | ✅ | 👁️ (view) | 👁️ (view) | 👁️ (view) |
-| Projects | ✅ | ✅ | ✅ | ✅ (assigned) | 👁️ (assigned) | 👁️ (assigned) |
-| Project Members | ✅ | ✅ | ✅ | ✅ (assigned projects) | 👁️ (assigned projects) | 👁️ (assigned projects) |
-| Jobs | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
-| Tests | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
-| Monitors | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
-| Runs | ✅ | ✅ | ✅ | ✅ (assigned projects) | 👁️ (assigned projects) | 👁️ (assigned projects) |
-| API Keys | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | ❌ |
-| Notifications | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
-| Tags | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Resource              | Super Admin | Org Owner | Org Admin | Project Admin          | Project Editor         | Project Viewer         |
+| --------------------- | ----------- | --------- | --------- | ---------------------- | ---------------------- | ---------------------- |
+| Users (ban/unban)     | ✅          | ❌        | ❌        | ❌                     | ❌                     | ❌                     |
+| Organizations         | ✅          | ✅ (own)  | ✅ (own)  | 👁️ (view)              | 👁️ (view)              | 👁️ (view)              |
+| Organization Members  | ✅          | ✅        | ✅        | 👁️ (view)              | 👁️ (view)              | 👁️ (view)              |
+| Projects              | ✅          | ✅        | ✅        | ✅ (assigned)          | 👁️ (assigned)          | 👁️ (assigned)          |
+| Project Members       | ✅          | ✅        | ✅        | ✅ (assigned projects) | 👁️ (assigned projects) | 👁️ (assigned projects) |
+| Jobs                  | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Tests                 | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Monitors              | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Runs                  | ✅          | ✅        | ✅        | ✅ (assigned projects) | 👁️ (assigned projects) | 👁️ (assigned projects) |
+| API Keys              | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | ❌                     |
+| Notifications         | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Tags                  | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
 | **Variables/Secrets** |
-| Variable Create/Edit | ✅ | ✅ | ✅ | ✅ (assigned projects) | ✅ (assigned projects) | ❌ |
-| Variable Delete | ✅ | ✅ | ✅ | ✅ (assigned projects) | ❌ | ❌ |
-| Secret Values View | ✅ | ✅ | ✅ | ✅ (assigned projects) | ❌ | ❌ |
+| Variable Create/Edit  | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✅ (assigned projects) | ❌                     |
+| Variable Delete       | ✅          | ✅        | ✅        | ✅ (assigned projects) | ❌                     | ❌                     |
+| Secret Values View    | ✅          | ✅        | ✅        | ✅ (assigned projects) | ❌                     | ❌                     |
 
 Legend: ✅ = Full Access, ✏️ = Create/Edit Only (no delete), 👁️ = View Only, ❌ = No Access
 
@@ -323,19 +326,19 @@ flowchart TD
             SR1[User Management<br/>ban/unban] --> SA[SUPER_ADMIN ✅]
             SR1 --> OTHERS1[All Others ❌]
         end
-        
+
         subgraph "Organization Resources"
             OR1[Organization CRUD] --> SA
             OR1 --> OO[ORG_OWNER ✅]
             OR1 --> OA[ORG_ADMIN ✅*]
             OR1 --> PROJ_ROLES1[Project Roles 👁️]
-            
+
             OR2[Member Management] --> SA
             OR2 --> OO
             OR2 --> OA
             OR2 --> PROJ_ROLES2[Project Roles 👁️]
         end
-        
+
         subgraph "Project Resources"
             PR1[Project Management] --> SA
             PR1 --> OO
@@ -343,7 +346,7 @@ flowchart TD
             PR1 --> PA[PROJECT_ADMIN ✅*]
             PR1 --> PE[PROJECT_EDITOR 👁️]
             PR1 --> PV[PROJECT_VIEWER 👁️]
-            
+
             PR2[Tests/Jobs/Monitors] --> SA
             PR2 --> OO
             PR2 --> OA
@@ -352,7 +355,7 @@ flowchart TD
             PR2 --> PV2[PROJECT_VIEWER 👁️]
         end
     end
-    
+
     style SA fill:#ff6b6b,stroke:#d63031,color:#fff
     style OO fill:#fd79a8,stroke:#e84393,color:#fff
     style OA fill:#fdcb6e,stroke:#e17055,color:#fff
@@ -362,7 +365,8 @@ flowchart TD
 ```
 
 **Notes:**
-- ✅* = Access limited to assigned projects only (for project-specific roles)
+
+- ✅\* = Access limited to assigned projects only (for project-specific roles)
 - OA cannot delete organizations (unlike OO)
 
 ## Current Implementation Details
@@ -374,18 +378,21 @@ flowchart TD
 The variable management system now implements granular permission control, allowing `project_editor` roles to create and edit variables/secrets while restricting deletion and secret value viewing to admin roles.
 
 **Permission Functions:**
+
 - `canViewProjectVariables()`: All project members can view variable names and non-secret values
 - `canCreateEditProjectVariables()`: Allows creation and editing for `org_owner`, `org_admin`, `project_admin`, and `project_editor`
 - `canDeleteProjectVariables()`: Restricts deletion to `org_owner`, `org_admin`, and `project_admin` only
 - `canViewSecretVariables()`: Secret value viewing limited to full admin roles (`org_owner`, `org_admin`, `project_admin`)
 
 **Security Model:**
+
 - **Secret Values**: Only admin roles can view decrypted secret values
 - **Variable Management**: Editors can create/edit but cannot delete variables
 - **Audit Logging**: All variable operations are logged with user context
 - **Encryption**: Secrets are encrypted at rest with project-specific keys
 
 **Frontend Integration:**
+
 - **Add Variable Button**: Shows for users with create/edit permissions
 - **Edit Actions**: Available to users with create/edit permissions
 - **Delete Actions**: Restricted to users with delete permissions
@@ -397,16 +404,18 @@ The variable management system now implements granular permission control, allow
 UI components consistently check permissions by getting the current project context and normalizing the user's role for permission evaluation.
 
 **Project Context Resolution:**
+
 1. Gets active project from session table
-2. Queries `project_members` table for user's role in that project  
+2. Queries `project_members` table for user's role in that project
 3. Returns role string (e.g., 'project_viewer', 'project_editor', 'org_owner')
 4. Role string gets normalized to RBAC enum via `normalizeRole()`
 
 ### Super Admin User Management
 
 **Role Display Logic:**
+
 - Calls `getUserHighestRole()` for each user
-- Checks environment variables first (SUPER_ADMIN_USER_IDS, SUPER_ADMIN_EMAILS)
+- Checks environment variables first (SUPER_ADMIN_EMAILS)
 - Queries all organization memberships and returns highest role
 - Shows organization count for multi-org users: "User Name (3 orgs)"
 
@@ -420,12 +429,14 @@ Uses direct database operations instead of Better Auth admin plugin due to envir
 The system distinguishes between two types of users to prevent unwanted organization creation:
 
 **Sign-up Users:**
+
 - Users who register directly through the sign-up form
 - Get a default organization with format: `{User Name}'s Organization`
 - Automatically become `org_owner` of their default organization
 - Get a default project within their organization
 
 **Invited Users:**
+
 - Users who join through organization invitations
 - Only get membership in organizations they were invited to
 - Do not get default organizations created
@@ -455,6 +466,7 @@ The system verifies if users have existing organization membership to determine 
 **Status: ✅ RESOLVED** - The permission system is now working correctly with the updated role normalization.
 
 **Previous Symptoms:**
+
 - When impersonating a project_viewer user, edit/delete buttons remained enabled
 - Console showed role conversion and permission checks but buttons weren't disabled
 
@@ -473,6 +485,7 @@ The permission system now correctly restricts PROJECT_VIEWER permissions to view
 **Status: ✅ RESOLVED** - All roles now use standardized naming format.
 
 The system uses consistent role naming throughout:
+
 - `super_admin`, `org_owner`, `org_admin`, `project_admin`, `project_editor`, `project_viewer`
 
 ## Better Auth Permission System
@@ -492,8 +505,9 @@ Better Auth client hooks provide organization permissions while custom hooks han
 Better Auth's admin plugin provides comprehensive system-level administration:
 
 **Available Features:**
+
 - ✅ User creation and management (`auth.api.createUser`, `auth.api.listUsers`)
-- ✅ User role assignment (`auth.api.setRole`)  
+- ✅ User role assignment (`auth.api.setRole`)
 - ✅ User banning and unbanning (`auth.api.banUser`, `auth.api.unbanUser`)
 - ✅ User impersonation (`auth.api.impersonateUser`)
 - ✅ Session management (`auth.api.listUserSessions`, `auth.api.revokeUserSession`)
@@ -512,6 +526,7 @@ Server-side admin operations use Better Auth's API methods with permission check
 Better Auth's organization plugin handles multi-tenancy:
 
 **Available Features:**
+
 - ✅ Organization creation and management
 - ✅ Member invitation and management
 - ✅ Role-based organization permissions
@@ -535,111 +550,114 @@ Components use permission hooks to control access to member management and invit
 Server actions now use Better Auth's permission system instead of custom RBAC context building, providing more streamlined and standardized permission checking.
 
 ### API Routes with Better Auth
+
 API routes use Better Auth middleware for authentication and permission validation before executing handler logic.
 
 ## Permission Matrix with Better Auth
 
 ### System-Level Permissions (Better Auth Admin Plugin)
 
-| Permission | SUPER_ADMIN |
-|------------|-------------|
-| **User Management** |
-| user:create | ✅ |
-| user:update | ✅ |
-| user:delete | ✅ |
-| user:view | ✅ |
-| user:impersonate | ✅ |
+| Permission             | SUPER_ADMIN |
+| ---------------------- | ----------- |
+| **User Management**    |
+| user:create            | ✅          |
+| user:update            | ✅          |
+| user:delete            | ✅          |
+| user:view              | ✅          |
+| user:impersonate       | ✅          |
 | **Session Management** |
-| session:list | ✅ |
-| session:revoke | ✅ |
-| session:delete | ✅ |
+| session:list           | ✅          |
+| session:revoke         | ✅          |
+| session:delete         | ✅          |
 
 ### Organization-Level Permissions (Better Auth Organization Plugin)
 
-| Permission | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_ADMIN | PROJECT_EDITOR | PROJECT_VIEWER |
-|------------|-------------|-----------|-----------|---------------|----------------|----------------|
+| Permission                  | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_ADMIN | PROJECT_EDITOR | PROJECT_VIEWER |
+| --------------------------- | ----------- | --------- | --------- | ------------- | -------------- | -------------- |
 | **Organization Management** |
-| organization:create | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| organization:update | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| organization:delete | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| organization:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Member Management** |
-| member:create | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| member:update | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| member:delete | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| member:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Invitation Management** |
-| invitation:create | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| invitation:cancel | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| invitation:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| organization:create         | ✅          | ✅        | ❌        | ❌            | ❌             | ❌             |
+| organization:update         | ✅          | ✅        | ✅        | ❌            | ❌             | ❌             |
+| organization:delete         | ✅          | ✅        | ❌        | ❌            | ❌             | ❌             |
+| organization:view           | ✅          | ✅        | ✅        | ✅            | ✅             | ✅             |
+| **Member Management**       |
+| member:create               | ✅          | ✅        | ✅        | ❌            | ❌             | ❌             |
+| member:update               | ✅          | ✅        | ✅        | ❌            | ❌             | ❌             |
+| member:delete               | ✅          | ✅        | ✅        | ❌            | ❌             | ❌             |
+| member:view                 | ✅          | ✅        | ✅        | ✅            | ✅             | ✅             |
+| **Invitation Management**   |
+| invitation:create           | ✅          | ✅        | ✅        | ❌            | ❌             | ❌             |
+| invitation:cancel           | ✅          | ✅        | ✅        | ❌            | ❌             | ❌             |
+| invitation:view             | ✅          | ✅        | ✅        | ✅            | ✅             | ✅             |
 
 ### Custom Resource Permissions
 
-| Permission | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_ADMIN* | PROJECT_EDITOR* | PROJECT_VIEWER |
-|------------|-------------|-----------|-----------|----------------|-----------------|----------------|
-| **Project Management** |
-| project:create | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| project:update | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| project:delete | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| project:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Test Management** |
-| test:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| test:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| test:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| test:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| test:run | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Job Management** |
-| job:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| job:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| job:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| job:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| job:trigger | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Monitor Management** |
-| monitor:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| monitor:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| monitor:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| monitor:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Run Management** |
-| run:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| run:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| run:export | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **API Key Management** |
-| apiKey:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| apiKey:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| apiKey:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| apiKey:view | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Notification Management** |
-| notification:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| notification:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| notification:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| notification:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Tag Management** |
-| tag:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| tag:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| tag:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| tag:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Permission                       | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_ADMIN\* | PROJECT_EDITOR\* | PROJECT_VIEWER |
+| -------------------------------- | ----------- | --------- | --------- | --------------- | ---------------- | -------------- |
+| **Project Management**           |
+| project:create                   | ✅          | ✅        | ✅        | ❌              | ❌               | ❌             |
+| project:update                   | ✅          | ✅        | ✅        | ❌              | ❌               | ❌             |
+| project:delete                   | ✅          | ✅        | ✅        | ❌              | ❌               | ❌             |
+| project:view                     | ✅          | ✅        | ✅        | ✅              | ✅               | ✅             |
+| **Test Management**              |
+| test:create                      | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| test:update                      | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| test:delete                      | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| test:view                        | ✅          | ✅        | ✅        | ✅              | ✅               | ✅             |
+| test:run                         | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| **Job Management**               |
+| job:create                       | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| job:update                       | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| job:delete                       | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| job:view                         | ✅          | ✅        | ✅        | ✅              | ✅               | ✅             |
+| job:trigger                      | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| **Monitor Management**           |
+| monitor:create                   | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| monitor:update                   | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| monitor:delete                   | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| monitor:view                     | ✅          | ✅        | ✅        | ✅              | ✅               | ✅             |
+| **Run Management**               |
+| run:view                         | ✅          | ✅        | ✅        | ✅              | ✅               | ✅             |
+| run:delete                       | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| run:export                       | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| **API Key Management**           |
+| apiKey:create                    | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| apiKey:update                    | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| apiKey:delete                    | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| apiKey:view                      | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| **Notification Management**      |
+| notification:create              | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| notification:update              | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| notification:delete              | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| notification:view                | ✅          | ✅        | ✅        | ✅              | ✅               | ✅             |
+| **Tag Management**               |
+| tag:create                       | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| tag:update                       | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| tag:delete                       | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| tag:view                         | ✅          | ✅        | ✅        | ✅              | ✅               | ✅             |
 | **Variable & Secret Management** |
-| variable:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| variable:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| variable:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| variable:view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| secret:create | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| secret:update | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| secret:delete | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| secret:view_values | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| variable:create                  | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| variable:update                  | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| variable:delete                  | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| variable:view                    | ✅          | ✅        | ✅        | ✅              | ✅               | ✅             |
+| secret:create                    | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| secret:update                    | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| secret:delete                    | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
+| secret:view_values               | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
 
-*\* PROJECT_ADMIN and PROJECT_EDITOR permissions apply only to their assigned projects*
+_\* PROJECT_ADMIN and PROJECT_EDITOR permissions apply only to their assigned projects_
 
 ## Implementation Files
 
 ### Core Better Auth Integration
+
 - `/app/src/utils/auth.ts` - Better Auth server configuration with plugins
-- `/app/src/utils/auth-client.ts` - Better Auth client configuration  
+- `/app/src/utils/auth-client.ts` - Better Auth client configuration
 - `/app/src/lib/rbac/permissions.ts` - Access control statements and roles
 - `/app/src/lib/rbac/middleware.ts` - Server-side permission checking
 - `/app/src/hooks/use-better-auth-permissions.ts` - Client-side permission hooks
 
 ### Variable & Secret Management
+
 - `/app/src/lib/rbac/variable-permissions.ts` - Granular variable permission functions
 - `/app/src/app/api/projects/[id]/variables/route.ts` - Variable CRUD API with permission checks
 - `/app/src/app/api/projects/[id]/variables/[variableId]/route.ts` - Individual variable operations
@@ -648,6 +666,7 @@ API routes use Better Auth middleware for authentication and permission validati
 - `/app/src/components/variables/data-table-toolbar.tsx` - Toolbar with permission-based button visibility
 
 ### Job & API Key Management
+
 - `/app/src/components/jobs/edit-job.tsx` - Job edit page with permission-controlled delete button
 - `/app/src/components/jobs/cicd-settings.tsx` - CI/CD settings with permission-controlled API key delete buttons
 - `/app/src/components/jobs/data-table-row-actions.tsx` - Job table row actions with permission checking
@@ -655,6 +674,7 @@ API routes use Better Auth middleware for authentication and permission validati
 - `/app/src/components/alerts/notification-channels-columns.tsx` - Notification channel table columns with conditional delete buttons
 
 ### Better Auth Configuration Files
+
 Server and client configurations include admin, organization, and API key plugins with appropriate role mappings and access control settings.
 
 ## Migration from Custom RBAC
@@ -679,21 +699,25 @@ The system includes comprehensive testing for admin plugin features (user manage
 ## Security Benefits
 
 ### 1. Industry-Standard Security
+
 - **Proven Security Model**: Leverages Better Auth's battle-tested security patterns
 - **Built-in Protections**: CSRF protection, session management, and security headers
 - **Regular Updates**: Benefits from Better Auth's security updates and patches
 
 ### 2. Enhanced Permission System
+
 - **Granular Control**: Fine-grained permissions for all resources
 - **Type Safety**: Full TypeScript support with compile-time permission checking
 - **Consistent API**: Unified permission checking across client and server
 
 ### 3. Better Admin Security
+
 - **Secure Impersonation**: Built-in user impersonation with audit trails
 - **Session Management**: Comprehensive session control and monitoring
 - **User Management**: Secure user creation, modification, and deletion
 
 ### 4. Organization Security
+
 - **Multi-tenancy**: Secure organization isolation and member management
 - **Invitation System**: Secure member invitation with email verification
 - **Role Management**: Dynamic role assignment with permission validation
@@ -703,6 +727,7 @@ The system includes comprehensive testing for admin plugin features (user manage
 The Better Auth RBAC integration provides a robust, scalable, and secure permission system that combines the power of Better Auth's admin and organization plugins with custom project-level permissions. This hybrid approach offers:
 
 **Key Advantages:**
+
 - **Standards Compliance**: Uses industry-standard authentication and authorization patterns
 - **Enhanced Security**: Built-in protection against common vulnerabilities
 - **Developer Experience**: Excellent TypeScript support and intuitive APIs

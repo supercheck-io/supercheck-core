@@ -170,7 +170,7 @@ export function AdminDashboardSkeleton() {
         <CardContent className="p-6">
           <div className="space-y-4">
             {/* Tabs skeleton */}
-            <div className="flex space-x-1 rounded-lg bg-muted p-1">
+            <div className="flex space-x-1 rounded-lg bg-muted p-1 max-w-[300px]">
               {['Overview', 'Users', 'Organizations'].map((_, i) => (
                 <Skeleton key={i} className="h-9 w-24" />
               ))}
