@@ -63,13 +63,23 @@ export function NavMain({
               )}
               {!item.items && (
                 <SidebarMenuButton tooltip={item.title} asChild>
-                  <Link href={item.url}>
-                    {item.icon && <item.icon />}
-                    <span>{item.title}</span>
-                    {item.badge && (
-                      <span className="ml-auto text-xs text-muted-foreground">{item.badge}</span>
-                    )}
-                  </Link>
+                  {item.url.startsWith('http') ? (
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      {item.icon && <item.icon />}
+                      <span>{item.title}</span>
+                      {item.badge && (
+                        <span className="ml-auto text-xs text-muted-foreground">{item.badge}</span>
+                      )}
+                    </a>
+                  ) : (
+                    <Link href={item.url}>
+                      {item.icon && <item.icon />}
+                      <span>{item.title}</span>
+                      {item.badge && (
+                        <span className="ml-auto text-xs text-muted-foreground">{item.badge}</span>
+                      )}
+                    </Link>
+                  )}
                 </SidebarMenuButton>
               )}
 

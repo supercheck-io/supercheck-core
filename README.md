@@ -1,6 +1,10 @@
-# Supercheck
-
-**Comprehensive Automation & Monitoring for Modern Apps with Distributed Architecture**
+<div align="center">
+  <img src="https://raw.githubusercontent.com/krish-kant/supercheck-assets/main/logo-full.svg" alt="Supercheck Logo" width="400" height="100">
+  
+  # Supercheck
+  
+  **Comprehensive Automation & Monitoring for Modern Apps with Distributed Architecture**
+</div>
 
 Supercheck is a powerful, scalable testing platform built with Next.js and NestJS that provides comprehensive end-to-end testing capabilities with real-time monitoring, job scheduling, and parallel test execution.
 
@@ -47,7 +51,7 @@ Supercheck is a powerful, scalable testing platform built with Next.js and NestJ
 
 ### Prerequisites
 
-- Docker and Docker Compose
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker and Docker Compose)
 - Node.js 18+ (for local development)
 
 ### 1. Clone and Setup
@@ -249,12 +253,53 @@ See [Security Guide](./specs/SECURITY.md) for production security settings:
 3. Configure check intervals and alert thresholds
 4. Set up notification channels (email, webhooks, Slack)
 
-### Managing Users (Admin)
-1. Access the Admin Dashboard at `/admin`
-2. View system statistics and user activity
-3. Manage user roles and permissions
-4. Impersonate users for support and testing
-5. Monitor system performance and capacity
+### Using the Dashboard
+
+1. Navigate to the main Dashboard for system overview
+2. View real-time test execution status and metrics
+3. Monitor system health and performance indicators
+4. Track recent activity across tests, jobs, and monitors
+5. Access quick creation shortcuts for common tasks
+
+### Managing Jobs
+
+1. Go to the Jobs section to schedule automated test execution
+2. Create new jobs with cron-based scheduling
+3. Configure job settings: timeouts, retries, and execution parameters
+4. Link jobs to specific tests or test suites
+5. Monitor job execution history and status
+
+### Viewing Test Runs
+
+1. Navigate to the Runs section for execution history
+2. Filter runs by test, status, date range, or execution type
+3. View detailed run reports with logs and artifacts
+4. Download test results and Playwright reports
+5. Analyze performance trends and failure patterns
+
+### Using the Playground
+
+1. Access the Playground for interactive test creation
+2. Choose test type: Browser Test, API Test, Database Test, or Custom Test
+3. Write and edit test scripts with real-time syntax highlighting
+4. Run tests immediately with live feedback
+5. Save successful tests to your test library
+
+### Organization Administration
+
+1. Access the Organization Admin panel at `/org-admin`
+2. Manage organization members and their roles
+3. Configure organization-wide settings and preferences
+4. Monitor organization usage and capacity
+5. Set up billing and subscription management
+
+### Super Admin Management
+
+1. Access the Super Admin Dashboard at `/super-admin`
+2. View system-wide statistics and user activity
+3. Manage user roles and permissions across all organizations
+4. Impersonate users for support and testing purposes
+5. Monitor system performance and capacity limits
 
 ### API Access
 ```bash
