@@ -43,7 +43,7 @@ NEXT_PUBLIC_APP_URL=https://supercheck.meditationblue.com
 NODE_ENV=production
 RUNNING_CAPACITY=5          # Max concurrent test executions
 QUEUED_CAPACITY=50          # Max queued jobs
-TEST_EXECUTION_TIMEOUT_MS=900000    # 15 minutes
+TEST_EXECUTION_TIMEOUT_MS=120000     # 2 minutes
 JOB_EXECUTION_TIMEOUT_MS=900000     # 15 minutes
 ```
 
@@ -53,6 +53,9 @@ JOB_EXECUTION_TIMEOUT_MS=900000     # 15 minutes
 # Core Playwright Settings
 PLAYWRIGHT_HEADLESS=true
 PLAYWRIGHT_RETRIES=2
+PLAYWRIGHT_TRACE=on              # Default: on
+PLAYWRIGHT_SCREENSHOT=on         # Default: on  
+PLAYWRIGHT_VIDEO=on              # Default: on
 
 # Browser Support (disabled by default for performance)
 ENABLE_FIREFOX=false
@@ -122,19 +125,24 @@ NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS=10
 
 # SMTP Email Configuration
 # Supports any SMTP provider including Resend SMTP, Gmail, SendGrid, etc.
-SMTP_HOST=smtp.resend.com
-SMTP_PORT=587
-SMTP_USER=resend
-SMTP_PASSWORD=your-api-key
-SMTP_SECURE=false
-SMTP_FROM_EMAIL=hello@yourdomain.com
+# Default values shown are for Gmail, but can be configured for any provider
+SMTP_HOST=smtp.gmail.com         # Default: smtp.gmail.com (use smtp.resend.com for Resend)
+SMTP_PORT=587                    # Default: 587
+SMTP_USER=test@gmail.com         # Default: test@gmail.com (use 'resend' for Resend)
+SMTP_PASSWORD=your-app-password  # Your SMTP password or API key
+SMTP_SECURE=false               # Default: false
+SMTP_FROM_EMAIL=test@gmail.com  # Default: test@gmail.com
 ```
 
 ### Monitoring
 
 ```env
-# Monitor Configuration
-RECENT_MONITOR_RESULTS_LIMIT=1000
+# Monitor Configuration  
+RECENT_MONITOR_RESULTS_LIMIT=10000    # Limit for recent monitor results display
+
+# Additional Traefik Variables (for docker-compose-secure.yml)
+DOMAIN=demo.supercheck.io             # Your domain name
+ACME_EMAIL=hello@demo.supercheck.io   # Email for Let's Encrypt certificates
 ```
 
 ## Environment-Specific Overrides

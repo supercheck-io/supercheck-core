@@ -74,7 +74,7 @@ Real-time monitoring with configurable thresholds and automated responses:
 
 **Monitoring Features:**
 
-- **Interval Checks**: Memory monitoring every 30 seconds
+- **Interval Checks**: Memory monitoring every 5 minutes
 - **Threshold Alerts**: Configurable warning levels (default: 2048MB)
 - **Automatic Cleanup**: Triggered cleanup when thresholds exceeded
 - **Process Management**: Enhanced browser process termination
@@ -94,7 +94,7 @@ Comprehensive garbage collection integration:
 
 ```typescript
 // Automatic GC triggers
-- Every 30 seconds (scheduled)
+- Every 10 minutes (scheduled)
 - After each test completion
 - After job completion
 - During memory cleanup cycles
