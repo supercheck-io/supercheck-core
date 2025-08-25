@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/krish-kant/supercheck-assets/main/logo-full.svg" alt="Supercheck Logo" width="400" height="100">
+  <img src="./supercheck-logo.png" alt="Supercheck Logo" width="90">
   
   # Supercheck
   

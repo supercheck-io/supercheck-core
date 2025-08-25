@@ -51,7 +51,7 @@ module.exports = defineConfig({
   forbidOnly: !!process.env.CI,
 
   /* Smart retry strategy */
-  retries: process.env.CI ? 1 : 1, // More retries in CI for flaky network conditions
+  retries: process.env.CI ? 1 : process.env.PLAYWRIGHT_RETRIES || 1, // More retries in CI for flaky network conditions
 
   /* Reporter configuration optimized for artifact storage */
   reporter: [

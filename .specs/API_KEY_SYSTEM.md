@@ -233,7 +233,7 @@ if (key.jobId !== jobId) {
 ```bash
 curl -X POST "${NEXT_PUBLIC_APP_URL}/api/jobs/{jobId}/trigger" \
   -H "Content-Type: application/json" \
-  -H "x-api-key: {your-api-key}"
+  -H "Authorization: Bearer {your-api-key}"
 ```
 3. **Expected Result**: Should return success response with job execution details, not "Invalid API key" or "Invalid job data" errors
 
@@ -259,7 +259,7 @@ curl -X POST "${NEXT_PUBLIC_APP_URL}/api/jobs/{jobId}/api-keys" \
 
 # Trigger job with API key
 curl -X POST "${NEXT_PUBLIC_APP_URL}/api/jobs/{jobId}/trigger" \
-  -H "x-api-key: {api-key}"
+  -H "Authorization: Bearer {api-key}"
 ```
 
 ## What Was Fixed

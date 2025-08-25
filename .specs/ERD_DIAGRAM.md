@@ -63,7 +63,7 @@ erDiagram
         timestamp updatedAt
     }
     
-    projectMembers {
+    project_members {
         uuid id PK
         uuid userId FK
         uuid projectId FK
@@ -146,7 +146,7 @@ erDiagram
         timestamp updatedAt
     }
     
-    monitorResults {
+    monitor_results {
         uuid id PK
         uuid monitorId FK
         timestamp checkedAt
@@ -182,7 +182,7 @@ erDiagram
         timestamp assignedAt
     }
     
-    notificationProviders {
+    notification_providers {
         uuid id PK
         uuid organizationId FK
         uuid projectId FK
@@ -195,13 +195,13 @@ erDiagram
         timestamp updatedAt
     }
     
-    monitorNotificationSettings {
+    monitor_notification_settings {
         uuid monitorId FK
         uuid notificationProviderId FK
         timestamp createdAt
     }
     
-    jobNotificationSettings {
+    job_notification_settings {
         uuid jobId FK
         uuid notificationProviderId FK
         timestamp createdAt
@@ -238,7 +238,7 @@ erDiagram
         timestamp updatedAt
     }
     
-    alertHistory {
+    alert_history {
         uuid id PK
         text message
         varchar type
@@ -336,7 +336,7 @@ erDiagram
         timestamp createdAt
     }
     
-    projectVariables {
+    project_variables {
         uuid id PK
         uuid projectId FK
         varchar key
@@ -357,8 +357,8 @@ erDiagram
     USER ||--o{ ACCOUNT : "linked to"
     USER ||--o{ apikey : "owns"
     USER ||--o{ NOTIFICATIONS : "receives"
-    USER ||--o{ auditLogs : "performs"
-    USER ||--o{ projectVariables : "creates"
+    USER ||--o{ audit_logs : "performs"
+    USER ||--o{ project_variables : "creates"
     
     ORGANIZATION ||--o{ MEMBER : "has members"
     ORGANIZATION ||--o{ INVITATION : "has invitations"
@@ -367,34 +367,34 @@ erDiagram
     ORGANIZATION ||--o{ JOBS : "owns"
     ORGANIZATION ||--o{ MONITORS : "owns"
     ORGANIZATION ||--o{ TAGS : "owns"
-    ORGANIZATION ||--o{ notificationProviders : "configures"
+    ORGANIZATION ||--o{ notification_providers : "configures"
     ORGANIZATION ||--o{ REPORTS : "generates"
     ORGANIZATION ||--o{ ALERTS : "manages"
-    ORGANIZATION ||--o{ auditLogs : "tracks"
+    ORGANIZATION ||--o{ audit_logs : "tracks"
     
-    PROJECTS ||--o{ projectMembers : "has members"
+    PROJECTS ||--o{ project_members : "has members"
     PROJECTS ||--o{ TESTS : "contains"
     PROJECTS ||--o{ JOBS : "contains"
     PROJECTS ||--o{ MONITORS : "contains"
     PROJECTS ||--o{ TAGS : "organizes"
-    PROJECTS ||--o{ notificationProviders : "uses"
+    PROJECTS ||--o{ notification_providers : "uses"
     PROJECTS ||--o{ RUNS : "executes"
     PROJECTS ||--o{ apikey : "accesses"
-    PROJECTS ||--o{ projectVariables : "contains"
+    PROJECTS ||--o{ project_variables : "contains"
     
     %% Test & Job Relationships
     JOBS ||--o{ jobTests : "includes"
     TESTS ||--o{ jobTests : "used in"
     JOBS ||--o{ RUNS : "executes"
-    JOBS ||--o{ alertHistory : "triggers"
-    JOBS ||--o{ jobNotificationSettings : "notifies via"
+    JOBS ||--o{ alert_history : "triggers"
+    JOBS ||--o{ job_notification_settings : "notifies via"
     JOBS ||--o{ apikey : "accessed by"
     
     %% Monitor Relationships
-    MONITORS ||--o{ monitorResults : "produces"
+    MONITORS ||--o{ monitor_results : "produces"
     MONITORS ||--o{ ALERTS : "configured for"
-    MONITORS ||--o{ alertHistory : "triggers"
-    MONITORS ||--o{ monitorNotificationSettings : "notifies via"
+    MONITORS ||--o{ alert_history : "triggers"
+    MONITORS ||--o{ monitor_notification_settings : "notifies via"
     MONITORS ||--o{ monitorTags : "tagged with"
     
     %% Tag Relationships
@@ -403,8 +403,8 @@ erDiagram
     TESTS ||--o{ testTags : "tagged with"
     
     %% Notification Relationships
-    notificationProviders ||--o{ monitorNotificationSettings : "used by monitors"
-    notificationProviders ||--o{ jobNotificationSettings : "used by jobs"
+    notification_providers ||--o{ monitor_notification_settings : "used by monitors"
+    notification_providers ||--o{ job_notification_settings : "used by jobs"
     
     %% Session & Auth Relationships
     SESSION ||--o{ ORGANIZATION : "active org"
