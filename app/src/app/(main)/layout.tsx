@@ -17,6 +17,7 @@ import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NavUser } from "@/components/nav-user";
+import { DemoBadge } from "@/components/demo-badge";
 
 export default async function MainLayout({
   children,
@@ -52,6 +53,7 @@ export default async function MainLayout({
                 <BreadcrumbDisplay />
               </div>
               <div className="flex items-center gap-10 px-4">
+                <DemoBadge />
                 <CommandSearch />
                 <ParallelThreads />
                 <NavUser />

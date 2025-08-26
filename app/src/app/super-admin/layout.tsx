@@ -12,6 +12,7 @@ import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NavUser } from "@/components/nav-user";
+import { DemoBadge } from "@/components/demo-badge";
 import { isAdmin } from "@/lib/admin";
 import { ProjectContextProvider } from "@/hooks/use-project-context";
 import { Metadata } from "next/types";
@@ -56,6 +57,7 @@ export default async function AdminLayout({
                 <BreadcrumbDisplay />
               </div>
               <div className="flex items-center gap-10 px-4">
+                <DemoBadge />
                 <CommandSearch />
                 <NavUser />
               </div>

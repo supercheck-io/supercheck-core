@@ -555,10 +555,8 @@ VALUES ('job-uuid', 'provider-uuid');
 
 **Notification Channel Limits:**
 
-- `MAX_JOB_NOTIFICATION_CHANNELS` - Maximum channels for jobs (default: 10)
-- `MAX_MONITOR_NOTIFICATION_CHANNELS` - Maximum channels for monitors (default: 10)
-- `NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS` - Frontend limit for jobs (default: 10)
-- `NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS` - Frontend limit for monitors (default: 10)
+- `NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS` - Maximum channels for jobs (default: 10)
+- `NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS` - Maximum channels for monitors (default: 10)
 
 ### Implementation Details
 
