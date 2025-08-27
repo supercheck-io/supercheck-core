@@ -66,10 +66,12 @@ Start all services with Docker Compose:
 - Service-specific log access for troubleshooting
 
 ### 4. Access the Application
-- **Frontend**: ${NEXT_PUBLIC_APP_URL}
-- **MinIO Console**: http://${S3_HOST}:9001 (admin/minioadmin)
-- **PostgreSQL**: ${DB_HOST}:5432
-- **Redis**: ${REDIS_HOST}:6379
+- **Frontend**: ${NEXT_PUBLIC_APP_URL} (via HTTPS with Traefik)
+- **MinIO Console**: Internal network only (no direct external access for security)
+- **PostgreSQL**: Internal network only (port 5432 not publicly exposed)  
+- **Redis**: Internal network only (port 6379 not publicly exposed)
+
+**Security Note**: All services except the frontend are now internal-only for enhanced security. External access is only via the Traefik reverse proxy with HTTPS.
 
 ## 📋 Services Overview
 
@@ -86,9 +88,10 @@ Start all services with Docker Compose:
 - **Health Check**: ${WORKER_URL}/health
 
 ### PostgreSQL
-- **Port**: 5432
+- **Port**: 5432 (Internal network only - not publicly exposed)
 - **Purpose**: Primary database for all application data
 - **Credentials**: postgres/postgres
+- **Security**: No public port exposure for enhanced security
 
 ### Redis
 - **Port**: 6379
@@ -96,9 +99,10 @@ Start all services with Docker Compose:
 - **Persistence**: Enabled with AOF
 
 ### MinIO
-- **Ports**: 9000 (API), 9001 (Console)
+- **Ports**: 9000 (API), 9001 (Console) - Internal network only
 - **Purpose**: S3-compatible storage for test artifacts
 - **Credentials**: minioadmin/minioadmin
+- **Security**: No public port exposure, accessed via internal Docker network
 
 ## 🗄️ Database Migration Setup
 
@@ -186,17 +190,19 @@ AWS_ACCESS_KEY_ID=minioadmin
 AWS_SECRET_ACCESS_KEY=minioadmin
 
 # App Settings
-RUNNING_CAPACITY=5
+RUNNING_CAPACITY=6  # Optimized for 4-core server: 4 workers × 1.5 jobs per worker
 QUEUED_CAPACITY=50
-TEST_EXECUTION_TIMEOUT_MS=900000
+TEST_EXECUTION_TIMEOUT_MS=120000  # 2 minutes per test
+JOB_EXECUTION_TIMEOUT_MS=900000   # 15 minutes per job
 ```
 
-### Resource Limits
-- **Frontend**: 1 CPU, 2GB RAM
-- **Worker**: 2 CPU, 4GB RAM
-- **PostgreSQL**: 0.5 CPU, 1GB RAM
+### Resource Limits (Enhanced Security & Performance)
+- **Frontend**: 1.0 CPU, 2GB RAM
+- **Worker (4 replicas)**: 1.5 CPU, 1.5GB RAM each (6 total CPU, 6GB total RAM)
+- **PostgreSQL**: 1.0 CPU, 1.5GB RAM  
 - **Redis**: 0.5 CPU, 512MB RAM
 - **MinIO**: 0.5 CPU, 1GB RAM
+- **Total Server Usage**: ~8 CPU cores, ~10GB RAM
 
 ## 🐳 Docker Image Management
 
@@ -864,6 +870,27 @@ S3_FORCE_PATH_STYLE=true
 5. **Use external Redis** with authentication
 6. **Set up proper backups** for PostgreSQL and MinIO data
 
+### ✅ Enhanced Security Features (Latest Updates)
+
+#### **Port Security**
+- **PostgreSQL**: No public port exposure (5432) - internal network only
+- **MinIO**: No public port exposure (9000, 9001) - internal network only
+- **Redis**: Already secured with password authentication
+- **External Access**: Only via Traefik reverse proxy (HTTPS)
+
+#### **Container Security**
+- **Resource Limits**: Hard CPU/Memory limits prevent resource exhaustion
+- **Process Limits**: PID limits (512 max) prevent fork bombs
+- **Timeout Protection**: Multi-layer timeouts prevent infinite loops
+- **Memory Protection**: Node.js heap limits prevent memory leaks
+- **Thread Limiting**: UV_THREADPOOL_SIZE=2 prevents thread exhaustion
+
+#### **Docker-level Protection**
+- **System limits**: sysctls and ulimits configured
+- **File descriptor limits**: 65535 max to prevent file exhaustion  
+- **Network limits**: Connection backlog limited (somaxconn=1024)
+- **Restart policies**: Smart restart handling (max 3 attempts)
+
 ### Environment Variables for Production
 ```bash
 # Generate strong passwords
@@ -878,11 +905,40 @@ REDIS_URL=redis://:password@external-host:6379
 
 ## 📊 Performance Tuning
 
-### Resource Optimization
-- **Increase worker replicas** for higher test execution capacity
-- **Adjust Redis memory** based on queue size
-- **Scale PostgreSQL** based on data volume
-- **Monitor MinIO** storage usage
+### Resource Optimization (4-Core Server Configuration)
+- **Running Capacity**: 6 concurrent jobs (optimized for 4 workers × 1.5 jobs each)
+- **Worker Replicas**: 4 replicas with 1.5 CPU each = 6 total CPU cores
+- **Memory Allocation**: 1.5GB per worker with 1GB Node.js heap limit
+- **Thread Management**: UV_THREADPOOL_SIZE=2 for optimal resource usage
+
+### Enhanced Performance Features
+- **Timeout Management**: 
+  - Test timeout: 120 seconds (prevents stuck tests)
+  - Job timeout: 900 seconds (prevents stuck jobs)
+- **Memory Management**: 
+  - Node.js heap limited to 1GB (prevents memory leaks)
+  - Container memory hard limit: 1.5GB (triggers OOMKiller if exceeded)
+- **Process Management**:
+  - PID limit: 512 processes per container
+  - Smart restart policy: max 3 attempts with 5s delay
+
+### Scaling for Different Server Configurations
+```yaml
+# 2-Core Server (2GB RAM)
+RUNNING_CAPACITY: 3
+replicas: 2
+cpus: "1.0" per worker
+
+# 4-Core Server (8GB RAM) - Current Configuration
+RUNNING_CAPACITY: 6  
+replicas: 4
+cpus: "1.5" per worker
+
+# 8-Core Server (16GB RAM)
+RUNNING_CAPACITY: 12
+replicas: 6  
+cpus: "1.5" per worker
+```
 
 ### Scaling Commands
 ```bash
@@ -933,6 +989,28 @@ docker service scale supercheck_worker=5
    ```bash
    docker-compose down
    docker-compose up -d
+   ```
+
+5. **Resource exhaustion / infinite loops**
+   ```bash
+   # Check if containers are hitting resource limits
+   docker stats
+   
+   # Look for containers with high CPU/Memory usage
+   docker-compose logs worker | grep -i "timeout\|memory\|killed"
+   
+   # Restart worker if stuck
+   docker-compose restart worker
+   ```
+
+6. **Fork bomb protection triggered**
+   ```bash
+   # Check for PID limit errors
+   docker-compose logs worker | grep -i "pid\|process"
+   
+   # Container will auto-restart due to restart policy
+   # Monitor restart attempts
+   docker-compose ps
    ```
 
 5. **Database connection issues**
