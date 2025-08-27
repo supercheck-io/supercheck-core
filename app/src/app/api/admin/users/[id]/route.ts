@@ -130,6 +130,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         );
       }
 
+      // Prevent super admins from impersonating themselves
+      if (sessionData.user.id === resolvedParams.id) {
+        return NextResponse.json(
+          { success: false, error: 'You cannot impersonate yourself' },
+          { status: 400 }
+        );
+      }
+
       // Rate limiting for impersonation operations (max 20 per 5 minutes)
       const rateLimitCheck = checkAdminRateLimit(sessionData.user.id, 'impersonate', 20);
       if (!rateLimitCheck.allowed) {

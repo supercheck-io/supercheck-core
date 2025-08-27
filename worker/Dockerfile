@@ -56,7 +56,7 @@ RUN --mount=type=cache,target=/root/.npm \
 
 # Install Playwright browsers with proper caching
 RUN --mount=type=cache,target=/root/.cache/ms-playwright \
-    npm exec playwright install chromium --with-deps
+    npm exec playwright install --with-deps
 
 # Copy Playwright browsers to a known location for the final stage
 RUN mkdir -p /app/playwright-browsers && \
@@ -73,7 +73,7 @@ WORKDIR /app
 # Add OCI labels to link package to repository
 LABEL org.opencontainers.image.source=https://github.com/supercheck-io/supercheck
 LABEL org.opencontainers.image.title="Supercheck Worker"
-LABEL org.opencontainers.image.description="NestJS worker service for Supercheck - Executes Playwright tests, monitors endpoints, and processes background jobs with parallel execution capabilities. Includes Chromium browser and supports multi-architecture deployment."
+LABEL org.opencontainers.image.description="NestJS worker service for Supercheck - Executes Playwright tests, monitors endpoints, and processes background jobs with parallel execution capabilities. Includes all Playwright browsers (Chromium, Firefox, WebKit) and supports multi-architecture deployment."
 
 ENV NODE_ENV=production
 
@@ -103,7 +103,7 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 # Install browsers if not copied from builder (fallback)
 RUN if [ ! -d "/app/playwright-browsers/ms-playwright" ]; then \
         echo "Installing Playwright browsers as fallback..." && \
-        npx playwright install chromium --with-deps; \
+        npx playwright install --with-deps; \
     fi
 
 # Add health check

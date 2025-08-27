@@ -4,6 +4,7 @@ import { createUserAsAdmin } from '@/utils/auth-client';
 import { db } from '@/utils/db';
 import { user } from '@/db/schema/schema';
 import { eq } from 'drizzle-orm';
+import { getCurrentUser } from '@/lib/session';
 
 export async function GET(request: NextRequest) {
   try {
@@ -97,6 +98,15 @@ export async function PATCH(request: NextRequest) {
         if (!reason) {
           return NextResponse.json(
             { success: false, error: 'Ban reason is required' },
+            { status: 400 }
+          );
+        }
+        
+        // Prevent super admins from banning themselves
+        const currentUser = await getCurrentUser();
+        if (currentUser?.id === userId) {
+          return NextResponse.json(
+            { success: false, error: 'You cannot ban yourself' },
             { status: 400 }
           );
         }

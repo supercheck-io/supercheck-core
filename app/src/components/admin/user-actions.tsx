@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
+import { useSession } from "@/utils/auth-client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,11 +90,15 @@ const handleUnbanUser = async (userId: string, onUpdate: () => void) => {
 };
 
 export function UserActions({ user, onUserUpdate }: UserActionsProps) {
+  const { data: session } = useSession();
   const [impersonateDialogOpen, setImpersonateDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState('');
+  
+  const currentUser = session?.user;
+  const isCurrentUser = currentUser?.id === user.id;
 
   const validateBanReason = (reason: string) => {
     const trimmedReason = reason.trim();
@@ -158,25 +163,28 @@ export function UserActions({ user, onUserUpdate }: UserActionsProps) {
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
           <DropdownMenuItem
             onClick={() => setImpersonateDialogOpen(true)}
+            disabled={isCurrentUser}
           >
             <UserCheck className="mr-2 h-4 w-4" />
-            Impersonate
+            {isCurrentUser ? "Can't Impersonate Yourself" : "Impersonate"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {user.banned ? (
             <DropdownMenuItem
               onClick={() => handleUnbanUser(user.id, onUserUpdate)}
+              disabled={isCurrentUser}
             >
               <UserCheck className="mr-2 h-4 w-4" />
-              Unban User
+              {isCurrentUser ? "Can't Unban Yourself" : "Unban User"}
             </DropdownMenuItem>
           ) : (
             <DropdownMenuItem
               onClick={() => setBanDialogOpen(true)}
               className="text-destructive"
+              disabled={isCurrentUser}
             >
               <UserX className="mr-2 h-4 w-4" />
-              Ban User
+              {isCurrentUser ? "Can't Ban Yourself" : "Ban User"}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
