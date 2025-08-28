@@ -160,7 +160,7 @@ export async function saveTest(
         projectId: project.id,
         createdByUserId: userId,
         createdAt: new Date(),
-        updatedAt: new Date(),
+        // Don't set updatedAt on creation - it should remain null until first update
       });
 
       // Log the audit event for test creation

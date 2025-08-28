@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Simple and Robust Startup Script for Supercheck App
-# Uses the new migrate-simple.js script for reliable database setup
+# Uses the new db-migrate.js script for reliable database setup
 
 set -e
 
@@ -39,7 +39,7 @@ run_migrations() {
     log "  Current directory: $(pwd)"
     
     # Run the simplified migration script
-    if node scripts/migrate-simple.js; then
+    if node scripts/db-migrate.js; then
         log_success "Database migrations completed successfully"
         return 0
     else

@@ -217,7 +217,7 @@ export const tests = pgTable("tests", {
   priority: varchar("priority", { length: 50 }).$type<TestPriority>().notNull().default("medium"),
   type: varchar("type", { length: 50 }).$type<TestType>().notNull().default("browser"),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
 });
 
 export type JobStatus =
@@ -269,7 +269,7 @@ export const jobs = pgTable("jobs", {
   nextRunAt: timestamp("next_run_at"),
   scheduledJobId: varchar("scheduled_job_id", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
 });
 
 /**
@@ -442,7 +442,7 @@ export const monitors = pgTable("monitors", {
   mutedUntil: timestamp("muted_until"),
   scheduledJobId: varchar("scheduled_job_id", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
 });
 
 export type MonitorResultStatus = "up" | "down" | "error" | "timeout";

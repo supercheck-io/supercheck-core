@@ -388,6 +388,74 @@ export const columns: ColumnDef<Job>[] = [
     },
   },
   {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Created" />
+    ),
+    cell: ({ row }) => {
+      const createdAt = row.getValue("createdAt") as string;
+      if (!createdAt) return null;
+
+      const date = new Date(createdAt);
+      const formattedDate = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      const formattedTime = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      return (
+        <div className="flex items-center w-[170px]">
+          <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+          <span>{formattedDate}</span>
+          <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "updatedAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Updated" />
+    ),
+    cell: ({ row }) => {
+      const updatedAt = row.getValue("updatedAt") as string;
+      const createdAt = row.getValue("createdAt") as string;
+      
+      // Only show updatedAt if it's different from createdAt (indicating an actual update)
+      if (!updatedAt || updatedAt === createdAt) {
+        return (
+          <div className="flex items-center w-[170px]">
+            <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground text-sm">Not updated</span>
+          </div>
+        );
+      }
+
+      const date = new Date(updatedAt);
+      const formattedDate = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      const formattedTime = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      return (
+        <div className="flex items-center w-[170px]">
+          <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+          <span>{formattedDate}</span>
+          <span className="text-muted-foreground ml-1 text-xs">{formattedTime}</span>
+        </div>
+      );
+    },
+  },
+  {
     id: "actions",
     cell: ({ row, table }) => {
       // Explicitly cast table.options.meta to the extended type

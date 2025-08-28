@@ -524,42 +524,42 @@ export function TestForm({
       {testId && (
         <div className="space-y-3">
           {/* Timestamps */}
-          {(testCase.createdAt || testCase.updatedAt) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {testCase.createdAt && (
-                <div className="space-y-1 bg-card p-3 rounded-lg border border-border/40">
-                  <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
-                  <div>
-                    <p className="text-xs">
-                      {new Date(testCase.createdAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}{" "}
-                      {new Date(testCase.createdAt).toLocaleTimeString("en-US", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {(() => {
-                        try {
-                          const date = new Date(testCase.createdAt);
-                          if (isNaN(date.getTime())) return "Invalid date";
-                          return formatDistanceToNow(date, { addSuffix: true });
-                        } catch {
-                          return "Invalid date";
-                        }
-                      })()}
-                    </p>
-                  </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {testCase.createdAt && (
+              <div className="space-y-1 bg-card p-3 rounded-lg border border-border/40">
+                <h3 className="text-sm font-medium text-muted-foreground">Created</h3>
+                <div>
+                  <p className="text-xs">
+                    {new Date(testCase.createdAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}{" "}
+                    {new Date(testCase.createdAt).toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {(() => {
+                      try {
+                        const date = new Date(testCase.createdAt);
+                        if (isNaN(date.getTime())) return "Invalid date";
+                        return formatDistanceToNow(date, { addSuffix: true });
+                      } catch {
+                        return "Invalid date";
+                      }
+                    })()}
+                  </p>
                 </div>
-              )}
+              </div>
+            )}
 
-              {testCase.updatedAt && (
-                <div className="space-y-1 bg-card p-3 rounded-lg border border-border/40">
-                  <h3 className="text-sm font-medium text-muted-foreground">Updated</h3>
-                  <div>
+            <div className="space-y-1 bg-card p-3 rounded-lg border border-border/40">
+              <h3 className="text-sm font-medium text-muted-foreground">Updated</h3>
+              <div>
+                {testCase.updatedAt ? (
+                  <>
                     <p className="text-xs">
                       {new Date(testCase.updatedAt).toLocaleDateString("en-US", {
                         month: "short",
@@ -582,11 +582,14 @@ export function TestForm({
                         }
                       })()}
                     </p>
-                  </div>
-                </div>
-              )}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Not updated</p>
+                
+                )}
+              </div>
             </div>
-          )}
+          </div>
 
           {/* Test ID */}
           {/* <div className="bg-card p-3 rounded-lg border border-border/40">

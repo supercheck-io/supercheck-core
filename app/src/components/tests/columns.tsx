@@ -326,7 +326,17 @@ export const columns: ColumnDef<Test>[] = [
     ),
     cell: ({ row }) => {
       const updatedAt = row.getValue("updatedAt") as string;
-      if (!updatedAt) return null;
+      const createdAt = row.getValue("createdAt") as string;
+      
+      // Only show updatedAt if it's different from createdAt (indicating an actual update)
+      if (!updatedAt || updatedAt === createdAt) {
+        return (
+          <div className="flex items-center w-[170px]">
+            <ClockIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground text-sm">Not updated</span>
+          </div>
+        );
+      }
 
       const date = new Date(updatedAt);
       const formattedDate = date.toLocaleDateString("en-US", {
