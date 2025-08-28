@@ -63,7 +63,7 @@ x-common-env: &common-env # Database Configuration
   VARIABLES_ENCRYPTION_KEY: your-64-character-encryption-key-for-variable-secrets-change-this-in-prod
 
   # Better Auth Admin Configuration
-  SUPER_ADMIN_EMAILS: super-admin@example.com
+  SUPER_ADMIN_EMAILS: super.admin@example.com
   MAX_PROJECTS_PER_ORG: 10
   DEFAULT_PROJECT_NAME: "Default Project"
 
@@ -79,7 +79,7 @@ x-common-env: &common-env # Database Configuration
 services:
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.0.0-beta
+    image: ghcr.io/supercheck-io/supercheck/app:1.0.1-beta
     ports:
       - "3000:3000"
     environment:
@@ -122,7 +122,7 @@ services:
 
   # Worker (NestJS Runner) - Enhanced security and resource protection
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.0.0-beta
+    image: ghcr.io/supercheck-io/supercheck/worker:1.0.1-beta
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)
@@ -130,9 +130,8 @@ services:
       NODE_OPTIONS: "--max-old-space-size=1024 --expose-gc --experimental-worker"
 
       # Thread Protection (optimized for I/O performance)
-      UV_THREADPOOL_SIZE: 4 # Optimal for 4-core server - balances performance with resource usage
+      UV_THREADPOOL_SIZE: 4 # Optimal for 4-core server
     volumes:
-      # Use named volumes instead of bind mounts to avoid permission issues
       - worker-playwright-reports:/app/playwright-reports
       - worker-reports:/app/report
     depends_on:
@@ -164,18 +163,18 @@ services:
       # Enhanced Resource Protection (prevents resource exhaustion attacks)
       resources:
         limits:
-          cpus: "1.5" # Increased CPU limit but prevents hogging entire host
-          memory: 1.5G # Hard memory limit - triggers OOMKiller if exceeded
+          cpus: "1.5"
+          memory: 1.5G
           pids: 512 # Prevents fork bombs and process explosion
         reservations:
-          cpus: "0.5" # Guaranteed minimum CPU allocation
-          memory: 512M # Guaranteed minimum memory allocation
+          cpus: "0.5"
+          memory: 512M
 
       # Container Restart Protection (handles stuck/crashed containers)
       restart_policy:
-        condition: on-failure # Only restart on failures, not manual stops
-        max_attempts: 3 # Prevents infinite restart loops
-        delay: 5s # Wait between restart attempts
+        condition: on-failure
+        max_attempts: 3
+        delay: 5s
 
     # System-level Resource Limits (additional protection layer)
     sysctls:
@@ -193,7 +192,6 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=supercheck
-    # Removed public port exposure for security
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -214,10 +212,9 @@ services:
           cpus: "0.25"
           memory: 512M
 
-  # Redis (for job queues) - Secured with authentication
+  # Redis (for job queues)
   redis:
     image: redis:latest
-    # Removed public port exposure for security - only accessible within Docker network
     environment:
       - REDIS_PASSWORD=supersecure-redis-password-change-this
     command: sh -c "rm -rf /data/* && redis-server --requirepass \"supersecure-redis-password-change-this\" --maxmemory 256mb --maxmemory-policy noeviction --save '' --appendonly no --protected-mode yes --bind 0.0.0.0"
@@ -251,7 +248,6 @@ services:
   # MinIO (S3-compatible storage)
   minio:
     image: minio/minio:latest
-    # Removed public port exposure for security
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin

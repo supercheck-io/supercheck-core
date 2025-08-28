@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Tooltip,
   TooltipContent,
@@ -7,9 +5,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export function DemoBadge() {
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-  
+interface DemoBadgeProps {
+  isDemoMode?: boolean;
+}
+
+export function DemoBadge({ isDemoMode = false }: DemoBadgeProps = {}) {
   if (!isDemoMode) {
     return null;
   }

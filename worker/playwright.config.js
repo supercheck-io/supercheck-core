@@ -83,21 +83,7 @@ module.exports = defineConfig({
     screenshot: process.env.PLAYWRIGHT_SCREENSHOT || 'on',
     video: process.env.PLAYWRIGHT_VIDEO || 'on',
 
-    /* Browser optimization for resource efficiency */
-    launchOptions: {
-      args: [
-        '--disable-dev-shm-usage', // Prevent /dev/shm issues in containers
-        '--disable-gpu', // Reduce GPU memory usage
-        '--no-sandbox', // Required for containerized environments
-        '--disable-setuid-sandbox',
-        '--disable-web-security', // Allow cross-origin requests for testing
-        '--disable-features=TranslateUI', // Reduce memory overhead
-        '--disable-ipc-flooding-protection', // Prevent IPC flooding in heavy tests
-        '--memory-pressure-off', // Disable memory pressure warnings
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-      ],
-    },
+    /* Browser optimization for resource efficiency - browser-specific args moved to projects */
 
     /* Context options for better isolation and performance */
     contextOptions: {
@@ -124,6 +110,21 @@ module.exports = defineConfig({
         viewport: { width: 1280, height: 720 }, // Standard viewport for consistent results
         // Enable headless mode for better performance
         headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+        // Chrome-specific launch options
+        launchOptions: {
+          args: [
+            '--disable-dev-shm-usage', // Prevent /dev/shm issues in containers
+            '--disable-gpu', // Reduce GPU memory usage
+            '--no-sandbox', // Required for containerized environments
+            '--disable-setuid-sandbox',
+            '--disable-web-security', // Allow cross-origin requests for testing
+            '--disable-features=TranslateUI', // Reduce memory overhead
+            '--disable-ipc-flooding-protection', // Prevent IPC flooding in heavy tests
+            '--memory-pressure-off', // Disable memory pressure warnings
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+          ],
+        },
       },
     },
 
@@ -136,6 +137,12 @@ module.exports = defineConfig({
               ...devices['Desktop Firefox'],
               viewport: { width: 1280, height: 720 },
               headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+              // Firefox-specific launch options (minimal args)
+              launchOptions: {
+                args: [
+                  '--no-sandbox', // Required for containerized environments
+                ],
+              },
             },
           },
         ]
@@ -149,6 +156,12 @@ module.exports = defineConfig({
               ...devices['Desktop Safari'],
               viewport: { width: 1280, height: 720 },
               headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+              // WebKit-specific launch options (very minimal - WebKit is picky)
+              launchOptions: {
+                args: [
+                  // WebKit doesn't support most Chrome flags, keep minimal
+                ],
+              },
             },
           },
         ]
@@ -158,16 +171,9 @@ module.exports = defineConfig({
     ...(process.env.ENABLE_MOBILE === 'true'
       ? [
           {
-            name: 'mobile-chrome',
+            name: 'mobile',
             use: {
-              ...devices['Pixel 5'],
-              headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-            },
-          },
-          {
-            name: 'mobile-safari',
-            use: {
-              ...devices['iPhone 12'],
+              ...devices['iPhone 13'],
               headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
             },
           },
