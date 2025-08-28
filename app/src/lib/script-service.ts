@@ -8,18 +8,30 @@
 export enum ScriptType {
   Browser = "browser",
   API = "api",
-  Custom = "custom",
   Database = "database",
-
+  Custom = "custom"
 }
 
 // Sample scripts content
 const scripts: Record<ScriptType, string> = {
   [ScriptType.Browser]: `/**
- * Browser Check Script
+ * Sample Browser Automation Test Script
  * 
- * This script demonstrates how to test browser functionality using Playwright.
- * It checks page loading, navigation, and element interactions.
+ * This script demonstrates comprehensive browser testing using Playwright framework.
+ * It covers essential web application testing patterns including page navigation,
+ * title verification, link interaction, form handling, and DOM element validation.
+ * 
+ * Test Coverage:
+ * - Page loading and title verification
+ * - Navigation flow and link interaction  
+ * - Form input and submission handling
+ * - Element visibility and accessibility testing
+ * 
+ * Target Websites:
+ * - https://playwright.dev/ - Official Playwright documentation
+ * - https://demo.playwright.dev/todomvc - TodoMVC demo application
+ * 
+ * @requires '@playwright/test' package
  */
 
 import { test, expect } from '@playwright/test';
@@ -60,55 +72,27 @@ test('Browser check - Form interaction', async ({ page }) => {
   
   console.log('✅ Form interaction verified');
 })
-
-/* WebSocket Connectivity Test using Playwright
- * 
- * This script tests a WebSocket connection using Playwright.
- * It establishes a connection, sends a message, receives a response, 
- * and verifies that the echoed message matches the sent message.
- */
-
-test('WebSocket connection test', async ({ page }) => {
-const wsUrl = 'wss://echo.websocket.events'; // Public WebSocket echo server
-  // Open a WebSocket connection inside the browser context
-  const wsHandle = await page.evaluateHandle((url) => {
-    return new Promise((resolve, reject) => {
-      const socket = new WebSocket(url);
-      socket.onopen = () => resolve(socket);
-      socket.onerror = (err) => reject(err);
-    });
-  }, wsUrl);
-
-  expect(wsHandle).toBeDefined();
-
-  // Define the message to send
-  const message = 'Hello, WebSocket!';
-
-  // Send a message using the WebSocket connection
-  await page.evaluate(({ socket, message }) => {
-    socket.send(message);
-  }, { socket: wsHandle, message });
-
-  // Wait for and capture the response message
-  const response = await page.evaluate(({ socket }) => {
-    return new Promise((resolve) => {
-      socket.onmessage = (event) => resolve(event.data);
-    });
-  }, { socket: wsHandle });
-
-  // Validate that the echoed message matches the sent message
-  expect(response).toBe(message);
-
-  console.log('✅ WebSocket connection test passed');
-
-});
 `,
 
   [ScriptType.API]: `/**
- * API Check Script
+ * Sample REST API Testing Script
  * 
- * This script demonstrates how to test API endpoints using Playwright.
- * It checks response status, data validation, and error handling.
+ * This script demonstrates comprehensive API endpoint testing using Playwright's
+ * built-in HTTP client. It covers essential API testing patterns including CRUD
+ * operations, response validation, data integrity checks, and error handling.
+ * 
+ * Test Coverage:
+ * - GET requests with response validation
+ * - POST requests with request body handling
+ * - HTTP status code verification
+ * - JSON response structure validation
+ * - Error handling for non-existent resources
+ * 
+ * Target API: JSONPlaceholder - Free fake REST API for testing
+ * Base URL: https://jsonplaceholder.typicode.com/
+ * Documentation: https://jsonplaceholder.typicode.com/guide/
+ * 
+ * @requires '@playwright/test' package
  */
 
 import { test, expect } from '@playwright/test';
@@ -171,213 +155,280 @@ test('API check - Error handling for non-existent resource', async ({ request })
 });
 `,
 
-  [ScriptType.Custom]: `/**
- * Custom Check Script
- *
- * This script demonstrates how to perform custom API tests using Playwright.
- * It shows how to chain API calls and use data from previous responses in subsequent requests.
- */
-
-import { test, expect } from "@playwright/test";
-
-test("Custom check - Create, read, update, and delete a resource", async ({
-  request,
-}) => {
-  // Step 1: Create a new resource (POST)
-  console.log("Step 1: Creating a new post...");
-  const createResponse = await request.post(
-    "https://jsonplaceholder.typicode.com/posts",
-    {
-      data: {
-        title: "Custom Test with Playwright",
-        body: "This is a test of chained API calls using Playwright",
-        userId: 1,
-      },
-    }
-  );
-
-  expect(createResponse.status()).toBe(201);
-  const newPost = await createResponse.json();
-  console.log("✅ Post created with ID:" + newPost.id);
-
-  // Step 2: Retrieve the created resource (GET)
-  console.log("Step 2: Retrieving post with ID " + newPost.id + "...");
-  const getResponse = await request.get(
-    "https://jsonplaceholder.typicode.com/posts/" + newPost.id
-  );
-
-  expect(getResponse.status()).toBe(200);
-  const retrievedPost = await getResponse.json();
-  expect(retrievedPost.title).toBe("Custom Test with Playwright");
-  console.log("✅ Post retrieved successfully");
-
-  // Step 3: Update the resource (PUT)
-  console.log("Step 3: Updating post with ID " + newPost.id + "...");
-  const updateResponse = await request.put(
-    "https://jsonplaceholder.typicode.com/posts/" + newPost.id,
-    {
-      data: {
-        id: newPost.id,
-        title: "Updated Custom Test",
-        body: "This post has been updated",
-        userId: 1,
-      },
-    }
-  );
-
-  expect(updateResponse.status()).toBe(200);
-  const updatedPost = await updateResponse.json();
-  expect(updatedPost.title).toBe("Updated Custom Test");
-  console.log("✅ Post updated successfully");
-
-  // Step 4: Delete the resource (DELETE)
-  console.log("Step 4: Deleting post with ID " + newPost.id + "...");
-  const deleteResponse = await request.delete(
-    "https://jsonplaceholder.typicode.com/posts/" + newPost.id
-  );
-
-  expect(deleteResponse.status()).toBe(200);
-  console.log("✅ Post deleted successfully");
-});
-
-test("Custom check - Authentication and authorized requests", async ({
-  request,
-}) => {
-  // Step 1: Get authentication token (simulated)
-  console.log("Step 1: Getting authentication token...");
-  // In a real scenario, this would be an actual auth endpoint
-  // For this example, we'll simulate the token acquisition
-  const authToken = "simulated_jwt_token";
-  console.log("✅ Authentication token acquired");
-
-  // Step 2: Use the token to access a protected resource
-  console.log("Step 2: Accessing protected resource with token...");
-  const protectedResponse = await request.get(
-    "https://jsonplaceholder.typicode.com/users/1",
-    {
-      headers: {
-        Authorization: "Bearer " + authToken,
-      },
-    }
-  );
-
-  expect(protectedResponse.status()).toBe(200);
-  const userData = await protectedResponse.json();
-  expect(userData.id).toBe(1);
-  console.log("✅ Protected resource accessed successfully");
-
-  // Step 3: Use data from the protected resource in another request
-  console.log("Step 3: Using data from previous response...");
-  const postsResponse = await request.get(
-    "https://jsonplaceholder.typicode.com/users/" + userData.id + "/posts"
-  );
-
-  expect(postsResponse.status()).toBe(200);
-  const posts = await postsResponse.json();
-  expect(Array.isArray(posts)).toBe(true);
-  expect(posts.length).toBeGreaterThan(0);
-  console.log(
-    "✅ Retrieved" + posts.length + " posts for user " + userData.name
-  );
-});
-
-test("Custom check - Conditional flow based on response", async ({
-  request,
-}) => {
-  // Step 1: Get a list of resources
-  console.log("Step 1: Getting list of todos...");
-  const listResponse = await request.get(
-    "https://jsonplaceholder.typicode.com/todos"
-  );
-
-  expect(listResponse.status()).toBe(200);
-  const todos = await listResponse.json();
-  console.log("✅ Retrieved" + todos.length + " todos");
-
-  // Step 2: Filter the list based on a condition
-  console.log("Step 2: Filtering completed todos...");
-  const completedTodos = todos.filter(
-    (todo) => todo.completed
-  );
-  console.log("✅ Found" + completedTodos.length + " completed todos");
-
-  // Step 3A: If there are completed todos, get details for the first one
-  if (completedTodos.length > 0) {
-    console.log(
-      "Step 3A: Getting details for completed todo ID " + completedTodos[0].id + "..."
-    );
-    const detailResponse = await request.get(
-      "https://jsonplaceholder.typicode.com/todos/" + completedTodos[0].id
-    );
-
-    expect(detailResponse.status()).toBe(200);
-    const todoDetail = await detailResponse.json();
-    expect(todoDetail.completed).toBe(true);
-    console.log("✅ Completed todo details retrieved successfully");
-  }
-  // Step 3B: If no completed todos, get details for any todo
-  else {
-    console.log(
-      "Step 3B: No completed todos found, getting details for any todo..."
-    );
-    const detailResponse = await request.get(
-      "https://jsonplaceholder.typicode.com/todos/1"
-    );
-
-    expect(detailResponse.status()).toBe(200);
-    console.log("✅ Todo details retrieved successfully");
-  }
-});
-`,
-
   [ScriptType.Database]: `/**
- * Database Query Test Script
+ * Sample Database Query Test Script
  * 
- * This script demonstrates how to connect to a Microsoft SQL Server (MSSQL) database
- * using the 'mssql' package in a Playwright test. It establishes a connection,
- * executes a sample query, and performs assertions based on the query results.
+ * This script demonstrates connecting to the RNAcentral public PostgreSQL database
+ * hosted by the European Bioinformatics Institute (EBI). It performs database
+ * connection testing, schema discovery, and basic query validation.
  * 
- * @requires 'mssql' package
+ * Test Coverage:
+ * - Database connection and authentication
+ * - Basic database information retrieval
+ * - Schema discovery and table enumeration
+ * - Query execution and result validation
+ * - Connection cleanup and error handling
+ * 
+ * Target Database: RNAcentral Public PostgreSQL (Read-only)
+ * Host: hh-pgsql-public.ebi.ac.uk:5432
+ * Database: pfmegrnargs
+ * Documentation: https://rnacentral.org/help/public-database
+ * 
+ * @requires 'pg' package
  * @requires '@playwright/test' package
  */
 
 import { test, expect } from "@playwright/test";
-import sql from "mssql";
+import { Client } from "pg";
 
 const config = {
-  user: "your_username",
-  password: "your_password",
-  server: "your_server", // For local servers, use 'localhost'
-  database: "your_database",
-  options: {
-    encrypt: true, // Use encryption if required
-    trustServerCertificate: true, // Necessary for self-signed certificates
-  },
+  connectionString: "postgres://reader:NWDMCE5xdipIjRrp@hh-pgsql-public.ebi.ac.uk:5432/pfmegrnargs",
+  ssl: false
 };
 
-test("Database Query Test", async () => {
-  let pool;
+test("Database Query Test - Connection and Basic Info", async () => {
+  const client = new Client(config);
+  
   try {
-    // Establish a connection to the database
-    pool = await sql.connect(config);
+    await client.connect();
+    console.log("✅ Connected to RNAcentral PostgreSQL database");
 
-    // Execute a query
-    const result = await pool.request().query("SELECT * FROM your_table");
+    // Test 1: Get database basic information (always works)
+    const infoResult = await client.query(\`
+      SELECT 
+        version() as db_version,
+        current_database() as database_name,
+        current_user as connected_user,
+        current_timestamp as connection_time
+    \`);
 
-    // Process the result as needed
-    console.log(result);
+    console.log("Database Information:");
+    console.log(\`Database: \${infoResult.rows[0].database_name}\`);
+    console.log(\`Connected as: \${infoResult.rows[0].connected_user}\`);
+    console.log(\`Connection Time: \${infoResult.rows[0].connection_time}\`);
+    console.log(\`Version: \${infoResult.rows[0].db_version.split(',')[0]}\`);
 
-    // Perform assertions based on the query result
-    expect(result.recordset.length).toBeGreaterThan(0);
+    expect(infoResult.rows.length).toBe(1);
+    expect(infoResult.rows[0].database_name).toBe('pfmegrnargs');
+    expect(infoResult.rows[0].connected_user).toBe('reader');
+
+    // Test 2: Check server settings and capabilities
+    const settingsResult = await client.query(\`
+      SELECT 
+        setting as timezone
+      FROM pg_settings 
+      WHERE name = 'TimeZone'
+    \`);
+
+    console.log(\`Server Timezone: \${settingsResult.rows[0].timezone}\`);
+    expect(settingsResult.rows.length).toBe(1);
+
+    console.log("✅ Connection and basic info test completed successfully");
   } catch (err) {
     console.error("Database query failed:", err);
-    throw err; // Rethrow the error to ensure the test fails
+    throw err;
   } finally {
-    // Close the database connection using the pool object
-    if (pool) await pool.close();
+    await client.end();
+    console.log("✅ Database connection closed");
   }
 });
+
+test("Database Query Test - Schema Discovery", async () => {
+  const client = new Client(config);
+  
+  try {
+    await client.connect();
+    console.log("✅ Connected to RNAcentral PostgreSQL database");
+
+    // Test 1: Discover all available schemas
+    const schemasResult = await client.query(\`
+      SELECT schema_name 
+      FROM information_schema.schemata 
+      WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+      ORDER BY schema_name
+    \`);
+
+    console.log("Available Schemas:");
+    schemasResult.rows.forEach((schema, index) => {
+      console.log(\`\${index + 1}. \${schema.schema_name}\`);
+    });
+
+    expect(schemasResult.rows.length).toBeGreaterThanOrEqual(1);
+
+    // Test 2: Discover tables in each schema
+    for (const schema of schemasResult.rows) {
+      const tablesResult = await client.query(\`
+        SELECT table_name, table_type
+        FROM information_schema.tables 
+        WHERE table_schema = $1
+        ORDER BY table_name
+        LIMIT 5
+      \`, [schema.schema_name]);
+
+      console.log(\`Tables in \${schema.schema_name} schema (first 5):\`);
+      if (tablesResult.rows.length > 0) {
+        tablesResult.rows.forEach((table, index) => {
+          console.log(\`  \${index + 1}. \${table.table_name} (\${table.table_type})\`);
+        });
+      } else {
+        console.log("  No tables found or no access to tables");
+      }
+    }
+
+    console.log("✅ Schema discovery completed successfully");
+  } catch (err) {
+    console.error("Database query failed:", err);
+    throw err;
+  } finally {
+    await client.end();
+    console.log("✅ Database connection closed");
+  }
+});
+
 `,
+
+[ScriptType.Custom]: `/**
+ * Sample Advanced Integration Test Script
+ * 
+ * This script demonstrates end-to-end testing scenarios combining
+ * API testing with browser automation. It showcases real-world testing patterns
+ * for modern web applications including data consistency validation across
+ * different interfaces (API vs Web UI).
+ * 
+ * Test Coverage:
+ * - API data retrieval and validation
+ * - Browser automation with dynamic content
+ * - Cross-platform data consistency verification
+ * - Repository analysis and contributor metrics
+ * - User profile validation across API and UI
+ * 
+ * Target Platform: GitHub Public API and Web Interface
+ * API Base URL: https://api.github.com/
+ * Web Interface: https://github.com/
+ * API Documentation: https://docs.github.com/en/rest
+ * 
+ * @requires '@playwright/test' package
+ */
+
+import { test, expect } from "@playwright/test";
+
+test("GitHub Repository Analysis - API + Browser Integration", async ({
+  request,
+  page,
+}) => {
+  console.log("🚀 Starting GitHub repository analysis workflow...");
+
+  const repoOwner = "microsoft";
+  const repoName = "playwright";
+
+  // Step 1: API - Get repository information
+  console.log("Step 1: Fetching repository data via GitHub API...");
+  const repoResponse = await request.get(
+    \`https://api.github.com/repos/\${repoOwner}/\${repoName}\`
+  );
+
+  expect(repoResponse.status()).toBe(200);
+  const repoData = await repoResponse.json();
+  
+  console.log(\`📊 Repository: \${repoData.full_name}\`);
+  console.log(\`⭐ Stars: \${repoData.stargazers_count}\`);
+  console.log(\`🍴 Forks: \${repoData.forks_count}\`);
+  console.log(\`📝 Description: \${repoData.description}\`);
+  console.log(\`🔗 Language: \${repoData.language}\`);
+
+  // Step 2: Browser - Navigate to repository page
+  console.log("Step 2: Opening GitHub repository in browser...");
+  await page.goto(\`https://github.com/\${repoOwner}/\${repoName}\`);
+  
+  // Verify page loaded correctly
+  await expect(page).toHaveTitle(/playwright/i);
+  
+  // Step 3: Cross-validate API data with browser content
+  console.log("Step 3: Validating API data against browser content...");
+  
+  // Check repository name is in the page using more specific selector
+  await expect(page.getByRole('heading', { name: '🎭 Playwright' })).toBeVisible();
+  console.log(\`✅ Repository page loaded and confirmed\`);
+
+  console.log("✅ Repository analysis completed successfully");
+});
+
+test("GitHub API Data Analysis", async ({ request }) => {
+  console.log("🚀 Starting GitHub API data analysis...");
+
+  const repoOwner = "microsoft";
+  const repoName = "playwright";
+
+  // Step 1: Get repository issues
+  console.log("Step 1: Fetching repository issues via API...");
+  const issuesResponse = await request.get(
+    \`https://api.github.com/repos/\${repoOwner}/\${repoName}/issues?state=open&per_page=10\`
+  );
+
+  expect(issuesResponse.status()).toBe(200);
+  const issues = await issuesResponse.json();
+  
+  console.log(\`📋 Found \${issues.length} open issues (showing first 10)\`);
+  
+  // Analyze issue types and labels
+  const issueAnalysis = {
+    withLabels: issues.filter(issue => issue.labels.length > 0).length,
+    withAssignees: issues.filter(issue => issue.assignees.length > 0).length,
+    averageComments: Math.round(issues.reduce((sum, issue) => sum + issue.comments, 0) / issues.length)
+  };
+
+  console.log(\`🏷️  Issues with labels: \${issueAnalysis.withLabels}/\${issues.length}\`);
+  console.log(\`👥 Issues with assignees: \${issueAnalysis.withAssignees}/\${issues.length}\`);
+  console.log(\`💬 Average comments per issue: \${issueAnalysis.averageComments}\`);
+
+  // Step 2: Get repository contributors
+  console.log("Step 2: Fetching repository contributors...");
+  const contributorsResponse = await request.get(
+    \`https://api.github.com/repos/\${repoOwner}/\${repoName}/contributors?per_page=5\`
+  );
+
+  expect(contributorsResponse.status()).toBe(200);
+  const contributors = await contributorsResponse.json();
+  
+  console.log(\`👨‍💻 Top \${contributors.length} Contributors:\`);
+  contributors.forEach((contributor, index) => {
+    console.log(\`  \${index + 1}. \${contributor.login} - \${contributor.contributions} contributions\`);
+  });
+
+  expect(contributors.length).toBeGreaterThan(0);
+  console.log("✅ API data analysis completed successfully");
+});
+
+test("GitHub User Profile Analysis", async ({ request, page }) => {
+  console.log("🚀 Starting GitHub user profile analysis...");
+
+  const username = "torvalds";
+
+  // Step 1: API - Get user profile information
+  console.log("Step 1: Fetching user profile via GitHub API...");
+  const userResponse = await request.get(\`https://api.github.com/users/\${username}\`);
+
+  expect(userResponse.status()).toBe(200);
+  const userData = await userResponse.json();
+  
+  console.log(\`👤 User: \${userData.login}\`);
+  console.log(\`📝 Name: \${userData.name || 'Not provided'}\`);
+  console.log(\`📊 Public Repos: \${userData.public_repos}\`);
+  console.log(\`👥 Followers: \${userData.followers}\`);
+
+  // Step 2: Browser - Navigate to user profile
+  console.log("Step 2: Validating user profile in browser...");
+  await page.goto(\`https://github.com/\${username}\`);
+  
+  // Wait for profile to load and validate we're on correct page
+  await page.waitForLoadState('networkidle');
+  await expect(page).toHaveURL(new RegExp(username));
+  console.log(\`✅ Confirmed on \${username}'s profile page\`);
+
+  console.log("✅ User profile analysis completed successfully");
+});
+
+`
 };
 
 /**

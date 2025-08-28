@@ -81,10 +81,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.ts ./drizzle.confi
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.json ./drizzle.config.json
 
 # Make scripts executable
-RUN chmod +x ./scripts/start-simple.sh ./scripts/migrate-simple.js
+RUN chmod +x ./scripts/start.sh ./scripts/db-migrate.js
 
 # Verify scripts are copied correctly
-RUN ls -la ./scripts/ && echo "Scripts directory contents:" && cat ./scripts/start-simple.sh | head -10
+RUN ls -la ./scripts/ && echo "Scripts directory contents:" && cat ./scripts/start.sh | head -10
 
 # Set npm to not use cache and set proper environment
 RUN mkdir -p /tmp/.npm && \
@@ -103,4 +103,4 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Use the simplified start script which handles migrations and startup
-CMD ["./scripts/start-simple.sh"]
+CMD ["./scripts/start.sh"]

@@ -266,6 +266,40 @@ export default function Jobs() {
     }
   };
 
+  // Format date for update section (shows "Not updated" instead of "No date")
+  const formatUpdateDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "Not updated";
+
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // Format relative date for update section (shows "Not updated" instead of "No date")
+  const formatUpdateRelativeDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "Not updated";
+
+    try {
+      const date = new Date(dateString);
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Invalid date";
+      }
+
+      // Use date-fns with explicit Date type
+      return formatDistanceToNow(date, { addSuffix: true });
+    } catch (error) {
+      console.error("Error formatting relative date:", error);
+      return "Invalid date";
+    }
+  };
+
   // Check if dates match (for run date detection)
   const datesMatch = (
     date1: string | null | undefined,
@@ -298,10 +332,15 @@ export default function Jobs() {
 
   // Get the true update time (ignoring run updates)
   const getTrueUpdateTime = (job: Job): string | null | undefined => {
+    // Only show updatedAt if it's different from createdAt (indicating an actual update)
+    if (!job.updatedAt || job.updatedAt === job.createdAt) {
+      return null; // This will make formatDate/formatRelativeDate show "No date"
+    }
+
     // If lastRunAt exists and dates match within 5 seconds, it means updatedAt was from a run, not an edit
     if (job.lastRunAt && datesMatch(job.updatedAt, job.lastRunAt)) {
-      // Return the previous true update or fallback to creation date
-      return job.createdAt;
+      // Return null to indicate no manual update
+      return null;
     }
 
     // Return the actual updatedAt time
@@ -539,11 +578,11 @@ export default function Jobs() {
                         <h3 className="text-xs font-medium text-muted-foreground">Updated</h3>
                         <div>
                           <p className="text-sm">
-                            {formatDate(getTrueUpdateTime(selectedJob))}
+                            {formatUpdateDate(getTrueUpdateTime(selectedJob))}
                           </p>
                           <p className="text-xs text-muted-foreground flex items-center">
                             <Edit className="h-3 w-3 mr-1" />
-                            {formatRelativeDate(getTrueUpdateTime(selectedJob))}
+                            {formatUpdateRelativeDate(getTrueUpdateTime(selectedJob))}
                           </p>
                         </div>
                       </div>

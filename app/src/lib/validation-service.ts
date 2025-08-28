@@ -57,7 +57,7 @@ const ALLOWED_MODULES = new Set([
 // Enhanced blocked identifiers with balanced security
 const BLOCKED_IDENTIFIERS = new Set([
   // Core Node.js/System Access
-  'process', 'Buffer', 'global', 'globalThis',
+  'process', 'global', 'globalThis',
   '__dirname', '__filename',
   'require', 'module', 'exports', '__non_webpack_require__',
   
@@ -91,6 +91,7 @@ const ALLOWED_BROWSER_APIS = new Set([
   'localStorage', 'sessionStorage', // Safe in browser context
   'fetch', 'Request', 'Response', 'Headers', // Modern HTTP APIs
   'URL', 'URLSearchParams', 'Blob', 'File', 'FileReader',
+  'Buffer', // Allow Buffer objects returned by Playwright APIs
 ]);
 
 
@@ -198,8 +199,10 @@ export class ValidationService {
       { pattern: /require\s*\.\s*resolve/, message: "require.resolve is not allowed" },
       { pattern: /module\s*\.\s*exports/, message: "module.exports manipulation is not allowed" },
       
-      // Buffer and binary operations
-      { pattern: /Buffer\s*\./, message: "Buffer operations are not allowed" },
+      // Dangerous Buffer constructors and methods (allow Playwright Buffer usage)
+      { pattern: /new\s+Buffer\s*\(/, message: "Buffer constructor is not allowed - use Buffer.from() or Buffer.alloc() instead" },
+      { pattern: /Buffer\s*\(/, message: "Direct Buffer() calls are not allowed - use Buffer.from() or Buffer.alloc() instead" },
+      { pattern: /Buffer\s*\.\s*(allocUnsafe|allocUnsafeSlow)/, message: "Unsafe Buffer allocation methods are not allowed" },
       { pattern: /ArrayBuffer/, message: "ArrayBuffer operations should be avoided" },
       
       // Encoding/decoding that could be used for obfuscation

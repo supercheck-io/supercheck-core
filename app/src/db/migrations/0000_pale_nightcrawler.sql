@@ -120,7 +120,7 @@ CREATE TABLE "jobs" (
 	"next_run_at" timestamp,
 	"scheduled_job_id" varchar(255),
 	"created_at" timestamp DEFAULT now(),
-	"updated_at" timestamp DEFAULT now()
+	"updated_at" timestamp
 );
 --> statement-breakpoint
 CREATE TABLE "member" (
@@ -178,7 +178,7 @@ CREATE TABLE "monitors" (
 	"muted_until" timestamp,
 	"scheduled_job_id" varchar(255),
 	"created_at" timestamp DEFAULT now(),
-	"updated_at" timestamp DEFAULT now()
+	"updated_at" timestamp
 );
 --> statement-breakpoint
 CREATE TABLE "notification_providers" (
@@ -323,7 +323,7 @@ CREATE TABLE "tests" (
 	"priority" varchar(50) DEFAULT 'medium' NOT NULL,
 	"type" varchar(50) DEFAULT 'browser' NOT NULL,
 	"created_at" timestamp DEFAULT now(),
-	"updated_at" timestamp DEFAULT now()
+	"updated_at" timestamp
 );
 --> statement-breakpoint
 CREATE TABLE "user" (
