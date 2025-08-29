@@ -153,8 +153,8 @@ export function NotificationChannelsDataTable<TData, TValue>({
   }
 
   return (
-    <div className="space-y-0">
-      <div className="rounded-md border">
+    <div className="space-y-4">
+      <div className="rounded-t-lg border relative">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -203,7 +203,7 @@ export function NotificationChannelsDataTable<TData, TValue>({
                     <TableCell 
                       key={cell.id}
                       className={cn(
-                        "py-2",
+                        "py-2.5",
                         cell.column.id === "actions" ? "actions-column" : ""
                       )}
                     >
