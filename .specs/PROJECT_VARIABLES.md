@@ -216,10 +216,25 @@ typeof getSecret('API_KEY') // Returns 'object', not 'string'
 **Workaround**: Use type conversion option:
 ```javascript
 const apiKey = getSecret('API_KEY', {type: 'string'}); // Returns actual string value
-// Note: This bypasses some protections for type compatibility
+// Note: This bypasses logging protections for type compatibility
 ```
 
 ### **Best Practices for Test Scripts**
+
+#### **Database Connections & String Values**
+```javascript
+// For APIs requiring plain strings (like PostgreSQL)
+const config = {
+  connectionString: getSecret('DB_STRING', { type: 'string' }),
+  ssl: false
+};
+
+// Alternative using valueOf()
+const config = {
+  connectionString: getSecret('DB_STRING').valueOf(),
+  ssl: false
+};
+```
 
 #### **Separate Regular Variables from Secrets**
 ```javascript

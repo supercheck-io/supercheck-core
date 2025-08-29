@@ -189,6 +189,7 @@ function getSecret(key, options = {}) {
       case 'boolean':
         return value.toLowerCase() === 'true' || value === '1';
       case 'string':
+        return value;
       default:
         return protectedSecret;
     }

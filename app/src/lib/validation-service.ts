@@ -20,7 +20,6 @@ const ALLOWED_MODULES = new Set([
   
   // Utilities & Data Processing
   'zod',                    // Type-safe input validation
-  'uuid',                   // Unique ID generation
   
   // Date/Time
   'date-fns',               // Modular date utility library
@@ -48,8 +47,7 @@ const BLOCKED_IDENTIFIERS = new Set([
   'setTimeout', 'setInterval', 'setImmediate',
   'clearTimeout', 'clearInterval', 'clearImmediate',
   
-  // Binary/Low-level operations
-  'btoa', 'atob', // Allow these for legitimate encoding needs
+  // Binary/Low-level operations (btoa/atob moved to allowed for auth)
   'SharedArrayBuffer', 'Atomics',
   'WebAssembly',
   
@@ -70,6 +68,11 @@ const ALLOWED_BROWSER_APIS = new Set([
   'fetch', 'Request', 'Response', 'Headers', // Modern HTTP APIs
   'URL', 'URLSearchParams', 'Blob', 'File', 'FileReader',
   'Buffer', // Allow Buffer objects returned by Playwright APIs
+  'btoa', 'atob', // Base64 encoding/decoding for auth
+  'crypto', // For generating UUIDs and secure random values
+  'TextEncoder', 'TextDecoder', // Text encoding utilities
+  'parseInt', 'parseFloat', 'isNaN', 'isFinite', // Number parsing
+  'Boolean', // Boolean constructor for type conversion
 ]);
 
 

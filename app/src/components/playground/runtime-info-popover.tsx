@@ -14,7 +14,6 @@ const allowedLibraries = [
   { name: '@playwright/test', description: 'Testing framework with built-in assertions' },
   { name: 'axios', description: 'Promise-based HTTP client' },
   { name: 'zod', description: 'TypeScript-first schema validation' },
-  { name: 'uuid', description: 'RFC-compliant UUID generator' },
   { name: 'mssql', description: 'Microsoft SQL Server client' },
   { name: 'mysql2', description: 'MySQL client with Promise support' },
   { name: 'pg', description: 'PostgreSQL client' },
