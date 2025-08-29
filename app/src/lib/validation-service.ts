@@ -7,12 +7,9 @@ import * as walk from 'acorn-walk';
 const ALLOWED_MODULES = new Set([
   // Testing & Automation
   '@playwright/test',       // UI & E2E testing framework
-  'playwright',             // Browser automation engine
-  'expect',                 // Assertion library
   
   // Database Clients
   'mssql',                  // MSSQL database client
-  'mysql',                  // Legacy MySQL client
   'mysql2',                 // Improved MySQL client
   'pg',                     // PostgreSQL client
   'oracledb',               // Oracle DB client
@@ -20,36 +17,17 @@ const ALLOWED_MODULES = new Set([
   
   // HTTP & Network (Safe)
   'axios',                  // Promise-based HTTP client – safer than native http
-  'node-fetch',             // Fetch API for Node.js
   
   // Utilities & Data Processing
-  'lodash',                 // Utility library
   'zod',                    // Type-safe input validation
-  'joi',                    // Object schema validation
-  'yup',                    // Schema validation
   'uuid',                   // Unique ID generation
-  'nanoid',                 // Alternative to UUID
   
   // Date/Time
-  'dayjs',                  // Lightweight date manipulation
   'date-fns',               // Modular date utility library
   
-  // String/Data Validation
-  'validator',              // String validation (emails, URLs, etc.)
-  'sanitize-html',          // HTML sanitization
-  'escape-html',            // HTML escaping
   
-  // JSON & Data Formats
-  'csv-parser',             // CSV parsing
-  'xml2js',                 // XML to JSON conversion
-  
-  // Cryptography (Safe operations)
-  'crypto-js',              // Cryptographic functions
-  'bcrypt',                 // Password hashing
   
   // Testing Utilities
-  'faker',                  // Generate fake data for testing
-  'chance',                 // Random data generator
   '@faker-js/faker',        // Modern faker alternative
 ]);
 

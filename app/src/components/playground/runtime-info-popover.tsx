@@ -13,21 +13,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 const allowedLibraries = [
   { name: '@playwright/test', description: 'Testing framework with built-in assertions' },
   { name: 'axios', description: 'Promise-based HTTP client' },
-  { name: 'lodash', description: 'Utility library for JavaScript' },
   { name: 'zod', description: 'TypeScript-first schema validation' },
   { name: 'uuid', description: 'RFC-compliant UUID generator' },
-  { name: 'dayjs', description: 'Lightweight date manipulation' },
-  { name: 'validator', description: 'String validation library' },
   { name: 'mssql', description: 'Microsoft SQL Server client' },
   { name: 'mysql2', description: 'MySQL client with Promise support' },
   { name: 'pg', description: 'PostgreSQL client' },
   { name: 'mongodb', description: 'Official MongoDB driver' },
   { name: 'oracledb', description: 'Oracle Database client' },
-  { name: 'node-fetch', description: 'Fetch API for Node.js' }, 
-  { name: 'joi', description: 'Object schema validation' },
   { name: 'date-fns', description: 'Modular date utility library' },
-  { name: 'crypto-js', description: 'Cryptographic functions' },
-  { name: 'faker', description: 'Generate fake data for testing' }
+  { name: '@faker-js/faker', description: 'Modern faker alternative' }
 ];
 
 const RuntimeInfoPopover: React.FC = () => {
