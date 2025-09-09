@@ -8,7 +8,7 @@ import { requireAuth, hasPermission, getUserOrgRole } from '@/lib/rbac/middlewar
 import { isSuperAdmin } from '@/lib/admin';
 import { logAuditEvent } from "@/lib/audit-logger";
 
-const RECENT_RESULTS_LIMIT = 1000; // Number of recent results to fetch
+const RECENT_RESULTS_LIMIT = 50; // Number of recent results to fetch for charts and metrics
 
 export async function GET(
   request: NextRequest,

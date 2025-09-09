@@ -14,7 +14,7 @@ import {
 } from "@/db/schema/schema";
 import { eq, desc } from "drizzle-orm";
 
-const resultsLimit = process.env.RECENT_MONITOR_RESULTS_LIMIT ? parseInt(process.env.RECENT_MONITOR_RESULTS_LIMIT) : 1000;
+const resultsLimit = process.env.RECENT_MONITOR_RESULTS_LIMIT ? parseInt(process.env.RECENT_MONITOR_RESULTS_LIMIT) : 50;
 
 type MonitorDetailsPageProps = {
   params: Promise<{
