@@ -72,7 +72,6 @@ const data = {
     {
       name: "STU",
     },
-
   ],
 
   Communicate: [
@@ -88,11 +87,9 @@ const data = {
       url: "/alerts",
       icon: BellRing,
     },
-
   ],
 
   Automate: [
-
     {
       title: "Create",
       url: "#",
@@ -104,7 +101,6 @@ const data = {
           url: "/playground?scriptType=browser",
           icon: Chrome,
           color: "!text-sky-600",
-
         },
         {
           title: "API Test",
@@ -146,12 +142,9 @@ const data = {
       url: "/variables",
       icon: Variable,
     },
-
-
   ],
 
   Monitor: [
-
     {
       title: "Create",
       url: "#",
@@ -182,14 +175,12 @@ const data = {
           color: "!text-blue-600",
         },
       ],
-
     },
     {
       title: "Monitors",
       url: "/monitors",
       icon: Globe,
     },
-
   ],
 
   SuperAdmin: [
@@ -207,13 +198,12 @@ const data = {
     },
   ],
 
-
   navSecondary: [
     {
       title: "Docs",
       url: "https://github.com/supercheck-io/supercheck",
       icon: BookOpenText,
-      badge: "v1.0.3-beta",
+      badge: "v1.0.4-beta",
     },
     // {
     //   title: "Changelog",
@@ -249,7 +239,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     // Check if user is admin
     const checkAdminStatus = async () => {
       try {
-        const response = await fetch('/api/admin/check');
+        const response = await fetch("/api/admin/check");
         if (response.ok) {
           const data = await response.json();
           setIsAdmin(data.isAdmin || false);
@@ -265,7 +255,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     // Check if user is organization admin
     const checkOrgAdminStatus = async () => {
       try {
-        const response = await fetch('/api/organizations/stats');
+        const response = await fetch("/api/organizations/stats");
         // Only set org admin if response is successful (200)
         // 403 means user is not org admin, which is expected
         setIsOrgAdmin(response.status === 200);
