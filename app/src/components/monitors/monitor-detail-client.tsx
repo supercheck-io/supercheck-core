@@ -327,8 +327,8 @@ export function MonitorDetailClient({
       return [];
     }
 
-    // Use the same dataset as availability chart - first 50 results
-    const recentResults = monitor.recentResults.slice(0, 50);
+    // Use all available results for charts (already limited server-side)
+    const recentResults = monitor.recentResults || [];
 
     const chartData = recentResults
       .map((r) => {
@@ -471,9 +471,8 @@ export function MonitorDetailClient({
   const availabilityTimelineData = useMemo(() => {
     if (!monitor.recentResults || monitor.recentResults.length === 0) return [];
 
-    // Show all checks (original behavior for all monitors)
-    return monitor.recentResults
-      .slice(0, 50)
+    // Show all available checks (already limited server-side)
+    return (monitor.recentResults || [])
       .map((r) => ({
         timestamp: (typeof r.checkedAt === "string"
           ? parseISO(r.checkedAt)
@@ -1022,7 +1021,7 @@ export function MonitorDetailClient({
                     selectedDate,
                     "MMMM dd, yyyy"
                   )}`
-                : `Showing ${currentResultsCount} of ${totalResultsCount} recent checks.`}
+                : `Showing ${currentResultsCount} of ${totalResultsCount}${process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT && totalResultsCount >= parseInt(process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT, 10) ? '+' : ''} recent checks.`}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0 flex-1 flex flex-col">
@@ -1062,11 +1061,19 @@ export function MonitorDetailClient({
                   </thead>
                   <tbody className="bg-card divide-y divide-border">
                     {isLoadingResults ? (
-                      // Loading state
+                      // Professional loading state with background
                       <tr>
-                        <td colSpan={4} className="text-center" style={{ height: '320px' }}>
-                          <div className="flex items-center justify-center h-full">
-                            <Spinner size="md" />
+                        <td colSpan={4} className="text-center relative" style={{ height: '320px' }}>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="bg-card/98 border border-border rounded-lg shadow-sm px-6 py-4 flex flex-col items-center space-y-3">
+                              <Spinner size="lg" className="text-primary" />
+                              <div className="text-sm font-medium text-foreground">
+                                Loading check results
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Please wait...
+                              </div>
+                            </div>
                           </div>
                         </td>
                       </tr>

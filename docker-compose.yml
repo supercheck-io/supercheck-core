@@ -39,7 +39,7 @@ x-common-env: &common-env # Database Configuration
   NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS: 10
 
   # Monitor Configuration
-  RECENT_MONITOR_RESULTS_LIMIT: 10000
+  NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT: 10000
 
   # Playwright Configuration - Optimized for Supercheck execution service
   PLAYWRIGHT_HEADLESS: true

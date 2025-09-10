@@ -11,30 +11,86 @@ export async function GET(request: Request) {
   try {
     await requireAuth();
     
-    // Get URL parameters for optional filtering
+    // Get URL parameters for optional filtering and pagination
     const url = new URL(request.url);
     const projectId = url.searchParams.get('projectId');
     const organizationId = url.searchParams.get('organizationId');
+    const page = parseInt(url.searchParams.get('page') || '1', 10);
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100);
     
-    // Build the base query
-    const baseQuery = db
-      .select()
-      .from(monitors);
+    // For backward compatibility, if no pagination params are provided, return all
+    const usePagination = url.searchParams.has('page') || url.searchParams.has('limit');
     
-    // Apply filters if provided
-    let monitorsList;
-    if (projectId && organizationId) {
-      monitorsList = await baseQuery
-        .where(and(
-          eq(monitors.projectId, projectId),
-          eq(monitors.organizationId, organizationId)
-        ))
-        .orderBy(desc(monitors.createdAt));
+    if (usePagination) {
+      // Validate pagination parameters
+      if (page < 1 || limit < 1) {
+        return NextResponse.json({ 
+          error: "Invalid pagination parameters. Page and limit must be >= 1" 
+        }, { status: 400 });
+      }
+      
+      const offset = (page - 1) * limit;
+      
+      // Build where condition
+      const whereCondition = projectId && organizationId 
+        ? and(
+            eq(monitors.projectId, projectId),
+            eq(monitors.organizationId, organizationId)
+          )
+        : undefined;
+      
+      // Get total count
+      const countQuery = db.select({ count: monitors.id }).from(monitors);
+      const totalResults = whereCondition 
+        ? await countQuery.where(whereCondition)
+        : await countQuery;
+      const total = totalResults.length;
+      
+      // Get paginated results
+      const baseQuery = db
+        .select()
+        .from(monitors)
+        .orderBy(desc(monitors.createdAt))
+        .limit(limit)
+        .offset(offset);
+      
+      const monitorsList = whereCondition 
+        ? await baseQuery.where(whereCondition)
+        : await baseQuery;
+      
+      const totalPages = Math.ceil(total / limit);
+      
+      return NextResponse.json({
+        data: monitorsList,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+      });
     } else {
-      monitorsList = await baseQuery.orderBy(desc(monitors.createdAt));
-    }
+      // Original behavior for backward compatibility
+      const baseQuery = db
+        .select()
+        .from(monitors);
+      
+      let monitorsList;
+      if (projectId && organizationId) {
+        monitorsList = await baseQuery
+          .where(and(
+            eq(monitors.projectId, projectId),
+            eq(monitors.organizationId, organizationId)
+          ))
+          .orderBy(desc(monitors.createdAt));
+      } else {
+        monitorsList = await baseQuery.orderBy(desc(monitors.createdAt));
+      }
 
-    return NextResponse.json(monitorsList);
+      return NextResponse.json(monitorsList);
+    }
   } catch (error) {
     console.error("Error fetching monitors:", error);
     return NextResponse.json({ error: "Failed to fetch monitors" }, { status: 500 });

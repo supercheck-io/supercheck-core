@@ -73,6 +73,9 @@ export async function GET(
       }
     }
 
+    // Get the maximum number of results to consider from environment variable
+    const maxResults = process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT ? parseInt(process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT) : 10000;
+    
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
 
@@ -85,21 +88,38 @@ export async function GET(
         )
       : eq(monitorResults.monitorId, id);
 
-    // Get total count for pagination metadata
-    const totalResults = await db
-      .select({ count: monitorResults.id })
+    // First, get the most recent results up to the limit (this gives us the "window" of results to paginate through)
+    const recentResults = await db
+      .select({ id: monitorResults.id })
       .from(monitorResults)
-      .where(whereCondition);
+      .where(whereCondition)
+      .orderBy(desc(monitorResults.checkedAt))
+      .limit(maxResults);
 
-    const total = totalResults.length;
+    const total = recentResults.length;
+    
+    // If requesting beyond available results, return empty
+    if (offset >= total) {
+      return NextResponse.json({
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+          hasNextPage: false,
+          hasPrevPage: page > 1,
+        },
+      });
+    }
 
-    // Get paginated results
+    // Get the specific page of results from our limited set
     const results = await db
       .select()
       .from(monitorResults)
       .where(whereCondition)
       .orderBy(desc(monitorResults.checkedAt))
-      .limit(limit)
+      .limit(Math.min(limit, total - offset)) // Don't go beyond available results
       .offset(offset);
 
     // Calculate pagination metadata

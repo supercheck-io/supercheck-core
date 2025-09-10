@@ -14,7 +14,8 @@ import {
 } from "@/db/schema/schema";
 import { eq, desc } from "drizzle-orm";
 
-const resultsLimit = process.env.RECENT_MONITOR_RESULTS_LIMIT ? parseInt(process.env.RECENT_MONITOR_RESULTS_LIMIT) : 50;
+// Limit for chart data only - keep small for performance
+const chartResultsLimit = 100;
 
 type MonitorDetailsPageProps = {
   params: Promise<{
@@ -54,14 +55,15 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
 
     const monitor = monitorData[0];
 
+    // Only load limited results for charts and summary - table will use pagination API
     const recentResultsData = await db
       .select()
       .from(monitorResults)
       .where(eq(monitorResults.monitorId, id))
       .orderBy(desc(monitorResults.checkedAt))
-      .limit(resultsLimit);
+      .limit(chartResultsLimit);
 
-    // Map DB results to MonitorResultItem structure
+    // Map DB results to MonitorResultItem structure for charts only
     const mappedRecentResults: MonitorResultItem[] = recentResultsData.map((r) => ({
       id: r.id,
       monitorId: r.monitorId,
