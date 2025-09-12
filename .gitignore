@@ -10,9 +10,9 @@
 *.launch
 .settings/
 *.sublime-workspace
-.claude
-.docs
-.specs
+.claude/*
+.docs/*
+.specs/*
 
 ## IDE - VSCode
 .vscode/*
