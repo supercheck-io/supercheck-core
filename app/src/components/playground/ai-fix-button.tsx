@@ -49,10 +49,10 @@ export function AIFixButton({
     onAnalyzing?.(true);
 
     try {
-      console.log('[AI Fix] Making request to /api/ai/fix-test with:', {
+      console.log("[AI Fix] Making request to /api/ai/fix-test with:", {
         testId: currentTestId,
         testType,
-        scriptLength: failedScript.trim().length
+        scriptLength: failedScript.trim().length,
       });
 
       const response = await fetch("/api/ai/fix-test", {
@@ -71,9 +71,13 @@ export function AIFixButton({
         }),
       });
 
-      console.log('[AI Fix] Response status:', response.status, response.statusText);
+      console.log(
+        "[AI Fix] Response status:",
+        response.status,
+        response.statusText
+      );
       const result = await response.json();
-      console.log('[AI Fix] Response data:', result);
+      console.log("[AI Fix] Response data:", result);
 
       if (!response.ok) {
         // Handle different error types with appropriate user messaging
@@ -137,7 +141,7 @@ export function AIFixButton({
       // Show fallback guidance
       onShowGuidance(
         "api_error",
-        "**Service Temporarily Unavailable**\n\nThe AI fix service is currently unavailable. Please try again in a few moments or proceed with manual investigation."
+        "The AI fix service is currently unavailable or cannot fix the issue. Please try again in a few moments or proceed with manual investigation."
       );
     } finally {
       setIsProcessing(false);

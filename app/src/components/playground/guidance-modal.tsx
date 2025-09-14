@@ -23,7 +23,7 @@ export function GuidanceModal({
       if (line.startsWith('**') && line.endsWith('**')) {
         const content = line.slice(2, -2);
         return (
-          <h4 key={index} className="font-semibold text-gray-900 mt-4 mb-2 first:mt-0">
+          <h4 key={index} className="font-semibold text-gray-900 dark:text-gray-100 mt-4 mb-2 first:mt-0">
             {content}
           </h4>
         );
@@ -32,7 +32,7 @@ export function GuidanceModal({
       // Handle bullet points
       if (line.startsWith('• ')) {
         return (
-          <li key={index} className="ml-4 text-gray-700 mb-1">
+          <li key={index} className="ml-4 text-gray-700 dark:text-gray-300 mb-1">
             {line.slice(2)}
           </li>
         );
@@ -41,7 +41,7 @@ export function GuidanceModal({
       // Handle emoji lines (like 🌐, 🔐, etc.)
       if (line.match(/^[🌐🔐🏗️📊🔍📄⚡📋]/)) {
         return (
-          <div key={index} className="font-medium text-gray-800 mt-3 mb-2">
+          <div key={index} className="font-medium text-gray-800 dark:text-gray-200 mt-3 mb-2">
             {line}
           </div>
         );
@@ -51,10 +51,10 @@ export function GuidanceModal({
       if (line.includes('**')) {
         const parts = line.split('**');
         return (
-          <p key={index} className="text-gray-700 mb-2">
-            {parts.map((part, partIndex) => 
-              partIndex % 2 === 1 ? 
-                <strong key={partIndex} className="font-semibold">{part}</strong> : 
+          <p key={index} className="text-gray-700 dark:text-gray-300 mb-2">
+            {parts.map((part, partIndex) =>
+              partIndex % 2 === 1 ?
+                <strong key={partIndex} className="font-semibold text-gray-900 dark:text-gray-100">{part}</strong> :
                 part
             )}
           </p>
@@ -68,7 +68,7 @@ export function GuidanceModal({
       
       // Regular text
       return (
-        <p key={index} className="text-gray-700 mb-2">
+        <p key={index} className="text-gray-700 dark:text-gray-300 mb-2">
           {line}
         </p>
       );
