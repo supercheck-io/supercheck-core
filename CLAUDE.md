@@ -97,6 +97,7 @@ The database schema includes comprehensive tables for:
 - Configurable timeouts, capacity limits, and retry logic
 - Real-time status updates via Server-Sent Events (SSE)
 - Artifact storage in MinIO with presigned URL access
+- **AI-Powered Test Fix**: Intelligent test failure analysis and automated fix suggestions (see [AI Fix Setup Guide](./AI_FIX_SETUP.md))
 
 ### Job Scheduling
 
@@ -137,6 +138,7 @@ Key environment variables are managed through Docker Compose and include:
 - Capacity limits (`RUNNING_CAPACITY`, `QUEUED_CAPACITY`)
 - Timeout configurations (`TEST_EXECUTION_TIMEOUT_MS`)
 - Super admin access (`SUPER_ADMIN_EMAILS`)
+- AI Fix feature configuration (`AI_FIX_ENABLED`, `AI_PROVIDER`, `AI_MODEL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
 
 ## Testing Infrastructure
 
