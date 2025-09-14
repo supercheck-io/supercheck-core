@@ -34,7 +34,7 @@ ${optimizedMarkdown}
 2. **Target Root Cause**: Fix only the specific issues mentioned in the error report
 3. **Use Best Practices**: Apply Playwright best practices for reliability
 4. **Minimal Changes**: Make the smallest changes necessary to fix the issue
-5. **Add Comments**: Include brief inline comments explaining significant changes
+5. **Preserve Comments**: Keep ALL existing comments and add brief inline comments explaining significant changes
 6. **Maintain Structure**: Keep the existing test structure and variable names
 
 **COMMON FIX PATTERNS**:
@@ -54,7 +54,14 @@ FIXED_SCRIPT:
 EXPLANATION:
 [Brief explanation of what was changed and why - focus on the specific fixes made]
 
-**IMPORTANT**: Return only valid, executable Playwright test code. Do not include test runners, imports, or setup code unless they were part of the original script.`;
+CONFIDENCE:
+[Rate your confidence in this fix on a scale of 0.1 to 1.0, where 1.0 means you're very confident this will resolve the issue]
+
+**IMPORTANT**:
+- Return only valid, executable Playwright test code
+- Preserve ALL existing comments from the original script
+- Add your own comments only to explain the specific fixes you made
+- Do not include test runners, imports, or setup code unless they were part of the original script`;
   }
 
   // Build a basic prompt when detailed markdown reports aren't available
@@ -89,7 +96,7 @@ Since detailed error reports aren't available, please:
 2. **Apply Best Practices**: Improve the script with Playwright best practices
 3. **Add Robustness**: Include proper waits and error handling
 4. **Maintain Intent**: Keep the original test logic and purpose
-5. **Add Comments**: Explain any significant improvements made
+5. **Preserve Comments**: Keep ALL existing comments and add comments only to explain significant improvements made
 
 **COMMON IMPROVEMENTS TO CONSIDER**:
 - Replace brittle selectors with robust ones (data-testid, role-based)
@@ -107,7 +114,13 @@ FIXED_SCRIPT:
 EXPLANATION:
 [Brief explanation of the improvements made to enhance test reliability]
 
-**IMPORTANT**: Return only valid, executable Playwright test code.`;
+CONFIDENCE:
+[Rate your confidence in these improvements on a scale of 0.1 to 1.0, where 1.0 means you're very confident this will make the test more reliable]
+
+**IMPORTANT**:
+- Return only valid, executable Playwright test code
+- Preserve ALL existing comments from the original script
+- Add your own comments only to explain the specific improvements made`;
   }
 
   private static getTestTypeInstructions(testType: string): string {

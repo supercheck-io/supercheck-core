@@ -1,14 +1,14 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { X, Plus, Check, ChevronsUpDown, Trash2, Palette } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import * as React from "react";
+import { X, Plus, Check, ChevronsUpDown, Trash2, Palette } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
+} from "@/components/ui/popover";
 import {
   Command,
   CommandEmpty,
@@ -16,7 +16,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"
+} from "@/components/ui/command";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,33 +26,45 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { cn } from "@/lib/utils"
-import { toast } from "sonner"
+} from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export interface Tag {
-  id: string
-  name: string
-  color?: string
-  createdByUserId?: string
+  id: string;
+  name: string;
+  color?: string;
+  createdByUserId?: string;
 }
 
 interface TagSelectorProps {
-  value: Tag[]
-  onChange: (tags: Tag[]) => void
-  availableTags: Tag[]
-  onCreateTag?: (name: string, color?: string) => Promise<Tag>
-  onDeleteTag?: (tagId: string) => Promise<void>
-  canDeleteTag?: (tag: Tag) => boolean // Function to check if specific tag can be deleted
-  placeholder?: string
-  className?: string
-  disabled?: boolean
+  value: Tag[];
+  onChange: (tags: Tag[]) => void;
+  availableTags: Tag[];
+  onCreateTag?: (name: string, color?: string) => Promise<Tag>;
+  onDeleteTag?: (tagId: string) => Promise<void>;
+  canDeleteTag?: (tag: Tag) => boolean; // Function to check if specific tag can be deleted
+  placeholder?: string;
+  className?: string;
+  disabled?: boolean;
 }
 
 const predefinedColors = [
-  '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-  '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6B7280',
-  '#14B8A6', '#F472B6', '#A78BFA', '#FB7185', '#FBBF24'
+  "#3B82F6",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#8B5CF6",
+  "#06B6D4",
+  "#84CC16",
+  "#F97316",
+  "#EC4899",
+  "#6B7280",
+  "#14B8A6",
+  "#F472B6",
+  "#A78BFA",
+  "#FB7185",
+  "#FBBF24",
 ];
 
 export function TagSelector({
@@ -66,154 +78,171 @@ export function TagSelector({
   className,
   disabled = false,
 }: TagSelectorProps) {
-  const [open, setOpen] = React.useState(false)
-  const [inputValue, setInputValue] = React.useState("")
-  const [isCreating, setIsCreating] = React.useState(false)
-  const [showColorPicker, setShowColorPicker] = React.useState(false)
-  const [selectedColor, setSelectedColor] = React.useState<string>()
-  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
-  const [tagToDelete, setTagToDelete] = React.useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = React.useState(false)
+  const [open, setOpen] = React.useState(false);
+  const [inputValue, setInputValue] = React.useState("");
+  const [isCreating, setIsCreating] = React.useState(false);
+  const [showColorPicker, setShowColorPicker] = React.useState(false);
+  const [selectedColor, setSelectedColor] = React.useState<string>();
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+  const [tagToDelete, setTagToDelete] = React.useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
 
-  const selectedIds = React.useMemo(() => new Set(value.map(tag => tag.id)), [value])
+  const selectedIds = React.useMemo(
+    () => new Set(value.map((tag) => tag.id)),
+    [value]
+  );
 
   const filteredTags = React.useMemo(() => {
-    if (!inputValue) return availableTags
-    return availableTags.filter(tag =>
+    if (!inputValue) return availableTags;
+    return availableTags.filter((tag) =>
       tag.name.toLowerCase().includes(inputValue.toLowerCase())
-    )
-  }, [availableTags, inputValue])
+    );
+  }, [availableTags, inputValue]);
 
   const handleSelect = (tag: Tag) => {
     if (selectedIds.has(tag.id)) {
       // Remove tag
-      onChange(value.filter(t => t.id !== tag.id))
+      onChange(value.filter((t) => t.id !== tag.id));
     } else {
       // Check if we've reached the maximum number of tags per test (10)
       if (value.length >= 10) {
-        toast.error("Maximum of 10 tags allowed per test")
-        return
+        toast.error("Maximum of 10 tags allowed per test");
+        return;
       }
       // Add tag
-      onChange([...value, tag])
+      onChange([...value, tag]);
     }
-  }
+  };
 
-  const validateTagName = (name: string): { isValid: boolean; error?: string } => {
+  const validateTagName = (
+    name: string
+  ): { isValid: boolean; error?: string } => {
     if (!name.trim()) {
-      return { isValid: false, error: "Tag name cannot be empty" }
+      return { isValid: false, error: "Tag name cannot be empty" };
     }
 
-    const trimmedName = name.trim()
+    const trimmedName = name.trim();
 
-    // Check length (3-12 characters)
-    if (trimmedName.length < 3 || trimmedName.length > 12) {
-      return { isValid: false, error: "Tag name must be between 3 and 12 characters" }
+    // Check length (3-20 characters)
+    if (trimmedName.length < 3 || trimmedName.length > 20) {
+      return {
+        isValid: false,
+        error: "Tag name must be between 3 and 20 characters",
+      };
     }
 
     // Check for whitespace
     if (/\s/.test(trimmedName)) {
-      return { isValid: false, error: "Tag name cannot contain spaces" }
+      return { isValid: false, error: "Tag name cannot contain spaces" };
     }
 
     // Check for special characters - only allow alphanumeric, underscore, and hyphen
     if (!/^[a-zA-Z0-9_-]+$/.test(trimmedName)) {
-      return { isValid: false, error: "Tag name can only contain letters, numbers, underscores, and hyphens" }
+      return {
+        isValid: false,
+        error:
+          "Tag name can only contain letters, numbers, underscores, and hyphens",
+      };
     }
 
-    return { isValid: true }
-  }
+    return { isValid: true };
+  };
 
   const handleCreateTag = async (color?: string) => {
-    if (!inputValue.trim() || isCreating || !onCreateTag) return
+    if (!inputValue.trim() || isCreating || !onCreateTag) return;
 
-    const trimmedInput = inputValue.trim()
+    const trimmedInput = inputValue.trim();
 
     // Validate tag name
-    const validation = validateTagName(trimmedInput)
+    const validation = validateTagName(trimmedInput);
     if (!validation.isValid) {
-      toast.error(validation.error)
-      return
+      toast.error(validation.error);
+      return;
     }
 
     // Check if tag already exists
     const existingTag = availableTags.find(
-      tag => tag.name.toLowerCase() === trimmedInput.toLowerCase()
-    )
+      (tag) => tag.name.toLowerCase() === trimmedInput.toLowerCase()
+    );
     if (existingTag) {
-      handleSelect(existingTag)
-      setInputValue("")
-      setShowColorPicker(false)
-      toast.info(`Tag "${existingTag.name}" already exists and has been selected`)
-      return
+      handleSelect(existingTag);
+      setInputValue("");
+      setShowColorPicker(false);
+      toast.info(
+        `Tag "${existingTag.name}" already exists and has been selected`
+      );
+      return;
     }
 
     // Check if we've reached the maximum number of tags per test (10)
     if (value.length >= 10) {
-      toast.error("Maximum of 10 tags allowed per test")
-      return
+      toast.error("Maximum of 10 tags allowed per test");
+      return;
     }
 
-    setIsCreating(true)
+    setIsCreating(true);
     try {
-      const newTag = await onCreateTag(trimmedInput, color)
-      onChange([...value, newTag])
-      setInputValue("")
-      setShowColorPicker(false)
-      setSelectedColor(undefined)
-      toast.success(`Tag "${newTag.name}" created successfully`)
+      const newTag = await onCreateTag(trimmedInput, color);
+      onChange([...value, newTag]);
+      setInputValue("");
+      setShowColorPicker(false);
+      setSelectedColor(undefined);
+      toast.success(`Tag "${newTag.name}" created successfully`);
     } catch (error) {
-      console.error("Failed to create tag:", error)
-      toast.error("Failed to create tag. Please try again.")
+      console.error("Failed to create tag:", error);
+      toast.error("Failed to create tag. Please try again.");
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
-  }
+  };
 
   const handleDeleteTag = (tagId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!onDeleteTag) return
+    e.stopPropagation();
+    if (!onDeleteTag) return;
 
-    setTagToDelete(tagId)
-    setShowDeleteDialog(true)
-  }
+    setTagToDelete(tagId);
+    setShowDeleteDialog(true);
+  };
 
   const confirmDeleteTag = async () => {
-    if (!tagToDelete || !onDeleteTag) return
+    if (!tagToDelete || !onDeleteTag) return;
 
-    setIsDeleting(true)
+    setIsDeleting(true);
     try {
-      await onDeleteTag(tagToDelete)
+      await onDeleteTag(tagToDelete);
       // Remove from selected tags if it was selected
-      onChange(value.filter(t => t.id !== tagToDelete))
+      onChange(value.filter((t) => t.id !== tagToDelete));
       // Success message is now handled in the onDeleteTag function
     } catch (error) {
-      console.error("Failed to delete tag:", error)
+      console.error("Failed to delete tag:", error);
       // Show the specific error message from the API
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete tag. Please try again."
-      toast.error(errorMessage)
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to delete tag. Please try again.";
+      toast.error(errorMessage);
     } finally {
-      setIsDeleting(false)
-      setShowDeleteDialog(false)
-      setTagToDelete(null)
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+      setTagToDelete(null);
     }
-  }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && inputValue.trim()) {
-      e.preventDefault()
+      e.preventDefault();
       if (showColorPicker) {
-        handleCreateTag(selectedColor)
+        handleCreateTag(selectedColor);
       } else {
-        handleCreateTag()
+        handleCreateTag();
       }
     }
-  }
+  };
 
   const removeSelectedTag = (tagId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    onChange(value.filter(t => t.id !== tagId))
-  }
+    e.stopPropagation();
+    onChange(value.filter((t) => t.id !== tagId));
+  };
 
   return (
     <div className={cn("w-full", className)}>
@@ -239,11 +268,15 @@ export function TagSelector({
                     key={tag.id}
                     variant="secondary"
                     className="text-xs pr-1"
-                    style={tag.color ? { 
-                      backgroundColor: tag.color + "20", 
-                      color: tag.color,
-                      borderColor: tag.color + "40"
-                    } : {}}
+                    style={
+                      tag.color
+                        ? {
+                            backgroundColor: tag.color + "20",
+                            color: tag.color,
+                            borderColor: tag.color + "40",
+                          }
+                        : {}
+                    }
                   >
                     {tag.name}
                     <div
@@ -278,7 +311,9 @@ export function TagSelector({
                       disabled={isCreating}
                     >
                       <Plus className="h-4 w-4 mr-2 text-green-500" />
-                      {isCreating ? "Creating tag..." : `Create tag "${inputValue}"`}
+                      {isCreating
+                        ? "Creating tag..."
+                        : `Create tag "${inputValue}"`}
                     </Button>
                     <Button
                       variant="ghost"
@@ -296,7 +331,9 @@ export function TagSelector({
                             key={color}
                             className={cn(
                               "w-6 h-6 rounded-full border-2 hover:scale-110 transition-transform",
-                              selectedColor === color ? "border-foreground" : "border-transparent"
+                              selectedColor === color
+                                ? "border-foreground"
+                                : "border-transparent"
                             )}
                             style={{ backgroundColor: color }}
                             onClick={() => setSelectedColor(color)}
@@ -312,7 +349,11 @@ export function TagSelector({
                         onClick={() => handleCreateTag(selectedColor)}
                         disabled={isCreating}
                       >
-                        {isCreating ? "Creating..." : `Create with ${selectedColor ? 'selected' : 'random'} color`}
+                        {isCreating
+                          ? "Creating..."
+                          : `Create with ${
+                              selectedColor ? "selected" : "random"
+                            } color`}
                       </Button>
                     )}
                   </div>
@@ -370,10 +411,17 @@ export function TagSelector({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Tag</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the tag <span className="font-semibold">&quot;{availableTags.find(t => t.id === tagToDelete)?.name}&quot;</span>. 
-              This action cannot be undone.
-              <br /><br />
-              <strong>Note:</strong> If this tag is currently used in any tests, the deletion will be prevented and you&apos;ll need to remove the tag from those tests first.
+              This will permanently delete the tag{" "}
+              <span className="font-semibold">
+                &quot;{availableTags.find((t) => t.id === tagToDelete)?.name}
+                &quot;
+              </span>
+              . This action cannot be undone.
+              <br />
+              <br />
+              <strong>Note:</strong> If this tag is currently used in any tests,
+              the deletion will be prevented and you&apos;ll need to remove the
+              tag from those tests first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -389,5 +437,5 @@ export function TagSelector({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
-} 
+  );
+}

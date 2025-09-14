@@ -160,7 +160,6 @@ const Playground: React.FC<PlaygroundProps> = ({
   >("none"); // Track if last test run passed or failed
   const [lastExecutedScript, setLastExecutedScript] = useState<string>(""); // Track last executed script
   const [isAIAnalyzing, setIsAIAnalyzing] = useState(false); // Track AI Fix analyzing state
-  const [aiFixAccepted, setAiFixAccepted] = useState(false); // Track if AI fix was accepted for current script
 
   // AI Fix functionality state
   const [showAIDiff, setShowAIDiff] = useState(false);
@@ -168,12 +167,7 @@ const Playground: React.FC<PlaygroundProps> = ({
   const [aiExplanation, setAIExplanation] = useState<string>("");
   const [aiConfidence, setAIConfidence] = useState<number>(0.5);
   const [showGuidanceModal, setShowGuidanceModal] = useState(false);
-  const [guidanceReason, setGuidanceReason] = useState<string>("");
   const [guidanceMessage, setGuidanceMessage] = useState<string>("");
-  const [guidanceErrorAnalysis, setGuidanceErrorAnalysis] = useState<{
-    totalErrors?: number;
-    categories?: string[];
-  } | null>(null);
 
   // Derived state: is current script validated and passed?
   const isCurrentScriptValidated =
@@ -197,7 +191,6 @@ const Playground: React.FC<PlaygroundProps> = ({
   // Clear test execution state when script changes
   const resetTestExecutionState = () => {
     setTestExecutionStatus("none");
-    setAiFixAccepted(false); // Allow AI fix button to show again for new script
     setExecutionTestId(null); // Clear execution test ID for new script
     // Don't reset lastExecutedScript here - only when test passes
   };
@@ -777,13 +770,11 @@ const Playground: React.FC<PlaygroundProps> = ({
   };
 
   const handleShowGuidance = (
-    reason: string,
+    _reason: string,
     guidance: string,
-    errorAnalysis?: { totalErrors?: number; categories?: string[] }
+    _errorAnalysis?: { totalErrors?: number; categories?: string[] }
   ) => {
-    setGuidanceReason(reason);
     setGuidanceMessage(guidance);
-    setGuidanceErrorAnalysis(errorAnalysis || null);
     setShowGuidanceModal(true);
   };
 
@@ -795,7 +786,6 @@ const Playground: React.FC<PlaygroundProps> = ({
     setEditorContent(acceptedScript);
     setTestCase((prev) => ({ ...prev, script: acceptedScript }));
     setShowAIDiff(false);
-    setAiFixAccepted(true); // Hide AI fix button after acceptance
 
     // Reset validation state since script has changed
     setHasValidated(false);
@@ -890,12 +880,11 @@ const Playground: React.FC<PlaygroundProps> = ({
                         failedScript={editorContent}
                         testType={testCase.type || "browser"}
                         isVisible={
-                          // Only show when test execution is completely finished AND failed AND not yet accepted
+                          // Always show when test execution is completely finished AND failed
                           testExecutionStatus === "failed" &&
                           !isRunning &&
                           !isValidating &&
                           !isReportLoading &&
-                          !aiFixAccepted &&
                           userCanRunTests &&
                           !!executionTestId // Ensure we have an execution test ID
                         }
@@ -1059,9 +1048,7 @@ const Playground: React.FC<PlaygroundProps> = ({
       {/* Guidance Modal */}
       <GuidanceModal
         isVisible={showGuidanceModal}
-        reason={guidanceReason}
         guidance={guidanceMessage}
-        errorAnalysis={guidanceErrorAnalysis}
         onClose={handleCloseGuidanceModal}
       />
     </>

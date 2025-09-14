@@ -41,15 +41,30 @@ export class AISecurityService {
       'document.write',
       '<script',
       'javascript:',
-      'data:',
       'innerHTML',
       'outerHTML',
       'execCommand'
     ];
 
+    // More specific data: URI patterns that are actually malicious
+    const maliciousDataPatterns = [
+      'data:text/html',
+      'data:application/javascript',
+      'data:text/javascript',
+      'data:application/x-javascript'
+    ];
+
     const lowerCode = code.toLowerCase();
-    
+
+    // Check for general malicious patterns
     for (const pattern of maliciousPatterns) {
+      if (lowerCode.includes(pattern.toLowerCase())) {
+        throw new Error(`AI generated potentially unsafe code containing: ${pattern}`);
+      }
+    }
+
+    // Check for malicious data URIs specifically
+    for (const pattern of maliciousDataPatterns) {
       if (lowerCode.includes(pattern.toLowerCase())) {
         throw new Error(`AI generated potentially unsafe code containing: ${pattern}`);
       }

@@ -191,65 +191,46 @@ export function AIDiffViewer({
     monacoAvailable: !!monaco,
   });
 
-  // Convert explanation to brief fix-specific bullet points
-  const getBulletPoints = (text: string) => {
-    const fixes = [];
+  // Convert explanation to clean, professional bullet points
+  const getBulletPoints = (text: string): string[] => {
+    const fixes: string[] = [];
 
-    // Look for specific fix patterns
-    const patterns = [
-      /fixed.*?by.*?(?:changing|correcting|updating|adding|removing).*?(?:\.|$)/gi,
-      /corrected.*?(?:from|to).*?(?:\.|$)/gi,
-      /changed.*?(?:from|to).*?(?:\.|$)/gi,
-      /updated.*?(?:to|with).*?(?:\.|$)/gi,
-      /added.*?(?:to|for).*?(?:\.|$)/gi,
-    ];
+    // Split by common delimiters and clean each point
+    const points = text
+      .split(/[.\n•-]/)
+      .map(point => point.trim())
+      .filter(point => point.length > 15 && point.length < 100)
+      .slice(0, 3);
 
-    patterns.forEach((pattern) => {
-      const matches = text.match(pattern);
-      if (matches) {
-        matches.forEach((match) => {
-          let cleanMatch = match
-            .replace(/\*\*/g, "")
-            .replace(/^\d+\.\s*/, "")
-            .trim();
-          // Remove F**"Fixed" and A**"Added" prefixes
-          cleanMatch = cleanMatch.replace(/^[FA]\*\*"?/i, "");
-          cleanMatch = cleanMatch.replace(
-            /^(Fixed|Added|Corrected|Changed|Updated)\s*/i,
-            ""
-          );
-          if (cleanMatch.length > 15 && cleanMatch.length < 80) {
-            fixes.push(
-              cleanMatch.charAt(0).toUpperCase() + cleanMatch.slice(1)
-            );
+    points.forEach(point => {
+      // Remove all prefixes and symbols
+      let cleanPoint = point
+        .replace(/\*\*/g, "") // Remove markdown bold
+        .replace(/^\d+\.\s*/, "") // Remove numbering
+        .replace(/^[-•]\s*/, "") // Remove dashes and bullets
+        .replace(/^(Fixed|Added|Corrected|Changed|Updated|Removed|Replaced|Modified|Adjusted|Typo)\s*/i, "") // Remove action words
+        .replace(/^(the\s+|a\s+|an\s+)/i, "") // Remove articles at start
+        .trim();
+
+      // Capitalize first letter and ensure it makes sense
+      if (cleanPoint && cleanPoint.length > 10) {
+        cleanPoint = cleanPoint.charAt(0).toUpperCase() + cleanPoint.slice(1);
+
+        // Make sure it reads well as a bullet point
+        if (!cleanPoint.match(/^(Expected|Request|Response|Title|Payload|Data|Key|Value|Parameter|URL|Method|Header)/i)) {
+          // Add context if needed
+          if (cleanPoint.match(/validation|title|request|response/i)) {
+            fixes.push(cleanPoint);
+          } else {
+            fixes.push(cleanPoint);
           }
-        });
+        } else {
+          fixes.push(cleanPoint);
+        }
       }
     });
 
-    // If no specific fixes found, extract key phrases
-    if (fixes.length === 0) {
-      const sentences = text
-        .split(/[.!?]+/)
-        .filter((s) => s.trim().length > 10);
-      fixes.push(
-        ...sentences.slice(0, 3).map((s) => {
-          let cleanS = s
-            .replace(/\*\*/g, "")
-            .replace(/^\d+\.\s*/, "")
-            .trim();
-          // Remove F**"Fixed" and A**"Added" prefixes
-          cleanS = cleanS.replace(/^[FA]\*\*"?/i, "");
-          cleanS = cleanS.replace(
-            /^(Fixed|Added|Corrected|Changed|Updated)\s*/i,
-            ""
-          );
-          return cleanS.charAt(0).toUpperCase() + cleanS.slice(1).trim();
-        })
-      );
-    }
-
-    return fixes.slice(0, 3);
+    return fixes.length > 0 ? fixes : ["Script updated with improvements"];
   };
 
   const bulletPoints = getBulletPoints(explanation);

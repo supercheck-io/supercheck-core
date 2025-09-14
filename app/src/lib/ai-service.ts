@@ -12,6 +12,7 @@ interface AIFixRequest {
 interface AIFixResponse {
   fixedScript: string;
   explanation: string;
+  aiConfidence?: number;
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -78,26 +79,35 @@ EXPLANATION:
 [Brief explanation of what was fixed and why]`;
   }
 
-  private static parseAIResponse(response: string): { fixedScript: string; explanation: string } {
+  private static parseAIResponse(response: string): { fixedScript: string; explanation: string; aiConfidence?: number } {
     try {
       // Extract script from code blocks
       const scriptMatch = response.match(/FIXED_SCRIPT:\s*```(?:javascript|typescript|js|ts)?\s*([\s\S]*?)```/i);
-      const explanationMatch = response.match(/EXPLANATION:\s*([\s\S]*?)$/i);
-      
-      if (!scriptMatch || !explanationMatch) {
-        throw new Error('Invalid AI response format');
+      const explanationMatch = response.match(/EXPLANATION:\s*([\s\S]*?)(?:CONFIDENCE:|$)/i);
+      const confidenceMatch = response.match(/CONFIDENCE:\s*([\d.]+)/i);
+
+      if (!scriptMatch) {
+        throw new Error('Invalid AI response format - missing FIXED_SCRIPT');
       }
 
       const fixedScript = scriptMatch[1].trim();
-      const explanation = explanationMatch[1].trim();
+      const explanation = explanationMatch ? explanationMatch[1].trim() : 'Script has been fixed to resolve the reported issues.';
+      const aiConfidence = confidenceMatch ? parseFloat(confidenceMatch[1]) : undefined;
 
       if (!fixedScript || fixedScript.length < 10) {
         throw new Error('AI response contains insufficient code');
       }
 
+      // Validate confidence score if provided
+      if (aiConfidence !== undefined && (aiConfidence < 0.1 || aiConfidence > 1.0)) {
+        console.warn(`AI provided invalid confidence score: ${aiConfidence}, ignoring`);
+        return { fixedScript, explanation };
+      }
+
       return {
         fixedScript,
-        explanation: explanation || 'Script has been fixed to resolve the reported issues.'
+        explanation,
+        aiConfidence
       };
     } catch (error) {
       throw new Error(`Failed to parse AI response: ${error instanceof Error ? error.message : 'Unknown error'}`);

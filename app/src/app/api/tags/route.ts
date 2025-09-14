@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tag name cannot be empty' }, { status: 400 });
     }
 
-    if (trimmedName.length < 3 || trimmedName.length > 12) {
-      return NextResponse.json({ error: 'Tag name must be between 3 and 12 characters' }, { status: 400 });
+    if (trimmedName.length < 3 || trimmedName.length > 20) {
+      return NextResponse.json({ error: 'Tag name must be between 3 and 20 characters' }, { status: 400 });
     }
 
     if (/\s/.test(trimmedName)) {

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIFixService } from '@/lib/ai-service';
 import { AISecurityService, AuthService } from '@/lib/ai-security';
-import { PlaywrightMarkdownParser, AIFixDecisionEngine } from '@/lib/ai-classifier';
+import { PlaywrightMarkdownParser, AIFixDecisionEngine, FailureCategory } from '@/lib/ai-classifier';
 import { AIPromptBuilder } from '@/lib/ai-prompts';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { HTMLReportParser } from '@/lib/html-report-parser';
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 
 // Rate limiting store (in production, use Redis)
 // const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -30,29 +31,76 @@ export async function POST(request: NextRequest) {
     const session = await AuthService.validateUserAccess(request, testId);
     await AuthService.checkRateLimit(request, session.user.id);
 
-    // Step 3: Get markdown report URL (required - no fallback)
+    // Step 3: Try to get markdown report URL first
     const markdownReportUrl = await getMarkdownReportUrl(testId);
     console.log('[AI Fix Debug] Markdown report URL:', markdownReportUrl, 'for testId:', testId);
-    
-    if (!markdownReportUrl) {
-      console.log('[AI Fix Debug] No markdown report found for testId:', testId);
-      return NextResponse.json({
-        success: false,
-        reason: 'markdown_not_available',
-        message: 'Markdown failure report not found. Please ensure the test has failed and reports are generated.',
-        guidance: AIPromptBuilder.generateGuidanceMessage('markdown_not_available')
-      }, { status: 400 });
+
+    let errorContext: string;
+    let errorClassifications: Array<{ message: string; location: string; stackTrace?: string; classification?: { category: FailureCategory; confidence: number; aiFixable: boolean; keywords: string[]; patterns: RegExp[]; severity: 'low' | 'medium' | 'high' | 'critical' } }>;
+    let contextSource: 'markdown' | 'html' = 'markdown';
+
+    if (markdownReportUrl) {
+      // Step 4a: Securely fetch markdown content with validation
+      errorContext = await AISecurityService.securelyFetchMarkdownReport(markdownReportUrl);
+
+      // Step 5a: Parse markdown for error classification
+      errorClassifications = PlaywrightMarkdownParser.parseMarkdownForErrors(errorContext);
+      console.log('[AI Fix Debug] Found', errorClassifications.length, 'errors in markdown:',
+        errorClassifications.map(e => ({ message: e.message, category: e.classification?.category, aiFixable: e.classification?.aiFixable })));
+    } else {
+      // Step 4b: Fallback to HTML report parsing
+      console.log('[AI Fix Debug] No markdown report found, trying HTML report for testId:', testId);
+
+      const htmlContent = await getHTMLReportContent(testId);
+      if (!htmlContent) {
+        console.log('[AI Fix Debug] No HTML report found either for testId:', testId);
+        return NextResponse.json({
+          success: false,
+          reason: 'report_not_available',
+          message: 'No test report (markdown or HTML) found. Please ensure the test has failed and reports are generated.',
+          guidance: AIPromptBuilder.generateGuidanceMessage('markdown_not_available')
+        }, { status: 400 });
+      }
+
+      // Step 5b: Parse HTML report for error information
+      const parsedHtmlReport = await HTMLReportParser.parseHTMLReport(htmlContent);
+      console.log('[AI Fix Debug] Parsed HTML report:', {
+        testName: parsedHtmlReport.testName,
+        status: parsedHtmlReport.status,
+        errorCount: parsedHtmlReport.errors.length,
+        errors: parsedHtmlReport.errors.map(e => ({ message: e.message, details: e.details.substring(0, 100) }))
+      });
+
+      errorContext = HTMLReportParser.convertErrorsToMarkdownFormat(parsedHtmlReport);
+      contextSource = 'html';
+
+      // Convert HTML errors to the same format as markdown errors for consistency
+      errorClassifications = parsedHtmlReport.errors.map(error => ({
+        message: error.message,
+        location: error.lineNumber ? `line ${error.lineNumber}` : 'unknown location',
+        stackTrace: error.stackTrace,
+        classification: {
+          category: categorizeHTMLError(error.message),
+          confidence: 0.8,
+          aiFixable: true, // Assume HTML errors are fixable
+          keywords: [error.testName],
+          patterns: [],
+          severity: 'medium' as const
+        }
+      }));
+
+      console.log('[AI Fix Debug] Found', errorClassifications.length, 'errors in HTML:',
+        errorClassifications.map(e => ({ message: e.message, category: e.classification?.category })));
     }
 
-    // Step 4: Securely fetch markdown content with validation
-    const errorContext = await AISecurityService.securelyFetchMarkdownReport(markdownReportUrl);
-
-    // Step 5: Parse markdown for error classification
-    const errorClassifications = PlaywrightMarkdownParser.parseMarkdownForErrors(errorContext);
-    console.log('[AI Fix Debug] Found', errorClassifications.length, 'errors in markdown:', 
-      errorClassifications.map(e => ({ message: e.message, category: e.classification?.category, aiFixable: e.classification?.aiFixable })));
-    
+    // Step 5: Make fix decision based on error classifications
     const fixDecision = AIFixDecisionEngine.shouldAttemptMarkdownFix(errorClassifications, testType);
+
+    // Improve confidence calculation for HTML parsing
+    if (contextSource === 'html' && fixDecision.shouldAttemptFix) {
+      const errorQuality = calculateHTMLErrorConfidence(errorClassifications);
+      fixDecision.confidence = Math.max(fixDecision.confidence, errorQuality);
+    }
     console.log('[AI Fix Debug] Fix decision:', fixDecision);
 
     // Step 6: Return early if environmental issues detected
@@ -78,12 +126,15 @@ export async function POST(request: NextRequest) {
           
           const sanitizedScript = AISecurityService.sanitizeCodeOutput(aiResponse.fixedScript);
           const sanitizedExplanation = AISecurityService.sanitizeTextOutput(aiResponse.explanation);
-          
+
+          // Use AI confidence if available, otherwise use default for basic analysis
+          const basicConfidence = aiResponse.aiConfidence || 0.7;
+
           return NextResponse.json({
             success: true,
             fixedScript: sanitizedScript,
             explanation: sanitizedExplanation,
-            confidence: 0.4, // Lower confidence for basic analysis
+            confidence: basicConfidence,
             contextSource: 'basic_analysis',
             aiMetrics: {
               model: aiResponse.model,
@@ -134,12 +185,15 @@ export async function POST(request: NextRequest) {
     const sanitizedScript = AISecurityService.sanitizeCodeOutput(aiResponse.fixedScript);
     const sanitizedExplanation = AISecurityService.sanitizeTextOutput(aiResponse.explanation);
 
+    // Use AI confidence if available, otherwise use fix decision confidence
+    const finalConfidence = aiResponse.aiConfidence || fixDecision.confidence;
+
     return NextResponse.json({
       success: true,
       fixedScript: sanitizedScript,
       explanation: sanitizedExplanation,
-      confidence: fixDecision.confidence,
-      contextSource: 'markdown',
+      confidence: finalConfidence,
+      contextSource,
       aiMetrics: {
         model: aiResponse.model,
         duration: aiResponse.duration,
@@ -277,6 +331,131 @@ function determineFailureReason(errorClassifications: Array<{ classification?: {
   if (categories.includes('data_issues')) return 'data_issues';
   
   return 'complex_issue';
+}
+
+// Helper function to get HTML report content for fallback parsing
+async function getHTMLReportContent(testId: string): Promise<string | null> {
+  try {
+    const testBucketName = process.env.S3_TEST_BUCKET_NAME || 'playwright-test-artifacts';
+    const htmlPath = `${testId}/report/index.html`;
+
+    console.log('[AI Fix Debug] Attempting to fetch HTML report:', htmlPath);
+
+    const command = new GetObjectCommand({
+      Bucket: testBucketName,
+      Key: htmlPath,
+    });
+
+    const response = await s3Client.send(command);
+
+    if (!response.Body) {
+      console.log('[AI Fix Debug] Empty HTML response from S3');
+      return null;
+    }
+
+    // Convert stream to string
+    const chunks: Uint8Array[] = [];
+    const awsStream = response.Body as { transformToByteArray?: () => Promise<Uint8Array> };
+
+    if (awsStream.transformToByteArray) {
+      const bytes = await awsStream.transformToByteArray();
+      return new TextDecoder().decode(bytes);
+    }
+
+    // Fallback for other stream types
+    const stream = response.Body as ReadableStream;
+    if (stream && typeof stream.getReader === 'function') {
+      const reader = stream.getReader();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
+      }
+
+      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+      const result = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        result.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+
+      return new TextDecoder().decode(result);
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[AI Fix Debug] Error fetching HTML report:', error);
+    return null;
+  }
+}
+
+// Helper function to calculate confidence based on HTML error quality
+function calculateHTMLErrorConfidence(errorClassifications: Array<{ message: string; location: string; stackTrace?: string; classification?: { category: FailureCategory; confidence: number; aiFixable: boolean; keywords: string[]; patterns: RegExp[]; severity: 'low' | 'medium' | 'high' | 'critical' } }>): number {
+  if (errorClassifications.length === 0) return 0.3;
+
+  let confidenceScore = 0.6; // Base confidence for HTML parsing
+
+  // Increase confidence based on error quality
+  for (const error of errorClassifications) {
+    // Detailed error messages increase confidence
+    if (error.message.length > 50) {
+      confidenceScore += 0.1;
+    }
+
+    // Stack traces significantly increase confidence
+    if (error.stackTrace && error.stackTrace.length > 20) {
+      confidenceScore += 0.15;
+    }
+
+    // Specific location information increases confidence
+    if (error.location && error.location !== 'unknown location') {
+      confidenceScore += 0.05;
+    }
+
+    // Well-known error types increase confidence
+    if (error.message.toLowerCase().includes('timeout') ||
+        error.message.toLowerCase().includes('assertion') ||
+        error.message.toLowerCase().includes('expect')) {
+      confidenceScore += 0.1;
+    }
+  }
+
+  // Cap confidence at 0.85 for HTML-based analysis
+  return Math.min(confidenceScore, 0.85);
+}
+
+// Helper function to categorize HTML errors for AI processing
+function categorizeHTMLError(errorMessage: string): FailureCategory {
+  const message = errorMessage.toLowerCase();
+
+  if (message.includes('timeout') || message.includes('exceeded')) {
+    return FailureCategory.TIMING_PROBLEMS;
+  }
+  if (message.includes('network') || message.includes('connection') || message.includes('fetch')) {
+    return FailureCategory.NETWORK_ISSUES;
+  }
+  if (message.includes('auth') || message.includes('login') || message.includes('credential')) {
+    return FailureCategory.AUTHENTICATION_FAILURES;
+  }
+  if (message.includes('element') || message.includes('selector') || message.includes('locator')) {
+    return FailureCategory.SELECTOR_ISSUES;
+  }
+  if (message.includes('expect') || message.includes('assertion') || message.includes('assert')) {
+    return FailureCategory.ASSERTION_FAILURES;
+  }
+  if (message.includes('database') || message.includes('db') || message.includes('sql')) {
+    return FailureCategory.DATA_ISSUES;
+  }
+  if (message.includes('server') || message.includes('api') || message.includes('service')) {
+    return FailureCategory.INFRASTRUCTURE_DOWN;
+  }
+  if (message.includes('navigate') || message.includes('page') || message.includes('route')) {
+    return FailureCategory.NAVIGATION_ERRORS;
+  }
+
+  return FailureCategory.UNKNOWN;
 }
 
 // Health check endpoint
