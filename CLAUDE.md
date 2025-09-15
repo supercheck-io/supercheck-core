@@ -125,7 +125,7 @@ The database schema includes comprehensive tables for:
 2. **Testing**: Always run both app and worker lint commands before committing
 3. **Docker Development**: Use docker-compose for full-stack development with hot reloading
 4. **Multi-Architecture Builds**: Use `./scripts/docker-images.sh` for production builds
-5. **Production Deployment**: Images are built for `ghcr.io/krish-kant/supercheck/app:latest` and `ghcr.io/krish-kant/supercheck/worker:latest`
+5. **Production Deployment**: Images are built for `ghcr.io/supercheck-io/supercheck/app:latest` and `ghcr.io/supercheck-io/supercheck/worker:latest`
 6. **Migration Testing**: Test migrations locally before deploying to production
 
 ## Environment Configuration
@@ -174,7 +174,7 @@ The project supports both `linux/amd64` and `linux/arm64` architectures:
 ./scripts/docker-images.sh
 
 # Check manifest for multi-arch support
-docker buildx imagetools inspect ghcr.io/krish-kant/supercheck/app:latest
+docker buildx imagetools inspect ghcr.io/supercheck-io/supercheck/app:latest
 ```
 
 ## Deployment Best Practices

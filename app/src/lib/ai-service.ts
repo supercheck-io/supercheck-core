@@ -48,7 +48,7 @@ export class AIFixService {
 
   private static async checkRateLimit(): Promise<void> {
     // Rate limiting check - placeholder for Redis implementation
-    const enabled = process.env.AI_FIX_ENABLED;
+    const enabled = process.env.NEXT_PUBLIC_AI_FIX_ENABLED;
     if (enabled === 'false') {
       throw new Error('AI fix service is currently disabled');
     }
