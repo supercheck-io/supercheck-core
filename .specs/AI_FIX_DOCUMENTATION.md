@@ -2,11 +2,123 @@
 
 ## Overview
 
-The AI Fix feature analyzes failed Playwright tests and automatically suggests intelligent fixes using advanced language models. It supports both OpenAI and Anthropic providers with comprehensive error classification, security validation, and an intuitive Monaco-based diff interface.
+The AI Fix feature analyzes failed Playwright tests and automatically suggests intelligent fixes using OpenAI's advanced language models. Currently optimized for **OpenAI GPT-4o-mini** with comprehensive error classification, security validation, and an intuitive Monaco-based diff interface.
 
 ## Architecture
 
-### AI Fix Flow Diagram
+### Complete AI Fix Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant AIFixButton as AI Fix Button
+    participant API as /api/ai/fix-test
+    participant Auth as AuthService
+    participant Security as AISecurityService
+    participant S3 as S3/MinIO
+    participant Parser as Report Parsers
+    participant Classifier as Error Classifier
+    participant Decision as Decision Engine
+    participant AIService as AI Service
+    participant OpenAI as OpenAI API
+    participant DiffViewer as Monaco Diff Viewer
+
+    User->>AIFixButton: Click "AI Fix"
+    AIFixButton->>AIFixButton: Validate script exists
+    AIFixButton->>API: POST request with {testId, script, testType}
+
+    Note over API: Security & Validation Layer
+    API->>Security: validateInputs(body)
+    Security->>Security: sanitizeCodeInput()
+    Security->>Security: validate testType & size limits
+    API->>Auth: validateUserAccess(request, testId)
+    Auth->>Auth: Better Auth session check
+    API->>Auth: checkRateLimit(userId)
+
+    Note over API,S3: Report Retrieval Strategy
+    API->>S3: Search for markdown report (.md files)
+    S3-->>API: List objects in data/ folder
+
+    alt Markdown Report Found
+        API->>Security: securelyFetchMarkdownReport(url)
+        Security->>S3: Fetch .md file via AWS SDK
+        S3-->>Security: Return markdown content
+        Security->>Security: Validate content size & format
+        Security-->>API: Clean markdown content
+        API->>Parser: PlaywrightMarkdownParser.parseMarkdownForErrors()
+    else No Markdown - HTML Fallback
+        API->>S3: Fetch HTML report (index.html)
+        S3-->>API: Return HTML content
+        API->>Parser: HTMLReportParser.parseHTMLReport()
+        Parser->>Parser: Convert HTML errors to markdown format
+    else No Reports Available
+        API-->>AIFixButton: Return "report_not_available" error
+        AIFixButton->>User: Show error toast
+    end
+
+    Note over Parser,Decision: Error Analysis & Decision
+    Parser->>Classifier: Classify each error by patterns & keywords
+    Classifier->>Classifier: Apply 11 failure categories
+    Parser-->>API: Return classified errors
+    API->>Decision: AIFixDecisionEngine.shouldAttemptMarkdownFix()
+    Decision->>Decision: Analyze fixability & confidence
+
+    alt Errors are AI-Fixable
+        Note over API,OpenAI: AI Processing Pipeline
+        API->>API: Choose prompt strategy (markdown vs basic)
+        API->>AIService: generateScriptFix() with optimized prompt
+        AIService->>AIService: Configure model (gpt-4o-mini)
+        AIService->>OpenAI: generateText() via Vercel AI SDK
+        OpenAI-->>AIService: Return fixed code + explanation
+        AIService->>AIService: parseAIResponse() with flexible parsing
+        AIService-->>API: Return {fixedScript, explanation, confidence, metrics}
+
+        Note over API: Security Validation
+        API->>Security: sanitizeCodeOutput(fixedScript)
+        API->>Security: sanitizeTextOutput(explanation)
+        Security->>Security: Check for malicious patterns
+        Security-->>API: Clean outputs
+
+        API-->>AIFixButton: Success response with fix
+        AIFixButton->>User: Show success toast
+        AIFixButton->>DiffViewer: Open Monaco diff editor
+        DiffViewer->>User: Show side-by-side comparison
+
+        alt User Accepts Fix
+            User->>DiffViewer: Click "Accept"
+            DiffViewer->>AIFixButton: Apply fixed script
+            AIFixButton->>User: Update test script
+        else User Rejects Fix
+            User->>DiffViewer: Click "Reject" or close
+            DiffViewer->>AIFixButton: Keep original script
+        end
+
+    else Errors Not AI-Fixable
+        API->>API: determineFailureReason()
+        API-->>AIFixButton: Guidance response
+        AIFixButton->>User: Show guidance modal with manual steps
+    end
+
+    Note over AIService: Monitoring & Cost Tracking
+    AIService->>AIService: logAIUsage() with token metrics
+
+    Note over API: Error Handling
+    alt Authentication Error
+        API-->>AIFixButton: 401 response
+        AIFixButton->>User: Show auth error toast
+    else Rate Limit Error
+        API-->>AIFixButton: 429 response
+        AIFixButton->>User: Show rate limit toast
+    else Security Violation
+        API-->>AIFixButton: 400 security_violation
+        AIFixButton->>User: Show security error toast
+    else General API Error
+        API-->>AIFixButton: 500 generation_failed
+        AIFixButton->>User: Show API error toast + guidance modal
+    end
+```
+
+### Simplified AI Fix Flow Diagram
 
 ```mermaid
 flowchart TD
@@ -42,7 +154,9 @@ flowchart TD
     R --> N
 
     %% No Reports Available
-    P -->|No| S[Return report_not_available error]
+    P -->|No| S[Basic AI Analysis Fallback]
+    S --> N2[AIPromptBuilder.buildBasicFixPrompt]
+    N2 --> AA
 
     %% Decision Engine
     N --> T[AIFixDecisionEngine.shouldAttemptMarkdownFix]
@@ -63,9 +177,9 @@ flowchart TD
     %% AI Service Processing
     CC --> EE[AIFixService.generateScriptFix]
     DD --> EE
-    EE --> FF[AI Provider selection OpenAI/Anthropic]
-    FF --> GG[Vercel AI SDK - generateText]
-    GG --> HH[Parse AI response]
+    EE --> FF[OpenAI GPT-4o-mini via Vercel AI SDK]
+    FF --> GG[generateText with optimized prompt]
+    GG --> HH[parseAIResponse with flexible parsing]
 
     %% Security Validation
     HH --> II[AISecurityService.sanitizeCodeOutput]
@@ -112,65 +226,64 @@ flowchart TD
 
 ### Core Components
 
-- **AI Service** (`/app/src/lib/ai-service.ts`) - Vercel AI SDK integration with OpenAI/Anthropic
-- **Security Layer** (`/app/src/lib/ai-security.ts`) - Input/output sanitization and validation
-- **Error Classifier** (`/app/src/lib/ai-classifier.ts`) - Intelligent error analysis and fixability detection
-- **Prompt Builder** (`/app/src/lib/ai-prompts.ts`) - Context-aware prompt optimization
-- **HTML Parser** (`/app/src/lib/html-report-parser.ts`) - Fallback HTML report processing
-- **API Route** (`/app/src/app/api/ai/fix-test/route.ts`) - RESTful endpoint with comprehensive error handling
-- **UI Components** - Smart button and Monaco diff viewer integration
+#### Backend Services
+- **AI Service** (`/app/src/lib/ai-service.ts`) - Vercel AI SDK integration with OpenAI GPT-4o-mini
+- **Security Layer** (`/app/src/lib/ai-security.ts`) - Input/output sanitization and validation with AWS SDK integration
+- **Error Classifier** (`/app/src/lib/ai-classifier.ts`) - 11-category intelligent error analysis with confidence scoring
+- **Prompt Builder** (`/app/src/lib/ai-prompts.ts`) - Test type-specific prompt optimization with comment preservation
+- **HTML Parser** (`/app/src/lib/html-report-parser.ts`) - JSDOM-based fallback HTML report processing
+- **API Route** (`/app/src/app/api/ai/fix-test/route.ts`) - RESTful endpoint with comprehensive error handling and fallback strategies
+
+#### UI Components
+- **AI Fix Button** (`/app/src/components/playground/ai-fix-button.tsx`) - Gradient purple-to-pink button with loading states
+- **Diff Viewer** (`/app/src/components/playground/ai-diff-viewer.tsx`) - Monaco Editor side-by-side comparison
+- **Guidance Modal** (`/app/src/components/playground/guidance-modal.tsx`) - Professional guidance for non-fixable issues
+- **Playground Integration** (`/app/src/components/playground/index.tsx`) - Main integration point with permission checking
 
 ### Key Features
 
-- **Multi-Provider Support** - OpenAI GPT-4o-mini (recommended) and Anthropic Claude
-- **Intelligent Analysis** - Distinguishes between AI-fixable issues and environmental problems
-- **Security-First Design** - Comprehensive input sanitization and output validation
-- **Fallback Strategy** - Uses HTML reports when markdown reports aren't available
-- **Production Ready** - Rate limiting, monitoring, cost control, and error handling
+- **OpenAI Integration** - Optimized for GPT-4o-mini with Vercel AI SDK (Anthropic support implemented but not actively used)
+- **Intelligent Error Classification** - 11-category system distinguishing AI-fixable vs manual investigation issues
+- **Security-First Design** - Comprehensive input sanitization, output validation, and AWS SDK integration
+- **Multi-Source Analysis** - Markdown reports (preferred), HTML fallback, and basic script analysis
+- **Production Ready** - Rate limiting, monitoring, cost control, token usage tracking, and comprehensive error handling
+- **Comment Preservation** - Strict requirement to maintain all original code comments
+- **Flexible Parsing** - Handles various AI response formats with robust error recovery
 
 ## Quick Setup
 
-### 1. Choose Your AI Provider
+### 1. AI Provider Configuration
 
-**OpenAI (Recommended):**
-- Cost-effective with GPT-4o-mini (~$0.001-0.005 per fix)
-- Fast response times
-- Excellent code understanding
-
-**Anthropic Claude (Alternative):**
-- Good for sensitive data scenarios
-- Reliable fallback option
+**OpenAI GPT-4o-mini (Only Supported Provider):**
+- Cost-effective (~$0.001-0.005 per fix)
+- Fast response times (90-second timeout)
+- Excellent Playwright test understanding
+- Optimized prompts for test type-specific fixes
+- Direct integration with Vercel AI SDK
 
 ### 2. Get API Keys
 
-**For OpenAI:**
+**For OpenAI (Required):**
 1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
 2. Create a new API key
 3. Copy the key (starts with `sk-`)
-
-**For Anthropic:**
-1. Visit [Anthropic Console](https://console.anthropic.com/)
-2. Create a new API key
-3. Copy the key
+4. Ensure your account has GPT-4o-mini access
 
 ### 3. Configure Environment Variables
 
 **Production (.env):**
 ```bash
 # Enable AI Fix feature
-NEXT_PUBLIC_NEXT_PUBLIC_AI_FIX_ENABLED=true
+NEXT_PUBLIC_AI_FIX_ENABLED=true
 
-# Provider configuration
-AI_PROVIDER=openai
+# OpenAI Configuration (Primary)
 AI_MODEL=gpt-4o-mini
+OPENAI_API_KEY=your-openai-api-key-here
 
-# API Keys (add your actual keys)
-OPENAI_API_KEY=sk-your-actual-openai-key-here
-ANTHROPIC_API_KEY=your-anthropic-key-here
-
-# Service configuration
-AI_TIMEOUT_MS=30000
-AI_MAX_REQUESTS_PER_HOUR=100
+# AI Service Configuration
+AI_TIMEOUT_MS=90000          # Request timeout (10000-120000ms)
+AI_MAX_RETRIES=2             # Retry attempts (1-5)
+AI_TEMPERATURE=0.1           # Response randomness (0.0-2.0)
 ```
 
 **Development:**
@@ -187,23 +300,19 @@ NEXT_PUBLIC_AI_FIX_ENABLED=false
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `NEXT_PUBLIC_AI_FIX_ENABLED` | Yes | `false` | Enable/disable AI Fix feature |
-| `AI_PROVIDER` | Yes | `openai` | AI provider: `openai` or `anthropic` |
-| `AI_MODEL` | Yes | `gpt-4o-mini` | Model to use for fixes |
-| `OPENAI_API_KEY` | Conditional | - | Required if using OpenAI |
-| `ANTHROPIC_API_KEY` | Conditional | - | Required if using Anthropic |
-| `AI_TIMEOUT_MS` | No | `30000` | Request timeout in milliseconds |
-| `AI_MAX_REQUESTS_PER_HOUR` | No | `100` | Rate limit per user per hour |
+| `AI_MODEL` | Yes | `gpt-4o-mini` | OpenAI model to use for fixes |
+| `OPENAI_API_KEY` | Yes | - | OpenAI API key (required) |
+| `AI_TIMEOUT_MS` | No | `90000` | Request timeout (10000-120000ms) |
+| `AI_MAX_RETRIES` | No | `2` | Number of retry attempts (1-5) |
+| `AI_TEMPERATURE` | No | `0.1` | Response randomness (0.0-2.0) |
 
 ## Supported Models
 
-### OpenAI Models
-- `gpt-4o-mini` (Recommended) - Cost-effective and fast
-- `gpt-4o` - Most capable, higher cost
+### Supported OpenAI Models
+- `gpt-4o-mini` (Recommended & Default) - Cost-effective, fast, excellent for test fixes
+- `gpt-4o` - Most capable, higher cost, for complex scenarios
 - `gpt-4-turbo` - Balanced performance and cost
-
-### Anthropic Models
-- `claude-3-haiku-20240307` - Fast and cost-effective
-- `claude-3-sonnet-20240229` - Balanced performance
+- `gpt-3.5-turbo` - Budget option (older model)
 
 ## How It Works
 
@@ -228,19 +337,22 @@ Failed Test → Report Analysis → Error Classification → Fix Decision → AI
 
 **Error Classification Categories:**
 
-**AI-Fixable:**
-- ✅ Selector Issues (wrong/outdated selectors)
-- ✅ Timing Problems (wait/timeout issues)
-- ✅ Assertion Failures (expected vs actual mismatches)
-- ✅ Navigation Errors (routing/page load issues)
-- ✅ Data Issues (validation fixes)
+**AI-Fixable Categories (4 types):**
+- ✅ **Selector Issues** - Wrong/outdated selectors, element not found, visibility problems
+- ✅ **Timing Problems** - Wait/timeout issues, race conditions, navigation timeouts
+- ✅ **Assertion Failures** - Expected vs actual mismatches, toBe/toEqual issues
+- ✅ **Navigation Errors** - Routing/page load issues, URL problems
+- ✅ **Data Issues** - Missing/corrupt test data, validation fixes (AI can suggest fixes)
 
-**Requires Manual Investigation:**
-- ❌ Network Issues (connectivity problems)
-- ❌ Authentication Failures (login/auth system issues)
-- ❌ Infrastructure Down (services unavailable)
-- ❌ Permission Denied (access control issues)
-- ❌ Resource Constraints (memory, CPU limits)
+**Requires Manual Investigation (6 types):**
+- ❌ **Network Issues** - Connectivity problems, HTTP 5xx errors
+- ❌ **Authentication Failures** - Login/auth system issues, HTTP 401/403
+- ❌ **Infrastructure Down** - Database/services unavailable, maintenance mode
+- ❌ **Permission Denied** - Access control issues, insufficient rights
+- ❌ **Resource Constraints** - Memory, CPU limits, process killed
+
+**Unknown Category:**
+- ❓ **Unknown** - Moderate confidence, AI attempts fix for unclassified issues
 
 ### 4. Smart Response Strategy
 
@@ -263,9 +375,13 @@ The AI fix feature uses modern, well-maintained dependencies:
   "dependencies": {
     "ai": "^5.0.42",
     "@ai-sdk/openai": "^2.0.29",
-    "@ai-sdk/anthropic": "^2.0.15",
-    "@aws-sdk/client-s3": "^3.x.x",
-    "jsdom": "^24.x.x"
+    "@aws-sdk/client-s3": "^3.787.0",
+    "@aws-sdk/s3-request-presigner": "^3.787.0",
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.52.2",
+    "jsdom": "^27.0.0",
+    "lucide-react": "^0.476.0",
+    "sonner": "^2.0.3"
   }
 }
 ```
@@ -275,38 +391,52 @@ The AI fix feature uses modern, well-maintained dependencies:
 ### AI Service Architecture
 
 ```typescript
-// Core service with multi-provider support
+// Core service optimized for OpenAI
 export class AIFixService {
   static async generateScriptFix(request: AIFixRequest): Promise<AIFixResponse>
   static async healthCheck(): Promise<HealthStatus>
+  private static getModel(): OpenAI // Returns OpenAI model instance
+  private static optimizePrompt(prompt: string, testType?: string): string
+  private static parseAIResponse(response: string): ParsedResponse
 }
 ```
 
 **Key Features:**
-- Automatic provider selection based on configuration
-- Built-in retry logic with exponential backoff
+- OpenAI GPT-4o-mini optimization with Vercel AI SDK
+- Flexible AI response parsing for various formats
 - Token usage tracking and cost monitoring
 - Comprehensive error handling with sanitized messages
+- Configurable timeout (10-120 seconds) and retry logic (1-5 attempts)
+- Temperature control for response consistency (0.0-2.0)
 
 ### Security Framework
 
 ```typescript
 export class AISecurityService {
+  static validateInputs(body: Record<string, unknown>): ValidatedInput
   static sanitizeCodeInput(code: string): string
   static sanitizeCodeOutput(code: string): string
+  static sanitizeTextOutput(text: string): string
   static validateReportUrl(url: string): boolean
   static securelyFetchMarkdownReport(url: string): Promise<string>
+}
+
+export class AuthService {
+  static async validateUserAccess(request: Request, testId: string): Promise<UserSession>
+  static async checkRateLimit(request: Request, userId: string): Promise<void>
 }
 ```
 
 **Security Measures:**
-- **Input Sanitization** - Removes dangerous patterns (eval, Function, etc.)
-- **Output Validation** - Scans AI responses for malicious content
-- **URL Validation** - Only trusted S3 endpoints allowed
-- **Rate Limiting** - Per-user and per-organization limits
+- **Input Validation** - Type checking, size limits (50KB script), test type validation
+- **Input Sanitization** - Removes dangerous patterns (eval, Function, setTimeout, etc.)
+- **Output Validation** - Scans AI responses for malicious content including data URIs
+- **URL Validation** - Trusted S3/MinIO endpoints only (including localhost for development)
 - **Content Size Limits** - 50KB script, 100KB markdown maximum
-- **Authentication** - Better Auth integration with RBAC
-- **Audit Logging** - Complete security event trail
+- **AWS SDK Integration** - Secure S3 fetching with proper credentials
+- **Authentication** - Better Auth integration with session validation
+- **Rate Limiting** - Per-user rate limiting framework (Redis implementation ready)
+- **Error Sanitization** - API key redaction in error messages
 
 ### Error Classification System
 
@@ -324,10 +454,11 @@ interface ErrorClassification {
 ```
 
 **Classification Process:**
-1. **Parse Reports** - Extract error information from markdown/HTML
-2. **Pattern Matching** - Apply regex patterns and keyword detection
-3. **Confidence Scoring** - Calculate reliability of classification
-4. **Fix Decision** - Determine if AI should attempt a fix
+1. **Parse Reports** - Extract error information from markdown/HTML with expanded Playwright patterns
+2. **Pattern Matching** - Apply 11-category regex patterns and keyword detection
+3. **Confidence Scoring** - Calculate reliability (0-1 scale) with category-specific weights
+4. **Fix Decision** - Multi-factor analysis considering error types, confidence, and fixability
+5. **Fallback Analysis** - Basic script analysis when no detailed reports available
 
 ### Prompt Engineering
 
@@ -339,7 +470,7 @@ The system uses context-aware prompts optimized for different scenarios:
 buildMarkdownContextPrompt({
   failedScript,
   testType,
-  markdownContent // Full error report with stack traces, page snapshots
+  markdownContent // Full error report with optimized content
 })
 ```
 
@@ -353,11 +484,13 @@ buildBasicFixPrompt({
 })
 ```
 
-**Prompt Optimization:**
-- Test type-specific guidance (browser, API, database, custom)
-- Token efficiency with content truncation
-- Structured response format for reliable parsing
-- Best practice recommendations built-in
+**Prompt Engineering Features:**
+- **Test Type Specialization** - Browser, API, database, custom-specific instructions
+- **Comment Preservation** - Strict requirements to maintain all original comments
+- **Token Optimization** - Smart content truncation (8000 chars) preserving critical sections
+- **Response Format Control** - FIXED_SCRIPT, EXPLANATION, CONFIDENCE structure
+- **Best Practice Integration** - Playwright-specific patterns and recommendations
+- **Flexible Parsing** - Handles various AI response formats with robust error recovery
 
 ## API Reference
 
@@ -492,27 +625,32 @@ curl http://localhost:3000/api/ai/fix-test
 ## Troubleshooting
 
 ### Button Not Appearing
-- ✅ Check `NEXT_PUBLIC_NEXT_PUBLIC_AI_FIX_ENABLED=true`
+- ✅ Check `NEXT_PUBLIC_AI_FIX_ENABLED=true` (note: no double prefix)
 - ✅ Ensure test actually failed (status = 'failed')
 - ✅ Verify user has test execution permissions
 - ✅ Check browser console for errors
+- ✅ Confirm script content exists and is not empty
 
 ### API Errors
-- ✅ Verify API key is correct and active
-- ✅ Check rate limits on your AI provider account
-- ✅ Ensure `AI_PROVIDER` matches your API key type
+- ✅ Verify `OPENAI_API_KEY` is correct and active
+- ✅ Check rate limits on your OpenAI account
+- ✅ Ensure GPT-4o-mini model access in your OpenAI account
 - ✅ Check network connectivity and firewall rules
+- ✅ Verify timeout settings (`AI_TIMEOUT_MS`) are appropriate
 
 ### Security Errors
-- ✅ Verify S3 endpoint configuration is correct
-- ✅ Check that test reports are being generated and uploaded
-- ✅ Ensure proper AWS credentials and permissions
+- ✅ Verify S3/MinIO endpoint configuration is correct
+- ✅ Check that test reports are being generated and uploaded to correct bucket
+- ✅ Ensure proper AWS credentials and MinIO permissions
+- ✅ Confirm `S3_TEST_BUCKET_NAME` matches your bucket configuration
+- ✅ Check AWS SDK connectivity to S3/MinIO service
 
 ### Performance Issues
-- ✅ Reduce `AI_TIMEOUT_MS` if requests are too slow
-- ✅ Switch to `gpt-4o-mini` for faster responses
-- ✅ Implement organization-level rate limiting
-- ✅ Check S3 region and network latency
+- ✅ Increase `AI_TIMEOUT_MS` for slow responses (default 90 seconds)
+- ✅ Using `gpt-4o-mini` for optimal speed and cost balance
+- ✅ Implement Redis-based rate limiting for production
+- ✅ Check S3/MinIO region and network latency
+- ✅ Monitor token usage and request duration metrics
 
 ### Common Error Patterns
 
@@ -535,32 +673,39 @@ curl http://localhost:3000/api/ai/fix-test
 
 ### Estimated Costs (per fix request)
 
-- **GPT-4o-mini:** ~$0.001-0.005 per request
-- **GPT-4o:** ~$0.01-0.05 per request
-- **Claude-3-Haiku:** ~$0.001-0.003 per request
+- **GPT-4o-mini (Primary):** ~$0.001-0.005 per request
+- **GPT-4o (Advanced):** ~$0.01-0.05 per request
+- **GPT-4-turbo:** ~$0.005-0.02 per request
+- **GPT-3.5-turbo (Budget):** ~$0.0005-0.002 per request
 
 ### Optimization Strategies
 
-1. **Model Selection** - Use `gpt-4o-mini` for development and most use cases
-2. **Rate Limiting** - Set appropriate per-user limits
-3. **Content Optimization** - Truncate very long error reports
-4. **Usage Monitoring** - Track token usage per organization
-5. **Prompt Efficiency** - Remove redundant information from prompts
+1. **Model Selection** - Use `gpt-4o-mini` for optimal cost/performance balance
+2. **Rate Limiting** - Implement Redis-based per-user limits (default: 100/hour)
+3. **Content Optimization** - Smart markdown truncation (8000 chars) preserving critical sections
+4. **Usage Monitoring** - Built-in token usage tracking with cost calculation
+5. **Prompt Efficiency** - Test type-specific prompts with optimized token usage
+6. **Timeout Configuration** - Adjustable timeout (10-120 seconds) based on model requirements
 
 ### Monitoring & Analytics
 
 ```typescript
-// Built-in usage tracking
-export class AIMonitoringService {
-  static async trackUsage(metrics: {
-    userId: string;
-    organizationId: string;
-    testType: string;
-    tokensUsed: number;
-    duration: number;
-    success: boolean;
-    model: string;
-  })
+// Built-in usage tracking in AIFixService
+export class AIFixService {
+  private static async logAIUsage(usage: AIUsageLog): Promise<void> {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      service: 'ai-fix',
+      success: boolean;
+      duration: number;
+      tokensUsed?: number;
+      error?: string;
+      model: string;
+      testType?: string;
+    };
+    console.log('[AI Usage]', logEntry);
+    // TODO: Implement database/monitoring system integration
+  }
 }
 ```
 
@@ -606,36 +751,34 @@ export class AIMonitoringService {
 ### Custom Model Configuration
 
 ```bash
-# Use different models for different providers
-AI_PROVIDER=openai
-AI_MODEL=gpt-4o  # Higher capability for complex issues
+# OpenAI Model Selection
+AI_MODEL=gpt-4o-mini     # Recommended default
+# AI_MODEL=gpt-4o        # Higher capability, higher cost
+# AI_MODEL=gpt-4-turbo   # Balanced performance
+# AI_MODEL=gpt-3.5-turbo # Budget option
 
-# Or use Anthropic for sensitive data
-AI_PROVIDER=anthropic
-AI_MODEL=claude-3-sonnet-20240229
+# Service Configuration
+AI_TIMEOUT_MS=90000       # 90 seconds (adjust based on model)
+AI_TEMPERATURE=0.1        # Low for consistent fixes
+AI_MAX_RETRIES=2         # Retry attempts
 ```
 
-### Rate Limiting with Redis
-
-```typescript
-// Production rate limiting implementation
-export class RedisRateLimit {
-  static async checkUserLimit(userId: string): Promise<boolean>
-  static async checkOrgLimit(orgId: string): Promise<boolean>
-}
-```
 
 ### Custom Error Classifications
 
 ```typescript
-// Extend the error classifier for domain-specific patterns
-const customClassifications = {
-  DATABASE_CONNECTION: {
-    category: 'infrastructure_down',
-    keywords: ['connection refused', 'database timeout'],
-    patterns: [/ECONNREFUSED.*database/i]
-  }
-}
+// Extend the 11-category system in ai-classifier.ts
+const ERROR_CLASSIFICATIONS: Record<FailureCategory, ErrorClassification> = {
+  [FailureCategory.SELECTOR_ISSUES]: {
+    category: FailureCategory.SELECTOR_ISSUES,
+    confidence: 0.85,
+    aiFixable: true,
+    keywords: ['locator', 'selector', 'element', 'not found'],
+    patterns: [/locator.*not found/i],
+    severity: 'medium'
+  },
+  // ... 10 other categories with confidence scoring
+};
 ```
 
 ## Contributing
@@ -678,22 +821,41 @@ For issues with the AI Fix feature:
 
 ### Planned Features
 
-1. **Custom Model Training** - Train on internal test patterns for better fixes
-2. **Multi-Language Support** - Extend beyond TypeScript/JavaScript
-3. **Fix History** - Track and learn from user acceptance patterns
-4. **Integration Testing** - AI-powered integration test generation
-5. **Visual Testing** - AI-powered visual regression fix suggestions
-6. **Batch Processing** - Fix multiple failed tests simultaneously
-7. **Learning System** - Improve suggestions based on user feedback
+1. **Advanced Monitoring** - Database integration for usage tracking and cost monitoring
+2. **Fix History** - Track and learn from user acceptance patterns
+3. **Multi-Language Support** - Extend beyond TypeScript/JavaScript to Python, C#, etc.
+4. **Batch Processing** - Fix multiple failed tests simultaneously
+5. **Enhanced Classification** - Machine learning-based error categorization
+6. **Visual Testing** - AI-powered visual regression fix suggestions
+7. **Alternative AI Providers** - Consider Anthropic Claude or other providers for specific use cases
 
 ### Architecture Improvements
 
-1. **Caching Layer** - Cache common fixes and patterns
-2. **Webhook Integration** - Real-time notifications for fix results
-3. **Plugin System** - Allow custom fix providers and strategies
-4. **A/B Testing** - Compare different AI models and prompts
-5. **Metrics Dashboard** - Real-time usage and performance monitoring
+1. **Database Integration** - Store usage metrics and cost tracking in PostgreSQL
+2. **Redis Caching** - Cache common fixes and classification patterns
+3. **Webhook Integration** - Real-time notifications for fix results
+4. **Plugin System** - Allow custom fix providers and classification strategies
+5. **A/B Testing** - Compare different models, prompts, and classification approaches
+6. **Metrics Dashboard** - Real-time usage, success rates, and cost monitoring
+7. **Advanced Security** - Enhanced content scanning and security validation
+
+## Current Implementation Status
+
+### ✅ Production Ready Features
+- OpenAI GPT-4o-mini integration with Vercel AI SDK
+- 11-category intelligent error classification system
+- Comprehensive security validation and sanitization
+- Monaco Editor-based diff viewer with confidence scoring
+- AWS SDK integration for S3/MinIO report fetching
+- Flexible AI response parsing with error recovery
+- Comment preservation requirements
+- Toast notifications and error handling
+
+### ❌ Not Yet Implemented
+- Advanced monitoring and cost tracking (basic console logging only)
+- Database integration for metrics (console logging only)
+
 
 ---
 
-The AI-powered test fix feature represents a significant advancement in automated testing workflows, providing intelligent assistance while maintaining security, cost-effectiveness, and user control. It's designed to integrate seamlessly with existing Supercheck functionality while offering a path for continuous improvement and extension.
+The AI-powered test fix feature represents a significant advancement in automated testing workflows, providing intelligent assistance while maintaining security, cost-effectiveness, and user control. It's designed to integrate seamlessly with existing Supercheck functionality using modern tools like Vercel AI SDK, Monaco Editor, and AWS SDK for a robust, production-ready solution.

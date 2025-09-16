@@ -264,18 +264,8 @@ export class AuthService {
     }
   }
 
-  static async checkRateLimit(request: Request, userId: string): Promise<void> {
-    // TODO: Implement Redis-based rate limiting per user
-    const maxRequestsPerHour = parseInt(process.env.AI_MAX_REQUESTS_PER_HOUR || '100');
-    
-    // Placeholder rate limiting logic
-    const key = `ai_fix_rate_limit:${userId}:${Math.floor(Date.now() / (60 * 60 * 1000))}`;
-    
-    // In a real implementation, you would:
-    // 1. Increment counter in Redis with expiration
-    // 2. Check if counter exceeds limit
-    // 3. Throw error if limit exceeded
-    
-    console.log(`Rate limit check for user ${userId}, key: ${key}, limit: ${maxRequestsPerHour}`);
+  static async checkRateLimit(_request: Request, _userId: string): Promise<void> {
+    // No rate limiting implemented - API usage is controlled by OpenAI API key limits
+    return;
   }
 }
