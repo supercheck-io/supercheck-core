@@ -58,9 +58,24 @@ export async function POST(request: NextRequest) {
           success: false,
           reason: 'report_not_available',
           message: 'No test report (markdown or HTML) found. Please ensure the test has failed and reports are generated.',
-          guidance: AIPromptBuilder.generateGuidanceMessage('markdown_not_available')
+          guidance: AIPromptBuilder.generateGuidanceMessage()
         }, { status: 400 });
       }
+
+      // Step 5b: Debug HTML content structure before parsing
+      console.log('[AI Fix Debug] HTML content preview (first 500 chars):', htmlContent.substring(0, 500));
+      console.log('[AI Fix Debug] HTML content includes:', {
+        hasError: htmlContent.toLowerCase().includes('error'),
+        hasFailed: htmlContent.toLowerCase().includes('failed'),
+        hasTimeout: htmlContent.toLowerCase().includes('timeout'),
+        hasAssert: htmlContent.toLowerCase().includes('assert'),
+        hasExpect: htmlContent.toLowerCase().includes('expect'),
+        hasLocator: htmlContent.toLowerCase().includes('locator'),
+        hasPlaywright: htmlContent.toLowerCase().includes('playwright'),
+        hasTestResult: htmlContent.toLowerCase().includes('test'),
+        bodyStartIndex: htmlContent.indexOf('<body'),
+        bodyEndIndex: htmlContent.indexOf('</body>')
+      });
 
       // Step 5b: Parse HTML report for error information
       const parsedHtmlReport = await HTMLReportParser.parseHTMLReport(htmlContent);
@@ -158,7 +173,7 @@ export async function POST(request: NextRequest) {
         success: false,
         reason: 'not_fixable',
         decision: fixDecision,
-        guidance: AIPromptBuilder.generateGuidanceMessage(reason),
+        guidance: AIPromptBuilder.generateGuidanceMessage(),
         errorAnalysis: {
           totalErrors: errorClassifications.length,
           categories: errorClassifications.map(ec => ec.classification?.category).filter(Boolean)
@@ -249,7 +264,7 @@ export async function POST(request: NextRequest) {
       success: false,
       reason: 'generation_failed',
       message: 'Failed to generate AI fix. Please try manual investigation.',
-      guidance: AIPromptBuilder.generateGuidanceMessage('api_error')
+      guidance: AIPromptBuilder.generateGuidanceMessage()
     }, { status: 500 });
   }
 }

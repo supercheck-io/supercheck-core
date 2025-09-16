@@ -195,42 +195,47 @@ export function AIDiffViewer({
   const getBulletPoints = (text: string): string[] => {
     const fixes: string[] = [];
 
-    // Split by common delimiters and clean each point
-    const points = text
-      .split(/[.\n•-]/)
-      .map(point => point.trim())
-      .filter(point => point.length > 15 && point.length < 100)
-      .slice(0, 3);
+    // Try to split by natural sentence boundaries or line breaks first
+    let points: string[] = [];
 
-    points.forEach(point => {
-      // Remove all prefixes and symbols
+    // Check if the text has numbered lists (1. 2. 3.)
+    if (text.match(/^\d+\./m)) {
+      points = text.split(/(?=\d+\.)/g).filter(p => p.trim().length > 10);
+    }
+    // Check if the text has bullet points (- or •)
+    else if (text.match(/^[-•]/m)) {
+      points = text.split(/(?=[-•])/g).filter(p => p.trim().length > 10);
+    }
+    // Otherwise split by sentences but be more conservative
+    else {
+      points = text.split(/[.\n]/).filter(p => p.trim().length > 20);
+    }
+
+    // Clean up each point minimally
+    points.slice(0, 3).forEach(point => {
       let cleanPoint = point
         .replace(/\*\*/g, "") // Remove markdown bold
         .replace(/^\d+\.\s*/, "") // Remove numbering
-        .replace(/^[-•]\s*/, "") // Remove dashes and bullets
-        .replace(/^(Fixed|Added|Corrected|Changed|Updated|Removed|Replaced|Modified|Adjusted|Typo)\s*/i, "") // Remove action words
-        .replace(/^(the\s+|a\s+|an\s+)/i, "") // Remove articles at start
+        .replace(/^[-•]\s*/, "") // Remove bullets
         .trim();
 
-      // Capitalize first letter and ensure it makes sense
-      if (cleanPoint && cleanPoint.length > 10) {
+      // Only remove obvious action prefixes, keep the rest intact
+      cleanPoint = cleanPoint.replace(/^(Fixed|Added|Updated|Changed):\s*/i, "");
+
+      // Ensure it starts with capital and ends properly
+      if (cleanPoint && cleanPoint.length > 8) {
         cleanPoint = cleanPoint.charAt(0).toUpperCase() + cleanPoint.slice(1);
 
-        // Make sure it reads well as a bullet point
-        if (!cleanPoint.match(/^(Expected|Request|Response|Title|Payload|Data|Key|Value|Parameter|URL|Method|Header)/i)) {
-          // Add context if needed
-          if (cleanPoint.match(/validation|title|request|response/i)) {
-            fixes.push(cleanPoint);
-          } else {
-            fixes.push(cleanPoint);
-          }
-        } else {
-          fixes.push(cleanPoint);
+        // Only add period if it doesn't already end with punctuation
+        if (!cleanPoint.match(/[.!?:]$/)) {
+          cleanPoint += ".";
         }
+
+        fixes.push(cleanPoint);
       }
     });
 
-    return fixes.length > 0 ? fixes : ["Script updated with improvements"];
+    return fixes.length > 0 ? fixes : ["Test script has been improved."];
   };
 
   const bulletPoints = getBulletPoints(explanation);

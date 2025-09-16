@@ -13,8 +13,8 @@ export class AIPromptBuilder {
   }: PromptContext): string {
     const testTypeInstructions = this.getTestTypeInstructions(testType);
     const optimizedMarkdown = this.optimizeMarkdownContent(markdownContent);
-    
-    return `You are an expert Playwright test automation engineer specializing in ${testType} testing. 
+
+    return `You are an expert Playwright test automation engineer specializing in ${testType} testing.
 
 **TASK**: Fix the failing Playwright test based on the detailed error report below.
 
@@ -26,7 +26,7 @@ ${testTypeInstructions}
 ${failedScript}
 \`\`\`
 
-**DETAILED ERROR REPORT FROM PLAYWRIGHT**:
+**ERROR REPORT FROM PLAYWRIGHT**:
 ${optimizedMarkdown}
 
 **FIXING GUIDELINES**:
@@ -34,7 +34,7 @@ ${optimizedMarkdown}
 2. **Target Root Cause**: Fix only the specific issues mentioned in the error report
 3. **Use Best Practices**: Apply Playwright best practices for reliability
 4. **Minimal Changes**: Make the smallest changes necessary to fix the issue
-5. **Preserve Comments**: Keep ALL existing comments and add brief inline comments explaining significant changes
+5. **CRITICAL - Preserve ALL Comments**: You MUST keep every single comment (/* */, //, etc.) from the original script exactly as they are
 6. **Maintain Structure**: Keep the existing test structure and variable names
 
 **COMMON FIX PATTERNS**:
@@ -44,11 +44,9 @@ ${optimizedMarkdown}
 - Assertion problems: Use appropriate Playwright assertions with proper timeouts
 
 **RESPONSE FORMAT**:
-Respond with EXACTLY this structure:
-
 FIXED_SCRIPT:
 \`\`\`javascript
-[Your complete fixed test script here]
+[Your complete fixed test script here - clean code without explanation comments]
 \`\`\`
 
 EXPLANATION:
@@ -57,11 +55,17 @@ EXPLANATION:
 CONFIDENCE:
 [Rate your confidence in this fix on a scale of 0.1 to 1.0, where 1.0 means you're very confident this will resolve the issue]
 
-**IMPORTANT**:
+**CRITICAL REQUIREMENTS**:
 - Return only valid, executable Playwright test code
-- Preserve ALL existing comments from the original script
-- Add your own comments only to explain the specific fixes you made
-- Do not include test runners, imports, or setup code unless they were part of the original script`;
+- ABSOLUTELY PRESERVE ALL COMMENTS: Every /* */, //, and /** */ comment must remain exactly as is
+- Do NOT remove any existing comments from the original script
+- Do NOT add EXPLANATION or CONFIDENCE comments in the code
+- Do not include test runners, imports, or setup code unless they were part of the original script
+
+**COMMENT PRESERVATION EXAMPLES**:
+✅ CORRECT: Keep "// Send a GET request to a sample API endpoint" exactly as is
+✅ CORRECT: Keep "/* Sample REST API Testing Script */" exactly as is
+❌ WRONG: Removing or modifying any existing comments`;
   }
 
   // Build a basic prompt when detailed markdown reports aren't available
@@ -75,7 +79,7 @@ CONFIDENCE:
     reason: string;
   }): string {
     const testTypeInstructions = this.getTestTypeInstructions(testType);
-    
+
     return `You are an expert Playwright test automation engineer specializing in ${testType} testing.
 
 **TASK**: Analyze and improve the failing Playwright test script below.
@@ -96,7 +100,7 @@ Since detailed error reports aren't available, please:
 2. **Apply Best Practices**: Improve the script with Playwright best practices
 3. **Add Robustness**: Include proper waits and error handling
 4. **Maintain Intent**: Keep the original test logic and purpose
-5. **Preserve Comments**: Keep ALL existing comments and add comments only to explain significant improvements made
+5. **CRITICAL - Preserve ALL Comments**: You MUST keep every single comment (/* */, //, etc.) from the original script exactly as they are - do NOT remove any comments
 
 **COMMON IMPROVEMENTS TO CONSIDER**:
 - Replace brittle selectors with robust ones (data-testid, role-based)
@@ -108,7 +112,7 @@ Since detailed error reports aren't available, please:
 **RESPONSE FORMAT**:
 FIXED_SCRIPT:
 \`\`\`javascript
-[Your improved test script here]
+[Your improved test script here - clean code without explanation comments]
 \`\`\`
 
 EXPLANATION:
@@ -117,10 +121,16 @@ EXPLANATION:
 CONFIDENCE:
 [Rate your confidence in these improvements on a scale of 0.1 to 1.0, where 1.0 means you're very confident this will make the test more reliable]
 
-**IMPORTANT**:
+**CRITICAL REQUIREMENTS**:
 - Return only valid, executable Playwright test code
-- Preserve ALL existing comments from the original script
-- Add your own comments only to explain the specific improvements made`;
+- ABSOLUTELY PRESERVE ALL COMMENTS: Every /* */, //, and /** */ comment must remain exactly as is
+- Do NOT remove any existing comments from the original script
+- Do NOT add EXPLANATION or CONFIDENCE comments in the code
+
+**COMMENT PRESERVATION EXAMPLES**:
+✅ CORRECT: Keep "// Send a GET request to a sample API endpoint" exactly as is
+✅ CORRECT: Keep "/* Sample REST API Testing Script */" exactly as is
+❌ WRONG: Removing or modifying any existing comments`;
   }
 
   private static getTestTypeInstructions(testType: string): string {
