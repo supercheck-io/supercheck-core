@@ -47,6 +47,12 @@ graph TB
         E1["Notification Providers"]
         E2["Alerts Routes"]
     end
+
+    subgraph "AI & Automation"
+        F1["AI Fix Service"]
+        F2["Test Analysis"]
+        F3["Code Generation"]
+    end
 ```
 
 ### **Core API Routes by Category**
@@ -134,7 +140,12 @@ graph TB
 | `/api/tags/route.ts` | Resource tagging | ✅ Essential | Tag management |
 | `/api/tags/[id]/route.ts` | Single tag operations | ✅ Essential | Individual tag management |
 
-#### **6. Health & Utilities**
+#### **6. AI & Automation**
+| Route | Purpose | Status | Notes |
+|-------|---------|--------|-------|
+| `/api/ai/fix-test/route.ts` | AI-powered test fixing | ✅ Essential | OpenAI GPT-4o-mini integration |
+
+#### **7. Health & Utilities**
 | Route | Purpose | Status | Notes |
 |-------|---------|--------|-------|
 | `/api/health/route.ts` | System health | ✅ Essential | **Already implemented!** |
@@ -142,11 +153,11 @@ graph TB
 | `/api/invite/[token]/route.ts` | Invitation handling | ✅ Essential | User registration flow |
 
 ### **Complete Route Coverage Summary**
-- **Total Routes Identified**: 60+ individual endpoints (Updated from previous count)
-- **Route Categories**: 6 major functional areas
+- **Total Routes Identified**: 61+ individual endpoints (Updated from previous count)
+- **Route Categories**: 7 major functional areas
 - **Implementation Status**: All routes are essential and actively used
 - **Health Check**: Already exists at `/api/health/route.ts`
-- **Latest Update**: Documentation updated to reflect current codebase (January 2025)
+- **Latest Update**: Documentation updated to reflect current codebase (September 2025)
 
 ### **Updated Route Count by Category**
 - **Authentication & Admin Management**: 15 routes (enhanced with password reset functionality)
@@ -154,13 +165,22 @@ graph TB
 - **Organization & Project Management**: 15 routes (increased from 8)
 - **Real-time & Integration**: 5 routes (heartbeat route removed as it doesn't exist)
 - **Notifications & Alerts**: 7 routes (increased from 3)
+- **AI & Automation**: 1 route (new category for AI-powered features)
 - **Health & Utilities**: 3 routes (unchanged)
 
-### **New Authentication Features (August 2025)**
+### **New Features (2025)**
+
+#### **Authentication Enhancements (August 2025)**
 - **Password Reset API**: Integrated into Better Auth's `/api/auth/[...all]` endpoint
 - **Forgot Password Flow**: Email-based password reset with professional templates
 - **Rate Limiting System**: Multi-layer protection against abuse
 - **Security Enhancements**: Token expiration, strong password requirements, dual rate limiting
+
+#### **AI-Powered Test Fixing (September 2025)**
+- **AI Fix API**: `/api/ai/fix-test` endpoint for intelligent test repair
+- **OpenAI Integration**: Exclusive GPT-4o-mini model for error analysis
+- **Security Validation**: Comprehensive input sanitization and code safety checks
+- **Monaco Integration**: Rich diff viewer with intelligent suggestions
 
 ### **Route-Specific Improvements**
 
@@ -195,10 +215,16 @@ graph TB
 - Add proper error handling for S3/MinIO failures
 - Consider implementing a CDN for static assets
 
-## ⚠️ **RECENT DOCUMENTATION UPDATES (January 2025)**
+## ⚠️ **RECENT DOCUMENTATION UPDATES (September 2025)**
 
 ### **Major Updates Applied:**
-1. **Enhanced Authentication System (August 2025)**:
+1. **AI-Powered Test Fixing (September 2025)**:
+   - Added new `/api/ai/fix-test` endpoint documentation
+   - Integrated OpenAI GPT-4o-mini service information
+   - Updated route count to 61+ endpoints with new AI & Automation category
+   - Added security validation and error analysis features
+
+2. **Enhanced Authentication System (August 2025)**:
    - **Password Reset Flow**: Complete forgot password and reset password functionality
    - **Rate Limiting**: Advanced rate limiting with email and IP-based protection (3 attempts per 15 minutes)
    - **Email Integration**: Professional email templates with SMTP delivery

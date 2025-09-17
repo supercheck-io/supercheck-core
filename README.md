@@ -291,7 +291,6 @@ See [Security Guide](./specs/SECURITY.md) for production security settings:
 2. Manage organization members and their roles
 3. Configure organization-wide settings and preferences
 4. Monitor organization usage and capacity
-5. Set up billing and subscription management
 
 ### Super Admin Management
 

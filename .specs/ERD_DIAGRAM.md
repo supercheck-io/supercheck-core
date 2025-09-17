@@ -5,7 +5,7 @@
 
 This diagram represents the complete database schema for the Supercheck application, based on the main app schema.
 
-> **Updated:** January 2025 - Table names corrected to match actual schema implementation (camelCase naming convention)
+> **Updated:** September 2025 - Schema verified against current implementation with latest tables and relationships
 
 ```mermaid
 erDiagram

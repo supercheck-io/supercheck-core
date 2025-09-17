@@ -2,7 +2,7 @@
 
 ## 🏗️ **System Architecture Overview**
 
-Supercheck is built with a modern, distributed architecture designed for scalability, reliability, and performance. The system combines multiple specialized services to deliver comprehensive testing and monitoring capabilities.
+Supercheck is built with a modern, distributed architecture designed for scalability, reliability, and performance. The system combines multiple specialized services to deliver comprehensive testing, monitoring, and AI-powered test fixing capabilities.
 
 ```mermaid
 graph TB
@@ -46,6 +46,12 @@ graph TB
         D3[🔍 Redis Cache<br/>• Query Results<br/>• Session Data<br/>• Temporary Storage<br/>• Performance Boost]
     end
     
+    subgraph "🤖 AI Services"
+        AI1[🧠 AI Fix Service<br/>• OpenAI GPT-4o-mini<br/>• Error Analysis<br/>• Code Generation<br/>• Intelligent Fixes]
+        AI2[🔍 Error Classifier<br/>• Pattern Recognition<br/>• Root Cause Analysis<br/>• Fix Recommendations]
+        AI3[🛡️ Security Validator<br/>• Code Safety Checks<br/>• Input Sanitization<br/>• Vulnerability Scan]
+    end
+
     subgraph "📊 Monitoring & Observability"
         M1[📈 System Metrics<br/>• Performance Monitoring<br/>• Resource Usage<br/>• Error Tracking<br/>• Alerting]
         M2[📝 Audit Logs<br/>• User Actions<br/>• System Events<br/>• Security Monitoring<br/>• Compliance]
@@ -86,6 +92,12 @@ graph TB
     B1 <--> D3
     F1 <--> D3
     
+    %% AI Services
+    B1 <--> AI1
+    AI1 <--> AI2
+    AI1 <--> AI3
+    AI1 <--> D2
+
     %% Monitoring
     W1 -.-> M1
     W2 -.-> M1
@@ -95,6 +107,7 @@ graph TB
     B2 -.-> M2
     D1 -.-> M3
     Q1 -.-> M3
+    AI1 -.-> M1
     
     %% Styling
     classDef frontend fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
@@ -103,14 +116,16 @@ graph TB
     classDef worker fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
     classDef external fill:#ffebee,stroke:#d32f2f,stroke-width:2px,color:#000
     classDef security fill:#e0f2f1,stroke:#00796b,stroke-width:2px,color:#000
+    classDef ai fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,color:#000
     classDef monitoring fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
-    
+
     class F1,F2 frontend
     class B1,B2,B3 backend
     class D1,D2,D3 data
     class W1,W2,W3,W4 worker
     class U1,U2,U3,U4 external
     class T1,Q1,Q2 security
+    class AI1,AI2,AI3 ai
     class M1,M2,M3 monitoring
 ```
 
@@ -295,11 +310,11 @@ graph TB
 ```mermaid
 graph LR
     subgraph "🎨 Frontend Technologies"
-        F1[⚛️ React 18<br/>• Server Components<br/>• Suspense<br/>• Concurrent Features]
-        F2[🏗️ Next.js 14<br/>• App Router<br/>• Server Actions<br/>• Middleware]
-        F3[🎨 Tailwind CSS<br/>• Utility-first<br/>• Custom Design System<br/>• Responsive Design]
+        F1[⚛️ React 19.1.1<br/>• Server Components<br/>• Suspense<br/>• Concurrent Features]
+        F2[🏗️ Next.js 15.4.6<br/>• App Router<br/>• Turbopack<br/>• Server Actions<br/>• Middleware]
+        F3[🎨 TailwindCSS 4<br/>• Utility-first<br/>• Custom Design System<br/>• Dark Mode Support]
         F4[🧩 Shadcn/UI<br/>• Component Library<br/>• Accessible Components<br/>• Consistent Design]
-        F5[📊 React Query<br/>• Data Fetching<br/>• Caching<br/>• Optimistic Updates]
+        F5[📋 React Hook Form<br/>• Form Validation<br/>• Performance Optimized<br/>• Zod Integration]
     end
     
     F1 --> F2
@@ -315,38 +330,42 @@ graph LR
 ```mermaid
 graph LR
     subgraph "⚙️ Backend Technologies"
-        B1[🟢 Node.js 18+<br/>• ES Modules<br/>• TypeScript<br/>• Performance Optimized]
-        B2[🏗️ NestJS<br/>• Modular Architecture<br/>• Dependency Injection<br/>• Decorators]
-        B3[🗄️ Drizzle ORM<br/>• Type-safe Queries<br/>• Schema Migrations<br/>• Performance Focus]
-        B4[🔐 Better Auth<br/>• Session Management<br/>• RBAC System<br/>• Multi-provider Support]
-        B5[📨 BullMQ<br/>• Job Processing<br/>• Queue Management<br/>• Redis Integration]
+        B1[🟢 Node.js 20+<br/>• ES Modules<br/>• TypeScript 5.7.3<br/>• Performance Optimized]
+        B2[🏗️ NestJS 11.0.1<br/>• Modular Architecture<br/>• Dependency Injection<br/>• Decorators]
+        B3[🗄️ Drizzle ORM 0.43.1<br/>• Type-safe Queries<br/>• Schema Migrations<br/>• Performance Focus]
+        B4[🔐 Better Auth 1.2.8<br/>• Session Management<br/>• RBAC System<br/>• Multi-provider Support]
+        B5[📨 BullMQ 5.52.2<br/>• Job Processing<br/>• Queue Management<br/>• Redis Integration]
+        B6[🤖 AI SDK 5.0.42<br/>• OpenAI Integration<br/>• Streaming Support<br/>• Type Safety]
     end
-    
+
     B1 --> B2
     B1 --> B3
     B2 --> B4
     B2 --> B5
-    
+    B2 --> B6
+
     classDef tech fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
-    class B1,B2,B3,B4,B5 tech
+    class B1,B2,B3,B4,B5,B6 tech
 ```
 
 ### **Testing & Automation Stack**
 ```mermaid
 graph LR
     subgraph "⚙️ Testing Technologies"
-        T1[🎭 Playwright<br/>• Cross-browser Testing<br/>• Visual Comparisons<br/>• Trace Viewer]
+        T1[🎭 Playwright 1.54.1<br/>• Cross-browser Testing<br/>• Visual Comparisons<br/>• Trace Viewer]
         T2[📊 HTML Reports<br/>• Rich Visualizations<br/>• Screenshots<br/>• Video Recording]
         T3[🔍 Debugging Tools<br/>• Step-by-step Traces<br/>• Network Monitoring<br/>• Console Logs]
         T4[⚡ Parallel Execution<br/>• Worker Pools<br/>• Resource Management<br/>• Load Balancing]
+        T5[🤖 AI Fix Service<br/>• OpenAI GPT-4o-mini<br/>• Error Classification<br/>• Intelligent Repairs<br/>• Monaco Diff Viewer]
     end
-    
+
     T1 --> T2
     T1 --> T3
     T1 --> T4
-    
+    T1 --> T5
+
     classDef tech fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
-    class T1,T2,T3,T4 tech
+    class T1,T2,T3,T4,T5 tech
 ```
 
 ### **Infrastructure Stack**

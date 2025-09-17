@@ -2,7 +2,7 @@
 
 ## Overview
 
-Supercheck uses **Better Auth** as its authentication framework, providing a secure, feature-rich authentication system with email/password authentication, organization management, and comprehensive security features.
+Supercheck uses **Better Auth 1.2.8** as its authentication framework, providing a secure, feature-rich authentication system with email/password authentication, organization management, comprehensive security features, and multi-tenant organization support.
 
 ## Architecture
 

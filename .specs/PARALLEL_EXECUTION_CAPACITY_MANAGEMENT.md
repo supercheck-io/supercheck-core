@@ -1,5 +1,14 @@
 # Parallel Execution and Capacity Management
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Core Concepts](#core-concepts)
+- [Implementation Details](#implementation-details)
+- [Advanced Features](#advanced-features)
+- [Production Configuration](#production-configuration)
+- [Benefits](#benefits)
+
 This document outlines Supercheck's sophisticated parallel execution system that provides real-time visibility into test and job execution while enforcing configurable capacity limits to ensure system stability and optimal resource utilization.
 
 ## Overview

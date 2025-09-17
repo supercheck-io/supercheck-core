@@ -1,11 +1,6 @@
 # YAML anchors for shared configuration
 x-common-env: &common-env # Database Configuration
   DATABASE_URL: postgresql://postgres:postgres@postgres:5432/supercheck
-  DB_HOST: postgres
-  DB_PORT: 5432
-  DB_USER: postgres
-  DB_PASSWORD: postgres
-  DB_NAME: supercheck
 
   # Redis Configuration
   REDIS_HOST: redis
@@ -77,6 +72,15 @@ x-common-env: &common-env # Database Configuration
 
   # Variable Encryption Configuration
   VARIABLES_ENCRYPTION_KEY: your-64-character-encryption-key-for-variable-secrets-change-this-in-prod
+
+  # AI Fix Feature Configuration (Optional)
+  # Uncomment and configure if using AI Fix feature
+  # NEXT_PUBLIC_AI_FIX_ENABLED: true
+  # AI_MODEL: gpt-4o-mini
+  # OPENAI_API_KEY: ${OPENAI_API_KEY}  # Pass via environment variable, never hardcode
+  # AI_TIMEOUT_MS: 90000
+  # AI_MAX_RETRIES: 2
+  # AI_TEMPERATURE: 0.1
 
 services:
   # Traefik Reverse Proxy with HTTPS

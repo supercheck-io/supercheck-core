@@ -1,5 +1,22 @@
 # Memory Management System
 
+## Table of Contents
+
+- [System Architecture](#system-architecture)
+- [Overview](#overview)
+- [Worker Service Memory Management](#worker-service-memory-management)
+- [Redis Memory Management](#redis-memory-management)
+- [File Processing Optimization](#file-processing-optimization)
+- [Docker and Infrastructure](#docker-and-infrastructure)
+- [Performance Impact and Benefits](#performance-impact-and-benefits)
+- [Implementation Details](#implementation-details)
+- [Configuration and Usage](#configuration-and-usage)
+- [Testing and Validation](#testing-and-validation)
+- [Troubleshooting](#troubleshooting)
+- [Future Enhancements](#future-enhancements)
+- [Security Considerations](#security-considerations)
+- [Summary](#summary)
+
 This document provides a comprehensive overview of the memory management enhancements implemented in the Supercheck platform to address memory leaks, optimize resource usage, and ensure system stability.
 
 ## System Architecture
@@ -39,7 +56,7 @@ graph TB
     F4 --> G1
 ```
 
-## 🎯 Overview
+## Overview
 
 The memory management system addresses three critical areas:
 
@@ -47,7 +64,7 @@ The memory management system addresses three critical areas:
 2. **Redis Memory Growth** - TTL-based cache management and automated cleanup
 3. **File Processing Optimization** - Efficient resource cleanup and garbage collection
 
-## 🔧 Worker Service Memory Management
+## Worker Service Memory Management
 
 ### Active Execution Tracking
 
@@ -107,7 +124,7 @@ Comprehensive garbage collection integration:
 CMD ["node", "--expose-gc", "--max-old-space-size=2048", "dist/src/main.js"]
 ```
 
-## 🗃️ Redis Memory Management
+## Redis Memory Management
 
 ### TTL Hierarchy Strategy
 
@@ -233,7 +250,7 @@ do {
 - **Scheduled Operations**: 12-hour cleanup intervals
 - **Error Recovery**: Continues despite individual failures
 
-## 📁 File Processing Optimization
+## File Processing Optimization
 
 ### S3 Service Improvements
 
@@ -273,7 +290,7 @@ Automated cleanup of temporary files and directories:
 - **Permission Handling**: Enhanced error handling
 - **Scheduled Cleanup**: Automated periodic cleanup
 
-## 🐳 Docker and Infrastructure
+## Docker and Infrastructure
 
 ### Container Configuration
 
@@ -306,7 +323,7 @@ redis:
         memory: 256M
 ```
 
-## 📊 Performance Impact and Benefits
+## Performance Impact and Benefits
 
 ### Expected Improvements
 
@@ -339,7 +356,7 @@ if (memUsageMB > this.memoryThresholdMB) {
 - Memory threshold alerting
 - Cleanup operation metrics
 
-## 🛠️ Implementation Details
+## Implementation Details
 
 ### Service Lifecycle Management
 
@@ -391,7 +408,7 @@ private async performMemoryCleanup(): Promise<void> {
 }
 ```
 
-## 🚀 Configuration and Usage
+## Configuration and Usage
 
 ### Environment Variables
 
@@ -440,7 +457,7 @@ docker exec supercheck-redis redis-cli info memory
 docker exec supercheck-worker pgrep -f playwright
 ```
 
-## 🧪 Testing and Validation
+## Testing and Validation
 
 ### Memory Leak Testing
 
@@ -456,7 +473,7 @@ docker exec supercheck-worker pgrep -f playwright
 3. **Cleanup Effectiveness**: Measure cleanup operation success
 4. **System Stability**: Load testing under memory pressure
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Common Issues and Solutions
 
@@ -493,7 +510,7 @@ docker exec supercheck-redis redis-cli dbsize
 docker exec supercheck-worker pgrep -f "playwright|chrome"
 ```
 
-## 📈 Future Enhancements
+## Future Enhancements
 
 ### Planned Improvements
 
@@ -509,7 +526,7 @@ docker exec supercheck-worker pgrep -f "playwright|chrome"
 - Alert manager configuration
 - Log aggregation improvements
 
-## 🔒 Security Considerations
+## Security Considerations
 
 ### Process Security
 

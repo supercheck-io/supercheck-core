@@ -55,7 +55,7 @@ export function DataTableToolbar<TData>({
       value: "false", // Maps to isSecret: false
     },
     {
-      label: "Secret", 
+      label: "Secret",
       value: "true", // Maps to isSecret: true
     },
   ];
@@ -72,22 +72,23 @@ export function DataTableToolbar<TData>({
                   <Info className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[380px]" side="bottom" align="start">
+              <PopoverContent className="w-[430px]" side="bottom" align="start">
                 <div className="space-y-3">
                   <div>
-                    <h3 className="font-medium text-sm">Variables & Secrets Usage</h3>
+                    <h3 className="font-medium text-sm">
+                      Variables & Secrets Usage
+                    </h3>
                     <p className="text-xs text-muted-foreground">
                       Access methods for your test scripts in Playground
                     </p>
                   </div>
-                                   
-                  <div className="space-y-3">
 
+                  <div className="space-y-3">
                     <div className="space-y-2">
                       <h4 className="text-xs font-medium">Example Usage</h4>
                       <div className="relative bg-muted p-2 rounded">
                         <pre className="text-xs font-mono leading-relaxed">
-{`// Variables (plain text)
+                          {`// Variables (plain text)
 const baseUrl = getVariable('BASE_URL');
 
 // Secrets (encrypted)
@@ -95,13 +96,14 @@ const apiKey = getSecret('API_KEY');
 
 // In Playwright script
 await page.goto(getVariable('APP_URL'));
-await page.fill('#password', getSecret('PASSWORD'));`}
+await page.fill('#password', getSecret('PASSWORD').toString());`}
                         </pre>
                         <Button
                           size="sm"
                           variant="ghost"
                           className="absolute top-1 right-1 h-6 w-6 p-0"
-                          onClick={() => handleCopyCode(`// Variables
+                          onClick={() =>
+                            handleCopyCode(`// Variables
 const baseUrl = getVariable('BASE_URL');
 
 // Secrets  
@@ -109,9 +111,11 @@ const apiKey = getSecret('API_KEY');
 
 // In Playwright
 await page.goto(getVariable('APP_URL'));
-await page.fill('#password', getSecret('PASSWORD'));`)}
+await page.fill('#password', getSecret('PASSWORD').toString());`)
+                          }
                         >
-                          {copiedCode === `// Variables
+                          {copiedCode ===
+                          `// Variables
 const baseUrl = getVariable('BASE_URL');
 
 // Secrets  
@@ -119,7 +123,7 @@ const apiKey = getSecret('API_KEY');
 
 // In Playwright
 await page.goto(getVariable('APP_URL'));
-await page.fill('#password', getSecret('PASSWORD'));` ? (
+await page.fill('#password', getSecret('PASSWORD').toString());` ? (
                             <Check className="h-3 w-3 text-green-500" />
                           ) : (
                             <Copy className="h-3 w-3" />
@@ -129,7 +133,8 @@ await page.fill('#password', getSecret('PASSWORD'));` ? (
                     </div>
 
                     <div className="text-xs text-muted-foreground">
-                      <strong>Tip:</strong> Use variables for config, secrets for sensitive data
+                      <strong>Tip:</strong> Use variables for config, secrets
+                      for sensitive data
                     </div>
                   </div>
                 </div>

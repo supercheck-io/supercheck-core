@@ -1,6 +1,6 @@
 # Supercheck Technical Documentation
 
-Welcome to the comprehensive technical documentation for **Supercheck** (also known as **Supercheck**), an enterprise-grade end-to-end testing and monitoring platform built with modern distributed architecture.
+Welcome to the comprehensive technical documentation for **Supercheck**, an enterprise-grade end-to-end testing, monitoring, and AI-powered automation platform built with modern distributed architecture.
 
 > 📖 **For getting started**: See the [main README](../README.md) for quick setup instructions and usage guide.  
 > 📋 **For development**: See [CLAUDE.md](../CLAUDE.md) for project overview and development guidelines.
@@ -11,9 +11,11 @@ This documentation provides in-depth technical specifications, architectural det
 
 ### 🏗️ **Core Architecture & System Design**
 
-- **[API Routes Analysis](API_ROUTES_ANALYSIS.md)** - Complete API structure, performance optimizations, and development recommendations
+- **[Supercheck Architecture](SUPERCHECK_ARCHITECTURE.md)** - Complete system architecture with modern technology stack including React 19, Next.js 15, and AI services
+- **[API Routes Analysis](API_ROUTES_ANALYSIS.md)** - Complete API structure with 61+ endpoints, AI fix integration, and performance optimizations
 - **[Test Execution and Job Queue Flow](TEST_EXECUTION_AND_JOB_QUEUE_FLOW.md)** - Detailed job execution pipeline and parallelism management
 - **[ERD Diagram](ERD_DIAGRAM.md)** - Complete database schema and entity relationships
+- **[Core Service Interactions](CORE_SERVICE_INTERACTIONS.md)** - Service communication patterns and data flows
 
 ### 🔍 **Monitoring & Health Checks**
 
@@ -35,6 +37,10 @@ This documentation provides in-depth technical specifications, architectural det
 - **[Job Trigger System](JOB_TRIGGER_SYSTEM.md)** - Manual, remote, and cron-scheduled job execution systems
 - **[Project Variables](PROJECT_VARIABLES.md)** - Variable and secret management system with encryption
 
+### 🤖 **AI-Powered Automation**
+
+- **[AI Fix Documentation](AI_FIX_DOCUMENTATION.md)** - Complete AI-powered test fixing system with OpenAI GPT-4o-mini integration, error analysis, and intelligent code generation
+
 ## 🎯 **Technical Implementation Guides**
 
 ### 🚀 **For Platform Developers**
@@ -46,10 +52,11 @@ This documentation provides in-depth technical specifications, architectural det
 
 ### 🔧 **For System Administrators**
 
-1. **Production Setup**: Follow **[Environment Variables](ENVIRONMENT_VARIABLES.md)** for complete configuration and deployment
+1. **Production Setup**: Follow **[Environment Variables](ENVIRONMENT_VARIABLES.md)** for complete configuration and deployment (includes AI Fix setup)
 2. **HTTPS Setup**: Configure using **[Traefik HTTPS Setup](TRAEFIK_HTTPS_SETUP.md)** for production security
 3. **Performance Tuning**: Optimize with **[Memory Management](MEMORY_MANAGEMENT.md)** for memory efficiency
 4. **API Management**: Set up **[API Key System](API_KEY_SYSTEM.md)** for secure API access
+5. **AI Integration**: Configure **[AI Fix Documentation](AI_FIX_DOCUMENTATION.md)** for intelligent test repair capabilities
 
 ### 📊 **For Monitoring Implementation**
 
@@ -65,13 +72,17 @@ This documentation provides in-depth technical specifications, architectural det
 
 ## 📋 **Documentation Status**
 
-### ✅ **Complete & Accurate (Updated Aug 2025)**
+### ✅ **Complete & Accurate (Updated September 2025)**
 
-- **System Overview (README.md)** - Comprehensive architecture overview and navigation guide
-- **Environment Variables** - Complete environment configuration and deployment guide
+- **System Architecture** - Complete system architecture with modern technology stack (React 19.1.1, Next.js 15.4.6, AI services)
+- **System Overview (README.md)** - Comprehensive architecture overview and navigation guide with AI integration
+- **Environment Variables** - Complete environment configuration and deployment guide including AI Fix setup
+- **API Routes Analysis** - 61+ API endpoints including new AI Fix service endpoints
+- **Authentication** - Better Auth 1.2.8 integration with enhanced security features
+- **Database Schema** - Updated ERD diagram verified against current implementation
+- **AI Fix Documentation** - Complete AI-powered test fixing system documentation
 - **API Key System** - Job-specific API keys with direct database operations and Bearer authentication
-- **Dashboard Stats** - Complete dashboard implementation with 5-card layout and billing metrics
-- **ERD Diagram** - Updated database schema with correct table names and relationships
+- **Dashboard Stats** - Complete dashboard implementation with 5-card layout
 - **Job Trigger System** - Manual, remote, and scheduled job execution with proper validation
 - **Memory Management** - Production-ready memory management with optimized intervals
 - **Monitoring System** - HTTP, Ping, Port, and Website monitoring with comprehensive alerting
@@ -123,5 +134,5 @@ All reviewed documentation provides comprehensive coverage of:
 
 ---
 
-_Last updated: August 2025_
+_Last updated: September 2025_
 _Maintained by: Supercheck Team_

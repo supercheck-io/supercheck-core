@@ -1,5 +1,18 @@
 # Organization and Project Implementation Status
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Current Implementation Status](#current-implementation-status)
+- [Implementation Details](#implementation-details)
+- [Environment Configuration](#environment-configuration)
+- [User Experience](#user-experience)
+- [Security Features](#security-features)
+- [Performance Optimizations](#performance-optimizations)
+- [Completed Tasks](#completed-tasks)
+- [Testing Checklist](#testing-checklist)
+- [Conclusion](#conclusion)
+
 ## Overview
 
 This document outlines the **current implementation status** of the organization and project functionality in Supercheck. Most features have been implemented and are working in production.

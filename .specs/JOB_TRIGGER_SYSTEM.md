@@ -1,5 +1,18 @@
 # Job Trigger System Documentation
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Database Schema Changes](#database-schema-changes)
+- [API Changes](#api-changes)
+- [Frontend Changes](#frontend-changes)
+- [Backend Changes](#backend-changes)
+- [E2E Flow Analysis](#e2e-flow-analysis)
+- [Improvements Made](#improvements-made)
+- [Future Enhancements](#future-enhancements)
+- [Migration Notes](#migration-notes)
+- [Conclusion](#conclusion)
+
 ## Overview
 
 This document outlines the comprehensive job trigger system in Supercheck, which supports three distinct trigger types: `manual`, `remote`, and `schedule`. The system provides full traceability and control over how jobs are initiated and executed.

@@ -1,5 +1,25 @@
 # Better Auth RBAC System Documentation
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Recent Updates (Current Implementation)](#recent-updates-current-implementation)
+- [Database Schema & Role Storage](#database-schema--role-storage)
+- [Better Auth Integration](#better-auth-integration)
+- [Role System with Better Auth](#role-system-with-better-auth)
+- [Current Implementation Details](#current-implementation-details)
+- [User Organization Management](#user-organization-management)
+- [Known Issues & Troubleshooting](#known-issues--troubleshooting)
+- [Better Auth Permission System](#better-auth-permission-system)
+- [Admin Plugin Integration](#admin-plugin-integration)
+- [Organization Plugin Integration](#organization-plugin-integration)
+- [API Integration Patterns](#api-integration-patterns)
+- [Permission Matrix with Better Auth](#permission-matrix-with-better-auth)
+- [Implementation Files](#implementation-files)
+- [Migration from Custom RBAC](#migration-from-custom-rbac)
+- [Security Benefits](#security-benefits)
+- [Conclusion](#conclusion)
+
 ## Overview
 
 Supercheck implements a **hybrid RBAC system** that combines Better Auth's built-in organization and admin plugins with custom role-based access control for project-level resources. The system supports user impersonation, multi-organization membership, and granular permissions across different contexts.
