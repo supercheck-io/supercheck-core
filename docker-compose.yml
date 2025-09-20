@@ -85,7 +85,7 @@ x-common-env: &common-env # Database Configuration
 services:
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.0.4-beta
+    image: ghcr.io/supercheck-io/supercheck/app:1.0.5-beta
     ports:
       - "3000:3000"
     environment:
@@ -128,7 +128,7 @@ services:
 
   # Worker (NestJS Runner) - Enhanced security and resource protection
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.0.4-beta
+    image: ghcr.io/supercheck-io/supercheck/worker:1.0.5-beta
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)

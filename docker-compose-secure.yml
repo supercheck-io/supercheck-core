@@ -14,8 +14,8 @@ x-common-env: &common-env # Database Configuration
   REDIS_URL: ${REDIS_URL:-redis://:supersecure-redis-password-change-this@redis:6379}
 
   # App Configuration
-  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://app.example.com}
-  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://app.example.com}
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://demo.supercheck.io}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://demo.supercheck.io}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-auth-key-change-this-in-production}
   NODE_ENV: ${NODE_ENV:-production}
   RUNNING_CAPACITY: ${RUNNING_CAPACITY:-6} # Optimized for 4-core server: 4 workers × 1.5 jobs per worker
@@ -74,17 +74,18 @@ x-common-env: &common-env # Database Configuration
   SMTP_USER: ${SMTP_USER:-resend}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-your-smtp-password-change-this-in-production}
   SMTP_SECURE: ${SMTP_SECURE:-false}
-  SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-notification@example.com}
+  SMTP_FROM_EMAIL:
+    ${SMTP_FROM_EMAIL:-notification@example.com}
 
-  # AI Fix Feature Configuration
+    # AI Fix Feature Configuration
   NEXT_PUBLIC_AI_FIX_ENABLED: ${NEXT_PUBLIC_AI_FIX_ENABLED:-false}
   AI_PROVIDER: ${AI_PROVIDER:-openai}
   AI_MODEL: ${AI_MODEL:-gpt-4o}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-your-openai-api-key-here}
 
   # Traefik/HTTPS Configuration
-  APP_DOMAIN: ${APP_DOMAIN:-app.example.com}
-  ACME_EMAIL: ${ACME_EMAIL:-hello@example.com}
+  APP_DOMAIN: ${APP_DOMAIN:-demo.supercheck.io}
+  ACME_EMAIL: ${ACME_EMAIL:-hello@supercheck.io}
 
 services:
   # Traefik Reverse Proxy with HTTPS
@@ -117,7 +118,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.0.4-beta
+    image: ghcr.io/supercheck-io/supercheck/app:1.0.5-beta
     expose:
       - "3000"
     environment:
@@ -149,9 +150,13 @@ services:
       start_period: 120s # Increased to allow for migrations
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`${APP_DOMAIN:-app.example.com}`)"
+      - "traefik.http.routers.app.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`)"
       - "traefik.http.routers.app.entrypoints=websecure"
       - "traefik.http.routers.app.tls.certresolver=myresolver"
+      - "traefik.http.routers.app-web.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`)"
+      - "traefik.http.routers.app-web.entrypoints=web"
+      - "traefik.http.routers.app-web.middlewares=app-https-redirect"
+      - "traefik.http.middlewares.app-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.services.app.loadbalancer.server.port=3000"
     networks:
       - supercheck-network
@@ -166,7 +171,7 @@ services:
 
   # Worker (NestJS Runner)
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.0.4-beta
+    image: ghcr.io/supercheck-io/supercheck/worker:1.0.5-beta
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)
