@@ -75,7 +75,7 @@ docker-compose up -d postgres redis minio
 
 ```bash
 # Start Redis
-docker run -d --name redis-supercheck -p 6379:6379 redis
+docker run -d --name redis-supercheck -p 6379:6379 redis:8
 
 # Start PostgreSQL
 docker run -d --name postgres-supercheck \
