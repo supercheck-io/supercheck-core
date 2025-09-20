@@ -880,8 +880,6 @@ const Playground: React.FC<PlaygroundProps> = ({
                         failedScript={editorContent}
                         testType={testCase.type || "browser"}
                         isVisible={
-                          // Check if AI Fix feature is enabled globally
-                          process.env.NEXT_PUBLIC_AI_FIX_ENABLED === 'true' &&
                           // Always show when test execution is completely finished AND failed
                           testExecutionStatus === "failed" &&
                           !isRunning &&

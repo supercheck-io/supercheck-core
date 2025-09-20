@@ -77,10 +77,12 @@ x-common-env: &common-env # Database Configuration
   SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-notification@example.com}
 
   # AI Fix Feature Configuration
-  NEXT_PUBLIC_AI_FIX_ENABLED: ${NEXT_PUBLIC_AI_FIX_ENABLED:-true}
   AI_PROVIDER: ${AI_PROVIDER:-openai}
   AI_MODEL: ${AI_MODEL:-gpt-4o}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-your-openai-api-key-here}
+  AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-90000}
+  AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
+  AI_TEMPERATURE: ${AI_TEMPERATURE:-0.1}
 
 services:
   # App (Next.js Frontend) - Handles migrations internally

@@ -189,9 +189,6 @@ sequenceDiagram
 **Production (.env):**
 
 ```bash
-# Enable AI Fix feature
-NEXT_PUBLIC_AI_FIX_ENABLED=true
-
 # OpenAI Configuration (Required)
 AI_MODEL=gpt-4o-mini
 OPENAI_API_KEY=your-openai-api-key-here
@@ -205,9 +202,6 @@ AI_TEMPERATURE=0.1           # Response randomness (0.0-2.0)
 **Development:**
 
 ```bash
-# Start with AI Fix disabled for development
-NEXT_PUBLIC_AI_FIX_ENABLED=false
-
 # Add your development keys when ready to test
 # OPENAI_API_KEY=sk-your-dev-key-here
 ```
@@ -216,7 +210,6 @@ NEXT_PUBLIC_AI_FIX_ENABLED=false
 
 | Variable                     | Required | Default       | Description                                    |
 | ---------------------------- | -------- | ------------- | ---------------------------------------------- |
-| `NEXT_PUBLIC_AI_FIX_ENABLED` | Yes      | `false`       | Enable/disable AI Fix feature                  |
 | `AI_MODEL`                   | Yes      | `gpt-4o-mini` | OpenAI model to use (supports multiple models) |
 | `OPENAI_API_KEY`             | Yes      | -             | OpenAI API key (required)                      |
 | `AI_TIMEOUT_MS`              | No       | `90000`       | Request timeout (10000-120000ms)               |
@@ -540,8 +533,7 @@ buildBasicFixPrompt({
 ### 1. Basic Configuration Test
 
 ```bash
-# Enable the feature
-NEXT_PUBLIC_AI_FIX_ENABLED=true
+# Configure AI Fix
 OPENAI_API_KEY=your-actual-key
 ```
 
@@ -569,7 +561,6 @@ curl http://localhost:3000/api/ai/fix-test
 
 ### Button Not Appearing
 
-- ✅ Check `NEXT_PUBLIC_AI_FIX_ENABLED=true` (note: no double prefix)
 - ✅ Ensure test actually failed (status = 'failed')
 - ✅ Verify user has test execution permissions
 - ✅ Check browser console for errors

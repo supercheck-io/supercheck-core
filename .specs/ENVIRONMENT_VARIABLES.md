@@ -117,8 +117,7 @@ DEFAULT_PROJECT_NAME="Default Project"
 ### AI-Powered Test Fix ⭐ (New Feature)
 
 ```env
-# AI Fix Configuration
-NEXT_PUBLIC_AI_FIX_ENABLED=true          # Enable/disable AI fix feature
+# AI Fix Configuration (Always Enabled)
 OPENAI_API_KEY=your-openai-api-key-here  # OpenAI GPT-4o-mini API key (required)
 ```
 
@@ -269,7 +268,6 @@ Add these to your environment:
 ```env
 PLAYGROUND_CLEANUP_ENABLED=true
 CREDENTIAL_ENCRYPTION_KEY=your-key-here
-NEXT_PUBLIC_AI_FIX_ENABLED=true
 OPENAI_API_KEY=your-openai-api-key-here
 ```
 
