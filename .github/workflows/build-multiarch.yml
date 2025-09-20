@@ -98,6 +98,8 @@ jobs:
           labels: ${{ steps.app-meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_AI_FIX_ENABLED=true
 
       - name: Build and push worker image
         uses: docker/build-push-action@v5

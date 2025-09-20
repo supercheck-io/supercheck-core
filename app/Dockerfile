@@ -28,6 +28,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Accept build arguments for NEXT_PUBLIC variables
+ARG NEXT_PUBLIC_AI_FIX_ENABLED=true
+
 # Install dev dependencies for build with caching
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --legacy-peer-deps --no-audit --no-fund
@@ -36,6 +39,9 @@ RUN --mount=type=cache,target=/root/.npm \
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 ENV NODE_ENV=production
+
+# Set NEXT_PUBLIC environment variables from build args
+ENV NEXT_PUBLIC_AI_FIX_ENABLED=$NEXT_PUBLIC_AI_FIX_ENABLED
 
 # Build with standalone output and static optimization
 # Use a build-time placeholder secret that will be overridden at runtime

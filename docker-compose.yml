@@ -77,7 +77,7 @@ x-common-env: &common-env # Database Configuration
   SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-notification@example.com}
 
   # AI Fix Feature Configuration
-  NEXT_PUBLIC_AI_FIX_ENABLED: ${NEXT_PUBLIC_AI_FIX_ENABLED:-false}
+  NEXT_PUBLIC_AI_FIX_ENABLED: ${NEXT_PUBLIC_AI_FIX_ENABLED:-true}
   AI_PROVIDER: ${AI_PROVIDER:-openai}
   AI_MODEL: ${AI_MODEL:-gpt-4o}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-your-openai-api-key-here}
