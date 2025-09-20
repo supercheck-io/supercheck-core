@@ -166,7 +166,7 @@ export async function GET() {
         .orderBy(desc(runs.startedAt))
         .limit(1000),
       
-      // Total execution time (last 7 days) - BILLING CRITICAL
+      // Total execution time (last 7 days) 
       dbInstance.select({
         duration: runs.duration,
         status: runs.status,
@@ -178,7 +178,7 @@ export async function GET() {
           gte(runs.startedAt, last7Days),
           eq(jobs.projectId, targetProjectId), 
           eq(jobs.organizationId, organizationId),
-          // Only include completed runs for billing accuracy
+          // Only include completed runs
           sql`${runs.completedAt} IS NOT NULL`
         ))
         .orderBy(desc(runs.startedAt))
@@ -275,7 +275,7 @@ export async function GET() {
       .groupBy(sql`DATE(${auditLogs.createdAt})`)
       .orderBy(sql`DATE(${auditLogs.createdAt})`);
 
-    // Calculate total execution time with billing-grade accuracy and logging
+    // Calculate total execution time with accuracy
     const totalExecutionTimeCalculation = (() => {
       let totalMs = 0;
       let processedRuns = 0;
@@ -331,8 +331,8 @@ export async function GET() {
         }
       }
 
-      // Log billing calculation details for audit trail - CRITICAL FOR BILLING
-      const billingAuditData = {
+      // Log Exec time calculation details
+      const execTimeAuditData = {
         projectId: targetProjectId,
         organizationId,
         timestamp: new Date().toISOString(),
@@ -353,12 +353,12 @@ export async function GET() {
           completedRunsOnly: true
         }
       };
-      
-      // Structured logging for billing audit
-      console.log(`[BILLING_AUDIT] ${JSON.stringify(billingAuditData)}`);
+
+      // Structured logging for execution time audit
+      console.log(`[EXECUTION_TIME_AUDIT] ${JSON.stringify(execTimeAuditData)}`);
 
       if (errors.length > 0) {
-        console.warn(`[BILLING] Execution time calculation errors:`, errors);
+        console.warn(`[EXECUTION_TIME] Calculation errors:`, errors);
       }
 
       return {
@@ -413,7 +413,7 @@ export async function GET() {
           duration: run.duration,
           trigger: run.trigger
         })),
-        // Billing-critical execution time data
+        // Execution time data
         executionTime: {
           totalMs: totalExecutionTimeCalculation.totalMs,
           totalSeconds: totalExecutionTimeCalculation.totalSeconds,

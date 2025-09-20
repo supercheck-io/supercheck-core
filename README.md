@@ -75,7 +75,7 @@ docker-compose up -d postgres redis minio
 
 ```bash
 # Start Redis
-docker run -d --name redis-supercheck -p 6379:6379 redis
+docker run -d --name redis-supercheck -p 6379:6379 redis:8
 
 # Start PostgreSQL
 docker run -d --name postgres-supercheck \
@@ -291,7 +291,6 @@ See [Security Guide](./specs/SECURITY.md) for production security settings:
 2. Manage organization members and their roles
 3. Configure organization-wide settings and preferences
 4. Monitor organization usage and capacity
-5. Set up billing and subscription management
 
 ### Super Admin Management
 

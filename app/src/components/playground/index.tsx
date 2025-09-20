@@ -15,12 +15,7 @@ import { TestForm } from "./test-form";
 import { LoadingOverlay } from "./loading-overlay";
 import { ValidationError } from "./validation-error";
 import { TestPriority, TestType } from "@/db/schema/schema";
-import {
-  FileTextIcon,
-  Loader2Icon,
-  ZapIcon,
-  Text
-} from "lucide-react";
+import { FileTextIcon, Loader2Icon, ZapIcon, Text } from "lucide-react";
 import * as z from "zod";
 import type { editor } from "monaco-editor";
 import type { ScriptType } from "@/lib/script-service";
@@ -29,6 +24,9 @@ import { useProjectContext } from "@/hooks/use-project-context";
 import { canRunTests } from "@/lib/rbac/client-permissions";
 import { normalizeRole } from "@/lib/rbac/role-normalizer";
 import RuntimeInfoPopover from "./runtime-info-popover";
+import { AIFixButton } from "./ai-fix-button";
+import { AIDiffViewer } from "./ai-diff-viewer";
+import { GuidanceModal } from "./guidance-modal";
 
 // Define our own TestCaseFormData interface
 interface TestCaseFormData {
@@ -61,30 +59,40 @@ const Playground: React.FC<PlaygroundProps> = ({
 }) => {
   // Permission checking
   const { currentProject } = useProjectContext();
-  const userCanRunTests = currentProject?.userRole ? canRunTests(normalizeRole(currentProject.userRole)) : false;
-  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+  const userCanRunTests = currentProject?.userRole
+    ? canRunTests(normalizeRole(currentProject.userRole))
+    : false;
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(
+    undefined
+  );
 
   // Fetch current user ID for permissions
   useEffect(() => {
     const fetchUserId = async () => {
       try {
-        const response = await fetch('/api/auth/user');
+        const response = await fetch("/api/auth/user");
         if (response.ok) {
           const userData = await response.json();
           setCurrentUserId(userData.user?.id);
         }
       } catch (error) {
-        console.error('Error fetching user ID:', error);
+        console.error("Error fetching user ID:", error);
       }
     };
     fetchUserId();
   }, []);
-  
+
   // Debug logging
   if (currentProject?.userRole) {
-    console.log('Playground permissions:', currentProject.userRole, '→', userCanRunTests ? 'CAN' : 'CANNOT', 'run tests');
+    console.log(
+      "Playground permissions:",
+      currentProject.userRole,
+      "→",
+      userCanRunTests ? "CAN" : "CANNOT",
+      "run tests"
+    );
   }
-  
+
   const [activeTab, setActiveTab] = useState<string>("editor");
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -94,6 +102,8 @@ const Playground: React.FC<PlaygroundProps> = ({
   // Only set testId from initialTestId if we're on a specific test page
   // Always ensure testId is null when on the main playground page
   const [testId, setTestId] = useState<string | null>(initialTestId || null);
+  // Separate state for tracking the current test execution ID (for AI Fix functionality)
+  const [executionTestId, setExecutionTestId] = useState<string | null>(null);
   const [completedTestIds, setCompletedTestIds] = useState<string[]>([]);
   const [editorContent, setEditorContent] = useState(
     initialTestData?.script || ""
@@ -130,23 +140,43 @@ const Playground: React.FC<PlaygroundProps> = ({
 
   // Validation state with strict tracking
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [validationLine, setValidationLine] = useState<number | undefined>(undefined);
-  const [validationColumn, setValidationColumn] = useState<number | undefined>(undefined);
-  const [validationErrorType, setValidationErrorType] = useState<string | undefined>(undefined);
+  const [validationLine, setValidationLine] = useState<number | undefined>(
+    undefined
+  );
+  const [validationColumn, setValidationColumn] = useState<number | undefined>(
+    undefined
+  );
+  const [validationErrorType, setValidationErrorType] = useState<
+    string | undefined
+  >(undefined);
   const [isValid, setIsValid] = useState<boolean>(false); // Default to false for safety
   const [hasValidated, setHasValidated] = useState<boolean>(false);
   const [isValidating, setIsValidating] = useState<boolean>(false);
   const [lastValidatedScript, setLastValidatedScript] = useState<string>(""); // Track last validated script
-  
+
   // Test execution status tracking
-  const [testExecutionStatus, setTestExecutionStatus] = useState<'none' | 'passed' | 'failed'>('none'); // Track if last test run passed or failed
+  const [testExecutionStatus, setTestExecutionStatus] = useState<
+    "none" | "passed" | "failed"
+  >("none"); // Track if last test run passed or failed
   const [lastExecutedScript, setLastExecutedScript] = useState<string>(""); // Track last executed script
-  
+  const [isAIAnalyzing, setIsAIAnalyzing] = useState(false); // Track AI Fix analyzing state
+
+  // AI Fix functionality state
+  const [showAIDiff, setShowAIDiff] = useState(false);
+  const [aiFixedScript, setAIFixedScript] = useState<string>("");
+  const [aiExplanation, setAIExplanation] = useState<string>("");
+  const [aiConfidence, setAIConfidence] = useState<number>(0.5);
+  const [showGuidanceModal, setShowGuidanceModal] = useState(false);
+  const [guidanceMessage, setGuidanceMessage] = useState<string>("");
+
   // Derived state: is current script validated and passed?
-  const isCurrentScriptValidated = hasValidated && isValid && editorContent === lastValidatedScript;
-  const isCurrentScriptExecutedSuccessfully = testExecutionStatus === 'passed' && editorContent === lastExecutedScript;
-  const isCurrentScriptReadyToSave = isCurrentScriptValidated && isCurrentScriptExecutedSuccessfully;
-  
+  const isCurrentScriptValidated =
+    hasValidated && isValid && editorContent === lastValidatedScript;
+  const isCurrentScriptExecutedSuccessfully =
+    testExecutionStatus === "passed" && editorContent === lastExecutedScript;
+  const isCurrentScriptReadyToSave =
+    isCurrentScriptValidated && isCurrentScriptExecutedSuccessfully;
+
   // Clear validation state when script changes
   const resetValidationState = () => {
     setValidationError(null);
@@ -157,10 +187,11 @@ const Playground: React.FC<PlaygroundProps> = ({
     setHasValidated(false);
     // Don't reset lastValidatedScript here - only when validation passes
   };
-  
+
   // Clear test execution state when script changes
   const resetTestExecutionState = () => {
-    setTestExecutionStatus('none');
+    setTestExecutionStatus("none");
+    setExecutionTestId(null); // Clear execution test ID for new script
     // Don't reset lastExecutedScript here - only when test passes
   };
 
@@ -169,14 +200,22 @@ const Playground: React.FC<PlaygroundProps> = ({
   const searchParams = useSearchParams();
 
   // Manual validation function (called only on run/submit)
-  const validateScript = async (script: string): Promise<{ valid: boolean; error?: string; line?: number; column?: number; errorType?: string }> => {
+  const validateScript = async (
+    script: string
+  ): Promise<{
+    valid: boolean;
+    error?: string;
+    line?: number;
+    column?: number;
+    errorType?: string;
+  }> => {
     if (!script || script.trim() === "") {
       return { valid: true }; // Empty script is considered valid for now
     }
 
     setIsValidating(true);
     try {
-      const response = await fetch('/api/validate-script', {
+      const response = await fetch("/api/validate-script", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -185,7 +224,7 @@ const Playground: React.FC<PlaygroundProps> = ({
       });
 
       const result = await response.json();
-      
+
       if (!response.ok || !result.valid) {
         return {
           valid: false,
@@ -407,7 +446,10 @@ const Playground: React.FC<PlaygroundProps> = ({
       }
 
       // Validate description - make it mandatory
-      if (!validationData.description || validationData.description.trim() === "") {
+      if (
+        !validationData.description ||
+        validationData.description.trim() === ""
+      ) {
         newErrors.description = "Description is required";
       }
 
@@ -428,7 +470,7 @@ const Playground: React.FC<PlaygroundProps> = ({
 
       // Set errors state
       setErrors(newErrors);
-      
+
       // Return true if no errors
       return Object.keys(newErrors).length === 0;
     } catch (error) {
@@ -449,14 +491,16 @@ const Playground: React.FC<PlaygroundProps> = ({
   const runTest = async () => {
     if (!userCanRunTests) {
       toast.error("Insufficient permissions", {
-        description: "You don't have permission to run tests. Contact your organization admin for access.",
+        description:
+          "You don't have permission to run tests. Contact your organization admin for access.",
       });
       return;
     }
 
     if (isRunning) {
       toast.warning("A script is already running", {
-        description: "Please wait for the current script to complete, or cancel it before running a new script.",
+        description:
+          "Please wait for the current script to complete, or cancel it before running a new script.",
       });
       return;
     }
@@ -469,14 +513,16 @@ const Playground: React.FC<PlaygroundProps> = ({
     setValidationErrorType(validationResult.errorType);
     setIsValid(validationResult.valid);
     setHasValidated(true);
-    
+
     if (validationResult.valid) {
       setLastValidatedScript(editorContent); // Update last validated script on success
     }
 
     if (!validationResult.valid) {
       toast.error("Script validation failed", {
-        description: validationResult.error || "Please fix validation errors before running the test.",
+        description:
+          validationResult.error ||
+          "Please fix validation errors before running the test.",
         duration: 5000,
       });
       return;
@@ -485,8 +531,11 @@ const Playground: React.FC<PlaygroundProps> = ({
     setIsRunning(true);
 
     try {
-      console.log("Sending test data to API:", { id: testId, script: editorContent });
-      
+      console.log("Sending test data to API:", {
+        id: testId,
+        script: editorContent,
+      });
+
       // Execute the test by sending the current script content to the API
       const res = await fetch(`/api/test`, {
         method: "POST",
@@ -501,7 +550,7 @@ const Playground: React.FC<PlaygroundProps> = ({
 
       // Parse the response
       const result = await res.json();
-      
+
       console.log("API response:", result);
 
       // If we successfully started a test and got back the needed test info
@@ -509,15 +558,24 @@ const Playground: React.FC<PlaygroundProps> = ({
         // No need for success toast here - the loading toast is already shown
         // We'll keep the loading toast until we get the final status update
 
+        // Don't set testId for playground executions - only for editing existing tests
+        // But do set the execution test ID for AI Fix functionality
+        setExecutionTestId(result.testId);
+
         // Set the report URL to display the test results
         setReportUrl(result.reportUrl);
-        
+
         // Switch to the report tab
         setActiveTab("report");
 
         // Set up Server-Sent Events (SSE) to get real-time status updates
-        console.log("Setting up SSE connection to:", `/api/test-status/events/${result.testId}`);
-        const eventSource = new EventSource(`/api/test-status/events/${result.testId}`);
+        console.log(
+          "Setting up SSE connection to:",
+          `/api/test-status/events/${result.testId}`
+        );
+        const eventSource = new EventSource(
+          `/api/test-status/events/${result.testId}`
+        );
         let eventSourceClosed = false;
 
         // Handle status updates from the SSE endpoint
@@ -526,68 +584,94 @@ const Playground: React.FC<PlaygroundProps> = ({
             const data = JSON.parse(event.data);
             if (data) {
               console.log("SSE event:", data);
-              
+
               // Check if data includes status field
               if (data.status) {
                 // Normalize status value for consistency
                 const normalizedStatus = data.status.toLowerCase();
-                
+
                 // Handle status - this could update a state variable to show in UI
-                if (normalizedStatus === "completed" || 
-                    normalizedStatus === "passed" || 
-                    normalizedStatus === "failed" || 
-                    normalizedStatus === "error") {
+                if (
+                  normalizedStatus === "completed" ||
+                  normalizedStatus === "passed" ||
+                  normalizedStatus === "failed" ||
+                  normalizedStatus === "error"
+                ) {
                   // Test is done, update the UI
                   setIsRunning(false);
                   setIsReportLoading(false);
-                  
+
                   // Update test execution status based on result
-                  const testPassed = normalizedStatus === "completed" || normalizedStatus === "passed";
-                  setTestExecutionStatus(testPassed ? 'passed' : 'failed');
+                  const testPassed =
+                    normalizedStatus === "completed" ||
+                    normalizedStatus === "passed";
+                  setTestExecutionStatus(testPassed ? "passed" : "failed");
                   if (testPassed) {
                     setLastExecutedScript(editorContent); // Mark this script as successfully executed
                   }
-                  
+
                   // Close the SSE connection
                   eventSource.close();
                   eventSourceClosed = true;
-                  
+
                   // Construct the relative API report URL, don't use the direct S3 URL from data
-                  if (result.testId) { // Ensure we have the testId from the initial API call
-                    const apiUrl = `/api/test-results/${result.testId}/report/index.html?t=${Date.now()}&forceIframe=true`;
-                    console.log(`Test ${normalizedStatus}: Setting report URL to API path: ${apiUrl}`);
+                  if (result.testId) {
+                    // Ensure we have the testId from the initial API call
+                    const apiUrl = `/api/test-results/${
+                      result.testId
+                    }/report/index.html?t=${Date.now()}&forceIframe=true`;
+                    console.log(
+                      `Test ${normalizedStatus}: Setting report URL to API path: ${apiUrl}`
+                    );
                     setReportUrl(apiUrl); // Use the relative API path
-                    
+
                     // Always stay on report tab and ensure we're viewing the report
                     setActiveTab("report");
 
                     // Add test ID to the list of completed tests
-                    if (result.testId && !completedTestIds.includes(result.testId)) {
-                      setCompletedTestIds(prev => [...prev, result.testId]);
+                    if (
+                      result.testId &&
+                      !completedTestIds.includes(result.testId)
+                    ) {
+                      setCompletedTestIds((prev) => [...prev, result.testId]);
                     }
                   } else {
-                     console.error("Cannot construct report URL: testId from initial API call is missing.");
-                     toast.error("Error displaying report", { description: "Could not determine the test ID to load the report." });
+                    console.error(
+                      "Cannot construct report URL: testId from initial API call is missing."
+                    );
+                    toast.error("Error displaying report", {
+                      description:
+                        "Could not determine the test ID to load the report.",
+                    });
                   }
-                  
+
                   // Determine if it was a success or failure for the toast
-                  const isSuccess = normalizedStatus === "completed" || normalizedStatus === "passed";
-                  
+                  const isSuccess =
+                    normalizedStatus === "completed" ||
+                    normalizedStatus === "passed";
+
                   // Show completion toast
                   toast[isSuccess ? "success" : "error"](
-                    isSuccess ? "Script execution passed" : "Script execution failed",
-                    { 
-                      description: isSuccess 
-                        ? "All checks completed successfully." 
+                    isSuccess
+                      ? "Script execution passed"
+                      : "Script execution failed",
+                    {
+                      description: isSuccess
+                        ? "All checks completed successfully."
                         : "All checks did not complete successfully.",
-                      duration: 10000 
+                      duration: 10000,
                     }
                   );
                 }
               }
             }
           } catch (e) {
-            console.error("Error parsing SSE event:", e, "Raw event data:", event.data);
+            console.error(
+              "Error parsing SSE event:",
+              e,
+              "Raw event data:",
+              event.data
+            );
           }
         };
 
@@ -597,26 +681,32 @@ const Playground: React.FC<PlaygroundProps> = ({
           // Fallback for SSE errors - just set not running
           setIsRunning(false);
           setIsReportLoading(false);
-          
-          
+
           // Show error toast
           toast.error("Script execution error", {
-            description: "Connection to test status updates was lost. The test may still be running in the background.",
+            description:
+              "Connection to test status updates was lost. The test may still be running in the background.",
             duration: 5000,
           });
-          
+
           if (!eventSourceClosed) {
             eventSource.close();
             eventSourceClosed = true;
-            
+
             // Try to load the report anyway using the API path if testId is available
             if (result.testId) {
-               const apiUrl = `/api/test-results/${result.testId}/report/index.html?t=${Date.now()}&forceIframe=true`;
-              console.log(`SSE error fallback: Setting report URL to API path: ${apiUrl}`);
+              const apiUrl = `/api/test-results/${
+                result.testId
+              }/report/index.html?t=${Date.now()}&forceIframe=true`;
+              console.log(
+                `SSE error fallback: Setting report URL to API path: ${apiUrl}`
+              );
               setReportUrl(apiUrl); // Use the relative API path
               setActiveTab("report");
             } else {
-               console.error("SSE error fallback: Cannot construct report URL: testId from initial API call is missing.");
+              console.error(
+                "SSE error fallback: Cannot construct report URL: testId from initial API call is missing."
+              );
             }
           }
         };
@@ -624,7 +714,7 @@ const Playground: React.FC<PlaygroundProps> = ({
         // If we didn't get a report URL or test ID, something went wrong
         setIsReportLoading(false);
         setIsRunning(false);
-        
+
         // Check for errors first
         if (result.error) {
           console.error("Script execution error:", result.error);
@@ -635,13 +725,17 @@ const Playground: React.FC<PlaygroundProps> = ({
             setIsValid(false);
             setHasValidated(true);
             toast.error("Script Validation Failed", {
-              description: result.validationError || "Please fix validation errors before running the test.",
+              description:
+                result.validationError ||
+                "Please fix validation errors before running the test.",
               duration: 5000,
             });
           } else {
             // Always show a user-friendly message regardless of the actual error
             toast.error("Script Execution Failed", {
-              description: result.error || "The test encountered an error during execution. Please check your test script and try again.",
+              description:
+                result.error ||
+                "The test encountered an error during execution. Please check your test script and try again.",
               duration: 5000,
             });
           }
@@ -663,6 +757,65 @@ const Playground: React.FC<PlaygroundProps> = ({
     }
   };
 
+  // AI Fix handlers
+  const handleAIFixSuccess = (
+    fixedScript: string,
+    explanation: string,
+    confidence: number
+  ) => {
+    setAIFixedScript(fixedScript);
+    setAIExplanation(explanation);
+    setAIConfidence(confidence);
+    setShowAIDiff(true);
+  };
+
+  const handleShowGuidance = (
+    _reason: string,
+    guidance: string,
+    _errorAnalysis?: { totalErrors?: number; categories?: string[] }
+  ) => {
+    setGuidanceMessage(guidance);
+    setShowGuidanceModal(true);
+  };
+
+  const handleAIAnalyzing = (analyzing: boolean) => {
+    setIsAIAnalyzing(analyzing);
+  };
+
+  const handleAcceptAIFix = (acceptedScript: string) => {
+    setEditorContent(acceptedScript);
+    setTestCase((prev) => ({ ...prev, script: acceptedScript }));
+    setShowAIDiff(false);
+
+    // Reset validation state since script has changed
+    setHasValidated(false);
+    setIsValid(false);
+    setValidationError(null);
+
+    // Reset test execution status since script changed
+    setTestExecutionStatus("none");
+
+    toast.success("AI fix applied", {
+      description:
+        "Script updated with AI-generated fixes. Please validate and test.",
+    });
+  };
+
+  const handleRejectAIFix = () => {
+    setShowAIDiff(false);
+    toast.info("AI fix discarded", {
+      description: "Original script remains unchanged.",
+    });
+  };
+
+  const handleCloseDiffViewer = () => {
+    setShowAIDiff(false);
+  };
+
+  const handleCloseGuidanceModal = () => {
+    setShowGuidanceModal(false);
+  };
+
   return (
     <>
       <LoadingOverlay isVisible={pageLoading} />
@@ -675,7 +828,7 @@ const Playground: React.FC<PlaygroundProps> = ({
       >
         <div className="md:hidden">{/* Mobile view */}</div>
         <div className="hidden flex-col flex-1 md:flex p-4  h-[calc(100vh-5rem)]">
-          <ResizablePanelGroup direction="horizontal" >
+          <ResizablePanelGroup direction="horizontal">
             <ResizablePanel defaultSize={70} minSize={30}>
               <div className="flex h-full flex-col">
                 <div className="flex items-center justify-between border-b bg-card p-4 py-2 rounded-tl-lg">
@@ -687,9 +840,20 @@ const Playground: React.FC<PlaygroundProps> = ({
                           value="editor"
                           className="flex items-center justify-center gap-2"
                         >
-                          <svg className="h-5 w-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="96" height="96" viewBox="0 0 48 48">
+                          <svg
+                            className="h-5 w-5 flex-shrink-0"
+                            xmlns="http://www.w3.org/2000/svg"
+                            x="0px"
+                            y="0px"
+                            width="96"
+                            height="96"
+                            viewBox="0 0 48 48"
+                          >
                             <path fill="#ffd600" d="M6,42V6h36v36H6z"></path>
-                            <path fill="#000001" d="M29.538 32.947c.692 1.124 1.444 2.201 3.037 2.201 1.338 0 2.04-.665 2.04-1.585 0-1.101-.726-1.492-2.198-2.133l-.807-.344c-2.329-.988-3.878-2.226-3.878-4.841 0-2.41 1.845-4.244 4.728-4.244 2.053 0 3.528.711 4.592 2.573l-2.514 1.607c-.553-.988-1.151-1.377-2.078-1.377-.946 0-1.545.597-1.545 1.377 0 .964.6 1.354 1.985 1.951l.807.344C36.452 29.645 38 30.839 38 33.523 38 36.415 35.716 38 32.65 38c-2.999 0-4.702-1.505-5.65-3.368L29.538 32.947zM17.952 33.029c.506.906 1.275 1.603 2.381 1.603 1.058 0 1.667-.418 1.667-2.043V22h3.333v11.101c0 3.367-1.953 4.899-4.805 4.899-2.577 0-4.437-1.746-5.195-3.368L17.952 33.029z"></path>
+                            <path
+                              fill="#000001"
+                              d="M29.538 32.947c.692 1.124 1.444 2.201 3.037 2.201 1.338 0 2.04-.665 2.04-1.585 0-1.101-.726-1.492-2.198-2.133l-.807-.344c-2.329-.988-3.878-2.226-3.878-4.841 0-2.41 1.845-4.244 4.728-4.244 2.053 0 3.528.711 4.592 2.573l-2.514 1.607c-.553-.988-1.151-1.377-2.078-1.377-.946 0-1.545.597-1.545 1.377 0 .964.6 1.354 1.985 1.951l.807.344C36.452 29.645 38 30.839 38 33.523 38 36.415 35.716 38 32.65 38c-2.999 0-4.702-1.505-5.65-3.368L29.538 32.947zM17.952 33.029c.506.906 1.275 1.603 2.381 1.603 1.058 0 1.667-.418 1.667-2.043V22h3.333v11.101c0 3.367-1.953 4.899-4.805 4.899-2.577 0-4.437-1.746-5.195-3.368L17.952 33.029z"
+                            ></path>
                           </svg>
                           <span>Editor</span>
                         </TabsTrigger>
@@ -702,35 +866,65 @@ const Playground: React.FC<PlaygroundProps> = ({
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
-                    
+
                     {/* Runtime Libraries Info */}
                     <div className="-ml-4">
                       <RuntimeInfoPopover />
                     </div>
                   </div>
-                  <Button
-                    onClick={runTest}
-                    disabled={isRunning || isValidating || !userCanRunTests}
-                    className="flex items-center gap-2 bg-[hsl(221.2,83.2%,53.3%)] text-white hover:bg-[hsl(221.2,83.2%,48%)] "
-                    size="sm"
-                  >
-                    {isValidating ? (
-                      <>
-                        <Loader2Icon className="h-4 w-4 animate-spin" />
-                        <span className="mr-2">Validating...</span>
-                      </>
-                    ) : isRunning ? (
-                      <>
-                        <Loader2Icon className="h-4 w-4 animate-spin" />
-                        <span className="mr-2">Running...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ZapIcon className="h-4 w-4" />
-                        <span className="mr-2">Run</span>
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {/* AI Fix Button - reserved space to prevent layout shift */}
+                    <div className="min-w-[80px]">
+                      <AIFixButton
+                        testId={executionTestId || ""}
+                        failedScript={editorContent}
+                        testType={testCase.type || "browser"}
+                        isVisible={
+                          // Check if AI Fix feature is enabled globally
+                          process.env.NEXT_PUBLIC_AI_FIX_ENABLED === 'true' &&
+                          // Always show when test execution is completely finished AND failed
+                          testExecutionStatus === "failed" &&
+                          !isRunning &&
+                          !isValidating &&
+                          !isReportLoading &&
+                          userCanRunTests &&
+                          !!executionTestId // Ensure we have an execution test ID
+                        }
+                        onAIFixSuccess={handleAIFixSuccess}
+                        onShowGuidance={handleShowGuidance}
+                        onAnalyzing={handleAIAnalyzing}
+                      />
+                    </div>
+
+                    <Button
+                      onClick={runTest}
+                      disabled={
+                        isRunning ||
+                        isValidating ||
+                        isAIAnalyzing ||
+                        !userCanRunTests
+                      }
+                      className="flex items-center gap-2 bg-[hsl(221.2,83.2%,53.3%)] text-white hover:bg-[hsl(221.2,83.2%,48%)] "
+                      size="sm"
+                    >
+                      {isValidating ? (
+                        <>
+                          <Loader2Icon className="h-4 w-4 animate-spin" />
+                          <span className="mr-2">Validating...</span>
+                        </>
+                      ) : isRunning ? (
+                        <>
+                          <Loader2Icon className="h-4 w-4 animate-spin" />
+                          <span className="mr-2">Running...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ZapIcon className="h-4 w-4" />
+                          <span className="mr-2">Run</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-hidden rounded-bl-lg">
@@ -760,7 +954,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                             />
                           </div>
                         )}
-                        
+
                         <div className="flex-1">
                           <CodeEditor
                             value={editorContent}
@@ -770,7 +964,7 @@ const Playground: React.FC<PlaygroundProps> = ({
                               if (hasValidated) {
                                 resetValidationState();
                               }
-                              if (testExecutionStatus !== 'none') {
+                              if (testExecutionStatus !== "none") {
                                 resetTestExecutionState();
                               }
                             }}
@@ -840,6 +1034,25 @@ const Playground: React.FC<PlaygroundProps> = ({
           </div>
         )}
       </div>
+
+      {/* AI Diff Viewer Modal */}
+      <AIDiffViewer
+        originalScript={editorContent}
+        fixedScript={aiFixedScript}
+        explanation={aiExplanation}
+        confidence={aiConfidence}
+        isVisible={showAIDiff}
+        onAccept={handleAcceptAIFix}
+        onReject={handleRejectAIFix}
+        onClose={handleCloseDiffViewer}
+      />
+
+      {/* Guidance Modal */}
+      <GuidanceModal
+        isVisible={showGuidanceModal}
+        guidance={guidanceMessage}
+        onClose={handleCloseGuidanceModal}
+      />
     </>
   );
 };

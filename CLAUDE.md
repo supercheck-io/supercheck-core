@@ -97,6 +97,7 @@ The database schema includes comprehensive tables for:
 - Configurable timeouts, capacity limits, and retry logic
 - Real-time status updates via Server-Sent Events (SSE)
 - Artifact storage in MinIO with presigned URL access
+- **AI-Powered Test Fix**: Intelligent test failure analysis and automated fix suggestions (see [AI Fix Setup Guide](./AI_FIX_SETUP.md))
 
 ### Job Scheduling
 
@@ -124,7 +125,7 @@ The database schema includes comprehensive tables for:
 2. **Testing**: Always run both app and worker lint commands before committing
 3. **Docker Development**: Use docker-compose for full-stack development with hot reloading
 4. **Multi-Architecture Builds**: Use `./scripts/docker-images.sh` for production builds
-5. **Production Deployment**: Images are built for `ghcr.io/krish-kant/supercheck/app:latest` and `ghcr.io/krish-kant/supercheck/worker:latest`
+5. **Production Deployment**: Images are built for `ghcr.io/supercheck-io/supercheck/app:latest` and `ghcr.io/supercheck-io/supercheck/worker:latest`
 6. **Migration Testing**: Test migrations locally before deploying to production
 
 ## Environment Configuration
@@ -137,6 +138,7 @@ Key environment variables are managed through Docker Compose and include:
 - Capacity limits (`RUNNING_CAPACITY`, `QUEUED_CAPACITY`)
 - Timeout configurations (`TEST_EXECUTION_TIMEOUT_MS`)
 - Super admin access (`SUPER_ADMIN_EMAILS`)
+- AI Fix feature configuration (`AI_FIX_ENABLED`, `AI_PROVIDER`, `AI_MODEL`, `OPENAI_API_KEY`)
 
 ## Testing Infrastructure
 
@@ -172,7 +174,7 @@ The project supports both `linux/amd64` and `linux/arm64` architectures:
 ./scripts/docker-images.sh
 
 # Check manifest for multi-arch support
-docker buildx imagetools inspect ghcr.io/krish-kant/supercheck/app:latest
+docker buildx imagetools inspect ghcr.io/supercheck-io/supercheck/app:latest
 ```
 
 ## Deployment Best Practices

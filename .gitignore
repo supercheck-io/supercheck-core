@@ -11,8 +11,8 @@
 .settings/
 *.sublime-workspace
 .claude/
-.docs/
-.specs/
+# .docs/
+# .specs/
 
 ## IDE - VSCode
 .vscode/*

@@ -34,6 +34,8 @@ declare module "@playwright/test" {
     fill(value: string, options?: { force?: boolean; timeout?: number; noWaitAfter?: boolean }): Promise<void>;
     /** Types text into the element. */
     type(text: string, options?: { delay?: number; timeout?: number; noWaitAfter?: boolean }): Promise<void>;
+    /** Presses a key on the element. */
+    press(key: string, options?: { delay?: number; timeout?: number; noWaitAfter?: boolean }): Promise<void>;
     /** Hovers over the element. */
     hover(options?: { force?: boolean; timeout?: number; position?: { x: number; y: number }; modifiers?: string[]; noWaitAfter?: boolean }): Promise<void>;
     /** Focuses the element. */
