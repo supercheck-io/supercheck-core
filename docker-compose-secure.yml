@@ -65,7 +65,7 @@ x-common-env: &common-env # Database Configuration
   # Better Auth Admin Configuration
   SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-super.admin@example.com}
   MAX_PROJECTS_PER_ORG: ${MAX_PROJECTS_PER_ORG:-10}
-  DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-"Default Project"}
+  DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-Default Project}
 
   # SMTP Email Configuration for Notifications
   # Supports any SMTP provider including Resend SMTP, Gmail, SendGrid, etc.
