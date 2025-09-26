@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: supercheck
+  labels:
+    app: postgres
+    component: database
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+    name: postgres
+  selector:
+    app: postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: supercheck
+  labels:
+    app: redis
+    component: cache
+spec:
+  type: ClusterIP
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+    name: redis
+  selector:
+    app: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-service
+  namespace: supercheck
+  labels:
+    app: minio
+    component: storage
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9000
+    targetPort: 9000
+    protocol: TCP
+    name: api
+  - port: 9001
+    targetPort: 9001
+    protocol: TCP
+    name: console
+  selector:
+    app: minio
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supercheck-app-service
+  namespace: supercheck
+  labels:
+    app: supercheck-app
+    component: frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: supercheck-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supercheck-worker-service
+  namespace: supercheck
+  labels:
+    app: supercheck-worker
+    component: worker
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3001
+    targetPort: 3001
+    protocol: TCP
+    name: http
+  selector:
+    app: supercheck-worker

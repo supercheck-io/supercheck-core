@@ -1,0 +1,208 @@
+version: "3.8"
+
+services:
+  # Development version with reduced resources and local port forwarding
+  supercheck-app:
+    image: ghcr.io/supercheck-io/supercheck/app:1.0.5-beta
+    environment:
+      # External Database Configuration
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - DB_SSL_MODE=require
+      - DB_CONNECTION_LIMIT=5
+      - DB_POOL_TIMEOUT=30000
+
+      # External Redis Configuration
+      - REDIS_URL_FILE=/run/secrets/redis_url
+      - REDIS_CONNECTION_TIMEOUT=5000
+      - REDIS_COMMAND_TIMEOUT=5000
+      - REDIS_MAX_RETRIES=3
+
+      # External S3 Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID_FILE=/run/secrets/aws_access_key_id
+      - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_access_key
+      - S3_JOB_BUCKET_NAME=supercheck-dev-job-artifacts
+      - S3_TEST_BUCKET_NAME=supercheck-dev-test-artifacts
+      - S3_FORCE_PATH_STYLE=false
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+
+      # App Configuration - Development
+      - NODE_ENV=development
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - BETTER_AUTH_URL=http://localhost:3000
+      - BETTER_AUTH_SECRET_FILE=/run/secrets/auth_secret
+      - RUNNING_CAPACITY=2  # Reduced for dev
+      - QUEUED_CAPACITY=10  # Reduced for dev
+      - TEST_EXECUTION_TIMEOUT_MS=120000
+      - JOB_EXECUTION_TIMEOUT_MS=900000
+
+      # Security Configuration
+      - CREDENTIAL_ENCRYPTION_KEY_FILE=/run/secrets/credential_encryption_key
+      - VARIABLES_ENCRYPTION_KEY_FILE=/run/secrets/variables_encryption_key
+
+      # Admin Configuration
+      - SUPER_ADMIN_EMAILS=dev@localhost
+      - MAX_PROJECTS_PER_ORG=5
+      - DEFAULT_PROJECT_NAME=Dev Project
+
+      # Playwright Configuration - Development
+      - PLAYWRIGHT_HEADLESS=false  # Show browser in dev
+      - PLAYWRIGHT_RETRIES=0       # No retries in dev
+      - PLAYWRIGHT_TRACE=on
+      - PLAYWRIGHT_SCREENSHOT=on
+      - PLAYWRIGHT_VIDEO=on
+      - ENABLE_FIREFOX=false
+      - ENABLE_WEBKIT=false
+      - ENABLE_MOBILE=false
+    secrets:
+      - database_url
+      - redis_url
+      - aws_access_key_id
+      - aws_secret_access_key
+      - auth_secret
+      - credential_encryption_key
+      - variables_encryption_key
+    ports:
+      - "3000:3000"
+    networks:
+      - supercheck-dev-network
+    deploy:
+      replicas: 1  # Single replica for dev
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 2
+      resources:
+        limits:
+          cpus: '0.5'  # Reduced for dev
+          memory: 1G   # Reduced for dev
+        reservations:
+          cpus: '0.2'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # Development Worker
+  supercheck-worker:
+    image: ghcr.io/supercheck-io/supercheck/worker:1.0.5-beta
+    environment:
+      # Database Configuration
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - DB_SSL_MODE=require
+      - DB_CONNECTION_LIMIT=3  # Reduced for dev
+      - DB_POOL_TIMEOUT=30000
+
+      # Redis Configuration
+      - REDIS_URL_FILE=/run/secrets/redis_url
+      - REDIS_CONNECTION_TIMEOUT=5000
+      - REDIS_COMMAND_TIMEOUT=5000
+      - REDIS_MAX_RETRIES=3
+
+      # S3 Configuration
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID_FILE=/run/secrets/aws_access_key_id
+      - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_access_key
+      - S3_JOB_BUCKET_NAME=supercheck-dev-job-artifacts
+      - S3_TEST_BUCKET_NAME=supercheck-dev-test-artifacts
+      - S3_FORCE_PATH_STYLE=false
+      - S3_OPERATION_TIMEOUT=10000
+      - S3_MAX_RETRIES=3
+
+      # Worker-specific configuration - Development
+      - NODE_ENV=development
+      - NODE_OPTIONS=--max-old-space-size=512 --expose-gc  # Reduced memory
+      - UV_THREADPOOL_SIZE=2  # Reduced threads
+      - RUNNING_CAPACITY=2    # Reduced capacity
+      - QUEUED_CAPACITY=10    # Reduced capacity
+      - TEST_EXECUTION_TIMEOUT_MS=120000
+      - JOB_EXECUTION_TIMEOUT_MS=900000
+
+      # Playwright Configuration - Development
+      - PLAYWRIGHT_HEADLESS=false  # Show browser in dev
+      - PLAYWRIGHT_RETRIES=0       # No retries in dev
+      - PLAYWRIGHT_TRACE=on
+      - PLAYWRIGHT_SCREENSHOT=on
+      - PLAYWRIGHT_VIDEO=on
+      - ENABLE_FIREFOX=false
+      - ENABLE_WEBKIT=false
+      - ENABLE_MOBILE=false
+    secrets:
+      - database_url
+      - redis_url
+      - aws_access_key_id
+      - aws_secret_access_key
+    ports:
+      - "3001:3001"
+    networks:
+      - supercheck-dev-network
+    deploy:
+      replicas: 1  # Single replica for dev
+      placement:
+        constraints:
+          - node.role == worker
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 2
+      resources:
+        limits:
+          cpus: '0.5'  # Reduced for dev
+          memory: 1G   # Reduced for dev
+        reservations:
+          cpus: '0.2'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+# Docker Secrets for sensitive data
+secrets:
+  database_url:
+    external: true
+  redis_url:
+    external: true
+  aws_access_key_id:
+    external: true
+  aws_secret_access_key:
+    external: true
+  auth_secret:
+    external: true
+  credential_encryption_key:
+    external: true
+  variables_encryption_key:
+    external: true
+
+# Docker Networks
+networks:
+  supercheck-dev-network:
+    driver: overlay
+    attachable: true
+    ipam:
+      config:
+        - subnet: 10.0.8.0/24
+
+# Docker Volumes (minimal for dev)
+volumes:
+  dev-cache:
+    driver: local

@@ -1,0 +1,109 @@
+version: "3.8"
+
+services:
+  # SigNoz OpenTelemetry Collector for Docker Swarm
+  signoz-collector:
+    image: signoz/signoz-otel-collector:0.88.17
+    environment:
+      # SigNoz Cloud Configuration
+      - SIGNOZ_ACCESS_TOKEN_FILE=/run/secrets/signoz_token
+      - SIGNOZ_ENDPOINT=https://ingest.{region}.signoz.cloud:443
+
+      # Resource Attributes for Service Identification
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=supercheck,service.version=1.0.0,deployment.environment=production,cluster.name=supercheck-prod
+
+      # Docker Swarm Specific Settings
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOST_PROC=/host/proc
+      - HOST_SYS=/host/sys
+      - HOST_VAR=/host/var
+
+      # Collector Configuration
+      - OTEL_EXPORTER_OTLP_COMPRESSION=gzip
+      - OTEL_EXPORTER_OTLP_TIMEOUT=10s
+
+    secrets:
+      - signoz_token
+
+    volumes:
+      # Docker socket for container discovery
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+      # Host system information
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/lib/docker/:/host/var/lib/docker:ro
+
+      # For filesystem metrics
+      - /:/hostfs:ro
+
+    networks:
+      - supercheck-network
+
+    deploy:
+      # Deploy on every node (managers and workers)
+      mode: global
+
+      # Resource limits to prevent impact on applications
+      resources:
+        limits:
+          cpus: '0.2'        # Max 0.2 CPU cores
+          memory: 256M       # Max 256MB RAM
+          pids: 1024         # Limit processes
+        reservations:
+          cpus: '0.1'        # Reserve 0.1 CPU cores
+          memory: 128M       # Reserve 128MB RAM
+
+      # Placement preferences
+      placement:
+        constraints:
+          # Can run on any node type
+          - node.platform.os == linux
+
+      # Update configuration
+      update_config:
+        parallelism: 2       # Update 2 collectors at a time
+        delay: 30s          # Wait 30s between updates
+        failure_action: rollback
+        monitor: 60s
+
+      # Restart policy
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:13133"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+        labels: "service,collector,monitoring"
+
+    # Security context
+    user: "0:0"  # Root required for Docker socket access
+
+    # Labels for identification
+    labels:
+      - "monitoring.signoz.collector=true"
+      - "monitoring.service=signoz"
+      - "environment=production"
+
+# Docker Secrets for secure token management
+secrets:
+  signoz_token:
+    external: true
+
+# Networks
+networks:
+  supercheck-network:
+    external: true

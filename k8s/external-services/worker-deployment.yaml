@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supercheck-worker
+  namespace: supercheck
+  labels:
+    app: supercheck-worker
+    component: worker
+spec:
+  replicas: 4  # Scalable based on test load
+  selector:
+    matchLabels:
+      app: supercheck-worker
+  template:
+    metadata:
+      labels:
+        app: supercheck-worker
+        component: worker
+    spec:
+      # No init containers needed - external services are managed
+      containers:
+      - name: worker
+        image: ghcr.io/supercheck-io/supercheck/worker:1.0.5-beta
+        ports:
+        - containerPort: 3001
+          name: http
+        envFrom:
+        - configMapRef:
+            name: supercheck-config
+        - secretRef:
+            name: supercheck-secrets
+        env:
+        # Worker-specific configuration for external services
+        - name: NODE_OPTIONS
+          value: "--max-old-space-size=1024 --expose-gc --experimental-worker"
+        - name: UV_THREADPOOL_SIZE
+          value: "4"
+        # Database connection optimization for workers
+        - name: DATABASE_POOL_MIN
+          value: "1"
+        - name: DATABASE_POOL_MAX
+          value: "5"
+        - name: REDIS_POOL_SIZE
+          value: "3"
+        # S3 upload optimization
+        - name: S3_MULTIPART_THRESHOLD
+          value: "10485760"  # 10MB
+        - name: S3_MULTIPART_CHUNKSIZE
+          value: "5242880"   # 5MB
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1500m"
+            ephemeral-storage: "2Gi"  # For Playwright browser downloads
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+        # Minimal volume mounts - only for temporary files
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: playwright-cache
+          mountPath: /home/node/.cache/ms-playwright
+      volumes:
+      - name: tmp-volume
+        emptyDir:
+          sizeLimit: 512Mi
+      - name: playwright-cache
+        emptyDir:
+          sizeLimit: 1Gi
+      # Anti-affinity for better distribution
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - supercheck-worker
+              topologyKey: kubernetes.io/hostname

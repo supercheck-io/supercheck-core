@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: supercheck-app-service
+  namespace: supercheck
+  labels:
+    app: supercheck-app
+    component: frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: supercheck-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supercheck-worker-service
+  namespace: supercheck
+  labels:
+    app: supercheck-worker
+    component: worker
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3001
+    targetPort: 3001
+    protocol: TCP
+    name: http
+  selector:
+    app: supercheck-worker

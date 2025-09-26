@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supercheck
+  labels:
+    name: supercheck
+    app.kubernetes.io/name: supercheck
+    app.kubernetes.io/part-of: supercheck-platform
