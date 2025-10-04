@@ -94,7 +94,9 @@ export class S3Service implements OnModuleInit {
       this.logger.log(`Ensuring test bucket exists: ${this.testBucketName}`);
       await this.ensureBucketExists(this.testBucketName);
 
-      this.logger.log(`Ensuring monitor bucket exists: ${this.monitorBucketName}`);
+      this.logger.log(
+        `Ensuring monitor bucket exists: ${this.monitorBucketName}`,
+      );
       await this.ensureBucketExists(this.monitorBucketName);
 
       this.logger.log('S3Service bucket initialization completed successfully');

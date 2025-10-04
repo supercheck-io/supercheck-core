@@ -32,8 +32,9 @@ services:
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
       - BETTER_AUTH_URL=http://localhost:3000
       - BETTER_AUTH_SECRET_FILE=/run/secrets/auth_secret
-      - RUNNING_CAPACITY=2  # Reduced for dev
-      - QUEUED_CAPACITY=10  # Reduced for dev
+      - RUNNING_CAPACITY=2 # Reduced for dev
+      - QUEUED_CAPACITY=10 # Reduced for dev
+      - MAX_CONCURRENT_EXECUTIONS=1 # Max parallel tests per worker (default: 1)
       - TEST_EXECUTION_TIMEOUT_MS=120000
       - JOB_EXECUTION_TIMEOUT_MS=900000
 
@@ -47,8 +48,8 @@ services:
       - DEFAULT_PROJECT_NAME=Dev Project
 
       # Playwright Configuration - Development
-      - PLAYWRIGHT_HEADLESS=false  # Show browser in dev
-      - PLAYWRIGHT_RETRIES=0       # No retries in dev
+      - PLAYWRIGHT_HEADLESS=false # Show browser in dev
+      - PLAYWRIGHT_RETRIES=0 # No retries in dev
       - PLAYWRIGHT_TRACE=on
       - PLAYWRIGHT_SCREENSHOT=on
       - PLAYWRIGHT_VIDEO=on
@@ -68,7 +69,7 @@ services:
     networks:
       - supercheck-dev-network
     deploy:
-      replicas: 1  # Single replica for dev
+      replicas: 1 # Single replica for dev
       placement:
         constraints:
           - node.role == manager
@@ -78,13 +79,22 @@ services:
         max_attempts: 2
       resources:
         limits:
-          cpus: '0.5'  # Reduced for dev
-          memory: 1G   # Reduced for dev
+          cpus: "0.5" # Reduced for dev
+          memory: 1G # Reduced for dev
         reservations:
-          cpus: '0.2'
+          cpus: "0.2"
           memory: 512M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health", "||", "exit", "1"]
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:3000/api/health",
+          "||",
+          "exit",
+          "1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -102,7 +112,7 @@ services:
       # Database Configuration
       - DATABASE_URL_FILE=/run/secrets/database_url
       - DB_SSL_MODE=require
-      - DB_CONNECTION_LIMIT=3  # Reduced for dev
+      - DB_CONNECTION_LIMIT=3 # Reduced for dev
       - DB_POOL_TIMEOUT=30000
 
       # Redis Configuration
@@ -123,16 +133,17 @@ services:
 
       # Worker-specific configuration - Development
       - NODE_ENV=development
-      - NODE_OPTIONS=--max-old-space-size=512 --expose-gc  # Reduced memory
-      - UV_THREADPOOL_SIZE=2  # Reduced threads
-      - RUNNING_CAPACITY=2    # Reduced capacity
-      - QUEUED_CAPACITY=10    # Reduced capacity
+      - NODE_OPTIONS=--max-old-space-size=512 --expose-gc # Reduced memory
+      - UV_THREADPOOL_SIZE=2 # Reduced threads
+      - RUNNING_CAPACITY=2 # Reduced capacity
+      - QUEUED_CAPACITY=10 # Reduced capacity
+      - MAX_CONCURRENT_EXECUTIONS=1 # Max parallel tests per worker (default: 1)
       - TEST_EXECUTION_TIMEOUT_MS=120000
       - JOB_EXECUTION_TIMEOUT_MS=900000
 
       # Playwright Configuration - Development
-      - PLAYWRIGHT_HEADLESS=false  # Show browser in dev
-      - PLAYWRIGHT_RETRIES=0       # No retries in dev
+      - PLAYWRIGHT_HEADLESS=false # Show browser in dev
+      - PLAYWRIGHT_RETRIES=0 # No retries in dev
       - PLAYWRIGHT_TRACE=on
       - PLAYWRIGHT_SCREENSHOT=on
       - PLAYWRIGHT_VIDEO=on
@@ -149,7 +160,7 @@ services:
     networks:
       - supercheck-dev-network
     deploy:
-      replicas: 1  # Single replica for dev
+      replicas: 1 # Single replica for dev
       placement:
         constraints:
           - node.role == worker
@@ -159,13 +170,14 @@ services:
         max_attempts: 2
       resources:
         limits:
-          cpus: '0.5'  # Reduced for dev
-          memory: 1G   # Reduced for dev
+          cpus: "0.5" # Reduced for dev
+          memory: 1G # Reduced for dev
         reservations:
-          cpus: '0.2'
+          cpus: "0.2"
           memory: 512M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health", "||", "exit", "1"]
+      test:
+        ["CMD", "curl", "-f", "http://localhost:3001/health", "||", "exit", "1"]
       interval: 30s
       timeout: 10s
       retries: 3

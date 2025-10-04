@@ -20,6 +20,7 @@ x-common-env: &common-env # Database Configuration
   NODE_ENV: ${NODE_ENV:-production}
   RUNNING_CAPACITY: ${RUNNING_CAPACITY:-6} # Optimized for 4-core server: 4 workers × 1.5 jobs per worker
   QUEUED_CAPACITY: ${QUEUED_CAPACITY:-50}
+  MAX_CONCURRENT_EXECUTIONS: ${MAX_CONCURRENT_EXECUTIONS:-1} # Max parallel tests per worker (default: 1, use worker replicas for parallelism)
   TEST_EXECUTION_TIMEOUT_MS: ${TEST_EXECUTION_TIMEOUT_MS:-120000}
   JOB_EXECUTION_TIMEOUT_MS: ${JOB_EXECUTION_TIMEOUT_MS:-900000}
 

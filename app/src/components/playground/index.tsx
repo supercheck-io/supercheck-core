@@ -15,7 +15,7 @@ import { TestForm } from "./test-form";
 import { LoadingOverlay } from "./loading-overlay";
 import { ValidationError } from "./validation-error";
 import { TestPriority, TestType } from "@/db/schema/schema";
-import { FileTextIcon, Loader2Icon, ZapIcon, Text } from "lucide-react";
+import { Loader2Icon, ZapIcon, Text } from "lucide-react";
 import * as z from "zod";
 import type { editor } from "monaco-editor";
 import type { ScriptType } from "@/lib/script-service";
@@ -775,6 +775,10 @@ const Playground: React.FC<PlaygroundProps> = ({
     guidance: string,
     _errorAnalysis?: { totalErrors?: number; categories?: string[] }
   ) => {
+    // Use errorAnalysis for debugging purposes
+    if (_errorAnalysis && process.env.NODE_ENV === "development") {
+      console.log("Error analysis for guidance:", _errorAnalysis);
+    }
     setGuidanceMessage(guidance);
     setShowGuidanceModal(true);
   };

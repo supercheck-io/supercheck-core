@@ -13,6 +13,7 @@ data:
   NODE_ENV: "production"
   RUNNING_CAPACITY: "6"
   QUEUED_CAPACITY: "50"
+  MAX_CONCURRENT_EXECUTIONS: "1"
   TEST_EXECUTION_TIMEOUT_MS: "120000"
   JOB_EXECUTION_TIMEOUT_MS: "900000"
 
@@ -32,7 +33,7 @@ data:
   AWS_REGION: "us-east-1"
   S3_JOB_BUCKET_NAME: "supercheck-job-artifacts"
   S3_TEST_BUCKET_NAME: "supercheck-test-artifacts"
-  S3_FORCE_PATH_STYLE: "false"  # Set to true for MinIO compatibility
+  S3_FORCE_PATH_STYLE: "false" # Set to true for MinIO compatibility
   S3_OPERATION_TIMEOUT: "10000"
   S3_MAX_RETRIES: "3"
 

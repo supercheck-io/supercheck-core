@@ -111,7 +111,7 @@ export class ExecutionService implements OnModuleDestroy {
   private readonly jobExecutionTimeoutMs: number;
   private readonly playwrightConfigPath: string;
   private readonly baseLocalRunDir: string;
-  private readonly maxConcurrentExecutions = 1; // Simple: one execution at a time
+  private readonly maxConcurrentExecutions: number; // Configurable via MAX_CONCURRENT_EXECUTIONS env var
   private readonly memoryThresholdMB = 2048; // 2GB memory threshold
   private activeExecutions: Map<
     string,
@@ -134,6 +134,12 @@ export class ExecutionService implements OnModuleDestroy {
     this.jobExecutionTimeoutMs = this.configService.get<number>(
       'JOB_EXECUTION_TIMEOUT_MS',
       900000, // 15 minutes default
+    );
+
+    // Set max concurrent executions: configurable via env var with sensible default
+    this.maxConcurrentExecutions = this.configService.get<number>(
+      'MAX_CONCURRENT_EXECUTIONS',
+      1, // Default to 1 for backward compatibility
     );
 
     // Determine Playwright config path
@@ -439,11 +445,18 @@ export class ExecutionService implements OnModuleDestroy {
    * Runs a single test defined by the task data.
    * Adapted from the original test worker handler.
    */
-  async runSingleTest(task: TestExecutionTask, bypassConcurrencyCheck = false, isMonitorExecution = false): Promise<TestResult> {
+  async runSingleTest(
+    task: TestExecutionTask,
+    bypassConcurrencyCheck = false,
+    isMonitorExecution = false,
+  ): Promise<TestResult> {
     const { testId, code } = task;
 
     // Check concurrency limits (unless bypassed for monitors)
-    if (!bypassConcurrencyCheck && this.activeExecutions.size >= this.maxConcurrentExecutions) {
+    if (
+      !bypassConcurrencyCheck &&
+      this.activeExecutions.size >= this.maxConcurrentExecutions
+    ) {
       throw new Error(
         `Maximum concurrent executions limit reached: ${this.maxConcurrentExecutions}`,
       );
@@ -571,7 +584,10 @@ export class ExecutionService implements OnModuleDestroy {
             // Removed log for finding report in default location
             try {
               // Process the report files to fix trace URLs before uploading
-              await this._processReportFilesForS3(playwrightReportDir, executionId);
+              await this._processReportFilesForS3(
+                playwrightReportDir,
+                executionId,
+              );
 
               // Upload the playwright-report directory contents
               await this.s3Service.uploadDirectory(
@@ -716,7 +732,10 @@ export class ExecutionService implements OnModuleDestroy {
             );
             try {
               // Process the report files to fix trace URLs before uploading
-              await this._processReportFilesForS3(playwrightReportDir, executionId);
+              await this._processReportFilesForS3(
+                playwrightReportDir,
+                executionId,
+              );
 
               // Upload the playwright-report directory contents
               await this.s3Service.uploadDirectory(
@@ -1482,7 +1501,12 @@ export class ExecutionService implements OnModuleDestroy {
       shell?: boolean;
       timeout?: number; // Add timeout option
     } = {},
-  ): Promise<{ success: boolean; stdout: string; stderr: string; executionTimeMs?: number }> {
+  ): Promise<{
+    success: boolean;
+    stdout: string;
+    stderr: string;
+    executionTimeMs?: number;
+  }> {
     const startTime = Date.now();
     return new Promise((resolve) => {
       try {

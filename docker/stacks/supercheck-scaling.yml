@@ -8,7 +8,7 @@ services:
       # Database Configuration (External - Neon/PlanetScale)
       - DATABASE_URL_FILE=/run/secrets/database_url
       - DB_SSL_MODE=require
-      - DB_CONNECTION_LIMIT=50  # Increased for paid plans
+      - DB_CONNECTION_LIMIT=50 # Increased for paid plans
       - DB_POOL_TIMEOUT=30000
 
       # Redis Configuration (External - Redis Cloud)
@@ -16,7 +16,7 @@ services:
       - REDIS_CONNECTION_TIMEOUT=5000
       - REDIS_COMMAND_TIMEOUT=5000
       - REDIS_MAX_RETRIES=3
-      - REDIS_POOL_SIZE=20  # Increased for concurrent job management
+      - REDIS_POOL_SIZE=20 # Increased for concurrent job management
 
       # External S3 Configuration
       - AWS_REGION=us-east-1
@@ -35,21 +35,22 @@ services:
       - BETTER_AUTH_SECRET_FILE=/run/secrets/auth_secret
 
       # Increased capacity for paid plans
-      - RUNNING_CAPACITY=2500  # Support 2500 concurrent tests
-      - QUEUED_CAPACITY=5000   # Queue up to 5000 tests
-      - TEST_EXECUTION_TIMEOUT_MS=300000  # 5 minutes max per test
-      - JOB_EXECUTION_TIMEOUT_MS=1800000  # 30 minutes max per job
+      - RUNNING_CAPACITY=2500 # Support 2500 concurrent tests
+      - QUEUED_CAPACITY=5000 # Queue up to 5000 tests
+      - MAX_CONCURRENT_EXECUTIONS=5 # Max parallel tests per worker (increased for scaling)
+      - TEST_EXECUTION_TIMEOUT_MS=300000 # 5 minutes max per test
+      - JOB_EXECUTION_TIMEOUT_MS=1800000 # 30 minutes max per job
 
       # Multi-tenant Configuration
-      - MAX_CONCURRENT_TESTS_BASIC=5      # Basic plan limit
-      - MAX_CONCURRENT_TESTS_PRO=20       # Pro plan limit
-      - MAX_CONCURRENT_TESTS_ENTERPRISE=100  # Enterprise plan limit
+      - MAX_CONCURRENT_TESTS_BASIC=5 # Basic plan limit
+      - MAX_CONCURRENT_TESTS_PRO=20 # Pro plan limit
+      - MAX_CONCURRENT_TESTS_ENTERPRISE=100 # Enterprise plan limit
 
       # Resource Management
       - WORKER_SCALING_ENABLED=true
-      - AUTO_SCALE_THRESHOLD=80  # Scale when 80% capacity used
-      - SCALE_UP_COOLDOWN=60     # Wait 1 minute before scaling up
-      - SCALE_DOWN_COOLDOWN=300  # Wait 5 minutes before scaling down
+      - AUTO_SCALE_THRESHOLD=80 # Scale when 80% capacity used
+      - SCALE_UP_COOLDOWN=60 # Wait 1 minute before scaling up
+      - SCALE_DOWN_COOLDOWN=300 # Wait 5 minutes before scaling down
 
       # Performance Configuration
       - CREDENTIAL_ENCRYPTION_KEY_FILE=/run/secrets/credential_encryption_key
@@ -73,12 +74,12 @@ services:
     networks:
       - supercheck-network
     deploy:
-      replicas: 3  # High availability for paid service
+      replicas: 3 # High availability for paid service
       placement:
         constraints:
           - node.role == worker
         preferences:
-          - spread: node.labels.zone  # Spread across zones
+          - spread: node.labels.zone # Spread across zones
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -95,13 +96,19 @@ services:
         monitor: 60s
       resources:
         limits:
-          cpus: '2.0'
+          cpus: "2.0"
           memory: 4G
         reservations:
-          cpus: '1.0'
+          cpus: "1.0"
           memory: 2G
     healthcheck:
-      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3000, path: '/api/health', timeout: 5000}, (res) => process.exit(res.statusCode < 400 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3000, path: '/api/health', timeout: 5000}, (res) => process.exit(res.statusCode < 400 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -128,7 +135,7 @@ services:
       # Database Configuration (Connection pooling optimized)
       - DATABASE_URL_FILE=/run/secrets/database_url
       - DB_SSL_MODE=require
-      - DB_CONNECTION_LIMIT=10  # Per worker instance
+      - DB_CONNECTION_LIMIT=10 # Per worker instance
       - DB_POOL_TIMEOUT=30000
 
       # Redis Configuration (Job queue management)
@@ -147,25 +154,26 @@ services:
       - S3_FORCE_PATH_STYLE=false
       - S3_OPERATION_TIMEOUT=10000
       - S3_MAX_RETRIES=3
-      - S3_MULTIPART_THRESHOLD=10485760  # 10MB
-      - S3_MULTIPART_CHUNKSIZE=5242880   # 5MB
+      - S3_MULTIPART_THRESHOLD=10485760 # 10MB
+      - S3_MULTIPART_CHUNKSIZE=5242880 # 5MB
 
       # Worker-specific Configuration for Paid Plans
       - NODE_ENV=production
       - NODE_OPTIONS=--max-old-space-size=2048 --expose-gc --experimental-worker
-      - UV_THREADPOOL_SIZE=8  # Increased for concurrent processing
+      - UV_THREADPOOL_SIZE=8 # Increased for concurrent processing
 
       # Concurrent Test Management
-      - MAX_CONCURRENT_TESTS_PER_WORKER=5  # 5 concurrent tests per worker
-      - TEST_ISOLATION_ENABLED=true        # Isolate tests from each other
-      - BROWSER_INSTANCE_REUSE=false       # Fresh browser per test
-      - WORKER_ID=${HOSTNAME}              # Unique worker identification
+      - MAX_CONCURRENT_TESTS_PER_WORKER=5 # 5 concurrent tests per worker
+      - MAX_CONCURRENT_EXECUTIONS=5 # Max parallel tests per worker (matches above)
+      - TEST_ISOLATION_ENABLED=true # Isolate tests from each other
+      - BROWSER_INSTANCE_REUSE=false # Fresh browser per test
+      - WORKER_ID=${HOSTNAME} # Unique worker identification
 
       # Performance Configuration
-      - TEST_EXECUTION_TIMEOUT_MS=300000   # 5 minutes max
-      - JOB_EXECUTION_TIMEOUT_MS=1800000   # 30 minutes max
-      - MEMORY_CLEANUP_INTERVAL=30000      # Clean up every 30 seconds
-      - FORCE_GC_INTERVAL=60000            # Force garbage collection every minute
+      - TEST_EXECUTION_TIMEOUT_MS=300000 # 5 minutes max
+      - JOB_EXECUTION_TIMEOUT_MS=1800000 # 30 minutes max
+      - MEMORY_CLEANUP_INTERVAL=30000 # Clean up every 30 seconds
+      - FORCE_GC_INTERVAL=60000 # Force garbage collection every minute
 
       # Playwright Configuration for Paid Plans
       - PLAYWRIGHT_HEADLESS=true
@@ -181,7 +189,7 @@ services:
 
       # Resource Management
       - ENABLE_MEMORY_MONITORING=true
-      - MAX_MEMORY_USAGE_MB=1800  # Leave 200MB buffer
+      - MAX_MEMORY_USAGE_MB=1800 # Leave 200MB buffer
       - RESTART_ON_MEMORY_LEAK=true
 
     secrets:
@@ -192,7 +200,7 @@ services:
     networks:
       - supercheck-network
     deploy:
-      replicas: 20  # Start with 20 workers (100 concurrent tests)
+      replicas: 20 # Start with 20 workers (100 concurrent tests)
       placement:
         constraints:
           - node.role == worker
@@ -203,7 +211,7 @@ services:
         delay: 10s
         max_attempts: 3
       update_config:
-        parallelism: 5  # Update 5 workers at a time
+        parallelism: 5 # Update 5 workers at a time
         delay: 15s
         failure_action: rollback
         monitor: 30s
@@ -214,14 +222,20 @@ services:
         monitor: 30s
       resources:
         limits:
-          cpus: '2.0'    # 2 CPU cores per worker
-          memory: 2G     # 2GB RAM per worker
-          pids: 4096     # Limit processes to prevent fork bombs
+          cpus: "2.0" # 2 CPU cores per worker
+          memory: 2G # 2GB RAM per worker
+          pids: 4096 # Limit processes to prevent fork bombs
         reservations:
-          cpus: '1.0'    # Reserve 1 CPU core
-          memory: 1G     # Reserve 1GB RAM
+          cpus: "1.0" # Reserve 1 CPU core
+          memory: 1G # Reserve 1GB RAM
     healthcheck:
-      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3001, path: '/health', timeout: 5000}, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3001, path: '/health', timeout: 5000}, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -233,14 +247,13 @@ services:
         max-file: "3"
         labels: "service,worker_id,plan"
     volumes:
-      - /tmp:/tmp  # Shared tmp for Playwright
+      - /tmp:/tmp # Shared tmp for Playwright
     # Security context for test isolation
-    user: "1000:1000"  # Non-root user
+    user: "1000:1000" # Non-root user
     # Anti-affinity to spread workers across nodes
-    deploy:
-      placement:
-        preferences:
-          - spread: node.id
+    placement:
+      preferences:
+        - spread: node.id
 
   # Traefik with Rate Limiting for Paid Plans
   traefik:
@@ -289,7 +302,7 @@ services:
     networks:
       - supercheck-network
     deploy:
-      replicas: 2  # High availability for paid service
+      replicas: 2 # High availability for paid service
       placement:
         constraints:
           - node.role == manager
@@ -299,10 +312,10 @@ services:
         max_attempts: 3
       resources:
         limits:
-          cpus: '1.0'
+          cpus: "1.0"
           memory: 1G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 512M
       labels:
         - "traefik.enable=true"
@@ -334,7 +347,7 @@ networks:
   supercheck-network:
     driver: overlay
     attachable: true
-    encrypted: true  # Encrypted for paid plan security
+    encrypted: true # Encrypted for paid plan security
     ipam:
       config:
         - subnet: 10.0.9.0/24

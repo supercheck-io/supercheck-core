@@ -454,7 +454,10 @@ export class MonitorService {
           break;
 
         case 'synthetic_test': {
-          const syntheticResult = await this.executeSyntheticTest(jobData.monitorId, jobData.config);
+          const syntheticResult = await this.executeSyntheticTest(
+            jobData.monitorId,
+            jobData.config,
+          );
           status = syntheticResult.status;
           details = syntheticResult.details;
           responseTimeMs = syntheticResult.responseTimeMs;
@@ -2096,13 +2099,18 @@ export class MonitorService {
         `[${monitorId}] Executing Playwright test: ${test.title}`,
       );
 
-      const testResult = await this.executionService.runSingleTest({
-        testId: test.id,
-        code: decodedScript,
-      }, true, true); // Bypass concurrency check and use unique execution IDs for monitor executions
+      const testResult = await this.executionService.runSingleTest(
+        {
+          testId: test.id,
+          code: decodedScript,
+        },
+        true,
+        true,
+      ); // Bypass concurrency check and use unique execution IDs for monitor executions
 
       // Use actual test execution time if available, otherwise fall back to total time
-      const responseTimeMs = testResult.executionTimeMs ?? (Date.now() - startTime);
+      const responseTimeMs =
+        testResult.executionTimeMs ?? Date.now() - startTime;
 
       // 5. Convert test result to monitor result format
       if (testResult.success) {
