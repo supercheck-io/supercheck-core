@@ -21,9 +21,7 @@ export class MonitorProcessor extends WorkerHost {
     job: Job<MonitorJobDataDto, MonitorExecutionResult | null, string>,
   ): Promise<MonitorExecutionResult | null> {
     if (job.name === EXECUTE_MONITOR_JOB_NAME) {
-      this.logger.log(
-        `Executing monitor check for ${(job.data as any).type} on target: ${(job.data as any).target} (Job ID: ${job.id})`,
-      );
+      // Removed log - only log errors and important events
       return this.monitorService.executeMonitor(job.data);
     }
 
@@ -35,10 +33,14 @@ export class MonitorProcessor extends WorkerHost {
 
   @OnWorkerEvent('completed')
   onCompleted(job: Job, result: MonitorExecutionResult) {
-    this.logger.log(
-      `Job ${job.id} (monitor ${job.data?.monitorId}) has completed processing in runner.`,
-    );
+    // Removed log - only log errors and important events
     if (result) {
+      // Debug: Log the result object to see what BullMQ is passing
+      if (result.testExecutionId) {
+        this.logger.log(
+          `[PROCESSOR] Monitor result has testExecutionId: ${result.testExecutionId}, testReportS3Url: ${result.testReportS3Url}`,
+        );
+      }
       void this.monitorService.saveMonitorResult(result);
     }
   }
@@ -60,8 +62,6 @@ export class MonitorProcessor extends WorkerHost {
     job: Job<MonitorJobDataDto, MonitorExecutionResult, string>,
     progress: number | object,
   ) {
-    this.logger.log(
-      `Job ${job.id} (monitor ${(job.data as any)?.monitorId}) reported progress: ${JSON.stringify(progress)}`,
-    );
+    // Removed log - progress updates are too verbose
   }
 }

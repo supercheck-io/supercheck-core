@@ -18,6 +18,10 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
+import React from "react";
+
+// Type for icon that accepts both LucideIcon and custom React components
+type IconComponent = LucideIcon | React.ComponentType<{ className?: string }>;
 
 export function NavMain({
   groupLabel,
@@ -27,13 +31,13 @@ export function NavMain({
   items: {
     title: string;
     url: string;
-    icon?: LucideIcon;
+    icon?: IconComponent;
     isActive?: boolean;
     badge?: string;
     items?: {
       title: string;
       url: string;
-      icon?: LucideIcon;
+      icon?: IconComponent;
       color?: string;
     }[];
   }[];

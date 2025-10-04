@@ -14,6 +14,7 @@ export interface TestResult {
   testId: string;
   stdout: string;
   stderr: string;
+  executionTimeMs?: number; // Actual test execution time in milliseconds (for synthetic monitors)
 }
 
 // Represents a test script to be executed as part of a job

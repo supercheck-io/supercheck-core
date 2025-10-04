@@ -49,39 +49,33 @@ export async function fetchQueueStats(): Promise<QueueStats> {
     // Initialize counters
     let runningCount = 0;
     let queuedCount = 0;
-    
-    // Step 1: Count all ACTIVE jobs and tests (currently executing)
-    const [activeJobs, activeTests] = await Promise.all([
-      redisClient.llen(`bull:${JOB_EXECUTION_QUEUE}:active`),
-      redisClient.llen(`bull:${TEST_EXECUTION_QUEUE}:active`)
-    ]);
-    
+
+    // Step 1: Count only ACTIVE jobs (NOT tests - tests bypass parallel execution queue)
+    const activeJobs = await redisClient.llen(`bull:${JOB_EXECUTION_QUEUE}:active`);
+
     // Active jobs are definitely running
-    runningCount = activeJobs + activeTests;
+    runningCount = activeJobs;
     
-    // Step 2: Check specific jobs that are being processed
-    const [jobKeys, testKeys] = await Promise.all([
-      redisClient.keys(`bull:${JOB_EXECUTION_QUEUE}:*`),
-      redisClient.keys(`bull:${TEST_EXECUTION_QUEUE}:*`)
-    ]);
-    
-    // Process job and test keys to find in-progress executions
+    // Step 2: Check specific jobs (only) that are being processed
+    const jobKeys = await redisClient.keys(`bull:${JOB_EXECUTION_QUEUE}:*`);
+
+    // Process job keys to find in-progress executions
     const processKeys = async (keys: string[], queueName: string) => {
       const processingIds = new Set<string>();
-      
+
       for (const key of keys) {
         // Get job ID from key
         const match = key.match(new RegExp(`bull:${queueName}:(\\d+)`));
         if (match && match[1]) {
           const jobId = match[1];
-          
+
           try {
             // Check if job is being processed but not yet completed
             const [processedOn, finishedOn] = await Promise.all([
               redisClient.hget(`bull:${queueName}:${jobId}`, 'processedOn'),
               redisClient.hget(`bull:${queueName}:${jobId}`, 'finishedOn')
             ]);
-            
+
             if (processedOn && !finishedOn) {
               processingIds.add(jobId);
             }
@@ -90,33 +84,24 @@ export async function fetchQueueStats(): Promise<QueueStats> {
           }
         }
       }
-      
+
       return processingIds.size;
     };
+
+    // Count in-process jobs only (tests are excluded from parallel execution queue)
+    const processingJobs = await processKeys(jobKeys, JOB_EXECUTION_QUEUE);
+
+    // Add processing jobs to running count
+    runningCount = Math.max(runningCount, processingJobs);
     
-    // Count in-process jobs and tests
-    const [processingJobs, processingTests] = await Promise.all([
-      processKeys(jobKeys, JOB_EXECUTION_QUEUE),
-      processKeys(testKeys, TEST_EXECUTION_QUEUE)
-    ]);
-    
-    // Add processing jobs/tests to running count
-    runningCount = Math.max(runningCount, processingJobs + processingTests);
-    
-    // Step 3: Count all WAITING jobs that should be executed when capacity allows
-    const [waitingJobs, waitingTests] = await Promise.all([
-      redisClient.llen(`bull:${JOB_EXECUTION_QUEUE}:wait`),
-      redisClient.llen(`bull:${TEST_EXECUTION_QUEUE}:wait`)
-    ]);
-    
+    // Step 3: Count only WAITING jobs (tests bypass parallel execution queue)
+    const waitingJobs = await redisClient.llen(`bull:${JOB_EXECUTION_QUEUE}:wait`);
+
     // Get delayed jobs (scheduled for future)
-    const [delayedJobs, delayedTests] = await Promise.all([
-      redisClient.zcard(`bull:${JOB_EXECUTION_QUEUE}:delayed`),
-      redisClient.zcard(`bull:${TEST_EXECUTION_QUEUE}:delayed`)
-    ]);
-    
-    // Calculate total waiting jobs
-    const totalWaiting = waitingJobs + waitingTests + delayedJobs + delayedTests;
+    const delayedJobs = await redisClient.zcard(`bull:${JOB_EXECUTION_QUEUE}:delayed`);
+
+    // Calculate total waiting jobs (only job executions, not tests)
+    const totalWaiting = waitingJobs + delayedJobs;
     
     // Step 4: Properly handle running and queued counts
     // First determine how many jobs we can still run before hitting capacity

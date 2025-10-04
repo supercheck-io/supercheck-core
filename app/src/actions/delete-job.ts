@@ -8,6 +8,7 @@ import { requireProjectContext } from "@/lib/project-context";
 import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { createS3CleanupService, type ReportDeletionInput } from "@/lib/s3-cleanup";
+import { deleteScheduledJob } from "@/lib/job-scheduler";
 
 type JobDeletionResult = {
   success: boolean;
@@ -196,7 +197,21 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
     // Handle cleanup tasks outside the transaction
     if (transactionResult.success && 'jobData' in transactionResult) {
       console.log("[DELETE_JOB] Transaction successful, starting cleanup tasks...");
-      
+
+      // Unschedule the job from BullMQ to stop execution
+      try {
+        console.log("[DELETE_JOB] Unscheduling job from BullMQ...");
+        const unscheduled = await deleteScheduledJob(jobId);
+        if (unscheduled) {
+          console.log(`[DELETE_JOB] Successfully unscheduled job ${jobId}`);
+        } else {
+          console.log(`[DELETE_JOB] No BullMQ schedule found for job ${jobId} (may not have been scheduled)`);
+        }
+      } catch (scheduleError) {
+        console.error("[DELETE_JOB] Error unscheduling job (job still deleted):", scheduleError);
+        // Continue with other cleanup even if unscheduling fails
+      }
+
       // S3 cleanup - delete all report files from S3
       if (transactionResult.reportsToDelete && transactionResult.reportsToDelete.length > 0) {
         try {

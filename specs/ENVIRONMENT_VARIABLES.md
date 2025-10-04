@@ -54,7 +54,7 @@ JOB_EXECUTION_TIMEOUT_MS=900000     # 15 minutes
 PLAYWRIGHT_HEADLESS=true
 PLAYWRIGHT_RETRIES=2
 PLAYWRIGHT_TRACE=on              # Default: on
-PLAYWRIGHT_SCREENSHOT=on         # Default: on  
+PLAYWRIGHT_SCREENSHOT=on         # Default: on
 PLAYWRIGHT_VIDEO=on              # Default: on
 
 # Browser Support (disabled by default for performance)
@@ -142,8 +142,13 @@ SMTP_FROM_EMAIL=test@gmail.com  # Default: test@gmail.com
 ### Monitoring
 
 ```env
-# Monitor Configuration  
-RECENT_MONITOR_RESULTS_LIMIT=10000    # Limit for recent monitor results display
+# Monitor Data Cleanup Configuration
+MONITOR_CLEANUP_ENABLED=true          # Enable/disable automated cleanup (default: true)
+MONITOR_CLEANUP_CRON="0 2 * * *"      # Cleanup schedule - 2 AM daily (default)
+MONITOR_RETENTION_DAYS=30             # Days to retain monitor data (default: 30)
+MONITOR_CLEANUP_BATCH_SIZE=1000       # Batch size for deletions (default: 1000)
+MONITOR_PRESERVE_STATUS_CHANGES=true  # Keep status change events (default: true)
+MONITOR_CLEANUP_SAFETY_LIMIT=1000000  # Max records per cleanup run (default: 1M)
 
 # Additional Traefik Variables (for docker-compose-secure.yml)
 DOMAIN=demo.supercheck.io             # Your domain name

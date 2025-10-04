@@ -59,12 +59,12 @@ export class JobSchedulerProcessor extends WorkerHost {
     }>,
   ) {
     const jobId = job.data?.jobId;
-    
+
     if (!jobId) {
       this.logger.error(`Job ID is undefined or null in job data:`, job.data);
       return;
     }
-    
+
     try {
       const data = job.data;
       this.logger.log(`Handling scheduled job trigger for job ${jobId}`);
@@ -207,7 +207,7 @@ export class JobSchedulerProcessor extends WorkerHost {
       this.logger.error('Cannot handle error for undefined jobId:', error);
       return;
     }
-    
+
     try {
       await this.dbService.db
         .update(jobs)

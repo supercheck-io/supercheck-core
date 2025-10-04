@@ -89,8 +89,8 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
   const currentType = monitor.type;
 
   // Check if monitor.type is directly one of the FormValues types
-  const formValueTypes = ["http_request", "website", "ping_host", "port_check"] as const;
-  
+  const formValueTypes = ["http_request", "website", "ping_host", "port_check", "synthetic_test"] as const;
+
   if ((formValueTypes as readonly string[]).includes(currentType)) {
     formType = currentType as FormValues["type"];
   } else {
@@ -167,6 +167,9 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
     // Website SSL-specific
     websiteConfig_enableSslCheck: formType === "website" ? (monitor.config?.enableSslCheck || false) : false,
     websiteConfig_sslDaysUntilExpirationWarning: formType === "website" ? (monitor.config?.sslDaysUntilExpirationWarning || 30) : 30,
+
+    // Synthetic test specific
+    syntheticConfig_testId: formType === "synthetic_test" ? (monitor.config?.testId || "") : "",
   };
 
   // Debug: Log the prepared form data for troubleshooting

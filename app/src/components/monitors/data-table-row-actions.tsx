@@ -132,8 +132,7 @@ export function DataTableRowActions<TData>({
         throw new Error(result?.error || "Failed to delete monitor");
       }
 
-      toast.success("Monitor deleted successfully", {
-        description: `Monitor "${monitor.name}" has been permanently removed.`,
+      toast.success(`Monitor "${monitor.name}" deleted successfully.`, {
         id: deleteToastId, // Update the loading toast
         duration: 5000, // Add auto-dismiss after 5 seconds
       });

@@ -550,7 +550,6 @@ export class NotificationService {
     }
   }
 
-
   private async sendSlackNotification(
     config: any,
     formatted: FormattedNotification,

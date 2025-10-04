@@ -47,13 +47,16 @@ export function RunsClient() {
   const fetchRuns = useCallback(async () => {
     safeSetIsLoading(true);
     try {
-      const response = await fetch('/api/runs');
-      const fetchedRuns = await response.json();
-      
+      const response = await fetch('/api/runs?limit=100');
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error(fetchedRuns.error || 'Failed to fetch runs');
+        throw new Error(result.error || 'Failed to fetch runs');
       }
-      
+
+      // Handle new paginated response format
+      const fetchedRuns = result.data || result;
+
       // Cast status and map nulls to undefined
       const typedRuns = fetchedRuns.map((run: { 
         status?: string; 

@@ -11,6 +11,7 @@ import {
   boolean,
   unique,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 import {
   createInsertSchema,
@@ -23,13 +24,16 @@ import { z } from 'zod';
    AUTH SCHEMA
    -------------------------------
    Tables required by better-auth, modified to use UUIDs.
+   Using UUIDv7 for time-ordered IDs with better indexing performance (PostgreSQL 18+).
 =================================== */
 
 /**
  * Stores user information for authentication and identification.
  */
 export const user = pgTable('user', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').default(false).notNull(),
@@ -46,7 +50,9 @@ export const user = pgTable('user', {
  * Represents an organization or a company account.
  */
 export const organization = pgTable('organization', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   name: text('name').notNull(),
   slug: text('slug').unique(),
   logo: text('logo'),
@@ -60,7 +66,9 @@ export const organization = pgTable('organization', {
 export const member = pgTable(
   'member',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => sql`uuidv7()`),
     organizationId: uuid('organization_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
@@ -79,7 +87,9 @@ export const member = pgTable(
  * Stores pending invitations for users to join an organization.
  */
 export const invitation = pgTable('invitation', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   organizationId: uuid('organization_id')
     .notNull()
     .references(() => organization.id, { onDelete: 'cascade' }),
@@ -97,7 +107,9 @@ export const invitation = pgTable('invitation', {
  * Manages user sessions for authentication.
  */
 export const session = pgTable('session', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   expiresAt: timestamp('expires_at').notNull(),
   token: text('token').notNull().unique(),
   createdAt: timestamp('created_at').notNull(),
@@ -118,7 +130,9 @@ export const session = pgTable('session', {
  * Stores provider-specific account information for OAuth.
  */
 export const account = pgTable('account', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   accountId: text('account_id'),
   providerId: text('provider_id').notNull(),
   userId: uuid('user_id')
@@ -139,7 +153,9 @@ export const account = pgTable('account', {
  * Stores tokens for email verification or password resets.
  */
 export const verification = pgTable('verification', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
@@ -151,7 +167,9 @@ export const verification = pgTable('verification', {
  * Manages API keys for programmatic access.
  */
 export const apikey = pgTable('apikey', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   name: text('name'),
   start: text('start'),
   prefix: text('prefix'),
@@ -190,7 +208,9 @@ export const apikey = pgTable('apikey', {
  * Represents a project within an organization.
  */
 export const projects = pgTable('projects', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   organizationId: uuid('organization_id')
     .notNull()
     .references(() => organization.id),
@@ -212,7 +232,9 @@ export const projects = pgTable('projects', {
 export const projectMembers = pgTable(
   'project_members',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => sql`uuidv7()`),
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -233,7 +255,9 @@ export type TestType = 'browser' | 'api' | 'database' | 'custom';
  * Stores test definitions and scripts.
  */
 export const tests = pgTable('tests', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   organizationId: uuid('organization_id').references(() => organization.id, {
     onDelete: 'cascade',
   }),
@@ -255,7 +279,7 @@ export const tests = pgTable('tests', {
     .notNull()
     .default('browser'),
   createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  updatedAt: timestamp('updated_at'),
 });
 
 export type JobStatus = 'pending' | 'running' | 'passed' | 'failed' | 'error';
@@ -287,7 +311,9 @@ export type AlertConfig = {
  * Defines scheduled or on-demand jobs that run a collection of tests.
  */
 export const jobs = pgTable('jobs', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   organizationId: uuid('organization_id').references(() => organization.id, {
     onDelete: 'cascade',
   }),
@@ -309,7 +335,7 @@ export const jobs = pgTable('jobs', {
   nextRunAt: timestamp('next_run_at'),
   scheduledJobId: varchar('scheduled_job_id', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  updatedAt: timestamp('updated_at'),
 });
 
 /**
@@ -348,7 +374,9 @@ export type ArtifactPaths = {
  * Records the execution history and results of a job run.
  */
 export const runs = pgTable('runs', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   jobId: uuid('job_id')
     .notNull()
     .references(() => jobs.id),
@@ -380,7 +408,9 @@ export type ReportType = 'test' | 'job';
 export const reports = pgTable(
   'reports',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => sql`uuidv7()`),
     organizationId: uuid('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
     }),
@@ -390,7 +420,7 @@ export const reports = pgTable(
     entityType: varchar('entity_type', { length: 50 })
       .$type<ReportType>()
       .notNull(),
-    entityId: uuid('entity_id').notNull(),
+    entityId: text('entity_id').notNull(), // Changed from uuid to support extended execution IDs
     reportPath: varchar('report_path', { length: 255 }).notNull(),
     status: varchar('status', { length: 50 }).notNull().default('passed'),
     s3Url: varchar('s3_url', { length: 1024 }),
@@ -409,7 +439,8 @@ export type MonitorType =
   | 'http_request'
   | 'website'
   | 'ping_host'
-  | 'port_check';
+  | 'port_check'
+  | 'synthetic_test';
 
 /**
  * Represents the current status of a monitor.
@@ -458,6 +489,14 @@ export type MonitorConfig = {
     backoffFactor: number;
   };
   alertChannels?: string[];
+  // Synthetic test specific settings
+  testId?: string;
+  testTitle?: string; // Cached test title for display
+  playwrightOptions?: {
+    headless?: boolean;
+    timeout?: number;
+    retries?: number;
+  };
   [key: string]: unknown;
 };
 
@@ -465,7 +504,9 @@ export type MonitorConfig = {
  * Defines monitoring configurations for services or endpoints.
  */
 export const monitors = pgTable('monitors', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   organizationId: uuid('organization_id').references(() => organization.id, {
     onDelete: 'cascade',
   }),
@@ -492,7 +533,7 @@ export const monitors = pgTable('monitors', {
   mutedUntil: timestamp('muted_until'),
   scheduledJobId: varchar('scheduled_job_id', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  updatedAt: timestamp('updated_at'),
 });
 
 export type MonitorResultStatus = 'up' | 'down' | 'error' | 'timeout';
@@ -522,7 +563,9 @@ export type MonitorResultDetails = {
  * Stores the results of each monitor check.
  */
 export const monitorResults = pgTable('monitor_results', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   monitorId: uuid('monitor_id')
     .notNull()
     .references(() => monitors.id, { onDelete: 'cascade' }),
@@ -538,6 +581,9 @@ export const monitorResults = pgTable('monitor_results', {
     .notNull()
     .default(0),
   alertsSentForFailure: integer('alerts_sent_for_failure').notNull().default(0),
+  // For synthetic monitors - store test execution metadata
+  testExecutionId: text('test_execution_id'), // Unique execution ID (for accessing reports)
+  testReportS3Url: text('test_report_s3_url'), // Full S3 URL to the report
 });
 
 /**
@@ -546,7 +592,9 @@ export const monitorResults = pgTable('monitor_results', {
 export const tags = pgTable(
   'tags',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => sql`uuidv7()`),
     organizationId: uuid('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
     }),
@@ -647,7 +695,9 @@ export type NotificationProviderConfig = {
  * Configures different channels for sending alerts (e.g., email, Slack).
  */
 export const notificationProviders = pgTable('notification_providers', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   organizationId: uuid('organization_id').references(() => organization.id, {
     onDelete: 'cascade',
   }),
@@ -680,7 +730,9 @@ export type AlertStatus = 'sent' | 'failed' | 'pending';
  * Logs the history of alerts that have been sent.
  */
 export const alertHistory = pgTable('alert_history', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   message: text('message').notNull(),
   type: varchar('type', { length: 50 }).$type<AlertType>().notNull(),
   target: varchar('target', { length: 255 }).notNull(),
@@ -752,7 +804,9 @@ export type AuditDetails = {
  * Records a log of all significant actions performed by users.
  */
 export const auditLogs = pgTable('audit_logs', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   userId: uuid('user_id').references(() => user.id),
   organizationId: uuid('organization_id').references(() => organization.id),
   action: varchar('action', { length: 255 }).notNull(),
@@ -774,7 +828,9 @@ export type NotificationContent = {
  * A generic table for storing user-facing notifications.
  */
 export const notifications = pgTable('notifications', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   userId: uuid('user_id')
     .notNull()
     .references(() => user.id),
@@ -795,7 +851,9 @@ export const notifications = pgTable('notifications', {
  * Configures alert settings for monitors.
  */
 export const alerts = pgTable('alerts', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
   organizationId: uuid('organization_id').references(() => organization.id, {
     onDelete: 'cascade',
   }),
@@ -860,7 +918,9 @@ export const notificationProvidersSelectSchema = createSelectSchema(
 export const projectVariables = pgTable(
   'project_variables',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => sql`uuidv7()`),
     projectId: uuid('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),

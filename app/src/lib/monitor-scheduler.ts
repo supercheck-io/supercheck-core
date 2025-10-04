@@ -15,21 +15,18 @@ interface ScheduleMonitorOptions {
  */
 export async function scheduleMonitor(options: ScheduleMonitorOptions): Promise<string> {
   try {
-    console.log(`Setting up scheduled monitor "${options.monitorId}" with frequency ${options.frequencyMinutes} minutes`);
-
     const { monitorSchedulerQueue } = await getQueues();
     const schedulerJobName = `scheduled-monitor-${options.monitorId}`;
 
     // Clean up any existing repeatable jobs for this monitor ID
     const repeatableJobs = await monitorSchedulerQueue.getRepeatableJobs();
-    const existingJob = repeatableJobs.find(job => 
-      job.id === options.monitorId || 
-      job.key.includes(options.monitorId) || 
+    const existingJob = repeatableJobs.find(job =>
+      job.id === options.monitorId ||
+      job.key.includes(options.monitorId) ||
       job.name === schedulerJobName
     );
-    
+
     if (existingJob) {
-      console.log(`Removing existing repeatable job: ${existingJob.key}`);
       await monitorSchedulerQueue.removeRepeatableByKey(existingJob.key);
     }
 
@@ -52,7 +49,6 @@ export async function scheduleMonitor(options: ScheduleMonitorOptions): Promise<
       }
     );
 
-    console.log(`Created monitor scheduler ${options.monitorId} with frequency ${options.frequencyMinutes} minutes`);
     return options.monitorId;
   } catch (error) {
     console.error(`Failed to schedule monitor:`, error);
@@ -65,30 +61,33 @@ export async function scheduleMonitor(options: ScheduleMonitorOptions): Promise<
  */
 export async function deleteScheduledMonitor(schedulerId: string): Promise<boolean> {
   try {
-    console.log(`Removing monitor scheduler ${schedulerId}`);
-    
     const { monitorSchedulerQueue } = await getQueues();
     const repeatableJobs = await monitorSchedulerQueue.getRepeatableJobs();
     const schedulerJobName = `scheduled-monitor-${schedulerId}`;
 
-    const jobsToRemove = repeatableJobs.filter(job => 
-      job.id === schedulerId || 
+    console.log(`[DELETE_MONITOR] Attempting to delete scheduled monitor: ${schedulerId}`);
+    console.log(`[DELETE_MONITOR] Found ${repeatableJobs.length} total repeatable jobs in queue`);
+
+    const jobsToRemove = repeatableJobs.filter(job =>
+      job.id === schedulerId ||
       job.key.includes(schedulerId) ||
       job.name === schedulerJobName ||
       job.key.includes(schedulerJobName)
     );
-    
+
     if (jobsToRemove.length > 0) {
+      console.log(`[DELETE_MONITOR] Found ${jobsToRemove.length} jobs to remove for monitor ${schedulerId}:`, jobsToRemove.map(j => ({ key: j.key, name: j.name, id: j.id })));
+
       const removePromises = jobsToRemove.map(async (job) => {
-        console.log(`Removing repeatable job with key ${job.key}`);
+        console.log(`[DELETE_MONITOR] Removing job with key: ${job.key}`);
         return monitorSchedulerQueue.removeRepeatableByKey(job.key);
       });
-      
+
       await Promise.all(removePromises);
-      console.log(`Removed ${jobsToRemove.length} repeatable jobs for scheduler ${schedulerId}`);
+      console.log(`[DELETE_MONITOR] Successfully removed ${jobsToRemove.length} scheduled jobs for monitor ${schedulerId}`);
       return true;
     } else {
-      console.log(`No repeatable jobs found for scheduler ${schedulerId}`);
+      console.warn(`[DELETE_MONITOR] No scheduled jobs found for monitor ${schedulerId} (searched for ID: ${schedulerId}, name: ${schedulerJobName})`);
       return false;
     }
   } catch (error) {
@@ -107,37 +106,30 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`Initializing monitor schedulers (attempt ${attempt}/${maxRetries})...`);
-      
       // Test Redis connection first
       const { monitorSchedulerQueue } = await getQueues();
       const redisClient = await monitorSchedulerQueue.client;
       await redisClient.ping();
-      console.log('✅ Redis connection verified for monitor scheduler');
-      
+
       const activeMonitors = await db
         .select()
         .from(monitorSchemaDb)
         .where(and(
-          isNotNull(monitorSchemaDb.frequencyMinutes), 
+          isNotNull(monitorSchemaDb.frequencyMinutes),
           eq(monitorSchemaDb.enabled, true),
           ne(monitorSchemaDb.status, 'paused')
         ));
-        
-      console.log(`Found ${activeMonitors.length} active monitors to initialize`);
-      
+
       if (activeMonitors.length === 0) {
-        console.log('No monitors found to schedule - initialization complete');
         return { success: true, scheduled: 0, failed: 0 };
       }
-      
+
       let scheduledCount = 0;
       let failedCount = 0;
-      
+
       for (const monitor of activeMonitors) {
         if (monitor.frequencyMinutes && monitor.frequencyMinutes > 0) {
           try {
-            console.log(`Scheduling monitor ${monitor.id} (${monitor.name}) with ${monitor.frequencyMinutes}min frequency`);
             
             const jobDataPayload: MonitorJobData = {
               monitorId: monitor.id,
@@ -159,20 +151,16 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
               .update(monitorSchemaDb)
               .set({ scheduledJobId: schedulerId })
               .where(eq(monitorSchemaDb.id, monitor.id));
-              
-            console.log(`✅ Initialized monitor scheduler ${schedulerId} for monitor ${monitor.id} (${monitor.name})`);
+
             scheduledCount++;
           } catch (error) {
-            console.error(`❌ Failed to initialize scheduler for monitor ${monitor.id} (${monitor.name}):`, error);
+            console.error(`Failed to initialize monitor scheduler ${monitor.id}:`, error);
             failedCount++;
           }
         } else {
-          console.warn(`⚠️ Monitor ${monitor.id} has invalid frequency: ${monitor.frequencyMinutes}`);
           failedCount++;
         }
       }
-      
-      console.log(`Monitor scheduler initialization complete: ${scheduledCount} succeeded, ${failedCount} failed`);
       
       // Consider initialization successful if at least some monitors were scheduled
       // or if there were no monitors to schedule
@@ -181,14 +169,12 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
       
     } catch (error) {
       console.error(`Failed to initialize monitor schedulers (attempt ${attempt}/${maxRetries}):`, error);
-      
+
       if (attempt === maxRetries) {
-        console.error('❌ All retry attempts exhausted for monitor scheduler initialization');
         return { success: false, scheduled: 0, failed: 0 };
       }
-      
+
       // Wait before retrying
-      console.log(`⏳ Retrying monitor scheduler initialization in ${retryDelay}ms...`);
       await new Promise(resolve => setTimeout(resolve, retryDelay));
     }
   }
@@ -203,11 +189,8 @@ export async function initializeMonitorSchedulers(): Promise<{ success: boolean;
  */
 export async function cleanupMonitorScheduler(): Promise<boolean> {
   try {
-    console.log("Cleaning up monitor scheduler...");
-    
     const { monitorSchedulerQueue } = await getQueues();
     const repeatableJobs = await monitorSchedulerQueue.getRepeatableJobs();
-    console.log(`Found ${repeatableJobs.length} repeatable jobs in Redis`);
     
     // Get all monitors with schedules from the database
     const monitorsWithSchedules = await db
@@ -228,20 +211,13 @@ export async function cleanupMonitorScheduler(): Promise<boolean> {
     });
     
     if (orphanedJobs.length > 0) {
-      console.log(`Found ${orphanedJobs.length} orphaned repeatable jobs to clean up`);
-      
       const removePromises = orphanedJobs.map(async (job) => {
-        console.log(`Removing orphaned repeatable job: ${job.key}`);
         return monitorSchedulerQueue.removeRepeatableByKey(job.key);
       });
-      
+
       await Promise.all(removePromises);
-      console.log(`Removed ${orphanedJobs.length} orphaned repeatable jobs`);
-    } else {
-      console.log("No orphaned repeatable jobs found");
     }
-    
-    console.log("Monitor scheduler cleanup complete");
+
     return true;
   } catch (error) {
     console.error("Failed to cleanup monitor scheduler:", error);

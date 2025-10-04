@@ -9,6 +9,7 @@ import {
   ChevronsLeftRightEllipsis,
   ArrowLeftRight,
 } from "lucide-react";
+import { PlaywrightLogo } from "@/components/logo/playwright-logo";
 
 
 export const monitorStatuses = [
@@ -55,28 +56,35 @@ export const monitorTypes = [
     label: "HTTP Monitor",
     value: "http_request",
     icon: ArrowLeftRight,
-    color: "text-teal-600", 
+    color: "text-teal-600",
     description: "Check HTTP/S endpoints (availability, status, response time)",
   },
   {
     label: "Website Monitor",
     value: "website",
     icon: LaptopMinimal,
-    color: "text-blue-600", 
+    color: "text-blue-600",
     description: "Monitor website availability and performance with optional SSL certificate checking",
   },
   {
     label: "Ping Monitor",
     value: "ping_host",
     icon: ChevronsLeftRightEllipsis,
-    color: "text-indigo-500", 
+    color: "text-indigo-500",
     description: "ICMP ping to a host",
   },
   {
     label: "Port Monitor",
     value: "port_check",
     icon: EthernetPort,
-    color: "text-sky-600", 
+    color: "text-sky-600",
     description: "Check specific TCP or UDP port",
+  },
+  {
+    label: "Synthetic Monitor",
+    value: "synthetic_test",
+    icon: PlaywrightLogo,
+    color: "text-purple-600",
+    description: "Run Playwright tests on schedule to monitor critical user flows",
   },
 ];

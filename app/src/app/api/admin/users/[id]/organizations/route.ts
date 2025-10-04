@@ -28,7 +28,7 @@ export async function GET(
       .from(member)
       .innerJoin(organization, eq(member.organizationId, organization.id))
       .where(eq(member.userId, resolvedParams.id))
-      .orderBy(member.createdAt);
+      .orderBy(member.id); // UUIDv7 is time-ordered (PostgreSQL 18+)
     
     // Normalize roles for consistent frontend handling
     const normalizedOrganizations = userOrganizations.map(org => ({

@@ -16,14 +16,15 @@ export class TestExecutionProcessor extends WorkerHost {
 
   @OnWorkerEvent('active')
   onActive(job: Job) {
-    this.logger.log(`[Event:active] Job ${job.id} has started.`);
+    // Removed log - only log errors and completion
   }
 
   @OnWorkerEvent('completed')
   onCompleted(job: Job, result: unknown) {
-    this.logger.log(
-      `[Event:completed] Job ${job.id} completed with result: ${JSON.stringify(result)}`,
-    );
+    // Only log completion summary, not full result
+    const testResult = result as any;
+    const status = testResult?.success ? 'passed' : 'failed';
+    this.logger.log(`Test ${job.id} completed: ${status}`);
   }
 
   @OnWorkerEvent('failed')
@@ -45,18 +46,13 @@ export class TestExecutionProcessor extends WorkerHost {
 
   @OnWorkerEvent('ready')
   onReady() {
-    // This indicates the underlying BullMQ worker is connected and ready
-    this.logger.log(
-      '[Event:ready] Worker is connected to Redis and ready to process jobs.',
-    );
+    // Removed log - only log errors and completion
   }
 
   async process(job: Job<TestExecutionTask>): Promise<TestResult> {
     const testId = job.data.testId;
     const startTime = new Date();
-    this.logger.log(
-      `[${testId}] Test execution job ID: ${job.id} received for processing`,
-    );
+    // Removed log - only log completion summary
 
     try {
       await job.updateProgress(10);
@@ -70,9 +66,7 @@ export class TestExecutionProcessor extends WorkerHost {
       const durationSeconds = Math.floor(durationMs / 1000);
 
       await job.updateProgress(100);
-      this.logger.log(
-        `[${testId}] Test execution job ID: ${job.id} completed. Success: ${result.success}, Duration: ${durationSeconds}s`,
-      );
+      // Logging moved to onCompleted event handler
 
       // The result object (TestResult) from the service is returned
       return result;

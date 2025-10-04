@@ -47,10 +47,11 @@ export async function GET(request: Request) {
       const total = totalResults.length;
       
       // Get paginated results
+      // Using ID ordering instead of createdAt since UUIDv7 is time-ordered (PostgreSQL 18+)
       const baseQuery = db
         .select()
         .from(monitors)
-        .orderBy(desc(monitors.createdAt))
+        .orderBy(desc(monitors.id))
         .limit(limit)
         .offset(offset);
       
@@ -84,9 +85,9 @@ export async function GET(request: Request) {
             eq(monitors.projectId, projectId),
             eq(monitors.organizationId, organizationId)
           ))
-          .orderBy(desc(monitors.createdAt));
+          .orderBy(desc(monitors.id)); // UUIDv7 is time-ordered (PostgreSQL 18+)
       } else {
-        monitorsList = await baseQuery.orderBy(desc(monitors.createdAt));
+        monitorsList = await baseQuery.orderBy(desc(monitors.id)); // UUIDv7 is time-ordered (PostgreSQL 18+)
       }
 
       return NextResponse.json(monitorsList);
@@ -117,8 +118,50 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate target - all monitor types require a target except heartbeat (where it's auto-generated)
-    if (rawData.type !== "heartbeat" && !rawData.target) {
+    // Validate target - all monitor types require a target except heartbeat and synthetic_test
+    if (rawData.type === "synthetic_test") {
+      // For synthetic monitors, validate testId in config
+      if (!rawData.config?.testId) {
+        return NextResponse.json({
+          error: "testId is required in config for synthetic monitors",
+          details: "Please select a test to monitor"
+        }, { status: 400 });
+      }
+
+      // Verify test exists and user has access
+      const { tests } = await import("@/db/schema/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      const test = await db.query.tests.findFirst({
+        where: and(
+          eq(tests.id, rawData.config.testId),
+          eq(tests.projectId, project.id),
+          eq(tests.organizationId, organizationId)
+        ),
+        columns: {
+          id: true,
+          title: true,
+          type: true,
+        }
+      });
+
+      if (!test) {
+        return NextResponse.json({
+          error: "Test not found or access denied",
+          details: "The selected test does not exist or you do not have permission to access it"
+        }, { status: 404 });
+      }
+
+      // Auto-set target to testId for consistency
+      rawData.target = rawData.config.testId;
+
+      // Cache test title in config for display purposes
+      if (!rawData.config.testTitle) {
+        rawData.config.testTitle = test.title;
+      }
+
+      console.log("[MONITOR_CREATE] Creating synthetic monitor for test:", test.title);
+    } else if (rawData.type !== "heartbeat" && !rawData.target) {
       return NextResponse.json({ error: "Target is required for this monitor type" }, { status: 400 });
     }
 
@@ -304,12 +347,45 @@ export async function PUT(req: NextRequest) {
     
     // Check permission to manage monitors
     const canManage = await hasPermission('monitor', 'manage', { organizationId, projectId: project.id });
-    
+
     if (!canManage) {
       return NextResponse.json(
         { error: 'Insufficient permissions to update monitors' },
         { status: 403 }
       );
+    }
+
+    // Validate synthetic test monitor updates
+    if (rawData.type === "synthetic_test" && rawData.config?.testId) {
+      const { tests } = await import("@/db/schema/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      const test = await db.query.tests.findFirst({
+        where: and(
+          eq(tests.id, rawData.config.testId),
+          eq(tests.projectId, project.id),
+          eq(tests.organizationId, organizationId)
+        ),
+        columns: {
+          id: true,
+          title: true,
+          type: true,
+        }
+      });
+
+      if (!test) {
+        return NextResponse.json({
+          error: "Test not found or access denied",
+          details: "The selected test does not exist or you do not have permission to access it"
+        }, { status: 404 });
+      }
+
+      // Update cached test title
+      if (!rawData.config.testTitle) {
+        rawData.config.testTitle = test.title;
+      }
+
+      console.log("[MONITOR_UPDATE] Updating synthetic monitor for test:", test.title);
     }
 
     // Prepare alert configuration - ensure it's properly structured

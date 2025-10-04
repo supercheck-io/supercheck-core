@@ -36,7 +36,7 @@ flowchart TB
         A1[User Interface]
         B1[ReportViewer Component]
     end
-    
+
     subgraph "API Layer"
         C1["API Test Route"]
         C2["API Jobs Run Route"]
@@ -44,13 +44,13 @@ flowchart TB
         C4["Playground Cleanup API"]
         C5["Script Validation API"]
     end
-    
+
     subgraph "Queue System"
         D1[Redis]
         D2[BullMQ]
         D3[Playground Cleanup Queue]
     end
-    
+
     subgraph "Worker Service"
         E1[Worker Process]
         E2[Test Execution Service]
@@ -58,19 +58,19 @@ flowchart TB
         E4[Enhanced Validation Service]
         E5[General Validation Service]
     end
-    
+
     subgraph "Background Services"
         G1[Playground Cleanup Service]
         G2[S3 Cleanup Service]
         G3[Scheduled Cleanup Worker]
     end
-    
+
     subgraph "Storage"
         F1[(PostgreSQL)]
         F2[Local Filesystem]
         F3[MinIO/S3]
     end
-    
+
     A1 -->|Validate Script| C5
     C5 -->|Validation Response| A1
     A1 -->|Execute Test/Job| C1
@@ -94,10 +94,10 @@ flowchart TB
     F1 <-->|Store/Retrieve Metadata| C1
     F1 <-->|Store/Retrieve Metadata| C2
     F1 <-->|Retrieve Report Metadata| C3
-    
+
     %% Playground Cleanup Flow
     G1 -->|Schedule Cleanup Jobs| D3
-    D3 <-->|Store Cleanup Jobs| D1  
+    D3 <-->|Store Cleanup Jobs| D1
     D3 -->|Process Cleanup| G3
     G3 -->|Batch Delete S3 Objects| G2
     G2 -->|Delete Reports| F3
@@ -140,7 +140,7 @@ sequenceDiagram
     NestJS->>Redis: Publish 'running' status with TTL
     Redis-->>NextAPI: Message: status='running'
     NextAPI-->>NextFE: SSE event: status='running'
-    
+
     %% Test execution process
     NestJS->>NestJS: Validate test script
     NestJS->>NestJS: Create test run directory with unique ID
@@ -150,7 +150,7 @@ sequenceDiagram
     activate PW
     PW-->>NestJS: Return execution results
     deactivate PW
-    
+
     %% Handling test results
     NestJS->>NestJS: Search for reports in expected directories
     NestJS->>NestJS: Process report files to fix trace URLs
@@ -170,10 +170,12 @@ sequenceDiagram
 ### 1. Single Test Execution (Playground)
 
 1. **User Initiates Test**:
+
    - User enters test code in the Playground UI
    - Clicks "Run Test" button
 
 2. **API Request Processing**:
+
    - Frontend sends a POST request to `/api/test` with test code
    - API generates a unique test ID
    - Creates a run entry in the database with "pending" status
@@ -181,6 +183,7 @@ sequenceDiagram
    - Returns the test ID and report URL path to the frontend
 
 3. **Worker Processing**:
+
    - The test execution worker picks up the queued test
    - Creates a temporary directory for test artifacts
    - Writes the test code to a JavaScript file
@@ -188,12 +191,14 @@ sequenceDiagram
    - Publishes real-time status updates via Redis pub/sub
 
 4. **Report Generation**:
+
    - Playwright generates an HTML report with test results
    - The report includes screenshots, videos, and traces
    - Report is stored locally in the configured output directory
    - For persistence, the report is uploaded to S3/MinIO
 
 5. **Status Updates**:
+
    - Worker updates the test status in the database
    - Publishes status updates via Redis for real-time updates
    - Frontend receives updates via Server-Sent Events (SSE)
@@ -206,10 +211,12 @@ sequenceDiagram
 ### 2. Job Execution Flow (Multiple Tests)
 
 1. **User Initiates Job**:
+
    - User selects a job from the jobs UI
    - Clicks "Run" to execute the job
 
 2. **API Request Processing**:
+
    - Frontend sends a POST request to `/api/jobs/run` with job ID
    - API fetches all test scripts associated with the job
    - Creates a run entry in the database with "pending" status
@@ -218,6 +225,7 @@ sequenceDiagram
    - Returns the run ID and initial report URL path to the frontend
 
 3. **Worker Processing**:
+
    - The job execution worker picks up the queued job
    - Creates a run directory for the job's test artifacts
    - Writes each test script to separate JavaScript files
@@ -225,12 +233,14 @@ sequenceDiagram
    - Publishes real-time status updates via Redis pub/sub
 
 4. **Report Generation**:
+
    - Playwright generates a combined HTML report
    - The report includes results for all tests in the job
    - Worker uploads the report and artifacts to S3/MinIO
    - Report metadata is stored in the database for quick lookup
 
 5. **Status Updates**:
+
    - Worker updates the run status in the database
    - Publishes job status updates via Redis
    - Frontend receives updates via Server-Sent Events (SSE)
@@ -249,6 +259,7 @@ The application includes a sophisticated parallel execution system that provides
 1. **Parallel Executions:** Each test or job run counts as a separate "execution" that consumes execution capacity.
 
 2. **Capacity Limits:** The system enforces two primary limits:
+
    - **Running Capacity (default: 5):** Maximum number of concurrent executions that can run simultaneously.
    - **Queued Capacity (default: 50):** Maximum number of executions that can be queued when running capacity is full.
 
@@ -263,6 +274,7 @@ The application includes a sophisticated parallel execution system that provides
 The system enforces capacity limits at multiple levels:
 
 1. **API Layer Enforcement (QUEUED_CAPACITY):**
+
    - Before adding a job to the queue, the API checks if queued capacity is exceeded
    - If queue is full, the API rejects the submission with a 429 status code
    - Prevents overloading the system with too many pending executions
@@ -281,6 +293,7 @@ These multi-level checks ensure the system maintains stability under heavy load 
 The application uses BullMQ with Redis for job queuing:
 
 - **Queues**:
+
   - `test-execution`: For single test executions
   - `job-execution`: For running multiple tests as part of a job
   - `playground-cleanup`: For scheduled cleanup of old playground test reports
@@ -296,6 +309,7 @@ The application uses BullMQ with Redis for job queuing:
 The NestJS worker service processes queued jobs:
 
 - **Processors**:
+
   - `TestExecutionProcessor`: Handles single test execution and enforces running capacity
   - `JobExecutionProcessor`: Handles job execution with multiple tests and enforces running capacity
 
@@ -311,10 +325,12 @@ The NestJS worker service processes queued jobs:
 Test reports are stored in multiple locations:
 
 - **Local Storage**:
+
   - Test results are initially stored on the local filesystem
   - Default locations are defined in the Playwright configuration
 
 - **S3/MinIO Storage**:
+
   - Test reports and artifacts are uploaded for persistence
   - Organized by test/job IDs to allow easy retrieval
   - Accessible via the API layer or directly from S3 (if authenticated)
@@ -328,6 +344,7 @@ Test reports are stored in multiple locations:
 Status updates use a publish/subscribe pattern:
 
 - **Publishers**:
+
   - Worker service publishes status updates to Redis channels
   - Channels are named based on test/job IDs
 
@@ -340,6 +357,7 @@ Status updates use a publish/subscribe pattern:
 The system includes comprehensive validation services to ensure security and reliability:
 
 - **Script Validation Service** (`ValidationService`):
+
   - Pre-execution validation of test scripts
   - Security checks for dangerous patterns and blocked identifiers
   - Module import validation (only allows approved libraries)
@@ -347,12 +365,14 @@ The system includes comprehensive validation services to ensure security and rel
   - Protection against code injection and infinite loops
 
 - **Enhanced Validation Service** (`EnhancedValidationService`):
+
   - URL and hostname validation with SSRF protection
   - HTTP configuration validation
   - Port and security validation
   - Private IP range detection and blocking
 
 - **General Validation Service** (Zod-based):
+
   - Schema-based input validation
   - Type-safe data transformation
   - Structured error handling
@@ -367,22 +387,26 @@ The system includes comprehensive validation services to ensure security and rel
 The system includes a sophisticated Redis memory management strategy to prevent unbounded memory growth:
 
 - **Key TTL (Time-To-Live) Settings**:
+
   - **Job Data (7 days)**: Completed and failed jobs are retained for analysis
   - **Event Streams (24 hours)**: Real-time status updates expire after a day
   - **Metrics Data (48 hours)**: Performance metrics are kept for two days
 
 - **Automated Cleanup Mechanisms**:
+
   - **Job Cleanup**: Regular cleaning of completed/failed jobs older than TTL
   - **Event Stream Trimming**: Event streams capped at 1000 events
   - **Orphaned Key Detection**: Background workers scan for keys without TTL and add expiration
 
 - **Memory Optimization Techniques**:
+
   - **Batched Processing**: Keys are processed in small batches (100 at a time)
   - **Efficient Key Scanning**: Uses Redis SCAN instead of KEYS to reduce memory pressure
   - **Reduced Storage Limits**: Lower limits for completed jobs (500) and failed jobs (1000)
   - **Frequent Cleanup**: Cleanup operations run every 12 hours
 
 - **BullMQ Configuration**:
+
   - Queue configuration follows NestJS BullMQ best practices
   - Default job options set job removal limits (500 completed/1000 failed jobs)
   - Worker processors implement proper stalled job handling
@@ -399,18 +423,22 @@ The system includes a sophisticated Redis memory management strategy to prevent 
 The system implements several error handling mechanisms:
 
 1. **Queue-Level Retries**:
+
    - BullMQ automatically retries failed jobs with backoff
    - Maximum retry attempts are configurable
 
 2. **Execution Timeouts**:
+
    - Tests are terminated if they exceed the configured timeout
    - Default timeout is 15 minutes (configurable)
 
 3. **Worker Crash Recovery**:
+
    - Jobs are marked as "stalled" if workers crash
    - BullMQ automatically reprocesses stalled jobs
 
 4. **Report Fallbacks**:
+
    - If S3 upload fails, local report access is attempted
    - Error reports are still generated for failed tests
 
@@ -425,18 +453,21 @@ The system implements several error handling mechanisms:
 The playground cleanup system operates as a separate background process that integrates seamlessly with the existing job execution architecture:
 
 **Process Characteristics:**
+
 - **Independence**: Operates independently from test execution workflows
 - **Multi-Instance Safe**: Uses Redis coordination to prevent duplicate cleanup across multiple app instances
 - **Configurable**: Environment-driven scheduling and retention policies
 - **Robust**: Comprehensive error handling and retry logic
 
 **Integration Points:**
+
 - **Initialization**: Starts after job schedulers during app startup sequence
 - **Redis Connection**: Leverages existing Redis connection pool from queue management
 - **S3 Service**: Reuses existing S3 cleanup service for consistency and reliability
 - **Monitoring**: Provides status and manual trigger endpoints for administrative control
 
 **Batch Processing Architecture:**
+
 - **Memory Optimization**: Processes 1000 S3 objects per batch to prevent memory overflow
 - **API Efficiency**: Aligns with AWS S3 DeleteObjects API limit (1000 objects max per request)
 - **Progress Tracking**: Logs progress every batch for operational visibility
@@ -479,7 +510,7 @@ PLAYGROUND_CLEANUP_MAX_AGE_HOURS=24       # Delete reports older than 24 hours
 docker run -d --name redis-supercheck -p 6379:6379 redis
 
 # Start Postgres
-docker run -d --name postgres-supercheck -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supercheck -p 5432:5432 postgres:16
+docker run -d --name postgres-supercheck -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=supercheck -p 5432:5432 postgres:18
 
 # Start MinIO
 docker run -d --name minio-supercheck -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
@@ -497,7 +528,7 @@ const defaultJobOptions = {
   removeOnComplete: { count: 500, age: 24 * 3600 }, // Keep completed jobs for 24 hours (500 max)
   removeOnFail: { count: 1000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (1000 max)
   attempts: 3,
-  backoff: { type: 'exponential', delay: 1000 }
+  backoff: { type: "exponential", delay: 1000 },
 };
 
 // Queue settings with Redis TTL and auto-cleanup options
@@ -507,8 +538,8 @@ const queueSettings = {
   stalledInterval: 30000, // Check for stalled jobs every 30 seconds
   metrics: {
     maxDataPoints: 60, // Limit metrics storage to 60 data points
-    collectDurations: true
-  }
+    collectDurations: true,
+  },
 };
 ```
 
@@ -525,22 +556,26 @@ export async function GET(request: Request) {
       const pollInterval = setInterval(async () => {
         // Get job state and send updates
         const state = await updatedTestJob.getState();
-        controller.enqueue(encoder.encode(createSSEMessage({ 
-          status,
-          testId,
-          progress,
-          reportPath: updatedReport?.reportPath,
-          s3Url: updatedReport?.s3Url
-        })));
+        controller.enqueue(
+          encoder.encode(
+            createSSEMessage({
+              status,
+              testId,
+              progress,
+              reportPath: updatedReport?.reportPath,
+              s3Url: updatedReport?.s3Url,
+            })
+          )
+        );
       }, 1000); // Poll every second
-    }
+    },
   });
 
   return new NextResponse(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
     },
   });
 }
@@ -552,15 +587,16 @@ The system implements sophisticated capacity management through environment-conf
 
 ```typescript
 // Capacity limits from worker/src/execution/constants.ts and app/src/lib/queue-stats.ts
-export const RUNNING_CAPACITY = parseInt(process.env.RUNNING_CAPACITY || '5');
-export const QUEUED_CAPACITY = parseInt(process.env.QUEUED_CAPACITY || '50');
+export const RUNNING_CAPACITY = parseInt(process.env.RUNNING_CAPACITY || "5");
+export const QUEUED_CAPACITY = parseInt(process.env.QUEUED_CAPACITY || "50");
 
 // Real-time queue statistics from app/src/lib/queue-stats.ts
 export async function fetchQueueStats(): Promise<QueueStats> {
   // Counts active jobs from BullMQ Redis keys
-  const runningCount = activeJobs + activeTests + processingJobs + processingTests;
+  const runningCount =
+    activeJobs + activeTests + processingJobs + processingTests;
   const queuedCount = waitingJobs + waitingTests + delayedJobs + delayedTests;
-  
+
   return {
     running: Math.min(runningCount, RUNNING_CAPACITY),
     runningCapacity: RUNNING_CAPACITY,
@@ -572,13 +608,15 @@ export async function fetchQueueStats(): Promise<QueueStats> {
 // Capacity verification before job submission
 export async function verifyQueueCapacityOrThrow(): Promise<void> {
   const stats = await fetchQueueStats();
-  
+
   if (stats.running >= stats.runningCapacity) {
     if (stats.queued >= stats.queuedCapacity) {
-      throw new Error(`Queue capacity limit reached (${stats.queued}/${stats.queuedCapacity} queued jobs).`);
+      throw new Error(
+        `Queue capacity limit reached (${stats.queued}/${stats.queuedCapacity} queued jobs).`
+      );
     }
   }
 }
 ```
 
-This comprehensive system ensures reliable, scalable, and observable test execution with proper resource management and real-time feedback. The capacity management system uses RUNNING_CAPACITY and QUEUED_CAPACITY environment variables to control system load, with sophisticated Redis-based queue statistics tracking for accurate capacity enforcement across distributed workers. 
+This comprehensive system ensures reliable, scalable, and observable test execution with proper resource management and real-time feedback. The capacity management system uses RUNNING_CAPACITY and QUEUED_CAPACITY environment variables to control system load, with sophisticated Redis-based queue statistics tracking for accurate capacity enforcement across distributed workers.

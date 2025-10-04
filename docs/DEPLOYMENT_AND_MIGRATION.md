@@ -14,19 +14,19 @@ graph TB
         A5[Next.js App]
         A6[NestJS Worker]
     end
-    
+
     subgraph "External Services"
         B1[GitHub Container Registry]
         B2[Docker Runtime]
     end
-    
+
     subgraph "Data Flow"
         C1[Database Migrations]
         C2[Job Queues]
         C3[File Storage]
         C4[Health Checks]
     end
-    
+
     B1 --> A5
     B1 --> A6
     A1 --> C1
@@ -35,7 +35,7 @@ graph TB
     A4 --> C1
     A5 --> C2
     A6 --> C2
-    
+
     A1 --> A4
     A4 --> A5
     A4 --> A6
@@ -44,6 +44,7 @@ graph TB
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Docker and Docker Compose installed (or Docker with Compose plugin)
 - At least 4GB of available RAM
 - At least 10GB of available disk space
@@ -51,24 +52,30 @@ graph TB
 - Basic understanding of Docker containers and environment variables
 
 ### 1. Repository Setup
+
 Clone the repository and navigate to the project directory
 
-### 2. Environment Configuration  
+### 2. Environment Configuration
+
 Set your GitHub repository name for image pulling:
+
 - Export environment variable for the GitHub repository
 - Configure Docker Compose to use published images
 - Set up proper authentication if using private repositories
 
 ### 3. Service Deployment
+
 Start all services with Docker Compose:
+
 - Background deployment for production use
 - Log monitoring for debugging and verification
 - Service-specific log access for troubleshooting
 
 ### 4. Access the Application
+
 - **Frontend**: ${NEXT_PUBLIC_APP_URL} (via HTTPS with Traefik)
 - **MinIO Console**: Internal network only (no direct external access for security)
-- **PostgreSQL**: Internal network only (port 5432 not publicly exposed)  
+- **PostgreSQL**: Internal network only (port 5432 not publicly exposed)
 - **Redis**: Internal network only (port 6379 not publicly exposed)
 
 **Security Note**: All services except the frontend are now internal-only for enhanced security. External access is only via the Traefik reverse proxy with HTTPS.
@@ -76,29 +83,34 @@ Start all services with Docker Compose:
 ## 📋 Services Overview
 
 ### Frontend (Next.js App)
+
 - **Port**: 3000
 - **Image**: `ghcr.io/your-username/supercheck/app:latest`
 - **Purpose**: Web interface for managing tests, jobs, and monitors
 - **Health Check**: ${NEXT_PUBLIC_APP_URL}/api/health
 
 ### Worker (NestJS Worker)
+
 - **Port**: 3001
 - **Image**: `ghcr.io/your-username/supercheck/worker:latest`
 - **Purpose**: Executes Playwright tests and processes job queues
 - **Health Check**: ${WORKER_URL}/health
 
 ### PostgreSQL
+
 - **Port**: 5432 (Internal network only - not publicly exposed)
 - **Purpose**: Primary database for all application data
 - **Credentials**: postgres/postgres
 - **Security**: No public port exposure for enhanced security
 
 ### Redis
+
 - **Port**: 6379
 - **Purpose**: Job queue management and caching
 - **Persistence**: Enabled with AOF
 
 ### MinIO
+
 - **Ports**: 9000 (API), 9001 (Console) - Internal network only
 - **Purpose**: S3-compatible storage for test artifacts
 - **Credentials**: minioadmin/minioadmin
@@ -119,7 +131,7 @@ The migration setup follows the best practice of separating migration concerns f
 The migration process follows a strict dependency chain:
 
 1. **PostgreSQL Database**: Starts first and establishes healthy connection
-2. **Migration Service**: Executes all pending database schema changes  
+2. **Migration Service**: Executes all pending database schema changes
 3. **Application Services**: Start only after successful migration completion
 
 This approach ensures database consistency and prevents application startup with outdated schemas.
@@ -149,16 +161,19 @@ This approach ensures database consistency and prevents application startup with
 ### Usage
 
 #### Start the full stack with migrations:
+
 ```bash
 docker-compose up --build
 ```
 
 #### Run only migrations:
+
 ```bash
 docker-compose up migration
 ```
 
 #### Test migration setup:
+
 ```bash
 ./test-migration-setup.sh
 ```
@@ -175,6 +190,7 @@ docker-compose up migration
 ## 🔧 Configuration
 
 ### Environment Variables
+
 The Docker Compose file includes all necessary environment variables. Key configurations:
 
 ```yaml
@@ -197,9 +213,10 @@ JOB_EXECUTION_TIMEOUT_MS=900000   # 15 minutes per job
 ```
 
 ### Resource Limits (Enhanced Security & Performance)
+
 - **Frontend**: 1.0 CPU, 2GB RAM
 - **Worker (4 replicas)**: 1.5 CPU, 1.5GB RAM each (6 total CPU, 6GB total RAM)
-- **PostgreSQL**: 1.0 CPU, 1.5GB RAM  
+- **PostgreSQL**: 1.0 CPU, 1.5GB RAM
 - **Redis**: 0.5 CPU, 512MB RAM
 - **MinIO**: 0.5 CPU, 1GB RAM
 - **Total Server Usage**: ~8 CPU cores, ~10GB RAM
@@ -207,6 +224,7 @@ JOB_EXECUTION_TIMEOUT_MS=900000   # 15 minutes per job
 ## 🐳 Docker Image Management
 
 ### Using Published Images
+
 The Docker Compose file is configured to use images from GitHub Container Registry:
 
 ```yaml
@@ -222,6 +240,7 @@ worker:
 #### Prerequisites for GHCR Publishing
 
 1. **Create GitHub Personal Access Token**:
+
    - Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
    - Generate a new token with the following permissions:
      - `write:packages` - Upload packages to GitHub Package Registry
@@ -230,11 +249,12 @@ worker:
    - Copy the token and save it securely
 
 2. **Login to GitHub Container Registry**:
+
    ```bash
    # Set your GitHub username and token
    export GITHUB_USERNAME="your-github-username"
    export GITHUB_TOKEN="your-github-token"
-   
+
    # Login to GHCR
    echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
    ```
@@ -249,82 +269,85 @@ worker:
 Create a GitHub Actions workflow to automatically build and publish images:
 
 1. **Create the workflow directory and file**:
+
    ```bash
    mkdir -p .github/workflows
    ```
 
 2. **Create `.github/workflows/docker-publish.yml`**:
+
    ```yaml
    name: Build and Publish Docker Images
-   
+
    on:
      push:
-       branches: [ main ]
-       tags: [ 'v*' ]
+       branches: [main]
+       tags: ["v*"]
      pull_request:
-       branches: [ main ]
-   
+       branches: [main]
+
    env:
      REGISTRY: ghcr.io
      IMAGE_NAME: ${{ github.repository }}
-   
+
    jobs:
      build:
        runs-on: ubuntu-latest
        permissions:
          contents: read
          packages: write
-       
+
        steps:
-       - name: Checkout repository
-         uses: actions/checkout@v4
-       
-       - name: Set up Docker Buildx
-         uses: docker/setup-buildx-action@v3
-       
-       - name: Log in to Container Registry
-         uses: docker/login-action@v3
-         with:
-           registry: ${{ env.REGISTRY }}
-           username: ${{ github.actor }}
-           password: ${{ secrets.GITHUB_TOKEN }}
-       
-       - name: Extract metadata
-         id: meta
-         uses: docker/metadata-action@v5
-         with:
-           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/app,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker
-           tags: |
-             type=ref,event=branch
-             type=ref,event=pr
-             type=semver,pattern={{version}}
-             type=semver,pattern={{major}}.{{minor}}
-             type=sha
-       
-       - name: Build and push App image
-         uses: docker/build-push-action@v5
-         with:
-           context: ./app
-           file: ./app/Dockerfile
-           push: true
-           tags: ${{ steps.meta.outputs.tags }}
-           labels: ${{ steps.meta.outputs.labels }}
-           cache-from: type=gha
-           cache-to: type=gha,mode=max
-       
-       - name: Build and push Worker image
-         uses: docker/build-push-action@v5
-         with:
-           context: ./worker
-           file: ./worker/Dockerfile
-           push: true
-           tags: ${{ steps.meta.outputs.tags }}
-           labels: ${{ steps.meta.outputs.labels }}
-           cache-from: type=gha
-           cache-to: type=gha,mode=max
+         - name: Checkout repository
+           uses: actions/checkout@v4
+
+         - name: Set up Docker Buildx
+           uses: docker/setup-buildx-action@v3
+
+         - name: Log in to Container Registry
+           uses: docker/login-action@v3
+           with:
+             registry: ${{ env.REGISTRY }}
+             username: ${{ github.actor }}
+             password: ${{ secrets.GITHUB_TOKEN }}
+
+         - name: Extract metadata
+           id: meta
+           uses: docker/metadata-action@v5
+           with:
+             images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/app,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker
+             tags: |
+               type=ref,event=branch
+               type=ref,event=pr
+               type=semver,pattern={{version}}
+               type=semver,pattern={{major}}.{{minor}}
+               type=sha
+
+         - name: Build and push App image
+           uses: docker/build-push-action@v5
+           with:
+             context: ./app
+             file: ./app/Dockerfile
+             push: true
+             tags: ${{ steps.meta.outputs.tags }}
+             labels: ${{ steps.meta.outputs.labels }}
+             cache-from: type=gha
+             cache-to: type=gha,mode=max
+
+         - name: Build and push Worker image
+           uses: docker/build-push-action@v5
+           with:
+             context: ./worker
+             file: ./worker/Dockerfile
+             push: true
+             tags: ${{ steps.meta.outputs.tags }}
+             labels: ${{ steps.meta.outputs.labels }}
+             cache-from: type=gha
+             cache-to: type=gha,mode=max
    ```
 
 3. **Commit and push the workflow**:
+
    ```bash
    git add .github/workflows/docker-publish.yml
    git commit -m "Add Docker image build workflow"
@@ -332,10 +355,11 @@ Create a GitHub Actions workflow to automatically build and publish images:
    ```
 
 4. **Trigger the workflow**:
+
    ```bash
    # Push to main branch to trigger build
    git push origin main
-   
+
    # Create a release tag
    git tag v1.0.0
    git push origin v1.0.0
@@ -344,27 +368,29 @@ Create a GitHub Actions workflow to automatically build and publish images:
 #### Option 2: Manual Build and Push
 
 1. **Build Images Locally**:
+
    ```bash
    # Set your GitHub repository name
    export GITHUB_REPOSITORY="your-username/supercheck"
-   
+
    # Build app image
    docker build -t ghcr.io/$GITHUB_REPOSITORY/app:latest ./app
-   
+
    # Build worker image
    docker build -t ghcr.io/$GITHUB_REPOSITORY/worker:latest ./worker
-   
+
    # Tag with version (optional)
    docker tag ghcr.io/$GITHUB_REPOSITORY/app:latest ghcr.io/$GITHUB_REPOSITORY/app:v1.0.0
    docker tag ghcr.io/$GITHUB_REPOSITORY/worker:latest ghcr.io/$GITHUB_REPOSITORY/worker:v1.0.0
    ```
 
 2. **Push Images to GHCR**:
+
    ```bash
    # Push latest tags
    docker push ghcr.io/$GITHUB_REPOSITORY/app:latest
    docker push ghcr.io/$GITHUB_REPOSITORY/worker:latest
-   
+
    # Push version tags (optional)
    docker push ghcr.io/$GITHUB_REPOSITORY/app:v1.0.0
    docker push ghcr.io/$GITHUB_REPOSITORY/worker:v1.0.0
@@ -401,15 +427,17 @@ chmod +x scripts/docker-images.sh
 ### Using Images in Docker Compose
 
 1. **Set Environment Variable**:
+
    ```bash
    export GITHUB_REPOSITORY="your-username/supercheck"
    ```
 
 2. **Start Services**:
+
    ```bash
    # Start with environment variable
    GITHUB_REPOSITORY=your-username/supercheck docker-compose up -d
-   
+
    # Or set it permanently
    echo 'export GITHUB_REPOSITORY="your-username/supercheck"' >> ~/.bashrc
    source ~/.bashrc
@@ -417,10 +445,11 @@ chmod +x scripts/docker-images.sh
    ```
 
 3. **Verify Images are Pulled**:
+
    ```bash
    # Check if images exist locally
    docker images | grep ghcr.io
-   
+
    # Pull images if needed
    docker-compose pull
    ```
@@ -434,6 +463,7 @@ chmod +x scripts/docker-images.sh
 ### Managing Image Permissions
 
 1. **Make Package Public** (if desired):
+
    - Go to your GitHub repository
    - Click on "Packages" tab
    - Select the package (frontend or worker)
@@ -441,10 +471,11 @@ chmod +x scripts/docker-images.sh
    - Or set specific permissions under "Manage actions access"
 
 2. **Delete Old Images**:
+
    ```bash
    # List images
    docker images ghcr.io/$GITHUB_REPOSITORY/*
-   
+
    # Remove local images
    docker rmi ghcr.io/$GITHUB_REPOSITORY/app:latest
    docker rmi ghcr.io/$GITHUB_REPOSITORY/worker:latest
@@ -481,6 +512,7 @@ docker stack rm supercheck
 ## 🔍 Monitoring and Troubleshooting
 
 ### Check Service Status
+
 ```bash
 # View all services
 docker-compose ps
@@ -491,6 +523,7 @@ docker-compose exec worker wget -q -O- ${WORKER_URL}/health
 ```
 
 ### View Logs
+
 ```bash
 # All services
 docker-compose logs
@@ -507,6 +540,7 @@ docker-compose logs -f worker
 ```
 
 ### Database Operations
+
 ```bash
 # Connect to PostgreSQL
 docker-compose exec postgres psql -U postgres -d supercheck
@@ -517,6 +551,7 @@ docker-compose exec worker npm run db:migrate
 ```
 
 ### Storage and Volumes
+
 ```bash
 # List volumes
 docker volume ls
@@ -531,18 +566,23 @@ docker-compose exec -T postgres psql -U postgres supercheck < backup.sql
 ### Migration Troubleshooting
 
 #### Migration fails
+
 Check the migration service logs:
+
 ```bash
 docker-compose logs migration
 ```
 
 #### Database connection issues
+
 Verify PostgreSQL is running and healthy:
+
 ```bash
 docker-compose logs postgres
 ```
 
 #### Migration script issues
+
 The migration script includes comprehensive error handling and retry logic. Check the script logs for detailed error messages.
 
 ## 🛠️ Development Setup
@@ -552,13 +592,14 @@ The migration script includes comprehensive error handling and retry logic. Chec
 #### Option 1: Build and Run Individual Containers
 
 1. **Build App Container**:
+
    ```bash
    # Navigate to app directory
    cd app
-   
+
    # Build the app image
    docker build -t supercheck-app:latest .
-   
+
    # Run the app container
    docker run -d \
      --name supercheck-app \
@@ -575,13 +616,14 @@ The migration script includes comprehensive error handling and retry logic. Chec
    ```
 
 2. **Build Worker Container**:
+
    ```bash
    # Navigate to worker directory
    cd worker
-   
+
    # Build the worker image
    docker build -t supercheck-worker:latest .
-   
+
    # Run the worker container
    docker run -d \
      --name supercheck-worker \
@@ -598,6 +640,7 @@ The migration script includes comprehensive error handling and retry logic. Chec
    ```
 
 3. **Start Infrastructure Services**:
+
    ```bash
    # Start PostgreSQL
    docker run -d \
@@ -605,14 +648,14 @@ The migration script includes comprehensive error handling and retry logic. Chec
      -p 5432:5432 \
      -e POSTGRES_PASSWORD=postgres \
      -e POSTGRES_DB=supercheck \
-     postgres:16
-   
+     postgres:18
+
    # Start Redis
    docker run -d \
      --name supercheck-redis \
      -p 6379:6379 \
-     redis:7-alpine
-   
+     redis:8
+
    # Start MinIO
    docker run -d \
      --name supercheck-minio \
@@ -626,9 +669,10 @@ The migration script includes comprehensive error handling and retry logic. Chec
 #### Option 2: Using Docker Compose with Local Builds
 
 1. **Create a local docker-compose file** (`docker-compose.local.yml`):
+
    ```yaml
-   version: '3.8'
-   
+   version: "3.8"
+
    services:
      app:
        build:
@@ -646,7 +690,7 @@ The migration script includes comprehensive error handling and retry logic. Chec
          - postgres
          - redis
          - minio
-   
+
      worker:
        build:
          context: ./worker
@@ -663,7 +707,7 @@ The migration script includes comprehensive error handling and retry logic. Chec
          - postgres
          - redis
          - minio
-   
+
      postgres:
        image: postgres:15
        environment:
@@ -673,14 +717,14 @@ The migration script includes comprehensive error handling and retry logic. Chec
          - "5432:5432"
        volumes:
          - postgres_data:/var/lib/postgresql/data
-   
+
      redis:
-       image: redis:7-alpine
+       image: redis:8
        ports:
          - "6379:6379"
        volumes:
          - redis_data:/data
-   
+
      minio:
        image: minio/minio
        environment:
@@ -692,7 +736,7 @@ The migration script includes comprehensive error handling and retry logic. Chec
        volumes:
          - minio_data:/data
        command: server /data --console-address ":9001"
-   
+
    volumes:
      postgres_data:
      redis_data:
@@ -700,13 +744,14 @@ The migration script includes comprehensive error handling and retry logic. Chec
    ```
 
 2. **Build and run with local images**:
+
    ```bash
    # Build and start all services
    docker-compose -f docker-compose.local.yml up -d --build
-   
+
    # View logs
    docker-compose -f docker-compose.local.yml logs -f
-   
+
    # Stop services
    docker-compose -f docker-compose.local.yml down
    ```
@@ -746,6 +791,7 @@ docker run -d \
 #### Managing Local Containers
 
 **View running containers**:
+
 ```bash
 # List all containers
 docker ps
@@ -765,6 +811,7 @@ docker logs -f supercheck-app
 ```
 
 **Stop and remove containers**:
+
 ```bash
 # Stop containers
 docker stop supercheck-app supercheck-worker supercheck-postgres supercheck-redis supercheck-minio
@@ -777,6 +824,7 @@ docker rm -f supercheck-app supercheck-worker supercheck-postgres supercheck-red
 ```
 
 **Clean up images**:
+
 ```bash
 # Remove local images
 docker rmi supercheck-app:latest supercheck-worker:latest
@@ -789,6 +837,7 @@ docker system prune -a
 ```
 
 **Access container shell**:
+
 ```bash
 # Access app container
 docker exec -it supercheck-app /bin/bash
@@ -801,6 +850,7 @@ docker exec -it supercheck-postgres psql -U postgres -d supercheck
 ```
 
 **Run database migrations**:
+
 ```bash
 # Run migrations in app container
 docker exec supercheck-app npm run db:migrate
@@ -810,6 +860,7 @@ docker exec supercheck-worker npm run db:migrate
 ```
 
 ### Local Development with Published Images
+
 ```bash
 # Start only infrastructure services
 docker-compose up -d postgres redis minio
@@ -826,6 +877,7 @@ npm run start:dev
 ```
 
 ### Building Images Locally
+
 ```bash
 # Build images for local development
 ./scripts/docker-images.sh build
@@ -835,6 +887,7 @@ npm run start:dev
 ```
 
 ### Environment Variables for Development
+
 Create a `.env` file in the root directory:
 
 ```bash
@@ -863,6 +916,7 @@ S3_FORCE_PATH_STYLE=true
 ## 🔒 Security Considerations
 
 ### Production Deployment
+
 1. **Change default passwords** for PostgreSQL and MinIO
 2. **Use secrets management** for sensitive environment variables
 3. **Enable SSL/TLS** for database connections
@@ -873,12 +927,14 @@ S3_FORCE_PATH_STYLE=true
 ### ✅ Enhanced Security Features (Latest Updates)
 
 #### **Port Security**
+
 - **PostgreSQL**: No public port exposure (5432) - internal network only
 - **MinIO**: No public port exposure (9000, 9001) - internal network only
 - **Redis**: Already secured with password authentication
 - **External Access**: Only via Traefik reverse proxy (HTTPS)
 
 #### **Container Security**
+
 - **Resource Limits**: Hard CPU/Memory limits prevent resource exhaustion
 - **Process Limits**: PID limits (512 max) prevent fork bombs
 - **Timeout Protection**: Multi-layer timeouts prevent infinite loops
@@ -886,12 +942,14 @@ S3_FORCE_PATH_STYLE=true
 - **Thread Limiting**: UV_THREADPOOL_SIZE=2 prevents thread exhaustion
 
 #### **Docker-level Protection**
+
 - **System limits**: sysctls and ulimits configured
-- **File descriptor limits**: 65535 max to prevent file exhaustion  
+- **File descriptor limits**: 65535 max to prevent file exhaustion
 - **Network limits**: Connection backlog limited (somaxconn=1024)
 - **Restart policies**: Smart restart handling (max 3 attempts)
 
 ### Environment Variables for Production
+
 ```bash
 # Generate strong passwords
 POSTGRES_PASSWORD=your-strong-password
@@ -906,16 +964,18 @@ REDIS_URL=redis://:password@external-host:6379
 ## 📊 Performance Tuning
 
 ### Resource Optimization (4-Core Server Configuration)
+
 - **Running Capacity**: 6 concurrent jobs (optimized for 4 workers × 1.5 jobs each)
 - **Worker Replicas**: 4 replicas with 1.5 CPU each = 6 total CPU cores
 - **Memory Allocation**: 1.5GB per worker with 1GB Node.js heap limit
 - **Thread Management**: UV_THREADPOOL_SIZE=2 for optimal resource usage
 
 ### Enhanced Performance Features
-- **Timeout Management**: 
+
+- **Timeout Management**:
   - Test timeout: 120 seconds (prevents stuck tests)
   - Job timeout: 900 seconds (prevents stuck jobs)
-- **Memory Management**: 
+- **Memory Management**:
   - Node.js heap limited to 1GB (prevents memory leaks)
   - Container memory hard limit: 1.5GB (triggers OOMKiller if exceeded)
 - **Process Management**:
@@ -923,6 +983,7 @@ REDIS_URL=redis://:password@external-host:6379
   - Smart restart policy: max 3 attempts with 5s delay
 
 ### Scaling for Different Server Configurations
+
 ```yaml
 # 2-Core Server (2GB RAM)
 RUNNING_CAPACITY: 3
@@ -930,17 +991,18 @@ replicas: 2
 cpus: "1.0" per worker
 
 # 4-Core Server (8GB RAM) - Current Configuration
-RUNNING_CAPACITY: 6  
+RUNNING_CAPACITY: 6
 replicas: 4
 cpus: "1.5" per worker
 
 # 8-Core Server (16GB RAM)
 RUNNING_CAPACITY: 12
-replicas: 6  
+replicas: 6
 cpus: "1.5" per worker
 ```
 
 ### Scaling Commands
+
 ```bash
 # Scale worker service
 docker-compose up -d --scale worker=3
@@ -954,87 +1016,97 @@ docker service scale supercheck_worker=5
 ### Common Issues
 
 1. **Images not found**
+
    ```bash
    # Check if images exist
    docker images | grep ghcr.io
-   
+
    # Pull images manually
    ./scripts/docker-images.sh pull
-   
+
    # Check if images exist in GHCR
    curl -H "Authorization: token $GITHUB_TOKEN" \
      https://api.github.com/user/packages/container/app/versions
    ```
 
 2. **Authentication issues with GHCR**
+
    ```bash
    # Re-login to GHCR
    docker logout ghcr.io
    echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
-   
+
    # Verify login
    docker login ghcr.io --username $GITHUB_USERNAME
    ```
 
 3. **Permission denied errors**
+
    ```bash
    # Check if package is public or you have access
    # Go to GitHub repository → Packages tab → Check package visibility
-   
+
    # For private packages, ensure you're logged in with correct account
    docker login ghcr.io -u $GITHUB_USERNAME
    ```
 
 4. **Services not starting**
+
    ```bash
    docker-compose down
    docker-compose up -d
    ```
 
 5. **Resource exhaustion / infinite loops**
+
    ```bash
    # Check if containers are hitting resource limits
    docker stats
-   
+
    # Look for containers with high CPU/Memory usage
    docker-compose logs worker | grep -i "timeout\|memory\|killed"
-   
+
    # Restart worker if stuck
    docker-compose restart worker
    ```
 
 6. **Fork bomb protection triggered**
+
    ```bash
    # Check for PID limit errors
    docker-compose logs worker | grep -i "pid\|process"
-   
+
    # Container will auto-restart due to restart policy
    # Monitor restart attempts
    docker-compose ps
    ```
 
-5. **Database connection issues**
+7. **Database connection issues**
+
    ```bash
    docker-compose exec postgres pg_isready -U postgres
    ```
 
-6. **Redis connection issues**
+8. **Redis connection issues**
+
    ```bash
    docker-compose exec redis redis-cli ping
    ```
 
-7. **MinIO not accessible**
+9. **MinIO not accessible**
+
    ```bash
    docker-compose exec minio mc ready local
    ```
 
-8. **Worker not processing jobs**
-   ```bash
-   docker-compose logs worker
-   docker-compose exec worker npm run start:prod
-   ```
+10. **Worker not processing jobs**
+    ```bash
+    docker-compose logs worker
+    docker-compose exec worker npm run start:prod
+    ```
 
 ### Log Analysis
+
 ```bash
 # Check for errors
 docker-compose logs | grep -i error
@@ -1054,4 +1126,4 @@ docker stats
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [Redis Documentation](https://redis.io/documentation)
 - [MinIO Documentation](https://docs.min.io/)
-- [DrizzleKit Documentation](https://orm.drizzle.team/kit-docs/) 
+- [DrizzleKit Documentation](https://orm.drizzle.team/kit-docs/)

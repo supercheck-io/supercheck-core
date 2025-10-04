@@ -1,5 +1,5 @@
 CREATE TABLE "account" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"account_id" text,
 	"provider_id" text NOT NULL,
 	"user_id" uuid NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE "account" (
 );
 --> statement-breakpoint
 CREATE TABLE "alert_history" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"message" text NOT NULL,
 	"type" varchar(50) NOT NULL,
 	"target" varchar(255) NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE "alert_history" (
 );
 --> statement-breakpoint
 CREATE TABLE "alerts" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid,
 	"monitor_id" uuid,
 	"enabled" boolean DEFAULT true NOT NULL,
@@ -47,7 +47,7 @@ CREATE TABLE "alerts" (
 );
 --> statement-breakpoint
 CREATE TABLE "apikey" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"name" text,
 	"start" text,
 	"prefix" text,
@@ -73,7 +73,7 @@ CREATE TABLE "apikey" (
 );
 --> statement-breakpoint
 CREATE TABLE "audit_logs" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"user_id" uuid,
 	"organization_id" uuid,
 	"action" varchar(255) NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE "audit_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "invitation" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid NOT NULL,
 	"email" text NOT NULL,
 	"role" text,
@@ -107,7 +107,7 @@ CREATE TABLE "job_tests" (
 );
 --> statement-breakpoint
 CREATE TABLE "jobs" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid,
 	"project_id" uuid,
 	"created_by_user_id" uuid,
@@ -124,7 +124,7 @@ CREATE TABLE "jobs" (
 );
 --> statement-breakpoint
 CREATE TABLE "member" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"role" text DEFAULT 'project_viewer' NOT NULL,
@@ -140,7 +140,7 @@ CREATE TABLE "monitor_notification_settings" (
 );
 --> statement-breakpoint
 CREATE TABLE "monitor_results" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"monitor_id" uuid NOT NULL,
 	"checked_at" timestamp DEFAULT now() NOT NULL,
 	"status" varchar(50) NOT NULL,
@@ -160,7 +160,7 @@ CREATE TABLE "monitor_tags" (
 );
 --> statement-breakpoint
 CREATE TABLE "monitors" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid,
 	"project_id" uuid,
 	"created_by_user_id" uuid,
@@ -182,7 +182,7 @@ CREATE TABLE "monitors" (
 );
 --> statement-breakpoint
 CREATE TABLE "notification_providers" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid,
 	"project_id" uuid,
 	"created_by_user_id" uuid,
@@ -195,7 +195,7 @@ CREATE TABLE "notification_providers" (
 );
 --> statement-breakpoint
 CREATE TABLE "notifications" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"user_id" uuid NOT NULL,
 	"type" varchar(50) DEFAULT 'email' NOT NULL,
 	"content" jsonb NOT NULL,
@@ -205,7 +205,7 @@ CREATE TABLE "notifications" (
 );
 --> statement-breakpoint
 CREATE TABLE "organization" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"slug" text,
 	"logo" text,
@@ -215,7 +215,7 @@ CREATE TABLE "organization" (
 );
 --> statement-breakpoint
 CREATE TABLE "project_members" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"user_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"role" varchar(50) DEFAULT 'project_viewer' NOT NULL,
@@ -224,7 +224,7 @@ CREATE TABLE "project_members" (
 );
 --> statement-breakpoint
 CREATE TABLE "project_variables" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"project_id" uuid NOT NULL,
 	"key" varchar(255) NOT NULL,
 	"value" text NOT NULL,
@@ -238,7 +238,7 @@ CREATE TABLE "project_variables" (
 );
 --> statement-breakpoint
 CREATE TABLE "projects" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid NOT NULL,
 	"name" varchar(255) NOT NULL,
 	"slug" varchar(255),
@@ -251,7 +251,7 @@ CREATE TABLE "projects" (
 );
 --> statement-breakpoint
 CREATE TABLE "reports" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid,
 	"created_by_user_id" uuid,
 	"entity_type" varchar(50) NOT NULL,
@@ -264,7 +264,7 @@ CREATE TABLE "reports" (
 );
 --> statement-breakpoint
 CREATE TABLE "runs" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"job_id" uuid NOT NULL,
 	"project_id" uuid,
 	"status" varchar(50) DEFAULT 'running' NOT NULL,
@@ -280,7 +280,7 @@ CREATE TABLE "runs" (
 );
 --> statement-breakpoint
 CREATE TABLE "session" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"expires_at" timestamp NOT NULL,
 	"token" text NOT NULL,
 	"created_at" timestamp NOT NULL,
@@ -295,7 +295,7 @@ CREATE TABLE "session" (
 );
 --> statement-breakpoint
 CREATE TABLE "tags" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid,
 	"project_id" uuid NOT NULL,
 	"created_by_user_id" uuid,
@@ -313,7 +313,7 @@ CREATE TABLE "test_tags" (
 );
 --> statement-breakpoint
 CREATE TABLE "tests" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" uuid,
 	"project_id" uuid,
 	"created_by_user_id" uuid,
@@ -327,7 +327,7 @@ CREATE TABLE "tests" (
 );
 --> statement-breakpoint
 CREATE TABLE "user" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"email" text NOT NULL,
 	"email_verified" boolean DEFAULT false NOT NULL,
@@ -342,7 +342,7 @@ CREATE TABLE "user" (
 );
 --> statement-breakpoint
 CREATE TABLE "verification" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"identifier" text NOT NULL,
 	"value" text NOT NULL,
 	"expires_at" timestamp NOT NULL,

@@ -2,7 +2,7 @@
 
 import { db } from "@/utils/db";
 import { runs, reports, jobs, jobTests, projects } from "@/db/schema/schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, sql } from "drizzle-orm";
 import { requireAuth, getUserRole, getUserOrgRole } from "@/lib/rbac/middleware";
 import { Role } from "@/lib/rbac/permissions";
 
@@ -55,9 +55,9 @@ export async function getRun(runId: string, isNotificationView: boolean = false)
       .leftJoin(jobs, eq(runs.jobId, jobs.id))
       .leftJoin(projects, eq(jobs.projectId, projects.id))
       .leftJoin(
-        reports, 
+        reports,
         and(
-          eq(reports.entityId, runs.id),
+          sql`${reports.entityId} = ${runs.id}::text`,
           eq(reports.entityType, 'job')
         )
       )

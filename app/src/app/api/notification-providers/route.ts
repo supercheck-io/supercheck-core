@@ -28,6 +28,7 @@ export async function GET() {
     }
 
     // Get notification providers scoped to the project
+    // Using ID ordering instead of createdAt since UUIDv7 is time-ordered (PostgreSQL 18+)
     const providers = await db
       .select()
       .from(notificationProviders)
@@ -35,7 +36,7 @@ export async function GET() {
         eq(notificationProviders.organizationId, targetOrganizationId),
         eq(notificationProviders.projectId, targetProjectId)
       ))
-      .orderBy(desc(notificationProviders.createdAt));
+      .orderBy(desc(notificationProviders.id));
 
     // Enhance providers with last used information
     const enhancedProviders = await Promise.all(

@@ -27,6 +27,7 @@ import RuntimeInfoPopover from "./runtime-info-popover";
 import { AIFixButton } from "./ai-fix-button";
 import { AIDiffViewer } from "./ai-diff-viewer";
 import { GuidanceModal } from "./guidance-modal";
+import { PlaywrightLogo } from "../logo/playwright-logo";
 
 // Define our own TestCaseFormData interface
 interface TestCaseFormData {
@@ -830,7 +831,7 @@ const Playground: React.FC<PlaygroundProps> = ({
         <div className="hidden flex-col flex-1 md:flex p-4  h-[calc(100vh-5rem)]">
           <ResizablePanelGroup direction="horizontal">
             <ResizablePanel defaultSize={70} minSize={30}>
-              <div className="flex h-full flex-col">
+              <div className="flex h-full flex-col border rounded-tl-lg rounded-bl-lg">
                 <div className="flex items-center justify-between border-b bg-card p-4 py-2 rounded-tl-lg">
                   <div className="flex items-center gap-8">
                     {/* Playground */}
@@ -861,7 +862,8 @@ const Playground: React.FC<PlaygroundProps> = ({
                           value="report"
                           className="flex items-center gap-2"
                         >
-                          <FileTextIcon className="h-4 w-4" />
+                          {/* <FileTextIcon className="h-4 w-4" /> */}
+                          <PlaywrightLogo className="h-5 w-5" />
                           <span>Report</span>
                         </TabsTrigger>
                       </TabsList>
@@ -994,7 +996,7 @@ const Playground: React.FC<PlaygroundProps> = ({
               minSize={20}
               className="rounded-br-lg rounded-tr-lg"
             >
-              <div className="flex h-full flex-col border rounded-tr-lg rounded-br-lg bg-card/60">
+              <div className="flex h-full flex-col border rounded-tr-lg rounded-br-lg bg-card">
                 <div className="flex items-center justify-between border-b bg-card px-4 py-4 rounded-tr-lg">
                   <div className="flex items-center">
                     <Text className="h-4 w-4 mr-2" />

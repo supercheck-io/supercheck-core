@@ -6,6 +6,7 @@ import { MonitorProcessor } from './monitor.processor';
 import { MONITOR_EXECUTION_QUEUE } from './monitor.constants';
 import { DbModule } from '../db/db.module';
 import { NotificationModule } from '../notification/notification.module';
+import { ExecutionModule } from '../execution.module';
 import { MonitorAlertService } from './services/monitor-alert.service';
 import { ValidationService } from '../common/validation/validation.service';
 import { EnhancedValidationService } from '../common/validation/enhanced-validation.service';
@@ -19,6 +20,7 @@ import { ResourceManagerService } from '../common/resources/resource-manager.ser
     HttpModule,
     DbModule,
     NotificationModule,
+    ExecutionModule,
   ],
   providers: [
     MonitorService,

@@ -9,9 +9,10 @@ export const monitorSchema = z.object({
   description: z.string().nullable().optional(),
   type: z.enum([
     "http_request",
-    "website", 
+    "website",
     "ping_host",
     "port_check",
+    "synthetic_test",
   ]).default("http_request"),
   target: z.string(), // URL, IP, domain, etc.
   frequencyMinutes: z.number().default(5),

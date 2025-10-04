@@ -512,7 +512,7 @@ export class DbService implements OnModuleInit {
         })
         .from(schema.runs)
         .where(eq(schema.runs.jobId, jobId))
-        .orderBy(desc(schema.runs.createdAt))
+        .orderBy(desc(schema.runs.id)) // UUIDv7 is time-ordered (PostgreSQL 18+)
         .limit(limit);
 
       return runs;

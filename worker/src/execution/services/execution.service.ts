@@ -101,6 +101,7 @@ interface PlaywrightExecutionResult {
   error: string | null;
   stdout: string;
   stderr: string;
+  executionTimeMs?: number; // Actual execution time in milliseconds
 }
 
 @Injectable()
@@ -179,13 +180,9 @@ export class ExecutionService implements OnModuleDestroy {
   ): Promise<void> {
     try {
       if (existsSync(dirPath)) {
-        this.logger.log(
-          `[${entityId}] Cleaning up local report directory: ${dirPath}`,
-        );
+        // Removed log for cleanup - only log on error
         await fs.rm(dirPath, { recursive: true, force: true });
-        this.logger.log(
-          `[${entityId}] Successfully cleaned up local report directory`,
-        );
+        // Removed success log for cleanup
       }
     } catch (error) {
       this.logger.warn(
@@ -442,11 +439,11 @@ export class ExecutionService implements OnModuleDestroy {
    * Runs a single test defined by the task data.
    * Adapted from the original test worker handler.
    */
-  async runSingleTest(task: TestExecutionTask): Promise<TestResult> {
+  async runSingleTest(task: TestExecutionTask, bypassConcurrencyCheck = false, isMonitorExecution = false): Promise<TestResult> {
     const { testId, code } = task;
 
-    // Check concurrency limits
-    if (this.activeExecutions.size >= this.maxConcurrentExecutions) {
+    // Check concurrency limits (unless bypassed for monitors)
+    if (!bypassConcurrencyCheck && this.activeExecutions.size >= this.maxConcurrentExecutions) {
       throw new Error(
         `Maximum concurrent executions limit reached: ${this.maxConcurrentExecutions}`,
       );
@@ -457,8 +454,11 @@ export class ExecutionService implements OnModuleDestroy {
     // Generate unique ID for this run to avoid conflicts in parallel executions
     const uniqueRunId = `${testId}-${crypto.randomUUID().substring(0, 8)}`;
     const runDir = path.join(this.baseLocalRunDir, uniqueRunId);
-    const s3ReportKeyPrefix = `${testId}/report`;
-    const entityType = 'test';
+    // For monitor executions, use uniqueRunId to preserve historical reports and separate bucket
+    // For regular test execution, use testId to maintain existing behavior (overwrite previous report)
+    const executionId = isMonitorExecution ? uniqueRunId : testId;
+    const s3ReportKeyPrefix = `${executionId}/report`;
+    const entityType = isMonitorExecution ? 'monitor' : 'test';
     let finalResult: TestResult;
     let s3Url: string | null = null;
 
@@ -476,7 +476,7 @@ export class ExecutionService implements OnModuleDestroy {
 
       // 2. Store initial metadata about the run
       await this.dbService.storeReportMetadata({
-        entityId: testId,
+        entityId: executionId,
         entityType,
         status: 'running',
         reportPath: s3ReportKeyPrefix,
@@ -494,9 +494,7 @@ export class ExecutionService implements OnModuleDestroy {
       }
 
       // 4. Execute the test script using the native Playwright runner with timeout
-      this.logger.log(
-        `[${testId}] Executing test script with ${this.testExecutionTimeoutMs}ms timeout...`,
-      );
+      // Removed verbose execution log
       // Pass the directory path to the runner (the runner will find the .spec.mjs file inside)
       const execResult = await this._executePlaywrightNativeRunner(
         testDirPath,
@@ -509,7 +507,7 @@ export class ExecutionService implements OnModuleDestroy {
 
       if (execResult.success) {
         finalStatus = 'passed';
-        this.logger.log(`[${testId}] Playwright execution successful.`);
+        // Removed success log - only log errors and completion summary
 
         // Use same reporting structure as job execution
         // First, check if there's a normal report generated in the specified output directory
@@ -529,31 +527,27 @@ export class ExecutionService implements OnModuleDestroy {
 
             // Look for index.html in the output directory
             if (reportFiles.includes('index.html')) {
-              this.logger.log(
-                `[${testId}] Found index.html in output directory, uploading report from ${outputDir}`,
-              );
+              // Removed log for finding report
               reportFound = true;
 
               try {
                 // Process the report files to fix trace URLs before uploading
-                await this._processReportFilesForS3(outputDir, testId);
+                await this._processReportFilesForS3(outputDir, executionId);
 
                 await this.s3Service.uploadDirectory(
                   outputDir,
                   s3ReportKeyPrefix,
                   testBucket,
-                  testId,
+                  executionId,
                   entityType,
                 );
-                this.logger.log(
-                  `[${testId}] Report directory contents uploaded to S3 prefix: ${s3ReportKeyPrefix}`,
-                );
+                // Removed upload success log
 
                 // Clean up local report directory after successful upload
-                await this.cleanupLocalReportDirectory(outputDir, testId);
+                await this.cleanupLocalReportDirectory(outputDir, executionId);
 
                 s3Url =
-                  this.s3Service.getBaseUrlForEntity(entityType, testId) +
+                  this.s3Service.getBaseUrlForEntity(entityType, executionId) +
                   '/index.html';
               } catch (uploadErr: any) {
                 this.logger.error(
@@ -574,33 +568,29 @@ export class ExecutionService implements OnModuleDestroy {
           const playwrightReportDir = path.join(runDir, 'pw-report');
 
           if (existsSync(playwrightReportDir)) {
-            this.logger.log(
-              `[${testId}] Found HTML report in default location: ${playwrightReportDir}`,
-            );
+            // Removed log for finding report in default location
             try {
               // Process the report files to fix trace URLs before uploading
-              await this._processReportFilesForS3(playwrightReportDir, testId);
+              await this._processReportFilesForS3(playwrightReportDir, executionId);
 
               // Upload the playwright-report directory contents
               await this.s3Service.uploadDirectory(
                 playwrightReportDir,
                 s3ReportKeyPrefix,
                 testBucket,
-                testId,
+                executionId,
                 entityType,
               );
-              this.logger.log(
-                `[${testId}] Report directory uploaded from default location to S3 prefix: ${s3ReportKeyPrefix}`,
-              );
+              // Removed upload success log
               reportFound = true;
 
               // Clean up local report directory after successful upload
               await this.cleanupLocalReportDirectory(
                 playwrightReportDir,
-                testId,
+                executionId,
               );
               s3Url =
-                this.s3Service.getBaseUrlForEntity(entityType, testId) +
+                this.s3Service.getBaseUrlForEntity(entityType, executionId) +
                 '/index.html';
             } catch (uploadErr: any) {
               this.logger.error(
@@ -625,7 +615,7 @@ export class ExecutionService implements OnModuleDestroy {
 
         // Publish final status
         await this.dbService.storeReportMetadata({
-          entityId: testId,
+          entityId: executionId,
           entityType,
           reportPath: s3ReportKeyPrefix,
           status: finalStatus,
@@ -635,10 +625,11 @@ export class ExecutionService implements OnModuleDestroy {
         finalResult = {
           success: true,
           reportUrl: s3Url,
-          testId,
+          testId: uniqueRunId, // Use unique execution ID instead of test ID
           stdout: execResult.stdout,
           stderr: execResult.stderr,
           error: null,
+          executionTimeMs: execResult.executionTimeMs,
         };
       } else {
         // Playwright execution failed
@@ -682,13 +673,13 @@ export class ExecutionService implements OnModuleDestroy {
 
               try {
                 // Process the report files to fix trace URLs before uploading
-                await this._processReportFilesForS3(outputDir, testId);
+                await this._processReportFilesForS3(outputDir, executionId);
 
                 await this.s3Service.uploadDirectory(
                   outputDir,
                   s3ReportKeyPrefix,
                   testBucket,
-                  testId,
+                  executionId,
                   entityType,
                 );
                 this.logger.log(
@@ -696,10 +687,10 @@ export class ExecutionService implements OnModuleDestroy {
                 );
 
                 // Clean up local report directory after successful upload
-                await this.cleanupLocalReportDirectory(outputDir, testId);
+                await this.cleanupLocalReportDirectory(outputDir, executionId);
 
                 s3Url =
-                  this.s3Service.getBaseUrlForEntity(entityType, testId) +
+                  this.s3Service.getBaseUrlForEntity(entityType, executionId) +
                   '/index.html';
               } catch (uploadErr: any) {
                 this.logger.error(
@@ -725,14 +716,14 @@ export class ExecutionService implements OnModuleDestroy {
             );
             try {
               // Process the report files to fix trace URLs before uploading
-              await this._processReportFilesForS3(playwrightReportDir, testId);
+              await this._processReportFilesForS3(playwrightReportDir, executionId);
 
               // Upload the playwright-report directory contents
               await this.s3Service.uploadDirectory(
                 playwrightReportDir,
                 s3ReportKeyPrefix,
                 testBucket,
-                testId,
+                executionId,
                 entityType,
               );
               this.logger.log(
@@ -743,11 +734,11 @@ export class ExecutionService implements OnModuleDestroy {
               // Clean up local report directory after successful upload
               await this.cleanupLocalReportDirectory(
                 playwrightReportDir,
-                testId,
+                executionId,
               );
 
               s3Url =
-                this.s3Service.getBaseUrlForEntity(entityType, testId) +
+                this.s3Service.getBaseUrlForEntity(entityType, executionId) +
                 '/index.html';
             } catch (uploadErr: any) {
               this.logger.error(
@@ -767,7 +758,7 @@ export class ExecutionService implements OnModuleDestroy {
 
         // Update status *after* logging and upload attempt
         await this.dbService.storeReportMetadata({
-          entityId: testId,
+          entityId: executionId,
           entityType,
           reportPath: s3ReportKeyPrefix,
           status: 'failed',
@@ -779,9 +770,10 @@ export class ExecutionService implements OnModuleDestroy {
           success: false,
           error: specificError,
           reportUrl: s3Url,
-          testId,
+          testId: uniqueRunId, // Use unique execution ID instead of test ID
           stdout: execResult.stdout,
           stderr: execResult.stderr,
+          executionTimeMs: execResult.executionTimeMs,
         };
 
         // <<< REMOVED: Do not throw error here; return the result object >>>
@@ -797,7 +789,7 @@ export class ExecutionService implements OnModuleDestroy {
       // Ensure DB status is marked as failed
       await this.dbService
         .storeReportMetadata({
-          entityId: testId,
+          entityId: executionId,
           entityType,
           reportPath: s3ReportKeyPrefix,
           status: 'failed',
@@ -813,7 +805,7 @@ export class ExecutionService implements OnModuleDestroy {
         success: false,
         error: (error as Error).message,
         reportUrl: null,
-        testId,
+        testId: uniqueRunId, // Use unique execution ID instead of test ID
         stdout: '',
         stderr: (error as Error).stack || (error as Error).message,
       };
@@ -824,9 +816,7 @@ export class ExecutionService implements OnModuleDestroy {
       this.activeExecutions.delete(uniqueRunId);
 
       // 6. Cleanup local run directory after all processing is complete
-      this.logger.log(
-        `[${testId}] Cleaning up entire run directory: ${runDir}`,
-      );
+      // Removed cleanup log - only log errors
       await fs.rm(runDir, { recursive: true, force: true }).catch((err) => {
         this.logger.warn(
           `[${testId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`,
@@ -982,9 +972,7 @@ export class ExecutionService implements OnModuleDestroy {
       finalError = execResult.error;
 
       // 5. Process result and upload report
-      this.logger.log(
-        `[${runId}] Playwright execution finished. Overall success: ${overallSuccess}.`,
-      );
+      // Removed log - only log errors and final summary
 
       const jobBucket = this.s3Service.getBucketForEntityType(entityType);
       s3Url =
@@ -1209,7 +1197,7 @@ export class ExecutionService implements OnModuleDestroy {
       this.activeExecutions.delete(uniqueRunId);
 
       // 7. Cleanup local run directory after all processing is complete
-      this.logger.log(`[${runId}] Cleaning up entire run directory: ${runDir}`);
+      // Removed cleanup log - only log errors
       await fs.rm(runDir, { recursive: true, force: true }).catch((err) => {
         this.logger.warn(
           `[${runId}] Failed to cleanup local run directory ${runDir}: ${(err as Error).message}`,
@@ -1378,6 +1366,7 @@ export class ExecutionService implements OnModuleDestroy {
         error: extractedError, // Use the extracted error message
         stdout: execResult.stdout,
         stderr: execResult.stderr,
+        executionTimeMs: execResult.executionTimeMs,
       };
     } catch (error) {
       return {
@@ -1493,7 +1482,8 @@ export class ExecutionService implements OnModuleDestroy {
       shell?: boolean;
       timeout?: number; // Add timeout option
     } = {},
-  ): Promise<{ success: boolean; stdout: string; stderr: string }> {
+  ): Promise<{ success: boolean; stdout: string; stderr: string; executionTimeMs?: number }> {
+    const startTime = Date.now();
     return new Promise((resolve) => {
       try {
         const childProcess = spawn(command, args, {
@@ -1555,6 +1545,7 @@ export class ExecutionService implements OnModuleDestroy {
                 stderr:
                   stderr +
                   `\n[ERROR] Execution timed out after ${options.timeout}ms - Process and children killed`,
+                executionTimeMs: Date.now() - startTime,
               });
             }
           }, options.timeout);
@@ -1616,6 +1607,7 @@ export class ExecutionService implements OnModuleDestroy {
               success: code === 0,
               stdout,
               stderr,
+              executionTimeMs: Date.now() - startTime,
             });
           }
         });
@@ -1634,6 +1626,7 @@ export class ExecutionService implements OnModuleDestroy {
                 ? stderr +
                   `\n[TERMINATED] Process killed with signal: ${signal}`
                 : stderr,
+              executionTimeMs: Date.now() - startTime,
             });
           }
         });
@@ -1647,6 +1640,7 @@ export class ExecutionService implements OnModuleDestroy {
               success: false,
               stdout,
               stderr: stderr + `\n[ERROR] ${error.message}`,
+              executionTimeMs: Date.now() - startTime,
             });
           }
         });
@@ -1658,6 +1652,7 @@ export class ExecutionService implements OnModuleDestroy {
           success: false,
           stdout: '',
           stderr: `Failed to spawn command: ${error instanceof Error ? error.message : String(error)}`,
+          executionTimeMs: Date.now() - startTime,
         });
       }
     });
@@ -1683,7 +1678,7 @@ export class ExecutionService implements OnModuleDestroy {
 
       // Process HTML files in the report directory
       const processHtmlFile = async (filePath: string) => {
-        this.logger.log(`Processing HTML file at ${filePath}`);
+        // Removed processing log - only log errors
         let content = await fs.readFile(filePath, 'utf8');
         let modified = false;
 
@@ -1761,10 +1756,9 @@ export class ExecutionService implements OnModuleDestroy {
         // Only save the file if we made changes
         if (modified) {
           await fs.writeFile(filePath, content, 'utf8');
-          this.logger.log(`Successfully processed trace paths in ${filePath}`);
-        } else {
-          this.logger.log(`No trace path replacements needed in ${filePath}`);
+          // Removed success log
         }
+        // Removed no-changes log
       };
 
       // Process main index.html
@@ -1810,7 +1804,7 @@ export class ExecutionService implements OnModuleDestroy {
     runDir: string,
   ): Promise<string> {
     try {
-      this.logger.log(`[${testId}] Preparing test in directory: ${runDir}`);
+      // Removed log - only log errors
 
       // Ensure proper trace configuration to avoid path issues
       const enhancedScript = ensureProperTraceConfiguration(testScript, testId);
@@ -1826,7 +1820,7 @@ export class ExecutionService implements OnModuleDestroy {
 
       // Write the script to the test file exactly as provided
       await fs.writeFile(testFilePath, scriptForRunner);
-      this.logger.log(`[${testId}] Created test file at: ${testFilePath}`);
+      // Removed success log
 
       return runDir; // Return the directory path similar to how _executePlaywrightNativeRunner is called
     } catch (error) {

@@ -28,7 +28,7 @@ export function MonitorCreationWizard() {
   // Get monitor type from URL for dynamic title
   const searchParams = useSearchParams();
   const urlType = searchParams?.get('type') || 'http_request';
-  const validTypes: MonitorType[] = ['http_request', 'website', 'ping_host', 'port_check'];
+  const validTypes: MonitorType[] = ['http_request', 'website', 'ping_host', 'port_check', 'synthetic_test'];
   const type = validTypes.includes(urlType as MonitorType) ? (urlType as MonitorType) : 'http_request';
   const typeLabel = type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
@@ -140,7 +140,7 @@ export function MonitorCreationWizard() {
           onCancel={handleCancel}
           hideAlerts={true}
           monitorType={type as MonitorType}
-          title={` ${typeLabel} Monitor`}
+          title={`${typeLabel} Monitor`}
           description="Configure a new uptime monitor"
           // Pass monitorData to preserve state when navigating back
           initialData={monitorData}

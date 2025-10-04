@@ -26,8 +26,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { monitorTypes } from "./data";
-import { Loader2, SaveIcon, ChevronDown, ChevronRight, Shield, BellIcon } from "lucide-react";
+import {
+  Loader2,
+  SaveIcon,
+  ChevronDown,
+  ChevronRight,
+  Shield,
+  BellIcon,
+  Check,
+  ChevronsUpDown,
+  Chrome,
+  ArrowLeftRight,
+  Database,
+  SquareFunction,
+} from "lucide-react";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { MonitorTypesPopover } from "./monitor-types-popover";
 
@@ -57,7 +84,24 @@ const statusCodePresets = [
   { label: "Specific Code", value: "custom" }, // User can input custom code
 ];
 
-const checkIntervalOptions = [
+// Get icon component for test type - using same icons as in app-sidebar.tsx
+const getTestTypeIcon = (type: string) => {
+  switch (type) {
+    case "browser":
+      return <Chrome className="h-4 w-4 text-sky-600" />;
+    case "api":
+      return <ArrowLeftRight className="h-4 w-4 text-teal-600" />;
+    case "database":
+      return <Database className="h-4 w-4 text-cyan-600" />;
+    case "custom":
+      return <SquareFunction className="h-4 w-4 text-blue-600" />;
+    default:
+      return <Chrome className="h-4 w-4 text-sky-600" />;
+  }
+};
+
+// Interval options for non-synthetic monitors (can start from 1 minute)
+const standardCheckIntervalOptions = [
   { value: "60", label: "1 minute" },
   { value: "300", label: "5 minutes" },
   { value: "600", label: "10 minutes" },
@@ -69,143 +113,224 @@ const checkIntervalOptions = [
   { value: "86400", label: "24 hours" },
 ];
 
+// Interval options for synthetic monitors (minimum 5 minutes)
+const syntheticCheckIntervalOptions = [
+  { value: "300", label: "5 minutes" },
+  { value: "600", label: "10 minutes" },
+  { value: "900", label: "15 minutes" },
+  { value: "1800", label: "30 minutes" },
+  { value: "3600", label: "1 hour" },
+  { value: "10800", label: "3 hours" },
+  { value: "43200", label: "12 hours" },
+  { value: "86400", label: "24 hours" },
+];
 
 // Create schema for the form with conditional validation
-const formSchema = z.object({
-  name: z.string().min(10, "Name must be at least 10 characters").max(100, "Name must be 100 characters or less"),
-  target: z.string().optional(),
-  type: z.enum(["http_request", "website", "ping_host", "port_check"], {
-    required_error: "Please select a check type",
-  }),
-  interval: z.enum(["60", "300", "600", "900", "1800", "3600", "10800", "43200", "86400"]).default("1800"),
-  // Optional fields that may be required based on type
-  // HTTP Request specific
-  httpConfig_method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]).default("GET"),
-  httpConfig_headers: z.string().optional().refine((val) => {
-    if (!val || val.trim() === "") return true;
-    try {
-      const parsed = JSON.parse(val);
-      return typeof parsed === 'object' && parsed !== null;
-    } catch {
-      return false;
-    }
-  }, "Headers must be valid JSON format, e.g., {\"Content-Type\": \"application/json\"}"),
-  httpConfig_body: z.string().optional(),
-  httpConfig_expectedStatusCodes: z.string().min(1, "Expected status codes are required").default("200-299"),
-  httpConfig_keywordInBody: z.string().optional(),
-  httpConfig_keywordShouldBePresent: z.boolean().default(true),
-  // Auth fields for HTTP Request
-  httpConfig_authType: z.enum(["none", "basic", "bearer"]).default("none"),
-  httpConfig_authUsername: z.string().optional(),
-  httpConfig_authPassword: z.string().optional(),
-  httpConfig_authToken: z.string().optional(),
-  // Port Check specific
-  portConfig_port: z.coerce.number().int().min(1, "Port must be at least 1").max(65535, "Port must be 65535 or less").optional(),
-  portConfig_protocol: z.enum(["tcp", "udp"]).default("tcp"),
-  // Website SSL checking
-  websiteConfig_enableSslCheck: z.boolean().default(false),
-  websiteConfig_sslDaysUntilExpirationWarning: z.coerce.number().int().min(1, "SSL warning days must be at least 1").max(365, "SSL warning days must be 365 or less").default(30), // 1 day to 1 year
-}).superRefine((data, ctx) => {
-  // Target is required for all monitor types
-  if (!data.target || data.target.trim() === "") {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Target is required for this monitor type",
-      path: ["target"],
-    });
-  }
-
-  // Validate target format based on type
-  if (data.target && data.target.trim()) {
-    const target = data.target.trim();
-    
-    if (data.type === "http_request" || data.type === "website") {
-      // URL validation
-      try {
-        new URL(target);
-      } catch {
+const formSchema = z
+  .object({
+    name: z
+      .string()
+      .min(10, "Name must be at least 10 characters")
+      .max(100, "Name must be 100 characters or less"),
+    target: z.string().optional(),
+    type: z.enum(
+      ["http_request", "website", "ping_host", "port_check", "synthetic_test"],
+      {
+        required_error: "Please select a check type",
+      }
+    ),
+    interval: z.string().default("1800"),
+    // Synthetic test specific
+    syntheticConfig_testId: z.string().optional(),
+    // Optional fields that may be required based on type
+    // HTTP Request specific
+    httpConfig_method: z
+      .enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+      .default("GET"),
+    httpConfig_headers: z
+      .string()
+      .optional()
+      .refine((val) => {
+        if (!val || val.trim() === "") return true;
+        try {
+          const parsed = JSON.parse(val);
+          return typeof parsed === "object" && parsed !== null;
+        } catch {
+          return false;
+        }
+      }, 'Headers must be valid JSON format, e.g., {"Content-Type": "application/json"}'),
+    httpConfig_body: z.string().optional(),
+    httpConfig_expectedStatusCodes: z
+      .string()
+      .min(1, "Expected status codes are required")
+      .default("200-299"),
+    httpConfig_keywordInBody: z.string().optional(),
+    httpConfig_keywordShouldBePresent: z.boolean().default(true),
+    // Auth fields for HTTP Request
+    httpConfig_authType: z.enum(["none", "basic", "bearer"]).default("none"),
+    httpConfig_authUsername: z.string().optional(),
+    httpConfig_authPassword: z.string().optional(),
+    httpConfig_authToken: z.string().optional(),
+    // Port Check specific
+    portConfig_port: z.coerce
+      .number()
+      .int()
+      .min(1, "Port must be at least 1")
+      .max(65535, "Port must be 65535 or less")
+      .optional(),
+    portConfig_protocol: z.enum(["tcp", "udp"]).default("tcp"),
+    // Website SSL checking
+    websiteConfig_enableSslCheck: z.boolean().default(false),
+    websiteConfig_sslDaysUntilExpirationWarning: z.coerce
+      .number()
+      .int()
+      .min(1, "SSL warning days must be at least 1")
+      .max(365, "SSL warning days must be 365 or less")
+      .default(30), // 1 day to 1 year
+  })
+  .superRefine((data, ctx) => {
+    // Interval validation for synthetic monitors
+    if (data.type === "synthetic_test") {
+      const intervalSeconds = parseInt(data.interval, 10);
+      if (intervalSeconds < 300) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Target must be a valid URL (e.g., https://example.com)",
-          path: ["target"],
+          message:
+            "Synthetic monitors require a minimum check interval of 5 minutes",
+          path: ["interval"],
         });
       }
     }
-    
-    if (data.type === "ping_host" || data.type === "port_check") {
-      // Hostname or IP validation
-      const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
-      const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-      
-      if (!hostnameRegex.test(target) && !ipRegex.test(target)) {
+
+    // Target validation varies by monitor type
+    if (data.type === "synthetic_test") {
+      // For synthetic monitors, testId is required instead of target
+      if (
+        !data.syntheticConfig_testId ||
+        data.syntheticConfig_testId.trim() === ""
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Target must be a valid hostname or IP address",
+          message: "Please select a test to monitor",
+          path: ["syntheticConfig_testId"],
+        });
+      }
+    } else {
+      // Target is required for all other monitor types
+      if (!data.target || data.target.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Target is required for this monitor type",
           path: ["target"],
         });
       }
-    }
-  }
 
-  // Port is required for port_check
-  if (data.type === "port_check") {
-    if (!data.portConfig_port) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Port is required for port check monitors",
-        path: ["portConfig_port"],
-      });
-    }
-    
-    if (!data.portConfig_protocol) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Protocol is required for port check monitors",
-        path: ["portConfig_protocol"],
-      });
-    }
-  }
+      // Validate target format based on type
+      if (data.target && data.target.trim()) {
+        const target = data.target.trim();
 
+        if (data.type === "http_request" || data.type === "website") {
+          // URL validation
+          try {
+            new URL(target);
+          } catch {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Target must be a valid URL (e.g., https://example.com)",
+              path: ["target"],
+            });
+          }
+        }
 
-  // Authentication validation
-  if (data.httpConfig_authType === "basic") {
-    if (!data.httpConfig_authUsername || data.httpConfig_authUsername.trim() === "") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Username is required for Basic Authentication",
-        path: ["httpConfig_authUsername"],
-      });
-    }
-    if (!data.httpConfig_authPassword || data.httpConfig_authPassword.trim() === "") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Password is required for Basic Authentication",
-        path: ["httpConfig_authPassword"],
-      });
-    }
-  }
+        if (data.type === "ping_host" || data.type === "port_check") {
+          // Hostname or IP validation
+          const hostnameRegex =
+            /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
+          const ipRegex =
+            /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 
-  if (data.httpConfig_authType === "bearer") {
-    if (!data.httpConfig_authToken || data.httpConfig_authToken.trim() === "") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Token is required for Bearer Authentication",
-        path: ["httpConfig_authToken"],
-      });
+          if (!hostnameRegex.test(target) && !ipRegex.test(target)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Target must be a valid hostname or IP address",
+              path: ["target"],
+            });
+          }
+        }
+      }
     }
-  }
 
-  // SSL warning days validation
-  if (data.websiteConfig_enableSslCheck && data.type === "website") {
-    if (!data.websiteConfig_sslDaysUntilExpirationWarning || data.websiteConfig_sslDaysUntilExpirationWarning < 1) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "SSL warning days must be at least 1 when SSL check is enabled",
-        path: ["websiteConfig_sslDaysUntilExpirationWarning"],
-      });
+    // Port is required for port_check
+    if (data.type === "port_check") {
+      if (!data.portConfig_port) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Port is required for port check monitors",
+          path: ["portConfig_port"],
+        });
+      }
+
+      if (!data.portConfig_protocol) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Protocol is required for port check monitors",
+          path: ["portConfig_protocol"],
+        });
+      }
     }
-  }
-});
+
+    // Authentication validation
+    if (data.httpConfig_authType === "basic") {
+      if (
+        !data.httpConfig_authUsername ||
+        data.httpConfig_authUsername.trim() === ""
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Username is required for Basic Authentication",
+          path: ["httpConfig_authUsername"],
+        });
+      }
+      if (
+        !data.httpConfig_authPassword ||
+        data.httpConfig_authPassword.trim() === ""
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Password is required for Basic Authentication",
+          path: ["httpConfig_authPassword"],
+        });
+      }
+    }
+
+    if (data.httpConfig_authType === "bearer") {
+      if (
+        !data.httpConfig_authToken ||
+        data.httpConfig_authToken.trim() === ""
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Token is required for Bearer Authentication",
+          path: ["httpConfig_authToken"],
+        });
+      }
+    }
+
+    // SSL warning days validation
+    if (data.websiteConfig_enableSslCheck && data.type === "website") {
+      if (
+        !data.websiteConfig_sslDaysUntilExpirationWarning ||
+        data.websiteConfig_sslDaysUntilExpirationWarning < 1
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "SSL warning days must be at least 1 when SSL check is enabled",
+          path: ["websiteConfig_sslDaysUntilExpirationWarning"],
+        });
+      }
+    }
+  });
 
 // Define the form values type
 export type FormValues = z.infer<typeof formSchema>;
@@ -230,6 +355,7 @@ const creationDefaultValues: FormValues = {
   portConfig_protocol: "tcp", // Default protocol instead of undefined
   websiteConfig_enableSslCheck: false, // Default to false instead of undefined
   websiteConfig_sslDaysUntilExpirationWarning: 30, // Default to 30 days instead of undefined
+  syntheticConfig_testId: "", // Default for synthetic monitors
 };
 
 // Add AlertConfiguration type
@@ -259,22 +385,22 @@ interface MonitorFormProps {
   alertConfig?: AlertConfiguration | null; // Use proper type
 }
 
-export function MonitorForm({ 
-  initialData, 
-  editMode = false, 
-  id, 
+export function MonitorForm({
+  initialData,
+  editMode = false,
+  id,
   monitorType,
   title,
   description,
   hideAlerts = false,
   onSave,
   onCancel,
-  alertConfig: initialAlertConfig
+  alertConfig: initialAlertConfig,
 }: MonitorFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Get user permissions
   const { currentProject } = useProjectContext();
   const normalizedRole = normalizeRole(currentProject?.userRole);
@@ -283,22 +409,38 @@ export function MonitorForm({
   const [isAuthSectionOpen, setIsAuthSectionOpen] = useState(false);
   const [isKeywordSectionOpen, setIsKeywordSectionOpen] = useState(false);
   const [isCustomStatusCode, setIsCustomStatusCode] = useState(false);
-  const [alertConfig, setAlertConfig] = useState(initialAlertConfig || {
-    enabled: false,
-    notificationProviders: [] as string[],
-    alertOnFailure: true,
-    alertOnRecovery: true,
-    alertOnSslExpiration: false,
-    failureThreshold: 1,
-    recoveryThreshold: 1,
-    customMessage: "" as string,
-  });
+  const [alertConfig, setAlertConfig] = useState(
+    initialAlertConfig || {
+      enabled: false,
+      notificationProviders: [] as string[],
+      alertOnFailure: true,
+      alertOnRecovery: true,
+      alertOnSslExpiration: false,
+      failureThreshold: 1,
+      recoveryThreshold: 1,
+      customMessage: "" as string,
+    }
+  );
   const [showAlerts, setShowAlerts] = useState(false);
-  const [monitorData, setMonitorData] = useState<Record<string, unknown> | null>(null);
+  const [monitorData, setMonitorData] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [tests, setTests] = useState<
+    Array<{ id: string; title: string; type: string }>
+  >([]);
+  const [isLoadingTests, setIsLoadingTests] = useState(false);
+  const [selectedTest, setSelectedTest] = useState<{
+    id: string;
+    title: string;
+    type: string;
+  } | null>(null);
+  const [testSelectorOpen, setTestSelectorOpen] = useState(false);
 
   // Get current monitor type from URL params if not provided as prop
-  const urlType = searchParams.get('type') as FormValues["type"];
-  const currentMonitorType = monitorType || urlType || 'http_request';
+  const urlType = searchParams.get("type") as FormValues["type"];
+  const fromTestId = searchParams.get("fromTest");
+  const currentMonitorType = monitorType || urlType || "http_request";
 
   // (moved below after form initialization)
 
@@ -310,13 +452,50 @@ export function MonitorForm({
     }
   }, [alertConfig, editMode]);
 
+  // Fetch tests when monitor type is synthetic_test
+  useEffect(() => {
+    const fetchTests = async () => {
+      if (currentMonitorType !== "synthetic_test") {
+        return;
+      }
+
+      setIsLoadingTests(true);
+      try {
+        const response = await fetch("/api/tests");
+        if (!response.ok) {
+          throw new Error("Failed to fetch tests");
+        }
+        const data = await response.json();
+        setTests(data);
+
+        // If fromTest param is provided, pre-select it
+        if (fromTestId) {
+          const test = data.find(
+            (t: { id: string; title: string; type: string }) =>
+              t.id === fromTestId
+          );
+          if (test) {
+            setSelectedTest(test);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching tests:", error);
+        toast.error("Failed to load tests");
+      } finally {
+        setIsLoadingTests(false);
+      }
+    };
+
+    void fetchTests();
+  }, [currentMonitorType, fromTestId]);
+
   // Create default values based on monitor type if provided
   const getDefaultValues = useCallback((): FormValues => {
     // If we have initialData (edit mode), use it
     if (initialData) {
       return initialData;
     }
-    
+
     // Otherwise, create defaults based on current monitor type
     const typeToUse = currentMonitorType;
     if (typeToUse) {
@@ -338,11 +517,13 @@ export function MonitorForm({
         portConfig_port: typeToUse === "port_check" ? 80 : 80, // Always provide default
         portConfig_protocol: typeToUse === "port_check" ? "tcp" : "tcp", // Always provide default
         websiteConfig_enableSslCheck: typeToUse === "website" ? false : false, // Always provide default
-        websiteConfig_sslDaysUntilExpirationWarning: typeToUse === "website" ? 30 : 30, // Always provide default
+        websiteConfig_sslDaysUntilExpirationWarning:
+          typeToUse === "website" ? 30 : 30, // Always provide default
+        syntheticConfig_testId: fromTestId || "", // Pre-fill if coming from test page
       };
     }
     return creationDefaultValues;
-  }, [currentMonitorType, initialData]);
+  }, [currentMonitorType, initialData, fromTestId]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as Resolver<FormValues>,
@@ -367,31 +548,54 @@ export function MonitorForm({
   const authType = form.watch("httpConfig_authType");
   const expectedStatusCodes = form.watch("httpConfig_expectedStatusCodes");
 
+  // Auto-adjust interval when switching to synthetic monitor
+  useEffect(() => {
+    if (type === "synthetic_test") {
+      const currentInterval = parseInt(form.getValues("interval"), 10);
+      if (currentInterval < 300) {
+        // If current interval is less than 5 minutes, set to 5 minutes
+        form.setValue("interval", "300");
+      }
+    }
+  }, [type, form]);
+
   // Keep custom-status-code UI state in sync with the field value
   useEffect(() => {
     const presetValues = ["200-299", "300-399", "400-499", "500-599"];
     const currentValue = expectedStatusCodes || "200-299";
-    setIsCustomStatusCode(!presetValues.includes(currentValue) && currentValue !== "");
+    setIsCustomStatusCode(
+      !presetValues.includes(currentValue) && currentValue !== ""
+    );
   }, [expectedStatusCodes]);
 
   // Reset form when URL params change (for monitor type)
   useEffect(() => {
-    console.log("URL change detected:", { urlType, currentFormType: type, editMode, hasInitialData: !!initialData });
-    
+    console.log("URL change detected:", {
+      urlType,
+      currentFormType: type,
+      editMode,
+      hasInitialData: !!initialData,
+    });
+
     // Always reset form when URL type changes, unless we're in edit mode
     if (!editMode && urlType && urlType !== type) {
-      console.log("Resetting form for monitor type change:", type, "->", urlType);
-      
+      console.log(
+        "Resetting form for monitor type change:",
+        type,
+        "->",
+        urlType
+      );
+
       // Create fresh default values for the new monitor type
       const newDefaults: FormValues = {
         ...creationDefaultValues,
         type: urlType,
       };
-      
+
       // Reset form completely
       form.reset(newDefaults);
       setFormChanged(false);
-      
+
       console.log("Form reset completed for type:", urlType);
     }
   }, [urlType, type, editMode, initialData, form]);
@@ -411,38 +615,42 @@ export function MonitorForm({
   // Initialize form with initialData in edit mode
   useEffect(() => {
     if (editMode && initialData) {
-      console.log("Resetting form with initial data for edit mode:", initialData);
+      console.log(
+        "Resetting form with initial data for edit mode:",
+        initialData
+      );
       form.reset(initialData);
     }
   }, [editMode, initialData, form]);
-  
+
   const targetPlaceholders: Record<FormValues["type"], string> = {
     http_request: "e.g., https://example.com or https://api.example.com/health",
     website: "e.g., https://example.com or https://mywebsite.com",
     ping_host: "e.g., example.com or 8.8.8.8 (IP address or hostname)",
     port_check: "e.g., example.com or 192.168.1.1 (hostname or IP address)",
+    synthetic_test: "Select a test to monitor",
   };
-  
+
   const watchedValues = form.watch();
-  
+
   // useEffect to update formChanged state when form values change from defaults
   useEffect(() => {
     const defaultForComparison = initialData || creationDefaultValues;
-    const hasChanged = Object.keys(watchedValues).some(key => {
+    const hasChanged = Object.keys(watchedValues).some((key) => {
       // Ensure the key exists on both objects before comparison
       if (!(key in watchedValues) || !(key in defaultForComparison)) {
         return false;
       }
       const currentVal = watchedValues[key as keyof FormValues];
       const defaultVal = defaultForComparison[key as keyof FormValues];
-      
+
       // Handle cases where one value might be undefined and the other an empty string for certain fields
       if (currentVal === undefined && defaultVal === "") return false;
       if (currentVal === "" && defaultVal === undefined) return false;
       if (currentVal === undefined && defaultVal === undefined) return false;
 
       // Handle boolean fields - ensure proper comparison
-      if (typeof currentVal === 'boolean' || typeof defaultVal === 'boolean') {
+      if (typeof currentVal === "boolean" || typeof defaultVal === "boolean") {
         const currentBool = Boolean(currentVal);
         const defaultBool = Boolean(defaultVal);
         const changed = currentBool !== defaultBool;
@@ -451,19 +659,26 @@ export function MonitorForm({
           defaultVal,
           currentBool,
           defaultBool,
-          changed
+          changed,
         });
-        
+
         // Debug boolean fields specifically - SSL and other important booleans
-        if (key === 'websiteConfig_enableSslCheck' || key.includes('_enable') || key.includes('_should')) {
-          console.log("[FORM_DEBUG] Important boolean field change detection:", { key, currentVal, defaultVal, currentBool, defaultBool, changed });
+        if (
+          key === "websiteConfig_enableSslCheck" ||
+          key.includes("_enable") ||
+          key.includes("_should")
+        ) {
+          console.log(
+            "[FORM_DEBUG] Important boolean field change detection:",
+            { key, currentVal, defaultVal, currentBool, defaultBool, changed }
+          );
         }
-        
+
         return changed;
       }
 
       // Handle number fields - ensure proper comparison
-      if (typeof currentVal === 'number' || typeof defaultVal === 'number') {
+      if (typeof currentVal === "number" || typeof defaultVal === "number") {
         const currentNum = Number(currentVal) || 0;
         const defaultNum = Number(defaultVal) || 0;
         const changed = currentNum !== defaultNum;
@@ -472,14 +687,23 @@ export function MonitorForm({
           defaultVal,
           currentNum,
           defaultNum,
-          changed
+          changed,
         });
         return changed;
       }
 
       // Debug SSL-related fields and interval field specifically
-      if (key === 'websiteConfig_sslDaysUntilExpirationWarning' || key === 'websiteConfig_enableSslCheck' || key === 'interval') {
-        console.log("[FORM_DEBUG] Important field change detection:", { key, currentVal, defaultVal, changed: currentVal !== defaultVal });
+      if (
+        key === "websiteConfig_sslDaysUntilExpirationWarning" ||
+        key === "websiteConfig_enableSslCheck" ||
+        key === "interval"
+      ) {
+        console.log("[FORM_DEBUG] Important field change detection:", {
+          key,
+          currentVal,
+          defaultVal,
+          changed: currentVal !== defaultVal,
+        });
       }
 
       const changed = currentVal !== defaultVal;
@@ -498,25 +722,31 @@ export function MonitorForm({
       customMessage: "",
     };
 
-    const alertChanged = (
+    const alertChanged =
       alertConfig.enabled !== initialAlert.enabled ||
-      JSON.stringify(alertConfig.notificationProviders?.sort()) !== JSON.stringify(initialAlert.notificationProviders?.sort()) ||
+      JSON.stringify(alertConfig.notificationProviders?.sort()) !==
+        JSON.stringify(initialAlert.notificationProviders?.sort()) ||
       alertConfig.alertOnFailure !== initialAlert.alertOnFailure ||
       alertConfig.alertOnRecovery !== initialAlert.alertOnRecovery ||
       alertConfig.alertOnSslExpiration !== initialAlert.alertOnSslExpiration ||
       alertConfig.failureThreshold !== initialAlert.failureThreshold ||
       alertConfig.recoveryThreshold !== initialAlert.recoveryThreshold ||
-      alertConfig.customMessage !== initialAlert.customMessage
-    );
-    
+      alertConfig.customMessage !== initialAlert.customMessage;
+
     // For new monitors (not edit mode), consider the form changed if required fields are filled
     const isNewMonitor = !editMode && !initialData;
-    const hasRequiredFields = watchedValues.name && watchedValues.name.trim() !== "" && watchedValues.target && watchedValues.target.trim() !== "";
-    
-    const isFormReady = isNewMonitor ? hasRequiredFields : (hasChanged || alertChanged);
-    
+    const hasRequiredFields =
+      watchedValues.name &&
+      watchedValues.name.trim() !== "" &&
+      watchedValues.target &&
+      watchedValues.target.trim() !== "";
+
+    const isFormReady = isNewMonitor
+      ? hasRequiredFields
+      : hasChanged || alertChanged;
+
     setFormChanged(Boolean(isFormReady));
-    
+
     // Debug form change detection
     console.log("[FORM_DEBUG] Form change detection:", {
       isNewMonitor,
@@ -525,7 +755,7 @@ export function MonitorForm({
       alertChanged,
       isFormReady,
       formChanged: Boolean(isFormReady),
-      watchedValues: JSON.stringify(watchedValues, null, 2)
+      watchedValues: JSON.stringify(watchedValues, null, 2),
     });
   }, [watchedValues, initialData, editMode, alertConfig, initialAlertConfig]);
 
@@ -534,8 +764,14 @@ export function MonitorForm({
 
     // Debug: Log form data to see what's being submitted
     console.log("[FORM_DEBUG] Form submission data:", data);
-    console.log("[FORM_DEBUG] SSL Check Enabled:", data.websiteConfig_enableSslCheck);
-    console.log("[FORM_DEBUG] SSL Days Warning:", data.websiteConfig_sslDaysUntilExpirationWarning);
+    console.log(
+      "[FORM_DEBUG] SSL Check Enabled:",
+      data.websiteConfig_enableSslCheck
+    );
+    console.log(
+      "[FORM_DEBUG] SSL Days Warning:",
+      data.websiteConfig_sslDaysUntilExpirationWarning
+    );
 
     // Convert form data to API format
     const apiData = {
@@ -559,12 +795,14 @@ export function MonitorForm({
       if (data.httpConfig_headers && data.httpConfig_headers.trim()) {
         try {
           const parsedHeaders = JSON.parse(data.httpConfig_headers);
-          if (typeof parsedHeaders === 'object' && parsedHeaders !== null) {
+          if (typeof parsedHeaders === "object" && parsedHeaders !== null) {
             apiData.config.headers = parsedHeaders;
           }
         } catch (e) {
           console.warn("Failed to parse headers as JSON:", e);
-          throw new Error("Headers must be valid JSON format, e.g., {\"Content-Type\": \"application/json\"}");
+          throw new Error(
+            'Headers must be valid JSON format, e.g., {"Content-Type": "application/json"}'
+          );
         }
       }
 
@@ -577,7 +815,9 @@ export function MonitorForm({
       if (data.httpConfig_authType && data.httpConfig_authType !== "none") {
         if (data.httpConfig_authType === "basic") {
           if (!data.httpConfig_authUsername || !data.httpConfig_authPassword) {
-            throw new Error("Username and password are required for Basic Auth");
+            throw new Error(
+              "Username and password are required for Basic Auth"
+            );
           }
           apiData.config.auth = {
             type: "basic",
@@ -596,9 +836,13 @@ export function MonitorForm({
       }
 
       // Add keyword checking if configured, or explicitly remove if empty
-      if (data.httpConfig_keywordInBody && data.httpConfig_keywordInBody.trim()) {
+      if (
+        data.httpConfig_keywordInBody &&
+        data.httpConfig_keywordInBody.trim()
+      ) {
         apiData.config.keywordInBody = data.httpConfig_keywordInBody;
-        apiData.config.keywordInBodyShouldBePresent = data.httpConfig_keywordShouldBePresent !== false;
+        apiData.config.keywordInBodyShouldBePresent =
+          data.httpConfig_keywordShouldBePresent !== false;
       } else {
         // Explicitly remove keyword validation if field is empty
         delete apiData.config.keywordInBody;
@@ -616,7 +860,9 @@ export function MonitorForm({
       if (data.httpConfig_authType && data.httpConfig_authType !== "none") {
         if (data.httpConfig_authType === "basic") {
           if (!data.httpConfig_authUsername || !data.httpConfig_authPassword) {
-            throw new Error("Username and password are required for Basic Auth");
+            throw new Error(
+              "Username and password are required for Basic Auth"
+            );
           }
           apiData.config.auth = {
             type: "basic",
@@ -635,9 +881,13 @@ export function MonitorForm({
       }
 
       // Add keyword checking if configured
-      if (data.httpConfig_keywordInBody && data.httpConfig_keywordInBody.trim()) {
+      if (
+        data.httpConfig_keywordInBody &&
+        data.httpConfig_keywordInBody.trim()
+      ) {
         apiData.config.keywordInBody = data.httpConfig_keywordInBody;
-        apiData.config.keywordInBodyShouldBePresent = data.httpConfig_keywordShouldBePresent !== false;
+        apiData.config.keywordInBodyShouldBePresent =
+          data.httpConfig_keywordShouldBePresent !== false;
       } else {
         // Explicitly remove keyword validation if field is empty
         delete apiData.config.keywordInBody;
@@ -647,18 +897,20 @@ export function MonitorForm({
       // Add SSL checking configuration - handle boolean properly
       const sslCheckEnabled = Boolean(data.websiteConfig_enableSslCheck);
       apiData.config.enableSslCheck = sslCheckEnabled;
-      
+
       if (sslCheckEnabled) {
-        apiData.config.sslDaysUntilExpirationWarning = data.websiteConfig_sslDaysUntilExpirationWarning || 30;
+        apiData.config.sslDaysUntilExpirationWarning =
+          data.websiteConfig_sslDaysUntilExpirationWarning || 30;
         console.log("[FORM_DEBUG] SSL Config enabled:", {
           enableSslCheck: apiData.config.enableSslCheck,
-          sslDaysUntilExpirationWarning: apiData.config.sslDaysUntilExpirationWarning
+          sslDaysUntilExpirationWarning:
+            apiData.config.sslDaysUntilExpirationWarning,
         });
       } else {
         // When SSL is disabled, still set the field explicitly but remove the warning days to clean up config
         delete apiData.config.sslDaysUntilExpirationWarning;
         console.log("[FORM_DEBUG] SSL Config disabled:", {
-          enableSslCheck: apiData.config.enableSslCheck
+          enableSslCheck: apiData.config.enableSslCheck,
         });
       }
     } else if (data.type === "port_check") {
@@ -670,6 +922,22 @@ export function MonitorForm({
     } else if (data.type === "ping_host") {
       apiData.config = {
         timeoutSeconds: 5, // Default timeout for ping
+      };
+    } else if (data.type === "synthetic_test") {
+      // Synthetic monitor configuration
+      if (!data.syntheticConfig_testId) {
+        throw new Error("Please select a test to monitor");
+      }
+
+      apiData.target = data.syntheticConfig_testId; // Use testId as target
+      apiData.config = {
+        testId: data.syntheticConfig_testId,
+        testTitle: selectedTest?.title || "Test",
+        playwrightOptions: {
+          headless: true,
+          timeout: 120000, // 2 minutes default
+          retries: 0,
+        },
       };
     }
 
@@ -690,9 +958,14 @@ export function MonitorForm({
       }
 
       // For creation mode, check if we should show alerts or save directly
-      if (!editMode && !hideAlerts && searchParams.get('tab') === 'alerts') {
-        console.log("[FORM_DEBUG] Creation mode: storing monitor data for alerts step");
-        console.log("[FORM_DEBUG] API Data to store:", JSON.stringify(apiData, null, 2));
+      if (!editMode && !hideAlerts && searchParams.get("tab") === "alerts") {
+        console.log(
+          "[FORM_DEBUG] Creation mode: storing monitor data for alerts step"
+        );
+        console.log(
+          "[FORM_DEBUG] API Data to store:",
+          JSON.stringify(apiData, null, 2)
+        );
         setMonitorData({ formData: data, apiData });
         setShowAlerts(true);
         setIsSubmitting(false);
@@ -706,16 +979,22 @@ export function MonitorForm({
       toast.error(
         editMode ? "Failed to update monitor" : "Failed to create monitor",
         {
-          description: error instanceof Error ? error.message : "An unknown error occurred",
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unknown error occurred",
         }
       );
       setIsSubmitting(false);
     }
   }
 
-  async function handleDirectSave(apiData: Record<string, unknown>, includeAlerts = false) {
+  async function handleDirectSave(
+    apiData: Record<string, unknown>,
+    includeAlerts = false
+  ) {
     setIsSubmitting(true);
-    
+
     try {
       const saveData = includeAlerts ? { ...apiData, alertConfig } : apiData;
       const endpoint = editMode ? `/api/monitors/${id}` : "/api/monitors";
@@ -741,14 +1020,11 @@ export function MonitorForm({
 
       const result = await response.json();
 
-      toast.success(
-        editMode ? "Monitor updated" : "Monitor created",
-        {
-          description: editMode 
-            ? `Monitor "${apiData.name}" has been updated.`
-            : `Monitor "${apiData.name}" has been created.`,
-        }
-      );
+      toast.success(editMode ? "Monitor updated" : "Monitor created", {
+        description: editMode
+          ? `Monitor "${apiData.name}" has been updated.`
+          : `Monitor "${apiData.name}" has been created.`,
+      });
 
       if (editMode) {
         router.push(`/monitors/${id}`);
@@ -760,7 +1036,10 @@ export function MonitorForm({
       toast.error(
         editMode ? "Failed to update monitor" : "Failed to create monitor",
         {
-          description: error instanceof Error ? error.message : "An unknown error occurred",
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unknown error occurred",
         }
       );
     } finally {
@@ -772,15 +1051,22 @@ export function MonitorForm({
     // Validate alert configuration before proceeding
     if (alertConfig.enabled) {
       // Check if at least one notification provider is selected
-      if (!alertConfig.notificationProviders || alertConfig.notificationProviders.length === 0) {
+      if (
+        !alertConfig.notificationProviders ||
+        alertConfig.notificationProviders.length === 0
+      ) {
         toast.error("Validation Error", {
-                      description: "At least one notification channel must be selected when alerts are enabled",
+          description:
+            "At least one notification channel must be selected when alerts are enabled",
         });
         return;
       }
 
       // Check notification channel limit
-      const maxMonitorChannels = parseInt(process.env.NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS || '10', 10);
+      const maxMonitorChannels = parseInt(
+        process.env.NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS || "10",
+        10
+      );
       if (alertConfig.notificationProviders.length > maxMonitorChannels) {
         toast.error("Validation Error", {
           description: `You can only select up to ${maxMonitorChannels} notification channels`,
@@ -792,12 +1078,13 @@ export function MonitorForm({
       const alertTypesSelected = [
         alertConfig.alertOnFailure,
         alertConfig.alertOnRecovery,
-        alertConfig.alertOnSslExpiration
+        alertConfig.alertOnSslExpiration,
       ].some(Boolean);
 
       if (!alertTypesSelected) {
         toast.error("Validation Error", {
-          description: "At least one alert type must be selected when alerts are enabled",
+          description:
+            "At least one alert type must be selected when alerts are enabled",
         });
         return;
       }
@@ -805,15 +1092,24 @@ export function MonitorForm({
 
     if (monitorData) {
       // Extract apiData from monitorData object if it contains both formData and apiData
-      const apiDataToSave = 'apiData' in monitorData ? (monitorData as { apiData: Record<string, unknown> }).apiData : monitorData;
-      console.log("[FORM_DEBUG] Final submit with monitor data:", JSON.stringify(apiDataToSave, null, 2));
+      const apiDataToSave =
+        "apiData" in monitorData
+          ? (monitorData as { apiData: Record<string, unknown> }).apiData
+          : monitorData;
+      console.log(
+        "[FORM_DEBUG] Final submit with monitor data:",
+        JSON.stringify(apiDataToSave, null, 2)
+      );
       await handleDirectSave(apiDataToSave, true);
     } else if (editMode && id) {
       // If we're just updating alerts for an existing monitor without form data changes
       const alertOnlyData = {
-        alertConfig: alertConfig
+        alertConfig: alertConfig,
       };
-      console.log("[FORM_DEBUG] Alert-only update:", JSON.stringify(alertOnlyData, null, 2));
+      console.log(
+        "[FORM_DEBUG] Alert-only update:",
+        JSON.stringify(alertOnlyData, null, 2)
+      );
       await handleDirectSave(alertOnlyData, true);
     }
   }
@@ -823,7 +1119,12 @@ export function MonitorForm({
       <div className="space-y-4 p-4 min-h-[calc(100vh-8rem)]">
         <Card>
           <CardHeader>
-            <CardTitle>Alert Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></CardTitle>
+            <CardTitle>
+              Alert Settings{" "}
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                Optional
+              </span>
+            </CardTitle>
             <CardDescription>
               Configure alert notifications for this monitor
             </CardDescription>
@@ -831,19 +1132,23 @@ export function MonitorForm({
           <CardContent className="space-y-6">
             <AlertSettings
               value={alertConfig}
-              onChange={(config) => setAlertConfig({
-                enabled: config.enabled,
-                notificationProviders: config.notificationProviders,
-                alertOnFailure: config.alertOnFailure,
-                alertOnRecovery: config.alertOnRecovery || false,
-                alertOnSslExpiration: config.alertOnSslExpiration || false,
-                failureThreshold: config.failureThreshold,
-                recoveryThreshold: config.recoveryThreshold,
-                customMessage: config.customMessage || "",
-              })}
+              onChange={(config) =>
+                setAlertConfig({
+                  enabled: config.enabled,
+                  notificationProviders: config.notificationProviders,
+                  alertOnFailure: config.alertOnFailure,
+                  alertOnRecovery: config.alertOnRecovery || false,
+                  alertOnSslExpiration: config.alertOnSslExpiration || false,
+                  failureThreshold: config.failureThreshold,
+                  recoveryThreshold: config.recoveryThreshold,
+                  customMessage: config.customMessage || "",
+                })
+              }
               context="monitor"
               monitorType={type}
-              sslCheckEnabled={type === "website" && form.watch("websiteConfig_enableSslCheck")}
+              sslCheckEnabled={
+                type === "website" && form.watch("websiteConfig_enableSslCheck")
+              }
             />
             <div className="flex justify-end space-x-4">
               <Button
@@ -854,7 +1159,7 @@ export function MonitorForm({
               >
                 Back
               </Button>
-              <Button 
+              <Button
                 onClick={handleFinalSubmit}
                 disabled={isSubmitting || !formChanged}
                 className="flex items-center"
@@ -875,16 +1180,25 @@ export function MonitorForm({
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              {monitorTypes.map((type) => ( 
-                monitorType === type.value && (
-                  <type.icon className={`h-6 w-6 ${type.color} mt-0.5 flex-shrink-0`} key={type.value} />
-                )
-              ))}
-              <CardTitle className="text-2xl font-semibold">{title || (editMode ? "Edit Monitor" : "Create Monitor")}</CardTitle>
+              {monitorTypes.map(
+                (type) =>
+                  monitorType === type.value && (
+                    <type.icon
+                      className={`h-6 w-6 ${type.color} mt-0.5 flex-shrink-0`}
+                      key={type.value}
+                    />
+                  )
+              )}
+              <CardTitle className="text-2xl font-semibold">
+                {title || (editMode ? "Edit Monitor" : "Create Monitor")}
+              </CardTitle>
               <MonitorTypesPopover />
             </div>
             <CardDescription className="mt-1">
-              {description || (editMode ? "Update monitor configuration" : "Configure a new uptime monitor")}
+              {description ||
+                (editMode
+                  ? "Update monitor configuration"
+                  : "Configure a new uptime monitor")}
             </CardDescription>
           </div>
           {editMode && (
@@ -925,32 +1239,149 @@ export function MonitorForm({
                     )}
                   />
 
-                  {/* Target field - always visible now */}
-                  <FormField
-                    control={form.control}
-                    name="target"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Target</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder={type ? targetPlaceholders[type] : "Select Check Type for target hint"}
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Target field or Test Selector based on monitor type */}
+                  {type === "synthetic_test" ? (
+                    <FormField
+                      control={form.control}
+                      name="syntheticConfig_testId"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Select Test</FormLabel>
+                          <Popover
+                            open={testSelectorOpen}
+                            onOpenChange={setTestSelectorOpen}
+                          >
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={testSelectorOpen}
+                                  className={cn(
+                                    "w-full justify-between",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                  disabled={isLoadingTests}
+                                >
+                                  {field.value ? (
+                                    <div className="flex items-center gap-2">
+                                      {getTestTypeIcon(
+                                        selectedTest?.type || "browser"
+                                      )}
+                                      <span className="truncate">
+                                        {selectedTest?.title.substring(0, 84)}
+                                        {selectedTest?.title &&
+                                          selectedTest.title.length > 84 && (
+                                            <span>...</span>
+                                          )}
+                                      </span>
+                                    </div>
+                                  ) : isLoadingTests ? (
+                                    "Loading tests..."
+                                  ) : (
+                                    "Choose a test to monitor"
+                                  )}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="w-[--radix-popover-trigger-width] p-0"
+                              align="start"
+                            >
+                              <Command>
+                                <CommandInput placeholder="Search tests..." />
+                                <CommandList>
+                                  <CommandEmpty>No test found.</CommandEmpty>
+                                  <CommandGroup>
+                                    {tests.map((test) => (
+                                      <CommandItem
+                                        key={test.id}
+                                        value={`${test.title} ${test.type}`}
+                                        onSelect={() => {
+                                          field.onChange(test.id);
+                                          setSelectedTest(test);
+                                          setTestSelectorOpen(false);
+                                          // Auto-update monitor name if empty
+                                          const currentName =
+                                            form.getValues("name");
+                                          if (!currentName) {
+                                            form.setValue("name", test.title);
+                                          }
+                                        }}
+                                      >
+                                        <Check
+                                          className={cn(
+                                            "mr-2 h-4 w-4",
+                                            field.value === test.id
+                                              ? "opacity-100"
+                                              : "opacity-0"
+                                          )}
+                                        />
+                                        <div className="flex items-center gap-2 flex-1">
+                                          {getTestTypeIcon(test.type)}
+                                          <div className="flex flex-col">
+                                            <span className="font-medium">
+                                              {test.title.substring(0, 84)}
+                                              {test.title.length > 84 && "..."}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                              {test.type} test
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          <FormDescription>
+                            Run this Playwright test on a schedule
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <FormField
+                      control={form.control}
+                      name="target"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Target</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={
+                                type
+                                  ? targetPlaceholders[type]
+                                  : "Select Check Type for target hint"
+                              }
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
 
                 {/* Right column */}
                 <div className="space-y-4">
                   {/* Interval field */}
-                    <FormField
-                      control={form.control}
-                      name="interval"
-                      render={({ field }) => (
+                  <FormField
+                    control={form.control}
+                    name="interval"
+                    render={({ field }) => {
+                      // Use different interval options based on monitor type
+                      const checkIntervalOptions =
+                        type === "synthetic_test"
+                          ? syntheticCheckIntervalOptions
+                          : standardCheckIntervalOptions;
+
+                      return (
                         <FormItem>
                           <FormLabel>Check Interval</FormLabel>
                           <div className="md:w-40">
@@ -965,7 +1396,10 @@ export function MonitorForm({
                               </FormControl>
                               <SelectContent>
                                 {checkIntervalOptions.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
                                     {option.label}
                                   </SelectItem>
                                 ))}
@@ -977,9 +1411,9 @@ export function MonitorForm({
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
-                      )}
-                    />
-
+                      );
+                    }}
+                  />
                 </div>
               </div>
 
@@ -987,7 +1421,7 @@ export function MonitorForm({
               {type === "http_request" && (
                 <div className="space-y-4 pt-2">
                   {/* <h3 className=" font-medium">HTTP Request Settings</h3> */}
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -1006,7 +1440,15 @@ export function MonitorForm({
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].map((method) => (
+                                {[
+                                  "GET",
+                                  "POST",
+                                  "PUT",
+                                  "DELETE",
+                                  "PATCH",
+                                  "HEAD",
+                                  "OPTIONS",
+                                ].map((method) => (
                                   <SelectItem key={method} value={method}>
                                     <div className="flex items-center">
                                       <span>{method}</span>
@@ -1024,19 +1466,27 @@ export function MonitorForm({
                     {/* Expected Status Code */}
                     <FormField
                       control={form.control}
-                      name="httpConfig_expectedStatusCodes" 
+                      name="httpConfig_expectedStatusCodes"
                       render={({ field }) => {
-                        const presetValues = ["200-299", "300-399", "400-499", "500-599"];
+                        const presetValues = [
+                          "200-299",
+                          "300-399",
+                          "400-499",
+                          "500-599",
+                        ];
                         const currentValue = field.value || "200-299";
-                        
+
                         // Determine if current value is a preset or custom
                         // Determine if current value is a preset or custom
-                        
+
                         const handleDropdownChange = (value: string) => {
                           if (value === "custom") {
                             setIsCustomStatusCode(true);
                             // Don't clear the field, keep current value for editing
-                            if (!field.value || presetValues.includes(field.value)) {
+                            if (
+                              !field.value ||
+                              presetValues.includes(field.value)
+                            ) {
                               field.onChange("200"); // Default to a single code for custom
                             }
                           } else {
@@ -1045,10 +1495,12 @@ export function MonitorForm({
                           }
                         };
 
-                        const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                        const handleInputChange = (
+                          e: React.ChangeEvent<HTMLInputElement>
+                        ) => {
                           const newValue = e.target.value;
                           field.onChange(newValue);
-                          
+
                           // Auto-detect if the value matches a preset
                           if (presetValues.includes(newValue)) {
                             setIsCustomStatusCode(false);
@@ -1058,19 +1510,27 @@ export function MonitorForm({
                         };
 
                         // Determine dropdown value - ensure proper synchronization
-                        const dropdownValue = isCustomStatusCode ? "custom" : (presetValues.includes(currentValue) ? currentValue : "200-299");
-                        
+                        const dropdownValue = isCustomStatusCode
+                          ? "custom"
+                          : presetValues.includes(currentValue)
+                          ? currentValue
+                          : "200-299";
+
                         return (
                           <FormItem>
                             <FormLabel>Expected Status Codes</FormLabel>
                             <div className="flex items-center space-x-2">
                               <FormControl className="flex-grow">
-                                <Input 
+                                <Input
                                   placeholder="e.g., 200, 404, 500-599"
                                   value={currentValue}
                                   onChange={handleInputChange}
                                   disabled={!isCustomStatusCode}
-                                  className={!isCustomStatusCode ? "bg-muted cursor-not-allowed" : ""}
+                                  className={
+                                    !isCustomStatusCode
+                                      ? "bg-muted cursor-not-allowed"
+                                      : ""
+                                  }
                                 />
                               </FormControl>
                               <Select
@@ -1082,7 +1542,10 @@ export function MonitorForm({
                                 </SelectTrigger>
                                 <SelectContent>
                                   {statusCodePresets.map((preset) => (
-                                    <SelectItem key={preset.value} value={preset.value}>
+                                    <SelectItem
+                                      key={preset.value}
+                                      value={preset.value}
+                                    >
                                       {preset.label}
                                     </SelectItem>
                                   ))}
@@ -1097,8 +1560,6 @@ export function MonitorForm({
                         );
                       }}
                     />
-
-
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
@@ -1106,8 +1567,21 @@ export function MonitorForm({
                       control={form.control}
                       name="httpConfig_headers"
                       render={({ field }) => (
-                        <FormItem className={`${(httpMethod === "POST" || httpMethod === "PUT" || httpMethod === "PATCH") ? '' : 'md:col-span-2'}`}>
-                          <FormLabel>HTTP Headers <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></FormLabel>
+                        <FormItem
+                          className={`${
+                            httpMethod === "POST" ||
+                            httpMethod === "PUT" ||
+                            httpMethod === "PATCH"
+                              ? ""
+                              : "md:col-span-2"
+                          }`}
+                        >
+                          <FormLabel>
+                            HTTP Headers{" "}
+                            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              Optional
+                            </span>
+                          </FormLabel>
                           <FormControl>
                             <Textarea
                               placeholder='{ "Authorization": "Bearer ..." }'
@@ -1120,7 +1594,9 @@ export function MonitorForm({
                       )}
                     />
 
-                    {(httpMethod === "POST" || httpMethod === "PUT" || httpMethod === "PATCH") && (
+                    {(httpMethod === "POST" ||
+                      httpMethod === "PUT" ||
+                      httpMethod === "PATCH") && (
                       <FormField
                         control={form.control}
                         name="httpConfig_body"
@@ -1129,7 +1605,7 @@ export function MonitorForm({
                             <FormLabel>HTTP Body</FormLabel>
                             <FormControl>
                               <Textarea
-                                placeholder='Request body (e.g., JSON)'
+                                placeholder="Request body (e.g., JSON)"
                                 {...field}
                                 rows={3}
                               />
@@ -1145,93 +1621,122 @@ export function MonitorForm({
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
                     {/* Authentication Section */}
                     <Card>
-                      <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen}>
+                      <Collapsible
+                        open={isAuthSectionOpen}
+                        onOpenChange={setIsAuthSectionOpen}
+                      >
                         <CollapsibleTrigger asChild>
                           <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
                             <div className="flex items-center space-x-2">
-                              {isAuthSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              <CardTitle className="text-base">Authentication</CardTitle>
-                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                              {isAuthSectionOpen ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                              <CardTitle className="text-base">
+                                Authentication
+                              </CardTitle>
+                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                                Optional
+                              </span>
                             </div>
                             <CardDescription className="text-sm">
-                              Configure authentication credentials for protected endpoints
+                              Configure authentication credentials for protected
+                              endpoints
                             </CardDescription>
                           </CardHeader>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <CardContent className="pt-0 space-y-4">
-                        <FormField
-                          control={form.control}
-                          name="httpConfig_authType"
-                          render={({ field }) => (
-                            <FormItem className="mb-4">
-                              <FormLabel>Authentication Type</FormLabel>
-                              <Select onValueChange={field.onChange} value={field.value || "none"}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select authentication type" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="none">None</SelectItem>
-                                  <SelectItem value="basic">Basic Auth</SelectItem>
-                                  <SelectItem value="bearer">Bearer Token</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        {authType === "basic" && (
-                          <div className="space-y-4 mb-4">
                             <FormField
                               control={form.control}
-                              name="httpConfig_authUsername"
+                              name="httpConfig_authType"
                               render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Username</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="Enter username" {...field} />
-                                  </FormControl>
+                                <FormItem className="mb-4">
+                                  <FormLabel>Authentication Type</FormLabel>
+                                  <Select
+                                    onValueChange={field.onChange}
+                                    value={field.value || "none"}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select authentication type" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="none">None</SelectItem>
+                                      <SelectItem value="basic">
+                                        Basic Auth
+                                      </SelectItem>
+                                      <SelectItem value="bearer">
+                                        Bearer Token
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
-                            <FormField
-                              control={form.control}
-                              name="httpConfig_authPassword"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Password</FormLabel>
-                                  <FormControl>
-                                    <Input type="password" placeholder="Enter password" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        )}
 
-                        {authType === "bearer" && (
-                          <div className="mb-4">
-                            <FormField
-                              control={form.control}
-                              name="httpConfig_authToken"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Bearer Token</FormLabel>
-                                  <FormControl>
-                                    <Input type="password" placeholder="Enter bearer token" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        )}
+                            {authType === "basic" && (
+                              <div className="space-y-4 mb-4">
+                                <FormField
+                                  control={form.control}
+                                  name="httpConfig_authUsername"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Username</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          placeholder="Enter username"
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="httpConfig_authPassword"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Password</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="password"
+                                          placeholder="Enter password"
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            )}
 
+                            {authType === "bearer" && (
+                              <div className="mb-4">
+                                <FormField
+                                  control={form.control}
+                                  name="httpConfig_authToken"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Bearer Token</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="password"
+                                          placeholder="Enter bearer token"
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            )}
                           </CardContent>
                         </CollapsibleContent>
                       </Collapsible>
@@ -1239,65 +1744,93 @@ export function MonitorForm({
 
                     {/* Response Content Validation Section */}
                     <Card>
-                      <Collapsible open={isKeywordSectionOpen} onOpenChange={setIsKeywordSectionOpen}>
+                      <Collapsible
+                        open={isKeywordSectionOpen}
+                        onOpenChange={setIsKeywordSectionOpen}
+                      >
                         <CollapsibleTrigger asChild>
                           <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
                             <div className="flex items-center space-x-2">
-                              {isKeywordSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              <CardTitle className="text-base">Response Content Validation</CardTitle>
-                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                              {isKeywordSectionOpen ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                              <CardTitle className="text-base">
+                                Response Content Validation
+                              </CardTitle>
+                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                                Optional
+                              </span>
                             </div>
                             <CardDescription className="text-sm">
-                              Validate response content by checking for specific keywords or text
+                              Validate response content by checking for specific
+                              keywords or text
                             </CardDescription>
                           </CardHeader>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <CardContent className="pt-0 space-y-4">
-                        <FormField
-                          control={form.control}
-                          name="httpConfig_keywordInBody"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Keyword</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="success"
-                                  {...field}
-                                  value={field.value || ""}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="httpConfig_keywordShouldBePresent"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Keyword Should Be</FormLabel>
-                              <FormControl>
-                                <Select
-                                  onValueChange={(value) => field.onChange(value === "true" ? true : value === "false" ? false : undefined)}
-                                  value={typeof field.value === 'boolean' ? field.value.toString() : "true"}
-                                >
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_keywordInBody"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Keyword</FormLabel>
                                   <FormControl>
-                                    <SelectTrigger className="w-full">
-                                      <SelectValue placeholder="Present or Absent?" />
-                                    </SelectTrigger>
+                                    <Input
+                                      placeholder="success"
+                                      {...field}
+                                      value={field.value || ""}
+                                    />
                                   </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="true">Present</SelectItem>
-                                    <SelectItem value="false">Absent</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_keywordShouldBePresent"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Keyword Should Be</FormLabel>
+                                  <FormControl>
+                                    <Select
+                                      onValueChange={(value) =>
+                                        field.onChange(
+                                          value === "true"
+                                            ? true
+                                            : value === "false"
+                                            ? false
+                                            : undefined
+                                        )
+                                      }
+                                      value={
+                                        typeof field.value === "boolean"
+                                          ? field.value.toString()
+                                          : "true"
+                                      }
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger className="w-full">
+                                          <SelectValue placeholder="Present or Absent?" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="true">
+                                          Present
+                                        </SelectItem>
+                                        <SelectItem value="false">
+                                          Absent
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </CardContent>
                         </CollapsibleContent>
                       </Collapsible>
@@ -1309,24 +1842,32 @@ export function MonitorForm({
               {type === "website" && (
                 <div className="space-y-4 pt-4">
                   {/* <h3 className="text-base font-medium">Website Check Settings</h3> */}
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Expected Status Code */}
                     <FormField
                       control={form.control}
-                      name="httpConfig_expectedStatusCodes" 
+                      name="httpConfig_expectedStatusCodes"
                       render={({ field }) => {
-                        const presetValues = ["200-299", "300-399", "400-499", "500-599"];
+                        const presetValues = [
+                          "200-299",
+                          "300-399",
+                          "400-499",
+                          "500-599",
+                        ];
                         const currentValue = field.value || "200-299";
-                        
+
                         // Determine if current value is a preset or custom
                         // Determine if current value is a preset or custom
-                        
+
                         const handleDropdownChange = (value: string) => {
                           if (value === "custom") {
                             setIsCustomStatusCode(true);
                             // Don't clear the field, keep current value for editing
-                            if (!field.value || presetValues.includes(field.value)) {
+                            if (
+                              !field.value ||
+                              presetValues.includes(field.value)
+                            ) {
                               field.onChange("200"); // Default to a single code for custom
                             }
                           } else {
@@ -1335,10 +1876,12 @@ export function MonitorForm({
                           }
                         };
 
-                        const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                        const handleInputChange = (
+                          e: React.ChangeEvent<HTMLInputElement>
+                        ) => {
                           const newValue = e.target.value;
                           field.onChange(newValue);
-                          
+
                           // Auto-detect if the value matches a preset
                           if (presetValues.includes(newValue)) {
                             setIsCustomStatusCode(false);
@@ -1348,19 +1891,27 @@ export function MonitorForm({
                         };
 
                         // Determine dropdown value - ensure proper synchronization
-                        const dropdownValue = isCustomStatusCode ? "custom" : (presetValues.includes(currentValue) ? currentValue : "200-299");
-                        
+                        const dropdownValue = isCustomStatusCode
+                          ? "custom"
+                          : presetValues.includes(currentValue)
+                          ? currentValue
+                          : "200-299";
+
                         return (
                           <FormItem>
                             <FormLabel>Expected Status Codes</FormLabel>
                             <div className="flex items-center space-x-2">
                               <FormControl className="flex-grow">
-                                <Input 
+                                <Input
                                   placeholder="e.g., 200, 404, 500-599"
                                   value={currentValue}
                                   onChange={handleInputChange}
                                   disabled={!isCustomStatusCode}
-                                  className={!isCustomStatusCode ? "bg-muted cursor-not-allowed" : ""}
+                                  className={
+                                    !isCustomStatusCode
+                                      ? "bg-muted cursor-not-allowed"
+                                      : ""
+                                  }
                                 />
                               </FormControl>
                               <Select
@@ -1372,7 +1923,10 @@ export function MonitorForm({
                                 </SelectTrigger>
                                 <SelectContent>
                                   {statusCodePresets.map((preset) => (
-                                    <SelectItem key={preset.value} value={preset.value}>
+                                    <SelectItem
+                                      key={preset.value}
+                                      value={preset.value}
+                                    >
                                       {preset.label}
                                     </SelectItem>
                                   ))}
@@ -1380,7 +1934,12 @@ export function MonitorForm({
                               </Select>
                             </div>
                             <FormDescription>
-                              {isCustomStatusCode ? "Enter specific status codes (e.g., 200, 404, 500-599)" : "Current selection: " + (statusCodePresets.find(p => p.value === currentValue)?.label || "Any 2xx (Success)")}
+                              {isCustomStatusCode
+                                ? "Enter specific status codes (e.g., 200, 404, 500-599)"
+                                : "Current selection: " +
+                                  (statusCodePresets.find(
+                                    (p) => p.value === currentValue
+                                  )?.label || "Any 2xx (Success)")}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1394,10 +1953,14 @@ export function MonitorForm({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
                             <Shield className="h-4 w-4 text-green-500" />
-                            <span className="text-sm font-medium">SSL Check</span>
-                            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span>
+                            <span className="text-sm font-medium">
+                              SSL Check
+                            </span>
+                            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              Optional
+                            </span>
                           </div>
-                          
+
                           <FormField
                             control={form.control}
                             name="websiteConfig_enableSslCheck"
@@ -1407,7 +1970,13 @@ export function MonitorForm({
                                   <Switch
                                     checked={field.value}
                                     onCheckedChange={(checked) => {
-                                      console.log("[FORM_DEBUG] SSL Check field changed:", { oldValue: field.value, newValue: checked });
+                                      console.log(
+                                        "[FORM_DEBUG] SSL Check field changed:",
+                                        {
+                                          oldValue: field.value,
+                                          newValue: checked,
+                                        }
+                                      );
                                       field.onChange(checked);
                                     }}
                                   />
@@ -1419,7 +1988,9 @@ export function MonitorForm({
 
                         {form.watch("websiteConfig_enableSslCheck") && (
                           <div className="flex items-center space-x-2 pt-2 border-t">
-                            <span className="text-xs text-muted-foreground">Alert in</span>
+                            <span className="text-xs text-muted-foreground">
+                              Alert in
+                            </span>
                             <FormField
                               control={form.control}
                               name="websiteConfig_sslDaysUntilExpirationWarning"
@@ -1431,10 +2002,19 @@ export function MonitorForm({
                                       placeholder="30"
                                       className="w-16 h-7 text-xs"
                                       {...field}
-                                      value={field.value || ''}
+                                      value={field.value || ""}
                                       onChange={(e) => {
-                                        const newValue = e.target.value ? parseInt(e.target.value) : 30;
-                                        console.log("[FORM_DEBUG] SSL Days field changed:", { oldValue: field.value, newValue, inputValue: e.target.value });
+                                        const newValue = e.target.value
+                                          ? parseInt(e.target.value)
+                                          : 30;
+                                        console.log(
+                                          "[FORM_DEBUG] SSL Days field changed:",
+                                          {
+                                            oldValue: field.value,
+                                            newValue,
+                                            inputValue: e.target.value,
+                                          }
+                                        );
                                         field.onChange(newValue);
                                       }}
                                     />
@@ -1442,7 +2022,9 @@ export function MonitorForm({
                                 </FormItem>
                               )}
                             />
-                            <span className="text-xs text-muted-foreground">days</span>
+                            <span className="text-xs text-muted-foreground">
+                              days
+                            </span>
                           </div>
                         )}
                       </div>
@@ -1453,93 +2035,122 @@ export function MonitorForm({
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
                     {/* Authentication Section */}
                     <Card>
-                      <Collapsible open={isAuthSectionOpen} onOpenChange={setIsAuthSectionOpen}>
+                      <Collapsible
+                        open={isAuthSectionOpen}
+                        onOpenChange={setIsAuthSectionOpen}
+                      >
                         <CollapsibleTrigger asChild>
                           <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-2">
                             <div className="flex items-center space-x-2">
-                              {isAuthSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              <CardTitle className="text-base">Authentication</CardTitle>
-                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                              {isAuthSectionOpen ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                              <CardTitle className="text-base">
+                                Authentication
+                              </CardTitle>
+                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                                Optional
+                              </span>
                             </div>
                             <CardDescription className="text-sm">
-                              Configure authentication credentials for protected websites
+                              Configure authentication credentials for protected
+                              websites
                             </CardDescription>
                           </CardHeader>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <CardContent className="pt-0 space-y-4">
-                        <FormField
-                          control={form.control}
-                          name="httpConfig_authType"
-                          render={({ field }) => (
-                            <FormItem className="mb-4">
-                              <FormLabel>Authentication Type</FormLabel>
-                              <Select onValueChange={field.onChange} value={field.value || "none"}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select authentication type" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="none">None</SelectItem>
-                                  <SelectItem value="basic">Basic Auth</SelectItem>
-                                  <SelectItem value="bearer">Bearer Token</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        {authType === "basic" && (
-                          <div className="space-y-4 mb-4">
                             <FormField
                               control={form.control}
-                              name="httpConfig_authUsername"
+                              name="httpConfig_authType"
                               render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Username</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="Enter username" {...field} />
-                                  </FormControl>
+                                <FormItem className="mb-4">
+                                  <FormLabel>Authentication Type</FormLabel>
+                                  <Select
+                                    onValueChange={field.onChange}
+                                    value={field.value || "none"}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select authentication type" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="none">None</SelectItem>
+                                      <SelectItem value="basic">
+                                        Basic Auth
+                                      </SelectItem>
+                                      <SelectItem value="bearer">
+                                        Bearer Token
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
-                            <FormField
-                              control={form.control}
-                              name="httpConfig_authPassword"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Password</FormLabel>
-                                  <FormControl>
-                                    <Input type="password" placeholder="Enter password" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        )}
 
-                        {authType === "bearer" && (
-                          <div className="mb-4">
-                            <FormField
-                              control={form.control}
-                              name="httpConfig_authToken"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Bearer Token</FormLabel>
-                                  <FormControl>
-                                    <Input type="password" placeholder="Enter bearer token" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        )}
+                            {authType === "basic" && (
+                              <div className="space-y-4 mb-4">
+                                <FormField
+                                  control={form.control}
+                                  name="httpConfig_authUsername"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Username</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          placeholder="Enter username"
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="httpConfig_authPassword"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Password</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="password"
+                                          placeholder="Enter password"
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            )}
 
+                            {authType === "bearer" && (
+                              <div className="mb-4">
+                                <FormField
+                                  control={form.control}
+                                  name="httpConfig_authToken"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Bearer Token</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="password"
+                                          placeholder="Enter bearer token"
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            )}
                           </CardContent>
                         </CollapsibleContent>
                       </Collapsible>
@@ -1547,75 +2158,100 @@ export function MonitorForm({
 
                     {/* Content Validation Section */}
                     <Card>
-                      <Collapsible open={isKeywordSectionOpen} onOpenChange={setIsKeywordSectionOpen}>
+                      <Collapsible
+                        open={isKeywordSectionOpen}
+                        onOpenChange={setIsKeywordSectionOpen}
+                      >
                         <CollapsibleTrigger asChild>
                           <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-2">
                             <div className="flex items-center space-x-2">
-                              {isKeywordSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              <CardTitle className="text-base">Content Validation</CardTitle>
-                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                              {isKeywordSectionOpen ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                              <CardTitle className="text-base">
+                                Content Validation
+                              </CardTitle>
+                              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                                Optional
+                              </span>
                             </div>
                             <CardDescription className="text-sm">
-                              Check if specific text or keywords exist on your website
+                              Check if specific text or keywords exist on your
+                              website
                             </CardDescription>
                           </CardHeader>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <CardContent className="pt-0 space-y-4">
-                        <FormField
-                          control={form.control}
-                          name="httpConfig_keywordInBody"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Keyword</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="Welcome"
-                                  {...field}
-                                  value={field.value || ""}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="httpConfig_keywordShouldBePresent"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Keyword Should Be</FormLabel>
-                              <FormControl>
-                                <Select
-                                  onValueChange={(value) => field.onChange(value === "true" ? true : value === "false" ? false : undefined)}
-                                  value={typeof field.value === 'boolean' ? field.value.toString() : "true"}
-                                >
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_keywordInBody"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Keyword</FormLabel>
                                   <FormControl>
-                                    <SelectTrigger className="w-full">
-                                      <SelectValue placeholder="Present or Absent?" />
-                                    </SelectTrigger>
+                                    <Input
+                                      placeholder="Welcome"
+                                      {...field}
+                                      value={field.value || ""}
+                                    />
                                   </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="true">Present</SelectItem>
-                                    <SelectItem value="false">Absent</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name="httpConfig_keywordShouldBePresent"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Keyword Should Be</FormLabel>
+                                  <FormControl>
+                                    <Select
+                                      onValueChange={(value) =>
+                                        field.onChange(
+                                          value === "true"
+                                            ? true
+                                            : value === "false"
+                                            ? false
+                                            : undefined
+                                        )
+                                      }
+                                      value={
+                                        typeof field.value === "boolean"
+                                          ? field.value.toString()
+                                          : "true"
+                                      }
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger className="w-full">
+                                          <SelectValue placeholder="Present or Absent?" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="true">
+                                          Present
+                                        </SelectItem>
+                                        <SelectItem value="false">
+                                          Absent
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </CardContent>
                         </CollapsibleContent>
                       </Collapsible>
                     </Card>
                   </div>
-
-
                 </div>
               )}
-
 
               {type === "port_check" && (
                 <div className="space-y-4 pt-4">
@@ -1684,30 +2320,38 @@ export function MonitorForm({
 
               <div className="flex justify-end space-x-4">
                 <Button
-                    type="button"
-                    variant="outline"
-                    onClick={onCancel || (() => router.push("/monitors"))}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={isSubmitting || (editMode && !formChanged) || (!editMode && !canCreate)}
-                    className="flex items-center"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <SaveIcon className="mr-2 h-4 w-4" />
-                    )}
-                    {hideAlerts ? "Next: Alerts" : (editMode ? "Update Monitor" : "Create")}
-                  </Button>
-                </div>
+                  type="button"
+                  variant="outline"
+                  onClick={onCancel || (() => router.push("/monitors"))}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    isSubmitting ||
+                    (editMode && !formChanged) ||
+                    (!editMode && !canCreate)
+                  }
+                  className="flex items-center"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <SaveIcon className="mr-2 h-4 w-4" />
+                  )}
+                  {hideAlerts
+                    ? "Next: Alerts"
+                    : editMode
+                    ? "Update Monitor"
+                    : "Create"}
+                </Button>
+              </div>
             </form>
           </Form>
         </CardContent>
       </Card>
     </div>
   );
-} 
+}

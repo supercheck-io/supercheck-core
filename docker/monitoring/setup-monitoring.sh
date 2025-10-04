@@ -316,9 +316,9 @@ echo "✅ Monitoring configuration created"
 echo "🚀 Deploying monitoring stack..."
 
 # Copy configs to Docker volumes
-docker run --rm -v monitoring_prometheus_config:/target -v $(pwd)/configs/prometheus:/source alpine sh -c 'cp -r /source/* /target/'
-docker run --rm -v monitoring_grafana_provisioning:/target -v $(pwd)/configs/grafana/provisioning:/source alpine sh -c 'cp -r /source/* /target/'
-docker run --rm -v monitoring_alertmanager_config:/target -v $(pwd)/configs/alertmanager:/source alpine sh -c 'cp -r /source/* /target/'
+docker run --rm -v monitoring_prometheus_config:/target -v $(pwd)/configs/prometheus:/source busybox sh -c 'cp -r /source/* /target/'
+docker run --rm -v monitoring_grafana_provisioning:/target -v $(pwd)/configs/grafana/provisioning:/source busybox sh -c 'cp -r /source/* /target/'
+docker run --rm -v monitoring_alertmanager_config:/target -v $(pwd)/configs/alertmanager:/source busybox sh -c 'cp -r /source/* /target/'
 
 echo "✅ Configuration files copied to Docker volumes"
 

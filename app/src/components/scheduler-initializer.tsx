@@ -1,6 +1,6 @@
 'use server';
 
-import { initializeJobSchedulers, cleanupJobScheduler, initializePlaygroundCleanup, cleanupPlaygroundCleanup } from '@/lib/job-scheduler';
+import { initializeJobSchedulers, cleanupJobScheduler, initializeDataLifecycleService, cleanupDataLifecycleService } from '@/lib/job-scheduler';
 import { initializeMonitorSchedulers, cleanupMonitorScheduler } from '@/lib/monitor-scheduler';
 
 /**
@@ -14,94 +14,76 @@ import { initializeMonitorSchedulers, cleanupMonitorScheduler } from '@/lib/moni
 export async function SchedulerInitializer() {
   // Schedulers are always enabled - no option to disable
   try {
-    console.log('🔄 Job scheduler initialization started');
-    
     // Initialize job scheduler synchronously to ensure it completes during startup
     const initializeAsync = async () => {
       try {
-        console.log('🧹 Cleaning up job scheduler...');
         await cleanupJobScheduler();
-        
-        console.log('🚀 Starting job schedulers...');
         const result = await initializeJobSchedulers();
-        
+
         if (result.success) {
-          console.log('✅ Job scheduler initialized successfully');
-          if (result.initialized && result.failed) {
-            console.log(`Initialized ${result.initialized} jobs, ${result.failed} failed`);
-          }
-          
+          console.log(`✅ Job scheduler initialized (${result.initialized} jobs${result.failed ? `, ${result.failed} failed` : ''})`);
+
           if (result.failed && result.failed > 0) {
-            console.warn(`⚠️ ${result.failed} job(s) failed to initialize - this may cause scheduling gaps`);
+            console.warn(`⚠️ ${result.failed} job(s) failed to initialize`);
           }
-          
-          // Initialize playground cleanup after job schedulers
-          console.log('🧽 Initializing playground cleanup...');
-          const playgroundCleanup = await initializePlaygroundCleanup();
-          if (playgroundCleanup) {
-            console.log('✅ Playground cleanup initialized successfully');
+
+          // Initialize unified data lifecycle service
+          const lifecycleService = await initializeDataLifecycleService();
+          if (lifecycleService) {
+            const status = await lifecycleService.getStatus();
+            if (status.enabledStrategies.length > 0) {
+              console.log(`✅ Data lifecycle service initialized (${status.enabledStrategies.join(', ')})`);
+            } else {
+              console.log('ℹ️ Data lifecycle service initialized (no strategies enabled)');
+            }
           } else {
-            console.log('⏸️ Playground cleanup disabled or failed to initialize');
+            console.warn('⚠️ Data lifecycle service failed to initialize');
           }
         } else {
           console.error('❌ Job scheduler initialization failed', result.error);
         }
       } catch (error: unknown) {
-        console.error('❌ Job scheduler initialization error:', error);
-        // Re-throw to ensure the error is visible in server logs
+        console.error('❌ Job scheduler error:', error);
         throw error;
       }
     };
-    
-    // Start initialization but don't block server component return
-    // However, make sure errors are properly caught and logged
+
     initializeAsync().catch((error) => {
-      console.error('❌ Critical: Job scheduler failed to initialize during startup:', error);
-      // Could potentially set up a retry mechanism here
+      console.error('❌ Critical: Job scheduler failed during startup:', error);
     });
-    
+
   } catch (error) {
-    console.error('❌ Error starting job scheduler initialization:', error);
+    console.error('❌ Error starting job scheduler:', error);
   }
-  
+
   try {
-    console.log('🔄 Monitor scheduler initialization started');
-    
     // Initialize monitor scheduler synchronously to ensure it completes during startup
     const initializeAsync = async () => {
       try {
-        console.log('🧹 Cleaning up monitor scheduler...');
         await cleanupMonitorScheduler();
-        
-        console.log('🚀 Starting monitor schedulers...');
         const result = await initializeMonitorSchedulers();
-        
+
         if (result.success) {
-          console.log('✅ Monitor scheduler initialized successfully');
-          console.log(`Initialized ${result.scheduled} monitors, ${result.failed} failed`);
-          
+          console.log(`✅ Monitor scheduler initialized (${result.scheduled} monitors${result.failed ? `, ${result.failed} failed` : ''})`);
+
           if (result.failed > 0) {
-            console.warn(`⚠️ ${result.failed} monitor(s) failed to initialize - this may cause monitoring gaps`);
+            console.warn(`⚠️ ${result.failed} monitor(s) failed to initialize`);
           }
         } else {
-          console.error('❌ Monitor scheduler initialization failed completely');
+          console.error('❌ Monitor scheduler initialization failed');
         }
       } catch (error: unknown) {
-        console.error('❌ Monitor scheduler initialization error:', error);
-        // Re-throw to ensure the error is visible in server logs
+        console.error('❌ Monitor scheduler error:', error);
         throw error;
       }
     };
-    
-    // Start initialization but don't block server component return
-    // However, make sure errors are properly caught and logged
+
     initializeAsync().catch((error) => {
-      console.error('❌ Critical: Monitor scheduler failed to initialize during startup:', error);
-      // Could potentially set up a retry mechanism here
+      console.error('❌ Critical: Monitor scheduler failed during startup:', error);
     });
-    
+
   } catch (error) {
-    console.error('❌ Error starting monitor scheduler initialization:', error);
+    console.error('❌ Error starting monitor scheduler:', error);
   }
 
   // This is a server component, so it doesn't render anything
@@ -114,12 +96,12 @@ export async function cleanupBackgroundTasks() {
   console.log('🧹 Cleaning up background tasks...');
   const jobCleanupPromise = cleanupJobScheduler().catch(e => console.error('Error cleaning job scheduler:', e));
   const monitorSchedulerCleanupPromise = cleanupMonitorScheduler().catch(e => console.error('Error cleaning monitor scheduler:', e));
-  const playgroundCleanupPromise = cleanupPlaygroundCleanup().catch(e => console.error('Error cleaning playground cleanup:', e));
-  
+  const lifecycleCleanupPromise = cleanupDataLifecycleService().catch(e => console.error('Error cleaning data lifecycle service:', e));
+
   await Promise.allSettled([
-    jobCleanupPromise, 
+    jobCleanupPromise,
     monitorSchedulerCleanupPromise,
-    playgroundCleanupPromise
+    lifecycleCleanupPromise
   ]);
   console.log('✅ Background tasks cleanup finished.');
 } 

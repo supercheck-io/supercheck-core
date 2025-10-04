@@ -26,6 +26,7 @@ import {
   UserCog,
   type LucideIcon,
 } from "lucide-react";
+import { PlaywrightLogo } from "@/components/logo/playwright-logo";
 
 import { NavMain } from "@/components/nav-main";
 import { ProjectSwitcher } from "@/components/project-switcher";
@@ -174,6 +175,12 @@ const data = {
           icon: EthernetPort,
           color: "!text-blue-600",
         },
+        {
+          title: "Synthetic Monitor",
+          url: "/monitors/create?type=synthetic_test",
+          icon: PlaywrightLogo,
+          color: "!text-purple-600",
+        },
       ],
     },
     {
@@ -277,15 +284,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       return [];
     }
 
+    type IconComponent = LucideIcon | React.ComponentType<{ className?: string }>;
+
     type AdminItem = {
       title: string;
       url: string;
-      icon: LucideIcon;
+      icon: IconComponent;
       isActive?: boolean;
       items?: Array<{
         title: string;
         url: string;
-        icon?: LucideIcon;
+        icon?: IconComponent;
         color?: string;
       }>;
     };

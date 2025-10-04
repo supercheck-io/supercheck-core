@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from "@/utils/db";
 import { runs, reports, jobs, jobTests } from "@/db/schema/schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, sql } from "drizzle-orm";
 import { requireAuth, getUserOrgRole } from '@/lib/rbac/middleware';
 import { isSuperAdmin } from '@/lib/admin';
 import { logAuditEvent } from '@/lib/audit-logger';
@@ -44,9 +44,9 @@ export async function GET(
       .from(runs)
       .leftJoin(jobs, eq(runs.jobId, jobs.id))
       .leftJoin(
-        reports, 
+        reports,
         and(
-          eq(reports.entityId, runs.id),
+          sql`${reports.entityId} = ${runs.id}::text`,
           eq(reports.entityType, 'job')
         )
       )

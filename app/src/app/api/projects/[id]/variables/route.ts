@@ -30,11 +30,12 @@ export async function GET(
     const hasDeleteAccess = await canDeleteProjectVariables(userId, projectId);
 
     // Fetch variables
+    // Using ID ordering instead of createdAt since UUIDv7 is time-ordered (PostgreSQL 18+)
     const variables = await db
       .select()
       .from(projectVariables)
       .where(eq(projectVariables.projectId, projectId))
-      .orderBy(projectVariables.createdAt);
+      .orderBy(projectVariables.id);
 
     // Process variables based on permissions
     const processedVariables = variables.map((variable) => {
