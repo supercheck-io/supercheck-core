@@ -149,7 +149,9 @@ CREATE TABLE "monitor_results" (
 	"is_up" boolean NOT NULL,
 	"is_status_change" boolean DEFAULT false NOT NULL,
 	"consecutive_failure_count" integer DEFAULT 0 NOT NULL,
-	"alerts_sent_for_failure" integer DEFAULT 0 NOT NULL
+	"alerts_sent_for_failure" integer DEFAULT 0 NOT NULL,
+	"test_execution_id" text,
+	"test_report_s3_url" text
 );
 --> statement-breakpoint
 CREATE TABLE "monitor_tags" (
@@ -255,7 +257,7 @@ CREATE TABLE "reports" (
 	"organization_id" uuid,
 	"created_by_user_id" uuid,
 	"entity_type" varchar(50) NOT NULL,
-	"entity_id" uuid NOT NULL,
+	"entity_id" text NOT NULL,
 	"report_path" varchar(255) NOT NULL,
 	"status" varchar(50) DEFAULT 'passed' NOT NULL,
 	"s3_url" varchar(1024),

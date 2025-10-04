@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useCallback } from "react"
-import { useRouter } from "next/navigation"
+import * as React from "react";
+import { useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Globe,
   Code,
@@ -19,7 +19,8 @@ import {
   ChevronsLeftRightEllipsis,
   EthernetPort,
   Variable,
-} from "lucide-react"
+} from "lucide-react";
+import { PlaywrightLogo } from "@/components/logo/playwright-logo";
 
 import {
   Command,
@@ -29,86 +30,92 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@/components/ui/command"
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface CommandSearchProps {
-  className?: string
+  className?: string;
 }
 
 export function CommandSearch({ className }: CommandSearchProps) {
-  const [open, setOpen] = React.useState(false)
-  const router = useRouter()
+  const [open, setOpen] = React.useState(false);
+  const router = useRouter();
 
-  const handleCommand = useCallback((command: string) => {
-    setOpen(false)
+  const handleCommand = useCallback(
+    (command: string) => {
+      setOpen(false);
 
-    const routes: Record<string, string> = {
-      // Navigation
-      "home": "/",
-      "dashboard": "/",
-      "monitors": "/monitors",
-      "tests": "/tests",
-      "jobs": "/jobs",
-      "runs": "/runs",
-      "variables": "/variables",
-      "alerts": "/alerts",
+      const routes: Record<string, string> = {
+        // Navigation
+        home: "/",
+        dashboard: "/",
+        monitors: "/monitors",
+        tests: "/tests",
+        jobs: "/jobs",
+        runs: "/runs",
+        variables: "/variables",
+        alerts: "/alerts",
 
-      // Create Actions
-      "create-monitor-http": "/monitors/create?type=http_request",
-      "create-monitor-website": "/monitors/create?type=website",
-      "create-monitor-ping": "/monitors/create?type=ping_host",
-      "create-monitor-port": "/monitors/create?type=port_check",
-      "create-test-browser": "/playground?scriptType=browser",
-      "create-test-api": "/playground?scriptType=api",
-      "create-test-custom": "/playground?scriptType=custom",
-      "create-test-database": "/playground?scriptType=database",
-      "create-job": "/jobs/create",
+        // Create Actions
+        "create-monitor-http": "/monitors/create?type=http_request",
+        "create-monitor-website": "/monitors/create?type=website",
+        "create-monitor-ping": "/monitors/create?type=ping_host",
+        "create-monitor-port": "/monitors/create?type=port_check",
+        "create-monitor-synthetic": "/monitors/create?type=synthetic_test",
+        "create-test-browser": "/playground?scriptType=browser",
+        "create-test-api": "/playground?scriptType=api",
+        "create-test-custom": "/playground?scriptType=custom",
+        "create-test-database": "/playground?scriptType=database",
+        "create-job": "/jobs/create",
 
-      // Quick Actions
-      "view-critical-alerts": "/monitors?filter=down",
-      "view-running-jobs": "/jobs?status=running",
-      "view-recent-runs": "/runs?sort=recent",
-      "view-failed-tests": "/tests?status=failed",
+        // Quick Actions
+        "view-critical-alerts": "/monitors?filter=down",
+        "view-running-jobs": "/jobs?status=running",
+        "view-recent-runs": "/runs?sort=recent",
+        "view-failed-tests": "/tests?status=failed",
 
-      // System
-      "queue-stats": "/api/queue-stats",
-      "system-health": "/api/dashboard",
-    }
+        // System
+        "queue-stats": "/api/queue-stats",
+        "system-health": "/api/dashboard",
+      };
 
-    const route = routes[command]
-    if (route) {
-      if (route.startsWith('/api/')) {
-        window.open(route, '_blank')
-      } else {
-        router.push(route)
+      const route = routes[command];
+      if (route) {
+        if (route.startsWith("/api/")) {
+          window.open(route, "_blank");
+        } else {
+          router.push(route);
+        }
       }
-    }
-  }, [router])
+    },
+    [router]
+  );
 
   // Command palette toggle only
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
-      const metaKey = isMac ? e.metaKey : e.ctrlKey
+      const isMac =
+        typeof navigator !== "undefined" &&
+        navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const metaKey = isMac ? e.metaKey : e.ctrlKey;
 
       // Command palette toggle
       if (e.key === "k" && metaKey) {
-        e.preventDefault()
-        setOpen((open) => !open)
-        return
+        e.preventDefault();
+        setOpen((open) => !open);
+        return;
       }
-    }
+    };
 
-    document.addEventListener("keydown", down)
-    return () => document.removeEventListener("keydown", down)
-  }, [open])
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, [open]);
 
   return (
     <div className={className}>
@@ -140,31 +147,31 @@ export function CommandSearch({ className }: CommandSearchProps) {
 
               <CommandGroup heading="Navigation">
                 <CommandItem onSelect={() => handleCommand("home")}>
-                  <ChartColumn className="mr-2 h-4 w-4" />
+                  <ChartColumn className="mr-2 h-4 w-4 !text-slate-400" />
                   <span>Dashboard</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("alerts")}>
-                  <BellRing className="mr-2 h-4 w-4" />
+                  <BellRing className="mr-2 h-4 w-4 !text-amber-600" />
                   <span>Alerts</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("tests")}>
-                  <Code className="mr-2 h-4 w-4" />
+                  <Code className="mr-2 h-4 w-4 !text-blue-600" />
                   <span>Tests</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("jobs")}>
-                  <CalendarClock className="mr-2 h-4 w-4" />
+                  <CalendarClock className="mr-2 h-4 w-4 !text-violet-600" />
                   <span>Jobs</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("runs")}>
-                  <NotepadText className="mr-2 h-4 w-4" />
+                  <NotepadText className="mr-2 h-4 w-4 !text-teal-600" />
                   <span>Runs</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("variables")}>
-                  <Variable className="mr-2 h-4 w-4" />
+                  <Variable className="mr-2 h-4 w-4 !text-zinc-400" />
                   <span>Variables</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("monitors")}>
-                  <Globe className="mr-2 h-4 w-4" />
+                  <Globe className="mr-2 h-4 w-4 !text-cyan-600" />
                   <span>Monitors</span>
                 </CommandItem>
               </CommandGroup>
@@ -172,20 +179,26 @@ export function CommandSearch({ className }: CommandSearchProps) {
               <CommandSeparator />
 
               <CommandGroup heading="Create Tests">
-                <CommandItem onSelect={() => handleCommand("create-test-browser")}>
-                  <Chrome className="mr-2 h-4 w-4" />
+                <CommandItem
+                  onSelect={() => handleCommand("create-test-browser")}
+                >
+                  <Chrome className="mr-2 h-4 w-4 !text-sky-600" />
                   <span>Browser Test</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("create-test-api")}>
-                  <ArrowLeftRight className="mr-2 h-4 w-4" />
+                  <ArrowLeftRight className="mr-2 h-4 w-4 !text-teal-600" />
                   <span>API Test</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-test-database")}>
-                  <Database className="mr-2 h-4 w-4" />
+                <CommandItem
+                  onSelect={() => handleCommand("create-test-database")}
+                >
+                  <Database className="mr-2 h-4 w-4 !text-cyan-600" />
                   <span>Database Test</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-test-custom")}>
-                  <SquareFunction className="mr-2 h-4 w-4" />
+                <CommandItem
+                  onSelect={() => handleCommand("create-test-custom")}
+                >
+                  <SquareFunction className="mr-2 h-4 w-4 !text-blue-600" />
                   <span>Custom Test</span>
                 </CommandItem>
               </CommandGroup>
@@ -193,21 +206,35 @@ export function CommandSearch({ className }: CommandSearchProps) {
               <CommandSeparator />
 
               <CommandGroup heading="Create Monitors">
-                <CommandItem onSelect={() => handleCommand("create-monitor-http")}>
-                  <ArrowLeftRight className="mr-2 h-4 w-4" />
+                <CommandItem
+                  onSelect={() => handleCommand("create-monitor-http")}
+                >
+                  <ArrowLeftRight className="mr-2 h-4 w-4 !text-teal-600" />
                   <span>HTTP Monitor</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-website")}>
-                  <LaptopMinimal className="mr-2 h-4 w-4" />
+                <CommandItem
+                  onSelect={() => handleCommand("create-monitor-website")}
+                >
+                  <LaptopMinimal className="mr-2 h-4 w-4 !text-sky-600" />
                   <span>Website Monitor</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-ping")}>
-                  <ChevronsLeftRightEllipsis className="mr-2 h-4 w-4" />
+                <CommandItem
+                  onSelect={() => handleCommand("create-monitor-ping")}
+                >
+                  <ChevronsLeftRightEllipsis className="mr-2 h-4 w-4 !text-cyan-600" />
                   <span>Ping Monitor</span>
                 </CommandItem>
-                <CommandItem onSelect={() => handleCommand("create-monitor-port")}>
-                  <EthernetPort className="mr-2 h-4 w-4" />
+                <CommandItem
+                  onSelect={() => handleCommand("create-monitor-port")}
+                >
+                  <EthernetPort className="mr-2 h-4 w-4 !text-blue-600" />
                   <span>Port Monitor</span>
+                </CommandItem>
+                <CommandItem
+                  onSelect={() => handleCommand("create-monitor-synthetic")}
+                >
+                  <PlaywrightLogo className="mr-2 h-4 w-4 !text-purple-600" />
+                  <span>Synthetic Monitor</span>
                 </CommandItem>
               </CommandGroup>
             </CommandList>
@@ -219,5 +246,5 @@ export function CommandSearch({ className }: CommandSearchProps) {
         </DialogContent>
       </Dialog>
     </div>
-  )
-} 
+  );
+}

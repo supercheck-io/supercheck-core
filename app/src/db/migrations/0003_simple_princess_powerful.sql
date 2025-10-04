@@ -1,1 +1,0 @@
-ALTER TABLE "reports" ALTER COLUMN "entity_id" SET DATA TYPE text;

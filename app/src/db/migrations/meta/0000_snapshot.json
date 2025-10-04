@@ -1,5 +1,5 @@
 {
-  "id": "60934445-7785-4e4b-aeec-91d4342c4e1f",
+  "id": "b93ce508-109e-4518-bfa8-2173fdad96be",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1204,6 +1204,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "test_execution_id": {
+          "name": "test_execution_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "test_report_s3_url": {
+          "name": "test_report_s3_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -2027,7 +2039,7 @@
         },
         "entity_id": {
           "name": "entity_id",
-          "type": "uuid",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },

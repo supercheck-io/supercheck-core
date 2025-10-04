@@ -1,1 +1,0 @@
-ALTER TABLE "monitor_results" ALTER COLUMN "test_execution_id" SET DATA TYPE text;
