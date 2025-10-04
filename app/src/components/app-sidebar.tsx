@@ -210,7 +210,7 @@ const data = {
       title: "Docs",
       url: "https://github.com/supercheck-io/supercheck",
       icon: BookOpenText,
-      badge: "v1.1.0-beta",
+      badge: "v1.1.1-beta",
     },
     // {
     //   title: "Changelog",
@@ -284,7 +284,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       return [];
     }
 
-    type IconComponent = LucideIcon | React.ComponentType<{ className?: string }>;
+    type IconComponent =
+      | LucideIcon
+      | React.ComponentType<{ className?: string }>;
 
     type AdminItem = {
       title: string;
