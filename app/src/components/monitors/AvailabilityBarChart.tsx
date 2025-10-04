@@ -47,20 +47,26 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
     return () => clearInterval(interval);
   }, [data]);
 
-  const getEmptyMessage = () => {
-    return "No availability data to display.";
-  };
-
   if (!data || data.length === 0) {
     // console.log("[AvailabilityBarChart] No data or empty data array."); // Keep for now
     return (
-      <Card className="shadow-sm">
-        <CardHeader>
+      <Card className="shadow-sm flex flex-col min-h-[220px]">
+        <CardHeader className="pb-4">
           <CardTitle className="text-lg font-semibold">Availability Overview</CardTitle>
-          <CardDescription className="text-sm ">Availability status for monitor checks.</CardDescription>
+          <CardDescription className="text-sm">Availability status for monitor checks.</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-center h-[125px]">
-          <p className="text-muted-foreground">{getEmptyMessage()}</p>
+        <CardContent className="flex items-center justify-center flex-1">
+          <div className="text-center space-y-3 py-6">
+            <div className="w-16 h-16 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
+              <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-muted-foreground font-medium">No Availability Data</p>
+              <p className="text-sm text-muted-foreground mt-1">Availability status will appear here after the first check.</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     );

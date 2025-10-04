@@ -164,7 +164,7 @@ export async function getAllUsers(limit = 50, offset = 0) {
       banExpires: user.banExpires,
     })
     .from(user)
-    .orderBy(desc(user.createdAt))
+    .orderBy(desc(user.id)) // UUIDv7 is time-ordered (PostgreSQL 18+)
     .limit(limit)
     .offset(offset);
 
@@ -272,7 +272,7 @@ export async function getAllOrganizations(limit = 50, offset = 0) {
       metadata: organization.metadata,
     })
     .from(organization)
-    .orderBy(desc(organization.createdAt))
+    .orderBy(desc(organization.id)) // UUIDv7 is time-ordered (PostgreSQL 18+)
     .limit(limit)
     .offset(offset);
 

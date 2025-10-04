@@ -15,4 +15,7 @@ export type MonitorExecutionResult = {
   isUp: boolean;
   isStatusChange?: boolean;
   error?: string; // For capturing execution errors not part of 'details'
+  // For synthetic monitors - store test execution metadata
+  testExecutionId?: string;
+  testReportS3Url?: string;
 };

@@ -17,7 +17,7 @@ Supercheck is a comprehensive Automation & Monitoring for Modern Apps built with
 
 - **Frontend (Next.js App)**: Located in `/app` - handles UI, API routes, job scheduling, and database migrations
 - **Worker Service (NestJS)**: Located in `/worker` - executes Playwright tests in parallel with capacity management
-- **Infrastructure**: PostgreSQL, Redis (job queues), MinIO (S3-compatible storage for artifacts)
+- **Infrastructure**: PostgreSQL 18+ (with UUIDv7 support), Redis (job queues), MinIO (S3-compatible storage for artifacts)
 
 The system uses BullMQ for job queuing, Better Auth for authentication, and Drizzle ORM with PostgreSQL for data persistence.
 
@@ -27,7 +27,7 @@ The system uses BullMQ for job queuing, Better Auth for authentication, and Driz
 
 - **App Service**: Next.js frontend with internal API routes and schedulers
 - **Worker Service**: NestJS service that processes test execution jobs from Redis queues
-- **Database**: PostgreSQL with Drizzle ORM, auto-migrated on app startup
+- **Database**: PostgreSQL 18+ with Drizzle ORM, auto-migrated on app startup, using UUIDv7 for time-ordered IDs
 - **Queue System**: Redis with BullMQ for job processing and parallel execution management
 - **Storage**: MinIO for storing Playwright reports and test artifacts
 

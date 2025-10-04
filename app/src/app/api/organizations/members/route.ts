@@ -43,7 +43,7 @@ export async function GET() {
       .from(member)
       .innerJoin(userTable, eq(member.userId, userTable.id))
       .where(eq(member.organizationId, activeOrg.id))
-      .orderBy(desc(member.createdAt));
+      .orderBy(desc(member.id)); // UUIDv7 is time-ordered (PostgreSQL 18+)
 
     // Members fetched successfully
 

@@ -1,11 +1,10 @@
 "use server";
 
 import { db } from "../utils/db";
-import { tests, jobTests } from "../db/schema/schema";
-import { eq, count, and } from "drizzle-orm";
+import { tests, jobTests, monitors } from "../db/schema/schema";
+import { eq, count, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function deleteTest(testId: string) {
@@ -22,11 +21,17 @@ export async function deleteTest(testId: string) {
     // Get current project context (includes auth verification)
     const { userId, project, organizationId } = await requireProjectContext();
 
-    // Check test deletion permission using Better Auth
+    // Check test deletion permission using Better Auth with proper context
     try {
-      await requireBetterAuthPermission({
-        test: ['delete']
+      const { hasPermission } = await import('@/lib/rbac/middleware');
+      const canDelete = await hasPermission('test', 'delete', {
+        organizationId,
+        projectId: project.id
       });
+
+      if (!canDelete) {
+        throw new Error('Insufficient permissions to delete tests');
+      }
     } catch (error) {
       console.warn(`User ${userId} attempted to delete test ${testId} without permission:`, error);
       return {
@@ -72,6 +77,30 @@ export async function deleteTest(testId: string) {
         success: false,
         error:
           "Test cannot be deleted because it is currently used in one or more jobs. Please remove it from the jobs first.",
+        errorCode: 409,
+      };
+    }
+
+    // Check if the test is associated with any synthetic monitors
+    const monitorCountResult = await db
+      .select({ count: count() })
+      .from(monitors)
+      .where(
+        and(
+          eq(monitors.type, "synthetic_test"),
+          sql`${monitors.config}->>'testId' = ${testId}`,
+          eq(monitors.projectId, project.id),
+          eq(monitors.organizationId, organizationId)
+        )
+      );
+
+    const monitorCount = monitorCountResult[0]?.count ?? 0;
+
+    if (monitorCount > 0) {
+      return {
+        success: false,
+        error:
+          "Test cannot be deleted because it is currently used in one or more synthetic monitors. Please remove or delete the monitors first.",
         errorCode: 409,
       };
     }

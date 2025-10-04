@@ -5,6 +5,7 @@ import { canManageMonitors } from "@/lib/rbac/client-permissions";
 import { Role } from "@/lib/rbac/permissions";
 import { LoadingBadge, Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import { deleteMonitor } from "@/actions/delete-monitor";
 import {
   ChevronLeft,
   Activity,
@@ -24,7 +25,10 @@ import {
   Bell,
   BellOff,
   FolderOpen,
+  Copy,
 } from "lucide-react";
+import { PlaywrightLogo } from "@/components/logo/playwright-logo";
+import { ReportViewer } from "@/components/shared/report-viewer";
 import {
   Card,
   CardContent,
@@ -82,6 +86,8 @@ export interface MonitorResultItem {
   details?: DBMonitorResultDetailsType | null;
   isUp: boolean;
   isStatusChange: boolean;
+  testExecutionId?: string | null;
+  testReportS3Url?: string | null;
 }
 
 export type MonitorWithResults = Monitor & {
@@ -155,11 +161,33 @@ export function MonitorDetailClient({
     hasPrevPage: boolean;
   } | null>(null);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [selectedReportUrl, setSelectedReportUrl] = useState<string | null>(
+    null
+  );
   const resultsPerPage = 10;
+
+  // Copy to clipboard handler
+  const handleCopy = useCallback((text: string, label: string) => {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        toast.success(`${label} copied to clipboard`);
+      })
+      .catch(() => {
+        toast.error(`Failed to copy ${label}`);
+      });
+  }, []);
 
   // Function to fetch paginated results
   const fetchPaginatedResults = useCallback(
     async (page: number, dateFilter?: Date) => {
+      console.log(
+        "[Monitor Results] Fetching page:",
+        page,
+        "with date filter:",
+        dateFilter
+      );
       setIsLoadingResults(true);
       try {
         const params = new URLSearchParams({
@@ -177,6 +205,12 @@ export function MonitorDetailClient({
         );
         if (response.ok) {
           const data = await response.json();
+          console.log("[Monitor Results] API Response:", data);
+          console.log("[Monitor Results] First result:", data.data[0]);
+          console.log(
+            "[Monitor Results] First result details:",
+            data.data[0]?.details
+          );
           setPaginatedTableResults(data.data);
           setPaginationMeta(data.pagination);
         } else {
@@ -249,13 +283,13 @@ export function MonitorDetailClient({
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/monitors/${monitor.id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to delete monitor");
+      // Use the server action to delete the monitor
+      const result = await deleteMonitor(monitor.id);
+
+      if (!result?.success) {
+        throw new Error(result?.error || "Failed to delete monitor");
       }
+
       toast.success(`Monitor "${monitor.name}" deleted successfully.`);
       router.push("/monitors");
       router.refresh();
@@ -625,17 +659,50 @@ export function MonitorDetailClient({
                   ? monitor.name.slice(0, 40) + "..."
                   : monitor.name}
               </h1>
-              <div
-                className="text-sm text-muted-foreground truncate max-w-md"
-                title={monitor.url}
-              >
-                {monitor.type === "port_check" && monitor.config?.port
-                  ? `${monitor.target || monitor.url}:${monitor.config.port}`
-                  : monitor.type === "http_request" && monitor.config?.method
-                  ? `${monitor.config.method.toUpperCase()} ${
+              <div className="flex items-center gap-2">
+                <div
+                  className="text-sm text-muted-foreground truncate max-w-md"
+                  title={monitor.url}
+                >
+                  {monitor.type === "synthetic_test" &&
+                  monitor.config?.testId ? (
+                    <>
+                      <span className="font-medium">Test ID:</span>{" "}
+                      {monitor.config.testId}
+                    </>
+                  ) : monitor.type === "port_check" && monitor.config?.port ? (
+                    `${monitor.target || monitor.url}:${monitor.config.port}`
+                  ) : monitor.type === "http_request" &&
+                    monitor.config?.method ? (
+                    `${monitor.config.method.toUpperCase()} ${
                       monitor.url || monitor.target
                     }`
-                  : monitor.url || monitor.target}
+                  ) : (
+                    monitor.url || monitor.target
+                  )}
+                </div>
+                {(monitor.url ||
+                  monitor.target ||
+                  (monitor.type === "synthetic_test" &&
+                    monitor.config?.testId)) && (
+                  <button
+                    onClick={() =>
+                      handleCopy(
+                        monitor.type === "synthetic_test" &&
+                          monitor.config?.testId
+                          ? monitor.config.testId
+                          : monitor.url || monitor.target || "",
+                        monitor.type === "synthetic_test" ? "Test ID" : "URL"
+                      )
+                    }
+                    className="p-1 hover:bg-muted rounded transition-colors"
+                    title={`Copy ${
+                      monitor.type === "synthetic_test" ? "Test ID" : "URL"
+                    }`}
+                  >
+                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1021,41 +1088,47 @@ export function MonitorDetailClient({
                     selectedDate,
                     "MMMM dd, yyyy"
                   )}`
-                : `Showing ${currentResultsCount} of ${totalResultsCount}${process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT && totalResultsCount >= parseInt(process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT, 10) ? '+' : ''} recent checks.`}
+                : `Showing ${currentResultsCount} of ${totalResultsCount}${
+                    process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT &&
+                    totalResultsCount >=
+                      parseInt(
+                        process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT,
+                        10
+                      )
+                      ? "+"
+                      : ""
+                  } recent checks.`}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0 flex-1 flex flex-col">
             <div className="flex-1 overflow-y-auto" style={{ height: "400px" }}>
               <div className="w-full">
-                <table className="w-full divide-y divide-border table-fixed">
+                <table className="w-full divide-y divide-border">
                   <thead className="bg-background sticky top-0 z-10 border-b">
                     <tr>
                       <th
                         scope="col"
-                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider"
-                        style={{ width: "80px" }}
+                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-20"
                       >
                         Result
                       </th>
                       <th
                         scope="col"
-                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider"
-                        style={{ width: "180px" }}
+                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-44"
                       >
                         Checked At
                       </th>
                       <th
                         scope="col"
-                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider"
-                        style={{ width: "180px" }}
+                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-44"
                       >
                         Response Time (ms)
                       </th>
                       <th
                         scope="col"
-                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider"
+                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-32"
                       >
-                        Error
+                        {monitor.type === "synthetic_test" ? "Report" : "Error"}
                       </th>
                     </tr>
                   </thead>
@@ -1063,7 +1136,11 @@ export function MonitorDetailClient({
                     {isLoadingResults ? (
                       // Professional loading state with background
                       <tr>
-                        <td colSpan={4} className="text-center relative" style={{ height: '320px' }}>
+                        <td
+                          colSpan={monitor.type === "synthetic_test" ? 5 : 4}
+                          className="text-center relative"
+                          style={{ height: "320px" }}
+                        >
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="bg-card/98 border border-border rounded-lg shadow-sm px-6 py-4 flex flex-col items-center space-y-3">
                               <Spinner size="lg" className="text-primary" />
@@ -1078,7 +1155,7 @@ export function MonitorDetailClient({
                         </td>
                       </tr>
                     ) : paginatedTableResults &&
-                    paginatedTableResults.length > 0 ? (
+                      paginatedTableResults.length > 0 ? (
                       paginatedTableResults.map((result) => (
                         <tr key={result.id} className="hover:bg-muted/25">
                           <td className="px-4 py-[11.5px] whitespace-nowrap text-sm">
@@ -1093,36 +1170,89 @@ export function MonitorDetailClient({
                               ? result.responseTimeMs
                               : "N/A"}
                           </td>
-                          <td className="px-4 py-[11.5px] text-sm text-muted-foreground">
-                            {result.isUp ? (
-                              <span className="text-muted-foreground text-xs">
-                                N/A
-                              </span>
-                            ) : (
-                              <TruncatedTextWithTooltip
-                                text={
-                                  result.details?.errorMessage || "Check failed"
-                                }
-                                className="text-muted-foreground text-xs"
-                                maxWidth="150px"
-                                maxLength={30}
-                              />
-                            )}
-                          </td>
+                          {monitor.type === "synthetic_test" && (
+                            <td className="px-4 py-[11.5px] whitespace-nowrap text-sm">
+                              {result.details?.reportUrl ? (
+                                <div
+                                  className="cursor-pointer inline-flex items-center justify-center"
+                                  onClick={() => {
+                                    // Use testExecutionId directly from database
+                                    const runTestId = result.testExecutionId;
+
+                                    if (runTestId) {
+                                      // Use API proxy route like playground does
+                                      const apiUrl = `/api/test-results/${runTestId}/report/index.html?t=${Date.now()}&forceIframe=true`;
+                                      console.log(
+                                        "[Monitor Report] Opening report for run:",
+                                        runTestId,
+                                        "API URL:",
+                                        apiUrl
+                                      );
+                                      setSelectedReportUrl(apiUrl);
+                                      setReportModalOpen(true);
+                                    } else {
+                                      console.error(
+                                        "[Monitor Report] No testExecutionId in monitor result:",
+                                        result.id
+                                      );
+                                      toast.error("No report available", {
+                                        description:
+                                          "This monitor run doesn't have a report",
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <PlaywrightLogo className="h-4 w-4  hover:opacity-80 transition-opacity" />{" "}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">
+                                  N/A
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {monitor.type !== "synthetic_test" && (
+                            <td className="px-4 py-[11.5px] text-sm text-muted-foreground">
+                              {result.isUp ? (
+                                <span className="text-muted-foreground text-xs">
+                                  N/A
+                                </span>
+                              ) : (
+                                <TruncatedTextWithTooltip
+                                  text={
+                                    result.details?.errorMessage ||
+                                    "Check failed"
+                                  }
+                                  className="text-muted-foreground text-xs"
+                                  maxWidth="150px"
+                                  maxLength={30}
+                                />
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))
                     ) : (
                       // Empty state
                       <tr>
-                        <td colSpan={4} className="px-4 py-12 text-center">
-                          <div className="text-center">
-                            <p className="text-muted-foreground">
-                              No check results available
-                            </p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Check results will appear here once monitoring
-                              begins.
-                            </p>
+                        <td
+                          colSpan={monitor.type === "synthetic_test" ? 5 : 4}
+                          className="px-4 py-16 text-center"
+                        >
+                          <div className="text-center space-y-3">
+                            <div className="w-16 h-16 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
+                              <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                              </svg>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground font-medium">
+                                No check results available
+                              </p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Check results will appear here once monitoring begins.
+                              </p>
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -1195,6 +1325,41 @@ export function MonitorDetailClient({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Playwright Report Modal - Full Screen Overlay */}
+      {reportModalOpen && selectedReportUrl && (
+        <div className="fixed inset-0 z-50 bg-card/80 backdrop-blur-sm">
+          <div className="fixed inset-8 bg-card rounded-lg shadow-lg flex flex-col overflow-hidden border">
+            <div className="p-4 border-b flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <PlaywrightLogo width={36} height={36} />
+                <h2 className="text-xl font-semibold">Monitor Report</h2>
+              </div>
+              <Button
+                className="cursor-pointer bg-secondary hover:bg-secondary/90"
+                size="sm"
+                onClick={() => {
+                  setReportModalOpen(false);
+                  setSelectedReportUrl(null);
+                }}
+              >
+                <X className="h-4 w-4 text-secondary-foreground" />
+              </Button>
+            </div>
+            <div className="flex-grow overflow-hidden">
+              <ReportViewer
+                reportUrl={selectedReportUrl}
+                containerClassName="w-full h-full"
+                iframeClassName="w-full h-full"
+                loadingMessage="Loading monitor report..."
+                hideEmptyMessage={true}
+                hideFullscreenButton={true}
+                hideReloadButton={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

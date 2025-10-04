@@ -148,6 +148,7 @@ export async function GET() {
         .groupBy(jobs.status),
       
       // Recent job runs with details (last 7 days for chart data)
+      // Last 7 days only - already limited by time filter
       dbInstance.select({
         id: runs.id,
         jobId: runs.jobId,
@@ -160,11 +161,10 @@ export async function GET() {
         .leftJoin(jobs, eq(runs.jobId, jobs.id))
         .where(and(
           gte(runs.startedAt, last7Days),
-          eq(jobs.projectId, targetProjectId), 
+          eq(jobs.projectId, targetProjectId),
           eq(jobs.organizationId, organizationId)
         ))
-        .orderBy(desc(runs.startedAt))
-        .limit(1000),
+        .orderBy(desc(runs.startedAt)),
       
       // Total execution time (last 7 days) 
       dbInstance.select({

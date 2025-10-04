@@ -6,7 +6,7 @@ import { eq, isNotNull, and } from "drizzle-orm";
 import { getQueues, JobExecutionTask, JOB_EXECUTION_QUEUE } from "./queue";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
-import { createPlaygroundCleanupService, setPlaygroundCleanupInstance, type PlaygroundCleanupService } from './playground-cleanup';
+import { createDataLifecycleService, setDataLifecycleInstance, type DataLifecycleService } from './data-lifecycle-service';
 import { prepareJobTestScripts } from './job-execution-utils';
 
 // Map to store the created queues - REMOVED for statelessness
@@ -50,22 +50,15 @@ export async function scheduleJob(options: ScheduleOptions): Promise<string> {
     if (jobData.length === 0) {
       throw new Error(`Job ${options.jobId} not found`);
     }
-    
-    const job = jobData[0];
-    console.log(`[Schedule Job] Found job: ${job.name}, projectId: ${job.projectId}`);
 
-    // Use the same variable resolution logic as manual/remote jobs
-    // This ensures consistent behavior across all job trigger types
-    console.log(`[Schedule Job] Preparing test scripts with variable resolution for job ${options.jobId}...`);
+    const job = jobData[0];
     const { testScripts, variableResolution } = await prepareJobTestScripts(
       options.jobId,
       job.projectId || '',
       crypto.randomUUID(), // temporary runId for logging
       `[Schedule Job ${options.jobId}]`
     );
-    
-    console.log(`[Schedule Job] Resolved ${Object.keys(variableResolution.variables).length} variables and ${Object.keys(variableResolution.secrets).length} secrets`);
-    
+
     // Convert to the format expected by the worker
     const testCases = testScripts.map(script => ({
       id: script.id,
@@ -420,40 +413,6 @@ export async function initializeJobSchedulers() {
   }
 }
 
-/**
- * Initialize playground cleanup service
- * Called on application startup after job schedulers
- */
-export async function initializePlaygroundCleanup(): Promise<PlaygroundCleanupService | null> {
-  try {
-    // Initializing playground cleanup
-    
-    // Check if playground cleanup is disabled
-    if (process.env.PLAYGROUND_CLEANUP_ENABLED !== 'true') {
-      // Playground cleanup disabled
-      return null;
-    }
-
-    // Create the playground cleanup service
-    const playgroundCleanup = createPlaygroundCleanupService();
-    
-    // Get Redis connection from existing queue system
-    const { redisConnection } = await getQueues();
-    
-    // Initialize the cleanup service with Redis connection
-    await playgroundCleanup.initialize(redisConnection);
-    
-    // Set the global instance for access throughout the app
-    setPlaygroundCleanupInstance(playgroundCleanup);
-    
-    // Playground cleanup initialized
-    return playgroundCleanup;
-  } catch (error) {
-    console.error("Failed to initialize playground cleanup service:", error);
-    // Don't fail the entire initialization if playground cleanup fails
-    return null;
-  }
-}
 
 /**
  * Cleanup function to close all queues and workers
@@ -521,25 +480,56 @@ export async function cleanupJobScheduler() {
   }
 }
 
+
 /**
- * Cleanup playground cleanup service
+ * Initialize unified data lifecycle service (RECOMMENDED)
+ * This replaces individual cleanup services with a unified approach
+ * Called on application startup
+ */
+export async function initializeDataLifecycleService(): Promise<DataLifecycleService | null> {
+  try {
+    console.log('[DATA_LIFECYCLE] Initializing unified data lifecycle service...');
+
+    // Create the unified data lifecycle service
+    const lifecycleService = createDataLifecycleService();
+
+    // Get Redis connection from existing queue system
+    const { redisConnection } = await getQueues();
+
+    // Initialize the lifecycle service with Redis connection
+    await lifecycleService.initialize(redisConnection);
+
+    // Set the global instance for access throughout the app
+    setDataLifecycleInstance(lifecycleService);
+
+    console.log('[DATA_LIFECYCLE] Initialized successfully');
+    return lifecycleService;
+  } catch (error) {
+    console.error('[DATA_LIFECYCLE] Failed to initialize:', error);
+    // Don't fail the entire initialization
+    return null;
+  }
+}
+
+/**
+ * Cleanup unified data lifecycle service
  * Should be called when shutting down the application
  */
-export async function cleanupPlaygroundCleanup(): Promise<void> {
+export async function cleanupDataLifecycleService(): Promise<void> {
   try {
-    // Cleaning up playground service
-    
-    const { getPlaygroundCleanupService } = await import('./playground-cleanup');
-    const playgroundCleanup = getPlaygroundCleanupService();
-    
-    if (playgroundCleanup) {
-      await playgroundCleanup.shutdown();
-      // Playground cleanup shutdown
+    console.log('[DATA_LIFECYCLE] Shutting down...');
+
+    const { getDataLifecycleService } = await import('./data-lifecycle-service');
+    const lifecycleService = getDataLifecycleService();
+
+    if (lifecycleService) {
+      await lifecycleService.shutdown();
+      console.log('[DATA_LIFECYCLE] Shutdown complete');
     } else {
-      // No playground service to shutdown
+      console.log('[DATA_LIFECYCLE] No service instance to shutdown');
     }
   } catch (error) {
-    console.error("Failed to cleanup playground cleanup service:", error);
+    console.error('[DATA_LIFECYCLE] Failed to shutdown:', error);
     // Don't fail the entire cleanup process
   }
 } 

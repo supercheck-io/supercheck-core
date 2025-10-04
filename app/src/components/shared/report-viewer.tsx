@@ -15,6 +15,8 @@ interface ReportViewerProps {
   iframeClassName?: string;
   loadingMessage?: string;
   hideEmptyMessage?: boolean;
+  hideFullscreenButton?: boolean;
+  hideReloadButton?: boolean;
 }
 
 export function ReportViewer({
@@ -26,43 +28,58 @@ export function ReportViewer({
   iframeClassName = "w-full h-full",
   loadingMessage = "Loading report...",
   hideEmptyMessage = false,
+  hideFullscreenButton = false,
+  hideReloadButton = false,
 }: ReportViewerProps) {
   const [isReportLoading, setIsReportLoading] = useState(!!reportUrl);
   const [reportError, setReportError] = useState<string | null>(null);
   const [iframeError, setIframeError] = useState(false);
-  const [currentReportUrl, setCurrentReportUrl] = useState<string | null>(reportUrl);
+  const [currentReportUrl, setCurrentReportUrl] = useState<string | null>(
+    reportUrl
+  );
   const [isValidationError, setIsValidationError] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [timeoutInfo, setTimeoutInfo] = useState<TimeoutErrorInfo | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const fullscreenIframeRef = useRef<HTMLIFrameElement>(null);
 
-  console.log("--- REPORT VIEWER RENDERING ---", { reportUrl, isRunning, isReportLoading, iframeError, isValidationError });
+  console.log("--- REPORT VIEWER RENDERING ---", {
+    reportUrl,
+    isRunning,
+    isReportLoading,
+    iframeError,
+    isValidationError,
+  });
 
   // Update URL when prop changes
   useEffect(() => {
     console.log("ReportViewer: reportUrl changed:", reportUrl);
     if (reportUrl) {
       // Always ensure we have a timestamp parameter to prevent caching issues
-      const finalUrl = reportUrl.includes('?') ? 
-        `${reportUrl}&t=${Date.now()}` : 
-        `${reportUrl}?t=${Date.now()}`;
-      
+      const finalUrl = reportUrl.includes("?")
+        ? `${reportUrl}&t=${Date.now()}`
+        : `${reportUrl}?t=${Date.now()}`;
+
       console.log("ReportViewer: Setting currentReportUrl to:", finalUrl);
-                setCurrentReportUrl(finalUrl);
-          setIsReportLoading(true);
-          setIframeError(false);
-          setReportError(null);
-          setTimeoutInfo(null);
+      setCurrentReportUrl(finalUrl);
+      setIsReportLoading(true);
+      setIframeError(false);
+      setReportError(null);
+      setTimeoutInfo(null);
 
       // Check if the URL exists, but don't call the callback here
       // The onReportError callback will be called by the safety timeout or iframe error handlers
-      fetch(finalUrl, { method: 'HEAD' })
-        .then(response => {
+      fetch(finalUrl, { method: "HEAD" })
+        .then((response) => {
           if (!response.ok) {
-            console.log("ReportViewer: Report URL returned status:", response.status);
+            console.log(
+              "ReportViewer: Report URL returned status:",
+              response.status
+            );
             if (response.status === 404) {
-              console.log("ReportViewer: Report not found (404), setting error state");
+              console.log(
+                "ReportViewer: Report not found (404), setting error state"
+              );
               setIsReportLoading(false);
               setIframeError(true);
               setReportError("The test report could not be found.");
@@ -70,11 +87,13 @@ export function ReportViewer({
             }
           }
         })
-        .catch(error => {
+        .catch((error) => {
           console.error("ReportViewer: Error pre-checking report URL:", error);
           setIsReportLoading(false);
           setIframeError(true);
-          setReportError("Failed to load test report. The report server might be unreachable.");
+          setReportError(
+            "Failed to load test report. The report server might be unreachable."
+          );
           // Don't call onReportError here to prevent redirect loops
         });
     } else {
@@ -83,12 +102,12 @@ export function ReportViewer({
     }
   }, [reportUrl]);
 
-    // Shared function to remove external buttons and settings icon from any iframe
+  // Shared function to remove external buttons and settings icon from any iframe
   const removeExternalButtonFromIframe = (iframe: HTMLIFrameElement | null) => {
     if (iframe?.contentDocument) {
       try {
         // Simple CSS injection
-        const style = iframe.contentDocument.createElement('style');
+        const style = iframe.contentDocument.createElement("style");
         style.textContent = `
           button.toolbar-button.link-external,
           button[title="Open snapshot in a new tab"],
@@ -128,25 +147,22 @@ export function ReportViewer({
           }
         `;
         iframe.contentDocument.head.appendChild(style);
-        
-
-        
-
-                } catch {
-            // Ignore CORS errors
-          }
+      } catch {
+        // Ignore CORS errors
+      }
     }
   };
 
   // Remove external buttons from main iframe
   useEffect(() => {
     if (currentReportUrl && !isReportLoading) {
-      const removeExternalButton = () => removeExternalButtonFromIframe(iframeRef.current);
-      
+      const removeExternalButton = () =>
+        removeExternalButtonFromIframe(iframeRef.current);
+
       // Remove immediately and keep checking
       removeExternalButton();
       const interval = setInterval(removeExternalButton, 100);
-      
+
       return () => clearInterval(interval);
     }
   }, [currentReportUrl, isReportLoading]);
@@ -154,12 +170,13 @@ export function ReportViewer({
   // Remove external buttons from fullscreen iframe
   useEffect(() => {
     if (showFullscreen && currentReportUrl) {
-      const removeExternalButton = () => removeExternalButtonFromIframe(fullscreenIframeRef.current);
-      
+      const removeExternalButton = () =>
+        removeExternalButtonFromIframe(fullscreenIframeRef.current);
+
       // Remove immediately and keep checking
       removeExternalButton();
       const interval = setInterval(removeExternalButton, 100);
-      
+
       return () => clearInterval(interval);
     }
   }, [showFullscreen, currentReportUrl]);
@@ -169,14 +186,18 @@ export function ReportViewer({
     if (isReportLoading) {
       console.log("ReportViewer: Setting safety timeout for report loading");
       const safetyTimeout = setTimeout(() => {
-        console.log("ReportViewer: Safety timeout triggered - report still loading after timeout");
+        console.log(
+          "ReportViewer: Safety timeout triggered - report still loading after timeout"
+        );
         setIsReportLoading(false);
-        
+
         // If the iframe failed silently, set error state
         if (currentReportUrl && !iframeError) {
           console.log("ReportViewer: Setting iframe error due to timeout");
           setIframeError(true);
-          setReportError("Report loading timed out. The report server might be unreachable.");
+          setReportError(
+            "Report loading timed out. The report server might be unreachable."
+          );
         }
       }, 10000); // 10 second timeout
 
@@ -194,7 +215,9 @@ export function ReportViewer({
       const retryTimeout = setTimeout(() => {
         console.log("ReportViewer: Attempting auto-retry of report loading");
         // Add timestamp to force reload and bypass cache
-        const refreshedUrl = `${currentReportUrl.split('?')[0]}?retry=true&t=${Date.now()}`;
+        const refreshedUrl = `${
+          currentReportUrl.split("?")[0]
+        }?retry=true&t=${Date.now()}`;
         console.log("ReportViewer: Auto-retrying with URL:", refreshedUrl);
         setCurrentReportUrl(refreshedUrl);
       }, 5000); // 5 second timeout before retry
@@ -204,7 +227,13 @@ export function ReportViewer({
   }, [isReportLoading, currentReportUrl]);
 
   // Static error page component
-  const StaticErrorPage = ({ title, message }: { title: string; message: string }) => (
+  const StaticErrorPage = ({
+    title,
+    message,
+  }: {
+    title: string;
+    message: string;
+  }) => (
     <div className="flex flex-col items-center justify-center w-full h-full p-8">
       <div className="flex flex-col items-center text-center max-w-md">
         <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
@@ -219,15 +248,17 @@ export function ReportViewer({
               {backToLabel || "Back"}
             </Link>
           )}
-          <Button
-            onClick={() => {
-              // Reload the entire page instead of just adding parameters to a broken URL
-              window.location.reload();
-            }}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            Reload Report
-          </Button>
+          {!hideReloadButton && (
+            <Button
+              onClick={() => {
+                // Reload the entire page instead of just adding parameters to a broken URL
+                window.location.reload();
+              }}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Reload Report
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -241,7 +272,9 @@ export function ReportViewer({
         <div className="w-full h-full flex items-center justify-center bg-card">
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Loader2Icon className="h-12 w-12 animate-spin" />
-            <p className="text-muted-foreground text-lg">Please wait, running script...</p>
+            <p className="text-muted-foreground text-lg">
+              Please wait, running script...
+            </p>
           </div>
         </div>
       </div>
@@ -250,7 +283,9 @@ export function ReportViewer({
 
   // Empty state when no report is available - check this after isRunning
   if (!currentReportUrl && !isRunning) {
-    console.log("ReportViewer: No reportUrl and not running, showing empty state");
+    console.log(
+      "ReportViewer: No reportUrl and not running, showing empty state"
+    );
     return (
       <div className={containerClassName}>
         <div className="w-full h-full flex items-center justify-center bg-card">
@@ -270,7 +305,7 @@ export function ReportViewer({
   // Error state - only show if it's not a validation error
   if (iframeError && !isRunning && !isValidationError) {
     console.log("ReportViewer: Showing error state:", reportError, timeoutInfo);
-    
+
     // Show timeout-specific error page if timeout detected
     if (timeoutInfo?.isTimeout) {
       return (
@@ -284,13 +319,15 @@ export function ReportViewer({
         </div>
       );
     }
-    
+
     // Show regular error page for non-timeout errors
     return (
       <div className={containerClassName}>
         <StaticErrorPage
           title="Report Not Found"
-          message={reportError || "Test results not found or have been removed."}
+          message={
+            reportError || "Test results not found or have been removed."
+          }
         />
       </div>
     );
@@ -306,91 +343,129 @@ export function ReportViewer({
           <p className="text-lg text-muted-foreground">{loadingMessage}</p>
         </div>
       )}
-      
+
       <div className="flex flex-col h-full w-full">
-        {!isRunning && currentReportUrl && !isReportLoading && !iframeError && (
+        {!isRunning && currentReportUrl && !isReportLoading && !iframeError && !hideFullscreenButton && (
           <div className="absolute top-2 right-2 z-10">
-            <Button 
+            <Button
               size="sm"
               className="cursor-pointer flex items-center gap-1 bg-secondary hover:bg-secondary/90"
               onClick={() => setShowFullscreen(true)}
             >
-             
               <Maximize2 className="h-4 w-4 text-secondary-foreground" />
-              
             </Button>
           </div>
         )}
-        
+
         {!isRunning && currentReportUrl && (
           <iframe
             ref={iframeRef}
             key={currentReportUrl}
             src={currentReportUrl}
-            className={`${iframeClassName} ${isReportLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${isValidationError ? 'h-4/5 flex-grow' : 'h-full'} bg-card`}
+            className={`${iframeClassName} ${
+              isReportLoading ? "opacity-0 pointer-events-none" : "opacity-100"
+            } ${isValidationError ? "h-4/5 flex-grow" : "h-full"} bg-card`}
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-            style={{ 
-              visibility: isReportLoading ? 'hidden' : 'visible',
-              transition: 'opacity 0.3s ease-in-out'
+            style={{
+              visibility: isReportLoading ? "hidden" : "visible",
+              transition: "opacity 0.3s ease-in-out",
             }}
-            title="Playwright Report"
+            title="Report"
             onLoad={(e) => {
-              console.log("ReportViewer: iframe onLoad triggered for URL:", currentReportUrl);
+              console.log(
+                "ReportViewer: iframe onLoad triggered for URL:",
+                currentReportUrl
+              );
               const iframe = e.target as HTMLIFrameElement;
               try {
                 // Verify we can access the contentWindow - if not, it's likely a CORS issue
                 if (!iframe.contentWindow) {
-                  console.error("ReportViewer: Cannot access iframe contentWindow - likely CORS issue");
-                  setReportError("Cannot load report due to security restrictions. The report may be on a different domain.");
+                  console.error(
+                    "ReportViewer: Cannot access iframe contentWindow - likely CORS issue"
+                  );
+                  setReportError(
+                    "Cannot load report due to security restrictions. The report may be on a different domain."
+                  );
                   setIframeError(true);
                   setIsValidationError(false);
                   setIsReportLoading(false);
                   return;
                 }
-                
+
                 // Check for JSON error response by examining body content
                 if (iframe.contentWindow?.document.body.textContent) {
-                  const bodyText = iframe.contentWindow.document.body.textContent;
-                  const pageTitle = iframe.contentDocument?.title || '';
-                  console.log("ReportViewer: iframe content body text:", bodyText.substring(0, 100) + (bodyText.length > 100 ? '...' : ''));
+                  const bodyText =
+                    iframe.contentWindow.document.body.textContent;
+                  const pageTitle = iframe.contentDocument?.title || "";
+                  console.log(
+                    "ReportViewer: iframe content body text:",
+                    bodyText.substring(0, 100) +
+                      (bodyText.length > 100 ? "..." : "")
+                  );
                   console.log("ReportViewer: iframe title:", pageTitle);
-                  
+
                   // Check for validation error page - allow these to display normally
-                  if (pageTitle.includes("Validation Error") || bodyText.includes("Test Validation Failed")) {
-                    console.log("ReportViewer: Validation error page detected - displaying content");
+                  if (
+                    pageTitle.includes("Validation Error") ||
+                    bodyText.includes("Test Validation Failed")
+                  ) {
+                    console.log(
+                      "ReportViewer: Validation error page detected - displaying content"
+                    );
                     setIsValidationError(true);
                     setIframeError(false);
                     setIsReportLoading(false);
                     return;
                   }
-                  
+
                   // Check for other error status codes in the URL or HTML
-                  if (iframe.contentDocument?.title?.includes("Error") || 
-                      iframe.contentDocument?.title?.includes("404") ||
-                      iframe.contentDocument?.title?.includes("Not Found")) {
-                    console.error("ReportViewer: Error page detected in iframe");
+                  if (
+                    iframe.contentDocument?.title?.includes("Error") ||
+                    iframe.contentDocument?.title?.includes("404") ||
+                    iframe.contentDocument?.title?.includes("Not Found")
+                  ) {
+                    console.error(
+                      "ReportViewer: Error page detected in iframe"
+                    );
                     setReportError("The test report could not be found.");
                     setIframeError(true);
                     setIsValidationError(false);
                     setIsReportLoading(false);
                     return;
                   }
-                  
+
                   // Check for JSON error response
-                  if (bodyText.includes('"error"') && (bodyText.includes('"message"') || bodyText.includes('"details"'))) {
+                  if (
+                    bodyText.includes('"error"') &&
+                    (bodyText.includes('"message"') ||
+                      bodyText.includes('"details"'))
+                  ) {
                     try {
                       const errorData = JSON.parse(bodyText);
-                      const errorMessage = errorData.message || errorData.details || errorData.error || "Unknown error";
-                      console.log("ReportViewer: Error in iframe content:", errorMessage);
-                      
-                                             // Check if this is a timeout error based on the API response
-                       if (errorData.timeoutInfo && errorData.timeoutInfo.isTimeout) {
-                         console.log("ReportViewer: Timeout error detected from API:", errorData.timeoutInfo);
-                         setTimeoutInfo(errorData.timeoutInfo);
-                       } else {
-                         setReportError(errorMessage);
-                       }
-                      
+                      const errorMessage =
+                        errorData.message ||
+                        errorData.details ||
+                        errorData.error ||
+                        "Unknown error";
+                      console.log(
+                        "ReportViewer: Error in iframe content:",
+                        errorMessage
+                      );
+
+                      // Check if this is a timeout error based on the API response
+                      if (
+                        errorData.timeoutInfo &&
+                        errorData.timeoutInfo.isTimeout
+                      ) {
+                        console.log(
+                          "ReportViewer: Timeout error detected from API:",
+                          errorData.timeoutInfo
+                        );
+                        setTimeoutInfo(errorData.timeoutInfo);
+                      } else {
+                        setReportError(errorMessage);
+                      }
+
                       setIframeError(true);
                       setIsValidationError(false);
                       setIsReportLoading(false);
@@ -401,55 +476,65 @@ export function ReportViewer({
                     }
                   }
                 }
-                
+
                 // Always clear loading state, even if we think there might be an issue
-                console.log("ReportViewer: Load complete, clearing loading state");
+                console.log(
+                  "ReportViewer: Load complete, clearing loading state"
+                );
                 setIsReportLoading(false);
-                
               } catch (loadError) {
-                console.error("ReportViewer: Error in onLoad event:", loadError);
+                console.error(
+                  "ReportViewer: Error in onLoad event:",
+                  loadError
+                );
                 setIsReportLoading(false);
                 // Set error state on any unexpected error
-                setReportError("Failed to load test report. Please try refreshing the page.");
+                setReportError(
+                  "Failed to load test report. Please try refreshing the page."
+                );
                 setIframeError(true);
               }
             }}
             onError={(e) => {
               console.error("ReportViewer: iframe onError triggered", e);
               setIsReportLoading(false);
-              setReportError("Failed to load test report. The report server might be unreachable.");
+              setReportError(
+                "Failed to load test report. The report server might be unreachable."
+              );
               setIframeError(true);
             }}
           />
         )}
-        
+
         {isValidationError && !isReportLoading && (
           <div className="px-6 py-4 border-t">
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className="h-5 w-5 text-amber-500" />
               <h3 className="text-base font-medium">Action Required</h3>
             </div>
-            <p className="text-sm">Please edit the script to fix the validation error shown above. You cannot run the script until this issue is resolved.</p>
+            <p className="text-sm">
+              Please edit the script to fix the validation error shown above.
+              You cannot run the script until this issue is resolved.
+            </p>
           </div>
         )}
       </div>
-      
+
       {/* Manual fullscreen implementation */}
       {showFullscreen && currentReportUrl && (
         <div className="fixed inset-0 z-50 bg-card/80 backdrop-blur-sm">
           <div className="fixed inset-8 bg-card rounded-lg shadow-lg flex flex-col overflow-hidden border">
             <div className="p-4 border-b flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <PlaywrightLogo width={42} height={42} />
-                <h2 className="text-xl font-semibold">Playwright Report</h2>
+              <div className="flex items-center gap-2">
+                <PlaywrightLogo width={36} height={36} />
+                <h2 className="text-xl font-semibold">Report</h2>
               </div>
-              <Button 
+              <Button
                 className="cursor-pointer bg-secondary hover:bg-secondary/90"
                 size="sm"
                 onClick={() => setShowFullscreen(false)}
               >
                 <X className="h-4 w-4 text-secondary-foreground" />
-                
               </Button>
             </div>
             <div className="flex-grow overflow-hidden">
@@ -458,7 +543,7 @@ export function ReportViewer({
                 src={currentReportUrl}
                 className="w-full h-full border-0"
                 sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-                title="Fullscreen Playwright Report"
+                title="Fullscreen Report"
               />
             </div>
           </div>

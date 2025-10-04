@@ -2,14 +2,19 @@
  * Better Auth RBAC Middleware for permission checking and enforcement
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/utils/auth';
-import { headers } from 'next/headers';
-import { db } from '@/utils/db';
-import { member, projectMembers, user } from '@/db/schema/schema';
-import { eq, and } from 'drizzle-orm';
-import { Role, hasPermission as checkPermission, PermissionContext, statement } from './permissions';
-import { normalizeRole } from './role-normalizer';
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
+import { db } from "@/utils/db";
+import { member, projectMembers, user } from "@/db/schema/schema";
+import { eq, and } from "drizzle-orm";
+import {
+  Role,
+  hasPermission as checkPermission,
+  PermissionContext,
+  statement,
+} from "./permissions";
+import { normalizeRole } from "./role-normalizer";
 
 /**
  * Check if a user has a specific permission using Better Auth system
@@ -30,34 +35,39 @@ export async function hasPermission(
     }
 
     // Use Better Auth's hasPermission API for organization and admin permissions
-    if (['organization', 'member', 'invitation'].includes(resource)) {
+    if (["organization", "member", "invitation"].includes(resource)) {
       const result = await auth.api.hasPermission({
         headers: await headers(),
         body: {
           permissions: {
-            [resource]: [action]
-          }
-        }
+            [resource]: [action],
+          },
+        },
       });
       return result.success;
     }
 
     // For custom resources (project, test, job, etc.), use our custom logic
-    const userRole = await getUserRole(session.user.id, context?.organizationId);
-    const assignedProjects = context?.assignedProjectIds || await getUserAssignedProjects(session.user.id);
-    
+    const userRole = await getUserRole(
+      session.user.id,
+      context?.organizationId
+    );
+    const assignedProjects =
+      context?.assignedProjectIds ||
+      (await getUserAssignedProjects(session.user.id));
+
     const permissionContext: PermissionContext = {
       userId: session.user.id,
       role: userRole,
       organizationId: context?.organizationId,
       projectId: context?.projectId,
       assignedProjectIds: assignedProjects,
-      resourceCreatorId: context?.resourceCreatorId
+      resourceCreatorId: context?.resourceCreatorId,
     };
 
     return checkPermission(permissionContext, resource, action);
   } catch (error) {
-    console.error('Error checking permission:', error);
+    console.error("Error checking permission:", error);
     return false;
   }
 }
@@ -71,7 +81,7 @@ export async function requirePermission(
   context?: Partial<PermissionContext>
 ): Promise<void> {
   const hasAccess = await hasPermission(resource, action, context);
-  
+
   if (!hasAccess) {
     throw new Error(`Access denied: Missing permission ${resource}:${action}`);
   }
@@ -80,13 +90,20 @@ export async function requirePermission(
 /**
  * Get user's role (prioritizes organization membership role)
  */
-export async function getUserRole(userId: string, organizationId?: string): Promise<Role> {
+export async function getUserRole(
+  userId: string,
+  organizationId?: string
+): Promise<Role> {
   // Check if user is SUPER_ADMIN via email
-  const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim().toLowerCase()).filter(Boolean) || [];
+  const adminEmails =
+    process.env.SUPER_ADMIN_EMAILS?.split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean) || [];
 
   // Check by email with additional validation
   if (adminEmails.length > 0) {
-    const userRecord = await db.select({ email: user.email })
+    const userRecord = await db
+      .select({ email: user.email })
       .from(user)
       .where(eq(user.id, userId))
       .limit(1);
@@ -113,22 +130,24 @@ export async function getUserRole(userId: string, organizationId?: string): Prom
 /**
  * Get user's organization role from member table
  */
-export async function getUserOrgRole(userId: string, organizationId: string): Promise<Role | null> {
+export async function getUserOrgRole(
+  userId: string,
+  organizationId: string
+): Promise<Role | null> {
   const memberRecord = await db
     .select({ role: member.role })
     .from(member)
-    .where(and(
-      eq(member.userId, userId),
-      eq(member.organizationId, organizationId)
-    ))
+    .where(
+      and(eq(member.userId, userId), eq(member.organizationId, organizationId))
+    )
     .limit(1);
-  
+
   if (memberRecord.length === 0) {
     return null;
   }
-  
+
   const role = memberRecord[0].role;
-  
+
   // Use the comprehensive role normalizer
   return normalizeRole(role);
 }
@@ -136,13 +155,15 @@ export async function getUserOrgRole(userId: string, organizationId: string): Pr
 /**
  * Get user's assigned project IDs (for PROJECT_EDITOR role)
  */
-export async function getUserAssignedProjects(userId: string): Promise<string[]> {
+export async function getUserAssignedProjects(
+  userId: string
+): Promise<string[]> {
   const projectAssignments = await db
     .select({ projectId: projectMembers.projectId })
     .from(projectMembers)
     .where(eq(projectMembers.userId, userId));
-  
-  return projectAssignments.map(p => p.projectId);
+
+  return projectAssignments.map((p) => p.projectId);
 }
 
 /**
@@ -165,18 +186,21 @@ interface SessionUser {
 /**
  * Middleware to check authentication
  */
-export async function requireAuth(): Promise<{ userId: string; user: SessionUser }> {
+export async function requireAuth(): Promise<{
+  userId: string;
+  user: SessionUser;
+}> {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
-  
+
   if (!session) {
-    throw new Error('Authentication required');
+    throw new Error("Authentication required");
   }
-  
+
   return {
     userId: session.user.id,
-    user: session.user
+    user: session.user,
   };
 }
 
@@ -188,37 +212,50 @@ export async function requireBetterAuthPermission(
 ): Promise<{ userId: string; user: SessionUser }> {
   // Check authentication first
   const authResult = await requireAuth();
-  
+
   try {
     // Use Better Auth's permission API for supported resources
     for (const [resource, actions] of Object.entries(permissions)) {
-      if (['organization', 'member', 'invitation', 'user', 'session'].includes(resource)) {
+      if (
+        ["organization", "member", "invitation", "user", "session"].includes(
+          resource
+        )
+      ) {
         const result = await auth.api.hasPermission({
           headers: await headers(),
           body: {
             permissions: {
-              [resource]: actions
-            }
-          }
+              [resource]: actions,
+            },
+          },
         });
-        
+
         if (!result.success) {
           throw new Error(`Access denied: Missing ${resource} permissions`);
         }
       } else {
         // For custom resources, check individually
         for (const action of actions) {
-          const hasAccess = await hasPermission(resource as keyof typeof statement, action);
+          const hasAccess = await hasPermission(
+            resource as keyof typeof statement,
+            action
+          );
           if (!hasAccess) {
-            throw new Error(`Access denied: Missing ${resource}:${action} permission`);
+            throw new Error(
+              `Access denied: Missing ${resource}:${action} permission`
+            );
           }
         }
       }
     }
-    
+
     return authResult;
   } catch (error) {
-    throw new Error(`Permission check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Permission check failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
   }
 }
 
@@ -226,38 +263,38 @@ export async function requireBetterAuthPermission(
  * API middleware wrapper for permission checking with Better Auth
  */
 export function withBetterAuthPermission<T = Record<string, unknown>>(
-  handler: (req: NextRequest, context: T, auth: { userId: string; user: SessionUser }) => Promise<NextResponse>,
+  handler: (
+    req: NextRequest,
+    context: T,
+    auth: { userId: string; user: SessionUser }
+  ) => Promise<NextResponse>,
   permissions: Record<string, string[]>
 ) {
   return async (req: NextRequest, routeContext?: T): Promise<NextResponse> => {
     try {
       // Check authentication and permissions
       const authResult = await requireBetterAuthPermission(permissions);
-      
+
       // Call the actual handler with auth context
       return handler(req, routeContext!, authResult);
-      
     } catch (error) {
-      console.error('Better Auth permission middleware error:', error);
-      
+      console.error("Better Auth permission middleware error:", error);
+
       if (error instanceof Error) {
-        if (error.message === 'Authentication required') {
+        if (error.message === "Authentication required") {
           return NextResponse.json(
-            { error: 'Authentication required' },
+            { error: "Authentication required" },
             { status: 401 }
           );
         }
-        
-        if (error.message.includes('Access denied')) {
-          return NextResponse.json(
-            { error: error.message },
-            { status: 403 }
-          );
+
+        if (error.message.includes("Access denied")) {
+          return NextResponse.json({ error: error.message }, { status: 403 });
         }
       }
-      
+
       return NextResponse.json(
-        { error: 'Internal server error' },
+        { error: "Internal server error" },
         { status: 500 }
       );
     }
@@ -276,15 +313,15 @@ export async function isAdmin(organizationId?: string): Promise<boolean> {
         body: {
           permissions: {
             organization: ["update"],
-            member: ["create", "update", "delete"]
-          }
-        }
+            member: ["create", "update", "delete"],
+          },
+        },
       });
       return result.success;
     }
-    
+
     // Check system admin permissions
-    return await hasPermission('system', 'manage_users');
+    return await hasPermission("system", "manage_users");
   } catch {
     return false;
   }
@@ -293,36 +330,48 @@ export async function isAdmin(organizationId?: string): Promise<boolean> {
 /**
  * Helper to check if user can edit a specific project
  */
-export async function canEditProject(organizationId: string, projectId: string): Promise<boolean> {
-  return hasPermission('test', 'update', { organizationId, projectId });
+export async function canEditProject(
+  organizationId: string,
+  projectId: string
+): Promise<boolean> {
+  return hasPermission("test", "update", { organizationId, projectId });
 }
 
 /**
  * Helper to check if user can view a specific project
  */
-export async function canViewProject(organizationId: string, projectId: string): Promise<boolean> {
-  return hasPermission('project', 'view', { organizationId, projectId });
+export async function canViewProject(
+  organizationId: string,
+  projectId: string
+): Promise<boolean> {
+  return hasPermission("project", "view", { organizationId, projectId });
 }
 
 /**
  * Check if user can perform admin operations (uses Better Auth admin plugin)
  */
-export async function canPerformAdminOperation(operation: 'manage_users' | 'view_users' | 'impersonate_users' | 'manage_organizations'): Promise<boolean> {
+export async function canPerformAdminOperation(
+  operation:
+    | "manage_users"
+    | "view_users"
+    | "impersonate_users"
+    | "manage_organizations"
+): Promise<boolean> {
   try {
     const result = await auth.api.userHasPermission({
       body: {
         permissions: {
-          system: [operation]
-        }
-      }
+          system: [operation],
+        },
+      },
     });
     if (result.error) {
-      console.error('Admin permission check failed:', result.error);
+      console.error("Admin permission check failed:", result.error);
       return false;
     }
     return result.success;
   } catch (error) {
-    console.error('Admin permission check failed:', error);
+    console.error("Admin permission check failed:", error);
     return false;
   }
 }
@@ -330,7 +379,10 @@ export async function canPerformAdminOperation(operation: 'manage_users' | 'view
 /**
  * Get user's role with unified interface
  */
-export async function getUserUnifiedRole(userId: string, organizationId?: string): Promise<Role> {
+export async function getUserUnifiedRole(
+  userId: string,
+  organizationId?: string
+): Promise<Role> {
   return getUserRole(userId, organizationId);
 }
 
@@ -343,13 +395,16 @@ export async function buildUnifiedPermissionContext(
   projectId?: string
 ): Promise<PermissionContext> {
   const role = await getUserRole(userId, organizationId);
-  const assignedProjectIds = (role === Role.PROJECT_EDITOR || role === Role.PROJECT_ADMIN) ? await getUserAssignedProjects(userId) : [];
-  
+  const assignedProjectIds =
+    role === Role.PROJECT_EDITOR || role === Role.PROJECT_ADMIN
+      ? await getUserAssignedProjects(userId)
+      : [];
+
   return {
     userId,
     role,
     organizationId,
     projectId,
-    assignedProjectIds
+    assignedProjectIds,
   };
 }

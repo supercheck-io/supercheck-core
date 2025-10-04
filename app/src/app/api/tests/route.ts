@@ -57,6 +57,7 @@ export async function GET() {
     }
 
     // Fetch tests scoped to the project
+    // Using ID ordering instead of createdAt since UUIDv7 is time-ordered (PostgreSQL 18+)
     const allTests = await db
       .select()
       .from(tests)
@@ -64,7 +65,7 @@ export async function GET() {
         eq(tests.projectId, targetProjectId),
         eq(tests.organizationId, organizationId)
       ))
-      .orderBy(desc(tests.createdAt));
+      .orderBy(desc(tests.id));
 
     // Get tags for tests in this project only
     const testIds = allTests.map(test => test.id);

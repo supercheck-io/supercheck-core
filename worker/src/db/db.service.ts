@@ -12,7 +12,13 @@ export class DbService implements OnModuleInit {
   onModuleInit() {
     this.logger.log('Initializing database connection...');
     try {
-      const queryClient = postgres(process.env.DATABASE_URL!);
+      // Initialize with proper connection pooling
+      const queryClient = postgres(process.env.DATABASE_URL!, {
+        max: parseInt(process.env.DB_POOL_MAX || '10', 10), // Default: 10 connections
+        idle_timeout: parseInt(process.env.DB_IDLE_TIMEOUT || '30', 10), // Default: 30 seconds
+        connect_timeout: parseInt(process.env.DB_CONNECT_TIMEOUT || '10', 10), // Default: 10 seconds
+        max_lifetime: parseInt(process.env.DB_MAX_LIFETIME || '1800', 10), // Default: 30 minutes (in seconds)
+      });
       this.db = drizzle(queryClient, { schema });
       this.logger.log('Database connection initialized successfully.');
     } catch (error) {
@@ -34,6 +40,40 @@ export class DbService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `Failed to get project ${projectId}: ${(error as Error).message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Gets test information by ID for synthetic monitor execution
+   * @param testId The test ID
+   * @returns Test record including script, title, and type
+   */
+  async getTestById(testId: string): Promise<{
+    id: string;
+    title: string;
+    script: string;
+    type: string;
+    organizationId: string | null;
+    projectId: string | null;
+  } | null> {
+    try {
+      const test = await this.db.query.tests.findFirst({
+        where: eq(schema.tests.id, testId),
+        columns: {
+          id: true,
+          title: true,
+          script: true,
+          type: true,
+          organizationId: true,
+          projectId: true,
+        },
+      });
+      return test || null;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get test ${testId}: ${(error as Error).message}`,
       );
       return null;
     }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors, monitorResults } from "@/db/schema/schema";
-import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { requireAuth, hasPermission, getUserOrgRole } from '@/lib/rbac/middleware';
 import { isSuperAdmin } from '@/lib/admin';
 
@@ -73,14 +73,11 @@ export async function GET(
       }
     }
 
-    // Get the maximum number of results to consider from environment variable
-    const maxResults = process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT ? parseInt(process.env.NEXT_PUBLIC_RECENT_MONITOR_RESULTS_LIMIT) : 10000;
-    
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
 
     // Build where condition
-    const whereCondition = dateFilter 
+    const whereCondition = dateFilter
       ? and(
           eq(monitorResults.monitorId, id),
           gte(monitorResults.checkedAt, new Date(dateFilter + 'T00:00:00.000Z')),
@@ -88,38 +85,21 @@ export async function GET(
         )
       : eq(monitorResults.monitorId, id);
 
-    // First, get the most recent results up to the limit (this gives us the "window" of results to paginate through)
-    const recentResults = await db
-      .select({ id: monitorResults.id })
+    // Get total count for pagination metadata
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)` })
       .from(monitorResults)
-      .where(whereCondition)
-      .orderBy(desc(monitorResults.checkedAt))
-      .limit(maxResults);
+      .where(whereCondition);
 
-    const total = recentResults.length;
-    
-    // If requesting beyond available results, return empty
-    if (offset >= total) {
-      return NextResponse.json({
-        data: [],
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-          hasNextPage: false,
-          hasPrevPage: page > 1,
-        },
-      });
-    }
+    const total = Number(totalCount);
 
-    // Get the specific page of results from our limited set
+    // Get the specific page of results
     const results = await db
       .select()
       .from(monitorResults)
       .where(whereCondition)
       .orderBy(desc(monitorResults.checkedAt))
-      .limit(Math.min(limit, total - offset)) // Don't go beyond available results
+      .limit(limit)
       .offset(offset);
 
     // Calculate pagination metadata

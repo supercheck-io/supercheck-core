@@ -12,7 +12,7 @@ Supercheck is a powerful, scalable testing platform built with Next.js and NestJ
 
 - **Frontend**: Next.js 15 with Turbopack for blazing-fast development
 - **Backend Worker**: NestJS service for distributed test execution
-- **Database**: PostgreSQL with Drizzle ORM for type-safe database operations
+- **Database**: PostgreSQL 18+ with Drizzle ORM for type-safe database operations (UUIDv7 support)
 - **Queue System**: Redis with BullMQ for reliable job processing
 - **Storage**: MinIO (S3-compatible) for test artifacts and reports
 - **Authentication**: Better Auth with comprehensive RBAC system
@@ -77,12 +77,12 @@ docker-compose up -d postgres redis minio
 # Start Redis
 docker run -d --name redis-supercheck -p 6379:6379 redis:8
 
-# Start PostgreSQL
+# Start PostgreSQL 18
 docker run -d --name postgres-supercheck \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=supercheck \
-  -p 5432:5432 postgres:16.2
+  -p 5432:5432 postgres:18
 
 # Start MinIO
 docker run -d --name minio-supercheck \

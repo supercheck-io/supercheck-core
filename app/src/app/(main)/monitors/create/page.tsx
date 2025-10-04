@@ -13,12 +13,38 @@ export const metadata: Metadata = {
 };
 
 interface CreateMonitorPageProps {
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ type?: string; fromTest?: string }>;
 }
 
 export default async function CreateMonitorPage({ searchParams }: CreateMonitorPageProps) {
   const params = await searchParams;
   const monitorType = params.type;
+  const fromTestId = params.fromTest;
+
+  // If fromTest is specified without type, redirect to synthetic_test type
+  if (fromTestId && !monitorType) {
+    // Automatically use synthetic_test type
+    const effectiveType = "synthetic_test";
+    const selectedMonitorType = monitorTypes.find(type => type.value === effectiveType);
+
+    if (!selectedMonitorType) {
+      notFound();
+    }
+
+    const breadcrumbs = [
+      { label: "Home", href: "/" },
+      { label: "Monitors", href: "/monitors" },
+      { label: "Create", href: "/monitors/create" },
+      { label: selectedMonitorType.label, isCurrentPage: true },
+    ];
+
+    return (
+      <div>
+        <PageBreadcrumbs items={breadcrumbs} />
+        <MonitorCreationWizard />
+      </div>
+    );
+  }
 
   // If no type specified, show the general create page (existing functionality)
   if (!monitorType) {

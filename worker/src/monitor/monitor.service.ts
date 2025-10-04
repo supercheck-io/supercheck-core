@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs'; // To convert Observable to Promise
 import { MonitorJobDataDto } from './dto/monitor-job.dto';
 import { MonitorExecutionResult } from './types/monitor-result.type';
 import { DbService } from '../db/db.service';
+import { ExecutionService } from '../execution/services/execution.service';
 import * as schema from '../db/schema'; // Assuming your schema is here and WILL contain monitorResults
 import type {
   MonitorConfig,
@@ -280,14 +281,13 @@ export class MonitorService {
     private readonly credentialSecurityService: CredentialSecurityService,
     private readonly errorHandler: StandardizedErrorHandler,
     private readonly resourceManager: ResourceManagerService,
+    private readonly executionService: ExecutionService,
   ) {}
 
   async executeMonitor(
     jobData: MonitorJobDataDto,
   ): Promise<MonitorExecutionResult | null> {
-    this.logger.log(
-      `Executing monitor ${jobData.monitorId} of type ${jobData.type} for target ${jobData.target}`,
-    );
+    // Removed log - only log warnings, errors, and status changes
 
     // Check if monitor is paused before execution
     try {
@@ -311,9 +311,7 @@ export class MonitorService {
       }
 
       if (monitor.status === 'paused') {
-        this.logger.log(
-          `Monitor ${jobData.monitorId} is paused, skipping execution`,
-        );
+        // Removed log - paused execution is not an error
         // Return null instead of a failed result - paused monitors shouldn't create results
         return null;
       }
@@ -329,6 +327,8 @@ export class MonitorService {
     let responseTimeMs: number | undefined;
     let isUp = false;
     let executionError: string | undefined;
+    let testExecutionId: string | undefined;
+    let testReportS3Url: string | undefined;
 
     try {
       switch (jobData.type) {
@@ -453,6 +453,18 @@ export class MonitorService {
           };
           break;
 
+        case 'synthetic_test': {
+          const syntheticResult = await this.executeSyntheticTest(jobData.monitorId, jobData.config);
+          status = syntheticResult.status;
+          details = syntheticResult.details;
+          responseTimeMs = syntheticResult.responseTimeMs;
+          isUp = syntheticResult.isUp;
+          // Preserve test execution metadata for synthetic monitors
+          testExecutionId = syntheticResult.testExecutionId;
+          testReportS3Url = syntheticResult.testReportS3Url;
+          break;
+        }
+
         default: {
           const _exhaustiveCheck: never = jobData.type;
           this.logger.warn(`Unsupported monitor type: ${String(jobData.type)}`);
@@ -487,13 +499,13 @@ export class MonitorService {
       details,
       isUp,
       error: executionError,
+      testExecutionId,
+      testReportS3Url,
     };
 
     // The service now returns the result instead of saving it.
     // The processor will handle sending this result back to the Next.js app.
-    this.logger.log(
-      `Execution finished for monitor ${jobData.monitorId}, Status: ${status}, IsUp: ${isUp}`,
-    );
+    // Removed log - only log status changes below in saveMonitorResult
     return result;
   }
 
@@ -515,9 +527,12 @@ export class MonitorService {
         const isStatusChange =
           previousStatus !== currentStatus && previousStatus !== 'paused';
 
-        this.logger.log(
-          `Saved result for monitor ${resultData.monitorId}: ${currentStatus}. Status changed: ${isStatusChange}`,
-        );
+        // Only log status changes, not every result
+        if (isStatusChange) {
+          this.logger.log(
+            `Monitor ${resultData.monitorId} status changed from ${previousStatus} to ${currentStatus}`,
+          );
+        }
 
         // Check alert thresholds on every result when alerts are enabled
         if (monitor.alertConfig?.enabled) {
@@ -608,9 +623,12 @@ export class MonitorService {
                 .where(eq(schema.monitorResults.id, latestResult.id));
             }
 
-            this.logger.log(
-              `Delegated ${type} notification for monitor ${resultData.monitorId} (alert #${alertsSentForFailure + 1} for this failure sequence)`,
-            );
+            // Only log important alert events
+            if (type === 'recovery' || alertsSentForFailure < 2) {
+              this.logger.log(
+                `Sent ${type} notification for monitor ${resultData.monitorId}`,
+              );
+            }
           } else if (currentStatus === 'down' && alertsSentForFailure >= 3) {
             this.logger.debug(
               `[ALERT_DEBUG] Skipping failure alert for monitor ${resultData.monitorId} - already sent 3 alerts for this failure sequence`,
@@ -619,21 +637,12 @@ export class MonitorService {
         }
 
         // Check for SSL expiration warnings independently of status changes
-        this.logger.debug(
-          `[SSL_ALERT_DEBUG] Monitor ${resultData.monitorId}: alertConfig.enabled=${monitor.alertConfig?.enabled}, alertOnSslExpiration=${monitor.alertConfig?.alertOnSslExpiration}`,
-        );
+        // Removed debug logs - only log errors and warnings
         if (
           monitor.alertConfig?.enabled &&
           monitor.alertConfig?.alertOnSslExpiration
         ) {
-          this.logger.log(
-            `[SSL_ALERT_DEBUG] Checking SSL expiration alert for monitor ${resultData.monitorId}`,
-          );
           await this.checkSslExpirationAlert(resultData, monitor);
-        } else {
-          this.logger.debug(
-            `[SSL_ALERT_DEBUG] Skipping SSL alert check for monitor ${resultData.monitorId} - alerts not enabled or SSL alerts disabled`,
-          );
         }
       }
     } catch (error) {
@@ -1748,23 +1757,16 @@ export class MonitorService {
     monitor: any,
   ): Promise<void> {
     try {
-      this.logger.log(
-        `[SSL_ALERT_DEBUG] Starting SSL expiration alert check for monitor ${resultData.monitorId}`,
-      );
+      // Removed debug log
 
       // Check if SSL certificate info is available and has warning
       const sslCertificate = resultData.details?.sslCertificate;
       const sslWarning =
         resultData.details?.sslWarning || resultData.details?.warningMessage;
 
-      this.logger.debug(
-        `[SSL_ALERT_DEBUG] SSL data found: sslCertificate=${!!sslCertificate}, sslWarning=${sslWarning}, daysRemaining=${sslCertificate?.daysRemaining}`,
-      );
+      // Removed debug logs
 
       if (!sslCertificate && !sslWarning) {
-        this.logger.debug(
-          `[SSL_ALERT_DEBUG] No SSL certificate or warning data found for monitor ${resultData.monitorId}`,
-        );
         return; // No SSL info to check
       }
 
@@ -1777,9 +1779,7 @@ export class MonitorService {
         const warningThreshold =
           monitor.config?.sslDaysUntilExpirationWarning || 30;
 
-        this.logger.debug(
-          `[SSL_ALERT_DEBUG] SSL threshold check: daysUntilExpiration=${daysUntilExpiration}, warningThreshold=${warningThreshold}`,
-        );
+        // Removed debug logs
 
         if (
           daysUntilExpiration <= warningThreshold &&
@@ -1787,19 +1787,9 @@ export class MonitorService {
         ) {
           shouldAlert = true;
           alertReason = `SSL certificate expires in ${daysUntilExpiration} days`;
-          this.logger.log(
-            `[SSL_ALERT_DEBUG] SSL alert triggered: ${alertReason}`,
-          );
         } else if (daysUntilExpiration <= 0) {
           shouldAlert = true;
           alertReason = 'SSL certificate has expired';
-          this.logger.log(
-            `[SSL_ALERT_DEBUG] SSL alert triggered: ${alertReason}`,
-          );
-        } else {
-          this.logger.debug(
-            `[SSL_ALERT_DEBUG] SSL certificate is still valid (${daysUntilExpiration} days > ${warningThreshold} threshold)`,
-          );
         }
       }
 
@@ -1832,14 +1822,12 @@ export class MonitorService {
           // Record that we sent an SSL alert
           await this.recordSslAlert(resultData.monitorId);
 
+          // Only log important SSL alerts
           this.logger.log(
             `Sent SSL expiration alert for monitor ${resultData.monitorId}: ${alertReason}`,
           );
-        } else {
-          this.logger.debug(
-            `Skipping SSL alert for monitor ${resultData.monitorId} - already sent ${hoursSinceLastAlert.toFixed(1)} hours ago`,
-          );
         }
+        // Removed debug log for skipped alerts
       }
     } catch (error) {
       this.logger.error(
@@ -1941,6 +1929,13 @@ export class MonitorService {
         ? lastResult.isUp !== resultData.isUp
         : true;
 
+      // Log synthetic monitor metadata before saving
+      if (resultData.testExecutionId) {
+        this.logger.log(
+          `Saving monitor result with testExecutionId: ${resultData.testExecutionId}, testReportS3Url: ${resultData.testReportS3Url}`,
+        );
+      }
+
       await this.dbService.db.insert(schema.monitorResults).values({
         monitorId: resultData.monitorId,
         checkedAt: resultData.checkedAt,
@@ -1951,6 +1946,9 @@ export class MonitorService {
         isStatusChange: isStatusChange,
         consecutiveFailureCount: consecutiveFailureCount,
         alertsSentForFailure: alertsSentForFailure,
+        // Store test execution metadata for synthetic monitors
+        testExecutionId: resultData.testExecutionId || null,
+        testReportS3Url: resultData.testReportS3Url || null,
       });
     } catch (error) {
       this.logger.error(
@@ -2003,6 +2001,174 @@ export class MonitorService {
         `Failed to get recent monitor results: ${getErrorMessage(error)}`,
       );
       return [];
+    }
+  }
+
+  /**
+   * Execute a synthetic test monitor by running a Playwright test
+   * This method bridges the monitoring system with the test execution infrastructure
+   *
+   * @param monitorId The monitor ID for logging and tracking
+   * @param config Monitor configuration containing testId and Playwright options
+   * @returns Monitor execution result with status, details, and response time
+   */
+  private async executeSyntheticTest(
+    monitorId: string,
+    config?: MonitorConfig,
+  ): Promise<{
+    status: MonitorResultStatus;
+    details: MonitorResultDetails;
+    responseTimeMs?: number;
+    isUp: boolean;
+    testExecutionId?: string;
+    testReportS3Url?: string;
+  }> {
+    const startTime = Date.now();
+
+    try {
+      // 1. Validate configuration
+      if (!config?.testId) {
+        this.logger.error(
+          `[${monitorId}] Synthetic monitor missing testId in configuration`,
+        );
+        return {
+          status: 'error',
+          details: {
+            errorMessage:
+              'No testId configured for synthetic monitor. Please check monitor configuration.',
+          },
+          isUp: false,
+          responseTimeMs: Date.now() - startTime,
+        };
+      }
+
+      this.logger.log(
+        `[${monitorId}] Executing synthetic test: ${config.testId}`,
+      );
+
+      // 2. Fetch test from database
+      const testId = config.testId;
+      const test = await this.dbService.getTestById(testId);
+
+      if (!test) {
+        this.logger.error(
+          `[${monitorId}] Test ${config.testId} not found in database`,
+        );
+        return {
+          status: 'error',
+          details: {
+            errorMessage: `Test not found (ID: ${config.testId}). The test may have been deleted.`,
+          },
+          isUp: false,
+          responseTimeMs: Date.now() - startTime,
+        };
+      }
+
+      // 3. Decode test script (stored as Base64 in database)
+      let decodedScript: string;
+      try {
+        decodedScript = Buffer.from(test.script, 'base64').toString('utf8');
+
+        // Validate decoded script is not empty
+        if (!decodedScript || decodedScript.trim().length === 0) {
+          throw new Error('Decoded script is empty');
+        }
+
+        this.logger.debug(
+          `[${monitorId}] Successfully decoded test script for: ${test.title}`,
+        );
+      } catch (decodeError) {
+        this.logger.error(
+          `[${monitorId}] Failed to decode test script: ${getErrorMessage(decodeError)}`,
+        );
+        return {
+          status: 'error',
+          details: {
+            errorMessage: `Failed to decode test script: ${getErrorMessage(decodeError)}`,
+          },
+          isUp: false,
+          responseTimeMs: Date.now() - startTime,
+        };
+      }
+
+      // 4. Execute test using existing ExecutionService
+      this.logger.log(
+        `[${monitorId}] Executing Playwright test: ${test.title}`,
+      );
+
+      const testResult = await this.executionService.runSingleTest({
+        testId: test.id,
+        code: decodedScript,
+      }, true, true); // Bypass concurrency check and use unique execution IDs for monitor executions
+
+      // Use actual test execution time if available, otherwise fall back to total time
+      const responseTimeMs = testResult.executionTimeMs ?? (Date.now() - startTime);
+
+      // 5. Convert test result to monitor result format
+      if (testResult.success) {
+        this.logger.log(
+          `[${monitorId}] Synthetic test passed: ${test.title} (${responseTimeMs}ms)`,
+        );
+        this.logger.log(
+          `[${monitorId}] Test execution metadata: testId=${testResult.testId}, reportUrl=${testResult.reportUrl}`,
+        );
+
+        return {
+          status: 'up',
+          details: {
+            testTitle: test.title,
+            testType: test.type,
+            reportUrl: testResult.reportUrl || undefined,
+            message: 'Test execution successful',
+            // Truncate logs for storage efficiency
+            executionSummary: testResult.stdout?.substring(0, 500),
+          },
+          responseTimeMs,
+          isUp: true,
+          // Store test execution metadata for report access
+          testExecutionId: testResult.testId,
+          testReportS3Url: testResult.reportUrl || undefined,
+        };
+      } else {
+        this.logger.warn(
+          `[${monitorId}] Synthetic test failed: ${test.title} - ${testResult.error}`,
+        );
+
+        return {
+          status: 'down',
+          details: {
+            testTitle: test.title,
+            testType: test.type,
+            errorMessage: testResult.error || 'Test execution failed',
+            reportUrl: testResult.reportUrl || undefined,
+            // Truncate logs for storage efficiency
+            executionSummary: testResult.stdout?.substring(0, 500),
+            executionErrors: testResult.stderr?.substring(0, 500),
+          },
+          responseTimeMs,
+          isUp: false,
+          // Store test execution metadata for report access
+          testExecutionId: testResult.testId,
+          testReportS3Url: testResult.reportUrl || undefined,
+        };
+      }
+    } catch (error) {
+      const responseTimeMs = Date.now() - startTime;
+
+      this.logger.error(
+        `[${monitorId}] Synthetic test execution failed: ${getErrorMessage(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      return {
+        status: 'error',
+        details: {
+          errorMessage: `Synthetic test execution error: ${getErrorMessage(error)}`,
+          errorType: 'execution_error',
+        },
+        responseTimeMs,
+        isUp: false,
+      };
     }
   }
 }

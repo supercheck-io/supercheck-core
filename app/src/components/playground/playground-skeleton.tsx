@@ -41,7 +41,7 @@ export function PlaygroundSkeleton() {
               <div className="w-[10px] h-full bg-border flex items-center justify-center">
                 <div className="w-1 h-8 rounded-full bg-muted-foreground/20"></div>
               </div>
-              <div className="w-[calc(30%-10px)] h-full flex flex-col border rounded-tr-lg rounded-br-lg">
+              <div className="w-[calc(30%-10px)] h-full flex flex-col border rounded-tr-lg rounded-br-lg bg-card">
                 <div className="flex items-center justify-between border-b bg-card px-4 py-2 rounded-tr-lg h-14">
                   <Skeleton className="h-6 w-24" />
                 </div>

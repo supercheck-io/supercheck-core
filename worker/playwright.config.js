@@ -83,9 +83,9 @@ module.exports = defineConfig({
     navigationTimeout: 30000, // 30 seconds for page loads
 
     /* Artifact collection strategy - configurable via environment variables */
-    trace: process.env.PLAYWRIGHT_TRACE || 'on',
-    screenshot: process.env.PLAYWRIGHT_SCREENSHOT || 'on',
-    video: process.env.PLAYWRIGHT_VIDEO || 'on',
+    trace: process.env.PLAYWRIGHT_TRACE || 'retain-on-failure',
+    screenshot: process.env.PLAYWRIGHT_SCREENSHOT || 'only-on-failure',
+    video: process.env.PLAYWRIGHT_VIDEO || 'retain-on-failure',
 
     /* Browser optimization for resource efficiency - browser-specific args moved to projects */
 

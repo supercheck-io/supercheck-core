@@ -8,7 +8,9 @@ import { requireAuth, hasPermission, getUserOrgRole } from '@/lib/rbac/middlewar
 import { isSuperAdmin } from '@/lib/admin';
 import { logAuditEvent } from "@/lib/audit-logger";
 
-const RECENT_RESULTS_LIMIT = 50; // Number of recent results to fetch for charts and metrics
+// Hardcoded limit for charts and metrics display
+// This is NOT for the table - table uses paginated /results endpoint
+const RECENT_RESULTS_LIMIT = 100;
 
 export async function GET(
   request: NextRequest,
@@ -336,74 +338,8 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const params = await context.params;
-  const { id } = params;
-  if (!id) {
-    return NextResponse.json({ error: "Monitor ID is required" }, { status: 400 });
-  }
-
-  try {
-    await requireAuth();
-    
-    // First, find the monitor without filtering by active project
-    const monitorToDelete = await db.query.monitors.findFirst({
-      where: eq(monitors.id, id)
-    });
-
-    if (!monitorToDelete) {
-      return NextResponse.json({ error: "Monitor not found" }, { status: 404 });
-    }
-    
-    // Now check if user has access to this monitor's project
-    if (!monitorToDelete.organizationId || !monitorToDelete.projectId) {
-      return NextResponse.json(
-        { error: "Monitor data incomplete" },
-        { status: 500 }
-      );
-    }
-    
-    const canManage = await hasPermission('monitor', 'delete', { organizationId: monitorToDelete.organizationId, projectId: monitorToDelete.projectId });
-    
-    if (!canManage) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      );
-    }
-
-    // First, unschedule the monitor
-    try {
-        await deleteScheduledMonitor(id);
-        console.log(`Unscheduled monitor ${id} before deletion.`);
-    } catch (scheduleError) {
-        console.error(`Error unscheduling monitor ${id} during deletion:`, scheduleError);
-        // Continue with deletion even if unscheduling fails, but log it.
-    }
-
-    // Then, delete monitor results associated with the monitor (due to onDelete: "cascade" this might be automatic)
-    // Explicitly deleting them first can be safer depending on DB config / Drizzle behavior interpretation.
-    await db.delete(monitorResults).where(eq(monitorResults.monitorId, id));
-    
-    const [deletedMonitor] = await db.delete(monitors).where(and(
-      eq(monitors.id, id),
-      eq(monitors.projectId, monitorToDelete.projectId),
-      eq(monitors.organizationId, monitorToDelete.organizationId)
-    )).returning();
-
-    if (!deletedMonitor) {
-      return NextResponse.json({ error: "Monitor not found or already deleted" }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, id: deletedMonitor.id });
-  } catch (error) {
-    console.error(`Error deleting monitor ${id}:`, error);
-    return NextResponse.json({ error: "Failed to delete monitor" }, { status: 500 });
-  }
-}
+// DELETE method removed - use the server action deleteMonitor() from @/actions/delete-monitor
+// This ensures consistent deletion logic with S3 cleanup, Redis unscheduling, and audit logging
 
 function isObject(item: unknown): item is Record<string, unknown> {
   return Boolean(item && typeof item === 'object' && !Array.isArray(item));

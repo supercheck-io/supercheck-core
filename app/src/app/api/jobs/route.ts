@@ -142,7 +142,7 @@ export async function GET() {
         eq(jobs.projectId, targetProjectId),
         eq(jobs.organizationId, organizationId)
       ))
-      .orderBy(desc(jobs.createdAt));
+      .orderBy(desc(jobs.id)); // UUIDv7 is time-ordered (PostgreSQL 18+)
 
     // For each job, get its associated tests
     const jobsWithTests = await Promise.all(

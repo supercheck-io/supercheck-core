@@ -22,6 +22,7 @@ export interface S3Config {
   secretAccessKey: string;
   jobBucketName: string;
   testBucketName: string;
+  monitorBucketName: string;
   maxRetries?: number;
   operationTimeout?: number;
 }
@@ -40,7 +41,7 @@ export interface ReportDeletionInput {
   reportPath?: string;
   s3Url?: string;
   entityId: string;
-  entityType: 'job' | 'test';
+  entityType: 'job' | 'test' | 'monitor';
 }
 
 /**
@@ -58,13 +59,6 @@ export class S3CleanupService {
       operationTimeout: config.operationTimeout ?? 10000,
     };
 
-    console.log('[S3_CLEANUP] Initializing S3 cleanup service:', {
-      endpoint: this.config.endpoint,
-      region: this.config.region,
-      jobBucket: this.config.jobBucketName,
-      testBucket: this.config.testBucketName,
-    });
-
     this.s3Client = new S3Client({
       region: this.config.region,
       endpoint: this.config.endpoint,
@@ -80,7 +74,10 @@ export class S3CleanupService {
   /**
    * Get the appropriate bucket name based on entity type
    */
-  private getBucketForEntityType(entityType: 'job' | 'test'): string {
+  private getBucketForEntityType(entityType: 'job' | 'test' | 'monitor'): string {
+    if (entityType === 'monitor') {
+      return this.config.monitorBucketName;
+    }
     return entityType === 'test' ? this.config.testBucketName : this.config.jobBucketName;
   }
 
@@ -88,13 +85,6 @@ export class S3CleanupService {
    * Extract S3 key from various input formats
    */
   private extractS3Key(input: ReportDeletionInput): string {
-    console.log(`[S3_CLEANUP] Extracting S3 key for:`, {
-      entityId: input.entityId,
-      entityType: input.entityType,
-      reportPath: input.reportPath,
-      s3Url: input.s3Url,
-    });
-
     // If s3Url is provided, extract key from URL
     if (input.s3Url) {
       try {
@@ -278,13 +268,6 @@ export class S3CleanupService {
    * Delete a single report and its associated files
    */
   async deleteReport(input: ReportDeletionInput): Promise<S3DeletionResult> {
-    console.log('[S3_CLEANUP] Starting single report deletion:', {
-      entityId: input.entityId,
-      entityType: input.entityType,
-      reportPath: input.reportPath,
-      s3Url: input.s3Url,
-    });
-
     const bucketName = this.getBucketForEntityType(input.entityType);
     const s3Key = this.extractS3Key(input);
 
@@ -487,6 +470,7 @@ export function createS3CleanupService(): S3CleanupService {
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'minioadmin',
     jobBucketName: process.env.S3_JOB_BUCKET_NAME || 'playwright-job-artifacts',
     testBucketName: process.env.S3_TEST_BUCKET_NAME || 'playwright-test-artifacts',
+    monitorBucketName: process.env.S3_MONITOR_BUCKET_NAME || 'playwright-monitor-artifacts',
     maxRetries: process.env.S3_MAX_RETRIES ? parseInt(process.env.S3_MAX_RETRIES, 10) : 3,
     operationTimeout: process.env.S3_OPERATION_TIMEOUT ? parseInt(process.env.S3_OPERATION_TIMEOUT, 10) : 10000,
   };

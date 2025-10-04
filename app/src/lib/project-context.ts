@@ -32,14 +32,8 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
     });
 
     if (!sessionData?.session?.token || !sessionData?.user?.id) {
-      console.log('🔍 [ProjectContext] No session found');
       return null;
     }
-
-    console.log('🔍 [ProjectContext] Session found:', {
-      userId: sessionData.user.id,
-      userEmail: sessionData.user.email
-    });
 
     // Query the session table directly to get the activeProjectId and check for impersonation
     const sessionRecord = await db
@@ -53,36 +47,20 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
       .limit(1);
 
     if (sessionRecord.length === 0) {
-      console.log('🔍 [ProjectContext] No session record found in database');
       return null;
     }
 
     const session = sessionRecord[0];
-    
-    console.log('🔍 [ProjectContext] Session record:', {
-      activeProjectId: session.activeProjectId,
-      userId: session.userId,
-      impersonatedBy: session.impersonatedBy,
-      isImpersonating: !!session.impersonatedBy
-    });
-    
+
     // Use the impersonated user ID if impersonation is active, otherwise use the original user ID
     const currentUserId = session.impersonatedBy ? session.userId : sessionData.user.id;
     
-    console.log('🔍 [ProjectContext] Current user ID:', currentUserId);
-    
     const activeProjectId = session.activeProjectId;
-    
+
     if (!activeProjectId) {
       // No active project in session, try to set a default
       return await setDefaultProjectInSession();
     }
-
-    // Get project details first
-    console.log('🔍 [ProjectContext] Querying project:', {
-      activeProjectId,
-      currentUserId
-    });
     
     const projectData = await db
       .select({
@@ -100,27 +78,22 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
       .limit(1);
 
     if (projectData.length === 0) {
-      console.log('🔍 [ProjectContext] Project not found, trying default');
       return await setDefaultProjectInSession();
     }
 
     const project = projectData[0];
-    console.log('🔍 [ProjectContext] Project found:', project);
 
     // Get user's role using consistent role resolution
     // 1. First check organization role (primary source of truth)
     const orgRole = await getUserOrgRole(currentUserId, project.organizationId);
-    console.log('🔍 [ProjectContext] Organization role:', orgRole);
-    
+
     if (!orgRole) {
-      console.log('🔍 [ProjectContext] No organization membership found');
       return await setDefaultProjectInSession();
     }
 
     // 2. For PROJECT_ADMIN and PROJECT_EDITOR, check project-specific access
     let finalRole = orgRole;
     if (orgRole === Role.PROJECT_ADMIN || orgRole === Role.PROJECT_EDITOR) {
-      console.log(`🔍 [ProjectContext] Checking project-specific access for ${orgRole}`);
       const projectMember = await db
         .select({ role: projectMembers.role })
         .from(projectMembers)
@@ -129,13 +102,11 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
           eq(projectMembers.userId, currentUserId)
         ))
         .limit(1);
-      
+
       if (projectMember.length === 0) {
-        console.log(`🔍 [ProjectContext] ${orgRole} has no project assignment - giving viewer access`);
         // For project-limited roles without assignments, give viewer access
         finalRole = Role.PROJECT_VIEWER;
       } else {
-        console.log('🔍 [ProjectContext] Project membership found:', projectMember[0]);
         // Keep the org role as final role when assigned to this project
         finalRole = orgRole;
       }
@@ -144,7 +115,7 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
     // 3. Convert Role enum back to string using the normalizer
     const roleString = roleToString(finalRole);
 
-    const result = {
+    return {
       id: project.id,
       name: project.name,
       slug: project.slug || undefined,
@@ -152,9 +123,6 @@ export async function getCurrentProjectContext(): Promise<ProjectContext | null>
       isDefault: project.isDefault,
       userRole: roleString
     };
-    
-    console.log('🔍 [ProjectContext] Returning consistent project context:', result);
-    return result;
   } catch (error) {
     console.error('Error getting project context:', error);
     return null;

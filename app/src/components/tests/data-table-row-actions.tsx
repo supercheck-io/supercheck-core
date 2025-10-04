@@ -87,7 +87,7 @@ export function DataTableRowActions<TData>({
         if (result.errorCode === 409) {
           toast.error("Cannot Delete Test", {
             description:
-              result.error || "This test is currently used in a job.",
+              result.error || "This test is currently used in one or more jobs or synthetic monitors.",
             duration: 5000, // Show for longer
             id: deleteToastId, // Update the loading toast
           });
@@ -140,7 +140,7 @@ export function DataTableRowActions<TData>({
           <Tooltip>
             <TooltipTrigger asChild>
               <div>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={canEditTest ? handleEditTest : undefined}
                   disabled={!canEditTest}
                   className={!canEditTest ? "opacity-50 cursor-not-allowed" : ""}
@@ -156,9 +156,9 @@ export function DataTableRowActions<TData>({
               </TooltipContent>
             )}
           </Tooltip>
-          
+
           <DropdownMenuSeparator />
-          
+
           <Tooltip>
             <TooltipTrigger asChild>
               <div>
@@ -190,9 +190,8 @@ export function DataTableRowActions<TData>({
             <AlertDialogTitle>Delete Test</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete the test <span className="font-semibold">&quot;{test.title}&quot;</span>. This action cannot be undone.
-              This action cannot be undone.
               <br /><br />
-              <strong>Note:</strong> If this test is currently used in any jobs, the deletion will be prevented and you&apos;ll need to remove the test from those jobs first.
+              <strong>Note:</strong> If this test is currently used in any jobs or synthetic monitors, the deletion will be prevented and you&apos;ll need to remove the test from those jobs or delete the monitors first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

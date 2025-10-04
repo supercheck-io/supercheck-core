@@ -69,7 +69,7 @@ export async function GET(
       .from(apikey)
       .leftJoin(user, eq(apikey.userId, user.id))
       .where(eq(apikey.jobId, jobId))
-      .orderBy(apikey.createdAt);
+      .orderBy(apikey.id); // UUIDv7 is time-ordered (PostgreSQL 18+)
 
     return NextResponse.json({
       success: true,

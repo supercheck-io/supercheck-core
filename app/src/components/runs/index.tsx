@@ -61,15 +61,18 @@ export function Runs() {
         return;
       }
 
-      const response = await fetch(`/api/runs?projectId=${projectId}&organizationId=${currentProject.organizationId}`);
-      const data = await response.json();
-      
+      const response = await fetch(`/api/runs?projectId=${projectId}&organizationId=${currentProject.organizationId}&limit=100`);
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch runs');
+        throw new Error(result.error || 'Failed to fetch runs');
       }
-      
+
+      // Handle new paginated response format
+      const runs = result.data || result;
+
       // Cast the data to TestRun[] to ensure type compatibility and handle trigger field
-      const typedRuns = data.map((run: { trigger?: string; [key: string]: unknown }) => ({
+      const typedRuns = runs.map((run: { trigger?: string; [key: string]: unknown }) => ({
         ...run,
         trigger: run.trigger ?? undefined,
       }));

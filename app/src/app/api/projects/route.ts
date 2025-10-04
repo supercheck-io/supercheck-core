@@ -33,15 +33,10 @@ export async function GET(request: NextRequest) {
       }
       targetOrgId = activeOrg.id;
     }
-    
-    // Check permissions directly
-    console.log(`[DEBUG] Checking project permissions for user ${userId} in org ${targetOrgId}`);
-    
+
     const canView = await hasPermission('project', 'view', { organizationId: targetOrgId });
-    console.log(`[DEBUG] Permission check for VIEW_ALL_PROJECTS: ${canView}`);
-    
+
     if (!canView) {
-      console.log(`[DEBUG] Permission denied for user ${userId} in org ${targetOrgId}`);
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }

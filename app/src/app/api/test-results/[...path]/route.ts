@@ -161,22 +161,16 @@ export async function GET(request: Request) {
     if (path.length < 2) {
       return notFound();
     }
-    
+
     entityId = path[1]; // Second segment is the entity ID
     reportFile = path.length > 2 ? path.slice(2).join('/') : '';
-    console.log(`Handling old-style URL for entity type ${path[0]}, ID ${entityId}, file: ${reportFile}`);
   } else {
     // New-style URL: /[uuid]/[...reportPath]
     entityId = path[0]; // First segment is the entity ID
     reportFile = path.length > 1 ? path.slice(1).join('/') : '';
-    console.log(`Handling new-style URL for entity ID ${entityId}, file: ${reportFile}`);
   }
-  
+
   try {
-    
-    // Add debugging log to show full path information
-    console.log(`[TEST-RESULTS API] Processing request for path: ${path.join('/')} (entityId: ${entityId}, reportFile: ${reportFile})`);
-    
     // Query the reports table to get the s3Url for this entity
     const reportResult = await db.query.reports.findFirst({
       where: eq(reports.entityId, entityId),
@@ -187,35 +181,25 @@ export async function GET(request: Request) {
         status: true
       }
     });
-    
-    // Debug the report lookup result
-    console.log(`[TEST-RESULTS API] Report lookup result for ${entityId}:`, reportResult);
-    
+
     if (!reportResult) {
-      console.error(`[TEST-RESULTS API] No report found for entity ID: ${entityId}`);
       return notFound();
     }
-    
+
     if (!reportResult.s3Url) {
-      console.log(`[TEST-RESULTS API] Report missing s3Url. Status: ${reportResult.status}`);
-      
+
       if (reportResult.status === 'running') {
-        return NextResponse.json({ 
-          error: "Report not ready", 
+        return NextResponse.json({
+          error: "Report not ready",
           details: "The test is still running. Please wait for it to complete."
         }, { status: 202 });
       }
-      
+
       // Check if this is likely a timeout error for failed executions
       if (reportResult.status === 'failed') {
-        console.log(`[TEST-RESULTS API] Failed execution detected for ${entityId}, entity type: ${reportResult.entityType}`);
-        
         // For failed test executions without reports, it's very likely a timeout
         // since script validation errors and other issues usually still generate some output
         if (reportResult.entityType === 'test') {
-          // Assume test timeout - return structured timeout error information
-          console.log(`[TEST-RESULTS API] Assuming test timeout for failed test ${entityId} with no report`);
-          
           return NextResponse.json({
             error: "Test execution timeout",
             message: "Test execution timed out after 2 minutes",
@@ -230,9 +214,6 @@ export async function GET(request: Request) {
             status: reportResult.status
           }, { status: 408 }); // 408 Request Timeout
         } else if (reportResult.entityType === 'job') {
-          // Assume job timeout
-          console.log(`[TEST-RESULTS API] Assuming job timeout for failed job ${entityId} with no report`);
-          
           return NextResponse.json({
             error: "Job execution timeout",
             message: "Job execution timed out after 15 minutes",
@@ -257,29 +238,17 @@ export async function GET(request: Request) {
           status: reportResult.status
         }, { status: 500 });
       }
-      
+
       return notFound();
     }
-    
-    console.log(`Found report for ${entityId} with entity type ${reportResult.entityType}: ${reportResult.s3Url}`);
-    
+
     // Parse S3 URL to extract useful parts
     const s3Url = new URL(reportResult.s3Url);
-    console.log(`Parsed S3 URL:`, {
-      protocol: s3Url.protocol,
-      host: s3Url.host,
-      pathname: s3Url.pathname,
-      fullUrl: s3Url.toString()
-    });
-    
     const pathParts = s3Url.pathname.split('/').filter(part => part.length > 0);
     const bucket = pathParts[0];
-    
-    console.log(`Extracted parts:`, { bucket, pathParts });
-    
+
     // Determine the file path based on what's being requested
     const targetFile = reportFile || 'index.html';
-    console.log(`[TEST-RESULTS API] Target file: ${targetFile}, Original reportFile: ${reportFile}`);
     
     // Extract the base path without the file part and use only the entityId/report structure
     const entityIdIndex = pathParts.indexOf(entityId);
@@ -293,33 +262,22 @@ export async function GET(request: Request) {
       // Fallback to direct construction if we can't find entityId in path
       s3Key = `${entityId}/report/${targetFile}`;
     }
-    
+
     // Clean up any duplicate path segments (like report/report)
     s3Key = s3Key.replace(/\/report\/report\//g, '/report/');
-    
-    console.log(`Constructed key path: ${s3Key}`);
-    
-    // Skip the direct fetch approach that's failing and go straight to the AWS SDK
-    console.log('Using AWS SDK approach for S3 access...');
-      
+
     try {
       // Try AWS SDK approach
       const command = new GetObjectCommand({
         Bucket: bucket,
         Key: s3Key,
       });
-      
-      // Use AWS SDK for S3 access which handles auth correctly
-      console.log(`[TEST-RESULTS API] Using AWS SDK for S3 access to ${bucket}/${s3Key}`);
-      
+
       const s3Response = await s3Client.send(command);
-      
+
       if (!s3Response.Body) {
-        console.error(`[TEST-RESULTS API] Empty response from S3 for ${bucket}/${s3Key}`);
         throw new Error("Empty response from S3");
       }
-      
-      console.log(`[TEST-RESULTS API] Successfully retrieved object from S3, ContentType: ${s3Response.ContentType}`);
       
       const buffer = await streamToUint8Array(s3Response.Body);
       const contentType = s3Response.ContentType || 'application/octet-stream';
@@ -337,24 +295,17 @@ export async function GET(request: Request) {
         }
       });
     } catch (error: unknown) {
-      const s3Error = error as Error;
-      console.error(`[TEST-RESULTS API] AWS SDK approach failed for ${bucket}/${s3Key}: ${s3Error.message}`, s3Error);
-      console.log('Trying final S3 fallback with direct file construction...');
-      
-      // 3. Last resort: try a simple file URL construction 
+      // 3. Last resort: try a simple file URL construction
       try {
         // Construct a direct URL using the same pattern as the S3 key
         const urlBase = s3Url.protocol + '//' + s3Url.host;
         const bucketPrefix = '/' + bucket + '/';
-        
+
         // Use the same s3Key we built earlier for consistency
         const fallbackUrl = `${urlBase}${bucketPrefix}${s3Key}`;
-        
-        console.log(`Final fallback URL: ${fallbackUrl}`);
-        
+
         // Configure the headers with AWS v4 signature
         const headers: HeadersInit = await getSignedHeaders();
-        console.log(`Using AWS v4 signature auth for fallback S3 access`);
         
         const fallbackResponse = await fetch(fallbackUrl, { headers });
         
@@ -377,14 +328,12 @@ export async function GET(request: Request) {
             ))
           }
         });
-      } catch (error: unknown) {
-        const fallbackError = error as Error;
-        console.error(`All approaches failed. Last error: ${fallbackError.message}`);
+      } catch {
         return notFound();
       }
     }
   } catch (error) {
-    console.error(`[TEST-RESULTS API] Fatal error processing request for entity ${entityId}:`, error);
+    console.error(`[TEST-RESULTS] Error processing request:`, error);
     return notFound();
   }
 } 

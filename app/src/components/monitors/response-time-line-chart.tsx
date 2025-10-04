@@ -82,36 +82,22 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
 };
 
 export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
-  console.log('[ResponseTimeBarChart] Rendering with data:', data);
-  console.log('[ResponseTimeBarChart] Data length:', data?.length);
-  
   const [visiblePoints, setVisiblePoints] = React.useState(0);
 
   // Input validation
   const validatedData = React.useMemo(() => {
     if (!Array.isArray(data)) {
-      console.warn('[ResponseTimeBarChart] Invalid data: not an array');
       return [];
     }
-    
+
     return data.filter(point => {
       // Validate each data point
-      if (!point || typeof point !== 'object') {
-        console.warn('[ResponseTimeBarChart] Invalid data point:', point);
-        return false;
-      }
-      
-      if (typeof point.name !== 'string' || !point.name.trim()) {
-        console.warn('[ResponseTimeBarChart] Invalid name in data point:', point);
-        return false;
-      }
-      
-      if (typeof point.time !== 'number' || point.time < 0) {
-        console.warn('[ResponseTimeBarChart] Invalid time in data point:', point);
-        return false;
-      }
-      
-      return true;
+      return point &&
+        typeof point === 'object' &&
+        typeof point.name === 'string' &&
+        point.name.trim() &&
+        typeof point.time === 'number' &&
+        point.time >= 0;
     });
   }, [data]);
 
@@ -140,12 +126,7 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
         isFailed
       };
     });
-    
-    const failedCount = processed.filter(p => p.isFailed).length;
-    console.log('[ResponseTimeBarChart] Processed data:', processed);
-    console.log('[ResponseTimeBarChart] Failed checks:', failedCount);
-    console.log('[ResponseTimeBarChart] Response times preserved for failed checks');
-    
+
     return processed;
   }, [animatedData]);
 
@@ -166,23 +147,22 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
   }, [data]);
 
   if (!validatedData || validatedData.length === 0) {
-    console.log('[ResponseTimeBarChart] No valid data available');
     return (
-        <Card className="h-full flex flex-col min-h-[320px]">
+        <Card className="shadow-sm flex flex-col min-h-[335px]">
             <CardHeader className="pb-4">
-                <CardTitle className="text-lg">Response Time</CardTitle>
-                <CardDescription>Performance metrics will appear here once monitoring begins.</CardDescription>
+                <CardTitle className="text-lg font-semibold">Response Time</CardTitle>
+                <CardDescription className="text-sm">Performance metrics will appear here once monitoring begins.</CardDescription>
             </CardHeader>
-            <CardContent className="flex items-center justify-center flex-1 min-h-[220px]">
-                <div className="text-center space-y-3">
-                    <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center">
+            <CardContent className="flex items-center justify-center flex-1">
+                <div className="text-center space-y-3 py-6">
+                    <div className="w-16 h-16 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
                         <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                     </div>
                     <div>
                         <p className="text-muted-foreground font-medium">No Response Data</p>
-                        <p className="text-sm text-muted-foreground mt-1">Response time data will be displayed here after the first successful check.</p>
+                        <p className="text-sm text-muted-foreground mt-1">Response time data will be displayed here after the first check.</p>
                     </div>
                 </div>
             </CardContent>
@@ -198,16 +178,16 @@ export function ResponseTimeBarChart({ data }: ResponseTimeBarChartProps) {
   if (allResponseTimes.length === 0) {
     // If no valid response times at all
     return (
-      <Card className="h-full flex flex-col h-[415px]">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Response Time</CardTitle>
+      <Card className="shadow-sm flex flex-col min-h-[335px]">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg font-semibold">Response Time</CardTitle>
           <CardDescription className="text-sm">No response data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-center flex-1 min-h-[200px]">
-            <div className="text-center space-y-3">
-                <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center">
+        <CardContent className="flex items-center justify-center flex-1">
+            <div className="text-center space-y-3 py-6">
+                <div className="w-16 h-16 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
                     <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.732 12.5c-.77.833.192 2.5 1.732 2.5z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
                 <div>

@@ -32,6 +32,7 @@ export class S3Service implements OnModuleInit {
   private s3Client: S3Client;
   private jobBucketName: string;
   private testBucketName: string;
+  private monitorBucketName: string;
   private s3Endpoint: string;
   private maxRetries: number;
   private operationTimeout: number;
@@ -44,6 +45,10 @@ export class S3Service implements OnModuleInit {
     this.testBucketName = this.configService.get<string>(
       'S3_TEST_BUCKET_NAME',
       'playwright-test-artifacts',
+    );
+    this.monitorBucketName = this.configService.get<string>(
+      'S3_MONITOR_BUCKET_NAME',
+      'playwright-monitor-artifacts',
     );
     this.s3Endpoint = this.configService.get<string>(
       'S3_ENDPOINT',
@@ -65,7 +70,7 @@ export class S3Service implements OnModuleInit {
     );
 
     this.logger.log(
-      `Initializing S3 client: endpoint=${this.s3Endpoint}, job bucket=${this.jobBucketName}, test bucket=${this.testBucketName}, region=${region}`,
+      `Initializing S3 client: endpoint=${this.s3Endpoint}, job bucket=${this.jobBucketName}, test bucket=${this.testBucketName}, monitor bucket=${this.monitorBucketName}, region=${region}`,
     );
 
     this.s3Client = new S3Client({
@@ -82,12 +87,15 @@ export class S3Service implements OnModuleInit {
       'S3Service onModuleInit() called - starting bucket initialization',
     );
     try {
-      // Ensure both buckets exist
+      // Ensure all buckets exist
       this.logger.log(`Ensuring job bucket exists: ${this.jobBucketName}`);
       await this.ensureBucketExists(this.jobBucketName);
 
       this.logger.log(`Ensuring test bucket exists: ${this.testBucketName}`);
       await this.ensureBucketExists(this.testBucketName);
+
+      this.logger.log(`Ensuring monitor bucket exists: ${this.monitorBucketName}`);
+      await this.ensureBucketExists(this.monitorBucketName);
 
       this.logger.log('S3Service bucket initialization completed successfully');
     } catch (error) {
@@ -105,6 +113,9 @@ export class S3Service implements OnModuleInit {
   getBucketForEntityType(entityType: string): string {
     if (entityType === 'test') {
       return this.testBucketName;
+    }
+    if (entityType === 'monitor') {
+      return this.monitorBucketName;
     }
     return this.jobBucketName; // Default to job bucket for 'job' and other entity types
   }
@@ -212,9 +223,7 @@ export class S3Service implements OnModuleInit {
     bucket?: string,
   ): Promise<string> {
     const targetBucket = bucket || this.jobBucketName;
-    this.logger.debug(
-      `Uploading file ${localFilePath} to s3://${targetBucket}/${s3Key}`,
-    );
+    // Removed debug log for individual file uploads
     try {
       const fileBuffer = await fs.readFile(localFilePath);
       const determinedContentType =
@@ -233,9 +242,7 @@ export class S3Service implements OnModuleInit {
         `Upload file ${s3Key}`,
       );
 
-      this.logger.log(
-        `Successfully uploaded file to s3://${targetBucket}/${s3Key}`,
-      );
+      // Removed success log for individual file uploads
       return s3Key;
     } catch (error) {
       this.logger.error(
@@ -355,9 +362,7 @@ export class S3Service implements OnModuleInit {
     const walk = async (dir: string) => {
       try {
         const entries = await fs.readdir(dir, { withFileTypes: true });
-        this.logger.debug(
-          `[S3 UPLOAD] Walking directory ${dir}, found ${entries.length} items`,
-        );
+        // Removed debug log for directory walking
 
         for (const entry of entries) {
           const fullLocalPath = path.join(dir, entry.name);
@@ -371,9 +376,7 @@ export class S3Service implements OnModuleInit {
           } else if (entry.isFile()) {
             // Upload files directly with garbage collection
             try {
-              this.logger.debug(
-                `[S3 UPLOAD] Uploading file ${fullLocalPath} to ${s3Key}`,
-              );
+              // Removed debug log for individual file uploads
               const key = await this.uploadFile(
                 fullLocalPath,
                 s3Key,
@@ -381,7 +384,7 @@ export class S3Service implements OnModuleInit {
                 targetBucket,
               );
               uploadedKeys.push(key);
-              this.logger.debug(`[S3 UPLOAD] Successfully uploaded ${key}`);
+              // Removed success log for individual file uploads
 
               // Force garbage collection after each upload to manage memory
               if (global.gc) {
