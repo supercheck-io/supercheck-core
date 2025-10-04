@@ -337,7 +337,7 @@ export const runs = pgTable("runs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export type ReportType = "test" | "job";
+export type ReportType = "test" | "job" | "monitor";
 /**
  * Stores information about generated reports for tests or jobs.
  */
