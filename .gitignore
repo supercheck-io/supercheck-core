@@ -11,6 +11,7 @@
 .settings/
 *.sublime-workspace
 .claude/
+.kilocode/
 # .docs/
 # .specs/
 
