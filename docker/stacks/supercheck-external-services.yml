@@ -34,7 +34,7 @@ services:
       - BETTER_AUTH_SECRET_FILE=/run/secrets/auth_secret
       - RUNNING_CAPACITY=6
       - QUEUED_CAPACITY=50
-      - MAX_CONCURRENT_EXECUTIONS=1 # Max parallel tests per worker (default: 1)
+      - MAX_CONCURRENT_EXECUTIONS=2 # Max parallel tests per worker (default: 1)
       - TEST_EXECUTION_TIMEOUT_MS=120000
       - JOB_EXECUTION_TIMEOUT_MS=900000
 
@@ -68,7 +68,6 @@ services:
       - PLAYGROUND_CLEANUP_MAX_AGE_HOURS=24
 
       # Admin Configuration
-      - SUPER_ADMIN_EMAILS=admin@yourdomain.com
       - MAX_PROJECTS_PER_ORG=10
       - DEFAULT_PROJECT_NAME=Default Project
 
@@ -182,7 +181,7 @@ services:
       - UV_THREADPOOL_SIZE=4
       - RUNNING_CAPACITY=6
       - QUEUED_CAPACITY=50
-      - MAX_CONCURRENT_EXECUTIONS=1 # Max parallel tests per worker (default: 1)
+      - MAX_CONCURRENT_EXECUTIONS=2 # Max parallel tests per worker (default: 1)
       - TEST_EXECUTION_TIMEOUT_MS=120000
       - JOB_EXECUTION_TIMEOUT_MS=900000
 

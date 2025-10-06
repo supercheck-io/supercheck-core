@@ -7,7 +7,10 @@ import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
 import { hasPermission } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
-import { createS3CleanupService, type ReportDeletionInput } from "@/lib/s3-cleanup";
+import {
+  createS3CleanupService,
+  type ReportDeletionInput,
+} from "@/lib/s3-cleanup";
 import { deleteScheduledJob } from "@/lib/job-scheduler";
 
 type JobDeletionResult = {
@@ -35,10 +38,15 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
 
     // Check DELETE_JOBS permission
     console.log("[DELETE_JOB] Checking permissions...");
-    const canDeleteJobs = await hasPermission('job', 'delete', { organizationId, projectId: project.id });
-    
+    const canDeleteJobs = await hasPermission("job", "delete", {
+      organizationId,
+      projectId: project.id,
+    });
+
     if (!canDeleteJobs) {
-      console.warn(`[DELETE_JOB] User ${userId} attempted to delete job ${jobId} without DELETE_JOBS permission`);
+      console.warn(
+        `[DELETE_JOB] User ${userId} attempted to delete job ${jobId} without DELETE_JOBS permission`
+      );
       return {
         success: false,
         error: "Insufficient permissions to delete jobs",
@@ -52,22 +60,26 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
 
       // Check if the job exists and belongs to current project
       const existingJob = await tx
-        .select({ 
-          id: jobs.id, 
+        .select({
+          id: jobs.id,
           name: jobs.name,
           description: jobs.description,
-          cronSchedule: jobs.cronSchedule
+          cronSchedule: jobs.cronSchedule,
         })
         .from(jobs)
-        .where(and(
-          eq(jobs.id, jobId),
-          eq(jobs.projectId, project.id),
-          eq(jobs.organizationId, organizationId)
-        ))
+        .where(
+          and(
+            eq(jobs.id, jobId),
+            eq(jobs.projectId, project.id),
+            eq(jobs.organizationId, organizationId)
+          )
+        )
         .limit(1);
 
       if (existingJob.length === 0) {
-        console.log(`[DELETE_JOB] Job with ID ${jobId} not found or access denied`);
+        console.log(
+          `[DELETE_JOB] Job with ID ${jobId} not found or access denied`
+        );
         return {
           success: false,
           error: "Job not found or access denied",
@@ -83,7 +95,7 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
         id: string;
         reportPath: string | null;
         s3Url: string | null;
-        entityType: 'job' | 'test';
+        entityType: "job" | "test";
         entityId: string;
       }> = [];
 
@@ -105,7 +117,7 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
           id: report.id,
           reportPath: report.reportPath,
           s3Url: report.s3Url,
-          entityType: report.entityType as 'job' | 'test',
+          entityType: report.entityType as "job" | "test",
           entityId: report.entityId,
         });
       }
@@ -116,13 +128,15 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
         .from(runs)
         .where(eq(runs.jobId, jobId));
 
-      console.log(`[DELETE_JOB] Found ${associatedRuns.length} associated runs`);
+      console.log(
+        `[DELETE_JOB] Found ${associatedRuns.length} associated runs`
+      );
 
       // Get all reports for these runs
       if (associatedRuns.length > 0) {
-        const runIds = associatedRuns.map(run => run.id);
+        const runIds = associatedRuns.map((run) => run.id);
         console.log(`[DELETE_JOB] Querying reports for ${runIds.length} runs`);
-        
+
         const runReports = await tx
           .select({
             id: reports.id,
@@ -134,41 +148,60 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
           .from(reports)
           .where(inArray(reports.entityId, runIds));
 
-        console.log(`[DELETE_JOB] Found ${runReports.length} reports for all runs`);
+        console.log(
+          `[DELETE_JOB] Found ${runReports.length} reports for all runs`
+        );
         for (const report of runReports) {
           allReportsToDelete.push({
             id: report.id,
             reportPath: report.reportPath,
             s3Url: report.s3Url,
-            entityType: report.entityType as 'job' | 'test',
+            entityType: report.entityType as "job" | "test",
             entityId: report.entityId,
           });
         }
       }
 
-      console.log(`[DELETE_JOB] Total reports to delete: ${allReportsToDelete.length}`);
+      console.log(
+        `[DELETE_JOB] Total reports to delete: ${allReportsToDelete.length}`
+      );
 
       // Delete reports from database (for all runs and the job)
       if (allReportsToDelete.length > 0) {
         console.log("[DELETE_JOB] Deleting reports from database...");
-        
+
         // Delete run reports
         if (associatedRuns.length > 0) {
-          const runIds = associatedRuns.map(run => run.id);
-          const deletedRunReports = await tx.delete(reports).where(inArray(reports.entityId, runIds)).returning({ id: reports.id });
-          console.log(`[DELETE_JOB] Deleted ${deletedRunReports.length} run reports`);
+          const runIds = associatedRuns.map((run) => run.id);
+          const deletedRunReports = await tx
+            .delete(reports)
+            .where(inArray(reports.entityId, runIds))
+            .returning({ id: reports.id });
+          console.log(
+            `[DELETE_JOB] Deleted ${deletedRunReports.length} run reports`
+          );
         }
 
         // Delete job reports
-        const deletedJobReports = await tx.delete(reports).where(and(eq(reports.entityId, jobId), eq(reports.entityType, "job"))).returning({ id: reports.id });
-        console.log(`[DELETE_JOB] Deleted ${deletedJobReports.length} job reports`);
-        
+        const deletedJobReports = await tx
+          .delete(reports)
+          .where(
+            and(eq(reports.entityId, jobId), eq(reports.entityType, "job"))
+          )
+          .returning({ id: reports.id });
+        console.log(
+          `[DELETE_JOB] Deleted ${deletedJobReports.length} job reports`
+        );
+
         console.log("[DELETE_JOB] All reports deleted from database");
       }
 
       // Delete test runs associated with this job
       console.log("[DELETE_JOB] Deleting associated runs...");
-      const deletedRuns = await tx.delete(runs).where(eq(runs.jobId, jobId)).returning({ id: runs.id });
+      const deletedRuns = await tx
+        .delete(runs)
+        .where(eq(runs.jobId, jobId))
+        .returning({ id: runs.id });
       console.log(`[DELETE_JOB] Deleted ${deletedRuns.length} runs`);
 
       // Delete job-test associations
@@ -178,8 +211,11 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
 
       // Finally delete the job itself
       console.log("[DELETE_JOB] Deleting job...");
-      const deletedJobs = await tx.delete(jobs).where(eq(jobs.id, jobId)).returning({ id: jobs.id });
-      
+      const deletedJobs = await tx
+        .delete(jobs)
+        .where(eq(jobs.id, jobId))
+        .returning({ id: jobs.id });
+
       if (deletedJobs.length === 0) {
         throw new Error(`Failed to delete job ${jobId} - no rows affected`);
       }
@@ -195,8 +231,10 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
     });
 
     // Handle cleanup tasks outside the transaction
-    if (transactionResult.success && 'jobData' in transactionResult) {
-      console.log("[DELETE_JOB] Transaction successful, starting cleanup tasks...");
+    if (transactionResult.success && "jobData" in transactionResult) {
+      console.log(
+        "[DELETE_JOB] Transaction successful, starting cleanup tasks..."
+      );
 
       // Unschedule the job from BullMQ to stop execution
       try {
@@ -205,39 +243,59 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
         if (unscheduled) {
           console.log(`[DELETE_JOB] Successfully unscheduled job ${jobId}`);
         } else {
-          console.log(`[DELETE_JOB] No BullMQ schedule found for job ${jobId} (may not have been scheduled)`);
+          console.log(
+            `[DELETE_JOB] No BullMQ schedule found for job ${jobId} (may not have been scheduled)`
+          );
         }
       } catch (scheduleError) {
-        console.error("[DELETE_JOB] Error unscheduling job (job still deleted):", scheduleError);
+        console.error(
+          "[DELETE_JOB] Error unscheduling job (job still deleted):",
+          scheduleError
+        );
         // Continue with other cleanup even if unscheduling fails
       }
 
       // S3 cleanup - delete all report files from S3
-      if (transactionResult.reportsToDelete && transactionResult.reportsToDelete.length > 0) {
+      if (
+        transactionResult.reportsToDelete &&
+        transactionResult.reportsToDelete.length > 0
+      ) {
         try {
-          console.log(`[DELETE_JOB] Starting S3 cleanup for ${transactionResult.reportsToDelete.length} reports...`);
+          console.log(
+            `[DELETE_JOB] Starting S3 cleanup for ${transactionResult.reportsToDelete.length} reports...`
+          );
           const s3Service = createS3CleanupService();
-          
+
           // Convert reports to S3 deletion format
-          const s3DeletionInputs: ReportDeletionInput[] = transactionResult.reportsToDelete.map(report => ({
-            reportPath: report.reportPath || undefined,
-            s3Url: report.s3Url || undefined,
-            entityId: report.entityId,
-            entityType: report.entityType,
-          }));
+          const s3DeletionInputs: ReportDeletionInput[] =
+            transactionResult.reportsToDelete.map((report) => ({
+              reportPath: report.reportPath || undefined,
+              s3Url: report.s3Url || undefined,
+              entityId: report.entityId,
+              entityType: report.entityType,
+            }));
 
           const s3Result = await s3Service.deleteReports(s3DeletionInputs);
-          
+
           if (s3Result.success) {
-            console.log(`[DELETE_JOB] S3 cleanup successful: ${s3Result.deletedObjects.length} objects deleted`);
+            console.log(
+              `[DELETE_JOB] S3 cleanup successful: ${s3Result.deletedObjects.length} objects deleted`
+            );
           } else {
-            console.warn(`[DELETE_JOB] S3 cleanup partially failed: ${s3Result.deletedObjects.length} succeeded, ${s3Result.failedObjects.length} failed`);
+            console.warn(
+              `[DELETE_JOB] S3 cleanup partially failed: ${s3Result.deletedObjects.length} succeeded, ${s3Result.failedObjects.length} failed`
+            );
             for (const failed of s3Result.failedObjects) {
-              console.warn(`[DELETE_JOB] S3 deletion failed for ${failed.key}: ${failed.error}`);
+              console.warn(
+                `[DELETE_JOB] S3 deletion failed for ${failed.key}: ${failed.error}`
+              );
             }
           }
         } catch (s3Error) {
-          console.error("[DELETE_JOB] S3 cleanup failed (job still deleted):", s3Error);
+          console.error(
+            "[DELETE_JOB] S3 cleanup failed (job still deleted):",
+            s3Error
+          );
         }
       } else {
         console.log("[DELETE_JOB] No S3 reports to clean up");
@@ -246,11 +304,11 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
       // Log the audit event for job deletion
       await logAuditEvent({
         userId,
-        organizationId,
-        action: 'job_deleted',
-        resource: 'job',
+        action: "job_deleted",
+        resource: "job",
         resourceId: jobId,
         metadata: {
+          organizationId,
           jobName: transactionResult.jobData?.name,
           jobDescription: transactionResult.jobData?.description,
           cronSchedule: transactionResult.jobData?.cronSchedule,
@@ -259,9 +317,12 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
           runsDeleted: transactionResult.deletedRuns,
           reportsDeleted: transactionResult.deletedReports,
         },
-        success: true
-      }).catch((auditError) => {
-        console.error("[DELETE_JOB] Error logging audit event (job still deleted):", auditError);
+        success: true,
+      }).catch((_auditError) => {
+        console.error(
+          "[DELETE_JOB] Error logging audit event (job still deleted):",
+          _auditError
+        );
       });
 
       // Revalidate paths
@@ -272,11 +333,16 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
         revalidatePath("/");
         console.log("[DELETE_JOB] Paths revalidated successfully");
       } catch (revalidateError) {
-        console.error("[DELETE_JOB] Error revalidating paths (job still deleted):", revalidateError);
+        console.error(
+          "[DELETE_JOB] Error revalidating paths (job still deleted):",
+          revalidateError
+        );
       }
 
-      console.log(`[DELETE_JOB] Successfully deleted job ${jobId} with ${transactionResult.deletedRuns} runs and ${transactionResult.deletedReports} reports`);
-      
+      console.log(
+        `[DELETE_JOB] Successfully deleted job ${jobId} with ${transactionResult.deletedRuns} runs and ${transactionResult.deletedReports} reports`
+      );
+
       return {
         success: true,
         message: `Job deleted successfully (including ${transactionResult.deletedRuns} runs and ${transactionResult.deletedReports} reports)`,
@@ -292,14 +358,13 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
       success: false,
       error: "Unexpected transaction result",
     };
-
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("[DELETE_JOB] Unexpected error:", {
       message: errorMessage,
-      stack: error instanceof Error ? error.stack : 'No stack available'
+      stack: error instanceof Error ? error.stack : "No stack available",
     });
-    
+
     return {
       success: false,
       error: errorMessage,

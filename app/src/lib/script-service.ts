@@ -9,7 +9,7 @@ export enum ScriptType {
   Browser = "browser",
   API = "api",
   Database = "database",
-  Custom = "custom"
+  Custom = "custom",
 }
 
 // Sample scripts content
@@ -287,7 +287,7 @@ test("Database Query Test - Schema Discovery", async () => {
 
 `,
 
-[ScriptType.Custom]: `/**
+  [ScriptType.Custom]: `/**
  * Sample Advanced Integration Test Script
  * 
  * This script demonstrates end-to-end testing scenarios combining
@@ -428,7 +428,7 @@ test("GitHub User Profile Analysis", async ({ request, page }) => {
   console.log("✅ User profile analysis completed successfully");
 });
 
-`
+`,
 };
 
 /**

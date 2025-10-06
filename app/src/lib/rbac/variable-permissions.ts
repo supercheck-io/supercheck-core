@@ -5,7 +5,10 @@ import { eq, and } from "drizzle-orm";
 /**
  * Check if user can view project variables (all roles can view variable names and non-secret values)
  */
-export async function canViewProjectVariables(userId: string, projectId: string): Promise<boolean> {
+export async function canViewProjectVariables(
+  userId: string,
+  projectId: string
+): Promise<boolean> {
   try {
     // First, get the project and check organization ownership
     const project = await db
@@ -50,7 +53,7 @@ export async function canViewProjectVariables(userId: string, projectId: string)
     // All project members can view variables
     return projectAccess.length > 0;
   } catch (error) {
-    console.error('Error checking variable view permissions:', error);
+    console.error("Error checking variable view permissions:", error);
     return false;
   }
 }
@@ -59,7 +62,10 @@ export async function canViewProjectVariables(userId: string, projectId: string)
  * Check if user can create and edit project variables (but not delete)
  * org_owner, org_admin, project_admin, and project_editor can create/edit variables
  */
-export async function canCreateEditProjectVariables(userId: string, projectId: string): Promise<boolean> {
+export async function canCreateEditProjectVariables(
+  userId: string,
+  projectId: string
+): Promise<boolean> {
   try {
     // First, get the project and check organization ownership
     const project = await db
@@ -87,7 +93,7 @@ export async function canCreateEditProjectVariables(userId: string, projectId: s
     if (orgAccess.length > 0) {
       const { role: orgRole } = orgAccess[0];
       // Org owners and admins can create/edit all project variables
-      if (orgRole === 'org_owner' || orgRole === 'org_admin') {
+      if (orgRole === "org_owner" || orgRole === "org_admin") {
         return true;
       }
     }
@@ -107,14 +113,14 @@ export async function canCreateEditProjectVariables(userId: string, projectId: s
     if (projectAccess.length > 0) {
       const { role } = projectAccess[0];
       // Project admins and editors can create/edit project variables
-      if (role === 'project_admin' || role === 'project_editor') {
+      if (role === "project_admin" || role === "project_editor") {
         return true;
       }
     }
 
     return false;
   } catch (error) {
-    console.error('Error checking variable create/edit permissions:', error);
+    console.error("Error checking variable create/edit permissions:", error);
     return false;
   }
 }
@@ -123,7 +129,10 @@ export async function canCreateEditProjectVariables(userId: string, projectId: s
  * Check if user can delete project variables
  * Only org_owner, org_admin, and project_admin can delete variables
  */
-export async function canDeleteProjectVariables(userId: string, projectId: string): Promise<boolean> {
+export async function canDeleteProjectVariables(
+  userId: string,
+  projectId: string
+): Promise<boolean> {
   try {
     // First, get the project and check organization ownership
     const project = await db
@@ -151,7 +160,7 @@ export async function canDeleteProjectVariables(userId: string, projectId: strin
     if (orgAccess.length > 0) {
       const { role: orgRole } = orgAccess[0];
       // Org owners and admins can delete all project variables
-      if (orgRole === 'org_owner' || orgRole === 'org_admin') {
+      if (orgRole === "org_owner" || orgRole === "org_admin") {
         return true;
       }
     }
@@ -171,14 +180,14 @@ export async function canDeleteProjectVariables(userId: string, projectId: strin
     if (projectAccess.length > 0) {
       const { role } = projectAccess[0];
       // Only project admins can delete project variables (not editors)
-      if (role === 'project_admin') {
+      if (role === "project_admin") {
         return true;
       }
     }
 
     return false;
   } catch (error) {
-    console.error('Error checking variable delete permissions:', error);
+    console.error("Error checking variable delete permissions:", error);
     return false;
   }
 }
@@ -188,7 +197,10 @@ export async function canDeleteProjectVariables(userId: string, projectId: strin
  * Only org_owner, org_admin, and project_admin can fully manage variables
  * @deprecated Use canCreateEditProjectVariables and canDeleteProjectVariables instead
  */
-export async function canManageProjectVariables(userId: string, projectId: string): Promise<boolean> {
+export async function canManageProjectVariables(
+  userId: string,
+  projectId: string
+): Promise<boolean> {
   return canDeleteProjectVariables(userId, projectId);
 }
 
@@ -196,14 +208,20 @@ export async function canManageProjectVariables(userId: string, projectId: strin
  * Check if user can view secret values
  * Only org_owner, org_admin, and project_admin can view secret values
  */
-export async function canViewSecretVariables(userId: string, projectId: string): Promise<boolean> {
+export async function canViewSecretVariables(
+  userId: string,
+  projectId: string
+): Promise<boolean> {
   return canManageProjectVariables(userId, projectId);
 }
 
 /**
  * Get user's role in a project
  */
-export async function getUserProjectRole(userId: string, projectId: string): Promise<{ projectRole: string | null, orgRole: string | null }> {
+export async function getUserProjectRole(
+  userId: string,
+  projectId: string
+): Promise<{ projectRole: string | null; orgRole: string | null }> {
   try {
     const access = await db
       .select({ role: projectMembers.role, orgRole: member.role })
@@ -224,7 +242,7 @@ export async function getUserProjectRole(userId: string, projectId: string): Pro
 
     return { projectRole: access[0].role, orgRole: access[0].orgRole };
   } catch (error) {
-    console.error('Error getting user project role:', error);
+    console.error("Error getting user project role:", error);
     return { projectRole: null, orgRole: null };
   }
 }

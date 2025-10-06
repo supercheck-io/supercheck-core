@@ -15,6 +15,7 @@ import {
   statement,
 } from "./permissions";
 import { normalizeRole } from "./role-normalizer";
+import { isSuperAdmin, getUserHighestRole } from "./super-admin";
 
 /**
  * Check if a user has a specific permission using Better Auth system
@@ -94,27 +95,10 @@ export async function getUserRole(
   userId: string,
   organizationId?: string
 ): Promise<Role> {
-  // Check if user is SUPER_ADMIN via email
-  const adminEmails =
-    process.env.SUPER_ADMIN_EMAILS?.split(",")
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean) || [];
-
-  // Check by email with additional validation
-  if (adminEmails.length > 0) {
-    const userRecord = await db
-      .select({ email: user.email })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
-
-    if (userRecord.length > 0 && userRecord[0].email) {
-      const userEmail = userRecord[0].email.toLowerCase();
-      if (adminEmails.includes(userEmail)) {
-        console.log(`✅ Super admin access granted to email: ${userEmail}`);
-        return Role.SUPER_ADMIN;
-      }
-    }
+  // Check if user is SUPER_ADMIN using secure method
+  const isSA = await isSuperAdmin(userId);
+  if (isSA) {
+    return Role.SUPER_ADMIN;
   }
 
   // If organization context is provided, get organization role
@@ -379,11 +363,8 @@ export async function canPerformAdminOperation(
 /**
  * Get user's role with unified interface
  */
-export async function getUserUnifiedRole(
-  userId: string,
-  organizationId?: string
-): Promise<Role> {
-  return getUserRole(userId, organizationId);
+export async function getUserUnifiedRole(userId: string): Promise<Role> {
+  return getUserHighestRole(userId);
 }
 
 /**

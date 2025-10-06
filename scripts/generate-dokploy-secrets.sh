@@ -119,9 +119,6 @@ SMTP_FROM_EMAIL=notifications@your-domain.com
 # ADMIN CONFIGURATION - REQUIRED
 # =============================================================================
 
-# Super Admin Emails (comma-separated)
-SUPER_ADMIN_EMAILS=CHANGE_THIS_YOUR_EMAIL@example.com
-
 # Organization Configuration
 MAX_PROJECTS_PER_ORG=10
 DEFAULT_PROJECT_NAME="Default Project"
@@ -164,9 +161,8 @@ echo "   ✅ 1. Update DATABASE_URL with your actual database connection string"
 echo "   ✅ 2. Update REDIS_URL with your actual Redis connection string"
 echo "   ✅ 3. Update AWS credentials with your actual S3 access keys"
 echo "   ✅ 4. Update SMTP_PASSWORD with your email service password"
-echo "   ✅ 5. Update SUPER_ADMIN_EMAILS with your email address"
-echo "   ✅ 6. Update OPENAI_API_KEY if using AI features"
-echo "   ✅ 7. Copy all variables to your Dokploy environment variables"
+echo "   ✅ 5. Update OPENAI_API_KEY if using AI features"
+echo "   ✅ 6. Copy all variables to your Dokploy environment variables"
 echo ""
 
 echo "🎉 Secrets generated successfully!"

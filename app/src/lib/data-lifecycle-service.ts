@@ -221,11 +221,12 @@ export class MonitorResultsCleanupStrategy implements ICleanupStrategy {
 
           // Delete the records
           const ids = idsToDelete.map((r) => r.id);
-          await db
-            .delete(monitorResults)
-            .where(
-              sql`${monitorResults.id} = ANY(ARRAY[${sql.join(ids.map((id) => sql`${id}`), sql`, `)}])`
-            );
+          await db.delete(monitorResults).where(
+            sql`${monitorResults.id} = ANY(ARRAY[${sql.join(
+              ids.map((id) => sql`${id}`),
+              sql`, `
+            )}])`
+          );
 
           const batchDeleted = idsToDelete.length;
           totalDeleted += batchDeleted;
@@ -736,7 +737,15 @@ export class DataLifecycleService {
 
       // Schedule all enabled strategies
       for (const strategy of this.strategies.values()) {
-        await this.scheduleCleanup(strategy.config);
+        try {
+          await this.scheduleCleanup(strategy.config);
+        } catch (error) {
+          console.error(
+            `[DATA_LIFECYCLE] Failed to schedule ${strategy.config.entityType}, continuing with others:`,
+            error
+          );
+          // Continue with other strategies even if one fails
+        }
       }
 
       console.log(
@@ -756,6 +765,10 @@ export class DataLifecycleService {
     }
 
     try {
+      console.log(
+        `[DATA_LIFECYCLE] Scheduling cleanup for ${config.entityType} with cron: "${config.cronSchedule}"`
+      );
+
       // Remove existing job if any
       const existingJobs = await this.cleanupQueue.getRepeatableJobs();
       const existingJob = existingJobs.find(
@@ -763,10 +776,16 @@ export class DataLifecycleService {
       );
 
       if (existingJob) {
+        console.log(
+          `[DATA_LIFECYCLE] Removing existing job for ${config.entityType}`
+        );
         await this.cleanupQueue.removeRepeatableByKey(existingJob.key);
       }
 
       // Schedule new job
+      console.log(
+        `[DATA_LIFECYCLE] Adding new repeatable job for ${config.entityType}`
+      );
       await this.cleanupQueue.add(
         `${config.entityType}-cleanup`,
         {
@@ -783,12 +802,18 @@ export class DataLifecycleService {
           },
         }
       );
+      console.log(
+        `[DATA_LIFECYCLE] Successfully scheduled cleanup for ${config.entityType}`
+      );
     } catch (error) {
       console.error(
         `[DATA_LIFECYCLE] Failed to schedule ${config.entityType}:`,
         error
       );
-      throw error;
+      // Don't throw error - continue with other strategies but log the failure
+      console.warn(
+        `[DATA_LIFECYCLE] Continuing initialization despite ${config.entityType} scheduling failure`
+      );
     }
   }
 
@@ -906,7 +931,10 @@ export function createDataLifecycleService(): DataLifecycleService {
     {
       entityType: "monitor_results",
       enabled: process.env.MONITOR_CLEANUP_ENABLED !== "true", // Default: true
-      cronSchedule: process.env.MONITOR_CLEANUP_CRON || "0 2 * * *", // Default: 2 AM daily
+      cronSchedule: (process.env.MONITOR_CLEANUP_CRON || "0 2 * * *").replace(
+        /^["']|["']$/g,
+        ""
+      ), // Default: 2 AM daily
       retentionDays: parseInt(process.env.MONITOR_RETENTION_DAYS || "30", 10), // Default: 30 days
       batchSize: parseInt(process.env.MONITOR_CLEANUP_BATCH_SIZE || "1000", 10), // Default: 1000 records per batch
       maxRecordsPerRun: parseInt(
@@ -920,7 +948,10 @@ export function createDataLifecycleService(): DataLifecycleService {
     {
       entityType: "job_runs",
       enabled: process.env.JOB_RUNS_CLEANUP_ENABLED === "true", // Default: false (explicit opt-in)
-      cronSchedule: process.env.JOB_RUNS_CLEANUP_CRON || "0 3 * * *", // Default: 3 AM daily
+      cronSchedule: (process.env.JOB_RUNS_CLEANUP_CRON || "0 3 * * *").replace(
+        /^["']|["']$/g,
+        ""
+      ), // Default: 3 AM daily
       retentionDays: parseInt(process.env.JOB_RUNS_RETENTION_DAYS || "90", 10), // Default: 90 days
       batchSize: parseInt(process.env.JOB_RUNS_CLEANUP_BATCH_SIZE || "100", 10), // Default: 100 (smaller for complex ops)
       maxRecordsPerRun: parseInt(
@@ -934,7 +965,9 @@ export function createDataLifecycleService(): DataLifecycleService {
     {
       entityType: "playground_artifacts",
       enabled: process.env.PLAYGROUND_CLEANUP_ENABLED === "true", // Default: false (explicit opt-in)
-      cronSchedule: process.env.PLAYGROUND_CLEANUP_CRON || "0 */12 * * *", // Default: every 12 hours
+      cronSchedule: (
+        process.env.PLAYGROUND_CLEANUP_CRON || "0 */12 * * *"
+      ).replace(/^["']|["']$/g, ""), // Default: every 12 hours
       customConfig: {
         maxAgeHours: parseInt(
           process.env.PLAYGROUND_CLEANUP_MAX_AGE_HOURS || "24",
@@ -950,12 +983,18 @@ export function createDataLifecycleService(): DataLifecycleService {
   for (const config of strategies) {
     if (config.enabled) {
       // Basic cron validation
+      console.log(
+        `[DATA_LIFECYCLE] Validating cron schedule for ${config.entityType}: "${config.cronSchedule}"`
+      );
       const cronParts = config.cronSchedule.split(/\s+/);
       if (cronParts.length !== 5 && cronParts.length !== 6) {
         throw new Error(
           `Invalid cron schedule for ${config.entityType}: ${config.cronSchedule}`
         );
       }
+      console.log(
+        `[DATA_LIFECYCLE] Cron validation passed for ${config.entityType}, parts: ${cronParts.length}`
+      );
     }
   }
 

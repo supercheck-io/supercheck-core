@@ -115,20 +115,13 @@ cd worker && npm run dev  # Worker service (in separate terminal)
 **Option B: Manual Setup**
 
 1. Create a user account at `http://localhost:3001/sign-up`
-2. Add your email to environment (preferred method):
+2. Run the super admin setup script:
 
    ```bash
-   echo "SUPER_ADMIN_EMAILS=your-email@example.com" >> .env
-   docker-compose restart app
+   ./scripts/setup-super-admin.sh
    ```
 
-   Or use the legacy user ID method:
-
-   ```bash
-   # Get your user ID from the database
-   docker exec postgres-supercheck psql -U postgres -d supercheck -c "SELECT id FROM \"user\" WHERE email = 'your-email@example.com';"
-   docker-compose restart app
-   ```
+   This script will guide you through setting up super admin privileges through the database.
 
 ### 5. Access the Application
 
@@ -229,7 +222,8 @@ RUNNING_CAPACITY=5         # Max concurrent test executions
 QUEUED_CAPACITY=50         # Max queued jobs
 
 # Security
-SUPER_ADMIN_EMAILS=admin@example.com,admin2@example.com  # Comma-separated super admin emails
+# Super admin access is now managed through the database
+# Use ./scripts/setup-super-admin.sh to configure super admin users
 
 ### Production Configuration
 See [Security Guide](./specs/SECURITY.md) for production security settings:
@@ -343,9 +337,6 @@ curl -H "Authorization: Bearer your-api-key" \
 # Verify super admin setup
 docker exec postgres-supercheck psql -U postgres -d supercheck \
   -c "SELECT id, email, role FROM \"user\" WHERE email = 'your-email@example.com';"
-
-# Check environment variables
-docker-compose exec app env | grep SUPER_ADMIN_EMAILS
 ```
 
 **Database Connection Issues**

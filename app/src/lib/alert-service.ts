@@ -1,5 +1,5 @@
 import { db } from "@/utils/db";
-import { 
+import {
   alerts,
   Alert,
   alertHistory,
@@ -25,7 +25,7 @@ export class AlertService {
     type: AlertType;
     message: string;
     target: string;
-    targetType: 'monitor' | 'job';
+    targetType: "monitor" | "job";
     monitorId?: string;
     jobId?: string;
     provider: string;
@@ -45,10 +45,12 @@ export class AlertService {
         errorMessage: alertData.errorMessage || null,
         sentAt: new Date(),
       });
-      
-      console.log(`Alert history saved: ${alertData.type} for ${alertData.target}`);
+
+      console.log(
+        `Alert history saved: ${alertData.type} for ${alertData.target}`
+      );
     } catch (error) {
-      console.error('Failed to save alert history:', error);
+      console.error("Failed to save alert history:", error);
     }
   }
 
@@ -61,12 +63,11 @@ export class AlertService {
     try {
       const alert = await db.query.alerts.findFirst({
         where: eq(alerts.id, alertId),
-        with: {
-        }
+        with: {},
       });
       return alert;
     } catch (error) {
-      console.error('Failed to get alert:', error);
+      console.error("Failed to get alert:", error);
       return null;
     }
   }
@@ -78,10 +79,7 @@ export class AlertService {
    */
   async createAlert(alertData: Omit<Alert, "id" | "createdAt" | "updatedAt">) {
     try {
-      const newAlert = await db
-        .insert(alerts)
-        .values(alertData)
-        .returning();
+      const newAlert = await db.insert(alerts).values(alertData).returning();
       return newAlert[0];
     } catch (error) {
       console.error("Error creating alert:", error);
@@ -102,11 +100,11 @@ export class AlertService {
         .set(alertData)
         .where(eq(alerts.id, alertId))
         .returning();
-      
+
       if (updatedAlert.length === 0) {
         throw new Error("Alert not found");
       }
-      
+
       return updatedAlert[0];
     } catch (error) {
       console.error(`Error updating alert ${alertId}:`, error);
@@ -137,13 +135,12 @@ export class AlertService {
     try {
       const monitorAlerts = await db.query.alerts.findMany({
         where: eq(alerts.monitorId, monitorId),
-        with: {
-        }
+        with: {},
       });
       return monitorAlerts;
     } catch (error) {
-      console.error('Failed to get alerts for monitor:', error);
+      console.error("Failed to get alerts for monitor:", error);
       return [];
     }
   }
-} 
+}

@@ -28,12 +28,12 @@ export async function middleware(request: NextRequest) {
   if (isJobTrigger) {
     const authHeader = request.headers.get("authorization");
     const apiKeyFromHeader = authHeader?.replace(/^Bearer\s+/i, "");
-    
+
     if (!apiKeyFromHeader) {
       return NextResponse.json(
-        { 
-          error: "API key required", 
-          message: "Include API key as Bearer token in Authorization header" 
+        {
+          error: "API key required",
+          message: "Include API key as Bearer token in Authorization header",
         },
         { status: 401 }
       );
@@ -42,9 +42,9 @@ export async function middleware(request: NextRequest) {
     // Basic API key format validation
     if (!apiKeyFromHeader.trim() || apiKeyFromHeader.length < 10) {
       return NextResponse.json(
-        { 
-          error: "Invalid API key format", 
-          message: "API key must be at least 10 characters long" 
+        {
+          error: "Invalid API key format",
+          message: "API key must be at least 10 characters long",
         },
         { status: 401 }
       );
@@ -60,18 +60,20 @@ export async function middleware(request: NextRequest) {
           jobId: apikey.jobId,
           userId: apikey.userId,
           name: apikey.name,
-          lastRequest: apikey.lastRequest
+          lastRequest: apikey.lastRequest,
         })
         .from(apikey)
         .where(eq(apikey.key, apiKeyFromHeader.trim()))
         .limit(1);
 
       if (apiKey.length === 0) {
-        console.warn(`Invalid API key attempted: ${apiKeyFromHeader.substring(0, 8)}...`);
+        console.warn(
+          `Invalid API key attempted: ${apiKeyFromHeader.substring(0, 8)}...`
+        );
         return NextResponse.json(
-          { 
-            error: "Invalid API key", 
-            message: "The provided API key is not valid" 
+          {
+            error: "Invalid API key",
+            message: "The provided API key is not valid",
           },
           { status: 401 }
         );
@@ -83,9 +85,9 @@ export async function middleware(request: NextRequest) {
       if (!key.enabled) {
         console.warn(`Disabled API key attempted: ${key.name} (${key.id})`);
         return NextResponse.json(
-          { 
-            error: "API key disabled", 
-            message: "This API key has been disabled" 
+          {
+            error: "API key disabled",
+            message: "This API key has been disabled",
           },
           { status: 401 }
         );
@@ -95,9 +97,9 @@ export async function middleware(request: NextRequest) {
       if (key.expiresAt && new Date() > key.expiresAt) {
         console.warn(`Expired API key attempted: ${key.name} (${key.id})`);
         return NextResponse.json(
-          { 
-            error: "API key expired", 
-            message: "This API key has expired" 
+          {
+            error: "API key expired",
+            message: "This API key has expired",
           },
           { status: 401 }
         );
@@ -107,14 +109,16 @@ export async function middleware(request: NextRequest) {
       const jobIdMatch = pathname.match(/^\/api\/jobs\/([^\/]+)\/trigger$/);
       if (jobIdMatch) {
         const requestedJobId = jobIdMatch[1];
-        
+
         // Validate that the API key is authorized for this specific job
         if (key.jobId !== requestedJobId) {
-          console.warn(`API key unauthorized for job: ${key.name} attempted job ${requestedJobId}, authorized for ${key.jobId}`);
+          console.warn(
+            `API key unauthorized for job: ${key.name} attempted job ${requestedJobId}, authorized for ${key.jobId}`
+          );
           return NextResponse.json(
-            { 
-              error: "Unauthorized", 
-              message: "This API key is not authorized for the requested job" 
+            {
+              error: "Unauthorized",
+              message: "This API key is not authorized for the requested job",
             },
             { status: 403 }
           );
@@ -126,28 +130,30 @@ export async function middleware(request: NextRequest) {
         .set({ lastRequest: new Date() })
         .where(eq(apikey.id, key.id))
         .catch((error) => {
-          console.error(`Failed to update last request for API key ${key.id}:`, error);
+          console.error(
+            `Failed to update last request for API key ${key.id}:`,
+            error
+          );
         });
 
       // API key is valid, proceed with the request
       return NextResponse.next();
-
     } catch (error) {
       console.error("Error verifying API key:", error);
-      
+
       // Check if this is a database connection error
-      const isDbError = error instanceof Error && (
-        error.message.includes('connection') ||
-        error.message.includes('timeout') ||
-        error.message.includes('ECONNREFUSED')
-      );
-      
+      const isDbError =
+        error instanceof Error &&
+        (error.message.includes("connection") ||
+          error.message.includes("timeout") ||
+          error.message.includes("ECONNREFUSED"));
+
       return NextResponse.json(
-        { 
-          error: "Authentication error", 
-          message: isDbError 
-            ? "Database connection issue. Please try again in a moment." 
-            : "Unable to verify API key at this time" 
+        {
+          error: "Authentication error",
+          message: isDbError
+            ? "Database connection issue. Please try again in a moment."
+            : "Unable to verify API key at this time",
         },
         { status: isDbError ? 503 : 500 }
       );
@@ -157,10 +163,7 @@ export async function middleware(request: NextRequest) {
   // For other API routes, check authentication
   if (pathname.startsWith("/api/") && !isAuthApi) {
     if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     return NextResponse.next();
   }

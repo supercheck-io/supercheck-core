@@ -1,0 +1,26 @@
+# Traefik Service with Hetzner Cloud Load Balancer
+# This exposes K3s's built-in Traefik via a Hetzner Load Balancer
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-lb
+  namespace: kube-system
+  annotations:
+    # Hetzner Cloud Load Balancer annotations
+    load-balancer.hetzner.cloud/location: nbg1
+    load-balancer.hetzner.cloud/name: supercheck-traefik-lb
+    load-balancer.hetzner.cloud/use-private-ip: "true"
+    load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+    load-balancer.hetzner.cloud/http-redirect-https: "false"
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: traefik
+  ports:
+    - name: web
+      port: 80
+      targetPort: 80
+    - name: websecure
+      port: 443
+      targetPort: 443

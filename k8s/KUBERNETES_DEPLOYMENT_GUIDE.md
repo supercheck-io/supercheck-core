@@ -79,11 +79,13 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 ### Storage Classes
 
 Verify available storage classes:
+
 ```bash
 kubectl get storageclass
 ```
 
 Update `storageClassName` in PVC files if needed:
+
 - `k8s/base/postgres-pvc.yaml`
 - `k8s/base/redis-pvc.yaml`
 - `k8s/base/minio-pvc.yaml`
@@ -119,9 +121,10 @@ Edit `k8s/base/configmap.yaml`:
 # Update these values for your environment
 NEXT_PUBLIC_APP_URL: "https://your-domain.com"
 BETTER_AUTH_URL: "https://your-domain.com"
-SUPER_ADMIN_EMAILS: "admin@your-domain.com"
 SMTP_HOST: "your-smtp-host"
 SMTP_FROM_EMAIL: "noreply@your-domain.com"
+# Super admin access is now managed through the database
+# Use the setup script after deployment to configure super admin users
 ```
 
 Edit `k8s/base/ingress.yaml`:
@@ -130,7 +133,7 @@ Edit `k8s/base/ingress.yaml`:
 # Update host entries
 - host: supercheck.your-domain.com
   # ...
-- host: minio.your-domain.com  # Optional MinIO console
+- host: minio.your-domain.com # Optional MinIO console
 ```
 
 ### 4. Deploy
@@ -138,6 +141,7 @@ Edit `k8s/base/ingress.yaml`:
 Choose your preferred ingress controller:
 
 **Option A: Traefik (Recommended)**
+
 ```bash
 # Development deployment with Traefik
 cd scripts
@@ -148,6 +152,7 @@ cd scripts
 ```
 
 **Option B: NGINX Ingress**
+
 ```bash
 # Development deployment with NGINX
 cd scripts
@@ -160,6 +165,7 @@ cd scripts
 ### 5. Access the Application
 
 For development:
+
 ```bash
 # Port forward to access locally
 ./port-forward.sh
@@ -168,6 +174,7 @@ For development:
 ```
 
 For production:
+
 - Configure DNS to point to your ingress controller
 - Access via your configured domain
 
@@ -176,11 +183,13 @@ For production:
 ### Environment-Specific Configurations
 
 #### Development Environment
+
 - **Location**: `k8s/overlays/dev/`
 - **Features**: Lower resource limits, browser debugging enabled, fewer replicas
 - **Use Case**: Local development, testing
 
 #### Production Environment
+
 - **Location**: `k8s/overlays/prod/`
 - **Features**: High availability, optimized resources, security hardening
 - **Use Case**: Production workloads
@@ -254,13 +263,13 @@ spec:
     matchLabels:
       app.kubernetes.io/name: supercheck
   policyTypes:
-  - Ingress
-  - Egress
+    - Ingress
+    - Egress
   ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          name: ingress-nginx
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
 ```
 
 ### Pod Security
@@ -286,9 +295,9 @@ metadata:
   namespace: supercheck
   name: supercheck-role
 rules:
-- apiGroups: [""]
-  resources: ["secrets", "configmaps"]
-  verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list"]
 ```
 
 ## 📊 Monitoring and Observability
@@ -369,18 +378,18 @@ spec:
   minReplicas: 2
   maxReplicas: 20
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
 ```
 
 ### Vertical Pod Autoscaling
@@ -408,29 +417,32 @@ spec:
 ### Performance Optimization
 
 #### Database Optimization
+
 ```yaml
 # PostgreSQL performance settings
 env:
-- name: POSTGRES_CONFIG
-  value: |
-    shared_buffers = 256MB
-    effective_cache_size = 1GB
-    max_connections = 100
-    work_mem = 4MB
+  - name: POSTGRES_CONFIG
+    value: |
+      shared_buffers = 256MB
+      effective_cache_size = 1GB
+      max_connections = 100
+      work_mem = 4MB
 ```
 
 #### Redis Optimization
+
 ```yaml
 # Redis memory management
 command:
-- redis-server
-- --maxmemory
-- 512mb
-- --maxmemory-policy
-- allkeys-lru
+  - redis-server
+  - --maxmemory
+  - 512mb
+  - --maxmemory-policy
+  - noeviction
 ```
 
 #### Worker Scaling Strategy
+
 ```yaml
 # Optimize worker replicas based on queue depth
 - type: Object
@@ -532,6 +544,7 @@ kubectl get events -n supercheck --sort-by='.lastTimestamp' | tail -20
 ### 1. Data Migration
 
 #### PostgreSQL Data
+
 ```bash
 # Export from Docker Compose
 docker-compose exec postgres pg_dump -U postgres supercheck > backup.sql
@@ -542,6 +555,7 @@ kubectl exec -i -n supercheck deploy/postgres -- \
 ```
 
 #### MinIO Data
+
 ```bash
 # Use MinIO client (mc) for data sync
 mc alias set compose http://localhost:9000 minioadmin minioadmin
@@ -597,7 +611,7 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-    - CreateNamespace=true
+      - CreateNamespace=true
 ```
 
 ### Flux Example

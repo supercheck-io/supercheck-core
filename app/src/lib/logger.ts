@@ -9,9 +9,18 @@ export class Logger {
     return new Date().toISOString();
   }
 
-  private formatMessage(level: string, message: string, ...optionalParams: unknown[]): string {
-    const paramsString = optionalParams.length > 0 ? ` ${optionalParams.map(p => JSON.stringify(p)).join(' ')}` : '';
-    return `${this.getCurrentTimestamp()} ${this.prefix} [${level.toUpperCase()}] ${message}${paramsString}`;
+  private formatMessage(
+    level: string,
+    message: string,
+    ...optionalParams: unknown[]
+  ): string {
+    const paramsString =
+      optionalParams.length > 0
+        ? ` ${optionalParams.map((p) => JSON.stringify(p)).join(" ")}`
+        : "";
+    return `${this.getCurrentTimestamp()} ${
+      this.prefix
+    } [${level.toUpperCase()}] ${message}${paramsString}`;
   }
 
   log(message: string, ...optionalParams: unknown[]): void {
@@ -37,4 +46,4 @@ export class Logger {
 }
 
 // Global default logger instance (optional)
-export const defaultLogger = new Logger(); 
+export const defaultLogger = new Logger();

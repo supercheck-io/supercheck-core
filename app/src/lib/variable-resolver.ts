@@ -18,7 +18,9 @@ export interface VariableResolutionResult {
  * Resolve all variables for a project
  * This function should be called server-side during job/test creation
  */
-export async function resolveProjectVariables(projectId: string): Promise<VariableResolutionResult> {
+export async function resolveProjectVariables(
+  projectId: string
+): Promise<VariableResolutionResult> {
   try {
     // Fetch all variables for the project
     const variables = await db
@@ -40,7 +42,9 @@ export async function resolveProjectVariables(projectId: string): Promise<Variab
             value = decryptValue(variable.encryptedValue, projectId);
             resolvedSecrets[variable.key] = value;
           } else {
-            errors.push(`Secret variable '${variable.key}' has no encrypted value`);
+            errors.push(
+              `Secret variable '${variable.key}' has no encrypted value`
+            );
             continue;
           }
         } else {
@@ -50,23 +54,38 @@ export async function resolveProjectVariables(projectId: string): Promise<Variab
         }
       } catch (error) {
         console.error(`Failed to resolve variable '${variable.key}':`, error);
-        errors.push(`Failed to resolve variable '${variable.key}': ${error instanceof Error ? error.message : String(error)}`);
+        errors.push(
+          `Failed to resolve variable '${variable.key}': ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
       }
     }
 
-    console.log(`Resolved ${Object.keys(resolvedVariables).length} variables and ${Object.keys(resolvedSecrets).length} secrets for project ${projectId}`);
+    console.log(
+      `Resolved ${Object.keys(resolvedVariables).length} variables and ${
+        Object.keys(resolvedSecrets).length
+      } secrets for project ${projectId}`
+    );
 
     return {
       variables: resolvedVariables,
       secrets: resolvedSecrets,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     };
   } catch (error) {
-    console.error(`Failed to resolve variables for project ${projectId}:`, error);
+    console.error(
+      `Failed to resolve variables for project ${projectId}:`,
+      error
+    );
     return {
       variables: {},
       secrets: {},
-      errors: [`Failed to resolve variables: ${error instanceof Error ? error.message : String(error)}`]
+      errors: [
+        `Failed to resolve variables: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      ],
     };
   }
 }
@@ -77,34 +96,43 @@ export async function resolveProjectVariables(projectId: string): Promise<Variab
  */
 export function extractVariableNames(script: string): string[] {
   const variableNames: string[] = [];
-  
+
   // Regex to match both getVariable() and getSecret() calls
   const regex = /(?:getVariable|getSecret)\s*\(\s*['"`]([^'"`]+)['"`]/g;
   let match;
-  
+
   while ((match = regex.exec(script)) !== null) {
     const variableName = match[1];
     if (!variableNames.includes(variableName)) {
       variableNames.push(variableName);
     }
   }
-  
+
   return variableNames;
 }
 
 /**
  * Generate both getVariable and getSecret function implementations for test execution
  */
-export function generateVariableFunctions(variables: Record<string, string>, secrets: Record<string, string>): string {
+export function generateVariableFunctions(
+  variables: Record<string, string>,
+  secrets: Record<string, string>
+): string {
   // Use a more reliable approach for embedding JSON in JavaScript
-  const variableEntries = Object.entries(variables).map(([key, value]) => 
-    `"${key.replace(/"/g, '\\"')}": ${JSON.stringify(value)}`
-  ).join(', ');
-  
-  const secretEntries = Object.entries(secrets).map(([key, value]) => 
-    `"${key.replace(/"/g, '\\"')}": ${JSON.stringify(value)}`
-  ).join(', ');
-  
+  const variableEntries = Object.entries(variables)
+    .map(
+      ([key, value]) =>
+        `"${key.replace(/"/g, '\\"')}": ${JSON.stringify(value)}`
+    )
+    .join(", ");
+
+  const secretEntries = Object.entries(secrets)
+    .map(
+      ([key, value]) =>
+        `"${key.replace(/"/g, '\\"')}": ${JSON.stringify(value)}`
+    )
+    .join(", ");
+
   return `
 function getVariable(key, options = {}) {
   const variables = {${variableEntries}};
@@ -204,6 +232,8 @@ function getSecret(key, options = {}) {
  * @deprecated Use generateVariableFunctions instead
  * Generate the getVariable function implementation for test execution
  */
-export function generateGetVariableFunction(variables: Record<string, string>): string {
+export function generateGetVariableFunction(
+  variables: Record<string, string>
+): string {
   return generateVariableFunctions(variables, {});
 }

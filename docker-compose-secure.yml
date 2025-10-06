@@ -20,7 +20,7 @@ x-common-env: &common-env # Database Configuration
   NODE_ENV: ${NODE_ENV:-production}
   RUNNING_CAPACITY: ${RUNNING_CAPACITY:-6} # Optimized for 4-core server: 4 workers × 1.5 jobs per worker
   QUEUED_CAPACITY: ${QUEUED_CAPACITY:-50}
-  MAX_CONCURRENT_EXECUTIONS: ${MAX_CONCURRENT_EXECUTIONS:-1} # Max parallel tests per worker (default: 1, use worker replicas for parallelism)
+  MAX_CONCURRENT_EXECUTIONS: ${MAX_CONCURRENT_EXECUTIONS:-2} # Max parallel tests per worker (default: 1, use worker replicas for parallelism)
   TEST_EXECUTION_TIMEOUT_MS: ${TEST_EXECUTION_TIMEOUT_MS:-120000}
   JOB_EXECUTION_TIMEOUT_MS: ${JOB_EXECUTION_TIMEOUT_MS:-900000}
 
@@ -77,7 +77,6 @@ x-common-env: &common-env # Database Configuration
   VARIABLES_ENCRYPTION_KEY: ${VARIABLES_ENCRYPTION_KEY:-your-64-character-encryption-key-for-variable-secrets-change-this-in-prod}
 
   # Better Auth Admin Configuration
-  SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-super.admin@example.com}
   MAX_PROJECTS_PER_ORG: ${MAX_PROJECTS_PER_ORG:-10}
   DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-Default Project}
 
@@ -280,7 +279,7 @@ services:
     image: redis:8
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-supersecure-redis-password-change-this}
-    command: sh -c "rm -rf /data/* && redis-server --requirepass \"${REDIS_PASSWORD:-supersecure-redis-password-change-this}\" --maxmemory 512mb --maxmemory-policy allkeys-lru --save '' --appendonly no --protected-mode yes --bind 0.0.0.0 --tcp-keepalive 300"
+    command: sh -c "rm -rf /data/* && redis-server --requirepass \"${REDIS_PASSWORD:-supersecure-redis-password-change-this}\" --maxmemory 512mb --maxmemory-policy noeviction --save '' --appendonly no --protected-mode yes --bind 0.0.0.0 --tcp-keepalive 300"
     volumes:
       - redis-data:/data
     restart: unless-stopped

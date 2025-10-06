@@ -137,7 +137,6 @@ Key environment variables are managed through Docker Compose and include:
 - MinIO/S3 settings (`AWS_*`, `S3_*`)
 - Capacity limits (`RUNNING_CAPACITY`, `QUEUED_CAPACITY`)
 - Timeout configurations (`TEST_EXECUTION_TIMEOUT_MS`)
-- Super admin access (`SUPER_ADMIN_EMAILS`)
 - AI Fix feature configuration (`AI_FIX_ENABLED`, `AI_PROVIDER`, `AI_MODEL`, `OPENAI_API_KEY`)
 
 ## Testing Infrastructure

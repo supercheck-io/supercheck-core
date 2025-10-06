@@ -135,28 +135,28 @@ CONFIDENCE:
 
   private static getTestTypeInstructions(testType: string): string {
     switch (testType.toLowerCase()) {
-      case 'browser':
+      case "browser":
         return `This is a browser automation test. Focus on:
 - Element selectors and interactions
 - Page navigation and loading
 - Visual elements and user interface testing
 - Form submissions and user workflows`;
 
-      case 'api':
+      case "api":
         return `This is an API test. Focus on:
 - HTTP request/response handling
 - Status codes and response validation
 - Request headers and payloads
 - Authentication and authorization`;
 
-      case 'database':
+      case "database":
         return `This is a database test. Focus on:
 - Database connections and queries
 - Data validation and integrity
 - Transaction handling
 - Database state verification`;
 
-      case 'custom':
+      case "custom":
         return `This is a custom test scenario. Focus on:
 - Understanding the specific test context
 - Maintaining custom logic and patterns
@@ -169,45 +169,53 @@ CONFIDENCE:
 
   private static optimizeMarkdownContent(markdownContent: string): string {
     // Optimize markdown for token efficiency while preserving critical information
-    const lines = markdownContent.split('\n');
+    const lines = markdownContent.split("\n");
     const importantSections = [];
-    
-    let currentSection = '';
+
+    let currentSection = "";
     let isImportantSection = false;
-    
+
     for (const line of lines) {
       // Identify important sections
-      if (line.match(/^#+\s*(error|fail|instruction|detail|stack|exception)/i)) {
+      if (
+        line.match(/^#+\s*(error|fail|instruction|detail|stack|exception)/i)
+      ) {
         isImportantSection = true;
         if (currentSection) {
           importantSections.push(currentSection);
         }
-        currentSection = line + '\n';
+        currentSection = line + "\n";
       } else if (line.match(/^#+\s/)) {
         isImportantSection = false;
         if (currentSection) {
           importantSections.push(currentSection);
         }
-        currentSection = '';
-      } else if (isImportantSection || line.includes('Error:') || line.includes('✗') || line.includes('Failed:')) {
-        currentSection += line + '\n';
+        currentSection = "";
+      } else if (
+        isImportantSection ||
+        line.includes("Error:") ||
+        line.includes("✗") ||
+        line.includes("Failed:")
+      ) {
+        currentSection += line + "\n";
       }
     }
-    
+
     if (currentSection) {
       importantSections.push(currentSection);
     }
-    
+
     // Join important sections and truncate if too long
-    let optimized = importantSections.join('\n').trim();
-    
+    let optimized = importantSections.join("\n").trim();
+
     // Truncate if content is too long (preserve first and last parts)
     if (optimized.length > 8000) {
       const firstPart = optimized.substring(0, 4000);
       const lastPart = optimized.substring(optimized.length - 4000);
-      optimized = firstPart + '\n\n[... truncated for brevity ...]\n\n' + lastPart;
+      optimized =
+        firstPart + "\n\n[... truncated for brevity ...]\n\n" + lastPart;
     }
-    
+
     return optimized || markdownContent; // Fallback to original if optimization fails
   }
 

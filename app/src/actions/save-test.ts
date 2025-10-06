@@ -43,7 +43,7 @@ export async function saveTest(
   try {
     // Get user and project context
     const { userId, project, organizationId } = await requireProjectContext();
-    
+
     const validatedData = saveTestWithIdSchema.parse(data);
 
     // Ensure script is properly base64 encoded
@@ -80,10 +80,15 @@ export async function saveTest(
     // Check if this is an update (has an ID) or a new test
     if (validatedData.id) {
       // This is an update - check EDIT_TESTS permission
-      const canEditTests = await hasPermission('test', 'update', { organizationId, projectId: project.id });
-      
+      const canEditTests = await hasPermission("test", "update", {
+        organizationId,
+        projectId: project.id,
+      });
+
       if (!canEditTests) {
-        console.warn(`User ${userId} attempted to update test ${validatedData.id} without EDIT_TESTS permission`);
+        console.warn(
+          `User ${userId} attempted to update test ${validatedData.id} without EDIT_TESTS permission`
+        );
         return {
           id: "",
           success: false,
@@ -114,18 +119,18 @@ export async function saveTest(
       // Log the audit event for test update
       await logAuditEvent({
         userId,
-        organizationId,
-        action: 'test_updated',
-        resource: 'test',
+        action: "test_updated",
+        resource: "test",
         resourceId: testId,
         metadata: {
+          organizationId,
           testTitle: validatedData.title,
           testType: validatedData.type,
           testPriority: validatedData.priority,
           projectId: project.id,
-          projectName: project.name
+          projectName: project.name,
         },
-        success: true
+        success: true,
       });
 
       // Revalidate the tests page to show the updated data
@@ -135,10 +140,15 @@ export async function saveTest(
       return { id: testId, success: true };
     } else {
       // This is a new test - check CREATE_TESTS permission
-      const canCreateTests = await hasPermission('test', 'create', { organizationId, projectId: project.id });
-      
+      const canCreateTests = await hasPermission("test", "create", {
+        organizationId,
+        projectId: project.id,
+      });
+
       if (!canCreateTests) {
-        console.warn(`User ${userId} attempted to create test without CREATE_TESTS permission`);
+        console.warn(
+          `User ${userId} attempted to create test without CREATE_TESTS permission`
+        );
         return {
           id: "",
           success: false,
@@ -166,18 +176,18 @@ export async function saveTest(
       // Log the audit event for test creation
       await logAuditEvent({
         userId,
-        organizationId,
-        action: 'test_created',
-        resource: 'test',
+        action: "test_created",
+        resource: "test",
         resourceId: newTestId,
         metadata: {
+          organizationId,
           testTitle: validatedData.title,
           testType: validatedData.type,
           testPriority: validatedData.priority,
           projectId: project.id,
-          projectName: project.name
+          projectName: project.name,
         },
-        success: true
+        success: true,
       });
 
       // Revalidate the tests page to show the updated data

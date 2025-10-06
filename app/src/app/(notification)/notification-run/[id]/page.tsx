@@ -6,9 +6,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type Params = {
   params: Promise<{
-    id: string
-  }>
-}
+    id: string;
+  }>;
+};
 
 function DetailSkeleton() {
   return (
@@ -25,10 +25,10 @@ function DetailSkeleton() {
 
 export default async function NotificationRunPage({ params }: Params) {
   const { id } = await params;
-  
+
   try {
     const run = await getRun(id, true);
-    
+
     if (!run) {
       notFound();
     }
@@ -41,7 +41,7 @@ export default async function NotificationRunPage({ params }: Params) {
       </div>
     );
   } catch (error) {
-    console.error('Error fetching run:', error);
+    console.error("Error fetching run:", error);
     notFound();
   }
 }

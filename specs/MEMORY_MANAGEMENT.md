@@ -314,7 +314,7 @@ Memory-limited Redis with proper resource constraints:
 
 ```yaml
 redis:
-  command: sh -c "redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru"
+  command: sh -c "redis-server --maxmemory 512mb --maxmemory-policy noeviction"
   deploy:
     resources:
       limits:

@@ -24,7 +24,7 @@ x-common-env: &common-env # Database Configuration - External PostgreSQL
   NODE_ENV: ${NODE_ENV:-production}
   RUNNING_CAPACITY: ${RUNNING_CAPACITY:-6}
   QUEUED_CAPACITY: ${QUEUED_CAPACITY:-50}
-  MAX_CONCURRENT_EXECUTIONS: ${MAX_CONCURRENT_EXECUTIONS:-1} # Max parallel tests per worker (default: 1, use worker replicas for parallelism)
+  MAX_CONCURRENT_EXECUTIONS: ${MAX_CONCURRENT_EXECUTIONS:-2} # Max parallel tests per worker (default: 1, use worker replicas for parallelism)
   TEST_EXECUTION_TIMEOUT_MS: ${TEST_EXECUTION_TIMEOUT_MS:-120000}
   JOB_EXECUTION_TIMEOUT_MS: ${JOB_EXECUTION_TIMEOUT_MS:-900000}
 
@@ -81,7 +81,6 @@ x-common-env: &common-env # Database Configuration - External PostgreSQL
   VARIABLES_ENCRYPTION_KEY: ${VARIABLES_ENCRYPTION_KEY}
 
   # Better Auth Admin Configuration
-  SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS}
   MAX_PROJECTS_PER_ORG: ${MAX_PROJECTS_PER_ORG:-10}
   DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-Default Project}
 
