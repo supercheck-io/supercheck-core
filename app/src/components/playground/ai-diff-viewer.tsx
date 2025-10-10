@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 // Import Monaco Editor properly
 import { DiffEditor, useMonaco } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 
 interface AIDiffViewerProps {
   originalScript: string;
@@ -31,7 +32,7 @@ export function AIDiffViewer({
   onClose,
 }: AIDiffViewerProps) {
   const [currentFixedScript, setCurrentFixedScript] = useState(fixedScript);
-  const editorRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const monaco = useMonaco();
   const isMountedRef = useRef(true);
 
@@ -92,8 +93,7 @@ export function AIDiffViewer({
     }
   }, [monaco]);
 
-  const handleEditorDidMount = (editor: any) => {
-    // eslint-disable-line @typescript-eslint/no-explicit-any
+  const handleEditorDidMount = (editor: editor.IStandaloneDiffEditor) => {
     // Check if component is still mounted before proceeding
     if (!isMountedRef.current) {
       console.warn(
@@ -117,7 +117,6 @@ export function AIDiffViewer({
         renderIndicators: true,
         maxComputationTime: 5000,
         maxFileSize: 20,
-        computeStats: false,
       });
 
       // Get both editors and configure them properly
