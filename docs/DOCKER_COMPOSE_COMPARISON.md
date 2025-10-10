@@ -10,25 +10,26 @@ The project has **three** Docker Compose configurations for different deployment
 
 ## Quick Comparison
 
-| Feature | docker-compose.yml | docker-compose-secure.yml | docker-compose-external.yml |
-|---------|-------------------|---------------------------|----------------------------|
-| **Use Case** | Development/Testing | Production (Self-hosted) | Production (Cloud-native) |
-| **HTTPS/SSL** | ❌ No | ✅ Yes (Let's Encrypt) | ✅ Yes (Let's Encrypt) |
-| **PostgreSQL** | ✅ Included | ✅ Included | ❌ External (RDS, Supabase, etc.) |
-| **Redis** | ✅ Included | ✅ Included | ❌ External (Redis Cloud, etc.) |
-| **S3/MinIO** | ✅ Included (MinIO) | ✅ Included (MinIO) | ❌ External (AWS S3, Spaces, etc.) |
-| **Traefik** | ❌ No | ✅ Yes | ✅ Yes |
-| **Port Exposure** | 3000 (direct) | 80, 443 (Traefik) | 80, 443 (Traefik) |
-| **Minimum RAM** | 8GB | 8GB | 4GB |
-| **Setup Complexity** | Low | Medium | High |
-| **Scalability** | Low | Medium | High |
-| **Maintenance** | High | High | Low (managed) |
+| Feature              | docker-compose.yml  | docker-compose-secure.yml | docker-compose-external.yml        |
+| -------------------- | ------------------- | ------------------------- | ---------------------------------- |
+| **Use Case**         | Development/Testing | Production (Self-hosted)  | Production (Cloud-native)          |
+| **HTTPS/SSL**        | ❌ No               | ✅ Yes (Let's Encrypt)    | ✅ Yes (Let's Encrypt)             |
+| **PostgreSQL**       | ✅ Included         | ✅ Included               | ❌ External (RDS, Supabase, etc.)  |
+| **Redis**            | ✅ Included         | ✅ Included               | ❌ External (Redis Cloud, etc.)    |
+| **S3/MinIO**         | ✅ Included (MinIO) | ✅ Included (MinIO)       | ❌ External (AWS S3, Spaces, etc.) |
+| **Traefik**          | ❌ No               | ✅ Yes                    | ✅ Yes                             |
+| **Port Exposure**    | 3000 (direct)       | 80, 443 (Traefik)         | 80, 443 (Traefik)                  |
+| **Minimum RAM**      | 8GB                 | 8GB                       | 4GB                                |
+| **Setup Complexity** | Low                 | Medium                    | High                               |
+| **Scalability**      | Low                 | Medium                    | High                               |
+| **Maintenance**      | High                | High                      | Low (managed)                      |
 
 ## Configuration Details
 
 ### 1. docker-compose.yml (Development)
 
 **Services Included:**
+
 - App (Next.js)
 - Worker (NestJS) - 4 replicas
 - PostgreSQL 16.2
@@ -36,16 +37,19 @@ The project has **three** Docker Compose configurations for different deployment
 - MinIO
 
 **URLs:**
+
 - App: `http://localhost:3000`
 - No HTTPS
 
 **Environment:**
+
 ```env
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 BETTER_AUTH_URL=http://localhost:3000
 ```
 
 **Use When:**
+
 - ✅ Local development
 - ✅ Testing
 - ✅ Quick setup
@@ -53,12 +57,14 @@ BETTER_AUTH_URL=http://localhost:3000
 - ❌ Not for public production
 
 **Pros:**
+
 - Quick setup
 - All services included
 - Simple configuration
 - No external dependencies
 
 **Cons:**
+
 - No HTTPS
 - Limited scalability
 - All services on one server
@@ -69,6 +75,7 @@ BETTER_AUTH_URL=http://localhost:3000
 ### 2. docker-compose-secure.yml (Production - Self-hosted)
 
 **Services Included:**
+
 - Traefik (Reverse Proxy)
 - App (Next.js)
 - Worker (NestJS) - 4 replicas
@@ -77,10 +84,12 @@ BETTER_AUTH_URL=http://localhost:3000
 - MinIO
 
 **URLs:**
+
 - App: `https://${APP_DOMAIN}`
 - Auto SSL: Let's Encrypt
 
 **Environment:**
+
 ```env
 NEXT_PUBLIC_APP_URL=https://demo.supercheck.io
 BETTER_AUTH_URL=https://demo.supercheck.io
@@ -89,6 +98,7 @@ ACME_EMAIL=hello@supercheck.io
 ```
 
 **Use When:**
+
 - ✅ Production deployment
 - ✅ Dedicated server
 - ✅ Need HTTPS
@@ -96,6 +106,7 @@ ACME_EMAIL=hello@supercheck.io
 - ✅ Cost-effective production
 
 **Pros:**
+
 - Automatic HTTPS
 - Production-ready
 - All services included
@@ -103,6 +114,7 @@ ACME_EMAIL=hello@supercheck.io
 - Cost-effective
 
 **Cons:**
+
 - Single server limit
 - Manual scaling
 - Manual backups
@@ -113,20 +125,24 @@ ACME_EMAIL=hello@supercheck.io
 ### 3. docker-compose-external.yml (Production - Cloud-native) 🆕
 
 **Services Included:**
+
 - Traefik (Reverse Proxy)
 - App (Next.js)
 - Worker (NestJS) - 4 replicas
 
 **External Services Required:**
+
 - PostgreSQL (AWS RDS, Supabase, Neon, DigitalOcean, etc.)
 - Redis (Redis Cloud, ElastiCache, Upstash, etc.)
 - S3 Storage (AWS S3, DigitalOcean Spaces, Cloudflare R2, etc.)
 
 **URLs:**
+
 - App: `https://${APP_DOMAIN}`
 - Auto SSL: Let's Encrypt
 
 **Environment:**
+
 ```env
 # All external service endpoints must be provided
 DATABASE_URL=postgresql://user:pass@external-host:5432/db
@@ -137,6 +153,7 @@ ACME_EMAIL=admin@example.com
 ```
 
 **Use When:**
+
 - ✅ Production with managed services
 - ✅ Multi-region deployment
 - ✅ High availability required
@@ -144,6 +161,7 @@ ACME_EMAIL=admin@example.com
 - ✅ Want to scale independently
 
 **Pros:**
+
 - Minimal Docker footprint (4GB RAM vs 8GB)
 - Managed backups (provider-handled)
 - Better scalability
@@ -152,12 +170,14 @@ ACME_EMAIL=admin@example.com
 - Built-in redundancy
 
 **Cons:**
+
 - Requires external service setup
 - Monthly service costs
 - More complex configuration
 - Provider lock-in risk
 
 **Setup Files:**
+
 - Configuration: `.env.external.example`
 - Guide: `EXTERNAL_SERVICES_SETUP.md`
 
@@ -217,7 +237,8 @@ AI_MAX_RETRIES=2
 AI_TEMPERATURE=0.1
 
 # Admin
-SUPER_ADMIN_EMAILS=super.admin@example.com
+# Super admin access is now managed through the database
+# Use ./scripts/setup-super-admin.sh to configure super admin users
 MAX_PROJECTS_PER_ORG=10
 DEFAULT_PROJECT_NAME="Default Project"
 ```
@@ -225,12 +246,14 @@ DEFAULT_PROJECT_NAME="Default Project"
 ### Configuration-Specific Variables
 
 #### docker-compose.yml Only
+
 ```env
 # No additional variables required
 # All services use defaults
 ```
 
 #### docker-compose-secure.yml Only
+
 ```env
 # Traefik/HTTPS
 APP_DOMAIN=demo.supercheck.io
@@ -238,6 +261,7 @@ ACME_EMAIL=hello@supercheck.io
 ```
 
 #### docker-compose-external.yml Only
+
 ```env
 # External Database (REQUIRED)
 DATABASE_URL=postgresql://user:pass@host:5432/db
@@ -270,18 +294,21 @@ ACME_EMAIL=admin@example.com
 ## Resource Requirements
 
 ### docker-compose.yml
+
 - **CPU:** 4 cores minimum
 - **RAM:** 8-10GB
 - **Storage:** 50GB
 - **Services:** 5 containers + 4 worker replicas
 
 ### docker-compose-secure.yml
+
 - **CPU:** 4 cores minimum
 - **RAM:** 8-11GB
 - **Storage:** 50GB
 - **Services:** 6 containers + 4 worker replicas (includes Traefik)
 
 ### docker-compose-external.yml
+
 - **CPU:** 2-3 cores minimum
 - **RAM:** 4-8GB
 - **Storage:** 20GB (app only)
@@ -291,6 +318,7 @@ ACME_EMAIL=admin@example.com
 ## Deployment Commands
 
 ### Development (docker-compose.yml)
+
 ```bash
 # Start
 docker-compose up -d
@@ -303,6 +331,7 @@ docker-compose down
 ```
 
 ### Production Self-hosted (docker-compose-secure.yml)
+
 ```bash
 # Start with HTTPS
 docker-compose -f docker-compose-secure.yml up -d
@@ -315,6 +344,7 @@ docker-compose -f docker-compose-secure.yml down
 ```
 
 ### Production Cloud-native (docker-compose-external.yml)
+
 ```bash
 # Setup environment
 cp .env.external.example .env
@@ -335,6 +365,7 @@ docker-compose -f docker-compose-external.yml down
 ### From docker-compose.yml → docker-compose-secure.yml
 
 1. Set domain environment variables:
+
    ```bash
    echo "APP_DOMAIN=your-domain.com" >> .env
    echo "ACME_EMAIL=your-email@example.com" >> .env
@@ -353,17 +384,20 @@ docker-compose -f docker-compose-external.yml down
 1. Set up external services (see `EXTERNAL_SERVICES_SETUP.md`)
 
 2. Backup data:
+
    ```bash
    docker-compose -f docker-compose-secure.yml exec postgres pg_dump -U postgres supercheck > backup.sql
    ```
 
 3. Configure external services:
+
    ```bash
    cp .env.external.example .env
    # Edit with external credentials
    ```
 
 4. Restore to external PostgreSQL:
+
    ```bash
    psql $DATABASE_URL < backup.sql
    ```
@@ -377,12 +411,14 @@ docker-compose -f docker-compose-external.yml down
 ## Security Considerations
 
 ### docker-compose.yml
+
 - ⚠️ No HTTPS (use reverse proxy or VPN)
 - ⚠️ PostgreSQL port exposed (5432)
 - ✅ Isolated network
 - ⚠️ Development use only
 
 ### docker-compose-secure.yml
+
 - ✅ Automatic HTTPS with Let's Encrypt
 - ✅ HTTP to HTTPS redirect
 - ✅ No exposed database ports
@@ -390,6 +426,7 @@ docker-compose -f docker-compose-external.yml down
 - ✅ Traefik security headers
 
 ### docker-compose-external.yml
+
 - ✅ Automatic HTTPS with Let's Encrypt
 - ✅ Leverages managed service security
 - ✅ Encryption in transit (TLS/SSL)
@@ -400,6 +437,7 @@ docker-compose -f docker-compose-external.yml down
 ## Cost Comparison
 
 ### docker-compose.yml / docker-compose-secure.yml
+
 - **Server Cost:** $20-80/month (Hetzner, DigitalOcean, etc.)
 - **Storage:** Included in server
 - **Backups:** Manual or DIY
@@ -407,6 +445,7 @@ docker-compose -f docker-compose-external.yml down
 - **Total:** $20-80/month
 
 ### docker-compose-external.yml
+
 - **Server Cost:** $10-30/month (smaller server)
 - **PostgreSQL:** $15-50/month (managed)
 - **Redis:** $10-30/month (managed)
@@ -420,6 +459,7 @@ docker-compose -f docker-compose-external.yml down
 ## Choosing the Right Configuration
 
 ### Use `docker-compose.yml` when:
+
 - ✅ Developing locally
 - ✅ Testing features
 - ✅ Single-server deployment
@@ -427,6 +467,7 @@ docker-compose -f docker-compose-external.yml down
 - ✅ Budget-constrained
 
 ### Use `docker-compose-secure.yml` when:
+
 - ✅ Production deployment needed
 - ✅ Have dedicated server
 - ✅ Want HTTPS
@@ -434,6 +475,7 @@ docker-compose -f docker-compose-external.yml down
 - ✅ Cost-effective solution
 
 ### Use `docker-compose-external.yml` when:
+
 - ✅ Need high availability
 - ✅ Want managed services
 - ✅ Require scalability
@@ -451,6 +493,7 @@ docker-compose -f docker-compose-external.yml down
 ## Recent Updates (All Files Synchronized)
 
 ✅ **All three Docker Compose files now include:**
+
 - Data lifecycle management (monitor cleanup, job runs cleanup, playground cleanup)
 - AI Fix feature configuration with advanced settings (timeout, retries, temperature)
 - Complete Playwright configuration

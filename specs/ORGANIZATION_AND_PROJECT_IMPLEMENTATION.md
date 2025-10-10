@@ -272,7 +272,8 @@ CREATE TABLE session (
 
 ```bash
 # Super Admin Configuration
-SUPER_ADMIN_EMAILS=admin@example.com,admin2@example.com
+# Super admin access is now managed through the database
+# Use ./scripts/setup-super-admin.sh to configure super admin users
 
 # Organization & Project Limits
 MAX_PROJECTS_PER_ORG=50

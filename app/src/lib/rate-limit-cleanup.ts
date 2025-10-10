@@ -3,7 +3,7 @@
  * Periodically cleans up expired rate limit entries to prevent memory leaks
  */
 
-import { cleanupRateLimitEntries } from './session-security';
+import { cleanupRateLimitEntries } from "./session-security";
 
 let cleanupInterval: NodeJS.Timeout | null = null;
 
@@ -16,17 +16,17 @@ export function startRateLimitCleanup(intervalMs = 5 * 60 * 1000): void {
     return; // Already started
   }
 
-  console.log('Starting rate limit cleanup service...');
-  
+  console.log("Starting rate limit cleanup service...");
+
   // Initial cleanup
   cleanupRateLimitEntries();
-  
+
   // Set up periodic cleanup
   cleanupInterval = setInterval(() => {
     try {
       cleanupRateLimitEntries();
     } catch (error) {
-      console.error('Error during rate limit cleanup:', error);
+      console.error("Error during rate limit cleanup:", error);
     }
   }, intervalMs);
 }
@@ -38,13 +38,13 @@ export function stopRateLimitCleanup(): void {
   if (cleanupInterval) {
     clearInterval(cleanupInterval);
     cleanupInterval = null;
-    console.log('Rate limit cleanup service stopped');
+    console.log("Rate limit cleanup service stopped");
   }
 }
 
 /**
  * Initialize cleanup service in production environments
  */
-if (process.env.NODE_ENV === 'production' && typeof window === 'undefined') {
+if (process.env.NODE_ENV === "production" && typeof window === "undefined") {
   startRateLimitCleanup();
 }

@@ -3,7 +3,11 @@
 import { db } from "@/utils/db";
 import { runs, reports, jobs, jobTests, projects } from "@/db/schema/schema";
 import { eq, and, count, sql } from "drizzle-orm";
-import { requireAuth, getUserRole, getUserOrgRole } from "@/lib/rbac/middleware";
+import {
+  requireAuth,
+  getUserRole,
+  getUserOrgRole,
+} from "@/lib/rbac/middleware";
 import { Role } from "@/lib/rbac/permissions";
 
 // Type based on the actual API response from /api/runs/[runId]
@@ -24,7 +28,10 @@ type RunResponse = {
   trigger?: string;
 };
 
-export async function getRun(runId: string, isNotificationView: boolean = false): Promise<RunResponse | null> {
+export async function getRun(
+  runId: string,
+  isNotificationView: boolean = false
+): Promise<RunResponse | null> {
   try {
     if (!runId) {
       throw new Error("Missing run ID");
@@ -58,7 +65,7 @@ export async function getRun(runId: string, isNotificationView: boolean = false)
         reports,
         and(
           sql`${reports.entityId} = ${runs.id}::text`,
-          eq(reports.entityType, 'job')
+          eq(reports.entityType, "job")
         )
       )
       .where(eq(runs.id, runId))
@@ -74,24 +81,24 @@ export async function getRun(runId: string, isNotificationView: boolean = false)
     // Skip org access checks for notification views (read-only access)
     if (!isNotificationView) {
       const userRole = await getUserRole(userId);
-      
+
       if (userRole !== Role.SUPER_ADMIN && run.organizationId) {
         const orgRole = await getUserOrgRole(userId, run.organizationId);
-        
+
         if (!orgRole) {
-          throw new Error('Access denied: Not a member of this organization');
+          throw new Error("Access denied: Not a member of this organization");
         }
       }
     }
-    
+
     // Get test count for this job
     const testCountResult = await db
       .select({ count: count() })
       .from(jobTests)
       .where(eq(jobTests.jobId, run.jobId));
-    
+
     const testCount = testCountResult[0]?.count || 0;
-    
+
     const response: RunResponse = {
       ...run,
       jobName: run.jobName || undefined,
@@ -100,10 +107,10 @@ export async function getRun(runId: string, isNotificationView: boolean = false)
       completedAt: run.completedAt?.toISOString() || null,
       testCount,
     };
-    
+
     return response;
   } catch (error) {
-    console.error('Error fetching run:', error);
-    throw new Error('Failed to fetch run');
+    console.error("Error fetching run:", error);
+    throw new Error("Failed to fetch run");
   }
 }

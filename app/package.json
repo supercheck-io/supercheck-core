@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:migrate:prod": "./scripts/migrate.sh"
+    "db:migrate:prod": "./scripts/migrate.sh",
+    "setup:admin": "tsx ./src/lib/bootstrap-super-admin.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.29",

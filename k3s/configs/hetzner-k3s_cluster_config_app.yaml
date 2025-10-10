@@ -1,0 +1,88 @@
+# Hetzner K3s Cluster Configuration for Supercheck App Service
+# This configuration sets up a dedicated cluster for the app service (API, web UI, job scheduling)
+# Optimized for stateless web applications with lower resource requirements
+
+# Replace with your actual Hetzner Cloud API token
+hetzner_token: YOUR_HETZNER_API_TOKEN
+
+# Cluster name
+cluster_name: supercheck-app
+
+# Path where kubeconfig will be generated
+kubeconfig_path: "./kubeconfig-app"
+
+# K3s version
+k3s_version: v1.32.0+k3s1
+
+# Networking configuration with security improvements
+networking:
+  ssh:
+    port: 22
+    use_agent: false
+    public_key_path: "~/.ssh/id_ed25519.pub"
+    private_key_path: "~/.ssh/id_ed25519"
+  allowed_networks:
+    ssh:
+      - 0.0.0.0/0
+    api:
+      - 10.0.0.0/16 # Restrict to private network for better security
+  public_network:
+    ipv4: true
+    ipv6: true
+  private_network:
+    enabled: true # Enable private network for better security
+    subnet: 10.0.0.0/16
+  cni:
+    enabled: true
+    encryption: false # Not needed with private network
+    mode: flannel # Simple and reliable for app services
+
+# Cluster CIDR settings
+cluster_cidr: 10.244.0.0/16
+service_cidr: 10.96.0.0/12
+cluster_dns: 10.96.0.10
+
+# Datastore configuration
+datastore:
+  mode: etcd # Use etcd for HA setup
+
+# Master nodes configuration (HA setup)
+masters_pool:
+  instance_type: cpx21
+  instance_count: 3
+  locations:
+    - fsn1 # Falkenstein
+    - hel1 # Helsinki
+    - nbg1 # Nuremberg
+
+# Worker node pools optimized for app services
+worker_node_pools:
+  - name: app-workers
+    instance_type: cpx21 # Balanced CPU/memory for web services
+    instance_count: 2
+    location: hel1
+    autoscaling:
+      enabled: true
+      min_instances: 2
+      max_instances: 5
+
+# Embedded registry mirror for performance optimization
+embedded_registry_mirror:
+  enabled: true # Reduces external registry calls and improves pod startup times
+
+# Protection settings
+protect_against_deletion: true
+create_load_balancer_for_the_kubernetes_api: true
+
+# K3s upgrade concurrency
+k3s_upgrade_concurrency: 1 # Conservative approach for stability
+
+# Additional packages to install on all nodes
+additional_packages:
+  - ifupdown
+
+# Additional commands to run after k3s installation
+additional_post_k3s_commands:
+  - apt update
+  - apt upgrade -y
+  - apt autoremove -y

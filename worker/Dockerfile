@@ -1,7 +1,7 @@
 # Use platform-agnostic base image with LTS version for better availability
 FROM node:20-slim AS base
 
-# Install base system dependencies once
+# Install base system dependencies once - including fontconfig and fonts
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libnss3 \
@@ -30,8 +30,18 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     ca-certificates \
     iputils-ping \
+    fontconfig \
+    fonts-liberation \
+    fonts-noto-color-emoji \
+    fonts-ipafont-gothic \
+    fonts-wqy-zenhei \
+    fonts-thai-tlwg \
+    fonts-khmeros \
+    fonts-kacst \
+    fonts-freefont-ttf \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && apt-get clean \
+    && fc-cache -f -v
 
 # Dependencies stage
 FROM base AS deps
@@ -91,9 +101,17 @@ COPY --from=builder --chown=nodejs:nodejs /app/playwright.config.js ./
 COPY --from=builder --chown=nodejs:nodejs /app/playwright-browsers /app/playwright-browsers
 
 # Create directories for test execution with proper permissions
-RUN mkdir -p playwright-reports report && \
-    chown -R nodejs:nodejs playwright-reports report /app && \
-    chmod -R 755 playwright-reports report
+# CRITICAL: Create writable font cache directories to fix fontconfig errors
+# Create video output directory for recording on test failures
+RUN mkdir -p playwright-reports report \
+    /home/nodejs/.cache/fontconfig \
+    /home/nodejs/.fontconfig \
+    /var/cache/fontconfig \
+    /tmp/playwright-tests \
+    /tmp/playwright-videos && \
+    chown -R nodejs:nodejs playwright-reports report /app /home/nodejs /tmp/playwright-tests /tmp/playwright-videos && \
+    chmod -R 755 playwright-reports report && \
+    chmod -R 777 /home/nodejs/.cache /home/nodejs/.fontconfig /var/cache/fontconfig /tmp/playwright-tests /tmp/playwright-videos
 
 # Set Playwright browser cache path
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers/ms-playwright
@@ -114,4 +132,8 @@ USER nodejs
 
 EXPOSE 3001
 
-CMD ["node", "--expose-gc", "--max-old-space-size=2048", "dist/src/main.js"]
+# Minimal node flags - no artificial resource limits
+# --max-http-header-size=16384: Prevent header overflow attacks (security only)
+# Removed --max-old-space-size to allow dynamic heap scaling
+# Removed --expose-gc as it's not needed without manual GC management
+CMD ["node", "--max-http-header-size=16384", "dist/src/main.js"]

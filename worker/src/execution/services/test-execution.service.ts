@@ -369,6 +369,55 @@ const fs = require('fs');
 const path = require('path');
 const { chromium } = require('@playwright/test');
 
+// Robust browser launch with retry logic
+async function launchBrowserWithRetry(maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(\`Browser launch attempt \${attempt}/\${maxRetries}...\`);
+
+      const browser = await chromium.launch({
+        headless: true,
+        args: [
+          // CRITICAL: Container compatibility
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-web-security',
+
+          // Font rendering fixes
+          '--font-render-hinting=none',
+          '--disable-font-subpixel-positioning',
+
+          // Stability optimizations
+          '--disable-features=TranslateUI,AudioServiceOutOfProcess',
+          '--disable-background-networking',
+          '--disable-extensions',
+          '--disable-sync',
+          '--no-first-run',
+          '--disable-gpu-sandbox',
+          '--disable-accelerated-2d-canvas',
+        ],
+        timeout: 30000, // 30 second timeout for browser launch
+      });
+
+      console.log('Browser launched successfully');
+      return browser;
+    } catch (error) {
+      console.error(\`Browser launch attempt \${attempt} failed: \${error.message}\`);
+
+      if (attempt === maxRetries) {
+        throw new Error(\`Failed to launch browser after \${maxRetries} attempts: \${error.message}\`);
+      }
+
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = Math.pow(2, attempt - 1) * 1000;
+      console.log(\`Retrying in \${delay}ms...\`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
 (async () => {
   // Store test results
   const results = {
@@ -376,13 +425,13 @@ const { chromium } = require('@playwright/test');
     message: '',
     screenshots: []
   };
-  
+
   let browser = null;
   let page = null;
-  
+
   try {
-    // Launch browser
-    browser = await chromium.launch({ headless: true });
+    // Launch browser with retry logic
+    browser = await launchBrowserWithRetry(3);
     page = await browser.newPage();
     
     // Navigate to URL if provided

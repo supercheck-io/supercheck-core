@@ -267,11 +267,11 @@ export async function deleteMonitor(
       // Log the audit event for monitor deletion
       await logAuditEvent({
         userId,
-        organizationId,
         action: "monitor_deleted",
         resource: "monitor",
         resourceId: monitorId,
         metadata: {
+          organizationId,
           monitorName: transactionResult.monitorData?.name,
           monitorType: transactionResult.monitorData?.type,
           target: transactionResult.monitorData?.target,
@@ -281,10 +281,10 @@ export async function deleteMonitor(
           reportsDeleted: transactionResult.reportsToDelete?.length || 0,
         },
         success: true,
-      }).catch((auditError) => {
+      }).catch((_auditError) => {
         console.error(
           "[DELETE_MONITOR] Error logging audit event (monitor still deleted):",
-          auditError
+          _auditError
         );
       });
 

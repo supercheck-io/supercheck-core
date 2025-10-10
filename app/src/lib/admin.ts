@@ -1,21 +1,30 @@
-import { db } from '@/utils/db';
-import { user, organization, projects, jobs, tests, monitors, runs, member } from '@/db/schema/schema';
-import { count, eq, desc, or, isNull, gte, and } from 'drizzle-orm';
-import { getCurrentUser, getActiveOrganization } from './session';
-import { getUserRole, getUserOrgRole } from './rbac/middleware';
-import { Role } from './rbac/permissions';
+import { db } from "@/utils/db";
+import {
+  user,
+  organization,
+  projects,
+  jobs,
+  tests,
+  monitors,
+  runs,
+  member,
+} from "@/db/schema/schema";
+import { count, eq, desc, or, isNull, gte, and } from "drizzle-orm";
+import { getCurrentUser, getActiveOrganization } from "./session";
+import { getUserRole, getUserOrgRole } from "./rbac/middleware";
+import { Role } from "./rbac/permissions";
 
 export async function isAdmin(): Promise<boolean> {
   try {
     const currentUser = await getCurrentUser();
-    
+
     if (!currentUser) return false;
-    
+
     // Use unified RBAC system to check admin privileges - SUPER_ADMIN only
     const role = await getUserRole(currentUser.id);
     return role === Role.SUPER_ADMIN;
   } catch (error) {
-    console.error('Error checking admin status:', error);
+    console.error("Error checking admin status:", error);
     return false;
   }
 }
@@ -23,14 +32,14 @@ export async function isAdmin(): Promise<boolean> {
 export async function isSuperAdmin(): Promise<boolean> {
   try {
     const currentUser = await getCurrentUser();
-    
+
     if (!currentUser) return false;
-    
+
     // Use unified RBAC system to check super admin privileges
     const role = await getUserRole(currentUser.id);
     return role === Role.SUPER_ADMIN;
   } catch (error) {
-    console.error('Error checking super admin status:', error);
+    console.error("Error checking super admin status:", error);
     return false;
   }
 }
@@ -38,17 +47,17 @@ export async function isSuperAdmin(): Promise<boolean> {
 export async function isOrgAdmin(): Promise<boolean> {
   try {
     const currentUser = await getCurrentUser();
-    
+
     if (!currentUser) return false;
-    
+
     // Check if user is admin or owner of current organization
     const activeOrg = await getActiveOrganization();
     if (!activeOrg) return false;
-    
+
     const orgRole = await getUserOrgRole(currentUser.id, activeOrg.id);
     return orgRole === Role.ORG_ADMIN || orgRole === Role.ORG_OWNER;
   } catch (error) {
-    console.error('Error checking org admin status:', error);
+    console.error("Error checking org admin status:", error);
     return false;
   }
 }
@@ -56,7 +65,7 @@ export async function isOrgAdmin(): Promise<boolean> {
 export async function requireAdmin() {
   const isUserAdmin = await isAdmin();
   if (!isUserAdmin) {
-    throw new Error('Admin privileges required');
+    throw new Error("Admin privileges required");
   }
 }
 
@@ -69,27 +78,27 @@ export interface UserStats {
 
 export async function getUserStats(): Promise<UserStats> {
   await requireAdmin();
-  
+
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  
+
   const [totalUsersResult] = await db.select({ count: count() }).from(user);
-  
+
   const [newUsersResult] = await db
     .select({ count: count() })
     .from(user)
     .where(gte(user.createdAt, thirtyDaysAgo));
-  
+
   const [activeUsersResult] = await db
     .select({ count: count() })
     .from(user)
     .where(or(eq(user.banned, false), isNull(user.banned)));
-  
+
   const [bannedUsersResult] = await db
     .select({ count: count() })
     .from(user)
     .where(eq(user.banned, true));
-  
+
   return {
     totalUsers: totalUsersResult.count,
     newUsersThisMonth: newUsersResult.count,
@@ -109,14 +118,20 @@ export interface OrgStats {
 
 export async function getOrgStats(): Promise<OrgStats> {
   await requireAdmin();
-  
-  const [totalOrgsResult] = await db.select({ count: count() }).from(organization);
-  const [totalProjectsResult] = await db.select({ count: count() }).from(projects);
+
+  const [totalOrgsResult] = await db
+    .select({ count: count() })
+    .from(organization);
+  const [totalProjectsResult] = await db
+    .select({ count: count() })
+    .from(projects);
   const [totalJobsResult] = await db.select({ count: count() }).from(jobs);
   const [totalTestsResult] = await db.select({ count: count() }).from(tests);
-  const [totalMonitorsResult] = await db.select({ count: count() }).from(monitors);
+  const [totalMonitorsResult] = await db
+    .select({ count: count() })
+    .from(monitors);
   const [totalRunsResult] = await db.select({ count: count() }).from(runs);
-  
+
   return {
     totalOrganizations: totalOrgsResult.count,
     totalProjects: totalProjectsResult.count,
@@ -134,12 +149,12 @@ export interface SystemStats {
 
 export async function getSystemStats(): Promise<SystemStats> {
   await requireAdmin();
-  
+
   const [userStats, orgStats] = await Promise.all([
     getUserStats(),
     getOrgStats(),
   ]);
-  
+
   return {
     users: userStats,
     organizations: orgStats,
@@ -148,7 +163,7 @@ export async function getSystemStats(): Promise<SystemStats> {
 
 export async function getAllUsers(limit = 50, offset = 0) {
   await requireAdmin();
-  
+
   const users = await db
     .select({
       id: user.id,
@@ -174,24 +189,25 @@ export async function getAllUsers(limit = 50, offset = 0) {
       try {
         const [highestRole, orgCount] = await Promise.all([
           getUserHighestRole(u.id),
-          getUserOrgCount(u.id)
+          getUserOrgCount(u.id),
         ]);
         // Debug logging removed - implementation complete
-        
+
         // Add org count to name if user is in multiple orgs
-        const nameWithOrgCount = orgCount > 1 ? `${u.name} (${orgCount} orgs)` : u.name;
-        
+        const nameWithOrgCount =
+          orgCount > 1 ? `${u.name} (${orgCount} orgs)` : u.name;
+
         return {
           ...u,
           name: nameWithOrgCount,
-          role: highestRole
+          role: highestRole,
         };
       } catch (error) {
         console.error(`Error getting role for user ${u.id}:`, error);
         // Fallback to database role or default
         return {
           ...u,
-          role: u.role || 'project_viewer'
+          role: u.role || "project_viewer",
         };
       }
     })
@@ -204,18 +220,8 @@ export async function getAllUsers(limit = 50, offset = 0) {
  * Get the user's highest role across all organizations for super admin display
  */
 async function getUserHighestRole(userId: string): Promise<string> {
-  // Check if user is SUPER_ADMIN via email
-  const adminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
-
-  // Check by email
-  const userRecord = await db.select({ email: user.email })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1);
-
-  if (userRecord.length > 0 && userRecord[0].email && adminEmails.includes(userRecord[0].email)) {
-    return 'super_admin';
-  }
+  // Super admin access is now managed through the database
+  // Check user role directly from the database
 
   // Get all organization memberships and find highest role
   const memberships = await db
@@ -224,27 +230,27 @@ async function getUserHighestRole(userId: string): Promise<string> {
     .where(eq(member.userId, userId));
 
   if (memberships.length === 0) {
-    return 'project_viewer'; // Default for users with no org membership
+    return "project_viewer"; // Default for users with no org membership
   }
 
   // Role hierarchy (highest to lowest) - NEW RBAC ONLY
   const roleHierarchy = [
-    'super_admin',
-    'org_owner', 
-    'org_admin',
-    'project_admin',
-    'project_editor',
-    'project_viewer'
+    "super_admin",
+    "org_owner",
+    "org_admin",
+    "project_admin",
+    "project_editor",
+    "project_viewer",
   ];
-  
+
   // Find the highest role
   for (const hierarchyRole of roleHierarchy) {
-    if (memberships.some(m => m.role === hierarchyRole)) {
+    if (memberships.some((m) => m.role === hierarchyRole)) {
       return hierarchyRole;
     }
   }
 
-  return 'project_viewer';
+  return "project_viewer";
 }
 
 /**
@@ -261,7 +267,7 @@ async function getUserOrgCount(userId: string): Promise<number> {
 
 export async function getAllOrganizations(limit = 50, offset = 0) {
   await requireAdmin();
-  
+
   const organizations = await db
     .select({
       id: organization.id,
@@ -284,29 +290,27 @@ export async function getAllOrganizations(limit = 50, offset = 0) {
         const ownerResult = await db
           .select({
             ownerEmail: user.email,
-            ownerName: user.name
+            ownerName: user.name,
           })
           .from(member)
           .innerJoin(user, eq(member.userId, user.id))
           .where(
-            and(
-              eq(member.organizationId, org.id),
-              eq(member.role, 'org_owner')
-            )
+            and(eq(member.organizationId, org.id), eq(member.role, "org_owner"))
           )
           .limit(1);
 
-        const ownerEmail = ownerResult.length > 0 ? ownerResult[0].ownerEmail : null;
-        
+        const ownerEmail =
+          ownerResult.length > 0 ? ownerResult[0].ownerEmail : null;
+
         return {
           ...org,
-          ownerEmail
+          ownerEmail,
         };
       } catch (error) {
         console.error(`Error getting owner for organization ${org.id}:`, error);
         return {
           ...org,
-          ownerEmail: null
+          ownerEmail: null,
         };
       }
     })

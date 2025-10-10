@@ -85,6 +85,7 @@ module.exports = defineConfig({
     /* Artifact collection strategy - configurable via environment variables */
     trace: process.env.PLAYWRIGHT_TRACE || 'retain-on-failure',
     screenshot: process.env.PLAYWRIGHT_SCREENSHOT || 'only-on-failure',
+    // Video recording enabled on test failures for debugging (with increased resource limits)
     video: process.env.PLAYWRIGHT_VIDEO || 'retain-on-failure',
 
     /* Browser optimization for resource efficiency - browser-specific args moved to projects */
@@ -114,19 +115,36 @@ module.exports = defineConfig({
         viewport: { width: 1280, height: 720 }, // Standard viewport for consistent results
         // Enable headless mode for better performance
         headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
-        // Chrome-specific launch options
+        // Chrome-specific launch options - optimized for containerized environments
         launchOptions: {
           args: [
+            // CRITICAL: Core container compatibility flags
             '--disable-dev-shm-usage', // Prevent /dev/shm issues in containers
             '--disable-gpu', // Reduce GPU memory usage
             '--no-sandbox', // Required for containerized environments
             '--disable-setuid-sandbox',
             '--disable-web-security', // Allow cross-origin requests for testing
-            '--disable-features=TranslateUI', // Reduce memory overhead
-            '--disable-ipc-flooding-protection', // Prevent IPC flooding in heavy tests
-            '--memory-pressure-off', // Disable memory pressure warnings
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
+
+            // REMOVED --single-process: Causes "Target page closed" errors and browser instability
+            // Let browser manage processes naturally for better stability
+
+            // Font rendering fixes (prevents fontconfig errors)
+            '--font-render-hinting=none',
+            '--disable-font-subpixel-positioning',
+
+            // Memory and resource optimization (kept minimal for stability)
+            '--disable-features=TranslateUI,AudioServiceOutOfProcess',
+            '--disable-background-networking',
+            '--disable-default-apps',
+            '--disable-extensions',
+            '--disable-sync',
+            '--disable-translate',
+            '--no-first-run',
+            '--no-default-browser-check',
+
+            // Additional stability flags
+            '--disable-gpu-sandbox',
+            '--disable-accelerated-2d-canvas',
           ],
         },
       },

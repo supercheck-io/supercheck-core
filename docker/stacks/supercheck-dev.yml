@@ -34,7 +34,7 @@ services:
       - BETTER_AUTH_SECRET_FILE=/run/secrets/auth_secret
       - RUNNING_CAPACITY=2 # Reduced for dev
       - QUEUED_CAPACITY=10 # Reduced for dev
-      - MAX_CONCURRENT_EXECUTIONS=1 # Max parallel tests per worker (default: 1)
+      - MAX_CONCURRENT_EXECUTIONS=2 # Max parallel tests per worker (default: 1)
       - TEST_EXECUTION_TIMEOUT_MS=120000
       - JOB_EXECUTION_TIMEOUT_MS=900000
 
@@ -43,7 +43,6 @@ services:
       - VARIABLES_ENCRYPTION_KEY_FILE=/run/secrets/variables_encryption_key
 
       # Admin Configuration
-      - SUPER_ADMIN_EMAILS=dev@localhost
       - MAX_PROJECTS_PER_ORG=5
       - DEFAULT_PROJECT_NAME=Dev Project
 
@@ -137,7 +136,7 @@ services:
       - UV_THREADPOOL_SIZE=2 # Reduced threads
       - RUNNING_CAPACITY=2 # Reduced capacity
       - QUEUED_CAPACITY=10 # Reduced capacity
-      - MAX_CONCURRENT_EXECUTIONS=1 # Max parallel tests per worker (default: 1)
+      - MAX_CONCURRENT_EXECUTIONS=2 # Max parallel tests per worker (default: 1)
       - TEST_EXECUTION_TIMEOUT_MS=120000
       - JOB_EXECUTION_TIMEOUT_MS=900000
 

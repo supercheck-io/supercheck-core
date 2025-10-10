@@ -107,7 +107,8 @@ BETTER_AUTH_SECRET=your-super-secret-key-change-this-in-production
 BETTER_AUTH_URL=https://supercheck.meditationblue.com
 
 # Admin Configuration
-SUPER_ADMIN_EMAILS=admin@example.com
+# Super admin access is now managed through the database
+# Use ./scripts/setup-super-admin.sh to configure super admin users
 
 # RBAC Settings
 MAX_PROJECTS_PER_ORG=10
@@ -196,7 +197,6 @@ ENABLE_MOBILE=false
 **Should be customized per environment:**
 
 - `NEXT_PUBLIC_APP_URL`
-- `SUPER_ADMIN_EMAILS`
 - `RUNNING_CAPACITY`
 - `QUEUED_CAPACITY`
 

@@ -28,7 +28,9 @@ export default function ForgotPasswordPage() {
       });
 
       if (result.error) {
-        setError("Too many password reset attempts. Please try again after some time.");
+        setError(
+          "Too many password reset attempts. Please try again after some time."
+        );
       } else {
         setIsSuccess(true);
       }
@@ -50,7 +52,8 @@ export default function ForgotPasswordPage() {
                   <CheckCircle className="h-12 w-12 text-green-500" />
                   <h1 className="text-2xl font-bold">Check your email</h1>
                   <p className="text-muted-foreground text-balance">
-                    We&apos;ve sent a password reset link to <strong>{email}</strong>
+                    We&apos;ve sent a password reset link to{" "}
+                    <strong>{email}</strong>
                   </p>
                   <p className="text-sm text-muted-foreground">
                     The link will expire in 1 hour for security reasons.
@@ -85,7 +88,8 @@ export default function ForgotPasswordPage() {
                   <div className="flex flex-col items-center text-center">
                     <h1 className="text-2xl font-bold mb-1">Forgot password</h1>
                     <p className="text-muted-foreground text-balance text-sm">
-                      Enter your email address and we&apos;ll send you a link to reset your password.
+                      Enter your email address and we&apos;ll send you a link to
+                      reset your password.
                     </p>
                   </div>
                   <div className="grid gap-3">
@@ -102,8 +106,14 @@ export default function ForgotPasswordPage() {
                     />
                   </div>
                   {error && <p className="text-red-500 text-sm">{error}</p>}
-                  <Button type="submit" className="w-full" disabled={isLoading || !email}>
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isLoading || !email}
+                  >
+                    {isLoading && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Send reset link
                   </Button>
                   <div className="text-center">
@@ -125,7 +135,9 @@ export default function ForgotPasswordPage() {
                 <CheckIcon className="h-10 w-10" />
                 <div className="grid text-left text-sm leading-tight">
                   <span className="font-semibold text-lg">Supercheck</span>
-                  <span className="text-muted-foreground">Automation & Monitoring for Modern Apps</span>
+                  <span className="text-muted-foreground">
+                    Automation & Monitoring for Modern Apps
+                  </span>
                 </div>
               </div>
             </div>

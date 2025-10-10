@@ -23,17 +23,20 @@ export async function deleteTest(testId: string) {
 
     // Check test deletion permission using Better Auth with proper context
     try {
-      const { hasPermission } = await import('@/lib/rbac/middleware');
-      const canDelete = await hasPermission('test', 'delete', {
+      const { hasPermission } = await import("@/lib/rbac/middleware");
+      const canDelete = await hasPermission("test", "delete", {
         organizationId,
-        projectId: project.id
+        projectId: project.id,
       });
 
       if (!canDelete) {
-        throw new Error('Insufficient permissions to delete tests');
+        throw new Error("Insufficient permissions to delete tests");
       }
     } catch (error) {
-      console.warn(`User ${userId} attempted to delete test ${testId} without permission:`, error);
+      console.warn(
+        `User ${userId} attempted to delete test ${testId} without permission:`,
+        error
+      );
       return {
         success: false,
         error: "Insufficient permissions to delete tests",
@@ -42,18 +45,20 @@ export async function deleteTest(testId: string) {
 
     // First verify the test exists and belongs to current project - get details for audit
     const existingTest = await db
-      .select({ 
-        id: tests.id, 
+      .select({
+        id: tests.id,
         title: tests.title,
         type: tests.type,
-        priority: tests.priority
+        priority: tests.priority,
       })
       .from(tests)
-      .where(and(
-        eq(tests.id, testId),
-        eq(tests.projectId, project.id),
-        eq(tests.organizationId, organizationId)
-      ))
+      .where(
+        and(
+          eq(tests.id, testId),
+          eq(tests.projectId, project.id),
+          eq(tests.organizationId, organizationId)
+        )
+      )
       .limit(1);
 
     if (existingTest.length === 0) {
@@ -106,11 +111,16 @@ export async function deleteTest(testId: string) {
     }
 
     // Delete the test if not associated with any jobs (with project scoping for extra safety)
-    const result = await db.delete(tests).where(and(
-      eq(tests.id, testId),
-      eq(tests.projectId, project.id),
-      eq(tests.organizationId, organizationId)
-    )).returning();
+    const result = await db
+      .delete(tests)
+      .where(
+        and(
+          eq(tests.id, testId),
+          eq(tests.projectId, project.id),
+          eq(tests.organizationId, organizationId)
+        )
+      )
+      .returning();
 
     if (result.length === 0) {
       return {
@@ -123,18 +133,18 @@ export async function deleteTest(testId: string) {
     // Log the audit event for test deletion
     await logAuditEvent({
       userId,
-      organizationId,
-      action: 'test_deleted',
-      resource: 'test',
+      action: "test_deleted",
+      resource: "test",
       resourceId: testId,
       metadata: {
+        organizationId,
         testTitle: existingTest[0].title,
         testType: existingTest[0].type,
         testPriority: existingTest[0].priority,
         projectId: project.id,
-        projectName: project.name
+        projectName: project.name,
       },
-      success: true
+      success: true,
     });
 
     // Revalidate the tests path to ensure UI is updated
@@ -142,7 +152,9 @@ export async function deleteTest(testId: string) {
     // Also revalidate the jobs path as it might show test information
     revalidatePath("/jobs");
 
-    console.log(`Successfully deleted test ${testId} from project ${project.name} by user ${userId}`);
+    console.log(
+      `Successfully deleted test ${testId} from project ${project.name} by user ${userId}`
+    );
 
     return {
       success: true,

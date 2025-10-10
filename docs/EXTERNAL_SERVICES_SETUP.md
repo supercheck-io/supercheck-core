@@ -60,6 +60,7 @@ Before starting, ensure you have:
 - **Google Cloud SQL** - Enterprise-grade managed PostgreSQL
 
 **Minimum Requirements:**
+
 - PostgreSQL version: 18+ (recommended for UUIDv7 support and performance improvements)
 - Memory: 2GB minimum, 4GB recommended
 - Storage: 20GB minimum
@@ -76,6 +77,7 @@ Before starting, ensure you have:
 - **Google Cloud Memorystore** - Enterprise Redis
 
 **Minimum Requirements:**
+
 - Redis version: 7+
 - Memory: 512MB minimum, 1GB recommended
 - Max connections: 100 minimum
@@ -92,6 +94,7 @@ Before starting, ensure you have:
 - **MinIO (Self-hosted)** - Open source S3-compatible
 
 **Minimum Requirements:**
+
 - Two buckets: `playwright-job-artifacts`, `playwright-test-artifacts`
 - Permissions: PutObject, GetObject, DeleteObject
 - Lifecycle policies for artifact retention
@@ -133,12 +136,14 @@ DATABASE_URL=postgresql://supercheck_user:your-secure-password@your-postgres-hos
 #### Provider-Specific Examples
 
 **AWS RDS:**
+
 ```env
 DB_HOST=supercheck-db.xxxxx.us-east-1.rds.amazonaws.com
 DATABASE_URL=postgresql://supercheck_user:password@supercheck-db.xxxxx.us-east-1.rds.amazonaws.com:5432/supercheck
 ```
 
 **Supabase:**
+
 ```env
 DB_HOST=db.xxxxxxxxxxxx.supabase.co
 DB_PORT=5432
@@ -146,6 +151,7 @@ DATABASE_URL=postgresql://postgres:password@db.xxxxxxxxxxxx.supabase.co:5432/pos
 ```
 
 **Neon:**
+
 ```env
 DB_HOST=ep-xxxx-xxxx.us-east-2.aws.neon.tech
 DATABASE_URL=postgresql://user:password@ep-xxxx-xxxx.us-east-2.aws.neon.tech/supercheck
@@ -158,7 +164,7 @@ DATABASE_URL=postgresql://user:password@ep-xxxx-xxxx.us-east-2.aws.neon.tech/sup
 For Redis Cloud/ElastiCache/Upstash:
 
 1. Enable password authentication (REQUIRED)
-2. Set maxmemory policy to `allkeys-lru`
+2. Set maxmemory policy to `noeviction`
 3. Configure maxmemory to at least 512MB
 4. Disable persistence (for performance)
 5. Enable TLS/SSL for production
@@ -177,6 +183,7 @@ REDIS_URL=redis://:your-redis-password@your-redis-host.example.com:6379
 #### Provider-Specific Examples
 
 **Redis Cloud:**
+
 ```env
 REDIS_HOST=redis-12345.c1.us-east-1-2.ec2.cloud.redislabs.com
 REDIS_PORT=12345
@@ -184,6 +191,7 @@ REDIS_URL=redis://:password@redis-12345.c1.us-east-1-2.ec2.cloud.redislabs.com:1
 ```
 
 **Upstash (with TLS):**
+
 ```env
 REDIS_HOST=usxx-xxxxx.upstash.io
 REDIS_PORT=6379
@@ -191,6 +199,7 @@ REDIS_URL=rediss://:password@usxx-xxxxx.upstash.io:6379
 ```
 
 **AWS ElastiCache:**
+
 ```env
 REDIS_HOST=supercheck-redis.xxxxx.use1.cache.amazonaws.com
 REDIS_PORT=6379
@@ -202,6 +211,7 @@ REDIS_URL=redis://:password@supercheck-redis.xxxxx.use1.cache.amazonaws.com:6379
 #### Create Buckets
 
 Create two buckets:
+
 - `playwright-job-artifacts` (or your preferred name)
 - `playwright-test-artifacts` (or your preferred name)
 
@@ -249,6 +259,7 @@ S3_FORCE_PATH_STYLE=false  # false for AWS, true for others
 #### Provider-Specific Examples
 
 **AWS S3:**
+
 ```env
 AWS_REGION=us-east-1
 S3_ENDPOINT=  # Leave empty or use https://s3.amazonaws.com
@@ -256,6 +267,7 @@ S3_FORCE_PATH_STYLE=false
 ```
 
 **DigitalOcean Spaces:**
+
 ```env
 AWS_REGION=nyc3
 S3_ENDPOINT=https://nyc3.digitaloceanspaces.com
@@ -263,6 +275,7 @@ S3_FORCE_PATH_STYLE=true
 ```
 
 **Cloudflare R2:**
+
 ```env
 AWS_REGION=auto
 S3_ENDPOINT=https://xxxxxxxxxxxxx.r2.cloudflarestorage.com
@@ -270,6 +283,7 @@ S3_FORCE_PATH_STYLE=true
 ```
 
 **Backblaze B2:**
+
 ```env
 AWS_REGION=us-west-000
 S3_ENDPOINT=https://s3.us-west-000.backblazeb2.com
@@ -287,6 +301,7 @@ cp .env.external.example .env
 Edit `.env` with your external service credentials. See `.env.external.example` for all required variables.
 
 **Critical Variables to Set:**
+
 - All database connection strings
 - Redis connection details
 - S3/storage credentials
@@ -317,21 +332,25 @@ docker-compose -f docker-compose-external.yml up -d --scale worker=6
 ### 6. Verify Deployment
 
 1. **Database Migration**: Check app logs for successful migration
+
    ```bash
    docker-compose -f docker-compose-external.yml logs app | grep -i migration
    ```
 
 2. **Redis Connection**: Check worker logs for queue connection
+
    ```bash
    docker-compose -f docker-compose-external.yml logs worker | grep -i redis
    ```
 
 3. **S3 Connection**: Check that buckets are accessible
+
    ```bash
    docker-compose -f docker-compose-external.yml logs app | grep -i s3
    ```
 
 4. **HTTPS Setup**: Wait for Let's Encrypt certificate (1-2 minutes)
+
    ```bash
    docker-compose -f docker-compose-external.yml logs traefik | grep -i certificate
    ```
@@ -376,12 +395,14 @@ docker-compose -f docker-compose-external.yml up -d --scale worker=2
 ## Cost Optimization Tips
 
 1. **PostgreSQL**:
+
    - Use connection pooling (PgBouncer)
    - Right-size instance based on usage
    - Enable autoscaling if available
    - Consider serverless options (Neon, Supabase)
 
 2. **Redis**:
+
    - Use eviction policies to manage memory
    - Consider serverless Redis (Upstash) for variable workloads
    - Disable persistence if not needed
@@ -397,6 +418,7 @@ docker-compose -f docker-compose-external.yml up -d --scale worker=2
 ### Connection Issues
 
 **Database connection failed:**
+
 ```bash
 # Test connection
 psql $DATABASE_URL -c "SELECT 1"
@@ -406,6 +428,7 @@ psql $DATABASE_URL -c "SELECT 1"
 ```
 
 **Redis connection timeout:**
+
 ```bash
 # Test connection
 redis-cli -h $REDIS_HOST -p $REDIS_PORT -a $REDIS_PASSWORD ping
@@ -415,6 +438,7 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT -a $REDIS_PASSWORD ping
 ```
 
 **S3 access denied:**
+
 ```bash
 # Test credentials
 aws s3 ls s3://$S3_JOB_BUCKET_NAME --endpoint-url $S3_ENDPOINT
@@ -426,17 +450,20 @@ aws s3 ls s3://$S3_JOB_BUCKET_NAME --endpoint-url $S3_ENDPOINT
 ### Performance Issues
 
 **Slow database queries:**
+
 - Enable connection pooling
 - Add database indexes (check migration files)
 - Monitor query performance with provider tools
 - Consider read replicas for high read workloads
 
 **Redis memory issues:**
+
 - Monitor memory usage with `INFO memory`
 - Adjust maxmemory and eviction policy
 - Consider upgrading instance size
 
 **S3 upload/download slow:**
+
 - Check network latency to S3 endpoint
 - Consider using same region for app and S3
 - Enable multipart uploads for large files
@@ -444,18 +471,21 @@ aws s3 ls s3://$S3_JOB_BUCKET_NAME --endpoint-url $S3_ENDPOINT
 ## Security Best Practices
 
 1. **Network Security**:
+
    - Enable SSL/TLS for all connections
    - Use VPC/private networks where possible
    - Restrict access with firewall rules
    - Use jump hosts for database access
 
 2. **Credentials Management**:
+
    - Rotate credentials regularly
    - Use IAM roles instead of access keys (AWS)
    - Store secrets in environment variables or secret managers
    - Never commit credentials to version control
 
 3. **Access Control**:
+
    - Follow principle of least privilege
    - Create dedicated service accounts
    - Enable audit logging
@@ -472,6 +502,7 @@ aws s3 ls s3://$S3_JOB_BUCKET_NAME --endpoint-url $S3_ENDPOINT
 To migrate from local docker-compose to external services:
 
 1. **Backup Local Data**:
+
    ```bash
    # Backup PostgreSQL
    docker-compose exec postgres pg_dump -U postgres supercheck > backup.sql
@@ -481,6 +512,7 @@ To migrate from local docker-compose to external services:
    ```
 
 2. **Restore to External Services**:
+
    ```bash
    # Restore PostgreSQL
    psql $DATABASE_URL < backup.sql
@@ -490,6 +522,7 @@ To migrate from local docker-compose to external services:
    ```
 
 3. **Update Configuration**:
+
    ```bash
    cp .env.external.example .env
    # Edit .env with external service credentials

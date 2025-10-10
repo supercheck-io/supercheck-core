@@ -1,5 +1,5 @@
 // HTML report parser for extracting test failure information
-import { JSDOM } from 'jsdom';
+import { JSDOM } from "jsdom";
 
 export interface ExtractedTestError {
   message: string;
@@ -7,21 +7,20 @@ export interface ExtractedTestError {
   lineNumber?: number;
   testName: string;
   stackTrace?: string;
-  source: 'html' | 'markdown';
+  source: "html" | "markdown";
 }
 
 export interface ParsedHTMLReport {
   errors: ExtractedTestError[];
   testName: string;
   duration: string;
-  status: 'passed' | 'failed' | 'skipped' | 'flaky';
+  status: "passed" | "failed" | "skipped" | "flaky";
   browser?: string;
   totalTests: number;
   failedTests: number;
 }
 
 export class HTMLReportParser {
-
   /**
    * Parse HTML report content to extract error information
    * This serves as fallback when markdown reports are not available (API/DB tests)
@@ -51,8 +50,12 @@ export class HTMLReportParser {
         failedTests,
       };
     } catch (error) {
-      console.error('Failed to parse HTML report:', error);
-      throw new Error(`HTML report parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("Failed to parse HTML report:", error);
+      throw new Error(
+        `HTML report parsing failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   }
 
@@ -62,11 +65,11 @@ export class HTMLReportParser {
   private static extractTestName(document: Document): string {
     // Try different selectors for test name
     const selectors = [
-      'h1', // Main heading
-      '.test-title',
+      "h1", // Main heading
+      ".test-title",
       '[data-testid="test-title"]',
-      '.test-name',
-      '.suite-title'
+      ".test-name",
+      ".suite-title",
     ];
 
     for (const selector of selectors) {
@@ -77,8 +80,8 @@ export class HTMLReportParser {
     }
 
     // Fallback to page title
-    const title = document.querySelector('title');
-    return title?.textContent?.trim() || 'Unknown Test';
+    const title = document.querySelector("title");
+    return title?.textContent?.trim() || "Unknown Test";
   }
 
   /**
@@ -87,9 +90,9 @@ export class HTMLReportParser {
   private static extractTestDuration(document: Document): string {
     // Look for duration information
     const durationSelectors = [
-      '.test-duration',
-      '.duration',
-      '[data-testid="duration"]'
+      ".test-duration",
+      ".duration",
+      '[data-testid="duration"]',
     ];
 
     for (const selector of durationSelectors) {
@@ -100,63 +103,75 @@ export class HTMLReportParser {
     }
 
     // Try to extract from text content
-    const bodyText = document.body?.textContent || '';
-    const durationMatch = bodyText.match(/(\d+\.?\d*)\s*(ms|s|seconds?|minutes?)/i);
-    return durationMatch ? durationMatch[0] : 'Unknown';
+    const bodyText = document.body?.textContent || "";
+    const durationMatch = bodyText.match(
+      /(\d+\.?\d*)\s*(ms|s|seconds?|minutes?)/i
+    );
+    return durationMatch ? durationMatch[0] : "Unknown";
   }
 
   /**
    * Extract test status from HTML report
    */
-  private static extractTestStatus(document: Document): 'passed' | 'failed' | 'skipped' | 'flaky' {
-    const bodyText = document.body?.textContent?.toLowerCase() || '';
+  private static extractTestStatus(
+    document: Document
+  ): "passed" | "failed" | "skipped" | "flaky" {
+    const bodyText = document.body?.textContent?.toLowerCase() || "";
 
     // Check for status indicators
-    if (bodyText.includes('failed') || bodyText.includes('error')) {
-      return 'failed';
+    if (bodyText.includes("failed") || bodyText.includes("error")) {
+      return "failed";
     }
-    if (bodyText.includes('skipped')) {
-      return 'skipped';
+    if (bodyText.includes("skipped")) {
+      return "skipped";
     }
-    if (bodyText.includes('flaky')) {
-      return 'flaky';
+    if (bodyText.includes("flaky")) {
+      return "flaky";
     }
-    if (bodyText.includes('passed') || bodyText.includes('success')) {
-      return 'passed';
+    if (bodyText.includes("passed") || bodyText.includes("success")) {
+      return "passed";
     }
 
     // Check status classes or attributes
-    const statusElement = document.querySelector('.status, [data-status], .test-status');
+    const statusElement = document.querySelector(
+      ".status, [data-status], .test-status"
+    );
     if (statusElement) {
-      const status = statusElement.textContent?.toLowerCase() ||
-                   statusElement.getAttribute('data-status')?.toLowerCase() ||
-                   statusElement.className.toLowerCase();
+      const status =
+        statusElement.textContent?.toLowerCase() ||
+        statusElement.getAttribute("data-status")?.toLowerCase() ||
+        statusElement.className.toLowerCase();
 
-      if (status.includes('fail')) return 'failed';
-      if (status.includes('pass')) return 'passed';
-      if (status.includes('skip')) return 'skipped';
-      if (status.includes('flaky')) return 'flaky';
+      if (status.includes("fail")) return "failed";
+      if (status.includes("pass")) return "passed";
+      if (status.includes("skip")) return "skipped";
+      if (status.includes("flaky")) return "flaky";
     }
 
-    return 'failed'; // Default to failed if we can't determine
+    return "failed"; // Default to failed if we can't determine
   }
 
   /**
    * Extract browser information from HTML report
    */
   private static extractBrowserInfo(document: Document): string | undefined {
-    const bodyText = document.body?.textContent || '';
+    const bodyText = document.body?.textContent || "";
 
     // Look for browser mentions
-    const browserMatch = bodyText.match(/(chromium|chrome|firefox|webkit|safari|edge)/i);
+    const browserMatch = bodyText.match(
+      /(chromium|chrome|firefox|webkit|safari|edge)/i
+    );
     return browserMatch ? browserMatch[1] : undefined;
   }
 
   /**
    * Extract test counts from HTML report
    */
-  private static extractTestCounts(document: Document): { totalTests: number; failedTests: number } {
-    const bodyText = document.body?.textContent || '';
+  private static extractTestCounts(document: Document): {
+    totalTests: number;
+    failedTests: number;
+  } {
+    const bodyText = document.body?.textContent || "";
 
     // Try to extract test counts
     const allMatch = bodyText.match(/All\s+(\d+)/i);
@@ -171,41 +186,45 @@ export class HTMLReportParser {
   /**
    * Extract error information from HTML report
    */
-  private static extractErrors(document: Document, testName: string): ExtractedTestError[] {
+  private static extractErrors(
+    document: Document,
+    testName: string
+  ): ExtractedTestError[] {
     const errors: ExtractedTestError[] = [];
 
     // Look for error sections with expanded selectors for Playwright reports
     const errorSelectors = [
-      '.error',
-      '.failure',
-      '.test-error',
+      ".error",
+      ".failure",
+      ".test-error",
       '[data-testid="error"]',
-      '.errors',
-      '.call-log',
-      '.test-result-error',
-      '.playwright-error',
-      '.step-error',
-      '.attachment-body', // Playwright attachments often contain error details
-      'pre', // Playwright often uses pre tags for error output
-      'code', // Code blocks may contain stack traces
+      ".errors",
+      ".call-log",
+      ".test-result-error",
+      ".playwright-error",
+      ".step-error",
+      ".attachment-body", // Playwright attachments often contain error details
+      "pre", // Playwright often uses pre tags for error output
+      "code", // Code blocks may contain stack traces
       '[class*="error"]', // Any class containing "error"
-      '[class*="fail"]',   // Any class containing "fail"
-      '.test-case',       // Playwright test case containers
-      '.test-step',       // Individual test steps
-      '.result-item',     // Result containers
-      '.step',            // Step elements
-      '[data-test-id]',   // Data test id elements
-      '[data-testid]',    // Alternative data test id
-      '.call',            // Call elements
-      '.test-result'      // Test result containers
+      '[class*="fail"]', // Any class containing "fail"
+      ".test-case", // Playwright test case containers
+      ".test-step", // Individual test steps
+      ".result-item", // Result containers
+      ".step", // Step elements
+      "[data-test-id]", // Data test id elements
+      "[data-testid]", // Alternative data test id
+      ".call", // Call elements
+      ".test-result", // Test result containers
     ];
 
     for (const selector of errorSelectors) {
       const errorElements = document.querySelectorAll(selector);
 
-      errorElements.forEach(element => {
+      errorElements.forEach((element) => {
         const textContent = element.textContent?.trim();
-        if (textContent && textContent.length > 10) { // Avoid short/empty text
+        if (textContent && textContent.length > 10) {
+          // Avoid short/empty text
           const error = this.parseErrorElement(element, testName);
           if (error) {
             errors.push(error);
@@ -216,29 +235,43 @@ export class HTMLReportParser {
 
     // Enhanced body text parsing for common Playwright error patterns - MORE AGGRESSIVE
     if (errors.length === 0) {
-      console.log('[HTML Parser Debug] No errors found via selectors, parsing body text aggressively');
-      const bodyText = document.body?.textContent || '';
-      const innerHTML = document.body?.innerHTML || '';
-      console.log('[HTML Parser Debug] Body text length:', bodyText.length);
-      console.log('[HTML Parser Debug] Body HTML length:', innerHTML.length);
+      console.log(
+        "[HTML Parser Debug] No errors found via selectors, parsing body text aggressively"
+      );
+      const bodyText = document.body?.textContent || "";
+      const innerHTML = document.body?.innerHTML || "";
+      console.log("[HTML Parser Debug] Body text length:", bodyText.length);
+      console.log("[HTML Parser Debug] Body HTML length:", innerHTML.length);
 
       // Log a sample of the body text to understand content structure
-      console.log('[HTML Parser Debug] Body text sample (first 1000 chars):', bodyText.substring(0, 1000));
+      console.log(
+        "[HTML Parser Debug] Body text sample (first 1000 chars):",
+        bodyText.substring(0, 1000)
+      );
 
       // Check if it's a proper Playwright report by looking for structural elements
       const playwrightStructure = {
-        hasDataTestId: innerHTML.includes('data-testid'),
-        hasTestCases: innerHTML.includes('test-case') || innerHTML.includes('testcase'),
-        hasTestResults: innerHTML.includes('test-result') || innerHTML.includes('result'),
-        hasSteps: innerHTML.includes('step') || innerHTML.includes('call'),
-        hasAttachments: innerHTML.includes('attachment'),
-        hasReportData: innerHTML.includes('report-data') || innerHTML.includes('data'),
-        hasFailureClass: innerHTML.includes('failed') || innerHTML.includes('error'),
-        hasScript: innerHTML.includes('<script'),
-        hasPlaywrightTitle: bodyText.toLowerCase().includes('playwright') && bodyText.toLowerCase().includes('report')
+        hasDataTestId: innerHTML.includes("data-testid"),
+        hasTestCases:
+          innerHTML.includes("test-case") || innerHTML.includes("testcase"),
+        hasTestResults:
+          innerHTML.includes("test-result") || innerHTML.includes("result"),
+        hasSteps: innerHTML.includes("step") || innerHTML.includes("call"),
+        hasAttachments: innerHTML.includes("attachment"),
+        hasReportData:
+          innerHTML.includes("report-data") || innerHTML.includes("data"),
+        hasFailureClass:
+          innerHTML.includes("failed") || innerHTML.includes("error"),
+        hasScript: innerHTML.includes("<script"),
+        hasPlaywrightTitle:
+          bodyText.toLowerCase().includes("playwright") &&
+          bodyText.toLowerCase().includes("report"),
       };
 
-      console.log('[HTML Parser Debug] Playwright structure analysis:', playwrightStructure);
+      console.log(
+        "[HTML Parser Debug] Playwright structure analysis:",
+        playwrightStructure
+      );
 
       // More comprehensive error patterns for Playwright reports
       const errorPatterns = [
@@ -255,7 +288,7 @@ export class HTMLReportParser {
         /element is not.*visible/i,
         /response status.*not ok/i,
         /Test failed/i,
-        /test\.spec\./i,  // Playwright test file references
+        /test\.spec\./i, // Playwright test file references
         /at .*\.spec\./i, // Stack trace references to spec files
         /expected.*received/i, // Jest-style assertion failures
         /toHaveText/i,
@@ -276,11 +309,11 @@ export class HTMLReportParser {
         /element\.click/i,
         /element\.fill/i,
         /screenshot/i,
-        /trace/i
+        /trace/i,
       ];
 
       let foundError = false;
-      let matchedPattern = '';
+      let matchedPattern = "";
       for (const pattern of errorPatterns) {
         if (pattern.test(bodyText)) {
           foundError = true;
@@ -289,134 +322,199 @@ export class HTMLReportParser {
         }
       }
 
-      console.log('[HTML Parser Debug] Found error pattern:', foundError, 'Pattern:', matchedPattern);
+      console.log(
+        "[HTML Parser Debug] Found error pattern:",
+        foundError,
+        "Pattern:",
+        matchedPattern
+      );
 
       // Even more aggressive - check for any test failure indicators
       if (!foundError) {
-        const failureIndicators = ['✗', '×', 'FAIL', 'fail', 'Failed', 'ERROR', 'Exception'];
+        const failureIndicators = [
+          "✗",
+          "×",
+          "FAIL",
+          "fail",
+          "Failed",
+          "ERROR",
+          "Exception",
+        ];
         for (const indicator of failureIndicators) {
           if (bodyText.includes(indicator)) {
             foundError = true;
-            console.log('[HTML Parser Debug] Found failure indicator:', indicator);
+            console.log(
+              "[HTML Parser Debug] Found failure indicator:",
+              indicator
+            );
             break;
           }
         }
       }
 
-      if (foundError || bodyText.toLowerCase().includes('✗') || bodyText.toLowerCase().includes('failed')) {
+      if (
+        foundError ||
+        bodyText.toLowerCase().includes("✗") ||
+        bodyText.toLowerCase().includes("failed")
+      ) {
         // Try to extract specific error lines more aggressively
-        const lines = bodyText.split('\n');
-        console.log('[HTML Parser Debug] Total lines to analyze:', lines.length);
+        const lines = bodyText.split("\n");
+        console.log(
+          "[HTML Parser Debug] Total lines to analyze:",
+          lines.length
+        );
 
-        const errorLines = lines.filter(line => {
+        const errorLines = lines.filter((line) => {
           const trimmed = line.trim();
-          return trimmed.length > 0 && (
-            /Error:/i.test(trimmed) ||
-            /Failed:/i.test(trimmed) ||
-            /Timeout/i.test(trimmed) ||
-            /expect/i.test(trimmed) ||
-            /✗/.test(trimmed) ||
-            /×/.test(trimmed) ||
-            /FAIL/i.test(trimmed) ||
-            /Exception/i.test(trimmed) ||
-            /at .*\.spec\./i.test(trimmed) ||
-            /Test timeout/i.test(trimmed) ||
-            /locator/i.test(trimmed) ||
-            /toHave/i.test(trimmed) ||
-            /toBe/i.test(trimmed)
+          return (
+            trimmed.length > 0 &&
+            (/Error:/i.test(trimmed) ||
+              /Failed:/i.test(trimmed) ||
+              /Timeout/i.test(trimmed) ||
+              /expect/i.test(trimmed) ||
+              /✗/.test(trimmed) ||
+              /×/.test(trimmed) ||
+              /FAIL/i.test(trimmed) ||
+              /Exception/i.test(trimmed) ||
+              /at .*\.spec\./i.test(trimmed) ||
+              /Test timeout/i.test(trimmed) ||
+              /locator/i.test(trimmed) ||
+              /toHave/i.test(trimmed) ||
+              /toBe/i.test(trimmed))
           );
         });
 
-        console.log('[HTML Parser Debug] Found error lines:', errorLines.length);
-        console.log('[HTML Parser Debug] Sample error lines:', errorLines.slice(0, 3));
+        console.log(
+          "[HTML Parser Debug] Found error lines:",
+          errorLines.length
+        );
+        console.log(
+          "[HTML Parser Debug] Sample error lines:",
+          errorLines.slice(0, 3)
+        );
 
         // Extract multiple error messages if available
         if (errorLines.length > 0) {
-          errorLines.slice(0, 5).forEach((line) => { // Limit to first 5 errors
+          errorLines.slice(0, 5).forEach((line) => {
+            // Limit to first 5 errors
             const message = this.extractErrorMessage(line);
             if (message && message.length > 5) {
               errors.push({
                 message: message,
-                details: this.truncateText(this.extractContextAroundLine(lines, lines.indexOf(line)), 1500),
+                details: this.truncateText(
+                  this.extractContextAroundLine(lines, lines.indexOf(line)),
+                  1500
+                ),
                 testName,
-                source: 'html',
-                lineNumber: lines.indexOf(line) + 1
+                source: "html",
+                lineNumber: lines.indexOf(line) + 1,
               });
             }
           });
         } else {
           // Last resort - create a general error from body text
           const fallbackMessage = this.extractFallbackErrorMessage(bodyText);
-          console.log('[HTML Parser Debug] Using fallback error message:', fallbackMessage);
+          console.log(
+            "[HTML Parser Debug] Using fallback error message:",
+            fallbackMessage
+          );
 
           errors.push({
             message: fallbackMessage,
             details: this.truncateText(bodyText, 2000),
             testName,
-            source: 'html'
+            source: "html",
           });
         }
       } else {
-        console.log('[HTML Parser Debug] No error patterns found in body text');
+        console.log("[HTML Parser Debug] No error patterns found in body text");
 
         // Ultimate fallback - if it's a Playwright report but we can't find errors,
         // check if it's a JavaScript-heavy report that needs DOM parsing
-        if (playwrightStructure.hasScript && playwrightStructure.hasPlaywrightTitle) {
-          console.log('[HTML Parser Debug] Detected JavaScript-heavy Playwright report, trying script content extraction');
+        if (
+          playwrightStructure.hasScript &&
+          playwrightStructure.hasPlaywrightTitle
+        ) {
+          console.log(
+            "[HTML Parser Debug] Detected JavaScript-heavy Playwright report, trying script content extraction"
+          );
 
           // Try to extract from script tags that might contain test data
-          const scriptElements = document.querySelectorAll('script');
-          let scriptContent = '';
+          const scriptElements = document.querySelectorAll("script");
+          let scriptContent = "";
 
-          scriptElements.forEach(script => {
-            const content = script.textContent || '';
-            if (content.includes('test') || content.includes('error') || content.includes('fail')) {
-              scriptContent += content + '\n';
+          scriptElements.forEach((script) => {
+            const content = script.textContent || "";
+            if (
+              content.includes("test") ||
+              content.includes("error") ||
+              content.includes("fail")
+            ) {
+              scriptContent += content + "\n";
             }
           });
 
           if (scriptContent.length > 100) {
-            console.log('[HTML Parser Debug] Found script content with test data, length:', scriptContent.length);
+            console.log(
+              "[HTML Parser Debug] Found script content with test data, length:",
+              scriptContent.length
+            );
 
             // Parse the script content for error information
-            const scriptErrorMessage = this.extractErrorFromScript(scriptContent);
+            const scriptErrorMessage =
+              this.extractErrorFromScript(scriptContent);
             if (scriptErrorMessage) {
               errors.push({
                 message: scriptErrorMessage,
                 details: this.truncateText(scriptContent, 1500),
-                testName: testName + ' (from script)',
-                source: 'html'
+                testName: testName + " (from script)",
+                source: "html",
               });
             }
           }
         }
 
         // If still no errors found, force create a generic error for failed tests
-        if (errors.length === 0 && (bodyText.toLowerCase().includes('failed') ||
-                                    bodyText.toLowerCase().includes('error') ||
-                                    innerHTML.includes('failed') ||
-                                    innerHTML.includes('error'))) {
-          console.log('[HTML Parser Debug] Forcing generic error for detected failure');
+        if (
+          errors.length === 0 &&
+          (bodyText.toLowerCase().includes("failed") ||
+            bodyText.toLowerCase().includes("error") ||
+            innerHTML.includes("failed") ||
+            innerHTML.includes("error"))
+        ) {
+          console.log(
+            "[HTML Parser Debug] Forcing generic error for detected failure"
+          );
 
           errors.push({
-            message: 'Test failed - specific error details not extracted from HTML report',
-            details: this.truncateText(bodyText.length > innerHTML.length ? bodyText : innerHTML, 2000),
+            message:
+              "Test failed - specific error details not extracted from HTML report",
+            details: this.truncateText(
+              bodyText.length > innerHTML.length ? bodyText : innerHTML,
+              2000
+            ),
             testName,
-            source: 'html'
+            source: "html",
           });
         }
       }
     }
 
-    console.log('[HTML Parser Debug] Final extracted errors count:', errors.length);
+    console.log(
+      "[HTML Parser Debug] Final extracted errors count:",
+      errors.length
+    );
     return errors;
   }
 
   /**
    * Parse individual error element
    */
-  private static parseErrorElement(element: Element, testName: string): ExtractedTestError | null {
-    const textContent = element.textContent?.trim() || '';
+  private static parseErrorElement(
+    element: Element,
+    testName: string
+  ): ExtractedTestError | null {
+    const textContent = element.textContent?.trim() || "";
 
     if (textContent.length < 10) {
       return null; // Skip short/empty content
@@ -427,7 +525,9 @@ export class HTMLReportParser {
 
     // Extract line number if present
     const lineMatch = textContent.match(/line\s+(\d+)|:(\d+):/i);
-    const lineNumber = lineMatch ? parseInt(lineMatch[1] || lineMatch[2]) : undefined;
+    const lineNumber = lineMatch
+      ? parseInt(lineMatch[1] || lineMatch[2])
+      : undefined;
 
     // Extract stack trace
     const stackTrace = this.extractStackTrace(textContent);
@@ -438,7 +538,7 @@ export class HTMLReportParser {
       lineNumber,
       testName,
       stackTrace,
-      source: 'html'
+      source: "html",
     };
   }
 
@@ -452,7 +552,7 @@ export class HTMLReportParser {
       /Error:\s*([^\n]+)/i,
       /Failed:\s*([^\n]+)/i,
       /Exception:\s*([^\n]+)/i,
-      /AssertionError:\s*([^\n]+)/i
+      /AssertionError:\s*([^\n]+)/i,
     ];
 
     for (const pattern of errorPatterns) {
@@ -463,23 +563,24 @@ export class HTMLReportParser {
     }
 
     // Fallback to first non-empty line
-    const lines = text.split('\n').filter(line => line.trim());
-    return lines[0]?.trim() || 'Unknown error';
+    const lines = text.split("\n").filter((line) => line.trim());
+    return lines[0]?.trim() || "Unknown error";
   }
 
   /**
    * Extract stack trace from error text
    */
   private static extractStackTrace(text: string): string | undefined {
-    const lines = text.split('\n');
-    const stackLines = lines.filter(line =>
-      line.trim().startsWith('at ') ||
-      line.includes('.js:') ||
-      line.includes('.ts:') ||
-      line.includes('spec.js:')
+    const lines = text.split("\n");
+    const stackLines = lines.filter(
+      (line) =>
+        line.trim().startsWith("at ") ||
+        line.includes(".js:") ||
+        line.includes(".ts:") ||
+        line.includes("spec.js:")
     );
 
-    return stackLines.length > 0 ? stackLines.join('\n') : undefined;
+    return stackLines.length > 0 ? stackLines.join("\n") : undefined;
   }
 
   /**
@@ -490,17 +591,21 @@ export class HTMLReportParser {
       return text;
     }
 
-    return text.substring(0, maxLength) + '...[truncated]';
+    return text.substring(0, maxLength) + "...[truncated]";
   }
 
   /**
    * Extract context around a specific line for better error details
    */
-  private static extractContextAroundLine(lines: string[], lineIndex: number, contextLines: number = 3): string {
+  private static extractContextAroundLine(
+    lines: string[],
+    lineIndex: number,
+    contextLines: number = 3
+  ): string {
     const start = Math.max(0, lineIndex - contextLines);
     const end = Math.min(lines.length, lineIndex + contextLines + 1);
 
-    return lines.slice(start, end).join('\n');
+    return lines.slice(start, end).join("\n");
   }
 
   /**
@@ -508,31 +613,34 @@ export class HTMLReportParser {
    */
   private static extractFallbackErrorMessage(bodyText: string): string {
     // Try to find the most meaningful line from the body text
-    const lines = bodyText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    const lines = bodyText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
     // Look for lines that contain common failure indicators
-    const meaningfulLines = lines.filter(line => {
+    const meaningfulLines = lines.filter((line) => {
       const lower = line.toLowerCase();
       return (
-        lower.includes('test') ||
-        lower.includes('fail') ||
-        lower.includes('error') ||
-        lower.includes('timeout') ||
-        lower.includes('expect') ||
-        lower.includes('assertion') ||
-        line.includes('✗') ||
-        line.includes('×')
+        lower.includes("test") ||
+        lower.includes("fail") ||
+        lower.includes("error") ||
+        lower.includes("timeout") ||
+        lower.includes("expect") ||
+        lower.includes("assertion") ||
+        line.includes("✗") ||
+        line.includes("×")
       );
     });
 
     if (meaningfulLines.length > 0) {
       // Return the first meaningful line, but limit its length
       const message = meaningfulLines[0];
-      return message.length > 100 ? message.substring(0, 100) + '...' : message;
+      return message.length > 100 ? message.substring(0, 100) + "..." : message;
     }
 
     // If no meaningful lines found, return a generic failure message
-    return 'Test failed - check test execution logs for details';
+    return "Test failed - check test execution logs for details";
   }
 
   /**
@@ -547,7 +655,7 @@ export class HTMLReportParser {
       /error:\s*["']([^"']+)["']/i,
       /message:\s*["']([^"']+)["']/i,
       /failed:\s*["']([^"']+)["']/i,
-      /timeout:\s*["']([^"']+)["']/i
+      /timeout:\s*["']([^"']+)["']/i,
     ];
 
     for (const pattern of errorPatterns) {
@@ -558,10 +666,14 @@ export class HTMLReportParser {
     }
 
     // Look for error-like strings in the script
-    const lines = scriptContent.split('\n');
+    const lines = scriptContent.split("\n");
     for (const line of lines) {
-      if (line.includes('error') || line.includes('failed') || line.includes('timeout')) {
-        const cleaned = line.replace(/[{}",]/g, ' ').trim();
+      if (
+        line.includes("error") ||
+        line.includes("failed") ||
+        line.includes("timeout")
+      ) {
+        const cleaned = line.replace(/[{}",]/g, " ").trim();
         if (cleaned.length > 10 && cleaned.length < 200) {
           return cleaned;
         }
@@ -575,7 +687,15 @@ export class HTMLReportParser {
    * Convert HTML errors to markdown-like format for AI processing
    */
   static convertErrorsToMarkdownFormat(parsedReport: ParsedHTMLReport): string {
-    const { errors, testName, duration, status, browser, totalTests, failedTests } = parsedReport;
+    const {
+      errors,
+      testName,
+      duration,
+      status,
+      browser,
+      totalTests,
+      failedTests,
+    } = parsedReport;
 
     let markdown = `# Test Report: ${testName}\n\n`;
     markdown += `**Status**: ${status}\n`;
