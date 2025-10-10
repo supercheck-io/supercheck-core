@@ -33,10 +33,46 @@ export function AIDiffViewer({
   const [currentFixedScript, setCurrentFixedScript] = useState(fixedScript);
   const editorRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const monaco = useMonaco();
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     setCurrentFixedScript(fixedScript);
   }, [fixedScript]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      // Clean up editor models if they exist
+      if (editorRef.current) {
+        try {
+          const modifiedEditor = editorRef.current.getModifiedEditor?.();
+          const originalEditor = editorRef.current.getOriginalEditor?.();
+
+          if (modifiedEditor?.getModel) {
+            const model = modifiedEditor.getModel();
+            if (model) {
+              model.dispose();
+            }
+          }
+
+          if (originalEditor?.getModel) {
+            const model = originalEditor.getModel();
+            if (model) {
+              model.dispose();
+            }
+          }
+
+          // Dispose the editor itself
+          if (typeof editorRef.current.dispose === "function") {
+            editorRef.current.dispose();
+          }
+        } catch (error) {
+          console.warn("[AI Diff] Error during editor cleanup:", error);
+        }
+      }
+    };
+  }, []);
 
   // Configure Monaco when available
   useEffect(() => {
@@ -56,7 +92,16 @@ export function AIDiffViewer({
     }
   }, [monaco]);
 
-  const handleEditorDidMount = (editor: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const handleEditorDidMount = (editor: any) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    // Check if component is still mounted before proceeding
+    if (!isMountedRef.current) {
+      console.warn(
+        "[AI Diff] Component unmounted before editor could be mounted"
+      );
+      return;
+    }
+
     editorRef.current = editor;
     console.log("[AI Diff] Monaco diff editor mounted successfully");
 
@@ -78,7 +123,7 @@ export function AIDiffViewer({
       // Get both editors and configure them properly
       const modifiedEditor = editor.getModifiedEditor();
       const originalEditor = editor.getOriginalEditor();
-      
+
       // Configure scrollbar options for both editors
       const scrollbarConfig = {
         vertical: "hidden" as const,
@@ -90,7 +135,7 @@ export function AIDiffViewer({
         horizontalHasArrows: false,
         alwaysConsumeMouseWheel: false,
       };
-      
+
       if (modifiedEditor) {
         modifiedEditor.updateOptions({
           scrollbar: scrollbarConfig,
@@ -99,13 +144,15 @@ export function AIDiffViewer({
           lineNumbers: "on",
           glyphMargin: false,
         });
-        // Set focus to modified editor after a short delay
+        // Set focus to modified editor after a short delay, only if still mounted
         setTimeout(() => {
-          modifiedEditor.focus();
+          if (isMountedRef.current && modifiedEditor) {
+            modifiedEditor.focus();
+          }
         }, 100);
         console.log("[AI Diff] Configured modified editor");
       }
-      
+
       if (originalEditor) {
         originalEditor.updateOptions({
           scrollbar: scrollbarConfig,
@@ -117,24 +164,31 @@ export function AIDiffViewer({
         console.log("[AI Diff] Configured original editor");
       }
 
-      // Force layout update
+      // Force layout update, only if still mounted
       setTimeout(() => {
-        editor.layout();
+        if (isMountedRef.current && editor) {
+          editor.layout();
+        }
       }, 200);
-      
     } catch (error) {
       console.error("[AI Diff] Error configuring editor:", error);
     }
   };
 
   const handleAccept = () => {
+    // Check if component is still mounted
+    if (!isMountedRef.current) {
+      console.warn("[AI Diff] Component unmounted, cannot accept fix");
+      return;
+    }
+
     try {
       let acceptedScript = currentFixedScript; // Default to the fixed script
-      
+
       // Try to get content from the modified editor if available
       if (editorRef.current) {
         const modifiedEditor = editorRef.current.getModifiedEditor?.();
-        if (modifiedEditor && typeof modifiedEditor.getValue === 'function') {
+        if (modifiedEditor && typeof modifiedEditor.getValue === "function") {
           const editorContent = modifiedEditor.getValue();
           if (editorContent && editorContent.trim()) {
             acceptedScript = editorContent;
@@ -178,7 +232,6 @@ export function AIDiffViewer({
     return "bg-orange-100 text-orange-800 border-orange-200";
   };
 
-
   if (!isVisible) {
     return null;
   }
@@ -200,19 +253,19 @@ export function AIDiffViewer({
 
     // Check if the text has numbered lists (1. 2. 3.)
     if (text.match(/^\d+\./m)) {
-      points = text.split(/(?=\d+\.)/g).filter(p => p.trim().length > 10);
+      points = text.split(/(?=\d+\.)/g).filter((p) => p.trim().length > 10);
     }
     // Check if the text has bullet points (- or •)
     else if (text.match(/^[-•]/m)) {
-      points = text.split(/(?=[-•])/g).filter(p => p.trim().length > 10);
+      points = text.split(/(?=[-•])/g).filter((p) => p.trim().length > 10);
     }
     // Otherwise split by sentences but be more conservative
     else {
-      points = text.split(/[.\n]/).filter(p => p.trim().length > 20);
+      points = text.split(/[.\n]/).filter((p) => p.trim().length > 20);
     }
 
     // Clean up each point minimally
-    points.slice(0, 3).forEach(point => {
+    points.slice(0, 3).forEach((point) => {
       let cleanPoint = point
         .replace(/\*\*/g, "") // Remove markdown bold
         .replace(/^\d+\.\s*/, "") // Remove numbering
@@ -220,7 +273,10 @@ export function AIDiffViewer({
         .trim();
 
       // Only remove obvious action prefixes, keep the rest intact
-      cleanPoint = cleanPoint.replace(/^(Fixed|Added|Updated|Changed):\s*/i, "");
+      cleanPoint = cleanPoint.replace(
+        /^(Fixed|Added|Updated|Changed):\s*/i,
+        ""
+      );
 
       // Ensure it starts with capital and ends properly
       if (cleanPoint && cleanPoint.length > 8) {
@@ -282,7 +338,7 @@ export function AIDiffViewer({
         </div>
 
         {/* Monaco Editor with fixed height */}
-        <div 
+        <div
           className="bg-gray-900 relative overflow-hidden"
           style={{ height: "500px" }}
         >

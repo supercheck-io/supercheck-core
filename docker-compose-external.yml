@@ -47,9 +47,10 @@ x-common-env: &common-env # Database Configuration - External PostgreSQL
   # Playwright Configuration - Optimized for Supercheck execution service
   PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
   PLAYWRIGHT_RETRIES: ${PLAYWRIGHT_RETRIES:-1}
-  PLAYWRIGHT_TRACE: ${PLAYWRIGHT_TRACE:-retain-on-failure }
-  PLAYWRIGHT_SCREENSHOT: ${PLAYWRIGHT_SCREENSHOT:-only-on-failure }
-  PLAYWRIGHT_VIDEO: ${PLAYWRIGHT_VIDEO:-retain-on-failure }
+  PLAYWRIGHT_TRACE: ${PLAYWRIGHT_TRACE:-retain-on-failure}
+  PLAYWRIGHT_SCREENSHOT: ${PLAYWRIGHT_SCREENSHOT:-only-on-failure}
+  # Video recording enabled on test failures for debugging (with increased resource limits)
+  PLAYWRIGHT_VIDEO: ${PLAYWRIGHT_VIDEO:-retain-on-failure}
 
   # Browser support (disabled by default for performance)
   ENABLE_FIREFOX: ${ENABLE_FIREFOX:-false}
@@ -180,19 +181,27 @@ services:
           cpus: "0.5"
           memory: 1G
 
-  # Worker (NestJS Runner) - Enhanced security and resource protection
+  # Worker (NestJS Runner) - Minimal resource limits for maximum test compatibility
   worker:
     image: ghcr.io/supercheck-io/supercheck/worker:1.1.1-beta
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)
-      # Memory Protection (prevents memory leaks and OOM conditions)
-      NODE_OPTIONS: "--max-old-space-size=1024 --expose-gc --experimental-worker"
-      # Thread Protection (optimized for I/O performance)
-      UV_THREADPOOL_SIZE: 4 # Optimal for 4-core server - balances performance with resource usage
+      # Removed NODE_OPTIONS memory limits - let Node.js use what it needs
+      # Removed UV_THREADPOOL_SIZE limits - let system manage threads
+
+      # CRITICAL: Font cache environment variables (fixes fontconfig errors)
+      FONTCONFIG_PATH: /etc/fonts
+      FONTCONFIG_FILE: /etc/fonts/fonts.conf
+      XDG_CACHE_HOME: /home/nodejs/.cache
     volumes:
       - worker-playwright-reports:/app/playwright-reports
       - worker-reports:/app/report
+      # CRITICAL: Use host's shared memory - no artificial size limit
+      - type: tmpfs
+        target: /dev/shm
+        tmpfs:
+          size: 8589934592 # 8GB shared memory (increased from 3GB to prevent browser crashes)
     depends_on:
       app:
         condition: service_healthy # Wait for app to complete migrations
@@ -212,31 +221,37 @@ services:
     networks:
       - supercheck-network
     deploy:
-      replicas: 4
-      # Enhanced Resource Protection (prevents resource exhaustion attacks)
-      resources:
-        limits:
-          cpus: "1.5"
-          memory: 1.5G
-          pids: 512 # Prevents fork bombs and process explosion
-        reservations:
-          cpus: "0.5"
-          memory: 512M
+      replicas: 3 # Balanced for performance and stability
+      # REMOVED RESOURCE LIMITS - Let Docker and the host OS manage resources
+      # Docker will kill the container if it goes rogue (OOM killer, etc.)
+      # This prevents artificial constraints from breaking legitimate tests
 
       # Container Restart Protection (handles stuck/crashed containers)
       restart_policy:
         condition: on-failure
         max_attempts: 3
-        delay: 5s
+        delay: 15s
+        window: 120s
 
-    # System-level Resource Limits (additional protection layer)
+    # Minimal system-level settings for compatibility
     sysctls:
-      - net.core.somaxconn=1024 # Limits network connection backlog
+      - net.core.somaxconn=4096 # High connection backlog for Playwright
+      - vm.max_map_count=1048576 # High memory map limit for browser stability
     ulimits:
-      nproc: 65535 # Limits total processes per container
-      nofile: # Limits file descriptors (prevents file exhaustion)
-        soft: 65535
-        hard: 65535
+      nproc: 65535 # Allow many processes (browser + video + FFmpeg)
+      nofile: # High file descriptor limits for browser tabs
+        soft: 1048576
+        hard: 1048576
+      memlock: # Unlimited memory locking for browser
+        soft: -1
+        hard: -1
+    # Security constraints (minimal - only prevent privilege escalation)
+    security_opt:
+      - no-new-privileges:true # Prevent privilege escalation
+    cap_drop:
+      - ALL # Drop all capabilities by default
+    cap_add:
+      - SYS_ADMIN # Required for browser sandboxing (minimal required capability)
 
 volumes:
   worker-playwright-reports:
