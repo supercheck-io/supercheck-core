@@ -236,7 +236,6 @@ services:
     # Minimal system-level settings for compatibility
     sysctls:
       - net.core.somaxconn=4096 # High connection backlog for Playwright
-      - vm.max_map_count=1048576 # High memory map limit for browser stability
     ulimits:
       nproc: 65535 # Allow many processes (browser + video + FFmpeg)
       nofile: # High file descriptor limits for browser tabs

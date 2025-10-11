@@ -113,6 +113,7 @@ docker service update --secret-rm database_url --secret-add database_url_v2 supe
 For most Supercheck deployments, SigNoz Cloud provides the optimal balance of simplicity, features, and cost-effectiveness.
 
 #### **Why SigNoz Cloud is Perfect for Supercheck:**
+
 ```yaml
 Cost Benefits:
 ✅ €19-49/month vs €960-2,304/month (DataDog)
@@ -137,9 +138,10 @@ Business Benefits:
 ```
 
 #### **SigNoz Setup for Docker Swarm:**
+
 ```yaml
 # docker-swarm/stacks/monitoring-signoz.yml
-version: '3.8'
+version: "3.8"
 services:
   signoz-collector:
     image: signoz/signoz-otel-collector:0.88.17
@@ -160,10 +162,10 @@ services:
       mode: global
       resources:
         limits:
-          cpus: '0.2'
+          cpus: "0.2"
           memory: 256M
         reservations:
-          cpus: '0.1'
+          cpus: "0.1"
           memory: 128M
 
 secrets:
@@ -176,6 +178,7 @@ networks:
 ```
 
 #### **Deployment Commands:**
+
 ```bash
 # 1. Create SigNoz secret
 echo "your-signoz-access-token" | docker secret create signoz_token -
@@ -189,20 +192,21 @@ docker service logs monitoring_signoz-collector
 ```
 
 #### **Custom Supercheck Metrics Setup:**
+
 ```javascript
 // Add to your Next.js app (app/src/lib/telemetry.ts)
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-otlp-http';
-import { metrics } from '@opentelemetry/api';
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-otlp-http";
+import { metrics } from "@opentelemetry/api";
 
 const sdk = new NodeSDK({
   instrumentations: [getNodeAutoInstrumentations()],
   metricReader: new PeriodicExportingMetricReader({
     exporter: new OTLPMetricExporter({
-      url: 'https://ingest.{region}.signoz.cloud/v1/metrics',
+      url: "https://ingest.{region}.signoz.cloud/v1/metrics",
       headers: {
-        'signoz-access-token': process.env.SIGNOZ_ACCESS_TOKEN,
+        "signoz-access-token": process.env.SIGNOZ_ACCESS_TOKEN,
       },
     }),
   }),
@@ -211,21 +215,22 @@ const sdk = new NodeSDK({
 sdk.start();
 
 // Business metrics
-const meter = metrics.getMeter('supercheck-business');
-export const testExecutions = meter.createCounter('test_executions_total');
-export const concurrentTests = meter.createUpDownCounter('concurrent_tests');
-export const testDuration = meter.createHistogram('test_duration_seconds');
-export const queueDepth = meter.createUpDownCounter('queue_depth');
+const meter = metrics.getMeter("supercheck-business");
+export const testExecutions = meter.createCounter("test_executions_total");
+export const concurrentTests = meter.createUpDownCounter("concurrent_tests");
+export const testDuration = meter.createHistogram("test_duration_seconds");
+export const queueDepth = meter.createUpDownCounter("queue_depth");
 
 // Usage in your application
 testExecutions.add(1, {
-  user_plan: 'pro',
-  test_type: 'playwright',
-  success: 'true'
+  user_plan: "pro",
+  test_type: "playwright",
+  success: "true",
 });
 ```
 
 #### **SigNoz Dashboards You Get:**
+
 ```yaml
 Out-of-the-Box Dashboards:
 ├── Infrastructure Overview
@@ -258,7 +263,7 @@ Out-of-the-Box Dashboards:
 
 ### **Alternative: Self-Hosted Prometheus + Grafana**
 
-*Only recommended if you need maximum customization or have specific compliance requirements.*
+_Only recommended if you need maximum customization or have specific compliance requirements._
 
 #### **1. Prometheus Configuration**
 
@@ -272,13 +277,13 @@ rule_files:
   - "alert_rules.yml"
 
 scrape_configs:
-  - job_name: 'docker-swarm-nodes'
+  - job_name: "docker-swarm-nodes"
     static_configs:
-      - targets: ['10.0.0.10:9100', '10.0.0.11:9100', '10.0.0.12:9100']
+      - targets: ["10.0.0.10:9100", "10.0.0.11:9100", "10.0.0.12:9100"]
     scrape_interval: 5s
-    metrics_path: '/metrics'
+    metrics_path: "/metrics"
 
-  - job_name: 'docker-swarm-services'
+  - job_name: "docker-swarm-services"
     dockerswarm_sd_configs:
       - host: unix:///var/run/docker.sock
         role: tasks
@@ -287,22 +292,22 @@ scrape_configs:
         regex: running
         action: keep
 
-  - job_name: 'supercheck-app'
+  - job_name: "supercheck-app"
     static_configs:
-      - targets: ['supercheck-app:3000']
-    metrics_path: '/api/metrics'
+      - targets: ["supercheck-app:3000"]
+    metrics_path: "/api/metrics"
     scrape_interval: 10s
 
-  - job_name: 'supercheck-worker'
+  - job_name: "supercheck-worker"
     static_configs:
-      - targets: ['supercheck-worker:3001']
-    metrics_path: '/metrics'
+      - targets: ["supercheck-worker:3001"]
+    metrics_path: "/metrics"
     scrape_interval: 10s
 
 alertmanager:
   alertmanagers:
     - static_configs:
-        - targets: ['alertmanager:9093']
+        - targets: ["alertmanager:9093"]
 ```
 
 ### **2. Alert Rules**
@@ -458,7 +463,6 @@ kernel.threads-max = 4194304
 
 # Memory overcommit
 vm.overcommit_memory = 1
-vm.max_map_count = 262144
 EOF
 
 sysctl -p /etc/sysctl.d/99-supercheck.conf
@@ -616,7 +620,7 @@ echo "Then remove old node: docker node rm $NODE_ID"
 
 ```yaml
 # Blue-Green deployment stack
-version: '3.8'
+version: "3.8"
 services:
   supercheck-app-green:
     image: ghcr.io/supercheck-io/supercheck/app:${NEW_VERSION}
@@ -625,7 +629,7 @@ services:
     deploy:
       replicas: 3
       labels:
-        - "traefik.enable=false"  # Initially disabled
+        - "traefik.enable=false" # Initially disabled
     # ... other configuration
 
   supercheck-app-blue:
@@ -635,7 +639,7 @@ services:
     deploy:
       replicas: 3
       labels:
-        - "traefik.enable=true"  # Currently active
+        - "traefik.enable=true" # Currently active
     # ... other configuration
 ```
 

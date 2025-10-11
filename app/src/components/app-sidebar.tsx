@@ -24,6 +24,7 @@ import {
   EthernetPort,
   Variable,
   UserCog,
+  Tally4,
   type LucideIcon,
 } from "lucide-react";
 import { PlaywrightLogo } from "@/components/logo/playwright-logo";
@@ -87,6 +88,12 @@ const data = {
       title: "Alerts",
       url: "/alerts",
       icon: BellRing,
+    },
+
+    {
+      title: "Status Pages",
+      url: "/status-pages",
+      icon: Tally4,
     },
   ],
 

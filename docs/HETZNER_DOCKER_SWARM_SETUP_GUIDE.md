@@ -18,16 +18,17 @@ This comprehensive guide shows you how to set up a production-ready Docker Swarm
 
 ### **🏆 Best Choice for Supercheck:**
 
-| Advantage | Hetzner ARM (CAX) | Hetzner x86 (CPX) | AWS/GCP/Azure |
-|-----------|-------------------|-------------------|---------------|
-| **Cost** | €3.79/month (CAX11) | €7.69/month (CPX21) | €20-40/month |
-| **Performance/€** | Excellent | Good | Poor |
-| **Power Efficiency** | 40% better | Standard | Standard |
-| **Docker Support** | Native ARM64 | Native x86_64 | Native |
-| **Playwright Support** | ✅ Full support | ✅ Full support | ✅ Full support |
-| **European GDPR** | ✅ Native | ✅ Native | ⚠️ Complex |
+| Advantage              | Hetzner ARM (CAX)   | Hetzner x86 (CPX)   | AWS/GCP/Azure   |
+| ---------------------- | ------------------- | ------------------- | --------------- |
+| **Cost**               | €3.79/month (CAX11) | €7.69/month (CPX21) | €20-40/month    |
+| **Performance/€**      | Excellent           | Good                | Poor            |
+| **Power Efficiency**   | 40% better          | Standard            | Standard        |
+| **Docker Support**     | Native ARM64        | Native x86_64       | Native          |
+| **Playwright Support** | ✅ Full support     | ✅ Full support     | ✅ Full support |
+| **European GDPR**      | ✅ Native           | ✅ Native           | ⚠️ Complex      |
 
 ### **💰 Cost Savings Example:**
+
 ```yaml
 10-Node Cluster (Medium Scale):
 ARM CAX31 (8 vCPU, 16GB): €15.59 × 10 = €155.9/month
@@ -40,6 +41,7 @@ Annual Savings: ARM vs x86 = €1,872 | ARM vs AWS = $26,500+
 ### **🚀 ARM Performance Benefits:**
 
 #### **For Supercheck Workloads:**
+
 ```yaml
 ARM64 Advantages:
 ✅ 70% cost savings for same performance
@@ -57,6 +59,7 @@ Performance Results:
 ```
 
 #### **Multi-Architecture Benefits:**
+
 ```yaml
 Future-Proof Architecture:
 ✅ Apple M-series compatibility (dev/prod parity)
@@ -72,40 +75,42 @@ Future-Proof Architecture:
 
 #### **⚡ Shared CPU (CAX) vs Dedicated CPU (CCX) for Supercheck:**
 
-| Aspect | **Shared CAX** ⭐ | **Dedicated CCX** |
-|--------|-------------------|-------------------|
-| **Cost** | 50-60% cheaper | Premium pricing |
-| **Performance** | Variable (burstable) | Consistent/predictable |
-| **Best For** | Test automation workloads | Business-critical apps |
-| **Playwright Tests** | Excellent for concurrent testing | Overkill for most cases |
-| **Resource Sharing** | Shared with neighbors | Dedicated resources |
-| **Baseline + Burst** | ✅ Perfect for test spikes | Constant high performance |
+| Aspect               | **Shared CAX** ⭐                | **Dedicated CCX**         |
+| -------------------- | -------------------------------- | ------------------------- |
+| **Cost**             | 50-60% cheaper                   | Premium pricing           |
+| **Performance**      | Variable (burstable)             | Consistent/predictable    |
+| **Best For**         | Test automation workloads        | Business-critical apps    |
+| **Playwright Tests** | Excellent for concurrent testing | Overkill for most cases   |
+| **Resource Sharing** | Shared with neighbors            | Dedicated resources       |
+| **Baseline + Burst** | ✅ Perfect for test spikes       | Constant high performance |
 
 #### **🎯 Recommendation for Supercheck: Use Shared CAX Servers**
 
 **Why CAX (Shared) is Perfect for Test Automation:**
+
 ```yaml
 ✅ Test Workload Characteristics:
-- Bursty nature (tests run, then idle)
-- Perfect match for burstable CPU model
-- 70% cost savings vs dedicated
-- ARM efficiency excellent for Node.js/Playwright
+  - Bursty nature (tests run, then idle)
+  - Perfect match for burstable CPU model
+  - 70% cost savings vs dedicated
+  - ARM efficiency excellent for Node.js/Playwright
 
 ✅ Performance Reality:
-- Baseline performance handles 5-10 concurrent tests
-- Burst capability handles peak loads (15-20 tests)
-- Test isolation means noisy neighbor effect is minimal
-- ARM cores process Playwright operations efficiently
+  - Baseline performance handles 5-10 concurrent tests
+  - Burst capability handles peak loads (15-20 tests)
+  - Test isolation means noisy neighbor effect is minimal
+  - ARM cores process Playwright operations efficiently
 
 ❌ When to Consider CCX (Dedicated):
-- Only if running 24/7 high CPU workloads
-- Enterprise compliance requiring dedicated resources
-- Budget allows 60%+ higher costs
+  - Only if running 24/7 high CPU workloads
+  - Enterprise compliance requiring dedicated resources
+  - Budget allows 60%+ higher costs
 ```
 
 ### **Recommended Server Types for Supercheck:**
 
 #### **🎯 Optimal Choice: CAX31 (Shared ARM64)**
+
 ```yaml
 Specs: 8 vCPU (shared), 16GB RAM, 160GB NVMe SSD
 Price: €15.59/month (vs CCX31 at €25.99/month)
@@ -118,14 +123,15 @@ Burst: Handles 15-20 tests during peak loads
 
 #### **Alternative Options (All Shared ARM):**
 
-| Server Type | vCPU (Shared) | RAM | Storage | Price/month | Best Use Case |
-|-------------|---------------|-----|---------|-------------|---------------|
-| **CAX11** | 2 | 4GB | 40GB | €3.79 | Manager nodes, small dev |
-| **CAX21** | 4 | 8GB | 80GB | €7.59 | Small worker nodes |
-| **CAX31** | 8 | 16GB | 160GB | €15.59 | **Primary workers** ⭐ |
-| **CAX41** | 16 | 32GB | 320GB | €31.19 | High-load workers |
+| Server Type | vCPU (Shared) | RAM  | Storage | Price/month | Best Use Case            |
+| ----------- | ------------- | ---- | ------- | ----------- | ------------------------ |
+| **CAX11**   | 2             | 4GB  | 40GB    | €3.79       | Manager nodes, small dev |
+| **CAX21**   | 4             | 8GB  | 80GB    | €7.59       | Small worker nodes       |
+| **CAX31**   | 8             | 16GB | 160GB   | €15.59      | **Primary workers** ⭐   |
+| **CAX41**   | 16            | 32GB | 320GB   | €31.19      | High-load workers        |
 
 #### **💰 Cost Comparison (Shared vs Dedicated):**
+
 ```yaml
 Production Cluster (3 managers + 5 workers):
 CAX Shared:  3×€7.59 + 5×€15.59 = €100.72/month
@@ -139,38 +145,41 @@ times significantly for typical Supercheck workloads.
 ### **Cluster Architecture Recommendations:**
 
 #### **🚀 Starter Setup (0-100 concurrent tests):**
+
 ```yaml
 Total Cost: €31.17/month
 
 Nodes:
-- 1× CAX21 (Manager + Light Worker): €7.59
-- 2× CAX31 (Primary Workers): €31.18
-- Total Capacity: 35-40 concurrent tests
-- Users Supported: 200 Basic or 35 Pro users
+  - 1× CAX21 (Manager + Light Worker): €7.59
+  - 2× CAX31 (Primary Workers): €31.18
+  - Total Capacity: 35-40 concurrent tests
+  - Users Supported: 200 Basic or 35 Pro users
 ```
 
 #### **🏢 Production Setup (100-500 concurrent tests):**
+
 ```yaml
 Total Cost: €93.54/month
 
 Nodes:
-- 3× CAX21 (Manager HA): €22.77
-- 5× CAX31 (Worker Nodes): €77.95
-- Total Capacity: 100-120 concurrent tests
-- Users Supported: 600 Basic or 120 Pro users
+  - 3× CAX21 (Manager HA): €22.77
+  - 5× CAX31 (Worker Nodes): €77.95
+  - Total Capacity: 100-120 concurrent tests
+  - Users Supported: 600 Basic or 120 Pro users
 ```
 
 #### **🌐 Enterprise Setup (500+ concurrent tests):**
+
 ```yaml
 Total Cost: €233.85/month (scales as needed)
 
 Nodes:
-- 3× CAX21 (Manager HA): €22.77
-- 1× CAX41 (Control/Monitoring): €31.19
-- 12× CAX31 (Worker Pool): €187.08
-- Total Capacity: 250+ concurrent tests
-- Users Supported: 1,500+ Basic or 250+ Pro users
-- Auto-scaling: Add CAX31 nodes as needed
+  - 3× CAX21 (Manager HA): €22.77
+  - 1× CAX41 (Control/Monitoring): €31.19
+  - 12× CAX31 (Worker Pool): €187.08
+  - Total Capacity: 250+ concurrent tests
+  - Users Supported: 1,500+ Basic or 250+ Pro users
+  - Auto-scaling: Add CAX31 nodes as needed
 ```
 
 ## 🏗️ Architecture Planning
@@ -223,19 +232,20 @@ graph TB
 ```
 
 ### **Network Architecture:**
+
 ```yaml
 Network Setup:
-- Private Network: 10.0.0.0/16 (Hetzner private networking)
-- Public IPs: Only for manager nodes and load balancer
-- Firewall: Hetzner Cloud Firewall (free)
-- Load Balancer: Hetzner Load Balancer (€5.83/month)
-- SSL/TLS: Let's Encrypt (free)
+  - Private Network: 10.0.0.0/16 (Hetzner private networking)
+  - Public IPs: Only for manager nodes and load balancer
+  - Firewall: Hetzner Cloud Firewall (free)
+  - Load Balancer: Hetzner Load Balancer (€5.83/month)
+  - SSL/TLS: Let's Encrypt (free)
 
 Security Zones:
-- DMZ: Load balancer and Traefik
-- App Tier: Supercheck app containers
-- Worker Tier: Test execution workers (isolated)
-- Management: Docker Swarm managers
+  - DMZ: Load balancer and Traefik
+  - App Tier: Supercheck app containers
+  - Worker Tier: Test execution workers (isolated)
+  - Management: Docker Swarm managers
 ```
 
 ## 🚀 Automated Setup
@@ -243,6 +253,7 @@ Security Zones:
 I'll create automation scripts for the complete setup:
 
 ### **Prerequisites:**
+
 ```bash
 # Install Hetzner CLI
 wget https://github.com/hetznercloud/cli/releases/latest/download/hcloud-linux-amd64.tar.gz
@@ -307,6 +318,7 @@ If you prefer manual setup or want to understand each step:
 2. **Create a new project**: "supercheck-production"
 3. **Generate API token**: Project → Security → API tokens
 4. **Configure local CLI**:
+
 ```bash
 hcloud context create supercheck-production
 # Paste your API token
@@ -375,6 +387,7 @@ hcloud firewall add-rule supercheck-firewall \
 ### **Step 4: Create Server Instances**
 
 #### **Create Manager Nodes:**
+
 ```bash
 # Manager 1 (Primary) - Falkenstein
 hcloud server create \
@@ -408,6 +421,7 @@ hcloud server create \
 ```
 
 #### **Create Worker Nodes:**
+
 ```bash
 # Workers (distribute across locations)
 for i in {1..5}; do
@@ -629,7 +643,6 @@ root hard nofile 65536
 LIMEOF
 
 # Configure system limits for Docker
-echo 'vm.max_map_count=262144' >> /etc/sysctl.conf
 sysctl -p
 
 echo "Docker security hardening complete"
@@ -745,16 +758,18 @@ chmod +x monitor-cluster.sh
 ## 💰 Cost Optimization Tips
 
 ### **1. Use Mixed Instance Types**
+
 ```yaml
 Cost-Optimized Setup:
-- Managers: CAX11 (€3.79) for light management load
-- Workers: CAX31 (€15.59) for heavy test execution
-- Monitor: CAX21 (€7.59) for dedicated monitoring
+  - Managers: CAX11 (€3.79) for light management load
+  - Workers: CAX31 (€15.59) for heavy test execution
+  - Monitor: CAX21 (€7.59) for dedicated monitoring
 
 Savings: €11.37/month vs all CAX21 managers
 ```
 
 ### **2. Implement Auto-Scaling**
+
 ```bash
 # Use the auto-scaling script created earlier
 ./auto-scale.sh monitor &
@@ -767,6 +782,7 @@ Savings: €11.37/month vs all CAX21 managers
 ```
 
 ### **3. Use Spot Instances (Future)**
+
 ```yaml
 Note: Hetzner doesn't currently offer spot instances
 But ARM servers are already 50%+ cheaper than x86
@@ -774,6 +790,7 @@ Total savings vs AWS: 70-80% cost reduction
 ```
 
 ### **4. Regional Optimization**
+
 ```yaml
 Falkenstein (fsn1): Primary region, lowest latency to Central Europe
 Nuremberg (nbg1): Backup region, good for failover
@@ -825,40 +842,42 @@ echo "  *.yourdomain.com -> $LB_IP"
 ## 📊 Expected Performance
 
 ### **Cluster Capacity**
+
 ```yaml
 Starter Setup (3 managers + 5 workers):
-- Total CPU: 52 vCPU cores (ARM64)
-- Total RAM: 104 GB
-- Concurrent Tests: 75-100 tests
-- Monthly Cost: €106.55
+  - Total CPU: 52 vCPU cores (ARM64)
+  - Total RAM: 104 GB
+  - Concurrent Tests: 75-100 tests
+  - Monthly Cost: €106.55
 
 Production Setup (3 managers + 15 workers):
-- Total CPU: 132 vCPU cores (ARM64)
-- Total RAM: 264 GB
-- Concurrent Tests: 225-300 tests
-- Monthly Cost: €262.13
+  - Total CPU: 132 vCPU cores (ARM64)
+  - Total RAM: 264 GB
+  - Concurrent Tests: 225-300 tests
+  - Monthly Cost: €262.13
 
 Enterprise Setup (3 managers + 25 workers):
-- Total CPU: 212 vCPU cores (ARM64)
-- Total RAM: 424 GB
-- Concurrent Tests: 375-500 tests
-- Monthly Cost: €417.71
+  - Total CPU: 212 vCPU cores (ARM64)
+  - Total RAM: 424 GB
+  - Concurrent Tests: 375-500 tests
+  - Monthly Cost: €417.71
 ```
 
 ### **Performance Benchmarks**
+
 ```yaml
 ARM64 CAX31 Performance:
-- Node.js Performance: 95-105% of equivalent x86
-- Playwright Performance: Excellent (native ARM support)
-- Docker Performance: 90-100% of x86
-- Network Performance: Superior to x86
-- Power Efficiency: 40% better than x86
+  - Node.js Performance: 95-105% of equivalent x86
+  - Playwright Performance: Excellent (native ARM support)
+  - Docker Performance: 90-100% of x86
+  - Network Performance: Superior to x86
+  - Power Efficiency: 40% better than x86
 
 Cost Performance Ratio:
-- ARM CAX31: €15.59 for 8 cores, 16GB
-- x86 CPX41: €31.19 for 8 cores, 16GB
-- Performance difference: <10%
-- Cost difference: 50% savings with ARM
+  - ARM CAX31: €15.59 for 8 cores, 16GB
+  - x86 CPX41: €31.19 for 8 cores, 16GB
+  - Performance difference: <10%
+  - Cost difference: 50% savings with ARM
 ```
 
 ## 🎯 Why ARM Servers Are Perfect for Supercheck
@@ -893,16 +912,17 @@ vs AWS: €27,473/year (95% savings)
 
 ```yaml
 Future-Proofing:
-- Apple M-series ecosystem alignment
-- Growing ARM adoption in cloud
-- Better mobile app testing (ARM-native)
-- Reduced vendor lock-in
-- Energy efficiency compliance
+  - Apple M-series ecosystem alignment
+  - Growing ARM adoption in cloud
+  - Better mobile app testing (ARM-native)
+  - Reduced vendor lock-in
+  - Energy efficiency compliance
 ```
 
 ## 🏁 Quick Start Summary
 
 ### **Ultra-Quick Setup (5 minutes):**
+
 ```bash
 # 1. Install CLI and configure
 hcloud context create supercheck-prod
@@ -916,6 +936,7 @@ WORKER_COUNT=5 ./hetzner-cluster-setup.sh create
 ```
 
 ### **Result:**
+
 - ✅ **Production-ready Docker Swarm cluster**
 - ✅ **50%+ cost savings with ARM servers**
 - ✅ **Multi-zone high availability**
