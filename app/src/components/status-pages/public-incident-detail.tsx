@@ -1,0 +1,204 @@
+"use client";
+
+import React from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import { format } from "date-fns";
+import Link from "next/link";
+
+type IncidentStatus =
+  | "investigating"
+  | "identified"
+  | "monitoring"
+  | "resolved"
+  | "scheduled";
+
+type IncidentImpact = "none" | "minor" | "major" | "critical";
+
+type IncidentUpdate = {
+  id: string;
+  status: IncidentStatus;
+  body: string;
+  createdAt: Date | null;
+};
+
+type Incident = {
+  id: string;
+  name: string;
+  status: IncidentStatus;
+  impact: IncidentImpact;
+  createdAt: Date | null;
+  resolvedAt: Date | null;
+  updates: IncidentUpdate[];
+  statusPage?: {
+    id: string;
+    name: string;
+    headline: string | null;
+    subdomain: string;
+  };
+};
+
+type PublicIncidentDetailProps = {
+  incident: Incident;
+  statusPageId: string;
+};
+
+export function PublicIncidentDetail({
+  incident,
+  statusPageId,
+}: PublicIncidentDetailProps) {
+  const getStatusColor = (status: IncidentStatus) => {
+    switch (status) {
+      case "resolved":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+      case "monitoring":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+      case "identified":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
+      case "investigating":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
+      case "scheduled":
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
+    }
+  };
+
+  const formatStatus = (status: IncidentStatus) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const statusPageName =
+    incident.statusPage?.headline || incident.statusPage?.name || "Status Page";
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800">
+        <div className="max-w-4xl mx-auto px-6 py-8">
+          <Link
+            href={`/status-pages/${statusPageId}/public`}
+            className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:underline mb-6"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Current Status
+          </Link>
+
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+            {incident.name}
+          </h1>
+
+          <p className="text-gray-600 dark:text-gray-400 text-lg">
+            Incident Report for {statusPageName}
+          </p>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto px-6 py-12">
+        {/* Timeline */}
+        <div className="space-y-8">
+          {incident.updates.map((update, index) => (
+            <div key={update.id} className="relative">
+              {/* Timeline line */}
+              {index < incident.updates.length - 1 && (
+                <div className="absolute left-[27px] top-14 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-800" />
+              )}
+
+              <div className="flex gap-6">
+                {/* Status Badge */}
+                <div className="flex-shrink-0">
+                  <Badge
+                    className={`${getStatusColor(
+                      update.status
+                    )} text-base px-4 py-2 font-semibold`}
+                  >
+                    {formatStatus(update.status)}
+                  </Badge>
+                </div>
+
+                {/* Update Content */}
+                <div className="flex-1 pb-8">
+                  <div className="bg-white dark:bg-gray-900 border dark:border-gray-800 rounded-lg p-6">
+                    <p className="text-gray-700 dark:text-gray-300 text-base leading-relaxed whitespace-pre-wrap">
+                      {update.body}
+                    </p>
+
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
+                      Posted{" "}
+                      {update.createdAt
+                        ? format(
+                            new Date(update.createdAt),
+                            "EEEE, MMMM d, yyyy 'at' HH:mm 'UTC'"
+                          )
+                        : "recently"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Initial Report (if no updates exist) */}
+          {incident.updates.length === 0 && (
+            <div className="flex gap-6">
+              <div className="flex-shrink-0">
+                <Badge
+                  className={`${getStatusColor(
+                    incident.status
+                  )} text-base px-4 py-2 font-semibold`}
+                >
+                  {formatStatus(incident.status)}
+                </Badge>
+              </div>
+
+              <div className="flex-1">
+                <div className="bg-white dark:bg-gray-900 border dark:border-gray-800 rounded-lg p-6">
+                  <p className="text-gray-700 dark:text-gray-300 text-base">
+                    Incident reported.
+                  </p>
+
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
+                    Posted{" "}
+                    {incident.createdAt
+                      ? format(
+                          new Date(incident.createdAt),
+                          "EEEE, MMMM d, yyyy 'at' HH:mm 'UTC'"
+                        )
+                      : "recently"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Back to Status Button */}
+        <div className="mt-12 pt-8 border-t dark:border-gray-800">
+          <Link href={`/status-pages/${statusPageId}/public`}>
+            <Button variant="outline" size="lg">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Current Status
+            </Button>
+          </Link>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center py-8 mt-12 text-sm text-gray-600 dark:text-gray-400 border-t dark:border-gray-800">
+          <p>
+            Powered by{" "}
+            <a
+              href="https://supercheck.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Supercheck
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

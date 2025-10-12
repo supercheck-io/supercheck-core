@@ -1129,6 +1129,14 @@ export const statusPageComponentsRelations = relations(statusPageComponents, ({ 
   incidents: many(incidentComponents),
 }));
 
+// Status Page Subscribers relations
+export const statusPageSubscribersRelations = relations(statusPageSubscribers, ({ one }) => ({
+  statusPage: one(statusPages, {
+    fields: [statusPageSubscribers.statusPageId],
+    references: [statusPages.id],
+  }),
+}));
+
 // Zod Schemas for Status Pages
 export const statusPagesInsertSchema = createInsertSchema(statusPages);
 export const statusPagesSelectSchema = createSelectSchema(statusPages);

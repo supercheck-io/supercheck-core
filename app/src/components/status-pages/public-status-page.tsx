@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   CheckCircle2,
   AlertCircle,
@@ -12,7 +11,9 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { format, subDays, startOfDay, isToday, isAfter } from "date-fns";
+import { format, subDays, startOfDay, isSameDay } from "date-fns";
+import { SubscribeDialog } from "./subscribe-dialog";
+import Link from "next/link";
 
 type ComponentStatus =
   | "operational"
@@ -59,6 +60,10 @@ type Incident = {
     body: string;
     createdAt: Date | null;
   } | null;
+  affectedComponents?: Array<{
+    id: string;
+    name: string;
+  }>;
 };
 
 type PublicStatusPageProps = {
@@ -72,6 +77,9 @@ export function PublicStatusPage({
   components,
   incidents,
 }: PublicStatusPageProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const DAYS_PER_PAGE = 7;
+
   // Calculate overall system status from components
   const calculateSystemStatus = () => {
     if (components.length === 0) return "operational";
@@ -194,17 +202,23 @@ export function PublicStatusPage({
     return true;
   });
 
-  // Generate 90 days of uptime data based on incidents
-  const generateUptimeData = (): UptimeDayData[] => {
+  // Generate 90 days of uptime data based on incidents for a specific component
+  const generateUptimeData = (componentId?: string): UptimeDayData[] => {
     const days = [];
     const statusPageCreatedDate = statusPage.createdAt
-      ? new Date(statusPage.createdAt)
-      : new Date();
-    const isPageCreatedToday = isToday(statusPageCreatedDate);
+      ? startOfDay(new Date(statusPage.createdAt))
+      : startOfDay(new Date());
+
+    // Filter incidents by component if componentId is provided
+    const relevantIncidents = componentId
+      ? incidents.filter(incident =>
+          incident.affectedComponents?.some(c => c.id === componentId)
+        )
+      : incidents;
 
     // Group incidents by date
     const incidentsByDate = new Map<string, Incident[]>();
-    incidents.forEach((incident) => {
+    relevantIncidents.forEach((incident) => {
       if (incident.createdAt) {
         const dateKey = format(
           startOfDay(new Date(incident.createdAt)),
@@ -238,23 +252,26 @@ export function PublicStatusPage({
     };
 
     for (let i = 89; i >= 0; i--) {
-      const date = subDays(new Date(), i);
-      const dateKey = format(startOfDay(date), "yyyy-MM-dd");
+      const date = startOfDay(subDays(new Date(), i));
+      const dateKey = format(date, "yyyy-MM-dd");
       const dayIncidents = incidentsByDate.get(dateKey) || [];
       const hasIncidents = dayIncidents.length > 0;
       const highestImpact = getHighestImpact(dayIncidents);
 
-      // If page was created today, all bars should be gray
-      if (isPageCreatedToday && isAfter(date, statusPageCreatedDate)) {
+      // Show gray bars for days before the status page was created (no data)
+      const isBeforeCreation = date < statusPageCreatedDate;
+
+      if (isBeforeCreation) {
         days.push({
           date,
           isUp: null, // null indicates no data
           status: "nodata" as const,
           hasIncidents: false,
           highestImpact: null,
-          dayIncidents,
+          dayIncidents: [],
         });
       } else {
+        // For days after creation, show green if no incidents, otherwise show incident color
         days.push({
           date,
           isUp: !hasIncidents,
@@ -287,45 +304,23 @@ export function PublicStatusPage({
 
     const getBarColor = (day: UptimeDayData) => {
       if (day.status === "nodata") {
-        return "bg-gray-400 hover:bg-gray-500";
+        return "bg-gray-400 dark:bg-gray-600 hover:bg-gray-500 dark:hover:bg-gray-500";
       }
 
       if (!day.hasIncidents) {
-        return "bg-green-500 hover:bg-green-600";
+        return "bg-green-500 dark:bg-green-600 hover:bg-green-600 dark:hover:bg-green-500";
       }
 
       // Color based on incident impact
       switch (day.highestImpact) {
         case "critical":
-          return "bg-red-600 hover:bg-red-700";
+          return "bg-red-600 dark:bg-red-700 hover:bg-red-700 dark:hover:bg-red-600";
         case "major":
-          return "bg-orange-500 hover:bg-orange-600";
+          return "bg-orange-500 dark:bg-orange-600 hover:bg-orange-600 dark:hover:bg-orange-500";
         case "minor":
-          return "bg-yellow-500 hover:bg-yellow-600";
+          return "bg-yellow-500 dark:bg-yellow-600 hover:bg-yellow-600 dark:hover:bg-yellow-500";
         default:
-          return "bg-gray-500 hover:bg-gray-600";
-      }
-    };
-
-    const getTooltipColor = (day: UptimeDayData) => {
-      if (day.status === "nodata") {
-        return "bg-gray-700";
-      }
-
-      if (!day.hasIncidents) {
-        return "bg-green-700";
-      }
-
-      // Color based on incident impact
-      switch (day.highestImpact) {
-        case "critical":
-          return "bg-red-700";
-        case "major":
-          return "bg-orange-600";
-        case "minor":
-          return "bg-yellow-600";
-        default:
-          return "bg-gray-600";
+          return "bg-gray-500 dark:bg-gray-600 hover:bg-gray-600 dark:hover:bg-gray-500";
       }
     };
 
@@ -347,40 +342,57 @@ export function PublicStatusPage({
         {/* Tooltip positioned below the bar */}
         {hoveredDay !== null && (
           <div
-            className={`absolute top-full left-0 mt-2 p-2 ${getTooltipColor(
-              data[hoveredDay]
-            )} text-white text-xs rounded shadow-lg z-10 max-w-xs`}
+            className="absolute top-full left-0 mt-3 px-4 py-3 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-md shadow-xl z-50 min-w-[200px] max-w-[300px]"
             style={{
               left: `${(hoveredDay / data.length) * 100}%`,
               transform: "translateX(-50%)",
             }}
           >
-            <div className="font-medium mb-1">
-              {format(data[hoveredDay].date, "MMMM d, yyyy")}
+            <div className="font-semibold mb-2">
+              {format(data[hoveredDay].date, "d MMM yyyy")}
             </div>
-            <div>
-              {data[hoveredDay].status === "nodata"
-                ? "No data available"
-                : !data[hoveredDay].hasIncidents
-                ? "No incidents recorded"
-                : data[hoveredDay].dayIncidents.map(
-                    (inc: Incident, i: number) => (
-                      <div key={i} className="mb-1">
-                        <span className="font-medium">{inc.name}</span>
-                        <span className="ml-2 text-gray-200">
-                          ({inc.impact})
-                        </span>
-                      </div>
-                    )
-                  )}
-            </div>
-            <div className="absolute -top-1 left-1/2 transform -translate-x-1/2">
-              <div
-                className={`border-4 border-transparent border-b-${getTooltipColor(
-                  data[hoveredDay]
-                ).replace("bg-", "")}`}
-              ></div>
-            </div>
+
+            {data[hoveredDay].status === "nodata" ? (
+              <div className="text-gray-300 dark:text-gray-400">
+                No data available for this day.
+              </div>
+            ) : !data[hoveredDay].hasIncidents ? (
+              <div className="text-green-400">No downtime recorded</div>
+            ) : (
+              <div className="space-y-2">
+                {data[hoveredDay].dayIncidents.map((incident) => (
+                  <div
+                    key={incident.id}
+                    className="border-l-2 border-gray-600 pl-2"
+                  >
+                    <div className="font-medium text-white">
+                      {incident.name}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      Impact:{" "}
+                      <span
+                        className={
+                          incident.impact === "critical"
+                            ? "text-red-400"
+                            : incident.impact === "major"
+                            ? "text-orange-400"
+                            : incident.impact === "minor"
+                            ? "text-yellow-400"
+                            : "text-gray-400"
+                        }
+                      >
+                        {incident.impact}
+                      </span>
+                      {" · "}
+                      Status: {incident.status}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Tooltip arrow */}
+            <div className="absolute -top-1.5 left-1/2 transform -translate-x-1/2 w-3 h-3 rotate-45 bg-gray-900 dark:bg-gray-800"></div>
           </div>
         )}
       </div>
@@ -388,24 +400,25 @@ export function PublicStatusPage({
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa]">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="bg-white border-b">
+      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800">
         <div className="max-w-5xl mx-auto px-6 py-8">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900">
+              <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
                 {statusPage.headline || statusPage.name}
               </h1>
               {statusPage.pageDescription && (
-                <p className="text-gray-600 mt-2">
+                <p className="text-gray-600 dark:text-gray-400 mt-2">
                   {statusPage.pageDescription}
                 </p>
               )}
             </div>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-              SUBSCRIBE TO UPDATES
-            </Button>
+            <SubscribeDialog
+              statusPageId={statusPage.id}
+              statusPageName={statusPage.headline || statusPage.name}
+            />
           </div>
         </div>
       </div>
@@ -424,43 +437,53 @@ export function PublicStatusPage({
 
         {/* Components Section */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
             <span>Uptime over the past 90 days.</span>
             <span>View historical uptime.</span>
           </div>
 
           {visibleComponents.length === 0 ? (
-            <div className="bg-white border rounded-lg p-8 text-center">
-              <p className="text-gray-500">No components configured yet</p>
+            <div className="bg-white dark:bg-gray-900 border dark:border-gray-800 rounded-lg p-8 text-center">
+              <p className="text-gray-500 dark:text-gray-400">
+                No components configured yet
+              </p>
             </div>
           ) : (
-            <div className="space-y-0 bg-white border rounded-lg divide-y">
+            <div className="space-y-0 bg-white dark:bg-gray-900 border dark:border-gray-800 rounded-lg divide-y dark:divide-gray-800">
               {visibleComponents.map((component) => {
                 const componentStatus = getComponentStatusDisplay(
                   component.status
                 );
-                const uptimeData = generateUptimeData();
-                const uptimePercentage = (
-                  (uptimeData.filter((d) => d.isUp).length /
-                    uptimeData.length) *
-                  100
-                ).toFixed(1);
+                // Generate uptime data specific to this component
+                const uptimeData = generateUptimeData(component.id);
+                // Only count days after status page creation (exclude "nodata" days)
+                const validDays = uptimeData.filter(
+                  (d) => d.status !== "nodata"
+                );
+                const uptimePercentage =
+                  validDays.length > 0
+                    ? (
+                        (validDays.filter((d) => d.isUp).length /
+                          validDays.length) *
+                        100
+                      ).toFixed(1)
+                    : "0.0";
 
                 return (
                   <div key={component.id} className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">
+                        <h3 className="font-medium text-gray-900 dark:text-gray-100">
                           {component.name}
                         </h3>
                         {component.description && (
-                          <p className="text-sm text-gray-600 mt-1">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                             {component.description}
                           </p>
                         )}
                       </div>
                       <span
-                        className={`text-sm font-medium ${componentStatus.color}`}
+                        className={`text-sm font-medium ${componentStatus.color} dark:brightness-125`}
                       >
                         {componentStatus.text}
                       </span>
@@ -469,7 +492,7 @@ export function PublicStatusPage({
                     {/* 90-day uptime bar */}
                     <div className="space-y-2">
                       <UptimeBar data={uptimeData} />
-                      <div className="flex items-center justify-between text-xs text-gray-500">
+                      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                         <span>90 days ago</span>
                         <span>{uptimePercentage}% uptime</span>
                         <span>Today</span>
@@ -484,125 +507,166 @@ export function PublicStatusPage({
 
         {/* Past Incidents Section */}
         <div className="space-y-6">
-          <h2 className="text-2xl font-semibold text-gray-900">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
             Past Incidents
           </h2>
 
-          <div className="space-y-6">
-            {/* Show only the 5 most recent incidents */}
-            {incidents.length === 0 ? (
-              <div className="text-center py-8">
-                <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  No incidents reported
-                </h3>
-                <p className="text-gray-600">
-                  All systems have been operational.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {incidents.slice(0, 5).map((incident) => (
-                  <div key={incident.id} className="border-b pb-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {incident.name}
+          {(() => {
+            // Group incidents by date
+            const incidentsByDate = new Map<string, Incident[]>();
+            incidents.forEach((incident) => {
+              if (incident.createdAt) {
+                const dateKey = format(
+                  new Date(incident.createdAt),
+                  "yyyy-MM-dd"
+                );
+                if (!incidentsByDate.has(dateKey)) {
+                  incidentsByDate.set(dateKey, []);
+                }
+                incidentsByDate.get(dateKey)!.push(incident);
+              }
+            });
+
+            // Generate all 90 days
+            const allDays = [];
+            for (let i = 0; i < 90; i++) {
+              const date = subDays(new Date(), i);
+              const dateKey = format(date, "yyyy-MM-dd");
+              const dayIncidents = incidentsByDate.get(dateKey) || [];
+              allDays.push({ date, incidents: dayIncidents });
+            }
+
+            // Calculate pagination
+            const totalPages = Math.ceil(allDays.length / DAYS_PER_PAGE);
+            const startIndex = (currentPage - 1) * DAYS_PER_PAGE;
+            const endIndex = startIndex + DAYS_PER_PAGE;
+            const paginatedDays = allDays.slice(startIndex, endIndex);
+
+            return (
+              <>
+                <div className="space-y-8">
+                  {paginatedDays.map(({ date, incidents: dayIncidents }) => (
+                    <div
+                      key={format(date, "yyyy-MM-dd")}
+                      className="pb-4 border-b dark:border-gray-800"
+                    >
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                        {format(date, "MMM d, yyyy")}
                       </h3>
-                      <div className="flex items-center gap-2">
-                        {/* Impact badge */}
-                        <Badge
-                          variant={
-                            incident.impact === "critical"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                          className="text-xs"
-                        >
-                          {incident.impact}
-                        </Badge>
-                        {/* Status badge */}
-                        <Badge
-                          variant={
-                            incident.status === "resolved"
-                              ? "default"
-                              : "outline"
-                          }
-                          className="text-xs"
-                        >
-                          {incident.status.replace(/_/g, " ")}
-                        </Badge>
-                      </div>
-                    </div>
 
-                    <div className="text-sm text-gray-600 mb-3">
-                      {incident.createdAt &&
-                        format(
-                          new Date(incident.createdAt),
-                          "EEEE, MMMM d, yyyy 'at' HH:mm 'UTC'"
-                        )}
-                    </div>
-
-                    {/* Incident updates */}
-                    {incident.latestUpdate && (
-                      <div className="bg-gray-50 rounded p-4 mt-3">
-                        <p className="text-sm text-gray-700">
-                          {incident.latestUpdate.body}
+                      {dayIncidents.length === 0 ? (
+                        <p className="text-gray-600 dark:text-gray-400">
+                          No incidents reported
+                          {isSameDay(date, new Date()) ? " today" : ""}.
                         </p>
-                        {incident.resolvedAt &&
-                          incident.status === "resolved" && (
-                            <p className="text-sm text-green-600 mt-2 font-medium">
-                              ✓ Issue has been resolved
-                            </p>
-                          )}
+                      ) : (
+                        <div className="space-y-0">
+                          {dayIncidents.map((incident) => (
+                            <Link
+                              key={incident.id}
+                              href={`/status-pages/${statusPage.id}/public/incidents/${incident.id}`}
+                              className="block py-3 group"
+                            >
+                              <div className="flex items-start justify-between mb-1">
+                                <h4 className="font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                  {incident.name}
+                                </h4>
+                                <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
+                                    {incident.impact}
+                                  </Badge>
+                                  <Badge
+                                    variant={
+                                      incident.status === "resolved"
+                                        ? "default"
+                                        : "outline"
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {incident.status}
+                                  </Badge>
+                                </div>
+                              </div>
+
+                              {incident.latestUpdate && (
+                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                                  {incident.latestUpdate.body}
+                                </p>
+                              )}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pagination with footer */}
+                <div className="flex items-center justify-between pt-6">
+                  {totalPages > 1 ? (
+                    <>
+                      <div className="flex-1"></div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.max(1, prev - 1))
+                          }
+                          disabled={currentPage === 1}
+                          className="p-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          aria-label="Previous page"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+
+                        <span className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400">
+                          {currentPage} / {totalPages}
+                        </span>
+
+                        <button
+                          onClick={() =>
+                            setCurrentPage((prev) =>
+                              Math.min(totalPages, prev + 1)
+                            )
+                          }
+                          disabled={currentPage === totalPages}
+                          className="p-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          aria-label="Next page"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Bottom pagination */}
-          {incidents.length > 5 && (
-            <div className="flex items-center justify-between bg-white border rounded-lg p-4">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled
-                className="flex items-center gap-2"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <span className="text-sm text-gray-600">
-                Showing 1-5 of {incidents.length} incidents
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled
-                className="flex items-center gap-2"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="text-center py-8 text-sm text-gray-600 border-t">
-          <p>
-            Powered by{" "}
-            <a
-              href="https://supercheck.io"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              Supercheck
-            </a>
-          </p>
+                      <div className="flex-1 text-right text-sm text-gray-600 dark:text-gray-400">
+                        <span>Powered by </span>
+                        <a
+                          href="https://supercheck.io"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          Supercheck
+                        </a>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full text-center text-sm text-gray-600 dark:text-gray-400">
+                      <span>Powered by </span>
+                      <a
+                        href="https://supercheck.io"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Supercheck
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>

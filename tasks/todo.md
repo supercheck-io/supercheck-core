@@ -1,445 +1,394 @@
-# Status Page Implementation Plan
+# Status Pages - Remaining Implementation Tasks
 
 ## Overview
-
-Implementing enterprise-grade status page functionality similar to statuspage.io with UUID-based subdomains, manual incident management, subscriber notifications, and comprehensive analytics.
-
-## Implementation Tasks
-
-### Phase 1: Database Schema & Core Infrastructure
-
-#### 1.1 Database Schema Creation
-
-- [ ] Create `status_pages` table with UUID subdomain support
-- [ ] Create `status_page_component_groups` table for component organization
-- [ ] Create `status_page_components` table with monitor linking
-- [ ] Create `incidents` table with workflow support
-- [ ] Create `incident_updates` table with notification controls
-- [ ] Create `incident_components` table for affected components
-- [ ] Create `incident_templates` table for common issues
-- [ ] Create `incident_template_components` join table
-- [ ] Create `status_page_subscribers` table with preferences
-- [ ] Create `status_page_component_subscriptions` table
-- [ ] Create `status_page_incident_subscriptions` table
-- [ ] Create `status_page_metrics` table for uptime tracking
-- [ ] Create `postmortems` table for incident analysis
-- [ ] Add all necessary indexes for performance
-- [ ] Generate database migration files
-- [ ] Test migrations locally
-
-#### 1.2 Backend Services
-
-- [ ] Create `status-page.service.ts` for CRUD operations
-- [ ] Create `component-group.service.ts` for component organization
-- [ ] Create `component.service.ts` for component management
-- [ ] Create `incident.service.ts` for incident workflow
-- [ ] Create `incident-template.service.ts` for templates
-- [ ] Create `subscriber.service.ts` for subscriber management
-- [ ] Create `status-page-analytics.service.ts` for metrics and reporting
-- [ ] Create `status-page-security.service.ts` for input validation and sanitization
-- [ ] Create `subdomain.service.ts` for subdomain management
-
-#### 1.3 Server Actions
-
-- [ ] Create `status-page.actions.ts` for status page operations
-- [ ] Create `incident.actions.ts` for incident operations
-- [ ] Create `subscriber.actions.ts` for subscription operations
-- [ ] Create `component.actions.ts` for component operations
-- [ ] Add validation schemas using Zod
-
-### Phase 2: API Routes
-
-#### 2.1 Internal API Routes (Authenticated)
-
-- [ ] Create `/api/status-pages` - List status pages
-- [ ] Create `/api/status-pages/create` - Create new status page
-- [ ] Create `/api/status-pages/[id]` - Get/Update/Delete status page
-- [ ] Create `/api/status-pages/[id]/components` - Component management
-- [ ] Create `/api/status-pages/[id]/component-groups` - Group management
-- [ ] Create `/api/status-pages/[id]/incidents` - Incident management
-- [ ] Create `/api/status-pages/[id]/incidents/[incidentId]` - Incident details
-- [ ] Create `/api/status-pages/[id]/incidents/[incidentId]/updates` - Incident updates
-- [ ] Create `/api/status-pages/[id]/templates` - Incident templates
-- [ ] Create `/api/status-pages/[id]/subscribers` - Subscriber management
-- [ ] Create `/api/status-pages/[id]/analytics` - Analytics data
-- [ ] Create `/api/status-pages/[id]/metrics` - Uptime metrics
-
-#### 2.2 Public API Routes (Unauthenticated)
-
-- [ ] Create `/api/public/status-pages/[subdomain]` - Get public status page
-- [ ] Create `/api/public/status-pages/[subdomain]/subscribe` - Subscribe to updates
-- [ ] Create `/api/public/status-pages/[subdomain]/unsubscribe` - Unsubscribe
-- [ ] Create `/api/public/status-pages/[subdomain]/verify` - Verify subscription
-- [ ] Add rate limiting to public endpoints
-
-### Phase 3: Frontend UI Components
-
-#### 3.1 Status Page Management Components
-
-- [ ] Create `/app/src/components/status-pages/StatusPageList.tsx` - List all status pages
-- [ ] Create `/app/src/components/status-pages/StatusPageCard.tsx` - Status page card
-- [ ] Create `/app/src/components/status-pages/CreateStatusPageDialog.tsx` - Create dialog
-- [ ] Create `/app/src/components/status-pages/StatusPageSettings.tsx` - Settings panel
-- [ ] Create `/app/src/components/status-pages/BrandingSettings.tsx` - Branding customization
-- [ ] Create `/app/src/components/status-pages/SubdomainDisplay.tsx` - Subdomain info
-
-#### 3.2 Component Management Components
-
-- [ ] Create `/app/src/components/status-pages/components/ComponentList.tsx` - Component list
-- [ ] Create `/app/src/components/status-pages/components/ComponentGroup.tsx` - Component group
-- [ ] Create `/app/src/components/status-pages/components/CreateComponentDialog.tsx` - Create component
-- [ ] Create `/app/src/components/status-pages/components/CreateGroupDialog.tsx` - Create group
-- [ ] Create `/app/src/components/status-pages/components/ComponentStatusBadge.tsx` - Status badge
-- [ ] Create `/app/src/components/status-pages/components/MonitorLinker.tsx` - Link monitors
-
-#### 3.3 Incident Management Components
-
-- [ ] Create `/app/src/components/status-pages/incidents/IncidentList.tsx` - Incident list
-- [ ] Create `/app/src/components/status-pages/incidents/IncidentCard.tsx` - Incident card
-- [ ] Create `/app/src/components/status-pages/incidents/CreateIncidentDialog.tsx` - Create incident
-- [ ] Create `/app/src/components/status-pages/incidents/IncidentTimeline.tsx` - Incident timeline
-- [ ] Create `/app/src/components/status-pages/incidents/AddUpdateDialog.tsx` - Add incident update
-- [ ] Create `/app/src/components/status-pages/incidents/ResolveIncidentDialog.tsx` - Resolve incident
-- [ ] Create `/app/src/components/status-pages/incidents/IncidentTemplateSelector.tsx` - Template selector
-- [ ] Create `/app/src/components/status-pages/incidents/AffectedComponentsSelector.tsx` - Select components
-- [ ] Create `/app/src/components/status-pages/incidents/IncidentStatusBadge.tsx` - Status badge
-
-#### 3.4 Subscriber Management Components
-
-- [ ] Create `/app/src/components/status-pages/subscribers/SubscriberList.tsx` - Subscriber list
-- [ ] Create `/app/src/components/status-pages/subscribers/SubscriberStats.tsx` - Subscriber stats
-- [ ] Create `/app/src/components/status-pages/subscribers/ExportSubscribers.tsx` - Export functionality
-
-#### 3.5 Analytics & Metrics Components
-
-- [ ] Create `/app/src/components/status-pages/analytics/AnalyticsDashboard.tsx` - Main dashboard
-- [ ] Create `/app/src/components/status-pages/analytics/MetricCard.tsx` - Metric cards
-- [ ] Create `/app/src/components/status-pages/analytics/UptimeChart.tsx` - Uptime visualization
-- [ ] Create `/app/src/components/status-pages/analytics/IncidentTimelineChart.tsx` - Timeline
-- [ ] Create `/app/src/components/status-pages/analytics/SubscriberGrowthChart.tsx` - Growth chart
-- [ ] Create `/app/src/components/status-pages/analytics/GeographicMap.tsx` - Geographic distribution
-- [ ] Reuse `/app/src/components/monitors/AvailabilityBarChart.tsx` for component uptime
-
-#### 3.6 Public Status Page Components
-
-- [ ] Create `/app/src/components/public/status-page/PublicStatusPage.tsx` - Public view
-- [ ] Create `/app/src/components/public/status-page/PublicHeader.tsx` - Branded header
-- [ ] Create `/app/src/components/public/status-page/SystemStatus.tsx` - Overall status
-- [ ] Create `/app/src/components/public/status-page/ComponentStatus.tsx` - Component display
-- [ ] Create `/app/src/components/public/status-page/IncidentHistory.tsx` - Recent incidents
-- [ ] Create `/app/src/components/public/status-page/SubscribeForm.tsx` - Subscription form
-- [ ] Create `/app/src/components/public/status-page/UptimeDisplay.tsx` - Uptime percentage
-- [ ] Create `/app/src/components/public/status-page/SubscribeVerification.tsx` - Verification page
-
-### Phase 4: Frontend Routes/Pages
-
-#### 4.1 Internal Status Page Routes
-
-- [ ] Create `/app/src/app/(main)/status-pages/page.tsx` - Status pages list
-- [ ] Create `/app/src/app/(main)/status-pages/[id]/page.tsx` - Status page dashboard
-- [ ] Create `/app/src/app/(main)/status-pages/[id]/components/page.tsx` - Component management
-- [ ] Create `/app/src/app/(main)/status-pages/[id]/incidents/page.tsx` - Incident management
-- [ ] Create `/app/src/app/(main)/status-pages/[id]/incidents/create/page.tsx` - Create incident
-- [ ] Create `/app/src/app/(main)/status-pages/[id]/incidents/[incidentId]/page.tsx` - Incident details
-- [ ] Create `/app/src/app/(main)/status-pages/[id]/subscribers/page.tsx` - Subscriber management
-- [ ] Create `/app/src/app/(main)/status-pages/[id]/analytics/page.tsx` - Analytics dashboard
-- [ ] Create `/app/src/app/(main)/status-pages/[id]/settings/page.tsx` - Settings page
-
-#### 4.2 Public Status Page Routes
-
-- [ ] Create `/app/src/app/(public)/status/[subdomain]/page.tsx` - Public status page
-- [ ] Create `/app/src/app/(public)/status/[subdomain]/verify/page.tsx` - Email verification
-- [ ] Create `/app/src/app/(public)/status/[subdomain]/unsubscribe/page.tsx` - Unsubscribe page
-- [ ] Create `/app/src/app/(public)/status/[subdomain]/incidents/[id]/page.tsx` - Incident detail
-
-### Phase 5: Navigation & UI Integration
-
-#### 5.1 Update Sidebar Navigation
-
-- [ ] Update `/app/src/components/app-sidebar.tsx` to add Status navigation item
-- [ ] Add collapsible Status menu item below Alerts
-- [ ] Add sub-items: "All Status Pages", "Create Status Page", "Analytics"
-- [ ] Add appropriate icon (use Activity or Signal icon from lucide-react)
-- [ ] Test navigation and routing
-
-#### 5.2 Quick Create Integration
-
-- [ ] Add "Status Page" option to `/app/src/app/(main)/create/page.tsx`
-- [ ] Create quick create flow for status pages
-
-### Phase 6: Middleware & Routing
-
-#### 6.1 Subdomain Routing
-
-- [ ] Create or update `/app/middleware.ts` for subdomain routing
-- [ ] Implement subdomain extraction and validation
-- [ ] Add rewriting to public status page routes
-- [ ] Add 404 handling for invalid subdomains
-- [ ] Add security headers (CSP, X-Frame-Options, etc.)
-
-#### 6.2 DNS & SSL Configuration
-
-- [ ] Document wildcard DNS setup for \*.supercheck.io
-- [ ] Document Cloudflare SSL certificate setup
-- [ ] Create setup guide for production deployment
-
-### Phase 7: Security & Validation
-
-#### 7.1 Input Validation & Sanitization
-
-- [ ] Create Zod schemas for all input types
-- [ ] Implement DOMPurify for HTML sanitization
-- [ ] Add XSS protection for user-generated content
-- [ ] Add SQL injection protection (already covered by Drizzle ORM)
-- [ ] Implement rate limiting for public endpoints
-- [ ] Add CSRF protection
-
-#### 7.2 Access Control
-
-- [ ] Implement RLS policies for status page tables
-- [ ] Add organization-level access control
-- [ ] Add role-based permissions for status page management
-- [ ] Implement audit logging for status page changes
-
-### Phase 8: Notifications & Integrations
-
-#### 8.1 Notification System Integration
-
-- [ ] Extend existing notification service for status page alerts
-- [ ] Create email templates for incident notifications
-- [ ] Create email templates for subscriber verification
-- [ ] Create email templates for subscription confirmation
-- [ ] Implement SMS notifications (optional)
-- [ ] Implement webhook notifications for subscribers
-
-#### 8.2 Monitor Integration
-
-- [ ] Add automatic incident creation option for monitor failures (optional)
-- [ ] Link status page components to monitors
-- [ ] Sync component status with monitor status (optional)
-- [ ] Add status page link in monitor details
-
-### Phase 9: Testing & Documentation
-
-#### 9.1 Testing
-
-- [ ] Test database migrations
-- [ ] Test all API endpoints
-- [ ] Test public status page rendering
-- [ ] Test subdomain routing
-- [ ] Test email notifications
-- [ ] Test subscriber workflow (subscribe, verify, unsubscribe)
-- [ ] Test incident creation and updates
-- [ ] Test component management
-- [ ] Test analytics calculations
-- [ ] Test security measures (XSS, SQL injection, rate limiting)
-- [ ] Test mobile responsiveness
-
-#### 9.2 Documentation
-
-- [ ] Create user guide for status page setup
-- [ ] Document API endpoints
-- [ ] Create incident management guide
-- [ ] Document branding customization
-- [ ] Create deployment guide
-- [ ] Document security best practices
-- [ ] Add troubleshooting section
-
-### Phase 10: Deployment & Launch
-
-#### 10.1 Production Preparation
-
-- [ ] Review all security measures
-- [ ] Configure production DNS and SSL
-- [ ] Set up monitoring for status page service
-- [ ] Configure rate limiting
-- [ ] Set up error tracking
-- [ ] Prepare rollback plan
-
-#### 10.2 Launch
-
-- [ ] Deploy to staging environment
-- [ ] Conduct user acceptance testing
-- [ ] Deploy to production
-- [ ] Monitor for issues
-- [ ] Gather user feedback
-- [ ] Plan improvements based on feedback
-
-## Implementation Notes
-
-### Key Design Decisions
-
-1. **UUID-based Subdomains**: Using UUIDv4 for unique, conflict-free subdomains
-2. **Manual Incident Management**: Full user control over incident lifecycle
-3. **Existing Component Reuse**: Leveraging AvailabilityBarChart for uptime display
-4. **Security First**: Comprehensive input validation, rate limiting, and CSP headers
-5. **Mobile-First**: Responsive design for all components
-6. **Accessibility**: WCAG 2.1 AA compliance for public status pages
-
-### Technology Stack
-
-- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes, Server Actions
-- **Database**: PostgreSQL 18+ with Drizzle ORM, UUIDv7 for IDs
-- **Queue**: Redis with BullMQ (for future background jobs)
-- **Email**: Existing notification service
-- **Validation**: Zod schemas
-- **Sanitization**: DOMPurify
-
-### Complexity Management
-
-- Each task should be as simple as possible
-- Minimal code changes per task
-- Reuse existing components and services where possible
-- Follow existing project patterns and conventions
-- Avoid complex abstractions
-
-### Security Checklist
-
-- [ ] All user inputs are validated and sanitized
-- [ ] Rate limiting on public endpoints
-- [ ] CSP headers for public status pages
-- [ ] XSS protection for user-generated content
-- [ ] CSRF protection on all forms
-- [ ] Secure token generation for subscriptions
-- [ ] Email verification for subscribers
-- [ ] Audit logging for all changes
+Complete the remaining status page functionality with enterprise-grade quality, consistent UI/UX, and full dark/light mode support.
+
+**Current Status**: Phase 1 & 2 Complete (90% done)
+- ✅ Database schema (13 tables)
+- ✅ Core CRUD operations
+- ✅ Basic UI for management
+- ✅ Public status page (basic)
+- ✅ Subdomain routing
+
+**Remaining Work**: Phase 3 - Advanced Features
+
+---
+
+## Phase 3A: Subscriber Management System (Priority 1)
+
+### 1. Email Subscription Form on Public Page
+- [ ] Create `SubscribeDialog.tsx` component
+  - Email input with validation
+  - Component-specific subscription checkboxes (optional)
+  - Terms acceptance checkbox
+  - Loading and success states
+  - Error handling with clear messages
+  - Dark/light mode support
+- [ ] Add "Subscribe to Updates" button to public status page
+- [ ] Create server action `subscribe-to-status-page.ts`
+  - Validate email format
+  - Check if email already subscribed
+  - Generate verification token (crypto.randomBytes)
+  - Generate unsubscribe token
+  - Store subscriber in database (verified_at = null)
+  - Send verification email
+  - Return success/error response
+
+### 2. Email Verification System
+- [ ] Create verification email template
+  - Professional design
+  - Clear verification button/link
+  - Includes status page name
+  - Dark/light compatible HTML email
+- [ ] Create verification route `/status-pages/verify/[token]`
+  - Validate token
+  - Check token expiry (24 hours)
+  - Mark subscriber as verified (set verified_at)
+  - Show success page
+  - Redirect to status page
+- [ ] Handle verification errors
+  - Expired token
+  - Invalid token
+  - Already verified
+
+### 3. Subscriber Management UI (Admin Tab)
+- [ ] Create `SubscribersTab.tsx` component
+  - Data table with columns: Email, Mode, Verified, Subscribed Components, Date
+  - Filter by verification status
+  - Search functionality
+  - Export to CSV button
+  - Bulk actions (delete, resend verification)
+  - Pagination
+- [ ] Create server action `get-status-page-subscribers.ts`
+  - Fetch all subscribers for status page
+  - Include related component subscriptions
+  - Include verification status
+  - Support filtering and pagination
+- [ ] Create server action `delete-subscriber.ts`
+  - Permission check
+  - Delete subscriber and related subscriptions (cascade)
+  - Audit log
+- [ ] Create server action `resend-verification-email.ts`
+  - Generate new token
+  - Update database
+  - Send email
+  - Rate limiting (1 per 5 minutes per email)
+
+### 4. Unsubscribe Functionality
+- [ ] Create unsubscribe page `/status-pages/unsubscribe/[token]`
+  - Validate token
+  - Show subscriber info (email, components)
+  - Confirm unsubscribe button
+  - Feedback form (optional - "Why are you unsubscribing?")
+  - Success message
+- [ ] Create server action `unsubscribe.ts`
+  - Validate unsubscribe token
+  - Soft delete or mark as unsubscribed
+  - Set purge_at timestamp (30 days)
+  - Return success response
+- [ ] Include unsubscribe link in all notification emails
+
+---
+
+## Phase 3B: Notification System (Priority 2)
+
+### 5. Email Notification Infrastructure
+- [ ] Create email service `/lib/email/status-page-notifications.ts`
+  - Use existing notification provider system
+  - Support HTML templates
+  - Handle email errors gracefully
+  - Queue emails for bulk sends
+- [ ] Create email templates
+  - New incident notification
+  - Incident update notification
+  - Incident resolved notification
+  - Verification email
+  - Welcome email (post-verification)
+
+### 6. Incident Notifications
+- [ ] Add notification trigger to `create-incident.ts`
+  - Check if `deliverNotifications` is true
+  - Get all verified subscribers
+  - Filter by component subscriptions
+  - Queue notification emails
+  - Log notification in audit
+- [ ] Add notification trigger to `update-incident-status.ts`
+  - Same logic as create
+  - Include update details
+- [ ] Add notification trigger when incident resolved
+  - Special "resolved" template
+  - Include resolution time
+  - Thank subscribers
+
+### 7. Notification Preferences
+- [ ] Add "Manage Preferences" link in emails
+  - Leads to preferences page with token
+- [ ] Create preferences page `/status-pages/preferences/[token]`
+  - Component-specific notifications toggle
+  - Notification frequency (immediate, daily digest, weekly)
+  - Update email address
+  - Save preferences button
+- [ ] Create server action `update-subscriber-preferences.ts`
+  - Validate token
+  - Update component subscriptions
+  - Update notification settings
+  - Return success
+
+---
+
+## Phase 3C: Settings Tab (Priority 3)
+
+### 8. Status Page Settings Implementation
+- [ ] Create `SettingsTab.tsx` component with sections:
+  - **General Settings**
+    - Name (internal)
+    - Headline (public)
+    - Description
+    - Support URL
+    - Timezone selector
+  - **Subscriber Settings**
+    - Toggle: Allow page subscribers
+    - Toggle: Allow email subscribers
+    - Toggle: Allow SMS subscribers (disabled for now)
+    - Toggle: Allow webhook subscribers
+    - Toggle: Allow incident-specific subscriptions
+  - **Notification Settings**
+    - Notifications from email (validated)
+    - Email footer text
+  - **Branding Settings**
+    - Color pickers for all CSS variables
+    - Logo uploads (favicon, hero, email)
+    - Custom domain (input only, not functional yet)
+    - Theme preview
+  - **Danger Zone**
+    - Archive status page
+    - Delete status page (confirmation required)
+
+- [ ] Create server action `update-status-page-settings.ts`
+  - Validate all inputs
+  - Update database
+  - Revalidate paths
+  - Audit log
+
+### 9. Branding Customization
+- [ ] Add color picker component
+  - Preview in real-time
+  - Reset to defaults
+  - Predefined themes (light, dark, custom)
+- [ ] Logo upload functionality
+  - Use existing S3/MinIO infrastructure
+  - Image validation (size, format)
+  - Preview before save
+  - Delete/replace options
+
+---
+
+## Phase 3D: UI/UX Polish (Priority 4)
+
+### 10. Dark Mode Support for Public Pages
+- [ ] Update `PublicStatusPage.tsx` to support dark mode
+  - Use Tailwind dark: classes throughout
+  - Respect system preference
+  - Theme toggle button (optional)
+  - Use branding colors from settings
+- [ ] Ensure all components have dark mode variants
+  - Status badges
+  - Incident cards
+  - Uptime bars
+  - Subscribe dialog
+  - Footer
+- [ ] Test in both light and dark modes
+  - Check contrast ratios (WCAG AA)
+  - Verify all colors are readable
+  - Test hover states
+
+### 11. Responsive Design Improvements
+- [ ] Test on all breakpoints (mobile, tablet, desktop)
+- [ ] Optimize layout for mobile
+  - Stack components vertically
+  - Adjust font sizes
+  - Touch-friendly buttons (min 44px)
+- [ ] Optimize for tablet
+  - 2-column layouts where appropriate
+  - Collapsible sidebar
+
+### 12. Loading States and Skeletons
+- [ ] Add loading skeletons for:
+  - Public page initial load
+  - Components list
+  - Incidents list
+  - Subscribers tab
+- [ ] Add optimistic updates where appropriate
+  - Subscribe form
+  - Settings save
+  - Component status changes
+
+---
+
+## Phase 3E: Analytics Dashboard (Priority 5)
+
+### 13. Analytics Overview Tab
+- [ ] Create `AnalyticsTab.tsx` component
+  - Total subscribers count
+  - Subscriber growth chart (last 30 days)
+  - Page views chart (last 30 days)
+  - Average uptime by component
+  - Total incidents by month
+  - Most affected components
+- [ ] Add page view tracking
+  - Track unique visitors (IP-based or cookie)
+  - Track page views
+  - Store in database or analytics service
+  - Privacy-conscious (GDPR compliant)
+
+### 14. Uptime Calculations
+- [ ] Create service to calculate component uptime
+  - Based on monitor results
+  - Calculate daily uptime percentage
+  - Store in `status_page_metrics` table
+  - Aggregate for 7-day, 30-day, 90-day views
+- [ ] Display uptime on components
+  - Show percentage on public page
+  - Show detailed breakdown in admin
+
+### 15. Incident Metrics
+- [ ] Track incident metrics
+  - Mean time to resolution (MTTR)
+  - Incident frequency by component
+  - Impact distribution (minor vs major vs critical)
+  - Time of day analysis
+- [ ] Display in analytics tab
+  - Charts and graphs
+  - Exportable reports
+
+---
+
+## Phase 3F: Advanced Features (Priority 6 - Future)
+
+### 16. Incident Templates System
+- [ ] Create `IncidentTemplatesTab.tsx`
+  - List all templates
+  - Create/edit/delete templates
+  - Assign default components
+  - Set default impact and status
+- [ ] Add "Use Template" button in incident creation
+  - Select template
+  - Pre-fill form
+  - Allow customization
+
+### 17. Scheduled Maintenance
+- [ ] Enhance incident form for scheduled maintenance
+  - Date/time picker for scheduled_for and scheduled_until
+  - Auto-transition toggles
+  - Reminder settings
+- [ ] Create scheduled maintenance workflow
+  - Auto-transition to "under_maintenance" at start time
+  - Auto-transition to "operational" at end time
+  - Send reminder notifications
+
+### 18. Real-time Updates (SSE)
+- [ ] Implement Server-Sent Events for public page
+  - Push incident updates in real-time
+  - Update component statuses live
+  - Show "Live" indicator
+- [ ] Create SSE endpoint `/api/status-pages/[subdomain]/events`
+  - Stream incident updates
+  - Stream component changes
+  - Handle disconnections gracefully
+
+---
+
+## Cross-cutting Concerns
+
+### Security
+- [ ] Input validation on all forms
+- [ ] Rate limiting on public endpoints (subscribe, unsubscribe)
+- [ ] CSRF protection for all forms
+- [ ] Email verification required before notifications
+- [ ] Secure token generation (crypto.randomBytes)
 - [ ] No sensitive data in frontend
-- [ ] Proper error handling (no stack traces to users)
+- [ ] SQL injection prevention (Drizzle ORM handles this)
+- [ ] XSS prevention (React handles this, but sanitize HTML in emails)
 
-## Review Section
+### Performance
+- [ ] Database query optimization
+  - Add indexes where needed
+  - Use pagination
+  - Avoid N+1 queries
+- [ ] Caching strategy
+  - Cache public status pages (Redis, 1 minute)
+  - Cache component statuses
+  - Invalidate on updates
+- [ ] Image optimization
+  - Compress logos
+  - Use Next.js Image component
+  - Lazy load images
 
-### Changes Summary
+### Accessibility
+- [ ] WCAG 2.1 AA compliance
+  - Color contrast ratios
+  - Keyboard navigation
+  - Screen reader support
+  - ARIA labels
+- [ ] Test with screen readers
+- [ ] Test keyboard-only navigation
 
-Enhanced the public status page to display daily incident history with the following improvements:
+### Testing
+- [ ] Unit tests for server actions
+- [ ] Integration tests for workflows
+- [ ] E2E tests with Playwright
+  - Subscribe flow
+  - Verification flow
+  - Unsubscribe flow
+  - Admin management
 
-1. **Extended Incident History**: The past incidents section now shows entries for each of the last 90 days (increased from 30), providing a comprehensive view of system status over three months.
+---
 
-2. **Professional UI Improvements**:
+## Implementation Order (Recommended)
 
-   - Enhanced card-based design with shadows and rounded corners for incident days
-   - Added incident count badges for days with incidents
-   - Improved typography with better font weights and spacing
-   - Added visual indicators (checkmark icons) for days without incidents
-   - Implemented a border-left accent for incident items
+1. **Week 1: Subscriber System (Tasks 1-4)**
+   - Day 1-2: Subscribe form and server action
+   - Day 3: Email verification
+   - Day 4-5: Subscribers tab UI
 
-3. **Interactive Uptime Bars**:
+2. **Week 2: Notifications (Tasks 5-7)**
+   - Day 1-2: Email service and templates
+   - Day 3-4: Incident notifications
+   - Day 5: Preferences page
 
-   - Increased bar height from h-8 to h-10 for better visibility
-   - Increased spacing between bars from gap-[1px] to gap-1 for clearer separation
-   - Added hover state transitions with duration-200 for smooth interactions
-   - Implemented interactive tooltips that appear on hover
+3. **Week 3: Settings & UI Polish (Tasks 8-12)**
+   - Day 1-2: Settings tab
+   - Day 3: Branding customization
+   - Day 4-5: Dark mode and responsive design
 
-4. **Advanced Tooltip System**:
+4. **Week 4: Analytics & Advanced (Tasks 13-18)**
+   - Day 1-2: Analytics dashboard
+   - Day 3: Uptime calculations
+   - Day 4-5: Incident templates and scheduled maintenance
 
-   - Added detailed tooltips showing the full date in "MMMM d, yyyy" format
-   - For days with incidents: displays incident names with their impact levels
-   - For days without incidents: shows "No incidents recorded" message
-   - For new pages: shows "No data available" message
-   - Tooltips include a pointer arrow for better visual connection
+---
 
-5. **Pagination Framework**:
+## Review Checklist
 
-   - Added pagination controls at both top and bottom of the incident history
-   - Professional button design with chevron icons
-   - Currently disabled but ready for future implementation of actual pagination
+Before marking as complete:
+- [ ] All builds passing (npm run build)
+- [ ] No ESLint errors
+- [ ] No TypeScript errors
+- [ ] All tests passing
+- [ ] Manual testing complete
+- [ ] Dark mode tested
+- [ ] Mobile responsive tested
+- [ ] Security review complete
+- [ ] Performance benchmarks met
+- [ ] Accessibility audit passed
+- [ ] Documentation updated
 
-6. **Color-Coded Incident Bars**: Uptime bars display different colors based on incident impact:
+---
 
-   - Critical incidents: Red (bg-red-600)
-   - Major incidents: Orange (bg-orange-500)
-   - Minor incidents: Yellow (bg-yellow-500)
-   - No incidents: Green (bg-green-500)
-   - No data (for newly created pages): Gray (bg-gray-400)
-
-7. **New Status Page Handling**: When a status page is created on the same day, all historical bars display in gray to indicate that no historical data exists.
-
-8. **Chronological Incident Grouping**: Incidents are grouped by date and sorted chronologically (newest first) within each day, with enhanced visual separation between days.
-
-### Issues Encountered
-
-- Minor TypeScript errors were encountered and fixed:
-  - Added missing useState import from React
-  - Fixed type definitions for the dayIncidents property in the uptime data structure
-
-### Improvements Made
-
-- Improved user experience by providing a complete 90-day view of system status
-- Enhanced visual communication through interactive tooltips and color-coded bars
-- Better organization of incident information with professional card-based design
-- Clearer visual hierarchy with proper spacing, typography, and visual indicators
-- Added interactive elements that make the status page more engaging and informative
-
-### Security Considerations
-
-- All existing security measures remain in place
-- No sensitive information is exposed on the public status page
-- Input validation continues to be handled by the existing backend actions
-- Tooltip content is safely rendered and does not expose any sensitive data
-
-### Next Steps
-
-- Implement actual pagination functionality to handle large numbers of incidents efficiently
-- Consider adding a legend to explain the color coding of the uptime bars
-- Potentially add filters to view incidents by impact level or status
-- Consider adding a "Show more" button to load additional days beyond 90 if needed
-
-## Updated Review Section (Latest Changes)
-
-### Changes Summary
-
-Based on user feedback, the public status page has been refined with the following improvements:
-
-1. **Simplified Incident Display**:
-
-   - Removed card-based design for a cleaner, simpler layout
-   - Changed from showing 90 days of daily entries to showing only the 5 most recent incidents
-   - Simplified the past incidents section to focus on actual incidents rather than daily entries
-   - Added a centered message with icon when no incidents exist
-
-2. **Improved Pagination**:
-
-   - Removed pagination controls from the top of the incidents section
-   - Added pagination only at the bottom, shown only when there are more than 5 incidents
-   - Pagination displays "Showing 1-5 of X incidents" for better context
-   - Maintains clean design while providing navigation for larger incident lists
-
-3. **Enhanced Uptime Bars**:
-
-   - Increased bar height from h-8 to h-10 for better visibility
-   - Maintained proper spacing between bars (gap-1) for clear separation
-   - Fixed color coding to properly show incident colors when incidents are detected
-   - Bars now correctly display colors based on the highest impact incident for that day
-
-4. **Improved Tooltip System**:
-
-   - Fixed tooltip positioning to appear below the bar instead of above
-   - Made tooltip background color match the bar color for visual consistency
-   - Added proper positioning logic to center tooltip under the hovered bar
-   - Tooltips now have a pointer arrow pointing up to the bar
-
-5. **Color-Coded Incident Bars**: Uptime bars display different colors based on incident impact:
-
-   - Critical incidents: Red (bg-red-600)
-   - Major incidents: Orange (bg-orange-500)
-   - Minor incidents: Yellow (bg-yellow-500)
-   - No incidents: Green (bg-green-500)
-   - No data (for newly created pages): Gray (bg-gray-400)
-
-6. **New Status Page Handling**: When a status page is created on the same day, all historical bars display in gray to indicate that no historical data exists.
-
-7. **Chronological Incident Display**: Incidents are now shown in chronological order (newest first) with a simplified layout that focuses on the most important information.
-
-### Issues Fixed
-
-- Fixed tooltip positioning issue where tooltips appeared above bars instead of below
-- Resolved bar color issue where gray was shown instead of incident colors
-- Simplified the UI based on user feedback to remove unnecessary card designs
-- Improved pagination placement to be less intrusive
-
-### Security Considerations
-
-- All existing security measures remain in place
-- No sensitive information is exposed on the public status page
-- Input validation continues to be handled by the existing backend actions
-- Tooltip content is safely rendered and does not expose any sensitive data
+## Notes
+- Follow existing patterns in the codebase
+- Use existing UI components (shadcn/ui)
+- Maintain consistency with rest of app
+- Keep changes simple and focused
+- Security first approach
+- Enterprise-grade quality

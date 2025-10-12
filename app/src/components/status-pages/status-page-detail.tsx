@@ -5,11 +5,25 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Globe, Settings, Tally4, AlertCircle, ExternalLink, Upload, EyeOff, Loader2 } from "lucide-react";
+import {
+  Globe,
+  Settings,
+  Tally4,
+  AlertCircle,
+  ExternalLink,
+  Upload,
+  EyeOff,
+  Loader2,
+} from "lucide-react";
 import Link from "next/link";
 import { ComponentsTab } from "./components-tab";
 import { IncidentsTab } from "./incidents-tab";
-import { publishStatusPage, unpublishStatusPage } from "@/actions/publish-status-page";
+import { SubscribersTab } from "./subscribers-tab";
+import { SettingsTab } from "./settings-tab";
+import {
+  publishStatusPage,
+  unpublishStatusPage,
+} from "@/actions/publish-status-page";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -20,6 +34,23 @@ type StatusPage = {
   status: string;
   pageDescription: string | null;
   headline: string | null;
+  supportUrl: string | null;
+  timezone: string | null;
+  allowPageSubscribers: boolean | null;
+  allowEmailSubscribers: boolean | null;
+  allowSmsSubscribers: boolean | null;
+  allowWebhookSubscribers: boolean | null;
+  allowIncidentSubscribers: boolean | null;
+  notificationsFromEmail: string | null;
+  notificationsEmailFooter: string | null;
+  hiddenFromSearch: boolean | null;
+  cssBodyBackgroundColor: string | null;
+  cssFontColor: string | null;
+  cssGreens: string | null;
+  cssYellows: string | null;
+  cssOranges: string | null;
+  cssBlues: string | null;
+  cssReds: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;
 };
@@ -53,7 +84,12 @@ type StatusPageDetailProps = {
   components: Component[];
 };
 
-export function StatusPageDetail({ statusPage, monitors, componentGroups, components }: StatusPageDetailProps) {
+export function StatusPageDetail({
+  statusPage,
+  monitors,
+  componentGroups,
+  components,
+}: StatusPageDetailProps) {
   const router = useRouter();
   const [isPublishing, setIsPublishing] = useState(false);
 
@@ -163,10 +199,7 @@ export function StatusPageDetail({ statusPage, monitors, componentGroups, compon
                   Unpublish
                 </Button>
               ) : (
-                <Button
-                  onClick={handlePublish}
-                  disabled={isPublishing}
-                >
+                <Button onClick={handlePublish} disabled={isPublishing}>
                   {isPublishing ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
@@ -187,16 +220,13 @@ export function StatusPageDetail({ statusPage, monitors, componentGroups, compon
             <span className="font-mono text-xs">
               https://{statusPage.subdomain}.supercheck.io
             </span>
-            <span className="text-muted-foreground">
-              (Local preview: /status-pages/{statusPage.id}/public)
-            </span>
           </div>
         </CardContent>
       </Card>
 
       {/* Tabs Section */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">
             <Tally4 className="h-4 w-4 mr-2" />
             Overview
@@ -213,24 +243,36 @@ export function StatusPageDetail({ statusPage, monitors, componentGroups, compon
             <Globe className="h-4 w-4 mr-2" />
             Subscribers
           </TabsTrigger>
+          <TabsTrigger value="settings">
+            <Settings className="h-4 w-4 mr-2" />
+            Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
           <Card className="shadow-sm">
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Status Page Overview</h3>
+              <h3 className="text-lg font-semibold mb-4">
+                Status Page Overview
+              </h3>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="p-4 border rounded-lg">
                   <div className="text-2xl font-bold">0</div>
-                  <div className="text-sm text-muted-foreground">Components</div>
+                  <div className="text-sm text-muted-foreground">
+                    Components
+                  </div>
                 </div>
                 <div className="p-4 border rounded-lg">
                   <div className="text-2xl font-bold">0</div>
-                  <div className="text-sm text-muted-foreground">Active Incidents</div>
+                  <div className="text-sm text-muted-foreground">
+                    Active Incidents
+                  </div>
                 </div>
                 <div className="p-4 border rounded-lg">
                   <div className="text-2xl font-bold">0</div>
-                  <div className="text-sm text-muted-foreground">Subscribers</div>
+                  <div className="text-sm text-muted-foreground">
+                    Subscribers
+                  </div>
                 </div>
               </div>
 
@@ -238,7 +280,9 @@ export function StatusPageDetail({ statusPage, monitors, componentGroups, compon
                 <h4 className="font-medium mb-2">Getting Started</h4>
                 <ul className="text-sm text-muted-foreground space-y-2">
                   <li>1. Add components to track your services</li>
-                  <li>2. Link monitors to components for automated status updates</li>
+                  <li>
+                    2. Link monitors to components for automated status updates
+                  </li>
                   <li>3. Create incidents when issues occur</li>
                   <li>4. Customize branding and colors in settings</li>
                   <li>5. Publish your status page when ready</li>
@@ -265,7 +309,7 @@ export function StatusPageDetail({ statusPage, monitors, componentGroups, compon
             <CardContent className="p-0">
               <IncidentsTab
                 statusPageId={statusPage.id}
-                components={components.map(c => ({ id: c.id, name: c.name }))}
+                components={components.map((c) => ({ id: c.id, name: c.name }))}
               />
             </CardContent>
           </Card>
@@ -273,15 +317,16 @@ export function StatusPageDetail({ statusPage, monitors, componentGroups, compon
 
         <TabsContent value="subscribers">
           <Card className="shadow-sm">
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Subscribers</h3>
-              <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                <Globe className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h4 className="text-lg font-semibold mb-2">No subscribers yet</h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Users can subscribe to receive notifications about incidents and updates
-                </p>
-              </div>
+            <CardContent className="p-0">
+              <SubscribersTab statusPageId={statusPage.id} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="settings">
+          <Card className="shadow-sm">
+            <CardContent className="p-0">
+              <SettingsTab statusPage={statusPage} />
             </CardContent>
           </Card>
         </TabsContent>
