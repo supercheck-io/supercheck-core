@@ -60,11 +60,12 @@ type StatusPage = {
   updatedAt: Date | null;
 };
 
-type Monitor = {
+type StatusPageMonitor = {
   id: string;
   name: string;
   type: string;
   status?: string;
+  target?: string;
 };
 
 type ComponentGroup = {
@@ -82,12 +83,12 @@ type Component = {
   name: string;
   monitorId: string | null;
   componentGroupId: string | null;
-  monitor?: Monitor | null;
+  monitor?: StatusPageMonitor | null;
 };
 
 type StatusPageDetailProps = {
   statusPage: StatusPage;
-  monitors: Monitor[];
+  monitors: StatusPageMonitor[];
   componentGroups: ComponentGroup[];
   components: Component[];
 };
@@ -260,7 +261,9 @@ export function StatusPageDetail({
             <Card>
               <CardContent className="p-6">
                 <div className="text-2xl font-bold">0</div>
-                <div className="text-sm text-muted-foreground">Active Incidents</div>
+                <div className="text-sm text-muted-foreground">
+                  Active Incidents
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -293,16 +296,31 @@ export function StatusPageDetail({
                   columns={columns}
                   data={components
                     .filter((c) => c.monitor)
-                    .map((c) => c.monitor as Monitor)}
+                    .map(
+                      (c) =>
+                        ({
+                          ...c.monitor,
+                          id: c.monitor!.id,
+                          name: c.monitor!.name,
+                          type: c.monitor!.type,
+                          status: c.monitor!.status || "pending",
+                          target: c.monitor!.target || "", // Use the target field from monitor data
+                          frequencyMinutes: 5, // Required field but not available in StatusPageMonitor
+                          enabled: true, // Required field but not available in StatusPageMonitor
+                          createdAt: new Date().toISOString(), // Required field but not available in StatusPageMonitor
+                          updatedAt: new Date().toISOString(), // Required field but not available in StatusPageMonitor
+                        } as Monitor)
+                    )}
                   isLoading={false}
-                  onRowClick={(row) => router.push(`/monitors/${row.original.id}`)}
+                  onRowClick={(row) =>
+                    router.push(`/monitors/${row.original.id}`)
+                  }
                   hideToolbar={true}
                   pageSize={5}
                 />
               )}
             </CardContent>
           </Card>
-
         </TabsContent>
 
         <TabsContent value="components" className="space-y-4">

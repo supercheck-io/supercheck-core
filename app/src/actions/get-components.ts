@@ -13,7 +13,10 @@ export async function getComponents(statusPageId: string) {
     // Get all components for the status page, including linked monitor data
     const components = await db.query.statusPageComponents.findMany({
       where: eq(statusPageComponents.statusPageId, statusPageId),
-      orderBy: (components, { asc }) => [asc(components.position), asc(components.createdAt)],
+      orderBy: (components, { asc }) => [
+        asc(components.position),
+        asc(components.createdAt),
+      ],
       with: {
         // Include monitor data if linked
       },
@@ -25,6 +28,13 @@ export async function getComponents(statusPageId: string) {
         if (component.monitorId) {
           const monitor = await db.query.monitors.findFirst({
             where: eq(monitors.id, component.monitorId),
+            columns: {
+              id: true,
+              name: true,
+              type: true,
+              status: true,
+              target: true,
+            },
           });
           return {
             ...component,
