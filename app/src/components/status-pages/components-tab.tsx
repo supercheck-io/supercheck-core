@@ -12,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Settings, Plus, Pencil, Trash2, Activity, Link as LinkIcon, FolderTree, FolderPlus } from "lucide-react";
+import { Settings, Plus, Pencil, Trash2, Activity, Link as LinkIcon, Group, FolderPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -216,7 +216,7 @@ export function ComponentsTab({ statusPageId, monitors, componentGroups }: Compo
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setShowGroupsSection(!showGroupsSection)}>
-              <FolderTree className="h-4 w-4 mr-2" />
+              <Group className="h-4 w-4 mr-2" />
               {showGroupsSection ? 'Hide' : 'Manage'} Groups
             </Button>
             <Button onClick={handleAddComponent}>
@@ -228,53 +228,40 @@ export function ComponentsTab({ statusPageId, monitors, componentGroups }: Compo
 
         {/* Component Groups Section */}
         {showGroupsSection && (
-          <div className="mb-6 p-5 bg-gradient-to-br from-muted/50 to-muted/30 rounded-lg border shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h4 className="text-base font-semibold flex items-center gap-2">
-                  <FolderTree className="h-5 w-5" />
-                  Component Groups
-                </h4>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Organize components into logical groups for better structure
-                </p>
-              </div>
-              <Button size="sm" onClick={() => setIsGroupFormOpen(true)}>
-                <FolderPlus className="h-4 w-4 mr-2" />
+          <div className="mb-6 p-4 bg-muted/30 rounded-lg border">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Group className="h-4 w-4" />
+                Component Groups
+              </h4>
+              <Button size="sm" variant="outline" onClick={() => setIsGroupFormOpen(true)}>
+                <FolderPlus className="h-3.5 w-3.5 mr-1.5" />
                 Add Group
               </Button>
             </div>
             {componentGroups.length === 0 ? (
-              <div className="text-center py-8 px-4 bg-background/50 rounded-md border border-dashed">
-                <FolderTree className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-                <p className="text-sm font-medium text-muted-foreground">
-                  No groups created yet
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Groups help organize related components on your status page
-                </p>
+              <div className="text-center py-6 px-4 bg-background/50 rounded-md border border-dashed">
+                <Group className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+                <p className="text-xs text-muted-foreground">No groups created yet</p>
               </div>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-2 md:grid-cols-3">
                 {componentGroups.map((group) => (
                   <div
                     key={group.id}
-                    className="p-4 bg-background rounded-lg border shadow-sm hover:shadow-md transition-shadow"
+                    className="p-3 bg-background rounded-md border hover:border-primary/50 transition-colors"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm mb-1 truncate">{group.name}</div>
-                        {group.description && (
-                          <div className="text-xs text-muted-foreground line-clamp-2 mb-2">
-                            {group.description}
-                          </div>
-                        )}
-                        <Badge variant="secondary" className="text-xs">
-                          <Activity className="h-3 w-3 mr-1" />
-                          {components.filter(c => c.componentGroupId === group.id).length} components
-                        </Badge>
-                      </div>
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-sm truncate flex-1">{group.name}</div>
+                      <Badge variant="secondary" className="text-xs ml-2">
+                        {components.filter(c => c.componentGroupId === group.id).length}
+                      </Badge>
                     </div>
+                    {group.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                        {group.description}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -301,7 +288,7 @@ export function ComponentsTab({ statusPageId, monitors, componentGroups }: Compo
                 {/* Group Header */}
                 {groupId !== 'ungrouped' && (
                   <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground border-b pb-2">
-                    <FolderTree className="h-4 w-4" />
+                    <Group className="h-4 w-4" />
                     <span>{getGroupName(groupId)}</span>
                     <Badge variant="secondary" className="text-xs">
                       {groupComponents.length}

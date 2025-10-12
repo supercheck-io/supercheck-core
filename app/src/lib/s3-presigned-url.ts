@@ -14,7 +14,7 @@ const s3Client = new S3Client({
 
 /**
  * Generate a presigned URL from an S3 reference
- * @param s3Reference - S3 reference in format: bucket/key or full S3 URL
+ * @param s3Reference - S3 reference in format: bucket/key
  * @param expiresIn - Expiration time in seconds (default: 7 days)
  * @returns Presigned URL or null if invalid reference
  */
@@ -27,28 +27,15 @@ export async function generatePresignedUrl(
   }
 
   try {
-    // Parse the S3 reference to extract bucket and key
-    let bucket: string;
-    let key: string;
-
-    // Handle format: bucket/key
-    if (s3Reference.includes("/") && !s3Reference.startsWith("http")) {
-      const parts = s3Reference.split("/");
-      bucket = parts[0];
-      key = parts.slice(1).join("/");
-    }
-    // Handle old format: full S3 URL (for backward compatibility)
-    else if (s3Reference.startsWith("http")) {
-      const url = new URL(s3Reference);
-      const pathParts = url.pathname.split("/").filter(Boolean);
-      bucket = pathParts[0];
-      key = pathParts.slice(1).join("/");
-    }
-    // Invalid format
-    else {
+    // Parse S3 reference format: bucket/key
+    const parts = s3Reference.split("/");
+    if (parts.length < 2) {
       console.error(`[S3] Invalid S3 reference format: ${s3Reference}`);
       return null;
     }
+
+    const bucket = parts[0];
+    const key = parts.slice(1).join("/");
 
     // Generate presigned URL
     const command = new GetObjectCommand({

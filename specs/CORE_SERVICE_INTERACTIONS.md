@@ -1,6 +1,6 @@
 # Core Service Interactions - Detailed Workflows
 
-This document provides comprehensive sequence diagrams for the three core execution workflows in Supercheck: Test execution, Job execution, and Monitor execution.
+This document provides comprehensive sequence diagrams for the core execution workflows in Supercheck: Test execution, Job execution, Monitor execution, and Status Page management.
 
 ## ⚙️ **Test Execution Workflow (Playground)**
 
@@ -203,7 +203,7 @@ sequenceDiagram
     participant S as ⏰ Job Scheduler
     participant Q as 📨 Redis/BullMQ
     participant W as ⚡ NestJS Worker
-    participant M as ılıılıılıılıılıılı Monitor Service
+    participant M as 👀 Monitor Service
     participant H as 🌐 HTTP Client
     participant P as 📡 Ping Service
     participant T as 🔌 Port Scanner
@@ -278,7 +278,6 @@ sequenceDiagram
         M->>M: Determine status change (up/down)
         M->>D: Save monitor result
         M->>D: Update monitor status
-        deactivate M
 
         %% Alert Processing
         alt Status change detected OR Alert conditions met
@@ -317,11 +316,189 @@ sequenceDiagram
             A->>N: Send SSL warning notifications
             A->>D: Log SSL alert
         end
+        deactivate M
     end
 
     deactivate W
     Q-->>S: Monitor execution complete
     S->>S: Schedule next monitor execution
+```
+
+## 📢 **Status Page Public Access Workflow**
+
+```mermaid
+sequenceDiagram
+    participant V as 👥 Public Visitor
+    participant M as 🔍 Middleware Router
+    participant D as 🗄️ PostgreSQL
+    participant F as 🖥️ Frontend
+    participant C as 🧩 Components
+    participant I as ⚠️ Incidents
+
+    Note over V,I: Public Status Page Access via Subdomain
+
+    V->>M: GET https://[uuid].supercheck.io
+    activate M
+
+    M->>M: Extract subdomain from hostname
+    M->>D: Query status_pages by subdomain
+    D-->>M: Return status page record
+
+    alt Status page not found or not published
+        M->>F: Rewrite to /404
+        F-->>V: 404 Not Found
+    else Status page found and published
+        M->>F: Rewrite to /status-pages/[id]/public
+
+        F->>D: Fetch status page details
+        F->>D: Fetch components for status page
+        F->>D: Fetch incidents for status page
+
+        D-->>F: Return status page data
+        D-->>F: Return components data
+        D-->>F: Return incidents data
+
+        F-->>V: Render public status page
+        Note over F,V: Include system status,<br/>component uptime,<br/>and incident history
+    end
+
+    deactivate M
+```
+
+## 📧 **Status Page Subscription Workflow**
+
+```mermaid
+sequenceDiagram
+    participant U as 👤 User
+    participant F as 🖥️ Frontend
+    participant A as 🔐 Auth API
+    participant D as 🗄️ PostgreSQL
+    participant E as 📧 Email Service
+    participant V as ✅ Verification
+
+    Note over U,V: Email Subscription to Status Page Updates
+
+    U->>F: Click "Subscribe" on status page
+    F->>F: Open subscription dialog
+    U->>F: Enter email address
+    F->>A: POST /api/subscribe-to-status-page
+
+    A->>D: Check if status page exists and is published
+    A->>D: Check if email already subscribed
+    A->>D: Create subscriber record (unverified)
+    A->>A: Generate verification token
+
+    A->>E: Send verification email
+    Note over A,E: Email contains verification link<br/>with unique token
+
+    A-->>F: Subscription initiated
+    F-->>U: "Please check your email to verify"
+
+    %% Email Verification Flow
+    U->>V: Click verification link in email
+    activate V
+    V->>A: GET /status-pages/verify/[token]
+
+    A->>D: Find subscriber by verification token
+    A->>D: Update subscriber as verified
+    A->>D: Log verification event
+
+    A-->>V: Redirect to confirmation page
+    V-->>U: "Subscription verified successfully"
+    deactivate V
+```
+
+## ⚠️ **Status Page Incident Management Workflow**
+
+```mermaid
+sequenceDiagram
+    participant U as 👤 Admin User
+    participant F as 🖥️ Frontend
+    participant A as 🔐 Auth API
+    participant D as 🗄️ PostgreSQL
+    participant N as 📧 Notification Service
+    participant S as 👥 Subscribers
+
+    Note over U,S: Incident Creation and Management
+
+    U->>F: Navigate to status page management
+    F->>A: Validate admin session
+    A-->>F: User authorized
+
+    U->>F: Click "Create Incident"
+    F->>F: Open incident creation dialog
+    U->>F: Fill incident details (title, impact, affected components)
+    F->>A: POST /api/create-incident
+
+    A->>A: Validate input and permissions
+    A->>D: Create incident record
+    A->>D: Update affected component statuses
+    A->>D: Log audit event
+
+    A-->>F: Incident created successfully
+    F-->>U: Show success message
+
+    %% Notification Flow
+    A->>N: Trigger incident notification
+    activate N
+    N->>D: Fetch all verified subscribers
+    N->>N: Compose incident notification
+    N->>S: Send email notifications to all subscribers
+    deactivate N
+
+    %% Incident Update Flow
+    U->>F: Click "Add Update" on incident
+    F->>F: Open update dialog
+    U->>F: Write update message
+    F->>A: POST /api/update-incident
+
+    A->>D: Create incident update record
+    A->>D: Update incident status if needed
+    A->>N: Trigger update notification
+
+    A-->>F: Update added successfully
+    F-->>U: Show updated incident timeline
+
+    %% Incident Resolution
+    U->>F: Mark incident as resolved
+    F->>A: POST /api/resolve-incident
+
+    A->>D: Update incident status to "resolved"
+    A->>D: Set resolved_at timestamp
+    A->>D: Update component statuses back to operational
+    A->>N: Trigger resolution notification
+
+    A-->>F: Incident resolved
+    F-->>U: Show resolved status
+```
+
+## 🔄 **Status Page Component Status Sync Workflow**
+
+```mermaid
+sequenceDiagram
+    participant M as 👀 Monitor Service
+    participant C as 🧩 Status Component
+    participant S as 📊 Status Calculator
+    participant D as 🗄️ PostgreSQL
+    participant N as 📧 Notification Service
+
+    Note over M,N: Automatic Component Status Updates from Monitors
+
+    M->>M: Execute monitor check (HTTP/ping/port)
+
+    alt Monitor status changed
+        M->>D: Update monitor status
+        M->>C: Find linked status page components
+        C->>C: For each linked component:
+        C->>S: Calculate new component status based on monitor
+        S->>D: Update component status in database
+
+        alt Component status changed significantly
+            C->>N: Trigger status change notification
+            N->>N: Check if notification rules are met
+            N->>N: Send notifications to affected subscribers
+        end
+    end
 ```
 
 ## 🔄 **Cross-Service Communication Patterns**
@@ -335,18 +512,20 @@ graph LR
         Q2[job-execution Queue<br/>• Multi-test jobs<br/>• Scheduled jobs<br/>• Priority: High]
         Q3[monitor-execution Queue<br/>• Monitor checks<br/>• Automated execution<br/>• Priority: Low]
         Q4[cleanup Queue<br/>• File cleanup<br/>• S3 maintenance<br/>• Priority: Lowest]
+        Q5[status-notification Queue<br/>• Email notifications<br/>• Subscriber alerts<br/>• Priority: High]
     end
 
     Q1 --> W1[Test Workers<br/>1-2 instances]
     Q2 --> W2[Job Workers<br/>2-3 instances]
     Q3 --> W3[Monitor Workers<br/>2-4 instances]
     Q4 --> W4[Cleanup Workers<br/>1 instance]
+    Q5 --> W5[Status Workers<br/>1-2 instances]
 
     classDef queue fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
     classDef worker fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
 
-    class Q1,Q2,Q3,Q4 queue
-    class W1,W2,W3,W4 worker
+    class Q1,Q2,Q3,Q4,Q5 queue
+    class W1,W2,W3,W4,W5 worker
 ```
 
 ### **Real-time Communication**
@@ -354,9 +533,9 @@ graph LR
 ```mermaid
 graph TB
     subgraph "📡 Real-time Updates"
-        R1[Redis Pub/Sub Channels<br/>• test:testId:status<br/>• test:testId:complete<br/>• job:runId:status<br/>• job:runId:complete<br/>• monitor:monitorId:status]
+        R1[Redis Pub/Sub Channels<br/>• test:testId:status<br/>• test:testId:complete<br/>• job:runId:status<br/>• job:runId:complete<br/>• monitor:monitorId:status<br/>• status:pageId:incident<br/>• status:pageId:update]
 
-        R2[SSE Endpoints<br/>• /api/test-status/events/testId<br/>• /api/job-status/events/jobId<br/>• /api/queue-stats/sse]
+        R2[SSE Endpoints<br/>• /api/test-status/events/testId<br/>• /api/job-status/events/jobId<br/>• /api/queue-stats/sse<br/>• /api/status-updates/sse]
 
         R3[Frontend Connections<br/>• EventSource instances<br/>• Auto-reconnection<br/>• Connection cleanup]
     end
@@ -419,4 +598,4 @@ graph TB
 - Automatic cleanup of old playground tests
 - Presigned URLs for secure artifact access
 
-This comprehensive set of sequence diagrams shows the complete interaction patterns for all three core execution workflows in Supercheck, highlighting the sophisticated orchestration between services, real-time updates, error handling, and security measures.
+This comprehensive set of sequence diagrams shows the complete interaction patterns for all four core execution workflows in Supercheck (Test execution, Job execution, Monitor execution, and Status Page management), highlighting the sophisticated orchestration between services, real-time updates, error handling, and security measures.

@@ -12,7 +12,6 @@ import {
   EyeOff,
   Loader2,
   Copy,
-  Link as LinkIcon,
   Activity,
 } from "lucide-react";
 import Link from "next/link";
@@ -20,12 +19,16 @@ import { ComponentsTab } from "./components-tab";
 import { IncidentsTab } from "./incidents-tab";
 import { SubscribersTab } from "./subscribers-tab";
 import { SettingsTab } from "./settings-tab";
+import { StatusPageInfoPopover } from "./status-page-info-popover";
 import {
   publishStatusPage,
   unpublishStatusPage,
 } from "@/actions/publish-status-page";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { DataTable } from "@/components/monitors/data-table";
+import { columns } from "@/components/monitors/columns";
+import type { Monitor } from "@/components/monitors/schema";
 
 type StatusPage = {
   id: string;
@@ -79,12 +82,7 @@ type Component = {
   name: string;
   monitorId: string | null;
   componentGroupId: string | null;
-  monitor?: {
-    id: string;
-    name: string;
-    type: string;
-    status: string;
-  } | null;
+  monitor?: Monitor | null;
 };
 
 type StatusPageDetailProps = {
@@ -182,6 +180,7 @@ export function StatusPageDetail({
               <Badge className={getStatusBadgeColor(statusPage.status)}>
                 {statusPage.status}
               </Badge>
+              <StatusPageInfoPopover />
             </div>
             {statusPage.headline && (
               <p className="text-lg text-muted-foreground mb-2">
@@ -290,102 +289,20 @@ export function StatusPageDetail({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {components
+                <DataTable
+                  columns={columns}
+                  data={components
                     .filter((c) => c.monitor)
-                    .map((component) => (
-                      <Link
-                        key={component.id}
-                        href={`/monitors/${component.monitor?.id}`}
-                      >
-                        <div className="flex items-center justify-between p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer">
-                          <div className="flex items-center gap-3">
-                            <Activity className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <div className="font-medium flex items-center gap-2">
-                                {component.monitor?.name}
-                                <Badge variant="outline" className="text-xs">
-                                  {component.monitor?.type}
-                                </Badge>
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                Linked to: {component.name}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant={
-                                component.monitor?.status === "up"
-                                  ? "default"
-                                  : "destructive"
-                              }
-                              className="capitalize"
-                            >
-                              {component.monitor?.status}
-                            </Badge>
-                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                </div>
+                    .map((c) => c.monitor as Monitor)}
+                  isLoading={false}
+                  onRowClick={(row) => router.push(`/monitors/${row.original.id}`)}
+                  hideToolbar={true}
+                  pageSize={5}
+                />
               )}
             </CardContent>
           </Card>
 
-          {/* Component Groups Section */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Component Groups</h3>
-                <Badge variant="secondary">
-                  {componentGroups.length} groups
-                </Badge>
-              </div>
-              {componentGroups.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  <p>No groups created yet</p>
-                  <p className="mt-1">
-                    Create groups in the Components tab to organize your components
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {componentGroups.map((group) => (
-                    <div
-                      key={group.id}
-                      className="p-4 border rounded-lg"
-                    >
-                      <div className="font-medium mb-1">{group.name}</div>
-                      {group.description && (
-                        <div className="text-sm text-muted-foreground mb-2">
-                          {group.description}
-                        </div>
-                      )}
-                      <Badge variant="secondary" className="text-xs">
-                        {components.filter((c) => c.componentGroupId === group.id).length} components
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Getting Started Card */}
-          <Card>
-            <CardContent className="p-6">
-              <h4 className="font-medium mb-3">Getting Started</h4>
-              <ul className="text-sm text-muted-foreground space-y-2">
-                <li>1. Add components to track your services</li>
-                <li>2. Link monitors to components for automated status updates</li>
-                <li>3. Create incidents when issues occur</li>
-                <li>4. Customize branding and colors in settings</li>
-                <li>5. Publish your status page when ready</li>
-              </ul>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="components" className="space-y-4">

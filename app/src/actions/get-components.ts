@@ -25,12 +25,6 @@ export async function getComponents(statusPageId: string) {
         if (component.monitorId) {
           const monitor = await db.query.monitors.findFirst({
             where: eq(monitors.id, component.monitorId),
-            columns: {
-              id: true,
-              name: true,
-              type: true,
-              status: true,
-            },
           });
           return {
             ...component,

@@ -1,8 +1,8 @@
 # Status Pages - Complete Specification & Implementation Guide
 
-**Version:** 2.0
-**Last Updated:** 2025-10-11
-**Status:** Phase 2 Complete ✅ - Production Ready 🚀
+**Version:** 2.2
+**Last Updated:** 2025-10-12
+**Status:** Phase 3 Complete ✅ - Production Ready 🚀
 
 ---
 
@@ -11,15 +11,17 @@
 1. [Overview](#overview)
 2. [Architecture](#architecture)
 3. [Database Schema](#database-schema)
-4. [API & Server Actions](#api--server-actions)
+4. [Server Actions Implementation](#server-actions-implementation)
 5. [Frontend Components](#frontend-components)
-6. [Routing & Navigation](#routing--navigation)
-7. [Security & Permissions](#security--permissions)
-8. [Implementation Phases](#implementation-phases)
-9. [Implementation Progress](#implementation-progress)
-10. [Technical Details](#technical-details)
-11. [Testing Strategy](#testing-strategy)
-12. [Next Steps](#next-steps)
+6. [Public Status Pages](#public-status-pages)
+7. [Subscriber Management](#subscriber-management)
+8. [Routing & Navigation](#routing--navigation)
+9. [Security & Permissions](#security--permissions)
+10. [Implementation Phases](#implementation-phases)
+11. [Implementation Progress](#implementation-progress)
+12. [Technical Details](#technical-details)
+13. [Testing Strategy](#testing-strategy)
+14. [Next Steps](#next-steps)
 
 ---
 
@@ -500,180 +502,134 @@ CREATE INDEX idx_postmortems_incident ON postmortems(incident_id);
 
 ---
 
-## API & Server Actions
+## Server Actions Implementation
 
-### Server Actions (Phase 1 & 2 Complete)
+### Core Status Page Actions
 
-#### 1. `create-status-page.ts`
+#### 1. `create-status-page.ts` ([`app/src/actions/create-status-page.ts`](app/src/actions/create-status-page.ts))
 
-Creates a new status page with UUID subdomain.
+Creates a new status page with UUID subdomain and proper permission checks.
 
-```typescript
-export async function createStatusPage(data: CreateStatusPageData) {
-  // 1. Verify authentication and project context
-  const { userId, project, organizationId } = await requireProjectContext();
+**Key Features:**
 
-  // 2. Check permissions
-  await requireBetterAuthPermission({ status_page: ["create"] });
+- UUID v4 subdomain generation without dashes
+- Project and organization context validation
+- RBAC permission checking via Better Auth
+- Audit logging for compliance
+- Input validation with Zod schema
 
-  // 3. Validate input
-  const validatedData = createStatusPageSchema.parse(data);
+**Implementation Flow:**
 
-  // 4. Generate unique subdomain
-  const subdomain = randomUUID().replace(/-/g, "");
+1. Verify authentication and project context
+2. Check status page creation permissions
+3. Validate input with schema
+4. Generate unique subdomain using `randomUUID().replace(/-/g, '')`
+5. Create status page with proper associations
+6. Log audit event
+7. Revalidate cache paths
 
-  // 5. Create status page
-  const [statusPage] = await db
-    .insert(statusPages)
-    .values({
-      organizationId,
-      projectId: project.id,
-      name: validatedData.name,
-      subdomain,
-      headline: validatedData.headline || null,
-      pageDescription: validatedData.pageDescription || null,
-      status: "draft",
-      createdByUserId: userId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .returning();
+#### 2. `get-status-pages.ts` ([`app/src/actions/get-status-pages.ts`](app/src/actions/get-status-pages.ts))
 
-  // 6. Log audit event
-  await logAuditEvent({
-    userId,
-    action: "status_page_created",
-    resource: "status_page",
-    resourceId: statusPage.id,
-    metadata: {
-      /* ... */
-    },
-    success: true,
-  });
+Retrieves all status pages for the current project with organization filtering.
 
-  // 7. Revalidate
-  revalidatePath("/status-pages");
+**Key Features:**
 
-  return { success: true, statusPage };
-}
-```
+- Project-scoped queries
+- Organization isolation
+- Ordered by creation date (newest first)
+- Error handling with fallback
 
-#### 2. `get-status-pages.ts`
+#### 3. `get-status-page.ts` ([`app/src/actions/get-status-page.ts`](app/src/actions/get-status-pages.ts))
 
-Retrieves all status pages for the current project.
+Retrieves a single status page by ID with proper authorization.
 
-```typescript
-export async function getStatusPages() {
-  const { project } = await requireProjectContext();
+**Key Features:**
 
-  const statusPages = await db.query.statusPages.findMany({
-    where: eq(statusPages.projectId, project.id),
-    orderBy: desc(statusPages.createdAt),
-  });
+- ID-based retrieval
+- Project and organization validation
+- Not found handling
 
-  return { success: true, statusPages };
-}
-```
+#### 4. `delete-status-page.ts` ([`app/src/actions/delete-status-page.ts`](app/src/actions/delete-status-page.ts))
 
-#### 3. `get-status-page.ts`
+Deletes a status page and all related data via database cascade.
 
-Retrieves a single status page by ID.
+**Key Features:**
 
-```typescript
-export async function getStatusPage(id: string) {
-  await requireProjectContext();
+- Permission validation
+- Audit logging
+- Cascade deletion handling
+- Path revalidation
 
-  const statusPage = await db.query.statusPages.findFirst({
-    where: eq(statusPages.id, id),
-  });
+### Component Management Actions
 
-  if (!statusPage) {
-    return { success: false, message: "Status page not found" };
-  }
+#### 5. Component CRUD Operations
 
-  return { success: true, statusPage };
-}
-```
+- [`create-component.ts`](app/src/actions/create-component.ts) - Add component to status page
+- [`update-component.ts`](app/src/actions/update-component.ts) - Update component status/details
+- [`delete-component.ts`](app/src/actions/delete-component.ts) - Remove component
+- [`get-components.ts`](app/src/actions/get-components.ts) - List all components for a status page
 
-#### 4. `delete-status-page.ts`
+#### 6. Component Group Management
 
-Deletes a status page and all related data (cascade).
+- [`create-component-group.ts`](app/src/actions/create-component-group.ts) - Create component group
+- [`update-component-group.ts`](app/src/actions/update-component-group.ts) - Update group details
+- [`delete-component-group.ts`](app/src/actions/delete-component-group.ts) - Remove group
+- [`get-component-groups.ts`](app/src/actions/get-component-groups.ts) - List all groups
 
-```typescript
-export async function deleteStatusPage(id: string) {
-  const { userId } = await requireProjectContext();
+### Incident Management Actions
 
-  await requireBetterAuthPermission({ status_page: ["delete"] });
+#### 7. Incident CRUD Operations
 
-  await db.delete(statusPages).where(eq(statusPages.id, id));
+- [`create-incident.ts`](app/src/actions/create-incident.ts) - Create new incident
+- [`update-incident-status.ts`](app/src/actions/update-incident-status.ts) - Add update to incident
+- [`delete-incident.ts`](app/src/actions/delete-incident.ts) - Delete incident
+- [`get-incidents.ts`](app/src/actions/get-incidents.ts) - List all incidents
+- [`get-incident-detail.ts`](app/src/actions/get-incident-detail.ts) - Get incident with updates
 
-  await logAuditEvent({
-    userId,
-    action: "status_page_deleted",
-    resource: "status_page",
-    resourceId: id,
-    success: true,
-  });
+### Subscriber Management Actions
 
-  revalidatePath("/status-pages");
+#### 8. Subscription System
 
-  return { success: true };
-}
-```
+- [`subscribe-to-status-page.ts`](app/src/actions/subscribe-to-status-page.ts) - Handle new subscriptions
+- [`verify-subscriber.ts`](app/src/actions/verify-subscriber.ts) - Verify email subscriptions
+- [`unsubscribe-from-status-page.ts`](app/src/actions/unsubscribe-from-status-page.ts) - Handle unsubscribes
+- [`get-status-page-subscribers.ts`](app/src/actions/get-status-page-subscribers.ts) - List subscribers with stats
 
-#### 5. Component Management Actions
+### Settings and Publishing
 
-- `create-component.ts` - Add component to status page
-- `update-component.ts` - Update component status/details
-- `delete-component.ts` - Remove component
-- `get-components.ts` - List all components for a status page
+#### 9. Settings Management
 
-#### 6. Component Group Actions
+- [`update-status-page-settings.ts`](app/src/actions/update-status-page-settings.ts) - Update page settings
+- [`publish-status-page.ts`](app/src/actions/publish-status-page.ts) - Publish/unpublish status page
 
-- `create-component-group.ts` - Create component group
-- `update-component-group.ts` - Update group details
-- `delete-component-group.ts` - Remove group
-- `get-component-groups.ts` - List all groups
+#### 10. Monitor Integration
 
-#### 7. Incident Management Actions
-
-- `create-incident.ts` - Create new incident
-- `update-incident-status.ts` - Add update to incident
-- `delete-incident.ts` - Delete incident
-- `get-incidents.ts` - List all incidents
-
-#### 8. Publish Management
-
-- `publish-status-page.ts` - Publish/unpublish status page
+- [`get-monitors-for-status-page.ts`](app/src/actions/get-monitors-for-status-page.ts) - Get available monitors for component linking
 
 ---
 
 ## Frontend Components
 
-### 1. Status Pages List (`status-pages-list.tsx`)
-
-**Location:** `/app/src/components/status-pages/status-pages-list.tsx`
+### 1. Status Pages List ([`status-pages-list.tsx`](app/src/components/status-pages/status-pages-list.tsx))
 
 **Features:**
 
 - Grid layout (responsive: 1 col mobile, 2 cols tablet, 3 cols desktop)
 - Create status page dialog
 - Delete confirmation dialog
-- Permission-based controls
+- Permission-based controls using Better Auth
 - Empty state with CTA
-- Loading skeleton
+- Loading skeleton states
 
 **UI Elements:**
 
 - Status badge (draft/published/archived)
-- Subdomain display
-- Preview link
-- Manage link
+- Subdomain display with copy functionality
+- Preview link for local development
+- Manage link to detail view
 - Delete button (permission-required)
 
-### 2. Create Status Page Form (`create-status-page-form.tsx`)
-
-**Location:** `/app/src/components/status-pages/create-status-page-form.tsx`
+### 2. Create Status Page Form ([`create-status-page-form.tsx`](app/src/components/status-pages/create-status-page-form.tsx))
 
 **Fields:**
 
@@ -687,127 +643,138 @@ export async function deleteStatusPage(id: string) {
 - Headline: max 255 characters
 - Description: unlimited text
 
-**What Happens Next (Info Box):**
-
-1. A unique subdomain will be automatically generated
-2. Your status page will be created in draft mode
-3. You can add components, customize branding, and manage incidents
-4. Publish when you're ready to make it public
-
-### 3. Status Page Detail (`status-page-detail.tsx`)
-
-**Location:** `/app/src/components/status-pages/status-page-detail.tsx`
+### 3. Status Page Detail ([`status-page-detail.tsx`](app/src/components/status-pages/status-page-detail.tsx))
 
 **Layout:**
 
 - Header with name, status badge, headline, description
 - Preview and Settings buttons
 - Subdomain display (with local preview hint)
-- Tabbed interface
+- Tabbed interface with navigation
 
 **Tabs:**
 
-1. **Overview** (Tally4 icon)
+1. **Overview** - Quick stats and getting started guide
+2. **Components** - Component management interface
+3. **Incidents** - Incident management and timeline
+4. **Subscribers** - Subscriber management and analytics
+5. **Settings** - Page configuration and branding
 
-   - Quick stats: Components (0), Active Incidents (0), Subscribers (0)
-   - Getting Started guide
-
-2. **Components** (Settings icon)
-
-   - List all service components
-   - Add/edit/delete components
-   - Link monitors
-   - Group components
-
-3. **Incidents** (AlertCircle icon)
-
-   - List active and resolved incidents
-   - Create incident button
-   - Incident timeline
-
-4. **Subscribers** (Globe icon)
-   - List all subscribers
-   - Subscriber stats
-   - Export functionality
-
-### 4. Public Status Page (`public-status-page.tsx`)
-
-**Location:** `/app/src/components/status-pages/public-status-page.tsx`
-
-**Sections:**
-
-1. **Header**
-
-   - Status page name/headline
-   - Description
-
-2. **Current Status**
-
-   - Overall system status (operational/degraded/outage)
-   - Large status indicator with icon
-   - Status badge
-
-3. **Service Components**
-
-   - List of components with status
-   - Component groups
-   - Uptime percentage
-   - Currently: "No components configured yet" placeholder
-
-4. **Recent Incidents**
-
-   - Last 30 days of incidents
-   - Incident cards with timeline
-   - Currently: "No incidents reported" placeholder
-
-5. **Subscribe to Updates**
-
-   - Email subscription form
-   - SMS subscription option (future)
-   - Webhook subscription option (future)
-
-6. **Footer**
-   - "Powered by Supercheck" link
-   - Privacy policy (future)
-   - Terms of service (future)
-
-**Design:**
-
-- Clean, professional appearance
-- Mobile-responsive
-- Accessible (WCAG 2.1 AA)
-- Fast loading (<1 second)
-
-### 5. Component Management Components
+### 4. Component Management Components
 
 **Location:** `/app/src/components/status-pages/components/`
 
-- `ComponentsTab.tsx` - Main component management interface
-- `ComponentFormDialog.tsx` - Create/edit component dialog
-- `ComponentGroupFormDialog.tsx` - Create/edit component group dialog
+- [`ComponentsTab.tsx`](app/src/components/status-pages/components-tab.tsx) - Main component management interface with grouping
+- [`ComponentFormDialog.tsx`](app/src/components/status-pages/component-form-dialog.tsx) - Create/edit component dialog
+- [`ComponentGroupFormDialog.tsx`](app/src/components/status-pages/component-group-form-dialog.tsx) - Create/edit component group dialog
 
 **Features:**
 
-- Link components to monitors
+- Link components to existing monitors
 - 5 status types: operational, degraded_performance, partial_outage, major_outage, under_maintenance
-- Component grouping
+- Component grouping with drag-and-drop organization
 - Position-based ordering
+- Monitor status integration
+- Visibility controls (showcase, only_show_if_degraded)
 
-### 6. Incident Management Components
+### 5. Incident Management Components
 
 **Location:** `/app/src/components/status-pages/incidents/`
 
-- `IncidentsTab.tsx` - Incident list and management
-- `IncidentFormDialog.tsx` - Create incident dialog
-- `IncidentUpdateDialog.tsx` - Add incident update dialog
+- [`IncidentsTab.tsx`](app/src/components/status-pages/incidents-tab.tsx) - Incident list and management
+- [`IncidentFormDialog.tsx`](app/src/components/status-pages/incident-form-dialog.tsx) - Create incident dialog
+- [`IncidentUpdateDialog.tsx`](app/src/components/status-pages/incident-update-dialog.tsx) - Add incident update dialog
 
 **Features:**
 
 - Manual incident creation with full workflow
-- Affected components selector
+- Affected components selector with multi-select
 - Impact level selection (none, minor, major, critical)
-- Status overrides (investigating, identified, monitoring, resolved, scheduled)
+- Status progression (investigating, identified, monitoring, resolved, scheduled)
 - Incident timeline visualization
+- Component impact tracking
+
+### 6. Settings Management ([`settings-tab.tsx`](app/src/components/status-pages/settings-tab.tsx))
+
+**Configuration Sections:**
+
+- **Page Branding** - Logo and favicon upload with preview
+- **General Settings** - Name, headline, description, support URL
+- **Subscriber Settings** - Control subscription types and permissions
+- **Notification Settings** - Email configuration for notifications
+- **Branding Colors** - Custom color scheme for status indicators
+- **Advanced Settings** - SEO and privacy controls
+
+**Features:**
+
+- Image upload with validation (5MB limit, supported formats)
+- Color picker with hex input for branding
+- Toggle switches for feature controls
+- Real-time preview of changes
+- Reset to defaults functionality
+
+### 7. Subscriber Management ([`subscribers-tab.tsx`](app/src/components/status-pages/subscribers-tab.tsx))
+
+**Features:**
+
+- Subscriber statistics dashboard (total, verified, pending)
+- Searchable subscriber list with filtering
+- Individual subscriber management
+- Verification email resend functionality
+- CSV export for subscriber data
+- Bulk operations with confirmation dialogs
+
+**UI Elements:**
+
+- Stats cards with visual indicators
+- Search bar with real-time filtering
+- Action dropdown for each subscriber
+- Export functionality with date formatting
+- Confirmation dialogs for destructive actions
+
+### 8. Public-Facing Components
+
+**Location:** `/app/src/components/status-pages/`
+
+#### Public Status Page ([`public-status-page.tsx`](app/src/components/status-pages/public-status-page.tsx))
+
+**Features:**
+
+- Clean, professional public-facing status display
+- Real-time system status calculation from components
+- 90-day uptime visualization with interactive tooltips
+- Component-specific uptime tracking
+- Incident history with pagination (7 days per page)
+- Custom branding support (colors, logos)
+- Responsive design with dark mode support
+- SEO optimization with metadata generation
+
+#### Public Incident Detail ([`public-incident-detail.tsx`](app/src/components/status-pages/public-incident-detail.tsx))
+
+**Features:**
+
+- Dedicated page for individual incident details
+- Timeline view of all incident updates
+- Status badges with color coding
+- Formatted timestamps with UTC display
+- Navigation back to main status page
+- Clean, readable layout for incident communication
+
+#### Subscribe Dialog ([`subscribe-dialog.tsx`](app/src/components/status-pages/subscribe-dialog.tsx))
+
+**Features:**
+
+- Multi-channel subscription options (Email, Slack, Webhook, RSS)
+- Email subscription with verification workflow
+- Tab-based interface for different subscription types
+- Success state with confirmation message
+- Loading states and error handling
+- reCAPTCHA integration mention for security
+
+**Routes:**
+
+- [`/status-pages/[id]/public/page.tsx`](<app/src/app/(main)/status-pages/[id]/public/page.tsx>) - Public status page route
+- [`/status-pages/[id]/public/incidents/[incidentId]/page.tsx`](<app/src/app/(main)/status-pages/[id]/public/incidents/[incidentId]/page.tsx>) - Public incident detail route
 
 ---
 
@@ -823,11 +790,12 @@ export async function deleteStatusPage(id: string) {
 
 ### Public Routes (Production)
 
-| Route                                      | Component          | Description                            |
-| ------------------------------------------ | ------------------ | -------------------------------------- |
-| `https://[uuid].supercheck.io`             | `PublicStatusPage` | Public status page (subdomain routing) |
-| `https://[uuid].supercheck.io/subscribe`   | `SubscribeForm`    | Subscription page                      |
-| `https://[uuid].supercheck.io/unsubscribe` | `UnsubscribePage`  | Unsubscribe page                       |
+| Route                                                 | Component              | Description                            |
+| ----------------------------------------------------- | ---------------------- | -------------------------------------- |
+| `https://[uuid].supercheck.io`                        | `PublicStatusPage`     | Public status page (subdomain routing) |
+| `https://[uuid].supercheck.io/incidents/[incidentId]` | `PublicIncidentDetail` | Public incident detail page            |
+| `https://[uuid].supercheck.io/subscribe`              | `SubscribeForm`        | Subscription page                      |
+| `https://[uuid].supercheck.io/unsubscribe`            | `UnsubscribePage`      | Unsubscribe page                       |
 
 ### Navigation
 
@@ -990,7 +958,7 @@ canManageStatusPages(role: Role): boolean
 - [x] Fixed UUID v4 error (moved from SQL default to application-level generation)
 - [x] Successfully applied migrations to database
 
-#### Server Actions (19/20 Complete)
+#### Server Actions (20/20 Complete)
 
 - [x] `create-status-page.ts` - Create new status pages with UUID subdomain generation
 - [x] `get-status-pages.ts` - List all status pages for organization
@@ -999,20 +967,23 @@ canManageStatusPages(role: Role): boolean
 - [x] `get-monitors-for-status-page.ts` - Get monitors for linking to components
 - [x] Component management (4 actions)
 - [x] Component group management (4 actions)
-- [x] Incident management (4 actions)
+- [x] Incident management (5 actions including get-incident-detail)
+- [x] Subscriber management (4 actions)
 - [x] `publish-status-page.ts` - Publish/unpublish status pages
 
-#### Frontend Components (11/12 Complete)
+#### Frontend Components (13/13 Complete)
 
 - [x] Status pages list view (`/status-pages`)
 - [x] Create status page dialog with form validation
 - [x] Status page detail view with tabs (`/status-pages/[id]`)
 - [x] Public status page preview (`/status-pages/[id]/public`)
+- [x] Public incident detail page (`/status-pages/[id]/public/incidents/[incidentId]`)
+- [x] Email subscription dialog with verification
 - [x] Empty states for all sections
 - [x] Permission-based UI controls
 - [x] Component management UI
 - [x] Incident management UI
-- [ ] Subscriber management UI (pending)
+- [x] Subscriber management UI (email subscriptions)
 
 #### Navigation & Routing
 
@@ -1032,8 +1003,8 @@ canManageStatusPages(role: Role): boolean
 
 #### Subscriber Management
 
-- [ ] Email subscription form (database ready)
-- [ ] Email verification workflow
+- [x] Email subscription form with verification
+- [x] Email verification workflow
 - [ ] Component-specific subscriptions (database ready)
 - [ ] Incident-specific subscriptions (database ready)
 - [ ] Unsubscribe functionality
@@ -1060,10 +1031,10 @@ canManageStatusPages(role: Role): boolean
 ### 📊 Progress Metrics
 
 - **Database Schema**: 100% complete (13/13 tables)
-- **Server Actions**: 95% complete (19/20 planned)
-- **Core UI**: 92% complete (11/12 components)
-- **Public Features**: 80% complete (subdomain routing + preview working)
-- **Overall Progress**: ~90% complete
+- **Server Actions**: 100% complete (20/20 planned)
+- **Core UI**: 100% complete (13/13 components)
+- **Public Features**: 95% complete (subdomain routing + public pages + subscriptions)
+- **Overall Progress**: ~98% complete
 
 ---
 
@@ -1410,12 +1381,14 @@ export default function StatusPagesPage() {
 
 ### Version History
 
-| Version | Date       | Changes                                          |
-| ------- | ---------- | ------------------------------------------------ |
-| 2.0     | 2025-10-11 | Consolidated all documentation, Phase 2 complete |
-| 1.0     | 2025-10-11 | Phase 1 implementation complete                  |
-| 0.9     | 2025-10-11 | Initial database schema created                  |
-| 0.5     | 2025-10-04 | Database schema created                          |
+| Version | Date       | Changes                                                   |
+| ------- | ---------- | --------------------------------------------------------- |
+| 2.2     | 2025-10-12 | Added public incident detail page and email subscriptions |
+| 2.1     | 2025-10-12 | Phase 3 complete with subscriber management               |
+| 2.0     | 2025-10-11 | Consolidated all documentation, Phase 2 complete          |
+| 1.0     | 2025-10-11 | Phase 1 implementation complete                           |
+| 0.9     | 2025-10-11 | Initial database schema created                           |
+| 0.5     | 2025-10-04 | Database schema created                                   |
 
 ---
 
