@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Globe,
-  Settings,
-  Tally4,
-  AlertCircle,
   ExternalLink,
   Upload,
   EyeOff,
   Loader2,
+  Copy,
+  Link as LinkIcon,
+  Activity,
 } from "lucide-react";
 import Link from "next/link";
 import { ComponentsTab } from "./components-tab";
@@ -51,6 +51,8 @@ type StatusPage = {
   cssOranges: string | null;
   cssBlues: string | null;
   cssReds: string | null;
+  faviconLogo: string | null;
+  transactionalLogo: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;
 };
@@ -75,6 +77,14 @@ type ComponentGroup = {
 type Component = {
   id: string;
   name: string;
+  monitorId: string | null;
+  componentGroupId: string | null;
+  monitor?: {
+    id: string;
+    name: string;
+    type: string;
+    status: string;
+  } | null;
 };
 
 type StatusPageDetailProps = {
@@ -92,6 +102,14 @@ export function StatusPageDetail({
 }: StatusPageDetailProps) {
   const router = useRouter();
   const [isPublishing, setIsPublishing] = useState(false);
+
+  const handleCopyUrl = () => {
+    const url = `https://${statusPage.subdomain}.supercheck.io`;
+    navigator.clipboard.writeText(url);
+    toast.success("URL copied to clipboard", {
+      description: url,
+    });
+  };
 
   const handlePublish = async () => {
     setIsPublishing(true);
@@ -155,180 +173,242 @@ export function StatusPageDetail({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header Section */}
-      <Card className="shadow-sm">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-semibold">{statusPage.name}</h1>
-                <Badge className={getStatusBadgeColor(statusPage.status)}>
-                  {statusPage.status}
-                </Badge>
-              </div>
-              {statusPage.headline && (
-                <p className="text-lg text-muted-foreground mb-2">
-                  {statusPage.headline}
-                </p>
-              )}
-              {statusPage.pageDescription && (
-                <p className="text-sm text-muted-foreground">
-                  {statusPage.pageDescription}
-                </p>
-              )}
+    <div className="space-y-6 p-4">
+      <Tabs defaultValue="overview" className="space-y-4">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-2xl font-semibold">{statusPage.name}</h1>
+              <Badge className={getStatusBadgeColor(statusPage.status)}>
+                {statusPage.status}
+              </Badge>
             </div>
-            <div className="flex gap-2">
-              <Button asChild variant="outline">
-                <Link href={`/status-pages/${statusPage.id}/public`}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Preview
-                </Link>
-              </Button>
-              {statusPage.status === "published" ? (
-                <Button
-                  variant="outline"
-                  onClick={handleUnpublish}
-                  disabled={isPublishing}
-                >
-                  {isPublishing ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <EyeOff className="h-4 w-4 mr-2" />
-                  )}
-                  Unpublish
-                </Button>
-              ) : (
-                <Button onClick={handlePublish} disabled={isPublishing}>
-                  {isPublishing ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4 mr-2" />
-                  )}
-                  Publish
-                </Button>
-              )}
-              <Button variant="outline">
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
+            {statusPage.headline && (
+              <p className="text-lg text-muted-foreground mb-2">
+                {statusPage.headline}
+              </p>
+            )}
+            {statusPage.pageDescription && (
+              <p className="text-sm text-muted-foreground">
+                {statusPage.pageDescription}
+              </p>
+            )}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-3">
+              <Globe className="h-4 w-4 flex-shrink-0" />
+              <span className="font-mono text-xs">
+                https://{statusPage.subdomain}.supercheck.io
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={handleCopyUrl}
+              >
+                <Copy className="h-3 w-3" />
               </Button>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 bg-muted rounded-lg">
-            <Globe className="h-4 w-4 flex-shrink-0" />
-            <span className="font-mono text-xs">
-              https://{statusPage.subdomain}.supercheck.io
-            </span>
+          <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/status-pages/${statusPage.id}/public`}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Preview
+              </Link>
+            </Button>
+            {statusPage.status === "published" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUnpublish}
+                disabled={isPublishing}
+              >
+                {isPublishing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <EyeOff className="h-4 w-4 mr-2" />
+                )}
+                Unpublish
+              </Button>
+            ) : (
+              <Button size="sm" onClick={handlePublish} disabled={isPublishing}>
+                {isPublishing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                Publish
+              </Button>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Tabs Section */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">
-            <Tally4 className="h-4 w-4 mr-2" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="components">
-            <Settings className="h-4 w-4 mr-2" />
-            Components
-          </TabsTrigger>
-          <TabsTrigger value="incidents">
-            <AlertCircle className="h-4 w-4 mr-2" />
-            Incidents
-          </TabsTrigger>
-          <TabsTrigger value="subscribers">
-            <Globe className="h-4 w-4 mr-2" />
-            Subscribers
-          </TabsTrigger>
-          <TabsTrigger value="settings">
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </TabsTrigger>
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="components">Components</TabsTrigger>
+          <TabsTrigger value="incidents">Incidents</TabsTrigger>
+          <TabsTrigger value="subscribers">Subscribers</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview">
-          <Card className="shadow-sm">
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-2xl font-bold">{components.length}</div>
+                <div className="text-sm text-muted-foreground">Components</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-2xl font-bold">0</div>
+                <div className="text-sm text-muted-foreground">Active Incidents</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-2xl font-bold">0</div>
+                <div className="text-sm text-muted-foreground">Subscribers</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Linked Monitors Section */}
+          <Card>
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                Status Page Overview
-              </h3>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="p-4 border rounded-lg">
-                  <div className="text-2xl font-bold">0</div>
-                  <div className="text-sm text-muted-foreground">
-                    Components
-                  </div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="text-2xl font-bold">0</div>
-                  <div className="text-sm text-muted-foreground">
-                    Active Incidents
-                  </div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="text-2xl font-bold">0</div>
-                  <div className="text-sm text-muted-foreground">
-                    Subscribers
-                  </div>
-                </div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Linked Monitors</h3>
+                <Badge variant="secondary">
+                  {components.filter((c) => c.monitor).length} monitors
+                </Badge>
               </div>
+              {components.filter((c) => c.monitor).length === 0 ? (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No monitors linked yet</p>
+                  <p className="mt-1">
+                    Link monitors to components in the Components tab
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {components
+                    .filter((c) => c.monitor)
+                    .map((component) => (
+                      <Link
+                        key={component.id}
+                        href={`/monitors/${component.monitor?.id}`}
+                      >
+                        <div className="flex items-center justify-between p-4 border rounded-lg hover:border-primary hover:bg-accent transition-colors cursor-pointer">
+                          <div className="flex items-center gap-3">
+                            <Activity className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="font-medium flex items-center gap-2">
+                                {component.monitor?.name}
+                                <Badge variant="outline" className="text-xs">
+                                  {component.monitor?.type}
+                                </Badge>
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                Linked to: {component.name}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                component.monitor?.status === "up"
+                                  ? "default"
+                                  : "destructive"
+                              }
+                              className="capitalize"
+                            >
+                              {component.monitor?.status}
+                            </Badge>
+                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                <h4 className="font-medium mb-2">Getting Started</h4>
-                <ul className="text-sm text-muted-foreground space-y-2">
-                  <li>1. Add components to track your services</li>
-                  <li>
-                    2. Link monitors to components for automated status updates
-                  </li>
-                  <li>3. Create incidents when issues occur</li>
-                  <li>4. Customize branding and colors in settings</li>
-                  <li>5. Publish your status page when ready</li>
-                </ul>
+          {/* Component Groups Section */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Component Groups</h3>
+                <Badge variant="secondary">
+                  {componentGroups.length} groups
+                </Badge>
               </div>
+              {componentGroups.length === 0 ? (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  <p>No groups created yet</p>
+                  <p className="mt-1">
+                    Create groups in the Components tab to organize your components
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {componentGroups.map((group) => (
+                    <div
+                      key={group.id}
+                      className="p-4 border rounded-lg"
+                    >
+                      <div className="font-medium mb-1">{group.name}</div>
+                      {group.description && (
+                        <div className="text-sm text-muted-foreground mb-2">
+                          {group.description}
+                        </div>
+                      )}
+                      <Badge variant="secondary" className="text-xs">
+                        {components.filter((c) => c.componentGroupId === group.id).length} components
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Getting Started Card */}
+          <Card>
+            <CardContent className="p-6">
+              <h4 className="font-medium mb-3">Getting Started</h4>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li>1. Add components to track your services</li>
+                <li>2. Link monitors to components for automated status updates</li>
+                <li>3. Create incidents when issues occur</li>
+                <li>4. Customize branding and colors in settings</li>
+                <li>5. Publish your status page when ready</li>
+              </ul>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="components">
-          <Card className="shadow-sm">
-            <CardContent className="p-0">
-              <ComponentsTab
-                statusPageId={statusPage.id}
-                monitors={monitors}
-                componentGroups={componentGroups}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="components" className="space-y-4">
+          <ComponentsTab
+            statusPageId={statusPage.id}
+            monitors={monitors}
+            componentGroups={componentGroups}
+          />
         </TabsContent>
 
-        <TabsContent value="incidents">
-          <Card className="shadow-sm">
-            <CardContent className="p-0">
-              <IncidentsTab
-                statusPageId={statusPage.id}
-                components={components.map((c) => ({ id: c.id, name: c.name }))}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="incidents" className="space-y-4">
+          <IncidentsTab
+            statusPageId={statusPage.id}
+            components={components.map((c) => ({ id: c.id, name: c.name }))}
+          />
         </TabsContent>
 
-        <TabsContent value="subscribers">
-          <Card className="shadow-sm">
-            <CardContent className="p-0">
-              <SubscribersTab statusPageId={statusPage.id} />
-            </CardContent>
-          </Card>
+        <TabsContent value="subscribers" className="space-y-4">
+          <SubscribersTab statusPageId={statusPage.id} />
         </TabsContent>
 
-        <TabsContent value="settings">
-          <Card className="shadow-sm">
-            <CardContent className="p-0">
-              <SettingsTab statusPage={statusPage} />
-            </CardContent>
-          </Card>
+        <TabsContent value="settings" className="space-y-4">
+          <SettingsTab statusPage={statusPage} />
         </TabsContent>
       </Tabs>
     </div>

@@ -4,6 +4,7 @@ import { db } from "@/utils/db";
 import { statusPages } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { requireProjectContext } from "@/lib/project-context";
+import { generatePresignedUrl } from "@/lib/s3-presigned-url";
 
 export async function getStatusPage(id: string) {
   try {
@@ -22,9 +23,22 @@ export async function getStatusPage(id: string) {
       };
     }
 
+    // Generate presigned URLs for logo assets
+    // This converts S3 keys stored in the database to temporary presigned URLs
+    const [faviconUrl, logoUrl, coverUrl] = await Promise.all([
+      generatePresignedUrl(statusPage.faviconLogo),
+      generatePresignedUrl(statusPage.transactionalLogo),
+      generatePresignedUrl(statusPage.heroCover),
+    ]);
+
     return {
       success: true,
-      statusPage,
+      statusPage: {
+        ...statusPage,
+        faviconLogo: faviconUrl,
+        transactionalLogo: logoUrl,
+        heroCover: coverUrl,
+      },
     };
   } catch (error) {
     console.error("Error fetching status page:", error);

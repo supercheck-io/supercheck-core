@@ -38,6 +38,13 @@ type StatusPage = {
   headline: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;
+  cssGreens: string | null;
+  cssYellows: string | null;
+  cssOranges: string | null;
+  cssBlues: string | null;
+  cssReds: string | null;
+  faviconLogo: string | null;
+  transactionalLogo: string | null;
 };
 
 type Component = {
@@ -97,6 +104,15 @@ export function PublicStatusPage({
 
   const systemStatus = calculateSystemStatus();
 
+  // Get custom colors with fallbacks
+  const colors = {
+    green: statusPage.cssGreens || "#2ecc71",
+    yellow: statusPage.cssYellows || "#f1c40f",
+    orange: statusPage.cssOranges || "#e67e22",
+    blue: statusPage.cssBlues || "#3498db",
+    red: statusPage.cssReds || "#e74c3c",
+  };
+
   const getSystemStatusDisplay = () => {
     switch (systemStatus) {
       case "operational":
@@ -104,54 +120,42 @@ export function PublicStatusPage({
           icon: CheckCircle2,
           text: "All Systems Operational",
           subtext: "All services are running normally",
-          color: "text-white",
-          bgColor: "bg-green-600",
-          badgeColor: "bg-green-100 text-green-800",
+          bgColor: colors.green,
         };
       case "degraded_performance":
         return {
           icon: AlertTriangle,
           text: "Degraded Performance",
           subtext: "Some services are experiencing issues",
-          color: "text-white",
-          bgColor: "bg-yellow-500",
-          badgeColor: "bg-yellow-100 text-yellow-800",
+          bgColor: colors.yellow,
         };
       case "partial_outage":
         return {
           icon: AlertCircle,
           text: "Partial Outage",
           subtext: "Some services are unavailable",
-          color: "text-white",
-          bgColor: "bg-orange-500",
-          badgeColor: "bg-orange-100 text-orange-800",
+          bgColor: colors.orange,
         };
       case "major_outage":
         return {
           icon: XCircle,
           text: "Major Outage",
           subtext: "Services are currently unavailable",
-          color: "text-white",
-          bgColor: "bg-red-600",
-          badgeColor: "bg-red-100 text-red-800",
+          bgColor: colors.red,
         };
       case "under_maintenance":
         return {
           icon: Wrench,
           text: "Scheduled Maintenance",
           subtext: "Services are under maintenance",
-          color: "text-white",
-          bgColor: "bg-blue-500",
-          badgeColor: "bg-blue-100 text-blue-800",
+          bgColor: colors.blue,
         };
       default:
         return {
           icon: CheckCircle2,
           text: "All Systems Operational",
           subtext: "All services are running normally",
-          color: "text-white",
-          bgColor: "bg-green-600",
-          badgeColor: "bg-green-100 text-green-800",
+          bgColor: colors.green,
         };
     }
   };
@@ -162,31 +166,31 @@ export function PublicStatusPage({
         return {
           icon: CheckCircle2,
           text: "Operational",
-          color: "text-green-600",
+          color: colors.green,
         };
       case "degraded_performance":
         return {
           icon: AlertTriangle,
           text: "Degraded Performance",
-          color: "text-yellow-600",
+          color: colors.yellow,
         };
       case "partial_outage":
         return {
           icon: AlertCircle,
           text: "Partial Outage",
-          color: "text-orange-600",
+          color: colors.orange,
         };
       case "major_outage":
         return {
           icon: XCircle,
           text: "Major Outage",
-          color: "text-red-600",
+          color: colors.red,
         };
       case "under_maintenance":
         return {
           icon: Wrench,
           text: "Under Maintenance",
-          color: "text-blue-600",
+          color: colors.blue,
         };
     }
   };
@@ -308,19 +312,19 @@ export function PublicStatusPage({
       }
 
       if (!day.hasIncidents) {
-        return "bg-green-500 dark:bg-green-600 hover:bg-green-600 dark:hover:bg-green-500";
+        return colors.green;
       }
 
       // Color based on incident impact
       switch (day.highestImpact) {
         case "critical":
-          return "bg-red-600 dark:bg-red-700 hover:bg-red-700 dark:hover:bg-red-600";
+          return colors.red;
         case "major":
-          return "bg-orange-500 dark:bg-orange-600 hover:bg-orange-600 dark:hover:bg-orange-500";
+          return colors.orange;
         case "minor":
-          return "bg-yellow-500 dark:bg-yellow-600 hover:bg-yellow-600 dark:hover:bg-yellow-500";
+          return colors.yellow;
         default:
-          return "bg-gray-500 dark:bg-gray-600 hover:bg-gray-600 dark:hover:bg-gray-500";
+          return "#6b7280"; // gray-500
       }
     };
 
@@ -330,9 +334,10 @@ export function PublicStatusPage({
           {data.map((day, index) => (
             <div
               key={index}
-              className={`h-10 flex-1 ${getBarColor(
-                day
-              )} relative cursor-pointer transition-all duration-200`}
+              className="h-10 flex-1 relative cursor-pointer transition-all duration-200 hover:opacity-80"
+              style={{
+                backgroundColor: day.status === "nodata" ? "#9ca3af" : getBarColor(day)
+              }}
               onMouseEnter={() => setHoveredDay(index)}
               onMouseLeave={() => setHoveredDay(null)}
             />
@@ -405,7 +410,14 @@ export function PublicStatusPage({
       <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800">
         <div className="max-w-5xl mx-auto px-6 py-8">
           <div className="flex items-start justify-between">
-            <div>
+            <div className="flex-1">
+              {statusPage.transactionalLogo && (
+                <img
+                  src={statusPage.transactionalLogo}
+                  alt={statusPage.headline || statusPage.name}
+                  className="h-16 mb-4 object-contain object-left"
+                />
+              )}
               <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
                 {statusPage.headline || statusPage.name}
               </h1>
@@ -426,9 +438,9 @@ export function PublicStatusPage({
       {/* Main Content */}
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
         {/* Current Status Banner */}
-        <div className={`${statusDisplay.bgColor} rounded-lg p-6`}>
+        <div className="rounded-lg p-6" style={{ backgroundColor: statusDisplay.bgColor }}>
           <div className="flex items-center gap-3">
-            <StatusIcon className={`h-6 w-6 ${statusDisplay.color}`} />
+            <StatusIcon className="h-6 w-6 text-white" />
             <span className="text-2xl font-medium text-white">
               {statusDisplay.text}
             </span>
@@ -483,7 +495,8 @@ export function PublicStatusPage({
                         )}
                       </div>
                       <span
-                        className={`text-sm font-medium ${componentStatus.color} dark:brightness-125`}
+                        className="text-sm font-medium"
+                        style={{ color: componentStatus.color }}
                       >
                         {componentStatus.text}
                       </span>

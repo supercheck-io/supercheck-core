@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AlertCircle, Plus, MessageSquare, Trash2, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { getIncidents } from "@/actions/get-incidents";
 import { deleteIncident } from "@/actions/delete-incident";
@@ -155,18 +156,21 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-muted rounded"></div>
-          ))}
-        </div>
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <div className="animate-pulse space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-32 bg-muted rounded"></div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="p-6">
+    <Card>
+      <CardContent className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold">Incidents</h3>
@@ -282,6 +286,7 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
           ))}
         </div>
       )}
+      </CardContent>
 
       <IncidentFormDialog
         open={isCreateDialogOpen}
@@ -326,6 +331,6 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </Card>
   );
 }

@@ -33,6 +33,7 @@ export class S3Service implements OnModuleInit {
   private jobBucketName: string;
   private testBucketName: string;
   private monitorBucketName: string;
+  private statusBucketName: string;
   private s3Endpoint: string;
   private maxRetries: number;
   private operationTimeout: number;
@@ -49,6 +50,10 @@ export class S3Service implements OnModuleInit {
     this.monitorBucketName = this.configService.get<string>(
       'S3_MONITOR_BUCKET_NAME',
       'playwright-monitor-artifacts',
+    );
+    this.statusBucketName = this.configService.get<string>(
+      'S3_STATUS_BUCKET_NAME',
+      'supercheck-status-artifacts',
     );
     this.s3Endpoint = this.configService.get<string>(
       'S3_ENDPOINT',
@@ -70,7 +75,7 @@ export class S3Service implements OnModuleInit {
     );
 
     this.logger.log(
-      `Initializing S3 client: endpoint=${this.s3Endpoint}, job bucket=${this.jobBucketName}, test bucket=${this.testBucketName}, monitor bucket=${this.monitorBucketName}, region=${region}`,
+      `Initializing S3 client: endpoint=${this.s3Endpoint}, job bucket=${this.jobBucketName}, test bucket=${this.testBucketName}, monitor bucket=${this.monitorBucketName}, status bucket=${this.statusBucketName}, region=${region}`,
     );
 
     this.s3Client = new S3Client({
@@ -98,6 +103,11 @@ export class S3Service implements OnModuleInit {
         `Ensuring monitor bucket exists: ${this.monitorBucketName}`,
       );
       await this.ensureBucketExists(this.monitorBucketName);
+
+      this.logger.log(
+        `Ensuring status bucket exists: ${this.statusBucketName}`,
+      );
+      await this.ensureBucketExists(this.statusBucketName);
 
       this.logger.log('S3Service bucket initialization completed successfully');
     } catch (error) {

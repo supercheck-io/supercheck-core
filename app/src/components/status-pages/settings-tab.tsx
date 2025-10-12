@@ -37,6 +37,8 @@ type StatusPage = {
   cssOranges: string | null;
   cssBlues: string | null;
   cssReds: string | null;
+  faviconLogo: string | null;
+  transactionalLogo: string | null;
 };
 
 type SettingsTabProps = {
@@ -47,6 +49,12 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+
+  // Upload states
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
+  const [logoUrl, setLogoUrl] = useState(statusPage.transactionalLogo || null);
+  const [faviconUrl, setFaviconUrl] = useState(statusPage.faviconLogo || null);
 
   // General settings
   const [name, setName] = useState(statusPage.name);
@@ -140,6 +148,66 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
     }
   };
 
+  const handleFileUpload = async (file: File, type: "logo" | "favicon") => {
+    const setUploading = type === "logo" ? setIsUploadingLogo : setIsUploadingFavicon;
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", type);
+
+      const response = await fetch(`/api/status-pages/${statusPage.id}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(`${type === "logo" ? "Logo" : "Favicon"} uploaded successfully`);
+
+        if (type === "logo") {
+          setLogoUrl(result.url);
+        } else {
+          setFaviconUrl(result.url);
+        }
+
+        router.refresh();
+      } else {
+        toast.error(result.message || "Upload failed");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("An unexpected error occurred");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+    type: "logo" | "favicon"
+  ) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File size must be less than 5MB");
+        return;
+      }
+
+      // Validate file type
+      const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/svg+xml", "image/webp"];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Please upload a valid image file (PNG, JPG, GIF, SVG, or WebP)");
+        return;
+      }
+
+      handleFileUpload(file, type);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Page Branding */}
@@ -156,14 +224,49 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
           {/* Page Logo */}
           <div className="space-y-2">
             <Label className="text-sm">Page logo</Label>
-            <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer">
-              <p className="text-sm text-blue-600 mb-1">Drag file here</p>
-              <p className="text-xs text-muted-foreground">or</p>
-              <Button variant="secondary" size="sm" className="mt-2" disabled>
-                Upload image
-              </Button>
+            <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+              {logoUrl && (
+                <div className="mb-3">
+                  <img
+                    src={logoUrl}
+                    alt="Page logo preview"
+                    className="max-h-24 mx-auto object-contain"
+                  />
+                </div>
+              )}
+              <p className="text-sm text-blue-600 mb-1">
+                {logoUrl ? "Change logo" : "Upload logo"}
+              </p>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/gif,image/svg+xml,image/webp"
+                onChange={(e) => handleFileChange(e, "logo")}
+                className="hidden"
+                id="logo-upload"
+                disabled={isUploadingLogo}
+              />
+              <label htmlFor="logo-upload">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2"
+                  disabled={isUploadingLogo}
+                  asChild
+                >
+                  <span className="cursor-pointer">
+                    {isUploadingLogo ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      "Upload image"
+                    )}
+                  </span>
+                </Button>
+              </label>
               <p className="text-xs text-muted-foreground mt-2">
-                Recommended size: 630px x 420px
+                Recommended size: 630px x 420px (Max 5MB)
               </p>
             </div>
           </div>
@@ -171,14 +274,49 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
           {/* Fav Icon */}
           <div className="space-y-2">
             <Label className="text-sm">Fav icon</Label>
-            <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer">
-              <p className="text-sm text-blue-600 mb-1">Drag file here</p>
-              <p className="text-xs text-muted-foreground">or</p>
-              <Button variant="secondary" size="sm" className="mt-2" disabled>
-                Upload image
-              </Button>
+            <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+              {faviconUrl && (
+                <div className="mb-3">
+                  <img
+                    src={faviconUrl}
+                    alt="Favicon preview"
+                    className="max-h-24 mx-auto object-contain"
+                  />
+                </div>
+              )}
+              <p className="text-sm text-blue-600 mb-1">
+                {faviconUrl ? "Change favicon" : "Upload favicon"}
+              </p>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/gif,image/svg+xml,image/webp"
+                onChange={(e) => handleFileChange(e, "favicon")}
+                className="hidden"
+                id="favicon-upload"
+                disabled={isUploadingFavicon}
+              />
+              <label htmlFor="favicon-upload">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2"
+                  disabled={isUploadingFavicon}
+                  asChild
+                >
+                  <span className="cursor-pointer">
+                    {isUploadingFavicon ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      "Upload image"
+                    )}
+                  </span>
+                </Button>
+              </label>
               <p className="text-xs text-muted-foreground mt-2">
-                Recommended size: 96px x 96px
+                Recommended size: 96px x 96px (Max 5MB)
               </p>
             </div>
           </div>

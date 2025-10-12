@@ -39,6 +39,7 @@ import {
   Clock,
   Loader2,
 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { format } from "date-fns";
 import {
   getStatusPageSubscribers,
@@ -158,14 +159,17 @@ export function SubscribersTab({ statusPageId }: SubscribersTabProps) {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <Card>
+        <CardContent className="p-6 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <Card>
+      <CardContent className="p-6 space-y-6">
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="p-4 border rounded-lg bg-card">
@@ -335,6 +339,7 @@ export function SubscribersTab({ statusPageId }: SubscribersTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

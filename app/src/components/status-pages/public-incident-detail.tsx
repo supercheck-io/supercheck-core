@@ -75,16 +75,8 @@ export function PublicIncidentDetail({
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800">
+      <div className="bg-white dark:bg-gray-900">
         <div className="max-w-4xl mx-auto px-6 py-8">
-          <Link
-            href={`/status-pages/${statusPageId}/public`}
-            className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:underline mb-6"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Current Status
-          </Link>
-
           <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             {incident.name}
           </h1>
@@ -175,7 +167,7 @@ export function PublicIncidentDetail({
         </div>
 
         {/* Back to Status Button */}
-        <div className="mt-12 pt-8 border-t dark:border-gray-800">
+        <div className="mt-12 pt-8">
           <Link href={`/status-pages/${statusPageId}/public`}>
             <Button variant="outline" size="lg">
               <ArrowLeft className="h-4 w-4 mr-2" />
