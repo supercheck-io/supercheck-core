@@ -16,9 +16,7 @@ const createComponentSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   description: z.string().optional(),
   componentGroupId: z.string().uuid().optional().nullable(),
-  monitorIds: z
-    .array(z.string().uuid())
-    .min(1, "At least one monitor is required"),
+  monitorIds: z.array(z.string().uuid()).optional(),
   status: z
     .enum([
       "operational",
@@ -91,15 +89,17 @@ export async function createComponent(data: CreateComponentData) {
         })
         .returning();
 
-      // Create monitor associations in the join table
-      await db.insert(statusPageComponentMonitors).values(
-        validatedData.monitorIds.map((monitorId) => ({
-          componentId: component.id,
-          monitorId,
-          weight: 1,
-          createdAt: new Date(),
-        }))
-      );
+      // Create monitor associations in the join table if monitors are selected
+      if (validatedData.monitorIds && validatedData.monitorIds.length > 0) {
+        await db.insert(statusPageComponentMonitors).values(
+          validatedData.monitorIds.map((monitorId) => ({
+            componentId: component.id,
+            monitorId,
+            weight: 1,
+            createdAt: new Date(),
+          }))
+        );
+      }
 
       console.log(
         `Component ${component.id} created successfully by user ${userId} in status page ${validatedData.statusPageId}`
