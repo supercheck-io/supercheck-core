@@ -43,6 +43,9 @@ interface DataTableProps<TData, TValue> {
     onDeleteMonitor?: (id: string) => void;
     [key: string]: unknown;
   };
+  hideToolbar?: boolean;
+  hidePagination?: boolean;
+  pageSize?: number;
 }
 
 // Define the extended meta type locally
@@ -57,6 +60,9 @@ export function DataTable<TData, TValue>({
   isLoading,
   onRowClick,
   meta,
+  hideToolbar = false,
+  hidePagination = false,
+  pageSize = 10,
 }: DataTableProps<TData, TValue>) {
   const [mounted, setMounted] = React.useState(false);
   const [rowSelection, setRowSelection] = React.useState({});
@@ -111,7 +117,7 @@ export function DataTable<TData, TValue>({
     columns,
     initialState: {
       pagination: {
-        pageSize: 12,
+        pageSize: pageSize,
       },
     },
     state: {
@@ -162,7 +168,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <DataTableToolbar table={table} />
+      {!hideToolbar && <DataTableToolbar table={table} />}
       <div className="rounded-t-lg border relative">
         <Table>
           <TableHeader>
@@ -229,7 +235,7 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
+      {!hidePagination && <DataTablePagination table={table} />}
     </div>
   );
 } 

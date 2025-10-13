@@ -43,6 +43,7 @@ export function hasPermission(
           "apiKey",
           "notification",
           "tag",
+          "status_page",
         ].includes(resource)
       ) {
         result = true; // Full access to project resources including 'manage' action
@@ -57,7 +58,7 @@ export function hasPermission(
 
     case Role.PROJECT_EDITOR:
       // Editors can create and edit but cannot delete any resources in assigned projects
-      if (["test", "job", "monitor"].includes(resource)) {
+      if (["test", "job", "monitor", "status_page"].includes(resource)) {
         result = ["view", "create", "update", "run", "trigger"].includes(
           action
         );
@@ -388,3 +389,35 @@ export function canDeleteResource(
 
   return false;
 }
+
+/**
+ * Check if user can create status pages
+ */
+export function canCreateStatusPages(role: Role): boolean {
+  return hasPermission(role, "status_page", "create");
+}
+
+/**
+ * Check if user can edit status pages
+ */
+export function canEditStatusPages(role: Role): boolean {
+  return hasPermission(role, "status_page", "update");
+}
+
+/**
+ * Check if user can delete status pages
+ */
+export function canDeleteStatusPages(role: Role): boolean {
+  return hasPermission(role, "status_page", "delete");
+}
+
+/**
+ * Check if user can manage status pages
+ */
+export function canManageStatusPages(role: Role): boolean {
+  return (
+    hasPermission(role, "status_page", "update") ||
+    hasPermission(role, "status_page", "delete")
+  );
+}
+

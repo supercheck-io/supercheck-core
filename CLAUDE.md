@@ -203,14 +203,23 @@ docker buildx imagetools inspect ghcr.io/supercheck-io/supercheck/app:latest
 
 The platform requires at least one super admin user for system management.
 
-**Quick Setup (Recommended):**
+**Setup Options:**
+
+**For Docker Compose environments:**
 
 ```bash
-# Run the interactive setup script
-./scripts/setup-super-admin.sh
+docker-compose exec app npm run setup:admin admin@yourcompany.com
 ```
 
-**Manual Setup:**
+**For local development:**
+
+```bash
+cd app
+npm run setup:admin admin@yourcompany.com
+```
+
+Replace `admin@yourcompany.com` with the actual email address.
+
 See [RBAC_DOCUMENTATION.md](./RBAC_DOCUMENTATION.md) for detailed instructions on:
 
 - Creating your first super admin user

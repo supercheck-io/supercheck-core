@@ -267,7 +267,6 @@ runcmd:
   - chmod +x /usr/local/bin/docker-compose
 
   # System optimizations
-  - echo 'vm.max_map_count=262144' >> /etc/sysctl.conf
   - echo '* soft nofile 65536' >> /etc/security/limits.conf
   - echo '* hard nofile 65536' >> /etc/security/limits.conf
   - echo 'root soft nofile 65536' >> /etc/security/limits.conf

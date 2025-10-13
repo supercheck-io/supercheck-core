@@ -89,6 +89,64 @@ export async function requirePermission(
 }
 
 /**
+ * Require permissions for multiple resources - throws error if not authorized
+ * This replaces requireBetterAuthPermission for consistency
+ */
+export async function requirePermissions(
+  permissions: Record<string, string[]>,
+  context?: { organizationId?: string; projectId?: string }
+): Promise<{ userId: string; user: SessionUser }> {
+  // Check authentication first
+  const authResult = await requireAuth();
+
+  try {
+    // Use Better Auth's permission API for supported resources
+    for (const [resource, actions] of Object.entries(permissions)) {
+      if (
+        ["organization", "member", "invitation", "user", "session"].includes(
+          resource
+        )
+      ) {
+        const result = await auth.api.hasPermission({
+          headers: await headers(),
+          body: {
+            permissions: {
+              [resource]: actions,
+            },
+          },
+        });
+
+        if (!result.success) {
+          throw new Error(`Access denied: Missing ${resource} permissions`);
+        }
+      } else {
+        // For custom resources, check individually
+        for (const action of actions) {
+          const hasAccess = await hasPermission(
+            resource as keyof typeof statement,
+            action,
+            context
+          );
+          if (!hasAccess) {
+            throw new Error(
+              `Access denied: Missing ${resource}:${action} permission`
+            );
+          }
+        }
+      }
+    }
+
+    return authResult;
+  } catch (error) {
+    throw new Error(
+      `Permission check failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+  }
+}
+
+/**
  * Get user's role (prioritizes organization membership role)
  */
 export async function getUserRole(
@@ -192,7 +250,8 @@ export async function requireAuth(): Promise<{
  * Better Auth compatible permission checking for API routes
  */
 export async function requireBetterAuthPermission(
-  permissions: Record<string, string[]>
+  permissions: Record<string, string[]>,
+  context?: { organizationId?: string; projectId?: string }
 ): Promise<{ userId: string; user: SessionUser }> {
   // Check authentication first
   const authResult = await requireAuth();
@@ -222,7 +281,8 @@ export async function requireBetterAuthPermission(
         for (const action of actions) {
           const hasAccess = await hasPermission(
             resource as keyof typeof statement,
-            action
+            action,
+            context
           );
           if (!hasAccess) {
             throw new Error(
@@ -257,12 +317,12 @@ export function withBetterAuthPermission<T = Record<string, unknown>>(
   return async (req: NextRequest, routeContext?: T): Promise<NextResponse> => {
     try {
       // Check authentication and permissions
-      const authResult = await requireBetterAuthPermission(permissions);
+      const authResult = await requirePermissions(permissions);
 
       // Call the actual handler with auth context
       return handler(req, routeContext!, authResult);
     } catch (error) {
-      console.error("Better Auth permission middleware error:", error);
+      console.error("Permission middleware error:", error);
 
       if (error instanceof Error) {
         if (error.message === "Authentication required") {
