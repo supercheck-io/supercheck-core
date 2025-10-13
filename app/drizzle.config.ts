@@ -12,7 +12,7 @@ console.log(`Database connection config: ${dbHost}:${dbPort} as ${dbUser}`);
 
 export default defineConfig({
   out: "./src/db/migrations",
-  schema: ["./src/db/schema/schema.ts", "./src/db/schema/auth-schema.ts"],
+  schema: ["./src/db/schema/schema.ts"],
   dialect: "postgresql",
   dbCredentials: {
     host: dbHost,
