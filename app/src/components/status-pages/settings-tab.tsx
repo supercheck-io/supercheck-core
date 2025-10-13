@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,7 +60,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
   // General settings
   const [name, setName] = useState(statusPage.name);
   const [headline, setHeadline] = useState(statusPage.headline || "");
-  const [description, setDescription] = useState(statusPage.pageDescription || "");
+  const [description, setDescription] = useState(
+    statusPage.pageDescription || ""
+  );
   const [supportUrl, setSupportUrl] = useState(statusPage.supportUrl || "");
 
   // Subscriber settings
@@ -80,8 +83,12 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
 
   // Branding colors
   const [cssGreens, setCssGreens] = useState(statusPage.cssGreens || "#2ecc71");
-  const [cssYellows, setCssYellows] = useState(statusPage.cssYellows || "#f1c40f");
-  const [cssOranges, setCssOranges] = useState(statusPage.cssOranges || "#e67e22");
+  const [cssYellows, setCssYellows] = useState(
+    statusPage.cssYellows || "#f1c40f"
+  );
+  const [cssOranges, setCssOranges] = useState(
+    statusPage.cssOranges || "#e67e22"
+  );
   const [cssBlues, setCssBlues] = useState(statusPage.cssBlues || "#3498db");
   const [cssReds, setCssReds] = useState(statusPage.cssReds || "#e74c3c");
 
@@ -149,7 +156,8 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
   };
 
   const handleFileUpload = async (file: File, type: "logo" | "favicon") => {
-    const setUploading = type === "logo" ? setIsUploadingLogo : setIsUploadingFavicon;
+    const setUploading =
+      type === "logo" ? setIsUploadingLogo : setIsUploadingFavicon;
     setUploading(true);
 
     try {
@@ -157,15 +165,20 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
       formData.append("file", file);
       formData.append("type", type);
 
-      const response = await fetch(`/api/status-pages/${statusPage.id}/upload`, {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(
+        `/api/status-pages/${statusPage.id}/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
       const result = await response.json();
 
       if (result.success) {
-        toast.success(`${type === "logo" ? "Logo" : "Favicon"} uploaded successfully`);
+        toast.success(
+          `${type === "logo" ? "Logo" : "Favicon"} uploaded successfully`
+        );
 
         if (type === "logo") {
           setLogoUrl(result.url);
@@ -198,9 +211,18 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
       }
 
       // Validate file type
-      const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/svg+xml", "image/webp"];
+      const allowedTypes = [
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "image/gif",
+        "image/svg+xml",
+        "image/webp",
+      ];
       if (!allowedTypes.includes(file.type)) {
-        toast.error("Please upload a valid image file (PNG, JPG, GIF, SVG, or WebP)");
+        toast.error(
+          "Please upload a valid image file (PNG, JPG, GIF, SVG, or WebP)"
+        );
         return;
       }
 
@@ -227,10 +249,13 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
             <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
               {logoUrl && (
                 <div className="mb-3">
-                  <img
+                  <Image
                     src={logoUrl}
                     alt="Page logo preview"
+                    width={200}
+                    height={96}
                     className="max-h-24 mx-auto object-contain"
+                    unoptimized
                   />
                 </div>
               )}
@@ -277,10 +302,13 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
             <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
               {faviconUrl && (
                 <div className="mb-3">
-                  <img
+                  <Image
                     src={faviconUrl}
                     alt="Favicon preview"
+                    width={96}
+                    height={96}
                     className="max-h-24 mx-auto object-contain"
+                    unoptimized
                   />
                 </div>
               )}
@@ -335,7 +363,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="name" className="text-sm">Name (Internal)</Label>
+            <Label htmlFor="name" className="text-sm">
+              Name (Internal)
+            </Label>
             <Input
               id="name"
               value={name}
@@ -348,7 +378,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="headline" className="text-sm">Headline (Public)</Label>
+            <Label htmlFor="headline" className="text-sm">
+              Headline (Public)
+            </Label>
             <Input
               id="headline"
               value={headline}
@@ -362,7 +394,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="description" className="text-sm">About the page</Label>
+          <Label htmlFor="description" className="text-sm">
+            About the page
+          </Label>
           <Textarea
             id="description"
             value={description}
@@ -376,7 +410,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="supportUrl" className="text-sm">Support URL</Label>
+          <Label htmlFor="supportUrl" className="text-sm">
+            Support URL
+          </Label>
           <Input
             id="supportUrl"
             type="url"
@@ -454,7 +490,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
         <Separator />
 
         <div className="space-y-1.5">
-          <Label htmlFor="notificationsEmail" className="text-sm">Notifications From Email</Label>
+          <Label htmlFor="notificationsEmail" className="text-sm">
+            Notifications From Email
+          </Label>
           <Input
             id="notificationsEmail"
             type="email"
@@ -480,15 +518,14 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
 
         <div className="flex items-center justify-between p-3 border rounded-lg">
           <div className="space-y-0.5">
-            <Label className="text-sm">Hide my status page from search engines</Label>
+            <Label className="text-sm">
+              Hide my status page from search engines
+            </Label>
             <p className="text-xs text-muted-foreground">
               Prevent search engines from indexing your status page
             </p>
           </div>
-          <Switch
-            checked={statusPage.hiddenFromSearch ?? false}
-            disabled
-          />
+          <Switch checked={statusPage.hiddenFromSearch ?? false} disabled />
         </div>
       </div>
 
@@ -504,7 +541,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="cssGreens" className="text-sm">Operational (Green)</Label>
+            <Label htmlFor="cssGreens" className="text-sm">
+              Operational (Green)
+            </Label>
             <div className="flex gap-2">
               <Input
                 id="cssGreens"
@@ -523,7 +562,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="cssYellows" className="text-sm">Degraded (Yellow)</Label>
+            <Label htmlFor="cssYellows" className="text-sm">
+              Degraded (Yellow)
+            </Label>
             <div className="flex gap-2">
               <Input
                 id="cssYellows"
@@ -542,7 +583,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="cssOranges" className="text-sm">Partial Outage (Orange)</Label>
+            <Label htmlFor="cssOranges" className="text-sm">
+              Partial Outage (Orange)
+            </Label>
             <div className="flex gap-2">
               <Input
                 id="cssOranges"
@@ -561,7 +604,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="cssBlues" className="text-sm">Maintenance (Blue)</Label>
+            <Label htmlFor="cssBlues" className="text-sm">
+              Maintenance (Blue)
+            </Label>
             <div className="flex gap-2">
               <Input
                 id="cssBlues"
@@ -580,7 +625,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="cssReds" className="text-sm">Major Outage (Red)</Label>
+            <Label htmlFor="cssReds" className="text-sm">
+              Major Outage (Red)
+            </Label>
             <div className="flex gap-2">
               <Input
                 id="cssReds"

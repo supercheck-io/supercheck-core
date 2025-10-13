@@ -5,7 +5,7 @@ import { statusPages } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function publishStatusPage(statusPageId: string) {
@@ -15,9 +15,15 @@ export async function publishStatusPage(statusPageId: string) {
 
     // Check permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["update"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["update"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to publish status page without permission:`,
@@ -46,9 +52,7 @@ export async function publishStatusPage(statusPageId: string) {
       };
     }
 
-    console.log(
-      `Status page ${statusPageId} published by user ${userId}`
-    );
+    console.log(`Status page ${statusPageId} published by user ${userId}`);
 
     // Log the audit event
     await logAuditEvent({
@@ -95,9 +99,15 @@ export async function unpublishStatusPage(statusPageId: string) {
 
     // Check permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["update"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["update"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to unpublish status page without permission:`,
@@ -126,9 +136,7 @@ export async function unpublishStatusPage(statusPageId: string) {
       };
     }
 
-    console.log(
-      `Status page ${statusPageId} unpublished by user ${userId}`
-    );
+    console.log(`Status page ${statusPageId} unpublished by user ${userId}`);
 
     // Log the audit event
     await logAuditEvent({

@@ -5,7 +5,7 @@ import { statusPages } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { revalidatePath } from "next/cache";
 
 const updateSettingsSchema = z.object({
@@ -32,26 +32,65 @@ const updateSettingsSchema = z.object({
   hiddenFromSearch: z.boolean().optional(),
 
   // Branding colors (hex codes)
-  cssBodyBackgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssFontColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssLightFontColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssGreens: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssYellows: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssOranges: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssBlues: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssReds: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssBorderColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssGraphColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssLinkColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  cssNoData: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  cssBodyBackgroundColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssFontColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssLightFontColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssGreens: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssYellows: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssOranges: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssBlues: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssReds: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssBorderColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssGraphColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssLinkColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  cssNoData: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
 });
 
 type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 
 export async function updateStatusPageSettings(data: UpdateSettingsInput) {
   try {
-    await requireProjectContext();
-    await requireBetterAuthPermission({ status_page: ["update"] });
+    const { organizationId, project } = await requireProjectContext();
+    await requirePermissions(
+      { status_page: ["update"] },
+      { organizationId, projectId: project.id }
+    );
 
     // Validate input
     const validatedData = updateSettingsSchema.parse(data);
@@ -105,8 +144,11 @@ export async function updateStatusPageSettings(data: UpdateSettingsInput) {
 
 export async function resetBrandingToDefaults(statusPageId: string) {
   try {
-    await requireProjectContext();
-    await requireBetterAuthPermission({ status_page: ["update"] });
+    const { organizationId, project } = await requireProjectContext();
+    await requirePermissions(
+      { status_page: ["update"] },
+      { organizationId, projectId: project.id }
+    );
 
     await db
       .update(statusPages)

@@ -5,7 +5,7 @@ import { statusPages } from "@/db/schema/schema";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { randomUUID } from "crypto";
 
@@ -26,9 +26,15 @@ export async function createStatusPage(data: CreateStatusPageData) {
 
     // Check status page creation permission using Better Auth
     try {
-      await requireBetterAuthPermission({
-        status_page: ["create"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["create"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to create status page without permission:`,
@@ -44,22 +50,25 @@ export async function createStatusPage(data: CreateStatusPageData) {
     const validatedData = createStatusPageSchema.parse(data);
 
     // Generate a unique subdomain using UUID v4 without dashes
-    const subdomain = randomUUID().replace(/-/g, '');
+    const subdomain = randomUUID().replace(/-/g, "");
 
     try {
       // Create the status page with proper project and user association
-      const [statusPage] = await db.insert(statusPages).values({
-        organizationId: organizationId,
-        projectId: project.id,
-        name: validatedData.name,
-        subdomain: subdomain,
-        headline: validatedData.headline || null,
-        pageDescription: validatedData.pageDescription || null,
-        status: "draft",
-        createdByUserId: userId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }).returning();
+      const [statusPage] = await db
+        .insert(statusPages)
+        .values({
+          organizationId: organizationId,
+          projectId: project.id,
+          name: validatedData.name,
+          subdomain: subdomain,
+          headline: validatedData.headline || null,
+          pageDescription: validatedData.pageDescription || null,
+          status: "draft",
+          createdByUserId: userId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
 
       console.log(
         `Status page ${statusPage.id} created successfully by user ${userId} in project ${project.name}`

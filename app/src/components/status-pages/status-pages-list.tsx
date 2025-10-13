@@ -3,9 +3,33 @@
 import React, { useState, useEffect } from "react";
 import { CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Tally4, ExternalLink, Settings, Trash2, Globe } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Plus,
+  Tally4,
+  ExternalLink,
+  Settings,
+  Trash2,
+  Globe,
+  Copy,
+} from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { getStatusPages } from "@/actions/get-status-pages";
@@ -13,7 +37,10 @@ import { deleteStatusPage } from "@/actions/delete-status-page";
 import { CreateStatusPageForm } from "./create-status-page-form";
 import { useProjectContext } from "@/hooks/use-project-context";
 import { normalizeRole } from "@/lib/rbac/role-normalizer";
-import { canCreateStatusPages, canDeleteStatusPages } from "@/lib/rbac/client-permissions";
+import {
+  canCreateStatusPages,
+  canDeleteStatusPages,
+} from "@/lib/rbac/client-permissions";
 
 type StatusPage = {
   id: string;
@@ -51,13 +78,13 @@ export default function StatusPagesList() {
       if (result.success) {
         setStatusPages(result.statusPages as StatusPage[]);
       } else {
-        console.error('Failed to fetch status pages:', result.message);
+        console.error("Failed to fetch status pages:", result.message);
         toast.error("Failed to load status pages", {
           description: result.message,
         });
       }
     } catch (error) {
-      console.error('Error loading status pages:', error);
+      console.error("Error loading status pages:", error);
       toast.error("Failed to load status pages", {
         description: "An unexpected error occurred",
       });
@@ -67,7 +94,7 @@ export default function StatusPagesList() {
   };
 
   const handleCreateSuccess = (newPage: StatusPage) => {
-    setStatusPages(prev => [newPage, ...prev]);
+    setStatusPages((prev) => [newPage, ...prev]);
     setIsCreateDialogOpen(false);
     toast.success("Status page created successfully");
   };
@@ -84,7 +111,7 @@ export default function StatusPagesList() {
       const result = await deleteStatusPage(deletingPage.id);
 
       if (result.success) {
-        setStatusPages(prev => prev.filter(p => p.id !== deletingPage.id));
+        setStatusPages((prev) => prev.filter((p) => p.id !== deletingPage.id));
         toast.success("Status page deleted successfully");
       } else {
         toast.error("Failed to delete status page", {
@@ -92,7 +119,7 @@ export default function StatusPagesList() {
         });
       }
     } catch (error) {
-      console.error('Error deleting status page:', error);
+      console.error("Error deleting status page:", error);
       toast.error("Failed to delete status page", {
         description: "An unexpected error occurred",
       });
@@ -102,16 +129,27 @@ export default function StatusPagesList() {
     }
   };
 
+  const handleCopyUrl = async (subdomain: string) => {
+    const url = `https://${subdomain}.supercheck.io`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("URL copied to clipboard");
+    } catch (error) {
+      console.error("Failed to copy URL:", error);
+      toast.error("Failed to copy URL");
+    }
+  };
+
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case 'published':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'draft':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
-      case 'archived':
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+      case "published":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+      case "draft":
+        return "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
+      case "archived":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
+        return "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
     }
   };
 
@@ -143,12 +181,17 @@ export default function StatusPagesList() {
       <CardHeader className="px-0 pt-0">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-2xl font-semibold">Status Pages</CardTitle>
+            <CardTitle className="text-2xl font-semibold">
+              Status Pages
+            </CardTitle>
             <CardDescription>
               Create and manage public status pages for your services
             </CardDescription>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button disabled={!canCreate}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -169,22 +212,30 @@ export default function StatusPagesList() {
             </DialogContent>
           </Dialog>
 
-          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialog
+            open={isDeleteDialogOpen}
+            onOpenChange={setIsDeleteDialogOpen}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete Status Page</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete &quot;{deletingPage?.name}&quot;?
+                  Are you sure you want to delete &quot;{deletingPage?.name}
+                  &quot;?
                   <br />
                   <br />
-                  <strong>Warning:</strong> This will permanently delete the status page, all incidents, components, and subscribers. This action cannot be undone.
+                  <strong>Warning:</strong> This will permanently delete the
+                  status page, all incidents, components, and subscribers. This
+                  action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => {
-                  setIsDeleteDialogOpen(false);
-                  setDeletingPage(null);
-                }}>
+                <AlertDialogCancel
+                  onClick={() => {
+                    setIsDeleteDialogOpen(false);
+                    setDeletingPage(null);
+                  }}
+                >
                   Cancel
                 </AlertDialogCancel>
                 <AlertDialogAction
@@ -204,9 +255,13 @@ export default function StatusPagesList() {
           <Tally4 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">No status pages yet</h3>
           <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
-            Create your first status page to communicate service status with your users
+            Create your first status page to communicate service status with
+            your users
           </p>
-          <Button onClick={() => setIsCreateDialogOpen(true)} disabled={!canCreate}>
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+            disabled={!canCreate}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Create Your First Status Page
           </Button>
@@ -225,7 +280,11 @@ export default function StatusPagesList() {
                     {page.pageDescription || page.headline || "No description"}
                   </p>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-2 ${getStatusBadgeColor(page.status)}`}>
+                <span
+                  className={`text-xs px-2 py-1 rounded-md whitespace-nowrap ml-2 ${getStatusBadgeColor(
+                    page.status
+                  )}`}
+                >
                   {page.status}
                 </span>
               </div>
@@ -233,19 +292,38 @@ export default function StatusPagesList() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Globe className="h-4 w-4 flex-shrink-0" />
-                  <code className="text-xs bg-muted px-2 py-1 rounded truncate">
+                  <code className="text-xs bg-muted px-2 py-1 rounded truncate flex-1">
                     {page.subdomain}.supercheck.io
                   </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 hover:bg-muted"
+                    onClick={() => handleCopyUrl(page.subdomain)}
+                    title="Copy URL"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
                 </div>
 
                 <div className="flex gap-2 pt-2 border-t">
-                  <Button asChild variant="outline" size="sm" className="flex-1">
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                  >
                     <Link href={`/status-pages/${page.id}`}>
                       <Settings className="h-4 w-4 mr-1" />
                       Manage
                     </Link>
                   </Button>
-                  <Button asChild variant="secondary" size="sm" className="flex-1">
+                  <Button
+                    asChild
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1"
+                  >
                     <a
                       href={`https://${page.subdomain}.supercheck.io`}
                       target="_blank"

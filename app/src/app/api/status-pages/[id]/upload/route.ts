@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { db } from "@/utils/db";
 import { statusPages } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { v4 as uuidv4 } from "uuid";
 
 // S3 Configuration
@@ -20,9 +24,17 @@ const s3Client = new S3Client({
 });
 
 // Use dedicated status page bucket
-const BUCKET_NAME = process.env.S3_STATUS_BUCKET_NAME || "supercheck-status-artifacts";
+const BUCKET_NAME =
+  process.env.S3_STATUS_BUCKET_NAME || "supercheck-status-artifacts";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/svg+xml", "image/webp"];
+const ALLOWED_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/gif",
+  "image/svg+xml",
+  "image/webp",
+];
 
 type UploadType = "favicon" | "logo" | "cover";
 
@@ -39,8 +51,17 @@ export async function POST(request: Request, context: RouteContext) {
     const statusPageId = params.id;
 
     // Check authentication and permissions
-    await requireProjectContext();
-    await requireBetterAuthPermission({ status_page: ["update"] });
+    const { organizationId, project } = await requireProjectContext();
+    console.log(
+      "[UPLOAD] Organization ID:",
+      organizationId,
+      "Project ID:",
+      project.id
+    );
+    await requirePermissions(
+      { status_page: ["update"] },
+      { organizationId, projectId: project.id }
+    );
 
     // Parse FormData
     const formData = await request.formData();
@@ -77,7 +98,8 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid file type. Only images are allowed (PNG, JPG, GIF, SVG, WebP)",
+          message:
+            "Invalid file type. Only images are allowed (PNG, JPG, GIF, SVG, WebP)",
         },
         { status: 400 }
       );
@@ -159,7 +181,9 @@ export async function POST(request: Request, context: RouteContext) {
       expiresIn: 604800, // 7 days
     });
 
-    console.log(`[UPLOAD] Successfully stored ${uploadType} for status page ${statusPageId}: ${s3Reference}`);
+    console.log(
+      `[UPLOAD] Successfully stored ${uploadType} for status page ${statusPageId}: ${s3Reference}`
+    );
 
     return NextResponse.json({
       success: true,
@@ -174,7 +198,8 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to upload file",
+        message:
+          error instanceof Error ? error.message : "Failed to upload file",
       },
       { status: 500 }
     );

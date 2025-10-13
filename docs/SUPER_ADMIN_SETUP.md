@@ -28,20 +28,26 @@ They should use the email you want to make a super admin (e.g., `admin@yourcompa
 
 #### 2️⃣ **Run Bootstrap Script**
 
-**Option A: Using npm script (Recommended)**
+**Option A: Using npm script (Recommended for local development)**
 
 ```bash
 cd app
 npm run setup:admin admin@yourcompany.com
 ```
 
-**Option B: Direct execution**
+**Option B: Docker Compose (Recommended for Docker environments)**
+
+```bash
+docker-compose exec app npm run setup:admin admin@yourcompany.com
+```
+
+**Option C: Direct execution**
 
 ```bash
 npx tsx app/src/lib/bootstrap-super-admin.ts admin@yourcompany.com
 ```
 
-**Option C: From root directory**
+**Option D: From root directory**
 
 ```bash
 npx tsx ./app/src/lib/bootstrap-super-admin.ts admin@yourcompany.com

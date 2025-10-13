@@ -1,27 +1,43 @@
 "use server";
 
 import { db } from "@/utils/db";
-import { incidents, incidentUpdates, statusPageComponents, incidentComponents } from "@/db/schema/schema";
+import {
+  incidents,
+  incidentUpdates,
+  statusPageComponents,
+  incidentComponents,
+} from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 const updateIncidentStatusSchema = z.object({
   incidentId: z.string().uuid(),
   statusPageId: z.string().uuid(),
-  status: z.enum(["investigating", "identified", "monitoring", "resolved", "scheduled"]),
+  status: z.enum([
+    "investigating",
+    "identified",
+    "monitoring",
+    "resolved",
+    "scheduled",
+  ]),
   body: z.string().min(1, "Update message is required"),
   deliverNotifications: z.boolean().default(true),
   restoreComponentStatus: z.boolean().default(false), // If true and status is resolved, restore components to operational
 });
 
-export type UpdateIncidentStatusData = z.infer<typeof updateIncidentStatusSchema>;
+export type UpdateIncidentStatusData = z.infer<
+  typeof updateIncidentStatusSchema
+>;
 
 export async function updateIncidentStatus(data: UpdateIncidentStatusData) {
-  console.log(`Updating incident status with data:`, JSON.stringify(data, null, 2));
+  console.log(
+    `Updating incident status with data:`,
+    JSON.stringify(data, null, 2)
+  );
 
   try {
     // Get current project context (includes auth verification)
@@ -29,9 +45,15 @@ export async function updateIncidentStatus(data: UpdateIncidentStatusData) {
 
     // Check status page management permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["update"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["update"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to update incident without permission:`,
@@ -54,8 +76,12 @@ export async function updateIncidentStatus(data: UpdateIncidentStatusData) {
           .set({
             status: validatedData.status,
             updatedAt: new Date(),
-            ...(validatedData.status === "resolved" ? { resolvedAt: new Date() } : {}),
-            ...(validatedData.status === "monitoring" ? { monitoringAt: new Date() } : {}),
+            ...(validatedData.status === "resolved"
+              ? { resolvedAt: new Date() }
+              : {}),
+            ...(validatedData.status === "monitoring"
+              ? { monitoringAt: new Date() }
+              : {}),
           })
           .where(eq(incidents.id, validatedData.incidentId))
           .returning();
@@ -73,10 +99,18 @@ export async function updateIncidentStatus(data: UpdateIncidentStatusData) {
         });
 
         // If resolved and restore is true, restore affected components to operational
-        if (validatedData.status === "resolved" && validatedData.restoreComponentStatus) {
-          const affectedComponents = await tx.query.incidentComponents.findMany({
-            where: eq(incidentComponents.incidentId, validatedData.incidentId),
-          });
+        if (
+          validatedData.status === "resolved" &&
+          validatedData.restoreComponentStatus
+        ) {
+          const affectedComponents = await tx.query.incidentComponents.findMany(
+            {
+              where: eq(
+                incidentComponents.incidentId,
+                validatedData.incidentId
+              ),
+            }
+          );
 
           for (const ic of affectedComponents) {
             await tx

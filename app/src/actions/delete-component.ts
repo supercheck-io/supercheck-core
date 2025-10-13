@@ -5,7 +5,7 @@ import { statusPageComponents } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function deleteComponent(id: string, statusPageId: string) {
@@ -17,9 +17,15 @@ export async function deleteComponent(id: string, statusPageId: string) {
 
     // Check status page management permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["delete"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["delete"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to delete component without permission:`,
@@ -45,11 +51,11 @@ export async function deleteComponent(id: string, statusPageId: string) {
       }
 
       // Delete the component
-      await db.delete(statusPageComponents).where(eq(statusPageComponents.id, id));
+      await db
+        .delete(statusPageComponents)
+        .where(eq(statusPageComponents.id, id));
 
-      console.log(
-        `Component ${id} deleted successfully by user ${userId}`
-      );
+      console.log(`Component ${id} deleted successfully by user ${userId}`);
 
       // Log the audit event
       await logAuditEvent({

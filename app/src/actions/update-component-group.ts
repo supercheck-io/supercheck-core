@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 const updateComponentGroupSchema = z.object({
@@ -17,10 +17,15 @@ const updateComponentGroupSchema = z.object({
   position: z.number().int().optional(),
 });
 
-export type UpdateComponentGroupData = z.infer<typeof updateComponentGroupSchema>;
+export type UpdateComponentGroupData = z.infer<
+  typeof updateComponentGroupSchema
+>;
 
 export async function updateComponentGroup(data: UpdateComponentGroupData) {
-  console.log(`Updating component group ${data.id} with data:`, JSON.stringify(data, null, 2));
+  console.log(
+    `Updating component group ${data.id} with data:`,
+    JSON.stringify(data, null, 2)
+  );
 
   try {
     // Get current project context (includes auth verification)
@@ -28,9 +33,15 @@ export async function updateComponentGroup(data: UpdateComponentGroupData) {
 
     // Check status page management permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["update"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["update"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to update component group without permission:`,
@@ -47,13 +58,17 @@ export async function updateComponentGroup(data: UpdateComponentGroupData) {
 
     try {
       // Build update object with only provided fields
-      const updateData: Partial<typeof statusPageComponentGroups.$inferInsert> = {
-        updatedAt: new Date(),
-      };
+      const updateData: Partial<typeof statusPageComponentGroups.$inferInsert> =
+        {
+          updatedAt: new Date(),
+        };
 
-      if (validatedData.name !== undefined) updateData.name = validatedData.name;
-      if (validatedData.description !== undefined) updateData.description = validatedData.description;
-      if (validatedData.position !== undefined) updateData.position = validatedData.position;
+      if (validatedData.name !== undefined)
+        updateData.name = validatedData.name;
+      if (validatedData.description !== undefined)
+        updateData.description = validatedData.description;
+      if (validatedData.position !== undefined)
+        updateData.position = validatedData.position;
 
       // Update the component group
       const [componentGroup] = await db

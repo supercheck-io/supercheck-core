@@ -1,5 +1,5 @@
 {
-  "id": "c40c30ec-f258-4d90-8447-e7d8936a12ba",
+  "id": "eb8eab84-bf39-4acf-99db-b0b10b3a2580",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3152,6 +3152,73 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.status_page_component_monitors": {
+      "name": "status_page_component_monitors",
+      "schema": "",
+      "columns": {
+        "component_id": {
+          "name": "component_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "monitor_id": {
+          "name": "monitor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "status_page_component_monitors_component_id_status_page_components_id_fk": {
+          "name": "status_page_component_monitors_component_id_status_page_components_id_fk",
+          "tableFrom": "status_page_component_monitors",
+          "tableTo": "status_page_components",
+          "columnsFrom": [
+            "component_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "status_page_component_monitors_monitor_id_monitors_id_fk": {
+          "name": "status_page_component_monitors_monitor_id_monitors_id_fk",
+          "tableFrom": "status_page_component_monitors",
+          "tableTo": "monitors",
+          "columnsFrom": [
+            "monitor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "status_page_component_monitors_component_id_monitor_id_pk": {
+          "name": "status_page_component_monitors_component_id_monitor_id_pk",
+          "columns": [
+            "component_id",
+            "monitor_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

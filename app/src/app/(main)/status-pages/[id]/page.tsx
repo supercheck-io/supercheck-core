@@ -26,6 +26,12 @@ export default async function StatusPagePage({ params }: StatusPagePageProps) {
   const componentGroupsResult = await getComponentGroups(resolvedParams.id);
   const componentsResult = await getComponents(resolvedParams.id);
 
+  // Check if components fetch was successful
+  if (!componentsResult.success) {
+    console.error("Failed to fetch components:", componentsResult.message);
+    // We'll continue with empty components rather than redirecting to avoid breaking the page
+  }
+
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Status Pages", href: "/status-pages" },
@@ -39,9 +45,9 @@ export default async function StatusPagePage({ params }: StatusPagePageProps) {
         <CardContent className="p-0">
           <StatusPageDetail
             statusPage={result.statusPage}
-            monitors={monitorsResult.monitors}
-            componentGroups={componentGroupsResult.componentGroups}
-            components={componentsResult.components}
+            monitors={monitorsResult.monitors || []}
+            componentGroups={componentGroupsResult.componentGroups || []}
+            components={componentsResult.components || []}
           />
         </CardContent>
       </Card>

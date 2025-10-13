@@ -8,6 +8,15 @@ const createNextConfig = (phase: string): NextConfig => {
     /* config options here */
     output: "standalone",
     serverExternalPackages: ["child_process", "fs", "path"],
+    images: {
+      remotePatterns: [
+        {
+          protocol: "https",
+          hostname: "**",
+        },
+      ],
+      unoptimized: true,
+    },
     experimental: {
       // Add any experimental features here
     },

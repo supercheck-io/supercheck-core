@@ -1,22 +1,43 @@
 "use server";
 
 import { db } from "@/utils/db";
-import { incidents, incidentUpdates, incidentComponents, statusPageComponents } from "@/db/schema/schema";
+import {
+  incidents,
+  incidentUpdates,
+  incidentComponents,
+  statusPageComponents,
+} from "@/db/schema/schema";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { eq } from "drizzle-orm";
 
 const createIncidentSchema = z.object({
   statusPageId: z.string().uuid(),
   name: z.string().min(1, "Name is required").max(255),
-  status: z.enum(["investigating", "identified", "monitoring", "resolved", "scheduled"]).default("investigating"),
+  status: z
+    .enum([
+      "investigating",
+      "identified",
+      "monitoring",
+      "resolved",
+      "scheduled",
+    ])
+    .default("investigating"),
   impact: z.enum(["none", "minor", "major", "critical"]).default("minor"),
   body: z.string().optional(),
   affectedComponentIds: z.array(z.string().uuid()).default([]),
-  componentStatus: z.enum(["operational", "degraded_performance", "partial_outage", "major_outage", "under_maintenance"]).default("partial_outage"),
+  componentStatus: z
+    .enum([
+      "operational",
+      "degraded_performance",
+      "partial_outage",
+      "major_outage",
+      "under_maintenance",
+    ])
+    .default("partial_outage"),
   deliverNotifications: z.boolean().default(true),
 });
 
@@ -31,9 +52,15 @@ export async function createIncident(data: CreateIncidentData) {
 
     // Check status page management permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["update"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["update"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to create incident without permission:`,
@@ -52,17 +79,20 @@ export async function createIncident(data: CreateIncidentData) {
       // Create the incident and initial update in a transaction
       const result = await db.transaction(async (tx) => {
         // Create the incident
-        const [incident] = await tx.insert(incidents).values({
-          statusPageId: validatedData.statusPageId,
-          createdByUserId: userId,
-          name: validatedData.name,
-          status: validatedData.status,
-          impact: validatedData.impact,
-          body: validatedData.body || null,
-          deliverNotifications: validatedData.deliverNotifications,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }).returning();
+        const [incident] = await tx
+          .insert(incidents)
+          .values({
+            statusPageId: validatedData.statusPageId,
+            createdByUserId: userId,
+            name: validatedData.name,
+            status: validatedData.status,
+            impact: validatedData.impact,
+            body: validatedData.body || null,
+            deliverNotifications: validatedData.deliverNotifications,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
 
         // Create initial incident update
         await tx.insert(incidentUpdates).values({

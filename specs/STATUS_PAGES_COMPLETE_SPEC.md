@@ -97,7 +97,7 @@ Status Pages provide a public-facing view of service health, allowing organizati
 
 ## Database Schema
 
-### Core Tables (13 Total)
+### Core Tables (14 Total)
 
 #### 1. `status_pages`
 
@@ -201,14 +201,13 @@ CREATE INDEX idx_component_groups_status_page ON status_page_component_groups(st
 
 #### 3. `status_page_components`
 
-Individual service components with monitor linking.
+Individual service components with multiple monitor linking.
 
 ```sql
 CREATE TABLE status_page_components (
   id UUID PRIMARY KEY DEFAULT uuidv7(),
   status_page_id UUID NOT NULL REFERENCES status_pages(id) ON DELETE CASCADE,
   component_group_id UUID REFERENCES status_page_component_groups(id) ON DELETE SET NULL,
-  monitor_id UUID REFERENCES monitors(id) ON DELETE SET NULL,
 
   name VARCHAR(255) NOT NULL,
   description TEXT,
@@ -224,12 +223,37 @@ CREATE TABLE status_page_components (
   -- Automation (Future)
   automation_email VARCHAR(255),
 
+  -- Aggregation settings for multiple monitors
+  aggregation_method VARCHAR(50) DEFAULT 'worst_case' NOT NULL,
+  -- Values: worst_case, best_case, weighted_average, majority_vote
+  failure_threshold INTEGER DEFAULT 1 NOT NULL,
+  -- Number of monitors that must fail to consider component failed
+
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX idx_components_status_page ON status_page_components(status_page_id);
-CREATE INDEX idx_components_monitor ON status_page_components(monitor_id);
+```
+
+#### 3.1. `status_page_component_monitors`
+
+Join table to link components with multiple monitors.
+
+```sql
+CREATE TABLE status_page_component_monitors (
+  component_id UUID NOT NULL REFERENCES status_page_components(id) ON DELETE CASCADE,
+  monitor_id UUID NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
+  weight INTEGER DEFAULT 1 NOT NULL,  -- For weighted aggregation
+  created_at TIMESTAMP DEFAULT NOW(),
+
+  PRIMARY KEY (component_id, monitor_id)
+);
+
+CREATE INDEX idx_status_page_component_monitors_component_id
+ON status_page_component_monitors(component_id);
+CREATE INDEX idx_status_page_component_monitors_monitor_id
+ON status_page_component_monitors(monitor_id);
 ```
 
 **Component Status Values:**
@@ -239,6 +263,13 @@ CREATE INDEX idx_components_monitor ON status_page_components(monitor_id);
 - `partial_outage`: Some features unavailable (orange)
 - `major_outage`: Service down (red)
 - `under_maintenance`: Scheduled maintenance (blue)
+
+**Aggregation Methods:**
+
+- `worst_case`: Component fails if any monitor fails (default)
+- `best_case`: Component fails only if all monitors fail
+- `weighted_average`: Weighted average of monitor statuses
+- `majority_vote`: Component status based on majority of monitors
 
 #### 4. `incidents`
 
@@ -606,6 +637,44 @@ Deletes a status page and all related data via database cascade.
 
 - [`get-monitors-for-status-page.ts`](app/src/actions/get-monitors-for-status-page.ts) - Get available monitors for component linking
 
+#### 11. Status Aggregation Service
+
+- [`status-aggregation.service.ts`](app/src/lib/status-aggregation.service.ts) - Handles component status calculation from multiple monitors
+
+**Key Features:**
+
+- **Multiple Aggregation Methods**: Supports worst_case, best_case, weighted_average, and majority_vote
+- **Weight-based Aggregation**: Monitors can be weighted differently in the aggregation calculation
+- **Monitor Status Mapping**: Maps monitor statuses (up, down, error, timeout, paused, pending, maintenance) to component statuses
+- **Batch Updates**: Supports updating multiple component statuses at once
+- **Failure Thresholds**: Configurable number of monitor failures required to mark component as failed
+
+**Implementation Details:**
+
+```typescript
+class StatusAggregationService {
+  async calculateComponentStatus(componentId: string): Promise<ComponentStatus>;
+  async updateComponentStatus(componentId: string): Promise<void>;
+  async updateMultipleComponentStatuses(componentIds: string[]): Promise<void>;
+
+  // Aggregation methods
+  private getWorstStatus(statuses: ComponentStatus[]): ComponentStatus;
+  private getBestStatus(statuses: ComponentStatus[]): ComponentStatus;
+  private getWeightedStatus(statuses: MonitorStatusData[]): ComponentStatus;
+  private getMajorityStatus(statuses: ComponentStatus[]): ComponentStatus;
+}
+```
+
+**Status Mapping:**
+
+- `up` → `operational`
+- `down` → `major_outage`
+- `error` → `major_outage`
+- `timeout` → `major_outage`
+- `paused` → `under_maintenance`
+- `pending` → `degraded_performance`
+- `maintenance` → `under_maintenance`
+
 ---
 
 ## Frontend Components
@@ -670,12 +739,14 @@ Deletes a status page and all related data via database cascade.
 
 **Features:**
 
-- Link components to existing monitors
+- Link components to multiple monitors with weight configuration
 - 5 status types: operational, degraded_performance, partial_outage, major_outage, under_maintenance
 - Component grouping with drag-and-drop organization
 - Position-based ordering
-- Monitor status integration
+- Monitor status aggregation with configurable methods
 - Visibility controls (showcase, only_show_if_degraded)
+- Aggregation settings: worst_case, best_case, weighted_average, majority_vote
+- Failure threshold configuration for multi-monitor components
 
 ### 5. Incident Management Components
 
@@ -952,10 +1023,12 @@ canManageStatusPages(role: Role): boolean
 
 #### Database Schema
 
-- [x] Created 13 status page tables with proper relationships
+- [x] Created 14 status page tables with proper relationships
 - [x] Implemented comprehensive indexing for performance
 - [x] Added foreign key constraints and cascading rules
 - [x] Fixed UUID v4 error (moved from SQL default to application-level generation)
+- [x] Simplified component-monitor associations (removed single monitor field, implemented join table)
+- [x] Added aggregation methods and failure thresholds for multi-monitor components
 - [x] Successfully applied migrations to database
 
 #### Server Actions (20/20 Complete)
@@ -1030,7 +1103,7 @@ canManageStatusPages(role: Role): boolean
 
 ### 📊 Progress Metrics
 
-- **Database Schema**: 100% complete (13/13 tables)
+- **Database Schema**: 100% complete (14/14 tables)
 - **Server Actions**: 100% complete (20/20 planned)
 - **Core UI**: 100% complete (13/13 components)
 - **Public Features**: 95% complete (subdomain routing + public pages + subscriptions)
@@ -1110,6 +1183,81 @@ app.supercheck.io. 300 IN A 192.168.1.101
 - Cloudflare provides free wildcard SSL certificates
 - Automatic renewal
 - No manual certificate management needed
+
+### Component-Monitor Association Model
+
+**Simplified Multiple Monitor Approach:**
+
+The status page system uses a clean multiple monitor association model:
+
+```typescript
+// Component schema - no single monitor field
+export const statusPageComponents = pgTable("status_page_components", {
+  id: uuid("id")
+    .primaryKey()
+    .$defaultFn(() => sql`uuidv7()`),
+  statusPageId: uuid("status_page_id").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  // Aggregation settings
+  aggregationMethod: varchar("aggregation_method", { length: 50 })
+    .default("worst_case")
+    .notNull(),
+  failureThreshold: integer("failure_threshold").default(1).notNull(),
+  // ... other fields
+});
+
+// Join table for multiple monitors
+export const statusPageComponentMonitors = pgTable(
+  "status_page_component_monitors",
+  {
+    componentId: uuid("component_id").notNull(),
+    monitorId: uuid("monitor_id").notNull(),
+    weight: integer("weight").default(1).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.componentId, table.monitorId] }),
+  })
+);
+```
+
+**Benefits:**
+
+1. **Single Source of Truth**: Only one way to associate monitors with components
+2. **Flexible Aggregation**: Support for different aggregation methods
+3. **Weight-based Monitoring**: Different monitors can have different importance
+4. **Clean Data Model**: No dual storage or conditional logic
+
+### Status Aggregation Logic
+
+**Component Status Calculation:**
+
+```typescript
+// Example: Calculate component status from multiple monitors
+const componentStatus = await statusAggregationService.calculateComponentStatus(
+  componentId
+);
+
+// Aggregation methods:
+// - worst_case: Component fails if any monitor fails (default)
+// - best_case: Component fails only if all monitors fail
+// - weighted_average: Weighted average of monitor statuses
+// - majority_vote: Component status based on majority of monitors
+```
+
+**Status Mapping:**
+
+```typescript
+const monitorToComponentMapping = {
+  up: "operational",
+  down: "major_outage",
+  error: "major_outage",
+  timeout: "major_outage",
+  paused: "under_maintenance",
+  pending: "degraded_performance",
+  maintenance: "under_maintenance",
+};
+```
 
 ### Design Pattern
 
@@ -1373,27 +1521,29 @@ export default function StatusPagesPage() {
 
 **Schema:**
 
-- `/app/src/db/schema/schema.ts` - All 13 tables
+- `/app/src/db/schema/schema.ts` - All 14 tables
 
-**Migration:**
+**Migrations:**
 
-- `/app/src/db/migrations/0000_classy_sir_ram.sql`
+- `/app/src/db/migrations/0000_classy_sir_ram.sql` - Initial status page schema
+- `/app/src/db/migrations/0005_remove_single_monitor_association.sql` - Simplified monitor associations
 
 ### Version History
 
-| Version | Date       | Changes                                                   |
-| ------- | ---------- | --------------------------------------------------------- |
-| 2.2     | 2025-10-12 | Added public incident detail page and email subscriptions |
-| 2.1     | 2025-10-12 | Phase 3 complete with subscriber management               |
-| 2.0     | 2025-10-11 | Consolidated all documentation, Phase 2 complete          |
-| 1.0     | 2025-10-11 | Phase 1 implementation complete                           |
-| 0.9     | 2025-10-11 | Initial database schema created                           |
-| 0.5     | 2025-10-04 | Database schema created                                   |
+| Version | Date       | Changes                                                            |
+| ------- | ---------- | ------------------------------------------------------------------ |
+| 2.3     | 2025-10-13 | Simplified component-monitor associations (multiple monitors only) |
+| 2.2     | 2025-10-12 | Added public incident detail page and email subscriptions          |
+| 2.1     | 2025-10-12 | Phase 3 complete with subscriber management                        |
+| 2.0     | 2025-10-11 | Consolidated all documentation, Phase 2 complete                   |
+| 1.0     | 2025-10-11 | Phase 1 implementation complete                                    |
+| 0.9     | 2025-10-11 | Initial database schema created                                    |
+| 0.5     | 2025-10-04 | Database schema created                                            |
 
 ---
 
 **Document Status:** ✅ Complete and Current
-**Last Review:** 2025-10-11
+**Last Review:** 2025-10-13
 **Next Review:** After Phase 3 completion
 
 ---
@@ -1403,7 +1553,8 @@ export default function StatusPagesPage() {
 ### Core Features ✅
 
 - [x] Status page creation with unique subdomains
-- [x] Component management with monitor linking
+- [x] Component management with multiple monitor linking
+- [x] Status aggregation with configurable methods
 - [x] Incident management with full workflow
 - [x] Public status page display
 - [x] Subdomain routing in production

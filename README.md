@@ -105,23 +105,23 @@ cd worker && npm run dev  # Worker service (in separate terminal)
 
 ### 4. Set Up Your First Super Admin
 
-**Option A: Automated Setup (Recommended)**
-
-```bash
-# Run the interactive setup script
-./scripts/setup-super-admin.sh
-```
-
-**Option B: Manual Setup**
-
 1. Create a user account at `http://localhost:3001/sign-up`
-2. Run the super admin setup script:
+2. Run one of the following commands:
+
+   **For Docker Compose environments:**
 
    ```bash
-   ./scripts/setup-super-admin.sh
+   docker-compose exec app npm run setup:admin admin@yourcompany.com
    ```
 
-   This script will guide you through setting up super admin privileges through the database.
+   **For local development:**
+
+   ```bash
+   cd app
+   npm run setup:admin admin@yourcompany.com
+   ```
+
+   Replace `admin@yourcompany.com` with the actual email address of the user you want to make a super admin.
 
 ### 5. Access the Application
 
@@ -223,7 +223,7 @@ QUEUED_CAPACITY=50         # Max queued jobs
 
 # Security
 # Super admin access is now managed through the database
-# Use ./scripts/setup-super-admin.sh to configure super admin users
+# Use `npm run setup:admin admin@yourcompany.com` to configure super admin users
 
 ### Production Configuration
 See [Security Guide](./specs/SECURITY.md) for production security settings:

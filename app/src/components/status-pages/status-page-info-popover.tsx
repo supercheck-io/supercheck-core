@@ -1,5 +1,5 @@
 import React from "react";
-import { Info, FileText } from "lucide-react";
+import { Info, Tally4 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -19,14 +19,21 @@ export function StatusPageInfoPopover() {
       <PopoverContent className="w-96 mt-2" side="right" sideOffset={8}>
         <div>
           <div className="flex items-center space-x-2 mb-3">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <h4 className="font-semibold text-sm">Getting Started:</h4>
+            <Tally4 className="h-4 w-4 text-muted-foreground" />
+            <h4 className="font-semibold text-sm">Status Page</h4>
           </div>
           <div className="space-y-2">
             {statusPageSteps.map((step, index) => (
-              <div key={index} className="flex items-start space-x-3 p-2 rounded-md bg-muted/30">
-                <div className="text-xs text-muted-foreground mt-0.5 font-medium">•</div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{step}</p>
+              <div
+                key={index}
+                className="flex items-start space-x-3 p-1 rounded-md "
+              >
+                <div className="text-xs text-muted-foreground mt-0.5 font-bold">
+                  {index + 1}.
+                </div>
+                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
+                  {step}
+                </p>
               </div>
             ))}
           </div>

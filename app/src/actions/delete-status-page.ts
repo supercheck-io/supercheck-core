@@ -5,7 +5,7 @@ import { statusPages } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function deleteStatusPage(id: string) {
@@ -17,9 +17,15 @@ export async function deleteStatusPage(id: string) {
 
     // Check delete permission using Better Auth
     try {
-      await requireBetterAuthPermission({
-        status_page: ["delete"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["delete"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to delete status page without permission:`,
@@ -48,7 +54,8 @@ export async function deleteStatusPage(id: string) {
       console.warn(`Status page ${id} not found or access denied`);
       return {
         success: false,
-        message: "Status page not found or you don't have permission to delete it",
+        message:
+          "Status page not found or you don't have permission to delete it",
       };
     }
 

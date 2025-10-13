@@ -5,7 +5,7 @@ import { incidents } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function deleteIncident(id: string, statusPageId: string) {
@@ -17,9 +17,15 @@ export async function deleteIncident(id: string, statusPageId: string) {
 
     // Check status page management permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["delete"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["delete"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to delete incident without permission:`,
@@ -47,9 +53,7 @@ export async function deleteIncident(id: string, statusPageId: string) {
       // Delete the incident (cascade will handle related records)
       await db.delete(incidents).where(eq(incidents.id, id));
 
-      console.log(
-        `Incident ${id} deleted successfully by user ${userId}`
-      );
+      console.log(`Incident ${id} deleted successfully by user ${userId}`);
 
       // Log the audit event
       await logAuditEvent({

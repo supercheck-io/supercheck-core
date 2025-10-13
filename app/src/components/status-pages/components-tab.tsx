@@ -44,6 +44,7 @@ type Component = {
   description: string | null;
   status: ComponentStatus;
   monitorId: string | null;
+  monitorIds: string[];
   componentGroupId: string | null;
   showcase: boolean;
   onlyShowIfDegraded: boolean;
@@ -56,6 +57,12 @@ type Component = {
     type: string;
     status: string;
   } | null;
+  monitors: {
+    id: string;
+    name: string;
+    type: string;
+    status: string;
+  }[];
 };
 
 type Monitor = {
@@ -363,8 +370,25 @@ export function ComponentsTab({
                                 {component.description}
                               </p>
                             )}
-                            <div className="flex items-center gap-3 ml-7">
-                              {component.monitor && (
+                            <div className="flex items-center gap-3 ml-7 flex-wrap">
+                              {component.monitors &&
+                              component.monitors.length > 0 ? (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs text-muted-foreground">
+                                    Monitors:
+                                  </span>
+                                  {component.monitors.map((monitor) => (
+                                    <Badge
+                                      key={monitor.id}
+                                      variant="outline"
+                                      className="text-xs gap-1"
+                                    >
+                                      <LinkIcon className="h-3 w-3" />
+                                      <span>{monitor.name}</span>
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : component.monitor ? (
                                 <Badge
                                   variant="outline"
                                   className="text-xs gap-1"
@@ -372,7 +396,7 @@ export function ComponentsTab({
                                   <LinkIcon className="h-3 w-3" />
                                   <span>{component.monitor.name}</span>
                                 </Badge>
-                              )}
+                              ) : null}
                               {component.showcase && (
                                 <Badge variant="secondary" className="text-xs">
                                   Visible on status page

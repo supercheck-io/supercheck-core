@@ -108,7 +108,7 @@ BETTER_AUTH_URL=https://supercheck.meditationblue.com
 
 # Admin Configuration
 # Super admin access is now managed through the database
-# Use ./scripts/setup-super-admin.sh to configure super admin users
+# Use `npm run setup:admin admin@yourcompany.com` to configure super admin users
 
 # RBAC Settings
 MAX_PROJECTS_PER_ORG=10

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle2,
@@ -215,8 +216,8 @@ export function PublicStatusPage({
 
     // Filter incidents by component if componentId is provided
     const relevantIncidents = componentId
-      ? incidents.filter(incident =>
-          incident.affectedComponents?.some(c => c.id === componentId)
+      ? incidents.filter((incident) =>
+          incident.affectedComponents?.some((c) => c.id === componentId)
         )
       : incidents;
 
@@ -336,7 +337,8 @@ export function PublicStatusPage({
               key={index}
               className="h-10 flex-1 relative cursor-pointer transition-all duration-200 hover:opacity-80"
               style={{
-                backgroundColor: day.status === "nodata" ? "#9ca3af" : getBarColor(day)
+                backgroundColor:
+                  day.status === "nodata" ? "#9ca3af" : getBarColor(day),
               }}
               onMouseEnter={() => setHoveredDay(index)}
               onMouseLeave={() => setHoveredDay(null)}
@@ -412,10 +414,13 @@ export function PublicStatusPage({
           <div className="flex items-start justify-between">
             <div className="flex-1">
               {statusPage.transactionalLogo && (
-                <img
+                <Image
                   src={statusPage.transactionalLogo}
                   alt={statusPage.headline || statusPage.name}
+                  width={200}
+                  height={64}
                   className="h-16 mb-4 object-contain object-left"
+                  unoptimized
                 />
               )}
               <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
@@ -438,7 +443,10 @@ export function PublicStatusPage({
       {/* Main Content */}
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
         {/* Current Status Banner */}
-        <div className="rounded-lg p-6" style={{ backgroundColor: statusDisplay.bgColor }}>
+        <div
+          className="rounded-lg p-6"
+          style={{ backgroundColor: statusDisplay.bgColor }}
+        >
           <div className="flex items-center gap-3">
             <StatusIcon className="h-6 w-6 text-white" />
             <span className="text-2xl font-medium text-white">
@@ -450,8 +458,8 @@ export function PublicStatusPage({
         {/* Components Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-            <span>Uptime over the past 90 days.</span>
-            <span>View historical uptime.</span>
+            <span></span>
+            <span>Uptime over the past 90 days</span>
           </div>
 
           {visibleComponents.length === 0 ? (

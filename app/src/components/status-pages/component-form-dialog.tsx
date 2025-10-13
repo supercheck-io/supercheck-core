@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,12 +19,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
-import { createComponent, type CreateComponentData } from "@/actions/create-component";
-import { updateComponent, type UpdateComponentData } from "@/actions/update-component";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, X, Search } from "lucide-react";
+import {
+  createComponent,
+  type CreateComponentData,
+} from "@/actions/create-component";
+import {
+  updateComponent,
+  type UpdateComponentData,
+} from "@/actions/update-component";
 import { toast } from "sonner";
 
-type ComponentStatus = "operational" | "degraded_performance" | "partial_outage" | "major_outage" | "under_maintenance";
+type ComponentStatus =
+  | "operational"
+  | "degraded_performance"
+  | "partial_outage"
+  | "major_outage"
+  | "under_maintenance";
 
 type Component = {
   id: string;
@@ -32,6 +45,7 @@ type Component = {
   description: string | null;
   status: ComponentStatus;
   monitorId: string | null;
+  monitorIds?: string[]; // For backward compatibility
   componentGroupId: string | null;
   showcase: boolean;
   onlyShowIfDegraded: boolean;
@@ -59,12 +73,28 @@ type ComponentFormDialogProps = {
   onSuccess: () => void;
 };
 
-const statusOptions: { value: ComponentStatus; label: string; color: string }[] = [
+const statusOptions: {
+  value: ComponentStatus;
+  label: string;
+  color: string;
+}[] = [
   { value: "operational", label: "Operational", color: "text-green-600" },
-  { value: "degraded_performance", label: "Degraded Performance", color: "text-yellow-600" },
-  { value: "partial_outage", label: "Partial Outage", color: "text-orange-600" },
+  {
+    value: "degraded_performance",
+    label: "Degraded Performance",
+    color: "text-yellow-600",
+  },
+  {
+    value: "partial_outage",
+    label: "Partial Outage",
+    color: "text-orange-600",
+  },
   { value: "major_outage", label: "Major Outage", color: "text-red-600" },
-  { value: "under_maintenance", label: "Under Maintenance", color: "text-blue-600" },
+  {
+    value: "under_maintenance",
+    label: "Under Maintenance",
+    color: "text-blue-600",
+  },
 ];
 
 export function ComponentFormDialog({
@@ -80,10 +110,14 @@ export function ComponentFormDialog({
   const [formData, setFormData] = useState({
     name: component?.name || "",
     description: component?.description || "",
-    status: component?.status || "operational" as ComponentStatus,
+    status: component?.status || ("operational" as ComponentStatus),
     monitorId: component?.monitorId || "none",
+    monitorIds: component?.monitorIds || [],
     componentGroupId: component?.componentGroupId || "none",
   });
+  const [monitorSearchTerm, setMonitorSearchTerm] = useState("");
+  const [isMonitorDropdownOpen, setIsMonitorDropdownOpen] = useState(false);
+  const monitorDropdownRef = useRef<HTMLDivElement>(null);
 
   // Reset form when dialog opens with new component data
   useEffect(() => {
@@ -93,10 +127,37 @@ export function ComponentFormDialog({
         description: component?.description || "",
         status: component?.status || "operational",
         monitorId: component?.monitorId || "none",
+        monitorIds: component?.monitorIds || [],
         componentGroupId: component?.componentGroupId || "none",
       });
+      setMonitorSearchTerm("");
+      setIsMonitorDropdownOpen(false);
     }
   }, [open, component]);
+
+  // Click outside handler for dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        monitorDropdownRef.current &&
+        !monitorDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsMonitorDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Filter monitors based on search term
+  const filteredMonitors = monitors.filter(
+    (monitor) =>
+      monitor.name.toLowerCase().includes(monitorSearchTerm.toLowerCase()) ||
+      monitor.type.toLowerCase().includes(monitorSearchTerm.toLowerCase())
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,8 +172,11 @@ export function ComponentFormDialog({
           name: formData.name,
           description: formData.description || null,
           status: formData.status,
-          monitorId: formData.monitorId === "none" ? null : formData.monitorId,
-          componentGroupId: formData.componentGroupId === "none" ? null : formData.componentGroupId,
+          monitorIds: formData.monitorIds,
+          componentGroupId:
+            formData.componentGroupId === "none"
+              ? null
+              : formData.componentGroupId,
         };
 
         const result = await updateComponent(updateData);
@@ -133,11 +197,16 @@ export function ComponentFormDialog({
           name: formData.name,
           description: formData.description || undefined,
           status: formData.status,
-          monitorId: formData.monitorId === "none" ? null : formData.monitorId,
-          componentGroupId: formData.componentGroupId === "none" ? null : formData.componentGroupId,
+          monitorIds: formData.monitorIds,
+          componentGroupId:
+            formData.componentGroupId === "none"
+              ? null
+              : formData.componentGroupId,
           showcase: true,
           onlyShowIfDegraded: false,
           position: 0,
+          aggregationMethod: "worst_case",
+          failureThreshold: 1,
         };
 
         const result = await createComponent(createData);
@@ -166,7 +235,9 @@ export function ComponentFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{component ? "Edit Component" : "Add Component"}</DialogTitle>
+          <DialogTitle>
+            {component ? "Edit Component" : "Add Component"}
+          </DialogTitle>
           <DialogDescription>
             {component
               ? "Update the component details and status"
@@ -181,7 +252,9 @@ export function ComponentFormDialog({
               id="name"
               placeholder="API Server"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
               required
               disabled={isSubmitting}
             />
@@ -196,7 +269,9 @@ export function ComponentFormDialog({
               id="description"
               placeholder="RESTful API for client applications"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               rows={3}
               disabled={isSubmitting}
             />
@@ -231,28 +306,110 @@ export function ComponentFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="monitor">Linked Monitor (Optional)</Label>
-            <Select
-              value={formData.monitorId}
-              onValueChange={(value) =>
-                setFormData({ ...formData, monitorId: value })
-              }
-              disabled={isSubmitting}
-            >
-              <SelectTrigger id="monitor">
-                <SelectValue placeholder="Select a monitor..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No monitor</SelectItem>
-                {monitors.map((monitor) => (
-                  <SelectItem key={monitor.id} value={monitor.id}>
-                    {monitor.name} ({monitor.type})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Linked Monitors (Optional)</Label>
+            <div ref={monitorDropdownRef} className="relative">
+              {/* Search input */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search monitors by name or type..."
+                  value={monitorSearchTerm}
+                  onChange={(e) => {
+                    setMonitorSearchTerm(e.target.value);
+                    setIsMonitorDropdownOpen(true);
+                  }}
+                  onFocus={() => setIsMonitorDropdownOpen(true)}
+                  className="pl-10"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              {/* Dropdown */}
+              {isMonitorDropdownOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {monitors.length === 0 ? (
+                    <div className="p-3 text-sm text-muted-foreground">
+                      No monitors available
+                    </div>
+                  ) : filteredMonitors.length === 0 ? (
+                    <div className="p-3 text-sm text-muted-foreground">
+                      No monitors found matching &quot;{monitorSearchTerm}&quot;
+                    </div>
+                  ) : (
+                    <div className="p-1">
+                      {filteredMonitors.map((monitor) => (
+                        <div
+                          key={monitor.id}
+                          className="flex items-center p-2 hover:bg-accent rounded cursor-pointer"
+                          onClick={() => {
+                            if (!formData.monitorIds.includes(monitor.id)) {
+                              setFormData({
+                                ...formData,
+                                monitorIds: [
+                                  ...formData.monitorIds,
+                                  monitor.id,
+                                ],
+                              });
+                            }
+                            setMonitorSearchTerm("");
+                            setIsMonitorDropdownOpen(false);
+                          }}
+                        >
+                          <Checkbox
+                            checked={formData.monitorIds.includes(monitor.id)}
+                            className="mr-3"
+                            disabled={isSubmitting}
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">
+                              {monitor.name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {monitor.type}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Selected monitors badges */}
+            {formData.monitorIds.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {formData.monitorIds.map((monitorId) => {
+                  const monitor = monitors.find((m) => m.id === monitorId);
+                  return monitor ? (
+                    <Badge
+                      key={monitorId}
+                      variant="secondary"
+                      className="text-xs pr-1"
+                    >
+                      {monitor.name}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            monitorIds: formData.monitorIds.filter(
+                              (id) => id !== monitorId
+                            ),
+                          });
+                        }}
+                        className="ml-1 hover:text-destructive p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ) : null;
+                })}
+              </div>
+            )}
             <p className="text-sm text-muted-foreground">
-              Link this component to a monitor for reference only (status updates are manual via incidents)
+              Search and select multiple monitors to link with this component
+              for reference only (status updates are manual via incidents)
             </p>
           </div>
 
@@ -292,8 +449,14 @@ export function ComponentFormDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Saving..." : component ? "Update Component" : "Add Component"}
+              {isSubmitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {isSubmitting
+                ? "Saving..."
+                : component
+                ? "Update Component"
+                : "Add Component"}
             </Button>
           </div>
         </form>

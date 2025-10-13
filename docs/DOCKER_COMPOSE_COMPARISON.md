@@ -238,7 +238,7 @@ AI_TEMPERATURE=0.1
 
 # Admin
 # Super admin access is now managed through the database
-# Use ./scripts/setup-super-admin.sh to configure super admin users
+# Use `npm run setup:admin admin@yourcompany.com` to configure super admin users
 MAX_PROJECTS_PER_ORG=10
 DEFAULT_PROJECT_NAME="Default Project"
 ```

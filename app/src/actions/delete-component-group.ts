@@ -5,7 +5,7 @@ import { statusPageComponentGroups } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function deleteComponentGroup(id: string, statusPageId: string) {
@@ -17,9 +17,15 @@ export async function deleteComponentGroup(id: string, statusPageId: string) {
 
     // Check status page management permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["delete"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["delete"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to delete component group without permission:`,
@@ -33,9 +39,11 @@ export async function deleteComponentGroup(id: string, statusPageId: string) {
 
     try {
       // Get component group details before deletion for audit log
-      const componentGroup = await db.query.statusPageComponentGroups.findFirst({
-        where: eq(statusPageComponentGroups.id, id),
-      });
+      const componentGroup = await db.query.statusPageComponentGroups.findFirst(
+        {
+          where: eq(statusPageComponentGroups.id, id),
+        }
+      );
 
       if (!componentGroup) {
         return {
@@ -45,7 +53,9 @@ export async function deleteComponentGroup(id: string, statusPageId: string) {
       }
 
       // Delete the component group (components will have componentGroupId set to null due to ON DELETE SET NULL)
-      await db.delete(statusPageComponentGroups).where(eq(statusPageComponentGroups.id, id));
+      await db
+        .delete(statusPageComponentGroups)
+        .where(eq(statusPageComponentGroups.id, id));
 
       console.log(
         `Component group ${id} deleted successfully by user ${userId}`

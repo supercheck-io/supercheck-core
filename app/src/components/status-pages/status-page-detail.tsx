@@ -6,13 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Globe,
   ExternalLink,
   Upload,
   EyeOff,
   Loader2,
   Copy,
   Activity,
+  Tally4,
 } from "lucide-react";
 import Link from "next/link";
 import { ComponentsTab } from "./components-tab";
@@ -27,7 +27,7 @@ import {
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { DataTable } from "@/components/monitors/data-table";
-import { columns } from "@/components/monitors/columns";
+import { statusPageColumns } from "@/components/monitors/status-page-columns";
 import type { Monitor } from "@/components/monitors/schema";
 
 type StatusPage = {
@@ -81,9 +81,18 @@ type ComponentGroup = {
 type Component = {
   id: string;
   name: string;
-  monitorId: string | null;
+  description: string | null;
+  status: string;
   componentGroupId: string | null;
-  monitor?: StatusPageMonitor | null;
+  monitors: StatusPageMonitor[];
+  monitorIds: string[];
+  aggregationMethod: string;
+  failureThreshold: number;
+  showcase: boolean | null;
+  onlyShowIfDegraded: boolean | null;
+  position: number | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
 };
 
 type StatusPageDetailProps = {
@@ -163,11 +172,11 @@ export function StatusPageDetail({
       case "published":
         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
       case "draft":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
+        return "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
       case "archived":
         return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
+        return "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
     }
   };
 
@@ -178,7 +187,11 @@ export function StatusPageDetail({
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-2xl font-semibold">{statusPage.name}</h1>
-              <Badge className={getStatusBadgeColor(statusPage.status)}>
+              <Badge
+                className={`text-xs px-2 py-1 rounded-md ${getStatusBadgeColor(
+                  statusPage.status
+                )}`}
+              >
                 {statusPage.status}
               </Badge>
               <StatusPageInfoPopover />
@@ -194,8 +207,8 @@ export function StatusPageDetail({
               </p>
             )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-3">
-              <Globe className="h-4 w-4 flex-shrink-0" />
-              <span className="font-mono text-xs">
+              <Tally4 className="h-4 w-4 flex-shrink-0" />
+              <span className="font-mono text-sm">
                 https://{statusPage.subdomain}.supercheck.io
               </span>
               <Button
@@ -280,10 +293,31 @@ export function StatusPageDetail({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Linked Monitors</h3>
                 <Badge variant="secondary">
-                  {components.filter((c) => c.monitor).length} monitors
+                  {(() => {
+                    // Collect all monitor IDs from all components
+                    const allMonitorIds = components.flatMap((c) =>
+                      c.monitors.map((m) => m.id)
+                    );
+
+                    // Filter unique monitor IDs
+                    const uniqueMonitorIds = [...new Set(allMonitorIds)];
+
+                    return uniqueMonitorIds.length;
+                  })()}{" "}
+                  monitors
                 </Badge>
               </div>
-              {components.filter((c) => c.monitor).length === 0 ? (
+              {(() => {
+                // Collect all monitor IDs from all components
+                const allMonitorIds = components.flatMap((c) =>
+                  c.monitors.map((m) => m.id)
+                );
+
+                // Filter unique monitor IDs
+                const uniqueMonitorIds = [...new Set(allMonitorIds)];
+
+                return uniqueMonitorIds.length;
+              })() === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
                   <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>No monitors linked yet</p>
@@ -293,24 +327,36 @@ export function StatusPageDetail({
                 </div>
               ) : (
                 <DataTable
-                  columns={columns}
-                  data={components
-                    .filter((c) => c.monitor)
-                    .map(
-                      (c) =>
-                        ({
-                          ...c.monitor,
-                          id: c.monitor!.id,
-                          name: c.monitor!.name,
-                          type: c.monitor!.type,
-                          status: c.monitor!.status || "pending",
-                          target: c.monitor!.target || "", // Use the target field from monitor data
-                          frequencyMinutes: 5, // Required field but not available in StatusPageMonitor
-                          enabled: true, // Required field but not available in StatusPageMonitor
-                          createdAt: new Date().toISOString(), // Required field but not available in StatusPageMonitor
-                          updatedAt: new Date().toISOString(), // Required field but not available in StatusPageMonitor
-                        } as Monitor)
-                    )}
+                  columns={statusPageColumns}
+                  data={(() => {
+                    // Collect all monitors from all components
+                    const allMonitors = components.flatMap((c) =>
+                      c.monitors.map(
+                        (monitor) =>
+                          ({
+                            ...monitor,
+                            id: monitor.id,
+                            name: monitor.name,
+                            type: monitor.type,
+                            status: monitor.status || "pending",
+                            target: monitor.target || "", // Use the target field from monitor data
+                            frequencyMinutes: 5, // Required field but not available in StatusPageMonitor
+                            enabled: true, // Required field but not available in StatusPageMonitor
+                            createdAt: new Date().toISOString(), // Required field but not available in StatusPageMonitor
+                            updatedAt: new Date().toISOString(), // Required field but not available in StatusPageMonitor
+                            componentName: c.name, // Add component name for reference
+                          } as Monitor & { componentName: string })
+                      )
+                    );
+
+                    // Filter out duplicate monitors by ID
+                    const uniqueMonitors = allMonitors.filter(
+                      (monitor, index, self) =>
+                        index === self.findIndex((m) => m.id === monitor.id)
+                    );
+
+                    return uniqueMonitors;
+                  })()}
                   isLoading={false}
                   onRowClick={(row) =>
                     router.push(`/monitors/${row.original.id}`)

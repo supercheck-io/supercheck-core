@@ -5,7 +5,7 @@ import { statusPageComponentGroups } from "@/db/schema/schema";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 const createComponentGroupSchema = z.object({
@@ -15,10 +15,15 @@ const createComponentGroupSchema = z.object({
   position: z.number().int().default(0),
 });
 
-export type CreateComponentGroupData = z.infer<typeof createComponentGroupSchema>;
+export type CreateComponentGroupData = z.infer<
+  typeof createComponentGroupSchema
+>;
 
 export async function createComponentGroup(data: CreateComponentGroupData) {
-  console.log(`Creating component group with data:`, JSON.stringify(data, null, 2));
+  console.log(
+    `Creating component group with data:`,
+    JSON.stringify(data, null, 2)
+  );
 
   try {
     // Get current project context (includes auth verification)
@@ -26,9 +31,15 @@ export async function createComponentGroup(data: CreateComponentGroupData) {
 
     // Check status page management permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["update"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["update"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to create component group without permission:`,
@@ -45,14 +56,17 @@ export async function createComponentGroup(data: CreateComponentGroupData) {
 
     try {
       // Create the component group
-      const [componentGroup] = await db.insert(statusPageComponentGroups).values({
-        statusPageId: validatedData.statusPageId,
-        name: validatedData.name,
-        description: validatedData.description || null,
-        position: validatedData.position,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }).returning();
+      const [componentGroup] = await db
+        .insert(statusPageComponentGroups)
+        .values({
+          statusPageId: validatedData.statusPageId,
+          name: validatedData.name,
+          description: validatedData.description || null,
+          position: validatedData.position,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
 
       console.log(
         `Component group ${componentGroup.id} created successfully by user ${userId}`

@@ -9,7 +9,7 @@ import { scheduleJob } from "@/lib/job-scheduler";
 import crypto from "crypto";
 import { getNextRunDate } from "@/lib/cron-utils";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 const createJobSchema = z.object({
@@ -34,7 +34,7 @@ export async function createJob(data: CreateJobData) {
 
     // Check job creation permission using Better Auth
     try {
-      await requireBetterAuthPermission({
+      await requirePermissions({
         job: ["create"],
       });
     } catch (error) {

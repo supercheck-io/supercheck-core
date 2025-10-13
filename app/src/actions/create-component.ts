@@ -1,11 +1,14 @@
 "use server";
 
 import { db } from "@/utils/db";
-import { statusPageComponents } from "@/db/schema/schema";
+import {
+  statusPageComponents,
+  statusPageComponentMonitors,
+} from "@/db/schema/schema";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireProjectContext } from "@/lib/project-context";
-import { requireBetterAuthPermission } from "@/lib/rbac/middleware";
+import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 
 const createComponentSchema = z.object({
@@ -13,11 +16,25 @@ const createComponentSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   description: z.string().optional(),
   componentGroupId: z.string().uuid().optional().nullable(),
-  monitorId: z.string().uuid().optional().nullable(),
-  status: z.enum(["operational", "degraded_performance", "partial_outage", "major_outage", "under_maintenance"]).default("operational"),
+  monitorIds: z
+    .array(z.string().uuid())
+    .min(1, "At least one monitor is required"),
+  status: z
+    .enum([
+      "operational",
+      "degraded_performance",
+      "partial_outage",
+      "major_outage",
+      "under_maintenance",
+    ])
+    .default("operational"),
   showcase: z.boolean().default(true),
   onlyShowIfDegraded: z.boolean().default(false),
   position: z.number().int().default(0),
+  aggregationMethod: z
+    .enum(["worst_case", "best_case", "weighted_average", "majority_vote"])
+    .default("worst_case"),
+  failureThreshold: z.number().int().min(1).default(1),
 });
 
 export type CreateComponentData = z.infer<typeof createComponentSchema>;
@@ -31,9 +48,15 @@ export async function createComponent(data: CreateComponentData) {
 
     // Check status page management permission
     try {
-      await requireBetterAuthPermission({
-        status_page: ["update"],
-      });
+      await requirePermissions(
+        {
+          status_page: ["update"],
+        },
+        {
+          organizationId,
+          projectId: project.id,
+        }
+      );
     } catch (error) {
       console.warn(
         `User ${userId} attempted to create component without permission:`,
@@ -50,19 +73,33 @@ export async function createComponent(data: CreateComponentData) {
 
     try {
       // Create the component
-      const [component] = await db.insert(statusPageComponents).values({
-        statusPageId: validatedData.statusPageId,
-        name: validatedData.name,
-        description: validatedData.description || null,
-        componentGroupId: validatedData.componentGroupId || null,
-        monitorId: validatedData.monitorId || null,
-        status: validatedData.status,
-        showcase: validatedData.showcase,
-        onlyShowIfDegraded: validatedData.onlyShowIfDegraded,
-        position: validatedData.position,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }).returning();
+      const [component] = await db
+        .insert(statusPageComponents)
+        .values({
+          statusPageId: validatedData.statusPageId,
+          name: validatedData.name,
+          description: validatedData.description || null,
+          componentGroupId: validatedData.componentGroupId || null,
+          status: validatedData.status,
+          showcase: validatedData.showcase,
+          onlyShowIfDegraded: validatedData.onlyShowIfDegraded,
+          position: validatedData.position,
+          aggregationMethod: validatedData.aggregationMethod,
+          failureThreshold: validatedData.failureThreshold,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      // Create monitor associations in the join table
+      await db.insert(statusPageComponentMonitors).values(
+        validatedData.monitorIds.map((monitorId) => ({
+          componentId: component.id,
+          monitorId,
+          weight: 1,
+          createdAt: new Date(),
+        }))
+      );
 
       console.log(
         `Component ${component.id} created successfully by user ${userId} in status page ${validatedData.statusPageId}`
@@ -80,7 +117,9 @@ export async function createComponent(data: CreateComponentData) {
           statusPageId: validatedData.statusPageId,
           projectId: project.id,
           projectName: project.name,
-          monitorId: validatedData.monitorId,
+          monitorIds: validatedData.monitorIds,
+          aggregationMethod: validatedData.aggregationMethod,
+          failureThreshold: validatedData.failureThreshold,
         },
         success: true,
       });
