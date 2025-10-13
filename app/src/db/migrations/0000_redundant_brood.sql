@@ -394,6 +394,7 @@ CREATE TABLE "status_page_component_groups" (
 CREATE TABLE "status_page_component_monitors" (
 	"component_id" uuid NOT NULL,
 	"monitor_id" uuid NOT NULL,
+	"weight" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	CONSTRAINT "status_page_component_monitors_component_id_monitor_id_pk" PRIMARY KEY("component_id","monitor_id")
 );
@@ -409,7 +410,6 @@ CREATE TABLE "status_page_components" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"status_page_id" uuid NOT NULL,
 	"component_group_id" uuid,
-	"monitor_id" uuid,
 	"name" varchar(255) NOT NULL,
 	"description" text,
 	"status" varchar(50) DEFAULT 'operational' NOT NULL,
@@ -418,6 +418,8 @@ CREATE TABLE "status_page_components" (
 	"automation_email" varchar(255),
 	"start_date" timestamp,
 	"position" integer DEFAULT 0,
+	"aggregation_method" varchar(50) DEFAULT 'worst_case' NOT NULL,
+	"failure_threshold" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now()
 );
@@ -628,7 +630,6 @@ ALTER TABLE "status_page_component_subscriptions" ADD CONSTRAINT "status_page_co
 ALTER TABLE "status_page_component_subscriptions" ADD CONSTRAINT "status_page_component_subscriptions_component_id_status_page_components_id_fk" FOREIGN KEY ("component_id") REFERENCES "public"."status_page_components"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "status_page_components" ADD CONSTRAINT "status_page_components_status_page_id_status_pages_id_fk" FOREIGN KEY ("status_page_id") REFERENCES "public"."status_pages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "status_page_components" ADD CONSTRAINT "status_page_components_component_group_id_status_page_component_groups_id_fk" FOREIGN KEY ("component_group_id") REFERENCES "public"."status_page_component_groups"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "status_page_components" ADD CONSTRAINT "status_page_components_monitor_id_monitors_id_fk" FOREIGN KEY ("monitor_id") REFERENCES "public"."monitors"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "status_page_incident_subscriptions" ADD CONSTRAINT "status_page_incident_subscriptions_incident_id_incidents_id_fk" FOREIGN KEY ("incident_id") REFERENCES "public"."incidents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "status_page_incident_subscriptions" ADD CONSTRAINT "status_page_incident_subscriptions_subscriber_id_status_page_subscribers_id_fk" FOREIGN KEY ("subscriber_id") REFERENCES "public"."status_page_subscribers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "status_page_metrics" ADD CONSTRAINT "status_page_metrics_status_page_id_status_pages_id_fk" FOREIGN KEY ("status_page_id") REFERENCES "public"."status_pages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

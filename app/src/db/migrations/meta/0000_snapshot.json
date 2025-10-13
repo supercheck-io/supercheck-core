@@ -1,5 +1,5 @@
 {
-  "id": "eb8eab84-bf39-4acf-99db-b0b10b3a2580",
+  "id": "24a63fb7-2eeb-4bb2-9b61-b309daa4a8d0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3173,6 +3173,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "weight": {
+          "name": "weight",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -3311,12 +3318,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "monitor_id": {
-          "name": "monitor_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "varchar(255)",
@@ -3369,6 +3370,20 @@
           "notNull": false,
           "default": 0
         },
+        "aggregation_method": {
+          "name": "aggregation_method",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'worst_case'"
+        },
+        "failure_threshold": {
+          "name": "failure_threshold",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -3405,19 +3420,6 @@
           "tableTo": "status_page_component_groups",
           "columnsFrom": [
             "component_group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "status_page_components_monitor_id_monitors_id_fk": {
-          "name": "status_page_components_monitor_id_monitors_id_fk",
-          "tableFrom": "status_page_components",
-          "tableTo": "monitors",
-          "columnsFrom": [
-            "monitor_id"
           ],
           "columnsTo": [
             "id"
