@@ -26,6 +26,7 @@ import {
 } from "@/actions/publish-status-page";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { getStatusPageUrl } from "@/lib/domain-utils";
 import { DataTable } from "@/components/monitors/data-table";
 import { statusPageColumns } from "@/components/monitors/status-page-columns";
 import type { Monitor } from "@/components/monitors/schema";
@@ -112,7 +113,7 @@ export function StatusPageDetail({
   const [isPublishing, setIsPublishing] = useState(false);
 
   const handleCopyUrl = () => {
-    const url = `https://${statusPage.subdomain}.supercheck.io`;
+    const url = getStatusPageUrl(statusPage.subdomain);
     navigator.clipboard.writeText(url);
     toast.success("URL copied to clipboard", {
       description: url,
@@ -125,7 +126,9 @@ export function StatusPageDetail({
       const result = await publishStatusPage(statusPage.id);
       if (result.success) {
         toast.success("Status page published successfully", {
-          description: `Your status page is now publicly accessible at ${statusPage.subdomain}.supercheck.io`,
+          description: `Your status page is now publicly accessible at ${getStatusPageUrl(
+            statusPage.subdomain
+          )}`,
         });
         router.refresh();
       } else {
@@ -209,7 +212,7 @@ export function StatusPageDetail({
             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-3">
               <Tally4 className="h-4 w-4 flex-shrink-0" />
               <span className="font-mono text-sm">
-                https://{statusPage.subdomain}.supercheck.io
+                {getStatusPageUrl(statusPage.subdomain)}
               </span>
               <Button
                 variant="ghost"

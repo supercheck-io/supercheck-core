@@ -41,6 +41,7 @@ import {
   canCreateStatusPages,
   canDeleteStatusPages,
 } from "@/lib/rbac/client-permissions";
+import { getStatusPageUrl, getBaseDomain } from "@/lib/domain-utils";
 
 type StatusPage = {
   id: string;
@@ -130,7 +131,7 @@ export default function StatusPagesList() {
   };
 
   const handleCopyUrl = async (subdomain: string) => {
-    const url = `https://${subdomain}.supercheck.io`;
+    const url = getStatusPageUrl(subdomain);
     try {
       await navigator.clipboard.writeText(url);
       toast.success("URL copied to clipboard");
@@ -293,7 +294,7 @@ export default function StatusPagesList() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Globe className="h-4 w-4 flex-shrink-0" />
                   <code className="text-xs bg-muted px-2 py-1 rounded truncate flex-1">
-                    {page.subdomain}.supercheck.io
+                    {page.subdomain}.{getBaseDomain()}
                   </code>
                   <Button
                     variant="ghost"
@@ -325,7 +326,7 @@ export default function StatusPagesList() {
                     className="flex-1"
                   >
                     <a
-                      href={`https://${page.subdomain}.supercheck.io`}
+                      href={getStatusPageUrl(page.subdomain)}
                       target="_blank"
                       rel="noopener noreferrer"
                     >

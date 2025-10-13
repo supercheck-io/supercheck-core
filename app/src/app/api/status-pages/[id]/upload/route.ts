@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { generateProxyUrl } from "@/lib/asset-proxy";
 import { db } from "@/utils/db";
 import { statusPages } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
@@ -141,7 +137,7 @@ export async function POST(request: Request, context: RouteContext) {
     await s3Client.send(uploadCommand);
 
     // Store the S3 key in the database (not the full URL)
-    // We'll generate presigned URLs on-demand when fetching the status page
+    // We'll use proxy URLs when fetching the status page
     // This avoids the varchar(500) limit and allows URLs to be regenerated
     console.log(`[UPLOAD] Successfully uploaded ${uploadType} to S3: ${s3Key}`);
 
@@ -171,15 +167,8 @@ export async function POST(request: Request, context: RouteContext) {
       .set(updateData)
       .where(eq(statusPages.id, statusPageId));
 
-    // Generate presigned URL for the response
-    const getObjectCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: s3Key,
-    });
-
-    const presignedUrl = await getSignedUrl(s3Client, getObjectCommand, {
-      expiresIn: 604800, // 7 days
-    });
+    // Generate proxy URL for the response (instead of presigned URL)
+    const proxyUrl = generateProxyUrl(s3Reference);
 
     console.log(
       `[UPLOAD] Successfully stored ${uploadType} for status page ${statusPageId}: ${s3Reference}`
@@ -188,7 +177,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({
       success: true,
       message: "File uploaded successfully",
-      url: presignedUrl, // Return presigned URL for immediate display
+      url: proxyUrl, // Return proxy URL for immediate display
       s3Key: s3Reference, // Also return the S3 reference
       type: uploadType,
     });

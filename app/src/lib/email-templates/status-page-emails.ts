@@ -1,6 +1,7 @@
 /**
  * Email templates for status page subscriptions
  */
+import { getBaseDomain } from "@/lib/domain-utils";
 
 type VerificationEmailParams = {
   email: string;
@@ -99,7 +100,7 @@ Powered by Supercheck
           <tr>
             <td style="padding: 24px 40px; text-align: center; background: #f9fafb; border-radius: 0 0 8px 8px;">
               <p style="margin: 0; color: #6b7280; font-size: 14px;">
-                Powered by <a href="https://supercheck.io" style="color: #667eea; text-decoration: none;">Supercheck</a>
+                Powered by <a href="https://${getBaseDomain()}" style="color: #667eea; text-decoration: none;">Supercheck</a>
               </p>
             </td>
           </tr>
@@ -210,7 +211,7 @@ Powered by Supercheck
           <tr>
             <td style="padding: 24px 40px; text-align: center; background: #f9fafb; border-radius: 0 0 8px 8px;">
               <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px;">
-                Powered by <a href="https://supercheck.io" style="color: #667eea; text-decoration: none;">Supercheck</a>
+                Powered by <a href="https://${getBaseDomain()}" style="color: #667eea; text-decoration: none;">Supercheck</a>
               </p>
               <p style="margin: 0; color: #9ca3af; font-size: 12px;">
                 <a href="${unsubscribeUrl}" style="color: #9ca3af; text-decoration: none;">Unsubscribe from these emails</a>
