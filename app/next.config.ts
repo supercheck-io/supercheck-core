@@ -7,7 +7,7 @@ const createNextConfig = (phase: string): NextConfig => {
   const baseConfig: NextConfig = {
     /* config options here */
     output: "standalone",
-    serverExternalPackages: ["child_process", "fs", "path"],
+    serverExternalPackages: ["child_process", "fs", "path", "postgres"],
     images: {
       remotePatterns: [
         {

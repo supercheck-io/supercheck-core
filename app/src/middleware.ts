@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCookieCache } from "better-auth/cookies";
-import { db } from "@/utils/db";
-import { apikey, statusPages } from "@/db/schema/schema";
-import { eq } from "drizzle-orm";
-import {
-  extractSubdomain,
-  isStatusPageSubdomain,
-  getStatusPageUrl,
-} from "@/lib/domain-utils";
+import { extractSubdomain, isStatusPageSubdomain } from "@/lib/domain-utils";
 
 // Simple in-memory cache for subdomain lookups (5 minute TTL)
 const subdomainCache = new Map<
@@ -66,37 +59,44 @@ export async function middleware(request: NextRequest) {
         statusPageId = cached.id;
         statusPageStatus = cached.status;
       } else {
-        // Query database with timeout (2 seconds to fail fast)
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Database query timeout")), 2000)
-        );
+        // Call API endpoint to check status page
+        try {
+          const apiUrl = new URL(
+            `/api/status-pages/check?subdomain=${encodeURIComponent(
+              subdomain
+            )}`,
+            request.url
+          );
 
-        const queryPromise = db
-          .select({
-            id: statusPages.id,
-            status: statusPages.status,
-          })
-          .from(statusPages)
-          .where(eq(statusPages.subdomain, subdomain))
-          .limit(1);
-
-        const statusPageResult = (await Promise.race([
-          queryPromise,
-          timeoutPromise,
-        ])) as Array<{ id: string; status: string }>;
-
-        if (statusPageResult.length > 0) {
-          statusPageId = statusPageResult[0].id;
-          statusPageStatus = statusPageResult[0].status;
-
-          // Update cache
-          subdomainCache.set(subdomain, {
-            id: statusPageId,
-            status: statusPageStatus,
-            timestamp: now,
+          const response = await fetch(apiUrl.toString(), {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
           });
-        } else {
-          // Cache negative result
+
+          if (response.ok) {
+            const data = await response.json();
+            statusPageId = data.id;
+            statusPageStatus = data.status;
+
+            // Update cache
+            subdomainCache.set(subdomain, {
+              id: statusPageId!,
+              status: statusPageStatus!,
+              timestamp: now,
+            });
+          } else {
+            // Cache negative result
+            subdomainCache.set(subdomain, {
+              id: "",
+              status: "not_found",
+              timestamp: now,
+            });
+          }
+        } catch (error) {
+          console.error("Error calling status page API:", error);
+          // Cache negative result on API error
           subdomainCache.set(subdomain, {
             id: "",
             status: "not_found",
@@ -176,112 +176,52 @@ export async function middleware(request: NextRequest) {
         );
       }
 
-      // Verify the API key
+      // Verify the API key using the API endpoint
       try {
-        const apiKey = await db
-          .select({
-            id: apikey.id,
-            enabled: apikey.enabled,
-            expiresAt: apikey.expiresAt,
-            jobId: apikey.jobId,
-            userId: apikey.userId,
-            name: apikey.name,
-            lastRequest: apikey.lastRequest,
-          })
-          .from(apikey)
-          .where(eq(apikey.key, apiKeyFromHeader.trim()))
-          .limit(1);
-
-        if (apiKey.length === 0) {
-          console.warn(
-            `Invalid API key attempted: ${apiKeyFromHeader.substring(0, 8)}...`
-          );
-          return NextResponse.json(
-            {
-              error: "Invalid API key",
-              message: "The provided API key is not valid",
-            },
-            { status: 401 }
-          );
-        }
-
-        const key = apiKey[0];
-
-        // Check if API key is enabled
-        if (!key.enabled) {
-          console.warn(`Disabled API key attempted: ${key.name} (${key.id})`);
-          return NextResponse.json(
-            {
-              error: "API key disabled",
-              message: "This API key has been disabled",
-            },
-            { status: 401 }
-          );
-        }
-
-        // Check if API key has expired
-        if (key.expiresAt && new Date() > key.expiresAt) {
-          console.warn(`Expired API key attempted: ${key.name} (${key.id})`);
-          return NextResponse.json(
-            {
-              error: "API key expired",
-              message: "This API key has expired",
-            },
-            { status: 401 }
-          );
-        }
-
-        // Extract job ID from path for additional validation
+        // Extract job ID from path for validation
         const jobIdMatch = pathname.match(/^\/api\/jobs\/([^\/]+)\/trigger$/);
-        if (jobIdMatch) {
-          const requestedJobId = jobIdMatch[1];
+        const requestedJobId = jobIdMatch ? jobIdMatch[1] : undefined;
 
-          // Validate that the API key is authorized for this specific job
-          if (key.jobId !== requestedJobId) {
-            console.warn(
-              `API key unauthorized for job: ${key.name} attempted job ${requestedJobId}, authorized for ${key.jobId}`
-            );
-            return NextResponse.json(
-              {
-                error: "Unauthorized",
-                message: "This API key is not authorized for the requested job",
-              },
-              { status: 403 }
-            );
-          }
+        // Call API endpoint to verify the key
+        const apiUrl = new URL("/api/auth/verify-key", request.url);
+
+        const response = await fetch(apiUrl.toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            apiKey: apiKeyFromHeader.trim(),
+            jobId: requestedJobId,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          console.warn(
+            `API key verification failed: ${data.error || "Unknown error"}`
+          );
+          return NextResponse.json(
+            {
+              error: data.error || "Authentication failed",
+              message: data.message || "Unable to verify API key",
+            },
+            { status: response.status }
+          );
         }
-
-        // Update last request timestamp asynchronously (don't wait for completion)
-        db.update(apikey)
-          .set({ lastRequest: new Date() })
-          .where(eq(apikey.id, key.id))
-          .catch((error) => {
-            console.error(
-              `Failed to update last request for API key ${key.id}:`,
-              error
-            );
-          });
 
         // API key is valid, proceed with the request
         return NextResponse.next();
       } catch (error) {
         console.error("Error verifying API key:", error);
 
-        // Check if this is a database connection error
-        const isDbError =
-          error instanceof Error &&
-          (error.message.includes("connection") ||
-            error.message.includes("timeout") ||
-            error.message.includes("ECONNREFUSED"));
-
         return NextResponse.json(
           {
             error: "Authentication error",
-            message: isDbError
-              ? "Database connection issue. Please try again in a moment."
-              : "Unable to verify API key at this time",
+            message: "Unable to verify API key at this time",
           },
-          { status: isDbError ? 503 : 500 }
+          { status: 500 }
         );
       }
     }
