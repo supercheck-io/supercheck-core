@@ -15,12 +15,16 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") || "";
+  const xForwardedHost = request.headers.get("x-forwarded-host");
+
+  // Use x-forwarded-host if available (when behind proxy like Cloudflare)
+  const actualHostname = xForwardedHost || hostname;
 
   // Handle subdomain routing for status pages
-  const subdomain = extractSubdomain(hostname);
+  const subdomain = extractSubdomain(actualHostname);
 
   // Check if this is a status page subdomain
-  if (isStatusPageSubdomain(hostname) && subdomain) {
+  if (isStatusPageSubdomain(actualHostname) && subdomain) {
     try {
       // Check cache first
       const cached = subdomainCache.get(subdomain);
@@ -100,7 +104,7 @@ export async function middleware(request: NextRequest) {
 
   // Skip authentication for status page subdomains
   const isStatusPageSubdomainRequest =
-    isStatusPageSubdomain(hostname) && subdomain;
+    isStatusPageSubdomain(actualHostname) && subdomain;
 
   if (!isStatusPageSubdomainRequest) {
     const session = await getCookieCache(request);

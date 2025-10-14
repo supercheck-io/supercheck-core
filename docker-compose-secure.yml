@@ -101,6 +101,7 @@ x-common-env: &common-env # Database Configuration
 
   # Traefik/HTTPS Configuration
   APP_DOMAIN: ${APP_DOMAIN:-demo.supercheck.io}
+  STATUS_DOMAIN: ${STATUS_DOMAIN:-supercheck.io}
   ACME_EMAIL: ${ACME_EMAIL:-hello@supercheck.io}
 
 services:
@@ -168,12 +169,12 @@ services:
       start_period: 120s # Increased to allow for migrations
     labels:
       - "traefik.enable=true"
-      # Main router for HTTPS - matches main domain and all subdomains
-      - "traefik.http.routers.app.rule=HostRegexp(`^[a-z0-9-]*\\.?demo\\.supercheck\\.io$`)"
+      # Main router for HTTPS - matches demo.supercheck.io and *.supercheck.io (for status pages)
+      - "traefik.http.routers.app.rule=Host(`demo.supercheck.io`) || HostRegexp(`{subdomain:[a-z0-9]+}\\.supercheck\\.io`)"
       - "traefik.http.routers.app.entrypoints=websecure"
       - "traefik.http.routers.app.tls=true"
-      # HTTP router - matches main domain and all subdomains
-      - "traefik.http.routers.app-http.rule=HostRegexp(`^[a-z0-9-]*\\.?demo\\.supercheck\\.io$`)"
+      # HTTP router - matches demo.supercheck.io and *.supercheck.io (for status pages)
+      - "traefik.http.routers.app-http.rule=Host(`demo.supercheck.io`) || HostRegexp(`{subdomain:[a-z0-9]+}\\.supercheck\\.io`)"
       - "traefik.http.routers.app-http.entrypoints=web"
       - "traefik.http.routers.app-http.middlewares=app-https-redirect"
       # HTTPS redirect middleware

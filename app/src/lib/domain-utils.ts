@@ -4,14 +4,22 @@
 
 /**
  * Extracts the base domain from NEXT_PUBLIC_APP_URL
- * @returns The base domain (e.g., "supercheck.io" from "https://supercheck.io")
+ * @returns The base domain (e.g., "supercheck.io" from "https://demo.supercheck.io")
  */
 export function getBaseDomain(): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   try {
     const url = new URL(appUrl);
-    return url.hostname;
+    const hostname = url.hostname;
+
+    // Extract base domain (e.g., "supercheck.io" from "demo.supercheck.io")
+    const parts = hostname.split(".");
+    if (parts.length >= 2) {
+      // Return the last two parts (e.g., "supercheck.io")
+      return parts.slice(-2).join(".");
+    }
+    return hostname;
   } catch (error) {
     console.error("Invalid NEXT_PUBLIC_APP_URL:", appUrl, error);
     // Fallback to localhost for development
@@ -20,7 +28,8 @@ export function getBaseDomain(): string {
 }
 
 /**
- * Constructs a status page URL using the dynamic domain
+ * Constructs a status page URL using the base domain (not subdomain of app)
+ * Status pages are on *.supercheck.io, not *.demo.supercheck.io
  * @param subdomain The subdomain for the status page
  * @returns The full status page URL
  */
@@ -52,6 +61,7 @@ export function isStatusPageSubdomain(hostname: string): boolean {
   const subdomain = extractSubdomain(hostname);
   if (!subdomain) return false;
 
+  // Reserved subdomains that should NOT be treated as status pages
   const reservedSubdomains = [
     "www",
     "app",
@@ -62,6 +72,7 @@ export function isStatusPageSubdomain(hostname: string): boolean {
     "mail",
     "staging",
     "dev",
+    "demo", // Main app subdomain
     "localhost",
   ];
   return !reservedSubdomains.includes(subdomain.toLowerCase());
