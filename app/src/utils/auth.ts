@@ -14,6 +14,11 @@ import { nextCookies } from "better-auth/next-js";
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
+  baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins:
+    process.env.NODE_ENV === "production"
+      ? [process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL!]
+      : undefined,
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
