@@ -101,25 +101,10 @@ x-common-env: &common-env # Database Configuration
 
   # Traefik/HTTPS Configuration
   APP_DOMAIN: ${APP_DOMAIN:-demo.supercheck.io}
-  STATUS_DOMAIN: ${STATUS_DOMAIN:-supercheck.io}
   ACME_EMAIL: ${ACME_EMAIL:-hello@supercheck.io}
 
 services:
-  # Generate self-signed certificate on startup (works with Cloudflare Full SSL)
-  cert-generator:
-    image: alpine:latest
-    command: sh -c "if [ ! -f /certs/cert.pem ]; then apk add --no-cache openssl && openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /certs/key.pem -out /certs/cert.pem -subj '/C=US/ST=State/L=City/O=Organization/CN=${APP_DOMAIN:-demo.supercheck.io}' && echo 'Self-signed certificate generated'; else echo 'Certificate already exists'; fi"
-    volumes:
-      - ssl-certs:/certs
-    networks:
-      - supercheck-network
-    restart: "no"
-
   # Traefik Reverse Proxy with HTTPS
-  # NOTE: This configuration supports ALL Cloudflare SSL/TLS modes:
-  #   - Flexible: Cloudflare handles SSL, origin uses HTTP (simplest, less secure)
-  #   - Full: Cloudflare handles SSL, origin uses self-signed cert (better)
-  #   - Full (strict): Cloudflare handles SSL, origin uses valid cert (best)
   traefik:
     image: traefik:v3.0
     command:
@@ -128,44 +113,28 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-hello@example.com}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.myresolver.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"
       - "--log.level=INFO"
       - "--accesslog=true"
-      # Use self-signed certificate instead of Let's Encrypt
-      - "--entrypoints.websecure.http.tls=true"
-      # Optimized timeouts for Cloudflare proxy
-      - "--serversTransport.insecureSkipVerify=true"
-      - "--serversTransport.forwardingTimeouts.dialTimeout=60s"
-      - "--serversTransport.forwardingTimeouts.responseHeaderTimeout=60s"
-      - "--serversTransport.forwardingTimeouts.idleConnTimeout=90s"
-      # Trust Cloudflare IPs for real client IP
-      - "--entryPoints.web.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"
-      - "--entryPoints.websecure.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ssl-certs:/certs:ro
+      - traefik-letsencrypt:/letsencrypt
     labels:
       - "traefik.enable=false"
-      # Configure TLS certificates directly with labels
-      - "traefik.tls.stores.default.defaultcertificate.certfile=/certs/cert.pem"
-      - "traefik.tls.stores.default.defaultcertificate.keyfile=/certs/key.pem"
-      - "traefik.tls.certificates.default.certfile=/certs/cert.pem"
-      - "traefik.tls.certificates.default.keyfile=/certs/key.pem"
     networks:
       - supercheck-network
     restart: unless-stopped
-    depends_on:
-      cert-generator:
-        condition: service_completed_successfully
-    environment:
-      # Cloudflare proxy configuration
-      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:-} # Optional: for DNS challenge if needed later
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta
+    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.4
     expose:
       - "3000"
     environment:
@@ -197,22 +166,14 @@ services:
       start_period: 120s # Increased to allow for migrations
     labels:
       - "traefik.enable=true"
-      # HTTP router - handles both Flexible SSL and redirects to HTTPS
-      - "traefik.http.routers.app-http.rule=Host(`demo.supercheck.io`) || HostRegexp(`{subdomain:[a-z0-9]+}\\.supercheck\\.io`)"
-      - "traefik.http.routers.app-http.entrypoints=web"
-      - "traefik.http.routers.app-http.middlewares=https-redirect"
-      # HTTPS router - for Full and Full (Strict) SSL modes
-      - "traefik.http.routers.app-https.rule=Host(`demo.supercheck.io`) || HostRegexp(`{subdomain:[a-z0-9]+}\\.supercheck\\.io`)"
-      - "traefik.http.routers.app-https.entrypoints=websecure"
-      - "traefik.http.routers.app-https.tls=true"
-      # Service configuration
+      - "traefik.http.routers.app.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=myresolver"
+      - "traefik.http.routers.app-web.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`)"
+      - "traefik.http.routers.app-web.entrypoints=web"
+      - "traefik.http.routers.app-web.middlewares=app-https-redirect"
+      - "traefik.http.middlewares.app-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.services.app.loadbalancer.server.port=3000"
-      # Health check configuration
-      - "traefik.http.services.app.loadbalancer.healthCheck.path=/api/health"
-      - "traefik.http.services.app.loadbalancer.healthCheck.interval=30s"
-      - "traefik.http.services.app.loadbalancer.healthCheck.timeout=10s"
-      # Middleware for HTTP to HTTPS redirect (only works in Full/Full-Strict modes)
-      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
     networks:
       - supercheck-network
     deploy:
@@ -226,12 +187,13 @@ services:
 
   # Worker (NestJS Runner) - Minimal resource limits for maximum test compatibility
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta
+    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.4
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)
       # Removed NODE_OPTIONS memory limits - let Node.js use what it needs
       # Removed UV_THREADPOOL_SIZE limits - let system manage threads
+
     volumes:
       - worker-playwright-reports:/app/playwright-reports
       - worker-reports:/app/report
@@ -393,7 +355,7 @@ volumes:
     driver: local
   worker-reports:
     driver: local
-  ssl-certs:
+  traefik-letsencrypt:
     driver: local
 
 networks:
