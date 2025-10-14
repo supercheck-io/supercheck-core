@@ -16,23 +16,11 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") || "";
 
-  // Debug logging for subdomain routing
-  console.log("[Middleware] Request:", {
-    hostname,
-    pathname,
-    headers: {
-      host: request.headers.get("host"),
-      "x-forwarded-host": request.headers.get("x-forwarded-host"),
-      "x-forwarded-proto": request.headers.get("x-forwarded-proto"),
-    },
-  });
-
   // Handle subdomain routing for status pages
   const subdomain = extractSubdomain(hostname);
 
   // Check if this is a status page subdomain
   if (isStatusPageSubdomain(hostname) && subdomain) {
-    console.log("[Middleware] Status page subdomain detected:", subdomain);
     try {
       // Check cache first
       const cached = subdomainCache.get(subdomain);

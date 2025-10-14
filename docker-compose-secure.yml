@@ -168,12 +168,12 @@ services:
       start_period: 120s # Increased to allow for migrations
     labels:
       - "traefik.enable=true"
-      # Main router for HTTPS - matches main domain and all subdomains
-      - "traefik.http.routers.app.rule=Host(`demo.supercheck.io`) || HostRegexp(`{subdomain:[a-z0-9-]+}.demo.supercheck.io`)"
+      # Main router for HTTPS - matches main domain and all subdomains using simple pattern
+      - "traefik.http.routers.app.rule=HostRegexp(`^(.+\\.)?demo\\.supercheck\\.io$`)"
       - "traefik.http.routers.app.entrypoints=websecure"
       - "traefik.http.routers.app.tls=true"
       # HTTP router - matches main domain and all subdomains
-      - "traefik.http.routers.app-http.rule=Host(`demo.supercheck.io`) || HostRegexp(`{subdomain:[a-z0-9-]+}.demo.supercheck.io`)"
+      - "traefik.http.routers.app-http.rule=HostRegexp(`^(.+\\.)?demo\\.supercheck\\.io$`)"
       - "traefik.http.routers.app-http.entrypoints=web"
       - "traefik.http.routers.app-http.middlewares=app-https-redirect"
       # HTTPS redirect middleware
