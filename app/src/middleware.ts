@@ -140,9 +140,6 @@ export async function middleware(request: NextRequest) {
     // Allow auth-related API routes to pass through
     const isAuthApi = pathname.startsWith("/api/auth");
 
-    // Check if this is a job trigger endpoint that uses API key auth
-    const isJobTrigger = pathname.match(/^\/api\/jobs\/[^\/]+\/trigger$/);
-
     if (isAuthPage) {
       if (session) {
         return NextResponse.redirect(new URL("/", request.url));
@@ -150,86 +147,14 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // For job trigger endpoints, allow API key authentication
-    if (isJobTrigger) {
-      const authHeader = request.headers.get("authorization");
-      const apiKeyFromHeader = authHeader?.replace(/^Bearer\s+/i, "");
-
-      if (!apiKeyFromHeader) {
-        return NextResponse.json(
-          {
-            error: "API key required",
-            message: "Include API key as Bearer token in Authorization header",
-          },
-          { status: 401 }
-        );
-      }
-
-      // Basic API key format validation
-      if (!apiKeyFromHeader.trim() || apiKeyFromHeader.length < 10) {
-        return NextResponse.json(
-          {
-            error: "Invalid API key format",
-            message: "API key must be at least 10 characters long",
-          },
-          { status: 401 }
-        );
-      }
-
-      // Verify the API key using the API endpoint
-      try {
-        // Extract job ID from path for validation
-        const jobIdMatch = pathname.match(/^\/api\/jobs\/([^\/]+)\/trigger$/);
-        const requestedJobId = jobIdMatch ? jobIdMatch[1] : undefined;
-
-        // Call API endpoint to verify the key
-        const apiUrl = new URL("/api/auth/verify-key", request.url);
-
-        const response = await fetch(apiUrl.toString(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            apiKey: apiKeyFromHeader.trim(),
-            jobId: requestedJobId,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          console.warn(
-            `API key verification failed: ${data.error || "Unknown error"}`
-          );
-          return NextResponse.json(
-            {
-              error: data.error || "Authentication failed",
-              message: data.message || "Unable to verify API key",
-            },
-            { status: response.status }
-          );
-        }
-
-        // API key is valid, proceed with the request
-        return NextResponse.next();
-      } catch (error) {
-        console.error("Error verifying API key:", error);
-
-        return NextResponse.json(
-          {
-            error: "Authentication error",
-            message: "Unable to verify API key at this time",
-          },
-          { status: 500 }
-        );
-      }
-    }
-
-    // For other API routes, check authentication
-    if (pathname.startsWith("/api/") && !isAuthApi) {
+    // For other API routes, check authentication (excluding job triggers which handle their own auth)
+    const isJobTrigger = pathname.match(/^\/api\/jobs\/[^\/]+\/trigger$/);
+    if (pathname.startsWith("/api/") && !isAuthApi && !isJobTrigger) {
       if (!session) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const url = request.nextUrl.clone();
+        url.pathname = "/api/auth/error";
+        url.searchParams.set("error", "Unauthorized");
+        return NextResponse.rewrite(url);
       }
       return NextResponse.next();
     }
