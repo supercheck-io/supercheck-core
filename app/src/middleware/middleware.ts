@@ -2,99 +2,338 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCookieCache } from "better-auth/cookies";
 import { db } from "@/utils/db";
 import { apikey, statusPages } from "@/db/schema/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { extractSubdomain, isStatusPageSubdomain } from "@/lib/domain-utils";
 
-// Simple in-memory cache for subdomain lookups (5 minute TTL)
-const subdomainCache = new Map<
-  string,
-  { id: string; status: string; timestamp: number }
->();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+// Enhanced in-memory cache for subdomain lookups with LRU eviction
+interface CacheEntry {
+  id: string;
+  status: string;
+  timestamp: number;
+  hits: number;
+}
 
+class SubdomainCache {
+  private cache = new Map<string, CacheEntry>();
+  private maxSize = 1000; // Maximum cache entries
+  private ttl = 5 * 60 * 1000; // 5 minutes TTL
+
+  get(key: string): CacheEntry | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    const now = Date.now();
+    if (now - entry.timestamp > this.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    // Update hit count for LRU
+    entry.hits++;
+    return entry;
+  }
+
+  set(key: string, value: Omit<CacheEntry, "timestamp" | "hits">): void {
+    // Evict least recently used entries if cache is full
+    if (this.cache.size >= this.maxSize) {
+      let lruKey = "";
+      let minHits = Infinity;
+
+      for (const [k, entry] of this.cache.entries()) {
+        if (entry.hits < minHits) {
+          minHits = entry.hits;
+          lruKey = k;
+        }
+      }
+
+      if (lruKey) {
+        this.cache.delete(lruKey);
+      }
+    }
+
+    this.cache.set(key, {
+      ...value,
+      timestamp: Date.now(),
+      hits: 0,
+    });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  size(): number {
+    return this.cache.size;
+  }
+
+  // Clean up expired entries
+  cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > this.ttl) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+const subdomainCache = new SubdomainCache();
+
+// Cleanup cache every 5 minutes
+setInterval(() => {
+  subdomainCache.cleanup();
+}, 5 * 60 * 1000);
+
+// Database connection pool management
+let dbConnectionPool = {
+  activeConnections: 0,
+  maxConnections: 10,
+  lastCleanup: Date.now(),
+};
+
+// Enhanced rate limiting for status page lookups
+const rateLimiter = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute per IP
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimiter.get(ip);
+
+  if (!record || now > record.resetTime) {
+    rateLimiter.set(ip, {
+      count: 1,
+      resetTime: now + RATE_LIMIT_WINDOW,
+    });
+    return false;
+  }
+
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return true;
+  }
+
+  record.count++;
+  return false;
+}
+
+// Enhanced database query with connection pooling
+async function queryStatusPage(
+  subdomain: string
+): Promise<{ id: string; status: string } | null> {
+  // Prevent database overload
+  if (dbConnectionPool.activeConnections >= dbConnectionPool.maxConnections) {
+    throw new Error("Database connection pool exhausted");
+  }
+
+  dbConnectionPool.activeConnections++;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Database query timeout")), 5000)
+    );
+
+    const queryPromise = db
+      .select({
+        id: statusPages.id,
+        status: statusPages.status,
+      })
+      .from(statusPages)
+      .where(
+        and(
+          eq(statusPages.subdomain, subdomain),
+          eq(statusPages.status, "published") // Only query for published pages
+        )
+      )
+      .limit(1);
+
+    const result = await Promise.race([queryPromise, timeoutPromise]);
+
+    return result.length > 0 ? result[0] : null;
+  } finally {
+    dbConnectionPool.activeConnections--;
+
+    // Periodic cleanup of rate limiter
+    const now = Date.now();
+    if (now - dbConnectionPool.lastCleanup > 5 * 60 * 1000) {
+      for (const [ip, record] of rateLimiter.entries()) {
+        if (now > record.resetTime) {
+          rateLimiter.delete(ip);
+        }
+      }
+      dbConnectionPool.lastCleanup = now;
+    }
+  }
+}
+
+// Enhanced error handling with proper status codes
+function handleError(error: unknown, hostname: string): NextResponse {
+  console.error("Error in enhanced subdomain routing:", {
+    error: error instanceof Error ? error.message : String(error),
+    hostname,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (error instanceof Error) {
+    if (error.message.includes("timeout")) {
+      return NextResponse.json(
+        {
+          error: "Service temporarily unavailable",
+          message: "Status page lookup timed out. Please try again.",
+          retryAfter: 30,
+        },
+        {
+          status: 503,
+          headers: {
+            "Retry-After": "30",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+          },
+        }
+      );
+    }
+
+    if (error.message.includes("connection")) {
+      return NextResponse.json(
+        {
+          error: "Database connection error",
+          message: "Unable to connect to the database. Please try again later.",
+        },
+        {
+          status: 503,
+          headers: {
+            "Retry-After": "60",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+          },
+        }
+      );
+    }
+
+    if (error.message.includes("pool exhausted")) {
+      return NextResponse.json(
+        {
+          error: "Service overloaded",
+          message:
+            "Too many concurrent requests. Please try again in a moment.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": "5",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+          },
+        }
+      );
+    }
+  }
+
+  return NextResponse.json(
+    {
+      error: "Internal server error",
+      message: "An unexpected error occurred. Please try again.",
+    },
+    {
+      status: 500,
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      },
+    }
+  );
+}
+
+// Enhanced middleware with improved status page routing
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") || "";
+  const clientIP =
+    request.headers.get("x-forwarded-for") ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
 
   // Handle subdomain routing for status pages
   const subdomain = extractSubdomain(hostname);
 
   // Check if this is a status page subdomain
   if (isStatusPageSubdomain(hostname) && subdomain) {
+    // Apply rate limiting for status page lookups
+    if (isRateLimited(clientIP)) {
+      return NextResponse.json(
+        {
+          error: "Too many requests",
+          message: "Rate limit exceeded. Please try again later.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": "60",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+          },
+        }
+      );
+    }
+
     try {
       // Check cache first
       const cached = subdomainCache.get(subdomain);
-      const now = Date.now();
 
-      let statusPageId: string | null = null;
-      let statusPageStatus: string | null = null;
+      if (cached && cached.id) {
+        // Cache hit - rewrite to the public status page route
+        const url = request.nextUrl.clone();
+        url.pathname = `/status-pages/${cached.id}/public${pathname}`;
 
-      if (cached && now - cached.timestamp < CACHE_TTL) {
-        // Use cached data
-        statusPageId = cached.id;
-        statusPageStatus = cached.status;
-      } else {
-        // Query database with timeout
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Database query timeout")), 5000)
+        const response = NextResponse.rewrite(url);
+
+        // Add cache headers for successful responses
+        response.headers.set(
+          "Cache-Control",
+          "public, max-age=300, stale-while-revalidate=60"
         );
+        response.headers.set("X-Cache", "HIT");
 
-        const queryPromise = db
-          .select({
-            id: statusPages.id,
-            status: statusPages.status,
-          })
-          .from(statusPages)
-          .where(eq(statusPages.subdomain, subdomain))
-          .limit(1);
-
-        const statusPageResult = (await Promise.race([
-          queryPromise,
-          timeoutPromise,
-        ])) as Array<{ id: string; status: string }>;
-
-        if (statusPageResult.length > 0) {
-          statusPageId = statusPageResult[0].id;
-          statusPageStatus = statusPageResult[0].status;
-
-          // Update cache
-          subdomainCache.set(subdomain, {
-            id: statusPageId,
-            status: statusPageStatus,
-            timestamp: now,
-          });
-        } else {
-          // Cache negative result
-          subdomainCache.set(subdomain, {
-            id: "",
-            status: "not_found",
-            timestamp: now,
-          });
-        }
+        return response;
       }
 
-      // Only show published status pages publicly
-      if (statusPageId && statusPageStatus === "published") {
+      // Cache miss - query database
+      const statusPage = await queryStatusPage(subdomain);
+
+      if (statusPage) {
+        // Update cache
+        subdomainCache.set(subdomain, {
+          id: statusPage.id,
+          status: statusPage.status,
+        });
+
         // Rewrite to the public status page route
         const url = request.nextUrl.clone();
-        url.pathname = `/status-pages/${statusPageId}/public${pathname}`;
-        return NextResponse.rewrite(url);
-      }
+        url.pathname = `/status-pages/${statusPage.id}/public${pathname}`;
 
-      // If subdomain doesn't exist or page is not published, show 404
-      const url = request.nextUrl.clone();
-      url.pathname = "/404";
-      return NextResponse.rewrite(url);
+        const response = NextResponse.rewrite(url);
+
+        // Add cache headers for successful responses
+        response.headers.set(
+          "Cache-Control",
+          "public, max-age=300, stale-while-revalidate=60"
+        );
+        response.headers.set("X-Cache", "MISS");
+
+        return response;
+      } else {
+        // Cache negative result
+        subdomainCache.set(subdomain, {
+          id: "",
+          status: "not_found",
+        });
+
+        // Return 404 for non-existent status pages
+        const url = request.nextUrl.clone();
+        url.pathname = "/404";
+
+        const response = NextResponse.rewrite(url);
+        response.headers.set("Cache-Control", "public, max-age=60");
+        response.headers.set("X-Cache", "MISS");
+
+        return response;
+      }
     } catch (error) {
-      console.error("Error in subdomain routing:", error);
-      // Return 503 on database errors
-      return NextResponse.json(
-        {
-          error: "Service temporarily unavailable",
-          message: "Unable to load status page. Please try again in a moment.",
-        },
-        { status: 503 }
-      );
+      return handleError(error, hostname);
     }
   }
 
