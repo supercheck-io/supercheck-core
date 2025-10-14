@@ -3,7 +3,11 @@ import { getCookieCache } from "better-auth/cookies";
 import { db } from "@/utils/db";
 import { apikey, statusPages } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
-import { extractSubdomain, isStatusPageSubdomain } from "@/lib/domain-utils";
+import {
+  extractSubdomain,
+  isStatusPageSubdomain,
+  getStatusPageUrl,
+} from "@/lib/domain-utils";
 
 // Simple in-memory cache for subdomain lookups (5 minute TTL)
 const subdomainCache = new Map<
@@ -20,8 +24,32 @@ export async function middleware(request: NextRequest) {
   // Use x-forwarded-host if available (when behind proxy like Cloudflare)
   const actualHostname = xForwardedHost || hostname;
 
+  // Skip subdomain processing for internal IP addresses (Docker health checks)
+  if (
+    actualHostname.includes(":3000") ||
+    actualHostname.includes("172.") ||
+    actualHostname.includes("192.168.") ||
+    actualHostname.includes("10.")
+  ) {
+    return NextResponse.next();
+  }
+
+  // Log all requests in production for debugging subdomain issues
+  console.log("Middleware:", {
+    pathname,
+    hostname,
+    actualHostname,
+    xForwardedHost,
+  });
+
   // Handle subdomain routing for status pages
   const subdomain = extractSubdomain(actualHostname);
+
+  // Log subdomain extraction
+  console.log("Subdomain extraction:", {
+    subdomain,
+    isStatusPageSubdomain: isStatusPageSubdomain(actualHostname),
+  });
 
   // Check if this is a status page subdomain
   if (isStatusPageSubdomain(actualHostname) && subdomain) {
@@ -38,9 +66,9 @@ export async function middleware(request: NextRequest) {
         statusPageId = cached.id;
         statusPageStatus = cached.status;
       } else {
-        // Query database with timeout
+        // Query database with timeout (2 seconds to fail fast)
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Database query timeout")), 5000)
+          setTimeout(() => reject(new Error("Database query timeout")), 2000)
         );
 
         const queryPromise = db
@@ -91,14 +119,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.rewrite(url);
     } catch (error) {
       console.error("Error in subdomain routing:", error);
-      // Return 503 on database errors
-      return NextResponse.json(
-        {
-          error: "Service temporarily unavailable",
-          message: "Unable to load status page. Please try again in a moment.",
-        },
-        { status: 503 }
-      );
+      // On database errors, return 404 to fail gracefully
+      // (Cloudflare will cache this and not keep retrying)
+      const url = request.nextUrl.clone();
+      url.pathname = "/404";
+      return NextResponse.rewrite(url);
     }
   }
 

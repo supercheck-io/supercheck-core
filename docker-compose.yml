@@ -16,6 +16,9 @@ x-common-env: &common-env # Database Configuration
   # App Configuration
   NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+
+  # Status Page Domain Configuration
+  STATUS_PAGE_BASE_DOMAIN: ${STATUS_PAGE_BASE_DOMAIN:-localhost}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-auth-key-change-this-in-production}
   NODE_ENV: ${NODE_ENV:-production}
   RUNNING_CAPACITY: ${RUNNING_CAPACITY:-6} # Optimized for 4-core server: 4 workers × 1.5 jobs per worker
@@ -151,11 +154,6 @@ services:
       # Worker-specific configuration (inherits all common env vars)
       # Removed NODE_OPTIONS memory limits - let Node.js use what it needs
       # Removed UV_THREADPOOL_SIZE limits - let system manage threads
-
-      # CRITICAL: Font cache environment variables (fixes fontconfig errors)
-      FONTCONFIG_PATH: /etc/fonts
-      FONTCONFIG_FILE: /etc/fonts/fonts.conf
-      XDG_CACHE_HOME: /home/nodejs/.cache
     volumes:
       - worker-playwright-reports:/app/playwright-reports
       - worker-reports:/app/report

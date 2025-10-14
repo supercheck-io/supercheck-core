@@ -1,7 +1,8 @@
 # Use platform-agnostic base image with LTS version for better availability
 FROM node:20-slim AS base
 
-# Install base system dependencies once - including fontconfig and fonts
+# Install base system dependencies for Playwright browsers
+# Note: Playwright's --with-deps will install additional required packages including fonts
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libnss3 \
@@ -30,18 +31,8 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     ca-certificates \
     iputils-ping \
-    fontconfig \
-    fonts-liberation \
-    fonts-noto-color-emoji \
-    fonts-ipafont-gothic \
-    fonts-wqy-zenhei \
-    fonts-thai-tlwg \
-    fonts-khmeros \
-    fonts-kacst \
-    fonts-freefont-ttf \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean \
-    && fc-cache -f -v
+    && apt-get clean
 
 # Dependencies stage
 FROM base AS deps
@@ -101,17 +92,14 @@ COPY --from=builder --chown=nodejs:nodejs /app/playwright.config.js ./
 COPY --from=builder --chown=nodejs:nodejs /app/playwright-browsers /app/playwright-browsers
 
 # Create directories for test execution with proper permissions
-# CRITICAL: Create writable font cache directories to fix fontconfig errors
 # Create video output directory for recording on test failures
 RUN mkdir -p playwright-reports report \
-    /home/nodejs/.cache/fontconfig \
-    /home/nodejs/.fontconfig \
-    /var/cache/fontconfig \
+    /home/nodejs/.cache \
     /tmp/playwright-tests \
     /tmp/playwright-videos && \
     chown -R nodejs:nodejs playwright-reports report /app /home/nodejs /tmp/playwright-tests /tmp/playwright-videos && \
     chmod -R 755 playwright-reports report && \
-    chmod -R 777 /home/nodejs/.cache /home/nodejs/.fontconfig /var/cache/fontconfig /tmp/playwright-tests /tmp/playwright-videos
+    chmod -R 777 /home/nodejs/.cache /tmp/playwright-tests /tmp/playwright-videos
 
 # Set Playwright browser cache path
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers/ms-playwright

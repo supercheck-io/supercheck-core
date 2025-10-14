@@ -106,6 +106,11 @@ x-common-env: &common-env # Database Configuration
 
 services:
   # Traefik Reverse Proxy with HTTPS
+  # NOTE: When behind Cloudflare proxy, use Cloudflare SSL/TLS mode "Full" or "Flexible"
+  # For wildcard SSL (*.supercheck.io), configure Cloudflare SSL settings:
+  #   - Flexible: Cloudflare handles SSL, origin uses HTTP (simplest, less secure)
+  #   - Full: Cloudflare handles SSL, origin uses self-signed cert (better)
+  #   - Full (strict): Cloudflare handles SSL, origin uses Cloudflare origin cert (best)
   traefik:
     image: traefik:v3.0
     command:
@@ -113,7 +118,6 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
       - "--log.level=INFO"
       - "--accesslog=true"
       # Optimized timeouts for Cloudflare proxy
@@ -122,18 +126,19 @@ services:
       - "--serversTransport.forwardingTimeouts.responseHeaderTimeout=60s"
       - "--serversTransport.forwardingTimeouts.idleConnTimeout=90s"
       # Trust Cloudflare IPs for real client IP
-      - "--entryPoints.websecure.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"
+      - "--entryPoints.web.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik-letsencrypt:/letsencrypt
     labels:
       - "traefik.enable=false"
     networks:
       - supercheck-network
     restart: unless-stopped
+    environment:
+      # Cloudflare proxy configuration
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:-}  # Optional: for DNS challenge if needed later
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
@@ -169,17 +174,10 @@ services:
       start_period: 120s # Increased to allow for migrations
     labels:
       - "traefik.enable=true"
-      # Main router for HTTPS - matches demo.supercheck.io and *.supercheck.io (for status pages)
-      - "traefik.http.routers.app.rule=Host(`demo.supercheck.io`) || HostRegexp(`{subdomain:[a-z0-9]+}\\.supercheck\\.io`)"
-      - "traefik.http.routers.app.entrypoints=websecure"
-      - "traefik.http.routers.app.tls=true"
       # HTTP router - matches demo.supercheck.io and *.supercheck.io (for status pages)
-      - "traefik.http.routers.app-http.rule=Host(`demo.supercheck.io`) || HostRegexp(`{subdomain:[a-z0-9]+}\\.supercheck\\.io`)"
-      - "traefik.http.routers.app-http.entrypoints=web"
-      - "traefik.http.routers.app-http.middlewares=app-https-redirect"
-      # HTTPS redirect middleware
-      - "traefik.http.middlewares.app-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.app-https-redirect.redirectscheme.permanent=true"
+      # When behind Cloudflare, Cloudflare handles SSL and forwards HTTP to origin
+      - "traefik.http.routers.app.rule=Host(`demo.supercheck.io`) || HostRegexp(`{subdomain:[a-z0-9]+}\\.supercheck\\.io`)"
+      - "traefik.http.routers.app.entrypoints=web"
       # Service configuration
       - "traefik.http.services.app.loadbalancer.server.port=3000"
       # Health check configuration
@@ -205,11 +203,6 @@ services:
       # Worker-specific configuration (inherits all common env vars)
       # Removed NODE_OPTIONS memory limits - let Node.js use what it needs
       # Removed UV_THREADPOOL_SIZE limits - let system manage threads
-
-      # CRITICAL: Font cache environment variables (fixes fontconfig errors)
-      FONTCONFIG_PATH: /etc/fonts
-      FONTCONFIG_FILE: /etc/fonts/fonts.conf
-      XDG_CACHE_HOME: /home/nodejs/.cache
     volumes:
       - worker-playwright-reports:/app/playwright-reports
       - worker-reports:/app/report
@@ -370,8 +363,6 @@ volumes:
   worker-playwright-reports:
     driver: local
   worker-reports:
-    driver: local
-  traefik-letsencrypt:
     driver: local
 
 networks:

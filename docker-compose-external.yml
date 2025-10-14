@@ -190,11 +190,6 @@ services:
       # Worker-specific configuration (inherits all common env vars)
       # Removed NODE_OPTIONS memory limits - let Node.js use what it needs
       # Removed UV_THREADPOOL_SIZE limits - let system manage threads
-
-      # CRITICAL: Font cache environment variables (fixes fontconfig errors)
-      FONTCONFIG_PATH: /etc/fonts
-      FONTCONFIG_FILE: /etc/fonts/fonts.conf
-      XDG_CACHE_HOME: /home/nodejs/.cache
     volumes:
       - worker-playwright-reports:/app/playwright-reports
       - worker-reports:/app/report
