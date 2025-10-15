@@ -85,7 +85,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // Database connection pool management
-let dbConnectionPool = {
+const dbConnectionPool = {
   activeConnections: 0,
   maxConnections: 10,
   lastCleanup: Date.now(),
