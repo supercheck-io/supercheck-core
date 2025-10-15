@@ -17,7 +17,14 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins:
     process.env.NODE_ENV === "production"
-      ? [process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL!]
+      ? [
+          process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL!,
+          // Add status page domain for wildcard subdomains
+          process.env.STATUS_PAGE_DOMAIN || "supercheck.io",
+          // Add wildcard pattern for all subdomains
+          "https://*.supercheck.io",
+          "https://*.demo.supercheck.io",
+        ]
       : undefined,
   emailAndPassword: {
     enabled: true,

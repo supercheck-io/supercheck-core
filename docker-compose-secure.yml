@@ -45,7 +45,7 @@ x-common-env: &common-env # Database Configuration
   PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
   PLAYWRIGHT_RETRIES: ${PLAYWRIGHT_RETRIES:-1}
   PLAYWRIGHT_TRACE: ${PLAYWRIGHT_TRACE:-retain-on-failure}
-  PLAYWRIGHT_SCREENSHOT: ${PLAYWRIGHT_SCREENSHOT:-only-on-failure}
+  PLAYWRIGHT_SCREENSHOT: ${PLAYWRIGHT_SCREENSHOT:-on}
   # Video recording enabled on test failures for debugging (with increased resource limits)
   PLAYWRIGHT_VIDEO: ${PLAYWRIGHT_VIDEO:-retain-on-failure}
 
@@ -101,7 +101,13 @@ x-common-env: &common-env # Database Configuration
 
   # Traefik/HTTPS Configuration
   APP_DOMAIN: ${APP_DOMAIN:-demo.supercheck.io}
+  STATUS_PAGE_DOMAIN: ${STATUS_PAGE_DOMAIN:-supercheck.io}
   ACME_EMAIL: ${ACME_EMAIL:-hello@supercheck.io}
+
+  # Status Page Configuration
+  STATUS_PAGE_BASE_DOMAIN: ${STATUS_PAGE_BASE_DOMAIN:-supercheck.io}
+
+  NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-true} # Set to true to enable demo mode
 
 services:
   # Traefik Reverse Proxy with HTTPS
@@ -113,11 +119,9 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
-      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-hello@example.com}"
-      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.myresolver.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"
+      # Disable Let's Encrypt since Cloudflare handles SSL termination
+      - "--entrypoints.websecure.http.tls.options=default"
+      - "--serversTransport.insecureSkipVerify=true"
       - "--log.level=INFO"
       - "--accesslog=true"
     ports:
@@ -134,7 +138,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.5
+    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.6
     expose:
       - "3000"
     environment:
@@ -166,14 +170,20 @@ services:
       start_period: 120s # Increased to allow for migrations
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`)"
+      # Catch-all router for all hosts (main domain + all subdomains)
+      - "traefik.http.routers.app.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`) || Host(`${STATUS_PAGE_DOMAIN:-supercheck.io}`) || HostRegexp(`^[a-zA-Z0-9-]+\\.(demo\\.)?supercheck\\.io$`)"
       - "traefik.http.routers.app.entrypoints=websecure"
-      - "traefik.http.routers.app.tls.certresolver=myresolver"
-      - "traefik.http.routers.app-web.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`)"
-      - "traefik.http.routers.app-web.entrypoints=web"
-      - "traefik.http.routers.app-web.middlewares=app-https-redirect"
+      - "traefik.http.routers.app.tls=true"
+      - "traefik.http.routers.app.service=app"
+      # HTTP to HTTPS redirect for all hosts
+      - "traefik.http.routers.app-http.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`) || Host(`${STATUS_PAGE_DOMAIN:-supercheck.io}`) || HostRegexp(`^[a-zA-Z0-9-]+\\.(demo\\.)?supercheck\\.io$`)"
+      - "traefik.http.routers.app-http.entrypoints=web"
+      - "traefik.http.routers.app-http.middlewares=app-https-redirect"
+      - "traefik.http.routers.app-http.service=app"
+      # Middleware and service configuration
       - "traefik.http.middlewares.app-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.services.app.loadbalancer.server.port=3000"
+      - "traefik.http.services.app.loadbalancer.healthCheck.path=/api/health"
     networks:
       - supercheck-network
     deploy:
@@ -187,7 +197,7 @@ services:
 
   # Worker (NestJS Runner) - Minimal resource limits for maximum test compatibility
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.5
+    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.6
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)
