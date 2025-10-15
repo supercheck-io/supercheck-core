@@ -1,0 +1,5 @@
+# Namespace for Supercheck
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supercheck
