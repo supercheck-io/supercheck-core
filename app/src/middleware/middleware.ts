@@ -248,11 +248,31 @@ export async function middleware(request: NextRequest) {
     request.headers.get("x-real-ip") ||
     "unknown";
 
+  // DEBUG: Add logging to understand what's happening
+  console.log("🔍 MIDDLEWARE DEBUG:", {
+    hostname,
+    pathname,
+    clientIP,
+    timestamp: new Date().toISOString(),
+    headers: Object.fromEntries(request.headers.entries()),
+  });
+
   // Handle subdomain routing for status pages
   const subdomain = extractSubdomain(hostname);
+  const isStatusSubdomain = isStatusPageSubdomain(hostname);
+
+  // DEBUG: Log subdomain detection
+  console.log("🔍 SUBDOMAIN DEBUG:", {
+    hostname,
+    subdomain,
+    isStatusSubdomain,
+    extractSubdomainResult: extractSubdomain(hostname),
+    isStatusPageSubdomainResult: isStatusPageSubdomain(hostname),
+  });
 
   // Check if this is a status page subdomain
-  if (isStatusPageSubdomain(hostname) && subdomain) {
+  if (isStatusSubdomain && subdomain) {
+    console.log("✅ STATUS PAGE SUBDOMAIN DETECTED:", { subdomain, hostname });
     // Apply rate limiting for status page lookups
     if (isRateLimited(clientIP)) {
       return NextResponse.json(
@@ -277,7 +297,16 @@ export async function middleware(request: NextRequest) {
       if (cached && cached.id) {
         // Cache hit - rewrite to the public status page route
         const url = request.nextUrl.clone();
-        url.pathname = `/status-pages/${cached.id}/public${pathname}`;
+        const newPath = `/status/${cached.id}${pathname}`;
+        url.pathname = newPath;
+
+        console.log("🔄 CACHE HIT - REWRITING URL:", {
+          originalPath: pathname,
+          newPath,
+          cachedId: cached.id,
+          hostname,
+          subdomain,
+        });
 
         const response = NextResponse.rewrite(url);
 
@@ -292,6 +321,7 @@ export async function middleware(request: NextRequest) {
       }
 
       // Cache miss - query database
+      console.log("🔍 CACHE MISS - QUERYING DATABASE:", { subdomain });
       const statusPage = await queryStatusPage(subdomain);
 
       if (statusPage) {
@@ -303,7 +333,16 @@ export async function middleware(request: NextRequest) {
 
         // Rewrite to the public status page route
         const url = request.nextUrl.clone();
-        url.pathname = `/status-pages/${statusPage.id}/public${pathname}`;
+        const newPath = `/status/${statusPage.id}${pathname}`;
+        url.pathname = newPath;
+
+        console.log("🔄 DATABASE HIT - REWRITING URL:", {
+          originalPath: pathname,
+          newPath,
+          statusPageId: statusPage.id,
+          hostname,
+          subdomain,
+        });
 
         const response = NextResponse.rewrite(url);
 
@@ -316,6 +355,8 @@ export async function middleware(request: NextRequest) {
 
         return response;
       } else {
+        console.log("❌ STATUS PAGE NOT FOUND:", { subdomain, hostname });
+
         // Cache negative result
         subdomainCache.set(subdomain, {
           id: "",
@@ -335,6 +376,13 @@ export async function middleware(request: NextRequest) {
     } catch (error) {
       return handleError(error, hostname);
     }
+
+    // Return early for status page requests - skip all authentication logic
+    console.log("✅ STATUS PAGE HANDLED - SKIPPING AUTH:", {
+      subdomain,
+      hostname,
+    });
+    return NextResponse.next();
   }
 
   // Skip authentication for status page subdomains
@@ -509,6 +557,14 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
   }
+
+  console.log("⚠️ FALLING THROUGH TO NEXT:", {
+    hostname,
+    pathname,
+    subdomain,
+    isStatusSubdomain,
+    timestamp: new Date().toISOString(),
+  });
 
   return NextResponse.next();
 }

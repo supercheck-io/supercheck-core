@@ -39,7 +39,8 @@ export async function verifySubscriber(token: string) {
     // Check if token is expired (24 hours)
     const createdAt = new Date(subscriber.createdAt || Date.now());
     const now = new Date();
-    const hoursSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+    const hoursSinceCreation =
+      (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
 
     if (hoursSinceCreation > 24) {
       return {
@@ -58,7 +59,7 @@ export async function verifySubscriber(token: string) {
       .where(eq(statusPageSubscribers.id, subscriber.id));
 
     // Revalidate paths
-    revalidatePath(`/status-pages/${subscriber.statusPageId}/public`);
+    revalidatePath(`/status/${subscriber.statusPageId}`);
 
     return {
       success: true,
