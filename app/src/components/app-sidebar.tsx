@@ -217,7 +217,7 @@ const data = {
       title: "Docs",
       url: "https://github.com/supercheck-io/supercheck",
       icon: BookOpenText,
-      badge: "v1.1.5-beta.12",
+      badge: "v1.1.5-beta.13",
     },
     // {
     //   title: "Changelog",

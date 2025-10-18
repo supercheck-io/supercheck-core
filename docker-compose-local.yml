@@ -1,10 +1,18 @@
-# Local Development Docker Compose with Subdomain Support
-# Use this for local development with status page subdomains
+# Local Development Docker Compose - Simplified
+# Use this for local development
+#
+# Access:
+# - Main app: http://localhost:3000
+# - Status pages: http://localhost:3000/status/{subdomain}
+# - Example: http://localhost:3000/status/abc123
+#
+# Status pages also accessible via middleware rewriting if needed
 
 version: "3.8"
 
 # YAML anchors for shared configuration
-x-common-env: &common-env # Database Configuration
+x-common-env: &common-env
+  # Database Configuration
   DATABASE_URL: postgresql://postgres:postgres@postgres:5432/supercheck
   DB_HOST: postgres
   DB_PORT: 5432
@@ -19,8 +27,9 @@ x-common-env: &common-env # Database Configuration
   REDIS_URL: redis://:supersecure-redis-password-change-this@redis:6379
 
   # App Configuration
-  NEXT_PUBLIC_APP_URL: http://localhost
-  BETTER_AUTH_URL: http://localhost
+  # IMPORTANT: Use localhost:3000 for local development
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  BETTER_AUTH_URL: http://localhost:3000
   BETTER_AUTH_SECRET: your-super-secret-auth-key-change-this-in-production
   NODE_ENV: development
   RUNNING_CAPACITY: 3
@@ -103,40 +112,13 @@ x-common-env: &common-env # Database Configuration
   AI_TEMPERATURE: 0.1
 
 services:
-  # Traefik Reverse Proxy for Local Development
-  traefik:
-    image: traefik:v3.0
-    environment:
-      # Traefik Configuration using environment variables
-      - TRAEFIK_API_DASHBOARD=true # Enable dashboard for local development
-      - TRAEFIK_API_INSECURE=true # Enable dashboard without authentication for local development
-      - TRAEFIK_PROVIDERS_DOCKER=true
-      - TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT=false
-      - TRAEFIK_ENTRYPOINTS_WEB_ADDRESS=:80
-      - TRAEFIK_LOG_LEVEL=DEBUG # Debug logging for local development
-      - TRAEFIK_ACCESSLOG=true
-    ports:
-      - "80:80" # HTTP port
-      - "8080:8080" # Traefik dashboard (port mapped to host)
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
-      - "traefik.http.routers.traefik.entrypoints=web"
-      - "traefik.http.routers.traefik.service=api@internal"
-    networks:
-      - supercheck-network
-    restart: unless-stopped
-
   # App (Next.js Frontend)
   app:
     build:
       context: ./app
       dockerfile: Dockerfile
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     env_file:
       - .env.local
     environment:
@@ -159,23 +141,12 @@ services:
           "CMD",
           "node",
           "-e",
-          "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3000, path: '/', timeout: 5000}, (res) => process.exit(res.statusCode < 400 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();",
+          "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3000, path: '/api/health', timeout: 5000}, (res) => process.exit(res.statusCode < 400 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();",
         ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 120s
-    labels:
-      - "traefik.enable=true"
-      # Main router for localhost, 127.0.0.1, and subdomains
-      - "traefik.http.routers.app.rule=Host(`localhost`) || Host(`127.0.0.1`) || HostRegexp(`{subdomain:[a-z0-9-]+}\\.localhost`)"
-      - "traefik.http.routers.app.entrypoints=web"
-      # Service configuration
-      - "traefik.http.services.app.loadbalancer.server.port=3000"
-      # Health check configuration
-      - "traefik.http.services.app.loadbalancer.healthCheck.path=/api/health"
-      - "traefik.http.services.app.loadbalancer.healthCheck.interval=30s"
-      - "traefik.http.services.app.loadbalancer.healthCheck.timeout=10s"
     networks:
       - supercheck-network
     deploy:
@@ -196,7 +167,6 @@ services:
       - .env.local
     environment:
       <<: *common-env
-      # Worker-specific configuration (inherits all common env vars)
     volumes:
       - worker-playwright-reports:/app/playwright-reports
       - worker-reports:/app/report
@@ -229,7 +199,7 @@ services:
     networks:
       - supercheck-network
     deploy:
-      replicas: 1 # Single replica for local development
+      replicas: 1
     sysctls:
       - net.core.somaxconn=4096
     ulimits:
