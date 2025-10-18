@@ -92,11 +92,18 @@ const dbConnectionPool = {
 };
 
 // Enhanced rate limiting for status page lookups
-const rateLimiter = new Map<string, { count: number; resetTime: number; lastWarned?: number }>();
+const rateLimiter = new Map<
+  string,
+  { count: number; resetTime: number; lastWarned?: number }
+>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute per IP
 
-function isRateLimited(ip: string): { limited: boolean; remaining?: number; resetTime?: number } {
+function isRateLimited(ip: string): {
+  limited: boolean;
+  remaining?: number;
+  resetTime?: number;
+} {
   const now = Date.now();
   const record = rateLimiter.get(ip);
 
@@ -116,7 +123,7 @@ function isRateLimited(ip: string): { limited: boolean; remaining?: number; rese
     }
     return {
       limited: true,
-      resetTime: Math.ceil((record.resetTime - now) / 1000)
+      resetTime: Math.ceil((record.resetTime - now) / 1000),
     };
   }
 
@@ -190,17 +197,28 @@ function handleError(error: unknown, hostname: string): NextResponse {
       const url = new URL("/503", `https://${hostname}`);
       const response = NextResponse.rewrite(url);
       response.headers.set("Retry-After", "30");
-      response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      response.headers.set(
+        "Cache-Control",
+        "no-cache, no-store, must-revalidate"
+      );
       response.headers.set("X-Status-Page-Error", "timeout");
       return response;
     }
 
-    if (error.message.includes("connection") || error.message.includes("ECONNREFUSED")) {
-      console.log("🔌 DATABASE CONNECTION ERROR - Returning 503 for status page");
+    if (
+      error.message.includes("connection") ||
+      error.message.includes("ECONNREFUSED")
+    ) {
+      console.log(
+        "🔌 DATABASE CONNECTION ERROR - Returning 503 for status page"
+      );
       const url = new URL("/503", `https://${hostname}`);
       const response = NextResponse.rewrite(url);
       response.headers.set("Retry-After", "60");
-      response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      response.headers.set(
+        "Cache-Control",
+        "no-cache, no-store, must-revalidate"
+      );
       response.headers.set("X-Status-Page-Error", "connection");
       return response;
     }
@@ -210,7 +228,10 @@ function handleError(error: unknown, hostname: string): NextResponse {
       const url = new URL("/429", `https://${hostname}`);
       const response = NextResponse.rewrite(url);
       response.headers.set("Retry-After", "5");
-      response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      response.headers.set(
+        "Cache-Control",
+        "no-cache, no-store, must-revalidate"
+      );
       response.headers.set("X-Status-Page-Error", "pool_exhausted");
       return response;
     }
@@ -246,7 +267,9 @@ export async function middleware(request: NextRequest) {
   // Handle subdomain routing for status pages
   const subdomain = extractSubdomain(hostname);
   const mainAppSubdomain = getMainAppSubdomain();
-  const isMainApp = mainAppSubdomain && subdomain?.toLowerCase() === mainAppSubdomain.toLowerCase();
+  const isMainApp =
+    mainAppSubdomain &&
+    subdomain?.toLowerCase() === mainAppSubdomain.toLowerCase();
 
   // DEBUG: Log subdomain detection
   console.log("🔍 SUBDOMAIN DEBUG:", {
@@ -275,11 +298,23 @@ export async function middleware(request: NextRequest) {
       console.log("🚫 RATE LIMITED:", { clientIP, hostname, subdomain });
       const url = new URL("/429", `https://${hostname}`);
       const response = NextResponse.rewrite(url);
-      response.headers.set("Retry-After", String(rateLimitResult.resetTime || 60));
-      response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
-      response.headers.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX_REQUESTS));
+      response.headers.set(
+        "Retry-After",
+        String(rateLimitResult.resetTime || 60)
+      );
+      response.headers.set(
+        "Cache-Control",
+        "no-cache, no-store, must-revalidate"
+      );
+      response.headers.set(
+        "X-RateLimit-Limit",
+        String(RATE_LIMIT_MAX_REQUESTS)
+      );
       response.headers.set("X-RateLimit-Remaining", "0");
-      response.headers.set("X-RateLimit-Reset", String(rateLimitResult.resetTime || 60));
+      response.headers.set(
+        "X-RateLimit-Reset",
+        String(rateLimitResult.resetTime || 60)
+      );
       return response;
     }
 
@@ -294,9 +329,10 @@ export async function middleware(request: NextRequest) {
         // Cache hit - rewrite to the public status page route
         const url = request.nextUrl.clone();
         // For root path, just use /status/[id], otherwise append the path
-        const newPath = pathname === "/"
-          ? `/status/${cached.id}`
-          : `/status/${cached.id}${pathname}`;
+        const newPath =
+          pathname === "/"
+            ? `/status/${cached.id}`
+            : `/status/${cached.id}${pathname}`;
         url.pathname = newPath;
 
         console.log("🔄 CACHE HIT - REWRITING URL:", {
@@ -317,13 +353,25 @@ export async function middleware(request: NextRequest) {
         response.headers.set("X-Content-Type-Options", "nosniff");
         response.headers.set("X-Frame-Options", "DENY");
         response.headers.set("X-XSS-Protection", "1; mode=block");
-        response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+        response.headers.set(
+          "Referrer-Policy",
+          "strict-origin-when-cross-origin"
+        );
         response.headers.set("X-Cache", "HIT");
 
         // Add rate limit headers
-        response.headers.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX_REQUESTS));
-        response.headers.set("X-RateLimit-Remaining", String(rateLimitResult.remaining || 0));
-        response.headers.set("X-RateLimit-Reset", String(Math.ceil((rateLimitResult.resetTime || 60) / 1000)));
+        response.headers.set(
+          "X-RateLimit-Limit",
+          String(RATE_LIMIT_MAX_REQUESTS)
+        );
+        response.headers.set(
+          "X-RateLimit-Remaining",
+          String(rateLimitResult.remaining || 0)
+        );
+        response.headers.set(
+          "X-RateLimit-Reset",
+          String(Math.ceil((rateLimitResult.resetTime || 60) / 1000))
+        );
 
         return response;
       }
@@ -342,9 +390,10 @@ export async function middleware(request: NextRequest) {
         // Rewrite to the public status page route
         const url = request.nextUrl.clone();
         // For root path, just use /status/[id], otherwise append the path
-        const newPath = pathname === "/"
-          ? `/status/${statusPage.id}`
-          : `/status/${statusPage.id}${pathname}`;
+        const newPath =
+          pathname === "/"
+            ? `/status/${statusPage.id}`
+            : `/status/${statusPage.id}${pathname}`;
         url.pathname = newPath;
 
         console.log("🔄 DATABASE HIT - REWRITING URL:", {
@@ -365,13 +414,25 @@ export async function middleware(request: NextRequest) {
         response.headers.set("X-Content-Type-Options", "nosniff");
         response.headers.set("X-Frame-Options", "DENY");
         response.headers.set("X-XSS-Protection", "1; mode=block");
-        response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+        response.headers.set(
+          "Referrer-Policy",
+          "strict-origin-when-cross-origin"
+        );
         response.headers.set("X-Cache", "MISS");
 
         // Add rate limit headers
-        response.headers.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX_REQUESTS));
-        response.headers.set("X-RateLimit-Remaining", String(rateLimitResult.remaining || 0));
-        response.headers.set("X-RateLimit-Reset", String(Math.ceil((rateLimitResult.resetTime || 60) / 1000)));
+        response.headers.set(
+          "X-RateLimit-Limit",
+          String(RATE_LIMIT_MAX_REQUESTS)
+        );
+        response.headers.set(
+          "X-RateLimit-Remaining",
+          String(rateLimitResult.remaining || 0)
+        );
+        response.headers.set(
+          "X-RateLimit-Reset",
+          String(Math.ceil((rateLimitResult.resetTime || 60) / 1000))
+        );
 
         return response;
       } else {
@@ -589,7 +650,7 @@ export async function middleware(request: NextRequest) {
     hostname,
     pathname,
     subdomain,
-    isStatusSubdomain,
+    isStatusPageSubdomainRequest,
     timestamp: new Date().toISOString(),
   });
 
