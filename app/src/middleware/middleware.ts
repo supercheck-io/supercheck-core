@@ -92,11 +92,11 @@ const dbConnectionPool = {
 };
 
 // Enhanced rate limiting for status page lookups
-const rateLimiter = new Map<string, { count: number; resetTime: number }>();
+const rateLimiter = new Map<string, { count: number; resetTime: number; lastWarned?: number }>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute per IP
 
-function isRateLimited(ip: string): boolean {
+function isRateLimited(ip: string): { limited: boolean; remaining?: number; resetTime?: number } {
   const now = Date.now();
   const record = rateLimiter.get(ip);
 
@@ -105,15 +105,24 @@ function isRateLimited(ip: string): boolean {
       count: 1,
       resetTime: now + RATE_LIMIT_WINDOW,
     });
-    return false;
+    return { limited: false, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
   }
 
   if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return true;
+    // Log warning every 5 minutes for repeated rate limit violations
+    if (!record.lastWarned || now - record.lastWarned > 5 * 60 * 1000) {
+      console.warn("🚫 RATE LIMIT EXCEEDED:", { ip, count: record.count });
+      record.lastWarned = now;
+    }
+    return {
+      limited: true,
+      resetTime: Math.ceil((record.resetTime - now) / 1000)
+    };
   }
 
   record.count++;
-  return false;
+  const remaining = RATE_LIMIT_MAX_REQUESTS - record.count;
+  return { limited: false, remaining: remaining >= 0 ? remaining : 0 };
 }
 
 // Enhanced database query with connection pooling
@@ -171,72 +180,49 @@ function handleError(error: unknown, hostname: string): NextResponse {
     error: error instanceof Error ? error.message : String(error),
     hostname,
     timestamp: new Date().toISOString(),
+    stack: error instanceof Error ? error.stack : undefined,
   });
 
+  // For status page errors, return a proper 404 page instead of JSON
   if (error instanceof Error) {
     if (error.message.includes("timeout")) {
-      return NextResponse.json(
-        {
-          error: "Service temporarily unavailable",
-          message: "Status page lookup timed out. Please try again.",
-          retryAfter: 30,
-        },
-        {
-          status: 503,
-          headers: {
-            "Retry-After": "30",
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-          },
-        }
-      );
+      console.log("⏰ DATABASE TIMEOUT - Returning 503 for status page");
+      const url = new URL("/503", `https://${hostname}`);
+      const response = NextResponse.rewrite(url);
+      response.headers.set("Retry-After", "30");
+      response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      response.headers.set("X-Status-Page-Error", "timeout");
+      return response;
     }
 
-    if (error.message.includes("connection")) {
-      return NextResponse.json(
-        {
-          error: "Database connection error",
-          message: "Unable to connect to the database. Please try again later.",
-        },
-        {
-          status: 503,
-          headers: {
-            "Retry-After": "60",
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-          },
-        }
-      );
+    if (error.message.includes("connection") || error.message.includes("ECONNREFUSED")) {
+      console.log("🔌 DATABASE CONNECTION ERROR - Returning 503 for status page");
+      const url = new URL("/503", `https://${hostname}`);
+      const response = NextResponse.rewrite(url);
+      response.headers.set("Retry-After", "60");
+      response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      response.headers.set("X-Status-Page-Error", "connection");
+      return response;
     }
 
     if (error.message.includes("pool exhausted")) {
-      return NextResponse.json(
-        {
-          error: "Service overloaded",
-          message:
-            "Too many concurrent requests. Please try again in a moment.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": "5",
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-          },
-        }
-      );
+      console.log("🏊 DATABASE POOL EXHAUSTED - Returning 429 for status page");
+      const url = new URL("/429", `https://${hostname}`);
+      const response = NextResponse.rewrite(url);
+      response.headers.set("Retry-After", "5");
+      response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      response.headers.set("X-Status-Page-Error", "pool_exhausted");
+      return response;
     }
   }
 
-  return NextResponse.json(
-    {
-      error: "Internal server error",
-      message: "An unexpected error occurred. Please try again.",
-    },
-    {
-      status: 500,
-      headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    }
-  );
+  // Generic error - return 500 but render as status page error
+  console.log("💥 GENERIC ERROR - Returning 500 for status page");
+  const url = new URL("/500", `https://${hostname}`);
+  const response = NextResponse.rewrite(url);
+  response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  response.headers.set("X-Status-Page-Error", "internal_error");
+  return response;
 }
 
 // Enhanced middleware with improved status page routing
@@ -274,21 +260,21 @@ export async function middleware(request: NextRequest) {
   if (isStatusSubdomain && subdomain) {
     console.log("✅ STATUS PAGE SUBDOMAIN DETECTED:", { subdomain, hostname });
     // Apply rate limiting for status page lookups
-    if (isRateLimited(clientIP)) {
-      return NextResponse.json(
-        {
-          error: "Too many requests",
-          message: "Rate limit exceeded. Please try again later.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": "60",
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-          },
-        }
-      );
+    const rateLimitResult = isRateLimited(clientIP);
+    if (rateLimitResult.limited) {
+      console.log("🚫 RATE LIMITED:", { clientIP, hostname, subdomain });
+      const url = new URL("/429", `https://${hostname}`);
+      const response = NextResponse.rewrite(url);
+      response.headers.set("Retry-After", String(rateLimitResult.resetTime || 60));
+      response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      response.headers.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX_REQUESTS));
+      response.headers.set("X-RateLimit-Remaining", "0");
+      response.headers.set("X-RateLimit-Reset", String(rateLimitResult.resetTime || 60));
+      return response;
     }
+
+    // Add rate limit headers to successful responses
+    // These will be added to the final response
 
     try {
       // Check cache first
@@ -297,7 +283,10 @@ export async function middleware(request: NextRequest) {
       if (cached && cached.id) {
         // Cache hit - rewrite to the public status page route
         const url = request.nextUrl.clone();
-        const newPath = `/status/${cached.id}${pathname}`;
+        // For root path, just use /status/[id], otherwise append the path
+        const newPath = pathname === "/"
+          ? `/status/${cached.id}`
+          : `/status/${cached.id}${pathname}`;
         url.pathname = newPath;
 
         console.log("🔄 CACHE HIT - REWRITING URL:", {
@@ -310,12 +299,21 @@ export async function middleware(request: NextRequest) {
 
         const response = NextResponse.rewrite(url);
 
-        // Add cache headers for successful responses
+        // Add security and cache headers for successful responses
         response.headers.set(
           "Cache-Control",
           "public, max-age=300, stale-while-revalidate=60"
         );
+        response.headers.set("X-Content-Type-Options", "nosniff");
+        response.headers.set("X-Frame-Options", "DENY");
+        response.headers.set("X-XSS-Protection", "1; mode=block");
+        response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
         response.headers.set("X-Cache", "HIT");
+
+        // Add rate limit headers
+        response.headers.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX_REQUESTS));
+        response.headers.set("X-RateLimit-Remaining", String(rateLimitResult.remaining || 0));
+        response.headers.set("X-RateLimit-Reset", String(Math.ceil((rateLimitResult.resetTime || 60) / 1000)));
 
         return response;
       }
@@ -333,7 +331,10 @@ export async function middleware(request: NextRequest) {
 
         // Rewrite to the public status page route
         const url = request.nextUrl.clone();
-        const newPath = `/status/${statusPage.id}${pathname}`;
+        // For root path, just use /status/[id], otherwise append the path
+        const newPath = pathname === "/"
+          ? `/status/${statusPage.id}`
+          : `/status/${statusPage.id}${pathname}`;
         url.pathname = newPath;
 
         console.log("🔄 DATABASE HIT - REWRITING URL:", {
@@ -346,12 +347,21 @@ export async function middleware(request: NextRequest) {
 
         const response = NextResponse.rewrite(url);
 
-        // Add cache headers for successful responses
+        // Add security and cache headers for successful responses
         response.headers.set(
           "Cache-Control",
           "public, max-age=300, stale-while-revalidate=60"
         );
+        response.headers.set("X-Content-Type-Options", "nosniff");
+        response.headers.set("X-Frame-Options", "DENY");
+        response.headers.set("X-XSS-Protection", "1; mode=block");
+        response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
         response.headers.set("X-Cache", "MISS");
+
+        // Add rate limit headers
+        response.headers.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX_REQUESTS));
+        response.headers.set("X-RateLimit-Remaining", String(rateLimitResult.remaining || 0));
+        response.headers.set("X-RateLimit-Reset", String(Math.ceil((rateLimitResult.resetTime || 60) / 1000)));
 
         return response;
       } else {
@@ -370,26 +380,32 @@ export async function middleware(request: NextRequest) {
         const response = NextResponse.rewrite(url);
         response.headers.set("Cache-Control", "public, max-age=60");
         response.headers.set("X-Cache", "MISS");
+        response.headers.set("X-Status-Page-Error", "not_found");
 
         return response;
       }
     } catch (error) {
       return handleError(error, hostname);
     }
-
-    // Return early for status page requests - skip all authentication logic
-    console.log("✅ STATUS PAGE HANDLED - SKIPPING AUTH:", {
-      subdomain,
-      hostname,
-    });
-    return NextResponse.next();
   }
 
-  // Skip authentication for status page subdomains
+  // Skip authentication for status page subdomains and rewritten status page routes
   const isStatusPageSubdomainRequest =
     isStatusPageSubdomain(hostname) && subdomain;
+  const isStatusPageRoute = pathname.startsWith("/status/");
 
-  if (!isStatusPageSubdomainRequest) {
+  // Debug logging for authentication bypass
+  if (isStatusPageSubdomainRequest || isStatusPageRoute) {
+    console.log("🔓 BYPASSING AUTH FOR STATUS PAGE:", {
+      hostname,
+      pathname,
+      subdomain,
+      isStatusPageSubdomainRequest,
+      isStatusPageRoute,
+    });
+  }
+
+  if (!isStatusPageSubdomainRequest && !isStatusPageRoute) {
     const session = await getCookieCache(request);
 
     const isAuthPage =

@@ -117,16 +117,27 @@ export function getStatusPageUrl(
  * @returns The subdomain or null if not found
  */
 export function extractSubdomain(hostname: string): string | null {
-  const parts = hostname.split(".");
+  if (!hostname || typeof hostname !== "string") {
+    return null;
+  }
+
+  // Remove port if present (e.g., "localhost:3000" -> "localhost")
+  const cleanHostname = hostname.split(":")[0];
+  const parts = cleanHostname.split(".");
 
   // Handle localhost specially - demo.localhost has 2 parts
   if (parts.length === 2 && parts[1] === "localhost") {
-    return parts[0];
+    const subdomain = parts[0];
+    // Validate subdomain format (alphanumeric with optional hyphens, max 36 chars for status pages)
+    return /^[a-zA-Z0-9-]{1,36}$/.test(subdomain) ? subdomain : null;
   }
 
   // For production domains, require 3+ parts (subdomain.example.com)
   if (parts.length >= 3) {
-    return parts[0];
+    const subdomain = parts[0];
+    // Validate subdomain format (alphanumeric with optional hyphens, max 36 chars for status pages)
+    // This matches the database constraint for status page subdomains
+    return /^[a-zA-Z0-9-]{1,36}$/.test(subdomain) ? subdomain : null;
   }
 
   return null;
@@ -138,6 +149,10 @@ export function extractSubdomain(hostname: string): string | null {
  * @returns True if it's a status page subdomain
  */
 export function isStatusPageSubdomain(hostname: string): boolean {
+  if (!hostname || typeof hostname !== "string") {
+    return false;
+  }
+
   const subdomain = extractSubdomain(hostname);
   if (!subdomain) return false;
 
@@ -163,6 +178,12 @@ export function isStatusPageSubdomain(hostname: string): boolean {
     "staging",
     "dev",
     "demo", // Main app subdomain
+    "m",    // Mobile subdomain
+    "blog", // Blog subdomain
+    "help", // Help subdomain
+    "docs", // Documentation subdomain
+    "support", // Support subdomain
   ];
+
   return !reservedSubdomains.includes(subdomain.toLowerCase());
 }

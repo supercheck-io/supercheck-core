@@ -106,14 +106,15 @@ services:
   # Traefik Reverse Proxy for Local Development
   traefik:
     image: traefik:v3.0
-    command:
-      - "--api.dashboard=true" # Enable dashboard for local development
-      - "--api.insecure=true" # Enable dashboard without authentication for local development
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--log.level=DEBUG" # Debug logging for local development
-      - "--accesslog=true"
+    environment:
+      # Traefik Configuration using environment variables
+      - TRAEFIK_API_DASHBOARD=true # Enable dashboard for local development
+      - TRAEFIK_API_INSECURE=true # Enable dashboard without authentication for local development
+      - TRAEFIK_PROVIDERS_DOCKER=true
+      - TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT=false
+      - TRAEFIK_ENTRYPOINTS_WEB_ADDRESS=:80
+      - TRAEFIK_LOG_LEVEL=DEBUG # Debug logging for local development
+      - TRAEFIK_ACCESSLOG=true
     ports:
       - "80:80" # HTTP port
       - "8080:8080" # Traefik dashboard (port mapped to host)

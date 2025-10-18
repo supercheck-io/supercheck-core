@@ -113,17 +113,18 @@ services:
   # Traefik Reverse Proxy with HTTPS
   traefik:
     image: traefik:v3.0
-    command:
-      - "--api.dashboard=false"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
+    environment:
+      # Traefik Configuration using environment variables
+      - TRAEFIK_API_DASHBOARD=false
+      - TRAEFIK_PROVIDERS_DOCKER=true
+      - TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT=false
+      - TRAEFIK_ENTRYPOINTS_WEB_ADDRESS=:80
+      - TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS=:443
       # Disable Let's Encrypt since Cloudflare handles SSL termination
-      - "--entrypoints.websecure.http.tls.options=default"
-      - "--serversTransport.insecureSkipVerify=true"
-      - "--log.level=INFO"
-      - "--accesslog=true"
+      - TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_TLS_OPTIONS=default
+      - TRAEFIK_SERVERSTRANSPORT_INSECURESKIPVERIFY=true
+      - TRAEFIK_LOG_LEVEL=INFO
+      - TRAEFIK_ACCESSLOG=true
     ports:
       - "80:80"
       - "443:443"
@@ -138,7 +139,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.6
+    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.8
     expose:
       - "3000"
     environment:
@@ -213,7 +214,7 @@ services:
 
   # Worker (NestJS Runner) - Minimal resource limits for maximum test compatibility
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.6
+    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.8
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)
