@@ -1,0 +1,460 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:18-alpine
+    hostname: postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-supercheck}
+      POSTGRES_USER: ${POSTGRES_USER:-supercheck}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./configs/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./configs/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    networks:
+      - supercheck-backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.database == true
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+        reservations:
+          memory: 1G
+          cpus: "0.5"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-supercheck} -d ${POSTGRES_DB:-supercheck}",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # Redis for Job Queues
+  redis:
+    image: redis:7-alpine
+    hostname: redis
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+      - ./configs/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - supercheck-backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.cache == true
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # MinIO S3-compatible Storage
+  minio:
+    image: minio/minio:latest
+    hostname: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://minio:9001}
+    volumes:
+      - minio_data:/data
+    networks:
+      - supercheck-backend
+      - supercheck-frontend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.storage == true
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # Supercheck App Service (Next.js)
+  app:
+    image: ghcr.io/supercheck-io/supercheck/app:latest
+    hostname: app
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-supercheck}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-supercheck}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-supercheck-artifacts}
+      S3_ENDPOINT: http://minio:9000
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      RUNNING_CAPACITY: ${RUNNING_CAPACITY:-10}
+      QUEUED_CAPACITY: ${QUEUED_CAPACITY:-100}
+      TEST_EXECUTION_TIMEOUT_MS: ${TEST_EXECUTION_TIMEOUT_MS:-300000}
+      AI_FIX_ENABLED: ${AI_FIX_ENABLED:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      AI_MODEL: ${AI_MODEL:-gpt-4}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+    networks:
+      - supercheck-backend
+      - supercheck-frontend
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.labels.app == true
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+        reservations:
+          memory: 1G
+          cpus: "0.5"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.app.rule=Host(`${DOMAIN:-yourdomain.com}`, `www.${DOMAIN:-yourdomain.com}`)"
+        - "traefik.http.routers.app.entrypoints=websecure"
+        - "traefik.http.routers.app.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.app.tls.domains[0].main=${DOMAIN:-yourdomain.com}"
+        - "traefik.http.routers.app.tls.domains[0].sans=www.${DOMAIN:-yourdomain.com}"
+        - "traefik.http.routers.app.middlewares=security-headers,compression,cors"
+        - "traefik.http.services.app.loadbalancer.server.port=3000"
+        - "traefik.http.services.app.loadbalancer.healthcheck.path=/api/health"
+        - "traefik.http.services.app.loadbalancer.healthcheck.interval=30s"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # Supercheck Worker Service (NestJS)
+  worker:
+    image: ghcr.io/supercheck-io/supercheck/worker:latest
+    hostname: worker
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-supercheck}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-supercheck}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-supercheck-artifacts}
+      S3_ENDPOINT: http://minio:9000
+      RUNNING_CAPACITY: ${RUNNING_CAPACITY:-10}
+      QUEUED_CAPACITY: ${QUEUED_CAPACITY:-100}
+      TEST_EXECUTION_TIMEOUT_MS: ${TEST_EXECUTION_TIMEOUT_MS:-300000}
+      AI_FIX_ENABLED: ${AI_FIX_ENABLED:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      AI_MODEL: ${AI_MODEL:-gpt-4}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    networks:
+      - supercheck-backend
+    deploy:
+      replicas: 3
+      placement:
+        constraints:
+          - node.labels.worker == true
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+        reservations:
+          memory: 2G
+          cpus: "1.0"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # Traefik Reverse Proxy
+  traefik:
+    image: traefik:v3.0
+    hostname: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=supercheck-frontend"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL:-admin@yourdomain.com}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--log.level=INFO"
+      - "--log.format=json"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+      - "--accesslog.format=json"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+      - "--ping=true"
+      - "--ping.entrypoint=web"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./configs/traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik_acme:/etc/traefik/acme
+      - traefik_logs:/var/log/traefik
+    networks:
+      - supercheck-frontend
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.labels.proxy == true
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.api.rule=Host(`traefik.yourdomain.com`)"
+        - "traefik.http.routers.api.entrypoints=websecure"
+        - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.api.service=api@internal"
+        - "traefik.http.routers.api.middlewares=auth"
+        - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_BASIC_AUTH:-admin:$$apr1$$hash}" # Replace with actual hash
+    healthcheck:
+      test: ["CMD", "traefik", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+# Networks
+networks:
+  supercheck-backend:
+    driver: overlay
+    attachable: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.20.0.0/24
+    labels:
+      - "traefik.enable=false"
+
+  supercheck-frontend:
+    driver: overlay
+    attachable: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.21.0.0/24
+    labels:
+      - "traefik.enable=false"
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/data/postgres
+
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/data/redis
+
+  minio_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/data/minio
+
+  traefik_acme:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/data/traefik/acme
+
+  traefik_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/logs/traefik
+
+# Secrets (if needed)
+secrets:
+  postgres_password:
+    external: true
+
+  redis_password:
+    external: true
+
+  minio_root_password:
+    external: true
+
+  nextauth_secret:
+    external: true
+
+  openai_api_key:
+    external: true
+
+# Configs
+configs:
+  postgres_config:
+    file: ./configs/postgres/postgresql.conf
+
+  redis_config:
+    file: ./configs/redis/redis.conf
+
+  traefik_config:
+    file: ./configs/traefik/traefik.yml

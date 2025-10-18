@@ -12,6 +12,7 @@
 *.sublime-workspace
 .claude/
 .kilocode/
+.tasks/
 # .docs/
 # .specs/
 

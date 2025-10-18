@@ -3,7 +3,7 @@ import { getCookieCache } from "better-auth/cookies";
 import { db } from "@/utils/db";
 import { apikey, statusPages } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
-import { extractSubdomain, isStatusPageSubdomain, getMainAppSubdomain } from "@/lib/domain-utils";
+import { extractSubdomain, getMainAppSubdomain } from "@/lib/domain-utils";
 
 // Enhanced in-memory cache for subdomain lookups with LRU eviction
 interface CacheEntry {
@@ -246,7 +246,6 @@ export async function middleware(request: NextRequest) {
   // Handle subdomain routing for status pages
   const subdomain = extractSubdomain(hostname);
   const mainAppSubdomain = getMainAppSubdomain();
-  const isStatusSubdomain = isStatusPageSubdomain(hostname);
   const isMainApp = mainAppSubdomain && subdomain?.toLowerCase() === mainAppSubdomain.toLowerCase();
 
   // DEBUG: Log subdomain detection
@@ -255,7 +254,6 @@ export async function middleware(request: NextRequest) {
     subdomain,
     mainAppSubdomain,
     isMainApp,
-    isStatusSubdomain,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   });
 
@@ -267,7 +265,8 @@ export async function middleware(request: NextRequest) {
       mainAppSubdomain,
     });
     // Continue to authentication logic below, don't treat as status page
-  } else if (isStatusSubdomain && subdomain) {
+  } else if (subdomain && !isMainApp) {
+    // Check database for ANY non-main-app subdomain to see if it's a status page
     // Check if this is a status page subdomain
     console.log("✅ STATUS PAGE SUBDOMAIN DETECTED:", { subdomain, hostname });
     // Apply rate limiting for status page lookups
@@ -401,8 +400,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Skip authentication for status page subdomains and rewritten status page routes
-  const isStatusPageSubdomainRequest =
-    isStatusPageSubdomain(hostname) && subdomain;
+  // Check if this is a subdomain that's not the main app (potential status page)
+  const isStatusPageSubdomainRequest = subdomain && !isMainApp;
   const isStatusPageRoute = pathname.startsWith("/status/");
 
   // Debug logging for authentication bypass
@@ -411,6 +410,7 @@ export async function middleware(request: NextRequest) {
       hostname,
       pathname,
       subdomain,
+      isMainApp,
       isStatusPageSubdomainRequest,
       isStatusPageRoute,
     });

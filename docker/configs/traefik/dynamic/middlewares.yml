@@ -1,0 +1,153 @@
+http:
+  middlewares:
+    # Security headers
+    security-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Frame-Options: "DENY"
+          X-Content-Type-Options: "nosniff"
+          X-XSS-Protection: "1; mode=block"
+          Referrer-Policy: "strict-origin-when-cross-origin"
+          Permissions-Policy: "camera=(), microphone=(), geolocation=()"
+          Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+
+    # Rate limiting
+    rate-limit:
+      rateLimit:
+        average: 100
+        period: 1m
+        burst: 200
+
+    # API rate limiting (stricter)
+    api-rate-limit:
+      rateLimit:
+        average: 20
+        period: 1m
+        burst: 50
+
+    # Auth rate limiting (very strict)
+    auth-rate-limit:
+      rateLimit:
+        average: 5
+        period: 1m
+        burst: 10
+
+    # Compression
+    compression:
+      compress:
+        excludedContentTypes:
+          - text/event-stream
+          - application/grpc
+
+    # CORS
+    cors:
+      headers:
+        accessControlAllowCredentials: true
+        accessControlAllowHeaders:
+          - "*"
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        accessControlAllowOriginList:
+          - "https://yourdomain.com"
+          - "https://www.ydomain.com"
+        accessControlMaxAge: 100
+
+    # Basic auth (for monitoring)
+    basic-auth:
+      basicAuth:
+        users:
+          - "admin:$apr1$hash" # Replace with actual hash
+
+    # Circuit breaker
+    circuit-breaker:
+      circuitBreaker:
+        expression: "NetworkErrorRatio() > 0.5"
+        checkPeriod: "5s"
+        fallbackDuration: "30s"
+        recoveryDuration: "10s"
+
+    # Retry
+    retry:
+      retry:
+        attempts: 3
+        initialInterval: "100ms"
+
+    # In-flight requests
+    in-flight-req:
+      inFlightReq:
+        amount: 100
+        sourceCriterion:
+          requestHeaderName: "X-Request-ID"
+
+    # Buffering
+    buffering:
+      buffering:
+        maxRequestBodyBytes: 10485760 # 10MB
+        memRequestBodyBytes: 1048576 # 1MB
+        maxResponseBodyBytes: 10485760 # 10MB
+        memResponseBodyBytes: 1048576 # 1MB
+        retryExpression: "IsNetworkError() && Attempts() < 2"
+
+  # Service definitions for external services
+  services:
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: "http://prometheus:9090"
+        passHostHeader: true
+
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+        passHostHeader: true
+
+    alertmanager:
+      loadBalancer:
+        servers:
+          - url: "http://alertmanager:9093"
+        passHostHeader: true
+
+  # Router definitions for external services
+  routers:
+    prometheus:
+      rule: "Host(`monitoring.yourdomain.com`) && PathPrefix(`/`)"
+      service: "prometheus"
+      entryPoints:
+        - "websecure"
+      middlewares:
+        - "security-headers"
+        - "basic-auth"
+        - "rate-limit"
+      tls:
+        certResolver: "letsencrypt"
+
+    grafana:
+      rule: "Host(`grafana.yourdomain.com`) && PathPrefix(`/`)"
+      service: "grafana"
+      entryPoints:
+        - "websecure"
+      middlewares:
+        - "security-headers"
+        - "basic-auth"
+        - "rate-limit"
+      tls:
+        certResolver: "letsencrypt"
+
+    alertmanager:
+      rule: "Host(`alerts.yourdomain.com`) && PathPrefix(`/`)"
+      service: "alertmanager"
+      entryPoints:
+        - "websecure"
+      middlewares:
+        - "security-headers"
+        - "basic-auth"
+        - "rate-limit"
+      tls:
+        certResolver: "letsencrypt"
