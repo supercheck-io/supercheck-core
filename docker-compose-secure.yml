@@ -15,6 +15,8 @@ x-common-env: &common-env # Database Configuration
 
   # App Configuration
   NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://demo.supercheck.io}
+  # Status page domain for production subdomain routing (e.g., uuid.supercheck.io)
+  NEXT_PUBLIC_STATUS_PAGE_DOMAIN: ${NEXT_PUBLIC_STATUS_PAGE_DOMAIN:-supercheck.io}
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://demo.supercheck.io}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-auth-key-change-this-in-production}
   NODE_ENV: ${NODE_ENV:-production}

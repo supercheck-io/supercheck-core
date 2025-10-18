@@ -15,54 +15,41 @@ import { getCookieCache } from "better-auth/cookies";
  * subdomain.supercheck.io → Middleware detects subdomain → Rewrites to /status/[subdomain] → Page handles DB lookup
  */
 
-// Extract subdomain from hostname following DNS specifications (for production use)
+// Extract subdomain from hostname (production only: uuid.{STATUS_PAGE_DOMAIN})
 function extractSubdomain(hostname: string): string | null {
   if (!hostname || typeof hostname !== "string") {
     return null;
   }
 
+  // Remove port from hostname
   const cleanHostname = hostname.split(":")[0];
-  const parts = cleanHostname.split(".");
 
-  // For production domains, require 3+ parts (subdomain.example.com)
-  if (parts.length >= 3) {
-    const subdomain = parts[0];
-    return /^[a-zA-Z0-9-]{1,63}$/.test(subdomain) ? subdomain : null;
-  }
+  // Get status page domain from env (e.g., "supercheck.io")
+  const statusPageDomain = process.env.NEXT_PUBLIC_STATUS_PAGE_DOMAIN || "";
 
-  return null;
-}
-
-// Get main app subdomain from NEXT_PUBLIC_APP_URL (for production)
-function getMainAppSubdomain(): string | null {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-  try {
-    const url = new URL(appUrl);
-    return extractSubdomain(url.hostname);
-  } catch (error) {
-    console.error("Invalid NEXT_PUBLIC_APP_URL:", appUrl, error);
+  if (!statusPageDomain || !cleanHostname.endsWith(statusPageDomain)) {
     return null;
   }
+
+  // Extract subdomain by removing the status page domain
+  // e.g., "f134b5f9f2b048069deaf7cfb924a0b3.supercheck.io" → "f134b5f9f2b048069deaf7cfb924a0b3"
+  const subdomain = cleanHostname.replace(new RegExp(`\\.${statusPageDomain}$`), "");
+
+  // Valid subdomain: alphanumeric and hyphens only, 1-63 chars
+  return /^[a-zA-Z0-9-]{1,63}$/.test(subdomain) ? subdomain : null;
 }
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hostname = request.headers.get("host") || "";
 
-  // Extract subdomain from hostname
+  // Get hostname from headers (prefer X-Forwarded-Host for proxied requests)
+  const hostname = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+
+  // Extract subdomain from hostname (matches NEXT_PUBLIC_STATUS_PAGE_DOMAIN)
   const subdomain = extractSubdomain(hostname);
-  const mainAppSubdomain = getMainAppSubdomain();
 
-  // Check if this is the main app subdomain (from NEXT_PUBLIC_APP_URL)
-  const isMainApp =
-    mainAppSubdomain &&
-    subdomain?.toLowerCase() === mainAppSubdomain.toLowerCase();
-
-  // PRODUCTION ROUTING: All subdomains except main app → status pages
-  // Cloudflare handles routing for specific subdomains (www, api, cdn, etc.)
-  if (subdomain && !isMainApp) {
-    // Rewrite to status page route - page component handles DB lookup and 404s
+  // If subdomain matches the status page domain, route to status page (PUBLIC - no auth)
+  if (subdomain) {
     const url = request.nextUrl.clone();
     const newPath =
       pathname === "/"

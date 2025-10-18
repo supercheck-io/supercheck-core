@@ -29,6 +29,8 @@ x-common-env: &common-env
   # App Configuration
   # IMPORTANT: Use localhost:3000 for local development
   NEXT_PUBLIC_APP_URL: http://localhost:3000
+  # Status page domain for production subdomain routing (e.g., uuid.supercheck.io)
+  NEXT_PUBLIC_STATUS_PAGE_DOMAIN: supercheck.io
   BETTER_AUTH_URL: http://localhost:3000
   BETTER_AUTH_SECRET: your-super-secret-auth-key-change-this-in-production
   NODE_ENV: development
