@@ -144,6 +144,25 @@ export function extractSubdomain(hostname: string): string | null {
 }
 
 /**
+ * Gets the main app subdomain from NEXT_PUBLIC_APP_URL
+ * @returns The main app subdomain or null if not applicable (e.g., for localhost or apex domain)
+ */
+export function getMainAppSubdomain(): string | null {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  try {
+    const url = new URL(appUrl);
+    const hostname = url.hostname;
+
+    // Extract subdomain from the app URL
+    return extractSubdomain(hostname);
+  } catch (error) {
+    console.error("Invalid NEXT_PUBLIC_APP_URL:", appUrl, error);
+    return null;
+  }
+}
+
+/**
  * Checks if a hostname is a status page subdomain
  * @param hostname The full hostname
  * @returns True if it's a status page subdomain
@@ -166,6 +185,14 @@ export function isStatusPageSubdomain(hostname: string): boolean {
     return hostname !== "localhost";
   }
 
+  // IMPORTANT: Check if this subdomain is the main app subdomain
+  // This takes precedence over the reserved list to ensure the main app
+  // is never treated as a status page, even if it's not in the reserved list
+  const mainAppSubdomain = getMainAppSubdomain();
+  if (mainAppSubdomain && subdomain.toLowerCase() === mainAppSubdomain.toLowerCase()) {
+    return false; // This is the main app, not a status page
+  }
+
   // Reserved subdomains that should NOT be treated as status pages
   const reservedSubdomains = [
     "www",
@@ -177,7 +204,7 @@ export function isStatusPageSubdomain(hostname: string): boolean {
     "mail",
     "staging",
     "dev",
-    "demo", // Main app subdomain
+    "demo", // Main app subdomain (fallback if NEXT_PUBLIC_APP_URL is not set)
     "m",    // Mobile subdomain
     "blog", // Blog subdomain
     "help", // Help subdomain

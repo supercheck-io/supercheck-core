@@ -3,7 +3,7 @@ import { getCookieCache } from "better-auth/cookies";
 import { db } from "@/utils/db";
 import { apikey, statusPages } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
-import { extractSubdomain, isStatusPageSubdomain } from "@/lib/domain-utils";
+import { extractSubdomain, isStatusPageSubdomain, getMainAppSubdomain } from "@/lib/domain-utils";
 
 // Enhanced in-memory cache for subdomain lookups with LRU eviction
 interface CacheEntry {
@@ -245,19 +245,30 @@ export async function middleware(request: NextRequest) {
 
   // Handle subdomain routing for status pages
   const subdomain = extractSubdomain(hostname);
+  const mainAppSubdomain = getMainAppSubdomain();
   const isStatusSubdomain = isStatusPageSubdomain(hostname);
+  const isMainApp = mainAppSubdomain && subdomain?.toLowerCase() === mainAppSubdomain.toLowerCase();
 
   // DEBUG: Log subdomain detection
   console.log("🔍 SUBDOMAIN DEBUG:", {
     hostname,
     subdomain,
+    mainAppSubdomain,
+    isMainApp,
     isStatusSubdomain,
-    extractSubdomainResult: extractSubdomain(hostname),
-    isStatusPageSubdomainResult: isStatusPageSubdomain(hostname),
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   });
 
-  // Check if this is a status page subdomain
-  if (isStatusSubdomain && subdomain) {
+  // IMPORTANT: Skip status page routing if this is the main app subdomain
+  if (isMainApp) {
+    console.log("🏠 MAIN APP DETECTED - Skipping status page routing:", {
+      subdomain,
+      hostname,
+      mainAppSubdomain,
+    });
+    // Continue to authentication logic below, don't treat as status page
+  } else if (isStatusSubdomain && subdomain) {
+    // Check if this is a status page subdomain
     console.log("✅ STATUS PAGE SUBDOMAIN DETECTED:", { subdomain, hostname });
     // Apply rate limiting for status page lookups
     const rateLimitResult = isRateLimited(clientIP);

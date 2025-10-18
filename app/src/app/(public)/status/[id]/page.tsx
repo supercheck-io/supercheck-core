@@ -1,7 +1,7 @@
 import { PublicStatusPage } from "@/components/status-pages/public-status-page";
-import { getStatusPage } from "@/actions/get-status-page";
-import { getComponents } from "@/actions/get-components";
-import { getIncidents } from "@/actions/get-incidents";
+import { getPublicStatusPage } from "@/actions/get-public-status-page";
+import { getPublicComponents } from "@/actions/get-public-components";
+import { getPublicIncidents } from "@/actions/get-public-incidents";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 
@@ -15,7 +15,7 @@ export async function generateMetadata({
   params,
 }: PublicStatusPagePageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const result = await getStatusPage(resolvedParams.id);
+  const result = await getPublicStatusPage(resolvedParams.id);
 
   if (!result.success || !result.statusPage) {
     return {
@@ -42,15 +42,15 @@ export default async function PublicStatusPagePage({
   params,
 }: PublicStatusPagePageProps) {
   const resolvedParams = await params;
-  const result = await getStatusPage(resolvedParams.id);
+  const result = await getPublicStatusPage(resolvedParams.id);
 
   if (!result.success || !result.statusPage) {
     notFound();
   }
 
   // Fetch components and incidents for the status page
-  const componentsResult = await getComponents(resolvedParams.id);
-  const incidentsResult = await getIncidents(resolvedParams.id);
+  const componentsResult = await getPublicComponents(resolvedParams.id);
+  const incidentsResult = await getPublicIncidents(resolvedParams.id);
 
   return (
     <PublicStatusPage
