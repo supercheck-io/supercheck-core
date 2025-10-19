@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCookieCache } from "better-auth/cookies";
 
 /**
  * Production-ready middleware for status page subdomain routing
@@ -45,6 +44,14 @@ export function middleware(request: NextRequest) {
 
   // Get hostname from headers (prefer X-Forwarded-Host for proxied requests)
   const hostname = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+
+  // DEBUG: Log all requests to see what's happening
+  console.log("[MIDDLEWARE] Incoming request:", {
+    pathname,
+    hostname,
+    STATUS_PAGE_DOMAIN: process.env.STATUS_PAGE_DOMAIN,
+    APP_URL: process.env.APP_URL,
+  });
 
   // Extract subdomain from hostname
   const subdomain = extractSubdomain(hostname);
@@ -98,13 +105,9 @@ export function middleware(request: NextRequest) {
   }
 
   // Main app or direct /status/ route - handle authentication
-  // getCookieCache returns a value that could be undefined or null if no session
-  let session;
-  try {
-    session = getCookieCache(request);
-  } catch (error) {
-    session = null;
-  }
+  // Check for Better Auth session cookie (edge-compatible way)
+  const sessionCookie = request.cookies.get("better-auth.session_token");
+  const session = sessionCookie?.value;
 
   const isAuthPage =
     pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");

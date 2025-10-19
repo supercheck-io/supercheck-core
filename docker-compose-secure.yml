@@ -16,9 +16,9 @@ x-common-env: &common-env # Database Configuration
   # App Configuration
   NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://demo.supercheck.io}
   # Runtime env vars for middleware (middleware can't access NEXT_PUBLIC_ vars at runtime)
-  APP_URL: ${APP_URL:-https://demo.supercheck.io}
-  STATUS_PAGE_DOMAIN: ${STATUS_PAGE_DOMAIN:-supercheck.io}
-  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://demo.supercheck.io}
+  APP_URL: https://demo.supercheck.io
+  STATUS_PAGE_DOMAIN: supercheck.io
+  BETTER_AUTH_URL: https://demo.supercheck.io
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-auth-key-change-this-in-production}
   NODE_ENV: ${NODE_ENV:-production}
   RUNNING_CAPACITY: ${RUNNING_CAPACITY:-3} # Optimized for 4-core server: 4 workers × 1.5 jobs per worker
@@ -103,8 +103,8 @@ x-common-env: &common-env # Database Configuration
   AI_TEMPERATURE: ${AI_TEMPERATURE:-0.1}
 
   # Traefik/HTTPS Configuration
-  APP_DOMAIN: ${APP_DOMAIN:-demo.supercheck.io}
-  ACME_EMAIL: ${ACME_EMAIL:-hello@supercheck.io}
+  APP_DOMAIN: demo.supercheck.io
+  ACME_EMAIL: hello@supercheck.io
 
   NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-true} # Set to true to enable demo mode
 
@@ -138,7 +138,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:latest
+    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.17
     expose:
       - "3000"
     environment:
@@ -216,7 +216,7 @@ services:
 
   # Worker (NestJS Runner) - Minimal resource limits for maximum test compatibility
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.8
+    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.17
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)

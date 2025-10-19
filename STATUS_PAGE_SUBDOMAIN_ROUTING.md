@@ -129,22 +129,26 @@ labels:
 
 ### 2. Environment Variables
 
-**IMPORTANT**: Middleware requires **runtime** environment variables (not `NEXT_PUBLIC_` which are build-time only).
+**CRITICAL FIX**: The docker-compose-secure.yml now uses **hardcoded values** instead of shell environment variable substitution to ensure variables are always set in the container.
 
-Ensure these are set in docker-compose:
+**Why hardcoded?** Shell substitution like `${VAR:-default}` can fail in Dokploy if the environment variable is not set on the HOST, leaving the container with an empty value. Hardcoding ensures the middleware ALWAYS has the required values.
 
-```bash
+Configured in docker-compose:
+
+```yaml
 # Build-time env var (embedded in Next.js bundle for browser auth client)
-NEXT_PUBLIC_APP_URL=https://demo.supercheck.io
+NEXT_PUBLIC_APP_URL: https://demo.supercheck.io
 
 # Runtime env vars (available to middleware at runtime)
-APP_URL=https://demo.supercheck.io
-STATUS_PAGE_DOMAIN=supercheck.io
+APP_URL: https://demo.supercheck.io
+STATUS_PAGE_DOMAIN: supercheck.io
 ```
 
 **Why the duplication of APP_URL?**
 - `NEXT_PUBLIC_APP_URL` → Used by browser-side auth client (Better Auth)
 - `APP_URL` → Used by middleware at runtime (Edge Runtime can't access NEXT_PUBLIC_ vars)
+
+**To use different domains:** Edit the docker-compose-secure.yml directly and change the hardcoded values
 
 ### 3. Rebuild and Push Image
 
@@ -304,12 +308,42 @@ response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 
 ## Summary of Changes
 
-1. ✅ **CRITICAL FIX**: Changed middleware to use runtime env vars (`APP_URL`, `STATUS_PAGE_DOMAIN`) instead of build-time `NEXT_PUBLIC_*` vars
-2. ✅ Fixed Traefik HostRegexp to use plain regex without capture groups (Traefik v3 syntax)
-3. ✅ Added explicit router priorities (100 for main app, 50 for status pages)
-4. ✅ Middleware checks `APP_URL` to exclude main app from subdomain rewriting
-5. ✅ Added both build-time and runtime environment variables to docker-compose
-6. ✅ Documented proper deployment workflow for Dokploy
+1. ✅ **CRITICAL FIX (PRIMARY)**: Replaced Edge Runtime-incompatible `getCookieCache` from better-auth with Edge-compatible `request.cookies.get()` to allow middleware compilation
+2. ✅ **CRITICAL FIX**: Changed middleware to use runtime env vars (`APP_URL`, `STATUS_PAGE_DOMAIN`) instead of build-time `NEXT_PUBLIC_*` vars
+3. ✅ **CRITICAL FIX**: Hardcoded environment variable values in docker-compose-secure.yml instead of using shell substitution (${VAR:-default}) to prevent empty values in Dokploy
+4. ✅ Fixed Traefik HostRegexp to use plain regex without capture groups (Traefik v3 syntax)
+5. ✅ Added explicit router priorities (100 for main app, 50 for status pages)
+6. ✅ Middleware checks `APP_URL` to exclude main app from subdomain rewriting
+7. ✅ Documented proper deployment workflow for Dokploy
+
+### Root Cause Analysis
+
+The subdomain detection was failing due to TWO critical issues:
+
+#### Issue 1: Edge Runtime Incompatibility (PRIMARY ROOT CAUSE)
+The middleware was importing `getCookieCache` from "better-auth/cookies", which is **NOT Edge Runtime compatible**.
+- Next.js middleware runs in Edge Runtime, which doesn't support all Node.js APIs
+- When Next.js tried to compile the middleware, it failed silently
+- This resulted in empty middleware-manifest.json: `{"middleware": {}, "sortedMiddleware": []}`
+- No middleware.js file was generated
+- Middleware never ran (no `[MIDDLEWARE]` logs in output)
+- All subdomain requests fell through to authentication, causing 307 redirect to `/sign-in`
+
+**Fix:** Replace Better Auth import with Edge Runtime-compatible cookie checking:
+```typescript
+// BEFORE (Edge Runtime incompatible - causes silent compilation failure)
+import { getCookieCache } from "better-auth/cookies";
+session = getCookieCache(request);
+
+// AFTER (Edge Runtime compatible)
+const sessionCookie = request.cookies.get("better-auth.session_token");
+const session = sessionCookie?.value;
+```
+
+#### Issue 2: Environment Variable Shell Substitution
+Shell substitution `${STATUS_PAGE_DOMAIN:-supercheck.io}` in docker-compose can fail in Dokploy if the HOST doesn't have the variable set, leaving `process.env.STATUS_PAGE_DOMAIN` as `undefined` or `""` in the container.
+
+**Fix:** Hardcode values in docker-compose-secure.yml to guarantee they're always set
 
 ## Next Steps
 
