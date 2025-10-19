@@ -110,21 +110,28 @@ export function middleware(request: NextRequest) {
   const session = sessionCookie?.value;
 
   const isAuthPage =
-    pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
+    pathname.startsWith("/invite") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/forgot-password");
   const isAuthApi = pathname.startsWith("/api/auth");
   const isPublicStatusRoute = pathname.startsWith("/status/");
   const isJobTrigger = pathname.match(/^\/api\/jobs\/[^\\/]+\/trigger$/);
+  const isHealthCheck = pathname === "/api/health";
+
+  // Skip authentication for health check (used by Traefik/load balancers)
+  if (isHealthCheck) {
+    return NextResponse.next();
+  }
 
   // Skip authentication for public status page routes
   if (isPublicStatusRoute) {
     return NextResponse.next();
   }
 
-  // Handle auth pages
+  // Allow auth pages through - their layouts handle session validation and redirects
   if (isAuthPage) {
-    if (session) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
     return NextResponse.next();
   }
 
