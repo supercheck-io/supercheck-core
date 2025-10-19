@@ -15,7 +15,7 @@ import { getCookieCache } from "better-auth/cookies";
  * subdomain.supercheck.io → Middleware detects subdomain → Rewrites to /status/[subdomain] → Page handles DB lookup
  */
 
-// Extract subdomain from hostname (production only: uuid.{STATUS_PAGE_DOMAIN})
+// Extract subdomain from hostname (production only: uuid.supercheck.io)
 function extractSubdomain(hostname: string): string | null {
   if (!hostname || typeof hostname !== "string") {
     return null;
@@ -24,8 +24,9 @@ function extractSubdomain(hostname: string): string | null {
   // Remove port from hostname
   const cleanHostname = hostname.split(":")[0];
 
-  // Get status page domain from env (e.g., "supercheck.io")
-  const statusPageDomain = process.env.NEXT_PUBLIC_STATUS_PAGE_DOMAIN || "";
+  // Get status page domain from runtime env (NOT NEXT_PUBLIC_ - those are build-time only)
+  // Use regular env var which is available at runtime in middleware
+  const statusPageDomain = process.env.STATUS_PAGE_DOMAIN || "";
 
   if (!statusPageDomain || !cleanHostname.endsWith(statusPageDomain)) {
     return null;
@@ -45,24 +46,34 @@ export function middleware(request: NextRequest) {
   // Get hostname from headers (prefer X-Forwarded-Host for proxied requests)
   const hostname = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
 
-  // Extract subdomain from hostname (matches NEXT_PUBLIC_STATUS_PAGE_DOMAIN)
+  // Extract subdomain from hostname
   const subdomain = extractSubdomain(hostname);
 
   // If subdomain matches the status page domain, route to status page (PUBLIC - no auth)
   // BUT: Don't rewrite if this is the main app domain
   if (subdomain) {
-    // Get main app hostname to exclude it from subdomain rewriting
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    // Get main app hostname from runtime env (NOT NEXT_PUBLIC_ - those are build-time only)
+    const appUrl = process.env.APP_URL || "http://localhost:3000";
     let mainAppHostname: string | null = null;
     try {
       const url = new URL(appUrl);
       mainAppHostname = url.hostname;
     } catch (error) {
       // Invalid URL, skip check
+      mainAppHostname = null;
     }
 
     // Only rewrite if this hostname is NOT the main app domain
-    const isMainApp = mainAppHostname && hostname === mainAppHostname;
+    const isMainApp = mainAppHostname && (hostname === mainAppHostname || hostname.startsWith("localhost"));
+
+    console.log("[MIDDLEWARE] Status page routing:", {
+      hostname,
+      subdomain,
+      mainAppHostname,
+      isMainApp,
+      pathname,
+      willRewrite: !isMainApp,
+    });
 
     if (!isMainApp) {
       const url = request.nextUrl.clone();
@@ -71,6 +82,8 @@ export function middleware(request: NextRequest) {
           ? `/status/${subdomain}`
           : `/status/${subdomain}${pathname}`;
       url.pathname = newPath;
+
+      console.log("[MIDDLEWARE] Rewriting to:", newPath);
 
       const response = NextResponse.rewrite(url);
 

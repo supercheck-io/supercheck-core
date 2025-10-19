@@ -15,8 +15,9 @@ x-common-env: &common-env # Database Configuration
 
   # App Configuration
   NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://demo.supercheck.io}
-  # Status page domain for production subdomain routing (e.g., uuid.supercheck.io)
-  NEXT_PUBLIC_STATUS_PAGE_DOMAIN: ${NEXT_PUBLIC_STATUS_PAGE_DOMAIN:-supercheck.io}
+  # Runtime env vars for middleware (middleware can't access NEXT_PUBLIC_ vars at runtime)
+  APP_URL: ${APP_URL:-https://demo.supercheck.io}
+  STATUS_PAGE_DOMAIN: ${STATUS_PAGE_DOMAIN:-supercheck.io}
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://demo.supercheck.io}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-auth-key-change-this-in-production}
   NODE_ENV: ${NODE_ENV:-production}
@@ -172,14 +173,15 @@ services:
 
       # Main app — exact host (demo.supercheck.io or override with APP_DOMAIN env var)
       - "traefik.http.routers.app.rule=Host(`demo.supercheck.io`)"
+      - "traefik.http.routers.app.priority=100"
       - "traefik.http.routers.app.entrypoints=websecure"
       - "traefik.http.routers.app.tls=true"
       - "traefik.http.routers.app.service=app"
 
       # Status pages — any subdomain under supercheck.io (priority 50 to match after main app)
-      # Go regex (used by Traefik) doesn't support negative lookahead, so we use simple pattern
-      # Main app router with higher priority (100) handles demo.supercheck.io first
-      - "traefik.http.routers.status-pages.rule=HostRegexp(`^[a-z0-9-]+\\.supercheck\\.io$`)"
+      # Traefik v3 HostRegexp: match alphanumeric subdomains (UUIDs)
+      # Main app router handles demo.supercheck.io first (higher priority)
+      - "traefik.http.routers.status-pages.rule=HostRegexp(`[a-zA-Z0-9-]+\\.supercheck\\.io`)"
       - "traefik.http.routers.status-pages.priority=50"
       - "traefik.http.routers.status-pages.entrypoints=websecure"
       - "traefik.http.routers.status-pages.tls=true"
@@ -192,7 +194,7 @@ services:
       - "traefik.http.routers.app-http.service=app"
 
       # HTTP → HTTPS redirect for status pages
-      - "traefik.http.routers.status-pages-http.rule=HostRegexp(`^[a-z0-9-]+\\.supercheck\\.io$`)"
+      - "traefik.http.routers.status-pages-http.rule=HostRegexp(`[a-zA-Z0-9-]+\\.supercheck\\.io`)"
       - "traefik.http.routers.status-pages-http.entrypoints=web"
       - "traefik.http.routers.status-pages-http.middlewares=app-https-redirect"
       - "traefik.http.routers.status-pages-http.service=app"
