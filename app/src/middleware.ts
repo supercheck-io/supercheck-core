@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Production-ready middleware for status page subdomain routing
+ * Lightweight middleware for status page subdomain routing
  *
- * Architecture:
- * 1. ALL subdomains (except NEXT_PUBLIC_APP_URL) are routed to status pages
- * 2. Cloudflare handles specific subdomain routing (www, api, cdn, etc.)
- * 3. NO database queries in middleware - keeps it fast and edge-compatible
- * 4. API key validation moved to route handlers for best practices
- * 5. Page components handle DB lookups and 404s
+ * Responsibility: ONLY subdomain detection and URL rewriting
+ * - Detects UUID subdomains (e.g., f134b5f9f2b048069deaf7cfb924a0b3.supercheck.io)
+ * - Rewrites to /status/[uuid] for status page routes
+ * - All authentication is handled by layout/route handlers
  *
- * Flow:
- * subdomain.supercheck.io → Middleware detects subdomain → Rewrites to /status/[subdomain] → Page handles DB lookup
+ * Why this approach?
+ * - Middleware stays fast and focused (one job: subdomain routing)
+ * - Auth logic in layout follows Next.js best practices
+ * - Avoids middleware-induced redirect loops
  */
 
 // Extract subdomain from hostname (production only: uuid.supercheck.io)
@@ -51,19 +51,11 @@ export function middleware(request: NextRequest) {
     request.headers.get("host") ||
     "";
 
-  // DEBUG: Log all requests to see what's happening
-  console.log("[MIDDLEWARE] Incoming request:", {
-    pathname,
-    hostname,
-    STATUS_PAGE_DOMAIN: process.env.STATUS_PAGE_DOMAIN,
-    APP_URL: process.env.APP_URL,
-  });
-
   // Extract subdomain from hostname
   const subdomain = extractSubdomain(hostname);
 
-  // If subdomain matches the status page domain, route to status page (PUBLIC - no auth)
-  // BUT: Don't rewrite if this is the main app domain
+  // If subdomain detected, route to status page
+  // Don't rewrite if this is the main app domain
   if (subdomain) {
     // Get main app hostname from runtime env (NOT NEXT_PUBLIC_ - those are build-time only)
     const appUrl = process.env.APP_URL || "http://localhost:3000";
@@ -81,15 +73,6 @@ export function middleware(request: NextRequest) {
       mainAppHostname &&
       (hostname === mainAppHostname || hostname.startsWith("localhost"));
 
-    console.log("[MIDDLEWARE] Status page routing:", {
-      hostname,
-      subdomain,
-      mainAppHostname,
-      isMainApp,
-      pathname,
-      willRewrite: !isMainApp,
-    });
-
     if (!isMainApp) {
       const url = request.nextUrl.clone();
       const newPath =
@@ -98,11 +81,9 @@ export function middleware(request: NextRequest) {
           : `/status/${subdomain}${pathname}`;
       url.pathname = newPath;
 
-      console.log("[MIDDLEWARE] Rewriting to:", newPath);
-
       const response = NextResponse.rewrite(url);
 
-      // Add security headers
+      // Add security headers for status pages
       response.headers.set("X-Content-Type-Options", "nosniff");
       response.headers.set("X-Frame-Options", "DENY");
       response.headers.set("X-XSS-Protection", "1; mode=block");
@@ -115,80 +96,7 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Main app or direct /status/ route - handle authentication
-  // Check for Better Auth session cookie (edge-compatible way)
-  const sessionCookie = request.cookies.get("better-auth.session_token");
-  const session = sessionCookie?.value;
-
-  const isAuthPage =
-    pathname.startsWith("/sign-in") ||
-    pathname.startsWith("/sign-up") ||
-    pathname.startsWith("/invite") ||
-    pathname.startsWith("/reset-password") ||
-    pathname.startsWith("/forgot-password");
-  const isAuthApi = pathname.startsWith("/api/auth");
-  const isPublicStatusRoute = pathname.startsWith("/status/");
-  const isJobTrigger = pathname.match(/^\/api\/jobs\/[^\\/]+\/trigger$/);
-  const isHealthCheck = pathname === "/api/health";
-
-  // Skip authentication for health check (used by Traefik/load balancers)
-  if (isHealthCheck) {
-    return NextResponse.next();
-  }
-
-  // Skip authentication for public status page routes
-  if (isPublicStatusRoute) {
-    return NextResponse.next();
-  }
-
-  // Allow auth pages through - their layouts handle session validation and redirects
-  if (isAuthPage) {
-    return NextResponse.next();
-  }
-
-  // Handle job trigger endpoints with API key authentication
-  if (isJobTrigger) {
-    const authHeader = request.headers.get("authorization");
-    const apiKeyFromHeader = authHeader?.replace(/^Bearer\s+/i, "");
-
-    if (!apiKeyFromHeader) {
-      return NextResponse.json(
-        {
-          error: "API key required",
-          message: "Include API key as Bearer token in Authorization header",
-        },
-        { status: 401 }
-      );
-    }
-
-    if (!apiKeyFromHeader.trim() || apiKeyFromHeader.length < 10) {
-      return NextResponse.json(
-        {
-          error: "Invalid API key format",
-          message: "API key must be at least 10 characters long",
-        },
-        { status: 401 }
-      );
-    }
-
-    // Note: Actual API key DB validation happens in the route handler
-    // This is best practice - middleware only validates format, not DB state
-    return NextResponse.next();
-  }
-
-  // Other API routes require authentication
-  if (pathname.startsWith("/api/") && !isAuthApi) {
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    return NextResponse.next();
-  }
-
-  // Frontend routes require authentication
-  if (!session) {
-    return NextResponse.redirect(new URL("/sign-in", request.url));
-  }
-
+  // Pass through all other requests - auth is handled by layout/route handlers
   return NextResponse.next();
 }
 

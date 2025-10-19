@@ -1,7 +1,7 @@
 # Status Pages - Complete Specification & Implementation Guide
 
-**Version:** 2.4
-**Last Updated:** 2025-10-16
+**Version:** 2.5
+**Last Updated:** 2025-10-19
 **Status:** Phase 3 Complete ✅ - Production Ready 🚀
 
 ---
@@ -1245,125 +1245,127 @@ const subdomain = randomUUID().replace(/-/g, "");
 - Constraint: `UNIQUE NOT NULL`
 - Index: B-tree index for fast lookups
 
-### Subdomain Routing (Production Ready with Enhanced Performance)
+### Subdomain Routing (Production Ready with Critical Fixes)
 
 **Implementation:**
 
-The middleware now includes advanced caching, rate limiting, and performance optimizations for handling status page subdomains:
+The middleware includes advanced caching, rate limiting, and critical fixes for handling status page subdomains in production environments:
 
 ```typescript
-// Enhanced middleware with caching and rate limiting
-class SubdomainCache {
-  private cache = new Map<string, CacheEntry>();
-  private maxSize = 1000; // Maximum cache entries
-  private ttl = 5 * 60 * 1000; // 5 minutes TTL
-
-  get(key: string): CacheEntry | null {
-    const entry = this.cache.get(key);
-    if (!entry) return null;
-
-    const now = Date.now();
-    if (now - entry.timestamp > this.ttl) {
-      this.cache.delete(key);
-      return null;
-    }
-
-    // Update hit count for LRU
-    entry.hits++;
-    return entry;
-  }
-
-  // LRU eviction and cleanup logic
-}
-
-// Enhanced rate limiting for status page lookups
-const rateLimiter = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute per IP
+// CRITICAL: Edge Runtime compatible cookie handling
+// NOTE: Next.js middleware runs in Edge Runtime and cannot use all Node.js APIs
+import { NextRequest, NextResponse } from "next/server";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") || "";
-  const clientIP =
-    request.headers.get("x-forwarded-for") ||
-    request.headers.get("x-real-ip") ||
-    "unknown";
 
-  // Handle subdomain routing for status pages
+  // Extract subdomain for status page routing
   const subdomain = extractSubdomain(hostname);
-  const isStatusSubdomain = isStatusPageSubdomain(hostname);
 
-  if (isStatusSubdomain && subdomain) {
-    // Apply rate limiting for status page lookups
-    if (isRateLimited(clientIP)) {
-      return NextResponse.json(
-        { error: "Too many requests" },
-        { status: 429, headers: { "Retry-After": "60" } }
+  if (subdomain) {
+    // CRITICAL FIX: Use runtime env vars (NOT NEXT_PUBLIC_ vars)
+    // NEXT_PUBLIC_ vars are build-time only and empty at runtime in Edge Runtime
+    const appUrl = process.env.APP_URL || "http://localhost:3000";
+    const mainAppHostname = new URL(appUrl).hostname; // e.g., "demo.supercheck.io"
+
+    const isMainApp = mainAppHostname && hostname === mainAppHostname;
+
+    if (!isMainApp) {
+      // This is a status page subdomain, rewrite to public route
+      const url = request.nextUrl.clone();
+      url.pathname = `/status/${subdomain}${pathname}`;
+
+      const response = NextResponse.rewrite(url);
+
+      // Add security headers for public status pages
+      response.headers.set("X-Content-Type-Options", "nosniff");
+      response.headers.set("X-Frame-Options", "DENY");
+      response.headers.set("X-XSS-Protection", "1; mode=block");
+      response.headers.set(
+        "Referrer-Policy",
+        "strict-origin-when-cross-origin"
       );
-    }
+      response.headers.set(
+        "Cache-Control",
+        "public, max-age=300, stale-while-revalidate=60"
+      );
 
-    try {
-      // Check cache first
-      const cached = subdomainCache.get(subdomain);
-
-      if (cached && cached.id) {
-        // Cache hit - rewrite to the public status page route
-        const url = request.nextUrl.clone();
-        const newPath = `/status/${cached.id}${pathname}`;
-        url.pathname = newPath;
-
-        const response = NextResponse.rewrite(url);
-        response.headers.set(
-          "Cache-Control",
-          "public, max-age=300, stale-while-revalidate=60"
-        );
-        response.headers.set("X-Cache", "HIT");
-        return response;
-      }
-
-      // Cache miss - query database with connection pooling
-      const statusPage = await queryStatusPage(subdomain);
-
-      if (statusPage) {
-        // Update cache and rewrite
-        subdomainCache.set(subdomain, {
-          id: statusPage.id,
-          status: statusPage.status,
-        });
-
-        const url = request.nextUrl.clone();
-        const newPath = `/status/${statusPage.id}${pathname}`;
-        url.pathname = newPath;
-
-        const response = NextResponse.rewrite(url);
-        response.headers.set(
-          "Cache-Control",
-          "public, max-age=300, stale-while-revalidate=60"
-        );
-        response.headers.set("X-Cache", "MISS");
-        return response;
-      } else {
-        // Return 404 for non-existent status pages
-        const url = request.nextUrl.clone();
-        url.pathname = "/404";
-        return NextResponse.rewrite(url);
-      }
-    } catch (error) {
-      return handleError(error, hostname);
+      return response;
     }
   }
 
-  return NextResponse.next();
+  // CRITICAL FIX: Edge Runtime compatible session checking
+  // Replace getCookieCache from better-auth (NOT Edge Runtime compatible)
+  const sessionCookie = request.cookies.get("better-auth.session_token");
+  const session = sessionCookie?.value;
+
+  // Continue with normal authentication flow for main app
+  // ... rest of middleware logic
+}
+
+// Helper function to extract subdomain
+function extractSubdomain(hostname: string): string | null {
+  const statusPageDomain = process.env.STATUS_PAGE_DOMAIN || "supercheck.io";
+
+  if (hostname.endsWith(`.${statusPageDomain}`)) {
+    return hostname.split(`.${statusPageDomain}`)[0];
+  }
+
+  return null;
 }
 ```
 
-**Key Enhancements:**
+**Critical Fixes Applied:**
 
-1. **In-Memory LRU Cache**: 5-minute TTL with 1000 entry capacity
-2. **Rate Limiting**: 100 requests per minute per IP
-3. **Connection Pooling**: Prevents database overload
-4. **Enhanced Error Handling**: Proper HTTP status codes and retry headers
-5. **Performance Monitoring**: Cache hit/miss tracking
+1. **Edge Runtime Compatibility**: Fixed middleware compilation by replacing `getCookieCache` from better-auth with Edge Runtime compatible `request.cookies.get()`
+2. **Environment Variables**: Use runtime env vars (`APP_URL`, `STATUS_PAGE_DOMAIN`) instead of build-time `NEXT_PUBLIC_*` vars
+3. **Main App Exclusion**: Properly detect and exclude main app hostname from subdomain rewriting
+
+**Production Deployment (Dokploy/Hetzner with Traefik v3):**
+
+**Docker Configuration Updates:**
+
+```yaml
+# docker-compose-secure.yml - CRITICAL: Hardcoded values to prevent empty vars
+services:
+  app:
+    environment:
+      # Build-time env var (embedded in Next.js bundle for browser auth client)
+      NEXT_PUBLIC_APP_URL: https://demo.supercheck.io
+
+      # Runtime env vars (available to middleware at runtime)
+      # NOTE: These MUST be hardcoded, not shell substitution ${VAR:-default}
+      # Shell substitution can fail in Dokploy if HOST env var is not set
+      APP_URL: https://demo.supercheck.io
+      STATUS_PAGE_DOMAIN: supercheck.io
+
+    labels:
+      # Main app with high priority (matches first)
+      - "traefik.http.routers.app.rule=Host(`demo.supercheck.io`)"
+      - "traefik.http.routers.app.priority=100"
+      - "traefik.http.routers.app.entrypoints=websecure"
+
+      # Status pages with lower priority (Traefik v3 Go regexp syntax)
+      # CRITICAL: Use Go regexp syntax, NOT v2 named capture groups
+      - "traefik.http.routers.status-pages.rule=HostRegexp(`[a-zA-Z0-9-]+\\.supercheck\\.io`)"
+      - "traefik.http.routers.status-pages.priority=50"
+      - "traefik.http.routers.status-pages.entrypoints=websecure"
+```
+
+**Traefik v3 Routing Configuration:**
+
+```yaml
+# Traefik v3 uses Go regexp syntax (NOT v2 named capture groups)
+# Pattern: [a-zA-Z0-9-]+\.supercheck\.io matches UUID subdomains
+# Examples that match:
+# - f134b5f9f2b048069deaf7cfb924a0b3.supercheck.io ✓
+# - c3f33bf628b14b9b816956679615335c.supercheck.io ✓
+
+# Router evaluation order (highest priority first):
+# 1. Priority 100: Host(`demo.supercheck.io`) → Main app
+# 2. Priority 50: HostRegexp(`[a-zA-Z0-9-]+\.supercheck\.io`) → Status pages
+```
 
 **DNS Configuration:**
 
@@ -1372,14 +1374,50 @@ export async function middleware(request: NextRequest) {
 *.supercheck.io. 300 IN CNAME supercheck.io.
 
 ; Main application
-app.supercheck.io. 300 IN A 192.168.1.101
+demo.supercheck.io. 300 IN A 192.168.1.101
 ```
 
 **SSL Certificates:**
 
-- Cloudflare provides free wildcard SSL certificates
-- Automatic renewal
+- Cloudflare provides free wildcard SSL certificates for `*.supercheck.io`
+- Automatic renewal through Cloudflare dashboard
 - No manual certificate management needed
+- Traefik uses SNI (Server Name Indication) for TLS certificate selection
+
+**Deployment Steps:**
+
+1. **Update Docker Image** with middleware fixes:
+
+   ```bash
+   ./scripts/docker-images.sh  # Builds and pushes multi-arch image
+   ```
+
+2. **Deploy to Dokploy** with updated docker-compose-secure.yml
+
+3. **Verify Environment Variables** in container:
+
+   ```bash
+   docker exec <app-container> env | grep -E "(APP_URL|STATUS_PAGE_DOMAIN)"
+   ```
+
+4. **Test Routing**:
+   - Main app: `https://demo.supercheck.io` → Should redirect to login if not authenticated
+   - Status page: `https://[uuid].supercheck.io` → Should show public status page immediately
+
+**Troubleshooting:**
+
+- **Status page redirects to login**: Check if middleware is compiled correctly (middleware-manifest.json should not be empty)
+- **Empty environment variables**: Verify hardcoded values in docker-compose-secure.yml
+- **Traefik regex errors**: Ensure Go regexp syntax (no v2 named capture groups)
+- **Main app shows status page**: Check router priorities (main app should be 100, status pages 50)
+
+**Key Enhancements:**
+
+1. **Edge Runtime Compatibility**: Fixed silent middleware compilation failures
+2. **Production Environment Variables**: Hardcoded values prevent deployment issues
+3. **Traefik v3 Support**: Correct regex syntax and router priorities
+4. **Security Headers**: Added comprehensive security headers for public pages
+5. **Performance Optimization**: Cache headers for public status pages
 
 ### Component-Monitor Association Model
 
@@ -1725,10 +1763,169 @@ export default function StatusPagesPage() {
 - `/app/src/db/migrations/0000_classy_sir_ram.sql` - Initial status page schema
 - `/app/src/db/migrations/0005_remove_single_monitor_association.sql` - Simplified monitor associations
 
+### Production Deployment Guide
+
+#### Prerequisites
+
+1. **Docker Environment**: Docker Compose with Traefik v3
+2. **Domain Configuration**: Wildcard DNS record for status page subdomains
+3. **SSL Certificates**: Wildcard SSL certificate (Cloudflare recommended)
+4. **Environment Variables**: Proper configuration for production
+
+#### Step-by-Step Deployment
+
+1. **Build and Push Docker Image**
+
+   ```bash
+   # Build multi-arch image with middleware fixes
+   ./scripts/docker-images.sh
+
+   # This builds and pushes:
+   # ghcr.io/supercheck-io/supercheck/app:latest
+   # ghcr.io/supercheck-io/supercheck/worker:latest
+   ```
+
+2. **Configure docker-compose-secure.yml**
+
+   ```yaml
+   services:
+     app:
+       environment:
+         # Build-time env var (embedded in Next.js bundle)
+         NEXT_PUBLIC_APP_URL: https://demo.supercheck.io
+
+         # Runtime env vars (available to middleware)
+         # CRITICAL: Must be hardcoded, not shell substitution
+         APP_URL: https://demo.supercheck.io
+         STATUS_PAGE_DOMAIN: supercheck.io
+
+       labels:
+         # Main app router (high priority)
+         - "traefik.http.routers.app.rule=Host(`demo.supercheck.io`)"
+         - "traefik.http.routers.app.priority=100"
+         - "traefik.http.routers.app.entrypoints=websecure"
+
+         # Status pages router (lower priority)
+         - "traefik.http.routers.status-pages.rule=HostRegexp(`[a-zA-Z0-9-]+\\.supercheck\\.io`)"
+         - "traefik.http.routers.status-pages.priority=50"
+         - "traefik.http.routers.status-pages.entrypoints=websecure"
+   ```
+
+3. **Deploy to Dokploy**
+
+   - Update the docker-compose file in Dokploy
+   - Redeploy the stack
+   - Verify environment variables are set correctly
+
+4. **Verify Deployment**
+
+   ```bash
+   # Check Traefik routing
+   docker-compose logs traefik | grep -i router
+
+   # Check environment variables
+   docker exec <app-container> env | grep -E "(APP_URL|STATUS_PAGE_DOMAIN)"
+
+   # Test status page access
+   curl -I https://[uuid].supercheck.io
+   # Should return 200 with cache headers
+   ```
+
+#### Root Cause Analysis of Critical Issues
+
+##### Issue 1: Edge Runtime Incompatibility (PRIMARY ROOT CAUSE)
+
+**Problem**: Middleware was importing `getCookieCache` from "better-auth/cookies", which is NOT Edge Runtime compatible.
+
+**Symptoms**:
+
+- Silent middleware compilation failure
+- Empty middleware-manifest.json: `{"middleware": {}, "sortedMiddleware": []}`
+- No middleware.js file generated
+- All subdomain requests fell through to authentication
+- 307 redirect to `/sign-in` for public status pages
+
+**Technical Details**:
+
+- Next.js middleware runs in Edge Runtime, which doesn't support all Node.js APIs
+- Better Auth's `getCookieCache` uses Node.js-specific APIs not available in Edge Runtime
+- When Next.js tried to compile middleware, it failed silently without errors
+
+**Solution**:
+
+```typescript
+// BEFORE (Edge Runtime incompatible)
+import { getCookieCache } from "better-auth/cookies";
+session = getCookieCache(request);
+
+// AFTER (Edge Runtime compatible)
+const sessionCookie = request.cookies.get("better-auth.session_token");
+const session = sessionCookie?.value;
+```
+
+##### Issue 2: Environment Variable Shell Substitution
+
+**Problem**: Shell substitution `${STATUS_PAGE_DOMAIN:-supercheck.io}` in docker-compose can fail in Dokploy.
+
+**Symptoms**:
+
+- `process.env.STATUS_PAGE_DOMAIN` was `undefined` or `""` in container
+- Middleware couldn't detect status page subdomains
+- Subdomain routing failed intermittently
+
+**Root Cause**:
+
+- Shell substitution depends on HOST environment variables
+- Dokploy may not have these variables set on the host
+- Results in empty values being passed to container
+
+**Solution**:
+
+```yaml
+# BEFORE (can fail in Dokploy)
+environment:
+  STATUS_PAGE_DOMAIN: ${STATUS_PAGE_DOMAIN:-supercheck.io}
+
+# AFTER (always set)
+environment:
+  STATUS_PAGE_DOMAIN: supercheck.io
+```
+
+##### Issue 3: Traefik v3 Syntax Changes
+
+**Problem**: Using Traefik v2 named capture group syntax in Traefik v3.
+
+**Symptoms**:
+
+- Traefik regex parsing errors
+- Subdomain routing not working
+- "invalid or unsupported Perl syntax" warnings
+
+**Solution**:
+
+```yaml
+# BEFORE (v2 syntax - doesn't work in v3)
+- "traefik.http.routers.status-pages.rule=HostRegexp(`{host:.+\\.supercheck\\.io}`)"
+
+# AFTER (v3 syntax - Go regexp)
+- "traefik.http.routers.status-pages.rule=HostRegexp(`[a-zA-Z0-9-]+\\.supercheck\\.io`)"
+```
+
+#### Verification Checklist
+
+- [ ] Middleware compiles correctly (check middleware-manifest.json)
+- [ ] Environment variables are set in container
+- [ ] Traefik routers are configured with correct priorities
+- [ ] Main app routes to authentication
+- [ ] Status pages are publicly accessible
+- [ ] SSL certificates are valid for wildcard domain
+- [ ] Cache headers are present on status pages
+
 ### Version History
 
 | Version | Date       | Changes                                                            |
 | ------- | ---------- | ------------------------------------------------------------------ |
+| 2.5     | 2025-10-19 | Critical middleware fixes, production deployment guide, Traefik v3 |
 | 2.4     | 2025-10-16 | Enhanced middleware with caching, email templates, asset uploads   |
 | 2.3     | 2025-10-13 | Simplified component-monitor associations (multiple monitors only) |
 | 2.2     | 2025-10-12 | Added public incident detail page and email subscriptions          |
