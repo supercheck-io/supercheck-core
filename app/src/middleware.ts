@@ -45,6 +45,12 @@ function extractSubdomain(hostname: string): string | null {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // API routes and internal Next.js routes should never be rewritten
+  // These are shared functionality accessed from any domain
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   // Get hostname from headers (prefer X-Forwarded-Host for proxied requests)
   const hostname =
     request.headers.get("x-forwarded-host") ||
