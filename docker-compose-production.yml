@@ -1,0 +1,375 @@
+# YAML anchors for shared configuration
+x-common-env: &common-env # External Database Configuration (Neon/PlanetScale)
+  DATABASE_URL: ${DATABASE_URL}
+  DB_SSL_MODE: ${DB_SSL_MODE:-require}
+  DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
+  DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30000}
+
+  # External Redis Configuration (Redis Cloud)
+  REDIS_URL: ${REDIS_URL}
+  REDIS_CONNECTION_TIMEOUT: ${REDIS_CONNECTION_TIMEOUT:-5000}
+  REDIS_COMMAND_TIMEOUT: ${REDIS_COMMAND_TIMEOUT:-5000}
+  REDIS_MAX_RETRIES: ${REDIS_MAX_RETRIES:-3}
+
+  # External S3 Configuration
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  S3_JOB_BUCKET_NAME: ${S3_JOB_BUCKET_NAME:-supercheck-job-artifacts}
+  S3_TEST_BUCKET_NAME: ${S3_TEST_BUCKET_NAME:-supercheck-test-artifacts}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+  S3_OPERATION_TIMEOUT: ${S3_OPERATION_TIMEOUT:-10000}
+  S3_MAX_RETRIES: ${S3_MAX_RETRIES:-3}
+
+  # App Configuration
+  NODE_ENV: ${NODE_ENV:-production}
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://demo.supercheck.io}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://demo.supercheck.io}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+  RUNNING_CAPACITY: ${RUNNING_CAPACITY:-6}
+  QUEUED_CAPACITY: ${QUEUED_CAPACITY:-50}
+  MAX_CONCURRENT_EXECUTIONS: ${MAX_CONCURRENT_EXECUTIONS:-2}
+  TEST_EXECUTION_TIMEOUT_MS: ${TEST_EXECUTION_TIMEOUT_MS:-120000}
+  JOB_EXECUTION_TIMEOUT_MS: ${JOB_EXECUTION_TIMEOUT_MS:-900000}
+
+  # Security Configuration
+  CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
+  VARIABLES_ENCRYPTION_KEY: ${VARIABLES_ENCRYPTION_KEY}
+
+  # Notification Configuration
+  NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS: ${NEXT_PUBLIC_MAX_JOB_NOTIFICATION_CHANNELS:-10}
+  NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS: ${NEXT_PUBLIC_MAX_MONITOR_NOTIFICATION_CHANNELS:-10}
+
+  # SMTP Configuration
+  SMTP_HOST: ${SMTP_HOST:-smtp.resend.com}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-resend}
+  SMTP_PASSWORD: ${SMTP_PASSWORD}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-notifications@demo.supercheck.io}
+
+  # AI Configuration
+  AI_PROVIDER: ${AI_PROVIDER:-openai}
+  AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-90000}
+  AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
+  AI_TEMPERATURE: ${AI_TEMPERATURE:-0.1}
+
+  # Playground Configuration
+  PLAYGROUND_CLEANUP_ENABLED: ${PLAYGROUND_CLEANUP_ENABLED:-true}
+  PLAYGROUND_CLEANUP_CRON: ${PLAYGROUND_CLEANUP_CRON:-0 */12 * * *}
+  PLAYGROUND_CLEANUP_MAX_AGE_HOURS: ${PLAYGROUND_CLEANUP_MAX_AGE_HOURS:-24}
+
+  # Admin Configuration
+  MAX_PROJECTS_PER_ORG: ${MAX_PROJECTS_PER_ORG:-10}
+  DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-Default Project}
+
+  # Playwright Configuration
+  PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+  PLAYWRIGHT_RETRIES: ${PLAYWRIGHT_RETRIES:-1}
+  PLAYWRIGHT_TRACE: ${PLAYWRIGHT_TRACE:-on}
+  PLAYWRIGHT_SCREENSHOT: ${PLAYWRIGHT_SCREENSHOT:-on}
+  PLAYWRIGHT_VIDEO: ${PLAYWRIGHT_VIDEO:-on}
+  ENABLE_FIREFOX: ${ENABLE_FIREFOX:-false}
+  ENABLE_WEBKIT: ${ENABLE_WEBKIT:-false}
+  ENABLE_MOBILE: ${ENABLE_MOBILE:-false}
+
+services:
+  # Supercheck App (Next.js Frontend)
+  supercheck-app:
+    image: ghcr.io/supercheck-io/supercheck/app:1.0.5-beta
+    environment:
+      <<: *common-env
+    ports:
+      - "3000:3000"
+    networks:
+      - supercheck-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3000, path: '/', timeout: 5000}, (res) => process.exit(res.statusCode < 400 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,environment"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
+
+  # Supercheck Worker (NestJS Test Execution)
+  supercheck-worker:
+    image: ghcr.io/supercheck-io/supercheck/worker:1.0.5-beta
+    environment:
+      <<: *common-env
+      # Worker-specific configuration
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=1024 --expose-gc --experimental-worker}
+      UV_THREADPOOL_SIZE: ${UV_THREADPOOL_SIZE:-4}
+      S3_MULTIPART_THRESHOLD: ${S3_MULTIPART_THRESHOLD:-10485760}
+      S3_MULTIPART_CHUNKSIZE: ${S3_MULTIPART_CHUNKSIZE:-5242880}
+    networks:
+      - supercheck-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http = require('http'); const req = http.request({hostname: 'localhost', port: 3001, path: '/health', timeout: 5000}, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); req.on('error', () => process.exit(1)); req.end();",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,environment"
+    volumes:
+      - /tmp:/tmp # Shared tmp for Playwright
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
+
+  # Traefik Reverse Proxy
+  traefik:
+    image: traefik:v3.0
+    command:
+      # Enable Docker provider
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=supercheck-network
+
+      # Entry points
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+
+      # Let's Encrypt configuration
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@yourdomain.com}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+
+      # API and Dashboard
+      - --api.dashboard=true
+      - --api.insecure=false
+
+      # Metrics
+      - --metrics.prometheus=true
+      - --metrics.prometheus.addEntryPointsLabels=true
+      - --metrics.prometheus.addServicesLabels=true
+
+      # Logging
+      - --log.level=INFO
+      - --accesslog=true
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-letsencrypt:/letsencrypt
+    networks:
+      - supercheck-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.demo.supercheck.io`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--storage.tsdb.retention.time=200h"
+      - "--web.enable-lifecycle"
+      - "--web.enable-admin-api"
+    volumes:
+      - prometheus_data:/prometheus
+      - prometheus_config:/etc/prometheus
+    networks:
+      - supercheck-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.demo.supercheck.io`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.docker.network=supercheck-network"
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - grafana_provisioning:/etc/grafana/provisioning
+    networks:
+      - supercheck-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.demo.supercheck.io`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.docker.network=supercheck-network"
+
+  # Node Exporter for host metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.rootfs=/rootfs"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - "/proc:/host/proc:ro"
+      - "/sys:/host/sys:ro"
+      - "/:/rootfs:ro"
+    networks:
+      - supercheck-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+  # cAdvisor for container metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - supercheck-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # AlertManager for alerts
+  alertmanager:
+    image: prom/alertmanager:latest
+    command:
+      - "--config.file=/etc/alertmanager/config.yml"
+      - "--storage.path=/alertmanager"
+      - "--web.external-url=http://alertmanager.demo.supercheck.io"
+    volumes:
+      - alertmanager_data:/alertmanager
+      - alertmanager_config:/etc/alertmanager
+    networks:
+      - supercheck-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.demo.supercheck.io`)"
+      - "traefik.http.routers.alertmanager.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager.tls.certresolver=letsencrypt"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
+      - "traefik.docker.network=supercheck-network"
+
+# Docker Networks
+networks:
+  supercheck-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Docker Volumes
+volumes:
+  traefik-letsencrypt:
+    driver: local
+  prometheus_data:
+    driver: local
+  prometheus_config:
+    driver: local
+  grafana_data:
+    driver: local
+  grafana_provisioning:
+    driver: local
+  alertmanager_data:
+    driver: local
+  alertmanager_config:
+    driver: local

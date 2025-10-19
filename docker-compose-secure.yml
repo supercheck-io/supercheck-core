@@ -15,7 +15,10 @@ x-common-env: &common-env # Database Configuration
 
   # App Configuration
   NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://demo.supercheck.io}
-  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://demo.supercheck.io}
+  # Runtime env vars for middleware (middleware can't access NEXT_PUBLIC_ vars at runtime)
+  APP_URL: https://demo.supercheck.io
+  STATUS_PAGE_DOMAIN: supercheck.io
+  BETTER_AUTH_URL: https://demo.supercheck.io
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-auth-key-change-this-in-production}
   NODE_ENV: ${NODE_ENV:-production}
   RUNNING_CAPACITY: ${RUNNING_CAPACITY:-3} # Optimized for 4-core server: 4 workers × 1.5 jobs per worker
@@ -100,12 +103,8 @@ x-common-env: &common-env # Database Configuration
   AI_TEMPERATURE: ${AI_TEMPERATURE:-0.1}
 
   # Traefik/HTTPS Configuration
-  APP_DOMAIN: ${APP_DOMAIN:-demo.supercheck.io}
-  STATUS_PAGE_DOMAIN: ${STATUS_PAGE_DOMAIN:-supercheck.io}
-  ACME_EMAIL: ${ACME_EMAIL:-hello@supercheck.io}
-
-  # Status Page Configuration
-  STATUS_PAGE_BASE_DOMAIN: ${STATUS_PAGE_BASE_DOMAIN:-supercheck.io}
+  APP_DOMAIN: demo.supercheck.io
+  ACME_EMAIL: hello@supercheck.io
 
   NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-true} # Set to true to enable demo mode
 
@@ -113,17 +112,18 @@ services:
   # Traefik Reverse Proxy with HTTPS
   traefik:
     image: traefik:v3.0
-    command:
-      - "--api.dashboard=false"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
+    environment:
+      # Traefik Configuration using environment variables
+      - TRAEFIK_API_DASHBOARD=false
+      - TRAEFIK_PROVIDERS_DOCKER=true
+      - TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT=false
+      - TRAEFIK_ENTRYPOINTS_WEB_ADDRESS=:80
+      - TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS=:443
       # Disable Let's Encrypt since Cloudflare handles SSL termination
-      - "--entrypoints.websecure.http.tls.options=default"
-      - "--serversTransport.insecureSkipVerify=true"
-      - "--log.level=INFO"
-      - "--accesslog=true"
+      - TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_TLS_OPTIONS=default
+      - TRAEFIK_SERVERSTRANSPORT_INSECURESKIPVERIFY=true
+      - TRAEFIK_LOG_LEVEL=INFO
+      - TRAEFIK_ACCESSLOG=true
     ports:
       - "80:80"
       - "443:443"
@@ -138,7 +138,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.6
+    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.17
     expose:
       - "3000"
     environment:
@@ -170,17 +170,36 @@ services:
       start_period: 120s # Increased to allow for migrations
     labels:
       - "traefik.enable=true"
-      # Catch-all router for all hosts (main domain + all subdomains)
-      - "traefik.http.routers.app.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`) || Host(`${STATUS_PAGE_DOMAIN:-supercheck.io}`) || HostRegexp(`^[a-zA-Z0-9-]+\\.(demo\\.)?supercheck\\.io$`)"
+
+      # Main app — exact host (demo.supercheck.io or override with APP_DOMAIN env var)
+      - "traefik.http.routers.app.rule=Host(`demo.supercheck.io`)"
+      - "traefik.http.routers.app.priority=100"
       - "traefik.http.routers.app.entrypoints=websecure"
       - "traefik.http.routers.app.tls=true"
       - "traefik.http.routers.app.service=app"
-      # HTTP to HTTPS redirect for all hosts
-      - "traefik.http.routers.app-http.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`) || Host(`${STATUS_PAGE_DOMAIN:-supercheck.io}`) || HostRegexp(`^[a-zA-Z0-9-]+\\.(demo\\.)?supercheck\\.io$`)"
+
+      # Status pages — any subdomain under supercheck.io (priority 50 to match after main app)
+      # Traefik v3 HostRegexp: match alphanumeric subdomains (UUIDs)
+      # Main app router handles demo.supercheck.io first (higher priority)
+      - "traefik.http.routers.status-pages.rule=HostRegexp(`[a-zA-Z0-9-]+\\.supercheck\\.io`)"
+      - "traefik.http.routers.status-pages.priority=50"
+      - "traefik.http.routers.status-pages.entrypoints=websecure"
+      - "traefik.http.routers.status-pages.tls=true"
+      - "traefik.http.routers.status-pages.service=app"
+
+      # HTTP → HTTPS redirect for main app
+      - "traefik.http.routers.app-http.rule=Host(`demo.supercheck.io`)"
       - "traefik.http.routers.app-http.entrypoints=web"
       - "traefik.http.routers.app-http.middlewares=app-https-redirect"
       - "traefik.http.routers.app-http.service=app"
-      # Middleware and service configuration
+
+      # HTTP → HTTPS redirect for status pages
+      - "traefik.http.routers.status-pages-http.rule=HostRegexp(`[a-zA-Z0-9-]+\\.supercheck\\.io`)"
+      - "traefik.http.routers.status-pages-http.entrypoints=web"
+      - "traefik.http.routers.status-pages-http.middlewares=app-https-redirect"
+      - "traefik.http.routers.status-pages-http.service=app"
+
+      # Redirect middleware & service config
       - "traefik.http.middlewares.app-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.services.app.loadbalancer.server.port=3000"
       - "traefik.http.services.app.loadbalancer.healthCheck.path=/api/health"
@@ -197,7 +216,7 @@ services:
 
   # Worker (NestJS Runner) - Minimal resource limits for maximum test compatibility
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.6
+    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.17
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)

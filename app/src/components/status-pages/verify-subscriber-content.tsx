@@ -7,7 +7,9 @@ import Link from "next/link";
 import { verifySubscriber } from "@/actions/verify-subscriber";
 
 export function VerifySubscriberContent({ token }: { token: string }) {
-  const [status, setStatus] = useState<"loading" | "success" | "error" | "already_verified">("loading");
+  const [status, setStatus] = useState<
+    "loading" | "success" | "error" | "already_verified"
+  >("loading");
   const [message, setMessage] = useState("");
   const [statusPageId, setStatusPageId] = useState<string | null>(null);
 
@@ -36,8 +38,12 @@ export function VerifySubscriberContent({ token }: { token: string }) {
     return (
       <div className="text-center py-12">
         <Loader2 className="h-16 w-16 text-blue-600 mx-auto mb-4 animate-spin" />
-        <h2 className="text-2xl font-semibold mb-2">Verifying your subscription...</h2>
-        <p className="text-muted-foreground">Please wait while we verify your email address.</p>
+        <h2 className="text-2xl font-semibold mb-2">
+          Verifying your subscription...
+        </h2>
+        <p className="text-muted-foreground">
+          Please wait while we verify your email address.
+        </p>
       </div>
     );
   }
@@ -55,9 +61,7 @@ export function VerifySubscriberContent({ token }: { token: string }) {
         </p>
         {statusPageId && (
           <Button asChild>
-            <Link href={`/status-pages/${statusPageId}/public`}>
-              View Status Page
-            </Link>
+            <Link href={`/status/${statusPageId}`}>View Status Page</Link>
           </Button>
         )}
       </div>
@@ -73,7 +77,9 @@ export function VerifySubscriberContent({ token }: { token: string }) {
         <div className="flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-left">
-            <p className="font-medium text-amber-900 dark:text-amber-100 mb-1">What can you do?</p>
+            <p className="font-medium text-amber-900 dark:text-amber-100 mb-1">
+              What can you do?
+            </p>
             <ul className="text-amber-800 dark:text-amber-200 space-y-1 list-disc list-inside">
               <li>Try subscribing again with your email</li>
               <li>Check if you already verified your subscription</li>
@@ -83,9 +89,7 @@ export function VerifySubscriberContent({ token }: { token: string }) {
         </div>
       </div>
       <Button asChild variant="outline">
-        <Link href="/status-pages">
-          Back to Status Pages
-        </Link>
+        <Link href="/status-pages">Back to Status Pages</Link>
       </Button>
     </div>
   );
