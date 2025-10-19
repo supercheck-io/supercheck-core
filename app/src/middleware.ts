@@ -33,7 +33,10 @@ function extractSubdomain(hostname: string): string | null {
 
   // Extract subdomain by removing the status page domain
   // e.g., "f134b5f9f2b048069deaf7cfb924a0b3.supercheck.io" → "f134b5f9f2b048069deaf7cfb924a0b3"
-  const subdomain = cleanHostname.replace(new RegExp(`\\.${statusPageDomain}$`), "");
+  const subdomain = cleanHostname.replace(
+    new RegExp(`\\.${statusPageDomain}$`),
+    ""
+  );
 
   // Valid subdomain: alphanumeric and hyphens only, 1-63 chars
   return /^[a-zA-Z0-9-]{1,63}$/.test(subdomain) ? subdomain : null;
@@ -43,7 +46,10 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Get hostname from headers (prefer X-Forwarded-Host for proxied requests)
-  const hostname = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+  const hostname =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    "";
 
   // DEBUG: Log all requests to see what's happening
   console.log("[MIDDLEWARE] Incoming request:", {
@@ -65,13 +71,15 @@ export function middleware(request: NextRequest) {
     try {
       const url = new URL(appUrl);
       mainAppHostname = url.hostname;
-    } catch (error) {
+    } catch {
       // Invalid URL, skip check
       mainAppHostname = null;
     }
 
     // Only rewrite if this hostname is NOT the main app domain
-    const isMainApp = mainAppHostname && (hostname === mainAppHostname || hostname.startsWith("localhost"));
+    const isMainApp =
+      mainAppHostname &&
+      (hostname === mainAppHostname || hostname.startsWith("localhost"));
 
     console.log("[MIDDLEWARE] Status page routing:", {
       hostname,
@@ -98,7 +106,10 @@ export function middleware(request: NextRequest) {
       response.headers.set("X-Content-Type-Options", "nosniff");
       response.headers.set("X-Frame-Options", "DENY");
       response.headers.set("X-XSS-Protection", "1; mode=block");
-      response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      response.headers.set(
+        "Referrer-Policy",
+        "strict-origin-when-cross-origin"
+      );
 
       return response;
     }
