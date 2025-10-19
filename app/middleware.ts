@@ -49,23 +49,39 @@ export function middleware(request: NextRequest) {
   const subdomain = extractSubdomain(hostname);
 
   // If subdomain matches the status page domain, route to status page (PUBLIC - no auth)
+  // BUT: Don't rewrite if this is the main app domain
   if (subdomain) {
-    const url = request.nextUrl.clone();
-    const newPath =
-      pathname === "/"
-        ? `/status/${subdomain}`
-        : `/status/${subdomain}${pathname}`;
-    url.pathname = newPath;
+    // Get main app hostname to exclude it from subdomain rewriting
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    let mainAppHostname: string | null = null;
+    try {
+      const url = new URL(appUrl);
+      mainAppHostname = url.hostname;
+    } catch (error) {
+      // Invalid URL, skip check
+    }
 
-    const response = NextResponse.rewrite(url);
+    // Only rewrite if this hostname is NOT the main app domain
+    const isMainApp = mainAppHostname && hostname === mainAppHostname;
 
-    // Add security headers
-    response.headers.set("X-Content-Type-Options", "nosniff");
-    response.headers.set("X-Frame-Options", "DENY");
-    response.headers.set("X-XSS-Protection", "1; mode=block");
-    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    if (!isMainApp) {
+      const url = request.nextUrl.clone();
+      const newPath =
+        pathname === "/"
+          ? `/status/${subdomain}`
+          : `/status/${subdomain}${pathname}`;
+      url.pathname = newPath;
 
-    return response;
+      const response = NextResponse.rewrite(url);
+
+      // Add security headers
+      response.headers.set("X-Content-Type-Options", "nosniff");
+      response.headers.set("X-Frame-Options", "DENY");
+      response.headers.set("X-XSS-Protection", "1; mode=block");
+      response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+
+      return response;
+    }
   }
 
   // Main app or direct /status/ route - handle authentication

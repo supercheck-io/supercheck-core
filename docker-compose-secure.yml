@@ -103,11 +103,7 @@ x-common-env: &common-env # Database Configuration
 
   # Traefik/HTTPS Configuration
   APP_DOMAIN: ${APP_DOMAIN:-demo.supercheck.io}
-  STATUS_PAGE_DOMAIN: ${STATUS_PAGE_DOMAIN:-supercheck.io}
   ACME_EMAIL: ${ACME_EMAIL:-hello@supercheck.io}
-
-  # Status Page Configuration
-  STATUS_PAGE_BASE_DOMAIN: ${STATUS_PAGE_BASE_DOMAIN:-supercheck.io}
 
   NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-true} # Set to true to enable demo mode
 
@@ -141,7 +137,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.8
+    image: ghcr.io/supercheck-io/supercheck/app:latest
     expose:
       - "3000"
     environment:
@@ -174,27 +170,29 @@ services:
     labels:
       - "traefik.enable=true"
 
-      # Main app — exact host
-      - "traefik.http.routers.app.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`)"
+      # Main app — exact host (demo.supercheck.io or override with APP_DOMAIN env var)
+      - "traefik.http.routers.app.rule=Host(`demo.supercheck.io`)"
       - "traefik.http.routers.app.entrypoints=websecure"
       - "traefik.http.routers.app.tls=true"
       - "traefik.http.routers.app.service=app"
 
-      # Status pages — any subdomain under STATUS_PAGE_DOMAIN
-      - "traefik.http.routers.status-pages.rule=HostRegexp(`^.+\\.${STATUS_PAGE_DOMAIN:-supercheck.io}$`)"
+      # Status pages — any subdomain under supercheck.io (priority 50 to match after main app)
+      # Go regex (used by Traefik) doesn't support negative lookahead, so we use simple pattern
+      # Main app router with higher priority (100) handles demo.supercheck.io first
+      - "traefik.http.routers.status-pages.rule=HostRegexp(`^[a-z0-9-]+\\.supercheck\\.io$`)"
       - "traefik.http.routers.status-pages.priority=50"
       - "traefik.http.routers.status-pages.entrypoints=websecure"
       - "traefik.http.routers.status-pages.tls=true"
       - "traefik.http.routers.status-pages.service=app"
 
       # HTTP → HTTPS redirect for main app
-      - "traefik.http.routers.app-http.rule=Host(`${APP_DOMAIN:-demo.supercheck.io}`)"
+      - "traefik.http.routers.app-http.rule=Host(`demo.supercheck.io`)"
       - "traefik.http.routers.app-http.entrypoints=web"
       - "traefik.http.routers.app-http.middlewares=app-https-redirect"
       - "traefik.http.routers.app-http.service=app"
 
       # HTTP → HTTPS redirect for status pages
-      - "traefik.http.routers.status-pages-http.rule=HostRegexp(`^.+\\.${STATUS_PAGE_DOMAIN:-supercheck.io}$`)"
+      - "traefik.http.routers.status-pages-http.rule=HostRegexp(`^[a-z0-9-]+\\.supercheck\\.io$`)"
       - "traefik.http.routers.status-pages-http.entrypoints=web"
       - "traefik.http.routers.status-pages-http.middlewares=app-https-redirect"
       - "traefik.http.routers.status-pages-http.service=app"
