@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { canManageMonitors } from "@/lib/rbac/client-permissions";
+import { canEditMonitors } from "@/lib/rbac/client-permissions";
 import { Role } from "@/lib/rbac/permissions";
 import { LoadingBadge, Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
@@ -829,7 +829,7 @@ export function MonitorDetailClient({
             {!isNotificationView &&
               !permissionsLoading &&
               userRole &&
-              canManageMonitors(userRole) && (
+              canEditMonitors(userRole) && (
                 <>
                   <Button
                     variant="outline"
@@ -872,7 +872,7 @@ export function MonitorDetailClient({
             {!isNotificationView &&
               !permissionsLoading &&
               userRole &&
-              !canManageMonitors(userRole) && (
+              !canEditMonitors(userRole) && (
                 <>
                   <Button variant="outline" size="sm" disabled>
                     {monitor.status === "paused" ? (

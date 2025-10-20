@@ -280,9 +280,6 @@ export async function getUserProjects(
     );
 
     // Return projects with correct role for each
-    console.log("[getUserProjects] orgRole:", orgRole);
-    console.log("[getUserProjects] projectRolesMap:", projectRolesMap);
-
     return projectsData.map((project) => {
       let projectRole: Role;
 
@@ -290,14 +287,13 @@ export async function getUserProjects(
       if (orgRole === Role.ORG_OWNER || orgRole === Role.ORG_ADMIN) {
         projectRole = orgRole;
       } else {
-        // For all other cases (including PROJECT_EDITOR/PROJECT_ADMIN at org level - data issue),
-        // use the actual project-specific role from project_members table
+        // For all other cases, use the actual project-specific role from project_members table
         const dbProjectRole = projectRolesMap.get(project.id);
         if (dbProjectRole) {
           projectRole = convertRoleToUnified(dbProjectRole);
         } else {
           // No project-specific role found
-          // If orgRole is a project role (data issue), use it as project role
+          // If orgRole is a project role (happens when member table has project-level role), use it
           if (orgRole === Role.PROJECT_EDITOR || orgRole === Role.PROJECT_ADMIN) {
             projectRole = orgRole;
           } else {
@@ -305,8 +301,6 @@ export async function getUserProjects(
           }
         }
       }
-
-      console.log(`[getUserProjects] Project ${project.name}: dbRole="${projectRolesMap.get(project.id)}" -> projectRole="${projectRole}"`);
 
       return {
         id: project.id,

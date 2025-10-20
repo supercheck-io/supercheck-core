@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import { deleteMonitor } from "@/actions/delete-monitor";
 import { useProjectContext } from "@/hooks/use-project-context";
 import { normalizeRole } from "@/lib/rbac/role-normalizer";
-import { canEditMonitors, canDeleteMonitors, canManageMonitors } from "@/lib/rbac/client-permissions";
+import { canEditMonitors, canDeleteMonitors } from "@/lib/rbac/client-permissions";
 
 import { monitorSchema } from "./schema";
 
@@ -47,19 +47,10 @@ export function DataTableRowActions<TData>({
   const router = useRouter();
   const { currentProject } = useProjectContext();
 
-  // Check permissions using project context
+  // Check permissions using project context (same as jobs/tests approach)
   const userRole = currentProject?.userRole ? normalizeRole(currentProject.userRole) : null;
-  // For edit/pause, need both "update" and "manage" permissions
-  const hasEditPermission = userRole ? (canEditMonitors(userRole) || canManageMonitors(userRole)) : false;
+  const hasEditPermission = userRole ? canEditMonitors(userRole) : false;
   const hasDeletePermission = userRole ? canDeleteMonitors(userRole) : false;
-
-  // DEBUG LOGGING
-  console.log("[DataTableRowActions] currentProject:", currentProject);
-  console.log("[DataTableRowActions] currentProject.userRole:", currentProject?.userRole);
-  console.log("[DataTableRowActions] normalized userRole:", userRole);
-  console.log("[DataTableRowActions] canEditMonitors:", userRole ? canEditMonitors(userRole) : "N/A");
-  console.log("[DataTableRowActions] canManageMonitors:", userRole ? canManageMonitors(userRole) : "N/A");
-  console.log("[DataTableRowActions] hasEditPermission:", hasEditPermission);
   
   // Use safeParse instead of parse to handle validation errors
   const parsedMonitor = monitorSchema.safeParse(row.original);

@@ -149,10 +149,10 @@ export function canCreateTests(role: Role): boolean {
 }
 
 /**
- * Check if user can edit monitors
+ * Check if user can edit monitors (includes update and manage actions like pause/resume)
  */
 export function canEditMonitors(role: Role): boolean {
-  return hasPermission(role, "monitor", "update");
+  return hasPermission(role, "monitor", "update") || hasPermission(role, "monitor", "manage");
 }
 
 /**
@@ -169,12 +169,6 @@ export function canCreateMonitors(role: Role): boolean {
   return hasPermission(role, "monitor", "create");
 }
 
-/**
- * Check if user can manage monitors
- */
-export function canManageMonitors(role: Role): boolean {
-  return hasPermission(role, "monitor", "manage");
-}
 
 /**
  * Check if user can manage organization
