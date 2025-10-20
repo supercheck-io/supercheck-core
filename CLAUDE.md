@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
 1. First think through the problem, read the codebase for relevant files, and write a plan to tasks/todo.md.
 2. The plan should have a list of todo items that you can check off as you complete them
@@ -97,7 +97,7 @@ The database schema includes comprehensive tables for:
 - Configurable timeouts, capacity limits, and retry logic
 - Real-time status updates via Server-Sent Events (SSE)
 - Artifact storage in MinIO with presigned URL access
-- **AI-Powered Test Fix**: Intelligent test failure analysis and automated fix suggestions (see [AI Fix Setup Guide](./AI_FIX_SETUP.md))
+- **AI-Powered Test Fix**: Intelligent test failure analysis and automated fix suggestions (see [AI Fix Documentation](./specs/AI_FIX_DOCUMENTATION.md))
 
 ### Job Scheduling
 
@@ -189,7 +189,7 @@ docker buildx imagetools inspect ghcr.io/supercheck-io/supercheck/app:latest
 
 ## Security
 
-⚠️ **IMPORTANT**: Before deploying to production, read and follow the [SECURITY.md](./SECURITY.md) guide.
+⚠️ **IMPORTANT**: Before deploying to production, read and follow the [SECURITY.md](./guides/SECURITY.md) guide.
 
 ### Key Security Points:
 
@@ -220,7 +220,7 @@ npm run setup:admin admin@yourcompany.com
 
 Replace `admin@yourcompany.com` with the actual email address.
 
-See [RBAC_DOCUMENTATION.md](./RBAC_DOCUMENTATION.md) for detailed instructions on:
+See [RBAC_DOCUMENTATION.md](./specs/RBAC_DOCUMENTATION.md) for detailed instructions on:
 
 - Creating your first super admin user
 - Managing admin privileges through the UI
