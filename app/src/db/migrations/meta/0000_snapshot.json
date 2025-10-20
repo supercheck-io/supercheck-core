@@ -1,5 +1,5 @@
 {
-  "id": "24a63fb7-2eeb-4bb2-9b61-b309daa4a8d0",
+  "id": "7bb7f894-5886-4804-8762-2e0e5ef7a114",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -811,12 +811,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "component_group_id": {
-          "name": "component_group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "update_status": {
           "name": "update_status",
           "type": "varchar(50)",
@@ -867,19 +861,6 @@
           "tableTo": "user",
           "columnsFrom": [
             "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "incident_templates_component_group_id_status_page_component_groups_id_fk": {
-          "name": "incident_templates_component_group_id_status_page_component_groups_id_fk",
-          "tableFrom": "incident_templates",
-          "tableTo": "status_page_component_groups",
-          "columnsFrom": [
-            "component_group_id"
           ],
           "columnsTo": [
             "id"
@@ -3085,78 +3066,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.status_page_component_groups": {
-      "name": "status_page_component_groups",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "status_page_id": {
-          "name": "status_page_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "status_page_component_groups_status_page_id_status_pages_id_fk": {
-          "name": "status_page_component_groups_status_page_id_status_pages_id_fk",
-          "tableFrom": "status_page_component_groups",
-          "tableTo": "status_pages",
-          "columnsFrom": [
-            "status_page_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.status_page_component_monitors": {
       "name": "status_page_component_monitors",
       "schema": "",
@@ -3312,12 +3221,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "component_group_id": {
-          "name": "component_group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "varchar(255)",
@@ -3412,19 +3315,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "status_page_components_component_group_id_status_page_component_groups_id_fk": {
-          "name": "status_page_components_component_group_id_status_page_component_groups_id_fk",
-          "tableFrom": "status_page_components",
-          "tableTo": "status_page_component_groups",
-          "columnsFrom": [
-            "component_group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

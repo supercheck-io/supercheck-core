@@ -5,8 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Loader2, CheckCircle2, Slack, Webhook, Rss } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { subscribeToStatusPage } from "@/actions/subscribe-to-status-page";
 import { toast } from "sonner";
 
@@ -55,7 +54,7 @@ export function SubscribeDialog({
         }, 3000);
       } else {
         toast.error("Subscription failed", {
-          description: result.message,
+          description: result.message || "Unable to complete subscription. Please try again.",
         });
       }
     } catch (error) {
@@ -93,111 +92,47 @@ export function SubscribeDialog({
             </p>
           </div>
         ) : (
-          <Tabs defaultValue="email" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-6">
-              <TabsTrigger value="email" className="flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                <span className="hidden sm:inline">Email</span>
-              </TabsTrigger>
-              <TabsTrigger value="slack" className="flex items-center gap-2" disabled>
-                <Slack className="h-4 w-4" />
-                <span className="hidden sm:inline">Slack</span>
-              </TabsTrigger>
-              <TabsTrigger value="webhook" className="flex items-center gap-2" disabled>
-                <Webhook className="h-4 w-4" />
-                <span className="hidden sm:inline">Webhook</span>
-              </TabsTrigger>
-              <TabsTrigger value="rss" className="flex items-center gap-2" disabled>
-                <Rss className="h-4 w-4" />
-                <span className="hidden sm:inline">RSS</span>
-              </TabsTrigger>
-            </TabsList>
+          <div className="w-full space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-900 dark:text-blue-100">
+                Get email notifications whenever <strong>{statusPageName}</strong>{" "}
+                creates, updates or resolves an incident.
+              </p>
+            </div>
 
-            <TabsContent value="email" className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
-                <p className="text-sm text-blue-900 dark:text-blue-100">
-                  Get email notifications whenever <strong>{statusPageName}</strong>{" "}
-                  creates, updates or resolves an incident.
-                </p>
-              </div>
-
-              <form onSubmit={handleEmailSubscribe} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-base font-medium">
-                    Email address:
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={isSubmitting}
-                    className="h-11"
-                    required
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+            <form onSubmit={handleEmailSubscribe} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-base font-medium">
+                  Email address:
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Subscribing...
-                    </>
-                  ) : (
-                    "SUBSCRIBE VIA EMAIL"
-                  )}
-                </Button>
-
-                <p className="text-xs text-muted-foreground text-center mt-4">
-                  This site is protected by reCAPTCHA and the Google{" "}
-                  <a
-                    href="https://policies.google.com/privacy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    Privacy Policy
-                  </a>{" "}
-                  and{" "}
-                  <a
-                    href="https://policies.google.com/terms"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    Terms of Service
-                  </a>{" "}
-                  apply.
-                </p>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="slack" className="py-8">
-              <div className="text-center text-muted-foreground">
-                <Slack className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Slack integration coming soon</p>
+                  className="h-11"
+                  required
+                />
               </div>
-            </TabsContent>
 
-            <TabsContent value="webhook" className="py-8">
-              <div className="text-center text-muted-foreground">
-                <Webhook className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Webhook subscriptions coming soon</p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="rss" className="py-8">
-              <div className="text-center text-muted-foreground">
-                <Rss className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>RSS feed coming soon</p>
-              </div>
-            </TabsContent>
-          </Tabs>
+              <Button
+                type="submit"
+                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Subscribing...
+                  </>
+                ) : (
+                  "SUBSCRIBE VIA EMAIL"
+                )}
+              </Button>
+            </form>
+          </div>
         )}
       </DialogContent>
     </Dialog>

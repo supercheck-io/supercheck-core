@@ -13,6 +13,7 @@ import { z } from "zod";
 import { requireProjectContext } from "@/lib/project-context";
 import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { sendIncidentNotifications } from "./send-incident-notifications";
 
 const updateIncidentStatusSchema = z.object({
   incidentId: z.string().uuid(),
@@ -146,6 +147,15 @@ export async function updateIncidentStatus(data: UpdateIncidentStatusData) {
         },
         success: true,
       });
+
+      // Send notification emails to subscribers (async, non-blocking)
+      if (validatedData.deliverNotifications) {
+        sendIncidentNotifications(result.id, validatedData.statusPageId).catch(
+          (error) => {
+            console.error("Failed to send incident notifications:", error);
+          }
+        );
+      }
 
       // Revalidate the status page
       revalidatePath(`/status-pages/${validatedData.statusPageId}`);
