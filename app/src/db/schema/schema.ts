@@ -1046,26 +1046,6 @@ export const statusPages = pgTable("status_pages", {
 });
 
 /**
- * Component groups for organizing status page components
- */
-export const statusPageComponentGroups = pgTable(
-  "status_page_component_groups",
-  {
-    id: uuid("id")
-      .primaryKey()
-      .$defaultFn(() => sql`uuidv7()`),
-    statusPageId: uuid("status_page_id")
-      .notNull()
-      .references(() => statusPages.id, { onDelete: "cascade" }),
-    name: varchar("name", { length: 255 }).notNull(),
-    description: text("description"),
-    position: integer("position").default(0),
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").defaultNow(),
-  }
-);
-
-/**
  * Status page components linked to monitors
  */
 export const statusPageComponents = pgTable("status_page_components", {
@@ -1075,10 +1055,6 @@ export const statusPageComponents = pgTable("status_page_components", {
   statusPageId: uuid("status_page_id")
     .notNull()
     .references(() => statusPages.id, { onDelete: "cascade" }),
-  componentGroupId: uuid("component_group_id").references(
-    () => statusPageComponentGroups.id,
-    { onDelete: "set null" }
-  ),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   status: varchar("status", { length: 50 })
@@ -1232,9 +1208,6 @@ export const incidentTemplates = pgTable("incident_templates", {
   name: varchar("name", { length: 255 }).notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   body: text("body").notNull(),
-  componentGroupId: uuid("component_group_id").references(
-    () => statusPageComponentGroups.id
-  ),
   updateStatus: varchar("update_status", { length: 50 }).default(
     "investigating"
   ),
@@ -1441,10 +1414,6 @@ export const statusPageComponentsRelations = relations(
       references: [statusPages.id],
     }),
     monitors: many(statusPageComponentMonitors),
-    componentGroup: one(statusPageComponentGroups, {
-      fields: [statusPageComponents.componentGroupId],
-      references: [statusPageComponentGroups.id],
-    }),
     incidents: many(incidentComponents),
   })
 );
@@ -1479,13 +1448,6 @@ export const statusPageSubscribersRelations = relations(
 export const statusPagesInsertSchema = createInsertSchema(statusPages);
 export const statusPagesSelectSchema = createSelectSchema(statusPages);
 export const statusPagesUpdateSchema = createUpdateSchema(statusPages);
-
-export const statusPageComponentGroupsInsertSchema = createInsertSchema(
-  statusPageComponentGroups
-);
-export const statusPageComponentGroupsSelectSchema = createSelectSchema(
-  statusPageComponentGroups
-);
 
 export const statusPageComponentsInsertSchema =
   createInsertSchema(statusPageComponents);

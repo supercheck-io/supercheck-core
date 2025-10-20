@@ -25,7 +25,9 @@ export default function Variables() {
   const [canManage, setCanManage] = useState(false);
   const [canCreateEdit, setCanCreateEdit] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
+  const [canViewSecrets, setCanViewSecrets] = useState(false);
   const [secretVisibility, setSecretVisibility] = useState<{ [key: string]: boolean }>({});
+  const [decryptedValues, setDecryptedValues] = useState<{ [key: string]: string }>({});
   const [editDialogState, setEditDialogState] = useState<{ [key: string]: boolean }>({});
   const { projectId: currentProjectId, loading: projectLoading } = useProjectContext();
 
@@ -70,6 +72,7 @@ export default function Variables() {
           setCanManage(data.canManage || false);
           setCanCreateEdit(data.canCreateEdit || false);
           setCanDelete(data.canDelete || false);
+          setCanViewSecrets(data.canViewSecrets || false);
         } else {
           console.error("Failed to fetch variables:", data.error);
           safeSetVariables([]);
@@ -90,10 +93,37 @@ export default function Variables() {
     safeSetVariables((prevVariables) => prevVariables.filter((variable) => variable.id !== variableId));
   };
 
-  const handleToggleSecretVisibility = (variableId: string) => {
+  const handleToggleSecretVisibility = async (variableId: string) => {
+    const currentVisibility = secretVisibility[variableId];
+    const newVisibility = !currentVisibility;
+
+    // If showing the secret, fetch the decrypted value
+    if (newVisibility && !decryptedValues[variableId] && currentProjectId) {
+      try {
+        const response = await fetch(
+          `/api/projects/${currentProjectId}/variables/${variableId}/decrypt`,
+          {
+            method: 'POST',
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data?.value) {
+            setDecryptedValues(prev => ({
+              ...prev,
+              [variableId]: data.data.value
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error decrypting secret:", error);
+      }
+    }
+
     setSecretVisibility(prev => ({
       ...prev,
-      [variableId]: !prev[variableId]
+      [variableId]: newVisibility
     }));
   };
 
@@ -120,6 +150,7 @@ export default function Variables() {
           safeSetVariables(transformedVariables);
           setCanCreateEdit(data.canCreateEdit || false);
           setCanDelete(data.canDelete || false);
+          setCanViewSecrets(data.canViewSecrets || false);
         }
       } catch (error) {
         console.error('Error refreshing variables:', error);
@@ -149,11 +180,13 @@ export default function Variables() {
             onDeleteVariable: handleDeleteVariable,
             onToggleSecretVisibility: handleToggleSecretVisibility,
             secretVisibility: secretVisibility,
+            decryptedValues: decryptedValues,
             projectId: currentProjectId,
             onSuccess: handleSuccess,
             canManage,
             canCreateEdit,
             canDelete,
+            canViewSecrets,
             editDialogState: editDialogState,
             setEditDialogState: handleSetEditDialogState,
           }}

@@ -58,10 +58,12 @@ export function hasPermission(
 
     case Role.PROJECT_EDITOR:
       // Editors can create and edit but cannot delete any resources in assigned projects
-      if (["test", "job", "monitor", "status_page"].includes(resource)) {
+      if (["test", "job", "status_page"].includes(resource)) {
         result = ["view", "create", "update", "run", "trigger"].includes(
           action
         );
+      } else if (resource === "monitor") {
+        result = ["view", "create", "update", "manage"].includes(action); // Can manage (pause/resume) monitors
       } else if (resource === "tag") {
         result = ["view", "create", "update"].includes(action); // Cannot delete tags
       } else if (resource === "run") {

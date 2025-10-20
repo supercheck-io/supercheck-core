@@ -69,22 +69,11 @@ type StatusPageMonitor = {
   target?: string;
 };
 
-type ComponentGroup = {
-  id: string;
-  name: string;
-  description: string | null;
-  position: number | null;
-  statusPageId: string;
-  createdAt: Date | null;
-  updatedAt: Date | null;
-};
-
 type Component = {
   id: string;
   name: string;
   description: string | null;
   status: string;
-  componentGroupId: string | null;
   monitors: StatusPageMonitor[];
   monitorIds: string[];
   aggregationMethod: string;
@@ -99,15 +88,15 @@ type Component = {
 type StatusPageDetailProps = {
   statusPage: StatusPage;
   monitors: StatusPageMonitor[];
-  componentGroups: ComponentGroup[];
   components: Component[];
+  canUpdate: boolean;
 };
 
 export function StatusPageDetail({
   statusPage,
   monitors,
-  componentGroups,
   components,
+  canUpdate,
 }: StatusPageDetailProps) {
   const router = useRouter();
   const [isPublishing, setIsPublishing] = useState(false);
@@ -236,7 +225,8 @@ export function StatusPageDetail({
                 variant="outline"
                 size="sm"
                 onClick={handleUnpublish}
-                disabled={isPublishing}
+                disabled={isPublishing || !canUpdate}
+                title={!canUpdate ? "You don't have permission to unpublish" : ""}
               >
                 {isPublishing ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -246,7 +236,7 @@ export function StatusPageDetail({
                 Unpublish
               </Button>
             ) : (
-              <Button size="sm" onClick={handlePublish} disabled={isPublishing}>
+              <Button size="sm" onClick={handlePublish} disabled={isPublishing || !canUpdate} title={!canUpdate ? "You don't have permission to publish" : ""}>
                 {isPublishing ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
@@ -376,7 +366,7 @@ export function StatusPageDetail({
           <ComponentsTab
             statusPageId={statusPage.id}
             monitors={monitors}
-            componentGroups={componentGroups}
+            canUpdate={canUpdate}
           />
         </TabsContent>
 
@@ -392,7 +382,7 @@ export function StatusPageDetail({
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">
-          <SettingsTab statusPage={statusPage} />
+          <SettingsTab statusPage={statusPage} canUpdate={canUpdate} />
         </TabsContent>
       </Tabs>
     </div>

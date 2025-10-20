@@ -17,7 +17,6 @@ const updateComponentSchema = z.object({
   statusPageId: z.string().uuid(),
   name: z.string().min(1, "Name is required").max(255).optional(),
   description: z.string().optional().nullable(),
-  componentGroupId: z.string().uuid().optional().nullable(),
   monitorIds: z
     .array(z.string().uuid())
     .min(1, "At least one monitor is required")
@@ -99,8 +98,6 @@ export async function updateComponent(data: UpdateComponentData) {
         updateData.name = validatedData.name;
       if (validatedData.description !== undefined)
         updateData.description = validatedData.description;
-      if (validatedData.componentGroupId !== undefined)
-        updateData.componentGroupId = validatedData.componentGroupId;
       if (validatedData.status !== undefined)
         updateData.status = validatedData.status;
       if (validatedData.showcase !== undefined)

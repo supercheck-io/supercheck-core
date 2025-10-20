@@ -409,37 +409,69 @@ VARIABLES_ENCRYPTION_KEY = your - 256 - bit - master - key;
 const projectKey = deriveKey(masterKey, projectId, salt);
 ```
 
-### **Access Control & RBAC Implementation**:
+### **Access Control & RBAC Implementation** (Centralized Permission Model):
 
 ```mermaid
 graph TB
-    subgraph "Variable Access Control"
-        A[Organization Owner] --> B[Full Access + Secrets]
-        C[Organization Admin] --> B
-        D[Project Admin] --> B
-        E[Project Editor] --> F[View Non-Secrets Only]
-        G[Project Viewer] --> H[Variable Names Only]
+    subgraph "Centralized RBAC in middleware.ts"
+        P1["canCreateVariableInProject()"]
+        P2["canUpdateVariableInProject()"]
+        P3["canDeleteVariableInProject()"]
+        P4["canViewSecretVariableInProject()"]
     end
 
-    subgraph "Permission Matrix"
-        B --> I[Create/Edit/Delete/View Secrets]
-        F --> J[View/Use in Tests]
-        H --> K[Read-Only Names]
+    subgraph "All API Endpoints Use These Functions"
+        E1["GET /variables - canCreateVariableInProject + canDeleteVariableInProject"]
+        E2["POST /variables - canCreateVariableInProject"]
+        E3["PUT /variables/[id] - canUpdateVariableInProject"]
+        E4["DELETE /variables/[id] - canDeleteVariableInProject"]
+        E5["POST /variables/[id]/decrypt - canViewSecretVariableInProject"]
     end
 
-    style B fill:#ffcdd2
-    style F fill:#fff9c4
-    style H fill:#e8f5e8
+    P1 --> E1
+    P2 --> E3
+    P3 --> E4
+    P4 --> E5
+
+    style P1 fill:#e3f2fd
+    style P2 fill:#e3f2fd
+    style P3 fill:#e3f2fd
+    style P4 fill:#e3f2fd
 ```
 
-**Role Permissions**:
+**Organization-Aware Permission Functions** (Best Practices):
 
-- **Organization Owner/Admin**: Full access including secret values and management
-- **Project Admin**: Full project variable management including secret access
-- **Project Editor**: Can use variables in tests, view non-secret values only
-- **Project Viewer**: Can see variable names for reference only
-- **API Security**: Server-side validation on every request
+Each function:
+1. Takes `userId` and `projectId` as parameters
+2. Queries database to get organization context from project
+3. Calls `getUserOrgRole(userId, organizationId)` with proper organization context
+4. Returns boolean based on role checks
+
+```typescript
+// Single source of truth for all variable permissions
+export async function canCreateVariableInProject(userId: string, projectId: string): Promise<boolean>
+export async function canUpdateVariableInProject(userId: string, projectId: string): Promise<boolean>
+export async function canDeleteVariableInProject(userId: string, projectId: string): Promise<boolean>
+export async function canViewSecretVariableInProject(userId: string, projectId: string): Promise<boolean>
+```
+
+**Role Permissions Matrix**:
+
+| Role | Create | Update | Delete | View Secrets |
+|------|--------|--------|--------|--------------|
+| **ORG_OWNER** | ✅ | ✅ | ✅ | ✅ |
+| **ORG_ADMIN** | ✅ | ✅ | ✅ | ✅ |
+| **PROJECT_ADMIN** | ✅ | ✅ | ✅ | ✅ |
+| **PROJECT_EDITOR** | ✅ | ✅ | ❌ | ✅ |
+| **PROJECT_VIEWER** | ❌ | ❌ | ❌ | ❌ |
+
+**Security Implementation**:
+
+- **API Security**: All endpoints use centralized permission functions
+- **Organization Context**: Always validated before permission checks
 - **Project Scoping**: Variables isolated per project with cascade delete
+- **DRY Principle**: No code duplication - single source of truth in middleware.ts
+- **Best Practices**: Organization-aware functions prevent context loss
 
 ### **Security Implementation Details**:
 
@@ -545,15 +577,76 @@ const executionContext = {
 - Extend pattern with new `project_variables` table
 - Maintain backward compatibility with existing variable handling
 
+## RBAC Best Practices Implementation
+
+### **Latest Refactoring: Centralized Permission Functions (Oct 2025)**
+
+The RBAC system has been refactored to follow industry best practices with organization-aware permission checking:
+
+#### **Key Improvements**
+
+1. **Single Source of Truth**: All variable permissions centralized in `middleware.ts`
+2. **DRY Principle**: No code duplication across API endpoints
+3. **Organization Context**: Each permission function validates organization context before checking roles
+4. **Consistent Pattern**: All endpoints follow identical permission checking pattern
+5. **Type-Safe**: Using Role enum instead of magic strings
+6. **Maintainable**: Permission logic isolated in reusable functions
+
+#### **Permission Function Architecture**
+
+```typescript
+// middleware.ts - Lines 208-325
+export async function canCreateVariableInProject(userId: string, projectId: string): Promise<boolean>
+export async function canUpdateVariableInProject(userId: string, projectId: string): Promise<boolean>
+export async function canDeleteVariableInProject(userId: string, projectId: string): Promise<boolean>
+export async function canViewSecretVariableInProject(userId: string, projectId: string): Promise<boolean>
+```
+
+Each function:
+- Queries database for project and organization context
+- Calls `getUserOrgRole(userId, organizationId)` with proper context
+- Returns boolean based on role-based access control
+- Prevents context loss between endpoints
+
+#### **API Endpoint Usage**
+
+All endpoints use centralized functions - no inline permission checks:
+
+```typescript
+// GET /api/projects/[id]/variables
+const canCreate = await canCreateVariableInProject(userId, projectId)
+const canDelete = await canDeleteVariableInProject(userId, projectId)
+
+// POST /api/projects/[id]/variables
+const canCreate = await canCreateVariableInProject(userId, projectId)
+
+// PUT /api/projects/[id]/variables/[variableId]
+const canUpdate = await canUpdateVariableInProject(userId, projectId)
+
+// DELETE /api/projects/[id]/variables/[variableId]
+const canDelete = await canDeleteVariableInProject(userId, projectId)
+
+// POST /api/projects/[id]/variables/[variableId]/decrypt
+const canViewSecrets = await canViewSecretVariableInProject(userId, projectId)
+```
+
+### **Frontend Display Enhancements**
+
+- **Show Secret Action**: Decrypted values cached in `decryptedValues` state
+- **Value Display**: Uses `ValueWithPopover` component with decrypted value support
+- **Permission UI**: Buttons disabled based on user role using centralized permission helpers
+- **Consistent UX**: All variable operations respect role-based permissions
+
 ## Implementation Benefits
 
 ### **Security Excellence**
 
 1. **Zero Client Exposure**: Secrets never transmitted to browser
 2. **Enterprise Encryption**: AES-256-GCM with project-specific keys
-3. **Role-Based Access**: Comprehensive RBAC integration
+3. **Role-Based Access**: Comprehensive RBAC integration with organization context
 4. **Audit Trail**: Complete operation tracking
 5. **Input Validation**: Server and client-side validation
+6. **Context Validation**: Organization context always verified before permission checks
 
 ### **Developer Experience**
 
@@ -562,6 +655,7 @@ const executionContext = {
 3. **Type Safety**: Full TypeScript implementation throughout
 4. **Security**: Secrets protected from accidental console exposure
 5. **Error Handling**: Comprehensive validation and error messages
+6. **Show Secret**: Click to reveal with decrypted value display
 
 ### **Operational Benefits**
 
@@ -570,3 +664,4 @@ const executionContext = {
 3. **Performance**: Server-side resolution with minimal overhead
 4. **Scalability**: Architecture scales with existing worker system
 5. **Compliance Ready**: Enterprise security standards implementation
+6. **Code Quality**: DRY principle followed - no permission logic duplication

@@ -54,14 +54,45 @@ export function VariableDialog({
   const isEditing = !!variable;
 
   useEffect(() => {
-    if (variable) {
-      setFormData({
-        key: variable.key,
-        value: variable.value || '',
-        description: variable.description || '',
-        isSecret: variable.isSecret
-      });
-    } else {
+    if (variable && open) {
+      // Fetch the variable from API to get decrypted value for secrets
+      const fetchVariable = async () => {
+        try {
+          const response = await fetch(
+            `/api/projects/${projectId}/variables/${variable.id}`
+          );
+          const data = await response.json();
+
+          if (data.success && data.data) {
+            setFormData({
+              key: data.data.key,
+              value: data.data.value || '', // Decrypted value from API
+              description: data.data.description || '',
+              isSecret: data.data.isSecret
+            });
+          } else {
+            // Fallback to prop data if API fails
+            setFormData({
+              key: variable.key,
+              value: variable.value || '',
+              description: variable.description || '',
+              isSecret: variable.isSecret
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching variable:", error);
+          // Fallback to prop data if fetch fails
+          setFormData({
+            key: variable.key,
+            value: variable.value || '',
+            description: variable.description || '',
+            isSecret: variable.isSecret
+          });
+        }
+      };
+
+      fetchVariable();
+    } else if (!variable || !open) {
       setFormData({
         key: '',
         value: '',
@@ -70,7 +101,7 @@ export function VariableDialog({
       });
     }
     setErrors({});
-  }, [variable, open]);
+  }, [variable, open, projectId]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};

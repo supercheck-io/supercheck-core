@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { projectVariables, projects } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
-import { requireAuth } from "@/lib/rbac/middleware";
-import { canManageProjectVariables } from "@/lib/rbac/variable-permissions";
+import {
+  requireAuth,
+  canViewSecretVariableInProject,
+  withRateLimit,
+} from "@/lib/rbac/middleware";
 import { decryptValue } from "@/lib/encryption";
 import { logAuditEvent } from "@/lib/audit-logger";
-import { withRateLimit } from "@/lib/rbac/permission-middleware";
 
 // Rate limit secret decryption attempts (10 per minute per IP)
 const rateLimitedHandler = withRateLimit(10, 60 * 1000, {
@@ -28,12 +30,27 @@ export async function POST(
       projectId = resolvedParams.id;
       variableId = resolvedParams.variableId;
 
-      // Check if user has permission to manage variables (required for secret viewing)
-      const hasManageAccess = await canManageProjectVariables(
+      // Get project info for organization ID
+      project = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+
+      if (!project.length) {
+        return NextResponse.json(
+          { error: "Project not found" },
+          { status: 404 }
+        );
+      }
+
+      // Check if user has permission to view secret variables using centralized function
+      const canViewSecrets = await canViewSecretVariableInProject(
         authResult.userId,
         projectId
       );
-      if (!hasManageAccess) {
+
+      if (!canViewSecrets) {
         await logAuditEvent({
           userId: authResult.userId,
           action: "secret_decrypt_unauthorized",
@@ -51,20 +68,6 @@ export async function POST(
             error: "Forbidden: Insufficient permissions to view secret values",
           },
           { status: 403 }
-        );
-      }
-
-      // Get project info for organization ID
-      project = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, projectId))
-        .limit(1);
-
-      if (!project.length) {
-        return NextResponse.json(
-          { error: "Project not found" },
-          { status: 404 }
         );
       }
 

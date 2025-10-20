@@ -3,8 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StatusPageDetail } from "@/components/status-pages/status-page-detail";
 import { getStatusPage } from "@/actions/get-status-page";
 import { getMonitorsForStatusPage } from "@/actions/get-monitors-for-status-page";
-import { getComponentGroups } from "@/actions/get-component-groups";
 import { getComponents } from "@/actions/get-components";
+import { checkStatusPagePermission } from "@/actions/check-status-page-permission";
 import { redirect } from "next/navigation";
 
 type StatusPagePageProps = {
@@ -21,10 +21,10 @@ export default async function StatusPagePage({ params }: StatusPagePageProps) {
     redirect("/status-pages");
   }
 
-  // Fetch monitors, component groups, and components
+  // Fetch monitors and components
   const monitorsResult = await getMonitorsForStatusPage();
-  const componentGroupsResult = await getComponentGroups(resolvedParams.id);
   const componentsResult = await getComponents(resolvedParams.id);
+  const permissionResult = await checkStatusPagePermission();
 
   // Check if components fetch was successful
   if (!componentsResult.success) {
@@ -46,8 +46,8 @@ export default async function StatusPagePage({ params }: StatusPagePageProps) {
           <StatusPageDetail
             statusPage={result.statusPage}
             monitors={monitorsResult.monitors || []}
-            componentGroups={componentGroupsResult.componentGroups || []}
             components={componentsResult.components || []}
+            canUpdate={permissionResult.canUpdate}
           />
         </CardContent>
       </Card>

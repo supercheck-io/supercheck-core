@@ -178,7 +178,7 @@ export const projectEditor = ac.newRole({
   project: ["view"],
   test: ["create", "update", "view", "run"],
   job: ["create", "update", "view", "trigger"],
-  monitor: ["create", "update", "view"],
+  monitor: ["create", "update", "view", "manage"],
   status_page: ["create", "update", "view"],
   run: ["view"],
   apiKey: ["create", "update", "view"],

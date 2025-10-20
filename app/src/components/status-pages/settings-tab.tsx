@@ -44,9 +44,10 @@ type StatusPage = {
 
 type SettingsTabProps = {
   statusPage: StatusPage;
+  canUpdate: boolean;
 };
 
-export function SettingsTab({ statusPage }: SettingsTabProps) {
+export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -275,8 +276,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
                   variant="secondary"
                   size="sm"
                   className="mt-2"
-                  disabled={isUploadingLogo}
+                  disabled={isUploadingLogo || !canUpdate}
                   asChild
+                  title={!canUpdate ? "You don't have permission to upload" : ""}
                 >
                   <span className="cursor-pointer">
                     {isUploadingLogo ? (
@@ -328,8 +330,9 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
                   variant="secondary"
                   size="sm"
                   className="mt-2"
-                  disabled={isUploadingFavicon}
+                  disabled={isUploadingFavicon || !canUpdate}
                   asChild
+                  title={!canUpdate ? "You don't have permission to upload" : ""}
                 >
                   <span className="cursor-pointer">
                     {isUploadingFavicon ? (
@@ -651,7 +654,8 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
             variant="outline"
             size="sm"
             onClick={handleResetBranding}
-            disabled={isResetting}
+            disabled={isResetting || !canUpdate}
+            title={!canUpdate ? "You don't have permission to reset branding" : ""}
           >
             {isResetting ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -665,7 +669,7 @@ export function SettingsTab({ statusPage }: SettingsTabProps) {
 
       {/* Save Button */}
       <div className="flex justify-end pt-4 border-t">
-        <Button onClick={handleSave} disabled={isSaving}>
+        <Button onClick={handleSave} disabled={isSaving || !canUpdate} title={!canUpdate ? "You don't have permission to save settings" : ""}>
           {isSaving ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
           ) : (

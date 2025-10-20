@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
 import { monitors } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
-import { requireAuth } from '@/lib/rbac/middleware';
+import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
 import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function PATCH(
@@ -34,6 +34,28 @@ export async function PATCH(
         { error: "Monitor not found" },
         { status: 404 }
       );
+    }
+
+    // Check permission to manage/update monitor
+    if (currentMonitor.organizationId && currentMonitor.projectId) {
+      const canManage = await hasPermission('monitor', 'manage', {
+        organizationId: currentMonitor.organizationId,
+        projectId: currentMonitor.projectId,
+      });
+
+      if (!canManage) {
+        const canUpdate = await hasPermission('monitor', 'update', {
+          organizationId: currentMonitor.organizationId,
+          projectId: currentMonitor.projectId,
+        });
+
+        if (!canUpdate) {
+          return NextResponse.json(
+            { error: "Insufficient permissions to manage monitor" },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     // Update the monitor status in the database

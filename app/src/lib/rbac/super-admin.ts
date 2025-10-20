@@ -10,6 +10,7 @@ import { user } from "@/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/utils/auth";
 import { Role } from "./permissions";
+import { normalizeRole } from "./role-normalizer";
 
 /**
  * Check if a user is a super admin using database role
@@ -357,24 +358,3 @@ export async function getUserHighestRole(userId: string): Promise<Role> {
   }
 }
 
-/**
- * Normalize role string to Role enum
- */
-function normalizeRole(role: string): Role {
-  switch (role.toLowerCase()) {
-    case "super_admin":
-      return Role.SUPER_ADMIN;
-    case "org_owner":
-      return Role.ORG_OWNER;
-    case "org_admin":
-      return Role.ORG_ADMIN;
-    case "project_admin":
-      return Role.PROJECT_ADMIN;
-    case "project_editor":
-      return Role.PROJECT_EDITOR;
-    case "project_viewer":
-      return Role.PROJECT_VIEWER;
-    default:
-      return Role.PROJECT_VIEWER;
-  }
-}

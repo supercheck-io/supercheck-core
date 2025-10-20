@@ -46,7 +46,6 @@ type Component = {
   status: ComponentStatus;
   monitorId: string | null;
   monitorIds?: string[]; // For backward compatibility
-  componentGroupId: string | null;
   showcase: boolean;
   onlyShowIfDegraded: boolean;
   position: number;
@@ -58,18 +57,12 @@ type Monitor = {
   type: string;
 };
 
-type ComponentGroup = {
-  id: string;
-  name: string;
-};
-
 type ComponentFormDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   statusPageId: string;
   component?: Component;
   monitors: Monitor[];
-  componentGroups: ComponentGroup[];
   onSuccess: () => void;
 };
 
@@ -103,7 +96,6 @@ export function ComponentFormDialog({
   statusPageId,
   component,
   monitors,
-  componentGroups,
   onSuccess,
 }: ComponentFormDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -113,7 +105,6 @@ export function ComponentFormDialog({
     status: component?.status || ("operational" as ComponentStatus),
     monitorId: component?.monitorId || "none",
     monitorIds: component?.monitorIds || [],
-    componentGroupId: component?.componentGroupId || "none",
   });
   const [monitorSearchTerm, setMonitorSearchTerm] = useState("");
   const [isMonitorDropdownOpen, setIsMonitorDropdownOpen] = useState(false);
@@ -128,7 +119,6 @@ export function ComponentFormDialog({
         status: component?.status || "operational",
         monitorId: component?.monitorId || "none",
         monitorIds: component?.monitorIds || [],
-        componentGroupId: component?.componentGroupId || "none",
       });
       setMonitorSearchTerm("");
       setIsMonitorDropdownOpen(false);
@@ -173,10 +163,6 @@ export function ComponentFormDialog({
           description: formData.description || null,
           status: formData.status,
           monitorIds: formData.monitorIds,
-          componentGroupId:
-            formData.componentGroupId === "none"
-              ? null
-              : formData.componentGroupId,
         };
 
         const result = await updateComponent(updateData);
@@ -198,10 +184,6 @@ export function ComponentFormDialog({
           description: formData.description || undefined,
           status: formData.status,
           monitorIds: formData.monitorIds,
-          componentGroupId:
-            formData.componentGroupId === "none"
-              ? null
-              : formData.componentGroupId,
           showcase: true,
           onlyShowIfDegraded: false,
           position: 0,
@@ -410,32 +392,6 @@ export function ComponentFormDialog({
             <p className="text-sm text-muted-foreground">
               Search and select multiple monitors to link with this component
               for reference only (status updates are manual via incidents)
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="componentGroup">Component Group (Optional)</Label>
-            <Select
-              value={formData.componentGroupId}
-              onValueChange={(value) =>
-                setFormData({ ...formData, componentGroupId: value })
-              }
-              disabled={isSubmitting}
-            >
-              <SelectTrigger id="componentGroup">
-                <SelectValue placeholder="No group" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No group</SelectItem>
-                {componentGroups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">
-              Organize components into logical groups
             </p>
           </div>
 
