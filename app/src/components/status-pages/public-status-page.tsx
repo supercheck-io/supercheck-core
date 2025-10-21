@@ -92,6 +92,10 @@ export function PublicStatusPage({
       return;
     }
 
+    // Add cache-busting timestamp to force browser to refetch favicon
+    const cacheBuster = `?v=${Date.now()}`;
+    const faviconUrl = `${statusPage.faviconLogo}${cacheBuster}`;
+
     const selectors =
       "link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']";
     const previousIcons = Array.from(
@@ -103,13 +107,15 @@ export function PublicStatusPage({
       .forEach((icon) => icon.remove());
 
     const createdIcons: HTMLLinkElement[] = [
-      { rel: "icon", href: statusPage.faviconLogo },
-      { rel: "shortcut icon", href: statusPage.faviconLogo },
-      { rel: "apple-touch-icon", href: statusPage.faviconLogo },
+      { rel: "icon", href: faviconUrl },
+      { rel: "shortcut icon", href: faviconUrl },
+      { rel: "apple-touch-icon", href: faviconUrl },
     ].map(({ rel, href }) => {
       const link = document.createElement("link");
       link.rel = rel;
       link.href = href;
+      // Add type attribute for better browser support
+      link.type = "image/png";
       document.head.appendChild(link);
       return link;
     });
