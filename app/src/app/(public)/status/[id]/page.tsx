@@ -71,13 +71,8 @@ export async function generateMetadata({
   return {
     title: statusPage.headline || statusPage.name,
     description: statusPage.pageDescription || undefined,
-    icons: statusPage.faviconLogo
-      ? {
-          icon: statusPage.faviconLogo,
-          shortcut: statusPage.faviconLogo,
-          apple: statusPage.faviconLogo,
-        }
-      : undefined,
+    // Remove favicon from metadata to let client-side useEffect handle it
+    // This prevents conflicts and allows cache-busting to work properly
   };
 }
 
