@@ -1036,8 +1036,6 @@ export const statusPages = pgTable('status_pages', {
   faviconLogo: varchar('favicon_logo', { length: 500 }),
   transactionalLogo: varchar('transactional_logo', { length: 500 }),
   heroCover: varchar('hero_cover', { length: 500 }),
-  emailLogo: varchar('email_logo', { length: 500 }),
-  twitterLogo: varchar('twitter_logo', { length: 500 }),
   customDomain: varchar('custom_domain', { length: 255 }),
   customDomainVerified: boolean('custom_domain_verified').default(false),
   theme: jsonb('theme').default({}),

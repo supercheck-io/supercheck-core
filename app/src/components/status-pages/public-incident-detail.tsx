@@ -41,12 +41,12 @@ type Incident = {
 
 type PublicIncidentDetailProps = {
   incident: Incident;
-  statusPageId: string;
+  idOrSubdomain: string;
 };
 
 export function PublicIncidentDetail({
   incident,
-  statusPageId,
+  idOrSubdomain,
 }: PublicIncidentDetailProps) {
   const getStatusColor = (status: IncidentStatus) => {
     switch (status) {
@@ -168,7 +168,7 @@ export function PublicIncidentDetail({
 
         {/* Back to Status Button */}
         <div className="mt-12 pt-8">
-          <Link href={`/status-pages/${statusPageId}/public`}>
+          <Link href={`/status/${idOrSubdomain}`}>
             <Button variant="outline" size="lg">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Current Status

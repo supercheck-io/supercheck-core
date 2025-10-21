@@ -1,5 +1,5 @@
 {
-  "id": "47ad24bd-4dca-435f-b4a7-56a262e914c3",
+  "id": "4f4810ad-3802-46fa-b0e7-5c6fcb08d8e8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3865,18 +3865,6 @@
         },
         "hero_cover": {
           "name": "hero_cover",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email_logo": {
-          "name": "email_logo",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "twitter_logo": {
-          "name": "twitter_logo",
           "type": "varchar(500)",
           "primaryKey": false,
           "notNull": false

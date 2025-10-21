@@ -31,7 +31,7 @@ export default async function IncidentDetailPage({
       <PageBreadcrumbs items={breadcrumbs} />
       <PublicIncidentDetail
         incident={result.incident}
-        statusPageId={resolvedParams.id}
+        idOrSubdomain={resolvedParams.id}
       />
     </>
   );

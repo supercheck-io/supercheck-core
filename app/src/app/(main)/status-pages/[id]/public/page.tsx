@@ -38,6 +38,7 @@ export default async function PublicStatusPagePage({
         statusPage={result.statusPage}
         components={componentsResult.components}
         incidents={incidentsResult.incidents}
+        idOrSubdomain={resolvedParams.id}
       />
     </>
   );

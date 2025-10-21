@@ -169,6 +169,10 @@ export async function resetBrandingToDefaults(statusPageId: string) {
         cssGraphColor: "#3498db",
         cssLinkColor: "#3498db",
         cssNoData: "#bdc3c7",
+        // Reset logo and favicon fields
+        faviconLogo: null,
+        transactionalLogo: null,
+        heroCover: null,
         updatedAt: new Date(),
       })
       .where(eq(statusPages.id, statusPageId));

@@ -77,12 +77,14 @@ type PublicStatusPageProps = {
   statusPage: StatusPage;
   components: Component[];
   incidents: Incident[];
+  idOrSubdomain: string;
 };
 
 export function PublicStatusPage({
   statusPage,
   components,
   incidents,
+  idOrSubdomain,
 }: PublicStatusPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const DAYS_PER_PAGE = 7;
@@ -655,7 +657,7 @@ export function PublicStatusPage({
                             return (
                               <Link
                                 key={incident.id}
-                                href={`/status-pages/${statusPage.id}/public/incidents/${incident.id}`}
+                                href={`/status/${idOrSubdomain}/incidents/${incident.id}`}
                                 className="block px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-900 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800"
                               >
                                 <div className="flex items-start justify-between gap-3">

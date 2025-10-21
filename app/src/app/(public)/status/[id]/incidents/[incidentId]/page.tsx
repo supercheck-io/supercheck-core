@@ -100,7 +100,7 @@ export default async function PublicIncidentDetailPage({
   return (
     <PublicIncidentDetail
       incident={result.incident}
-      statusPageId={statusPage.id}
+      idOrSubdomain={resolvedParams.id}
     />
   );
 }

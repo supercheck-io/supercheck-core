@@ -150,6 +150,9 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
         setCssOranges("#e67e22");
         setCssBlues("#3498db");
         setCssReds("#e74c3c");
+        // Reset logo and favicon URLs
+        setLogoUrl(null);
+        setFaviconUrl(null);
         router.refresh();
       } else {
         toast.error("Failed to reset branding");

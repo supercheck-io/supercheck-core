@@ -11,6 +11,7 @@ import { eq, and } from "drizzle-orm";
 import { EmailService } from "@/lib/email-service";
 import { getIncidentNotificationEmailTemplate } from "@/lib/email-templates/status-page-emails";
 import { format } from "date-fns";
+import { generateProxyUrl } from "@/lib/asset-proxy";
 
 /**
  * Send incident notification emails to all verified subscribers
@@ -143,6 +144,7 @@ export async function sendIncidentNotifications(
       affectedComponents,
       updateTimestamp: formatIncidentTimestamp(incident.createdAt),
       unsubscribeUrl: `${baseUrl}/status-pages/${statusPageId}/public/unsubscribe`, // Placeholder - implement unsubscribe action
+      statusPageLogo: statusPage.transactionalLogo ? generateProxyUrl(statusPage.transactionalLogo as string) : null,
     };
 
     // Send emails to all subscribers

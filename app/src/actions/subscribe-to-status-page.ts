@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { EmailService } from "@/lib/email-service";
 import { getVerificationEmailTemplate } from "@/lib/email-templates/status-page-emails";
 import { generateWebhookSecret } from "@/lib/webhook-utils";
+import { generateProxyUrl } from "@/lib/asset-proxy";
 
 const subscribeSchema = z.union([
   // Email subscription
@@ -38,6 +39,7 @@ async function sendVerificationEmail(params: {
   statusPageName: string;
   verificationToken: string;
   subdomain: string;
+  statusPageLogo?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const emailService = EmailService.getInstance();
@@ -51,6 +53,7 @@ async function sendVerificationEmail(params: {
       email: params.email,
       statusPageName: params.statusPageName,
       verificationUrl,
+      statusPageLogo: params.statusPageLogo,
     });
 
     const result = await emailService.sendEmail({
@@ -189,6 +192,7 @@ async function handleEmailSubscription(
         statusPageName: (statusPage.headline as string) || (statusPage.name as string),
         verificationToken: newVerificationToken,
         subdomain: statusPage.subdomain as string,
+        statusPageLogo: statusPage.transactionalLogo ? generateProxyUrl(statusPage.transactionalLogo as string) : null,
       });
 
       if (!emailResult.success) {
@@ -241,6 +245,7 @@ async function handleEmailSubscription(
     statusPageName: (statusPage.headline as string) || (statusPage.name as string),
     verificationToken,
     subdomain: statusPage.subdomain as string,
+    statusPageLogo: statusPage.transactionalLogo ? generateProxyUrl(statusPage.transactionalLogo as string) : null,
   });
 
   if (!emailResult.success) {

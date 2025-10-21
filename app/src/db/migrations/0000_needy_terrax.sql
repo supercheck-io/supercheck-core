@@ -485,8 +485,6 @@ CREATE TABLE "status_pages" (
 	"favicon_logo" varchar(500),
 	"transactional_logo" varchar(500),
 	"hero_cover" varchar(500),
-	"email_logo" varchar(500),
-	"twitter_logo" varchar(500),
 	"custom_domain" varchar(255),
 	"custom_domain_verified" boolean DEFAULT false,
 	"theme" jsonb DEFAULT '{}'::jsonb,

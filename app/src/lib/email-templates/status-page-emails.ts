@@ -7,6 +7,7 @@ type VerificationEmailParams = {
   email: string;
   statusPageName: string;
   verificationUrl: string;
+  statusPageLogo?: string | null;
 };
 
 export function getVerificationEmailTemplate(params: VerificationEmailParams): {
@@ -14,7 +15,7 @@ export function getVerificationEmailTemplate(params: VerificationEmailParams): {
   text: string;
   html: string;
 } {
-  const { statusPageName, verificationUrl } = params;
+  const { statusPageName, verificationUrl, statusPageLogo } = params;
 
   const subject = `Verify your subscription to ${statusPageName}`;
 
@@ -50,6 +51,11 @@ Powered by Supercheck
           <!-- Header -->
           <tr>
             <td style="padding: 40px 40px 32px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px 8px 0 0;">
+              ${statusPageLogo ? `
+                <div style="margin-bottom: 16px;">
+                  <img src="${statusPageLogo}" alt="${statusPageName}" style="max-width: 120px; max-height: 48px; width: auto; height: auto;" />
+                </div>
+              ` : ''}
               <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">
                 Verify Your Subscription
               </h1>
@@ -119,6 +125,7 @@ type WelcomeEmailParams = {
   statusPageName: string;
   statusPageUrl: string;
   unsubscribeUrl: string;
+  statusPageLogo?: string | null;
 };
 
 export function getWelcomeEmailTemplate(params: WelcomeEmailParams): {
@@ -126,7 +133,7 @@ export function getWelcomeEmailTemplate(params: WelcomeEmailParams): {
   text: string;
   html: string;
 } {
-  const { statusPageName, statusPageUrl, unsubscribeUrl } = params;
+  const { statusPageName, statusPageUrl, unsubscribeUrl, statusPageLogo } = params;
 
   const subject = `You're now subscribed to ${statusPageName}`;
 
@@ -164,9 +171,15 @@ Powered by Supercheck
           <!-- Header -->
           <tr>
             <td style="padding: 40px 40px 32px; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 8px 8px 0 0;">
-              <div style="width: 48px; height: 48px; background: #ffffff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-                <span style="color: #10b981; font-size: 24px;">✓</span>
-              </div>
+              ${statusPageLogo ? `
+                <div style="margin-bottom: 16px;">
+                  <img src="${statusPageLogo}" alt="${statusPageName}" style="max-width: 120px; max-height: 48px; width: auto; height: auto;" />
+                </div>
+              ` : `
+                <div style="width: 48px; height: 48px; background: #ffffff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                  <span style="color: #10b981; font-size: 24px;">✓</span>
+                </div>
+              `}
               <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">
                 You're All Set!
               </h1>
@@ -239,6 +252,7 @@ type IncidentNotificationEmailParams = {
   affectedComponents: string[];
   updateTimestamp: string;
   unsubscribeUrl: string;
+  statusPageLogo?: string | null;
 };
 
 export function getIncidentNotificationEmailTemplate(
@@ -258,6 +272,7 @@ export function getIncidentNotificationEmailTemplate(
     affectedComponents,
     updateTimestamp,
     unsubscribeUrl,
+    statusPageLogo,
   } = params;
 
   // Determine colors based on impact
@@ -344,9 +359,15 @@ Powered by Supercheck
           <!-- Header -->
           <tr>
             <td style="padding: 32px 40px; text-align: center; background: ${colors.headerBg}; border-radius: 8px 8px 0 0;">
-              <div style="width: 48px; height: 48px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;">
-                <span style="color: #ffffff; font-size: 24px;">⚠️</span>
-              </div>
+              ${statusPageLogo ? `
+                <div style="margin-bottom: 16px;">
+                  <img src="${statusPageLogo}" alt="${statusPageName}" style="max-width: 120px; max-height: 48px; width: auto; height: auto;" />
+                </div>
+              ` : `
+                <div style="width: 48px; height: 48px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                  <span style="color: #ffffff; font-size: 24px;">⚠️</span>
+                </div>
+              `}
               <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600;">
                 ${statusPageName}
               </h1>
