@@ -1,4 +1,4 @@
-import { Redis } from "ioredis";
+import { Queue } from "bullmq";
 import { JOB_EXECUTION_QUEUE } from "@/lib/queue";
 
 // Default capacity limits - enforced at both API and worker level
@@ -37,97 +37,32 @@ export async function fetchQueueStats(): Promise<QueueStats> {
   const port = parseInt(process.env.REDIS_PORT || "6379");
   const password = process.env.REDIS_PASSWORD;
 
-  const redisClient = new Redis({
-    host,
-    port,
-    password: password || undefined,
-    maxRetriesPerRequest: null,
-    connectTimeout: 3000,
+  const queue = new Queue(JOB_EXECUTION_QUEUE, {
+    connection: {
+      host,
+      port,
+      password: password || undefined,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      connectTimeout: 3000,
+    },
   });
 
   try {
-    // Initialize counters
-    let runningCount = 0;
-    let queuedCount = 0;
-
-    // Step 1: Count only ACTIVE jobs (NOT tests - tests bypass parallel execution queue)
-    const activeJobs = await redisClient.llen(
-      `bull:${JOB_EXECUTION_QUEUE}:active`
+    const counts = await queue.getJobCounts(
+      "active",
+      "waiting",
+      "prioritized",
+      "paused",
+      "delayed"
     );
 
-    // Active jobs are definitely running
-    runningCount = activeJobs;
-
-    // Step 2: Check specific jobs (only) that are being processed
-    const jobKeys = await redisClient.keys(`bull:${JOB_EXECUTION_QUEUE}:*`);
-
-    // Process job keys to find in-progress executions
-    const processKeys = async (keys: string[], queueName: string) => {
-      const processingIds = new Set<string>();
-
-      for (const key of keys) {
-        // Get job ID from key
-        const match = key.match(new RegExp(`bull:${queueName}:(\\d+)`));
-        if (match && match[1]) {
-          const jobId = match[1];
-
-          try {
-            // Check if job is being processed but not yet completed
-            const [processedOn, finishedOn] = await Promise.all([
-              redisClient.hget(`bull:${queueName}:${jobId}`, "processedOn"),
-              redisClient.hget(`bull:${queueName}:${jobId}`, "finishedOn"),
-            ]);
-
-            if (processedOn && !finishedOn) {
-              processingIds.add(jobId);
-            }
-          } catch {
-            // Ignore errors for individual jobs
-          }
-        }
-      }
-
-      return processingIds.size;
-    };
-
-    // Count in-process jobs only (tests are excluded from parallel execution queue)
-    const processingJobs = await processKeys(jobKeys, JOB_EXECUTION_QUEUE);
-
-    // Add processing jobs to running count
-    runningCount = Math.max(runningCount, processingJobs);
-
-    // Step 3: Count only WAITING jobs (tests bypass parallel execution queue)
-    const waitingJobs = await redisClient.llen(
-      `bull:${JOB_EXECUTION_QUEUE}:wait`
-    );
-
-    // Get delayed jobs (scheduled for future)
-    const delayedJobs = await redisClient.zcard(
-      `bull:${JOB_EXECUTION_QUEUE}:delayed`
-    );
-
-    // Calculate total waiting jobs (only job executions, not tests)
-    const totalWaiting = waitingJobs + delayedJobs;
-
-    // Step 4: Properly handle running and queued counts
-    // First determine how many jobs we can still run before hitting capacity
-    const availableRunningSlots = Math.max(0, RUNNING_CAPACITY - runningCount);
-
-    // Check if we've reached RUNNING_CAPACITY
-    if (availableRunningSlots > 0) {
-      // Running capacity not reached yet - all jobs count as "running" until we hit capacity
-      // Any jobs that fit within running capacity are not counted as queued
-      const immediatelyRunnable = Math.min(availableRunningSlots, totalWaiting);
-      runningCount += immediatelyRunnable;
-      // Only count truly queued jobs (those that exceed running capacity)
-      queuedCount = Math.max(0, totalWaiting - immediatelyRunnable);
-    } else {
-      // Running capacity is full - all waiting jobs count as queued
-      queuedCount = totalWaiting;
-    }
-
-    // Enforce limits - running cannot exceed capacity
-    runningCount = Math.min(runningCount, RUNNING_CAPACITY);
+    const runningCount = Math.min(counts.active ?? 0, RUNNING_CAPACITY);
+    const queuedCount =
+      (counts.waiting ?? 0) +
+      (counts.prioritized ?? 0) +
+      (counts.paused ?? 0) +
+      (counts.delayed ?? 0);
 
     return {
       running: runningCount,
@@ -142,9 +77,8 @@ export async function fetchQueueStats(): Promise<QueueStats> {
     );
     throw error;
   } finally {
-    // Always close Redis connection
-    await redisClient.quit().catch(() => {
-      // Silently ignore Redis quit errors
+    await queue.close().catch(() => {
+      // Ignore errors during shutdown
     });
   }
 }

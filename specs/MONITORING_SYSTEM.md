@@ -551,7 +551,7 @@ graph TB
 
     subgraph "Credential Layer"
         D --> E[Credential Security Service]
-        E --> F[AES-256-GCM Encryption]
+        E --> F[AES-128-GCM Encryption]
         F --> G[Secure Masking]
         G --> H[Rotation Tracking]
     end
@@ -586,7 +586,7 @@ graph TB
 
 #### **Credential Security**
 
-- **Encryption**: AES-256-GCM encryption for all stored credentials
+- **Encryption**: AES-128-GCM encryption for all stored credentials
 - **Masking**: Smart credential masking in logs (shows only first 2 + last 2 characters)
 - **Rotation**: Automatic credential rotation tracking and validation
 - **Strength Validation**: Password complexity and token length requirements

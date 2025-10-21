@@ -8,7 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Save, RotateCcw } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Save, RotateCcw, Info, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   updateStatusPageSettings,
@@ -25,12 +31,12 @@ type StatusPage = {
   timezone: string | null;
   allowPageSubscribers: boolean | null;
   allowEmailSubscribers: boolean | null;
-  allowSmsSubscribers: boolean | null;
   allowWebhookSubscribers: boolean | null;
   allowIncidentSubscribers: boolean | null;
   notificationsFromEmail: string | null;
   notificationsEmailFooter: string | null;
-  hiddenFromSearch: boolean | null;
+  customDomain: string | null;
+  customDomainVerified: boolean | null;
   cssBodyBackgroundColor: string | null;
   cssFontColor: string | null;
   cssGreens: string | null;
@@ -66,15 +72,15 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
   );
   const [supportUrl, setSupportUrl] = useState(statusPage.supportUrl || "");
 
+  // Custom domain
+  const [customDomain, setCustomDomain] = useState(statusPage.customDomain || "");
+
   // Subscriber settings
   const [allowPageSubscribers, setAllowPageSubscribers] = useState(
     statusPage.allowPageSubscribers ?? true
   );
   const [allowEmailSubscribers, setAllowEmailSubscribers] = useState(
     statusPage.allowEmailSubscribers ?? true
-  );
-  const [allowSmsSubscribers, setAllowSmsSubscribers] = useState(
-    statusPage.allowSmsSubscribers ?? false
   );
 
   // Notification settings
@@ -103,9 +109,9 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
         headline: headline || undefined,
         pageDescription: description || undefined,
         supportUrl: supportUrl || undefined,
+        customDomain: customDomain || undefined,
         allowPageSubscribers,
         allowEmailSubscribers,
-        allowSmsSubscribers,
         notificationsFromEmail: notificationsFromEmail || undefined,
         cssGreens,
         cssYellows,
@@ -232,11 +238,293 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-8">
+      {/* Page Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold">Settings</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage your status page configuration, appearance, and notifications
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleResetBranding}
+          disabled={isResetting || !canUpdate}
+          title={!canUpdate ? "You don't have permission to reset branding" : ""}
+        >
+          {isResetting ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RotateCcw className="h-4 w-4 mr-2" />
+          )}
+          Reset to Defaults
+        </Button>
+      </div>
+
+      {/* General Settings Card - Two Columns */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">General Settings</CardTitle>
+          <CardDescription>
+            Configure basic information about your status page
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Left Column */}
+            <div className="space-y-6">
+              {/* Name */}
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-sm font-medium">
+                  Page Name
+                </Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="My Status Page"
+                  disabled={!canUpdate}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Internal name for your reference (not visible to public)
+                </p>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="description" className="text-sm font-medium">
+                  Description
+                </Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe your services and what this status page tracks..."
+                  disabled={!canUpdate}
+                  className="resize-none"
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Shown to users visiting your status page
+                </p>
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-6">
+              {/* Headline */}
+              <div className="space-y-2">
+                <Label htmlFor="headline" className="text-sm font-medium">
+                  Headline
+                </Label>
+                <Input
+                  id="headline"
+                  value={headline}
+                  onChange={(e) => setHeadline(e.target.value)}
+                  placeholder="System Status"
+                  maxLength={255}
+                  disabled={!canUpdate}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Display heading on your public status page
+                </p>
+              </div>
+
+              {/* Support URL */}
+              <div className="space-y-2">
+                <Label htmlFor="supportUrl" className="text-sm font-medium">
+                  Support URL
+                </Label>
+                <Input
+                  id="supportUrl"
+                  type="url"
+                  value={supportUrl}
+                  onChange={(e) => setSupportUrl(e.target.value)}
+                  placeholder="https://support.example.com"
+                  disabled={!canUpdate}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Link to your support page or contact info
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Configuration Card - Two Column Layout */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Configuration</CardTitle>
+          <CardDescription>
+            Domain, subscriptions, and notification settings
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-8 md:grid-cols-2">
+            {/* Left Column: Custom Domain & Subscriptions */}
+            <div className="space-y-6">
+              {/* Custom Domain */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium">Custom Domain</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Use your own domain for the status page
+                    </p>
+                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                      >
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                        <span className="sr-only">Custom domain setup instructions</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-96" align="end">
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="font-medium mb-2">How to set up a custom domain</h4>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Follow these steps to use your own domain for your status page:
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex gap-3">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
+                              <span className="text-xs font-medium text-blue-600 dark:text-blue-300">1</span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">Enter your domain</p>
+                              <p className="text-xs text-muted-foreground">
+                                e.g., <code className="bg-muted px-1 py-0.5 rounded">status.yourcompany.com</code>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
+                              <span className="text-xs font-medium text-blue-600 dark:text-blue-300">2</span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">Add CNAME record</p>
+                              <p className="text-xs text-muted-foreground">
+                                Point to: <code className="bg-muted px-1 py-0.5 rounded">supercheck.io</code>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
+                              <span className="text-xs font-medium text-blue-600 dark:text-blue-300">3</span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">Wait for DNS propagation</p>
+                              <p className="text-xs text-muted-foreground">
+                                Usually 15-30 minutes. We&apos;ll verify automatically.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t">
+                          <p className="text-xs text-muted-foreground">
+                            💡 Need help? Visit our DNS setup guide or contact support.
+                          </p>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <Input
+                  placeholder="status.yourcompany.com"
+                  value={customDomain}
+                  onChange={(e) => setCustomDomain(e.target.value)}
+                  disabled={!canUpdate}
+                  className="font-mono text-sm"
+                />
+                {statusPage.customDomainVerified && customDomain === statusPage.customDomain && (
+                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-2 rounded">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Domain verified and active
+                  </div>
+                )}
+                {!statusPage.customDomainVerified && customDomain && (
+                  <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950 p-2 rounded">
+                    ⏳ Waiting for DNS verification...
+                  </div>
+                )}
+              </div>
+
+              {/* Subscription Settings */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Subscriptions</Label>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">Allow Page Subscriptions</p>
+                      <p className="text-xs text-muted-foreground">
+                        Let users subscribe for updates
+                      </p>
+                    </div>
+                    <Switch
+                      checked={allowPageSubscribers}
+                      onCheckedChange={setAllowPageSubscribers}
+                      disabled={!canUpdate}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">Email Subscriptions</p>
+                      <p className="text-xs text-muted-foreground">
+                        Send updates via email
+                      </p>
+                    </div>
+                    <Switch
+                      checked={allowEmailSubscribers}
+                      onCheckedChange={setAllowEmailSubscribers}
+                      disabled={!canUpdate}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Notification Settings */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Notifications</Label>
+              <div className="space-y-2">
+                <Label htmlFor="notifications-from" className="text-xs font-medium text-muted-foreground">
+                  From Email Address
+                </Label>
+                <Input
+                  id="notifications-from"
+                  type="email"
+                  value={notificationsFromEmail}
+                  onChange={(e) => setNotificationsFromEmail(e.target.value)}
+                  placeholder="notifications@example.com"
+                  disabled={!canUpdate}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Email address shown as sender for incident notifications
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Page Branding */}
       <div className="space-y-3">
         <div>
-          <h3 className="text-base font-semibold">Page Branding</h3>
+          <h3 className="text-lg font-semibold">Page Branding</h3>
           <p className="text-sm text-muted-foreground">
             Customize the look and feel of your status page
           </p>
@@ -354,195 +642,16 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
         </div>
       </div>
 
-      {/* General Settings */}
-      <div className="space-y-3">
-        <div>
-          <h3 className="text-base font-semibold">General Settings</h3>
-          <p className="text-sm text-muted-foreground">
-            Basic information about your status page
-          </p>
-        </div>
-        <Separator />
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="name" className="text-sm">
-              Name (Internal)
-            </Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Status Page"
-            />
-            <p className="text-xs text-muted-foreground">
-              Internal name for your reference
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="headline" className="text-sm">
-              Headline (Public)
-            </Label>
-            <Input
-              id="headline"
-              value={headline}
-              onChange={(e) => setHeadline(e.target.value)}
-              placeholder="Service Status"
-            />
-            <p className="text-xs text-muted-foreground">
-              This text will appear at the top of your page
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="description" className="text-sm">
-            About the page
-          </Label>
-          <Textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Welcome to our status page..."
-            rows={2}
-          />
-          <p className="text-xs text-muted-foreground">
-            A brief description of your service
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="supportUrl" className="text-sm">
-            Support URL
-          </Label>
-          <Input
-            id="supportUrl"
-            type="url"
-            value={supportUrl}
-            onChange={(e) => setSupportUrl(e.target.value)}
-            placeholder="https://support.example.com"
-          />
-          <p className="text-xs text-muted-foreground">
-            Clicking on the header of your status page will forward here
-          </p>
-        </div>
-      </div>
-
-      {/* Subscriber Settings */}
-      <div className="space-y-3">
-        <div>
-          <h3 className="text-base font-semibold">Subscriber Settings</h3>
-          <p className="text-sm text-muted-foreground">
-            Control who can subscribe to your status page
-          </p>
-        </div>
-        <Separator />
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div className="space-y-0.5">
-              <Label className="text-sm">Allow Page Subscribers</Label>
-              <p className="text-xs text-muted-foreground">
-                Enable subscription to all page updates
-              </p>
-            </div>
-            <Switch
-              checked={allowPageSubscribers}
-              onCheckedChange={setAllowPageSubscribers}
-            />
-          </div>
-
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div className="space-y-0.5">
-              <Label className="text-sm">Allow Email Subscribers</Label>
-              <p className="text-xs text-muted-foreground">
-                Enable email subscription notifications
-              </p>
-            </div>
-            <Switch
-              checked={allowEmailSubscribers}
-              onCheckedChange={setAllowEmailSubscribers}
-            />
-          </div>
-
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div className="space-y-0.5">
-              <Label className="text-sm">Allow SMS Subscribers</Label>
-              <p className="text-xs text-muted-foreground">
-                Enable SMS subscription notifications (coming soon)
-              </p>
-            </div>
-            <Switch
-              checked={allowSmsSubscribers}
-              onCheckedChange={setAllowSmsSubscribers}
-              disabled
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Notification Settings */}
-      <div className="space-y-3">
-        <div>
-          <h3 className="text-base font-semibold">Notification Settings</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure how notifications are sent
-          </p>
-        </div>
-        <Separator />
-
-        <div className="space-y-1.5">
-          <Label htmlFor="notificationsEmail" className="text-sm">
-            Notifications From Email
-          </Label>
-          <Input
-            id="notificationsEmail"
-            type="email"
-            value={notificationsFromEmail}
-            onChange={(e) => setNotificationsFromEmail(e.target.value)}
-            placeholder="noreply@example.com"
-          />
-          <p className="text-xs text-muted-foreground">
-            The email address that will appear in the &quot;From&quot; field
-          </p>
-        </div>
-      </div>
-
-      {/* Advanced Settings */}
-      <div className="space-y-3">
-        <div>
-          <h3 className="text-base font-semibold">Advanced Settings</h3>
-          <p className="text-sm text-muted-foreground">
-            Additional configuration options
-          </p>
-        </div>
-        <Separator />
-
-        <div className="flex items-center justify-between p-3 border rounded-lg">
-          <div className="space-y-0.5">
-            <Label className="text-sm">
-              Hide my status page from search engines
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Prevent search engines from indexing your status page
-            </p>
-          </div>
-          <Switch checked={statusPage.hiddenFromSearch ?? false} disabled />
-        </div>
-      </div>
-
       {/* Branding Colors */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div>
-          <h3 className="text-base font-semibold">Branding Colors</h3>
+          <h3 className="text-lg font-semibold">Branding Colors</h3>
           <p className="text-sm text-muted-foreground">
-            Customize the colors used on your status page
+            Customize the colors used on your status page to match your brand
           </p>
         </div>
-        <Separator />
 
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
             <Label htmlFor="cssGreens" className="text-sm">
               Operational (Green)
@@ -647,23 +756,6 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
               />
             </div>
           </div>
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleResetBranding}
-            disabled={isResetting || !canUpdate}
-            title={!canUpdate ? "You don't have permission to reset branding" : ""}
-          >
-            {isResetting ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RotateCcw className="h-4 w-4 mr-2" />
-            )}
-            Reset to Defaults
-          </Button>
         </div>
       </div>
 

@@ -1,14 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DbService } from 'src/db/db.service';
 import * as schema from 'src/db/schema';
-import { AlertType } from 'src/db/schema';
+import {
+  AlertType,
+  NotificationProviderConfig,
+  NotificationProviderType,
+} from 'src/db/schema';
 import {
   NotificationService,
   NotificationPayload,
   NotificationProvider,
 } from 'src/notification/notification.service';
+import { decryptNotificationProviderConfig } from '../../common/notification-provider-crypto';
+
+type ProviderRow = {
+  id: string;
+  type: NotificationProviderType;
+  config: NotificationProviderConfig;
+  projectId: string | null;
+};
 
 @Injectable()
 export class MonitorAlertService {
@@ -24,7 +36,7 @@ export class MonitorAlertService {
     monitorId: string,
     type: 'recovery' | 'failure',
     reason: string,
-    metadata: any = {},
+    metadata: Record<string, unknown> = {},
   ) {
     this.logger.log(
       `[NOTIFY] Manual notification trigger for monitor ${monitorId}, type: ${type}`,
@@ -33,9 +45,9 @@ export class MonitorAlertService {
     const db = this.dbService.db;
 
     // Get monitor details
-    const monitor = await db.query.monitors.findFirst({
+    const monitor = (await db.query.monitors.findFirst({
       where: eq(schema.monitors.id, monitorId),
-    });
+    })) as typeof schema.monitors.$inferSelect | undefined;
 
     if (!monitor) {
       this.logger.error(`[NOTIFY] Monitor not found: ${monitorId}`);
@@ -45,8 +57,11 @@ export class MonitorAlertService {
     // Get project information
     let projectName: string | undefined;
     if (monitor.projectId) {
-      const project = await this.dbService.getProjectById(monitor.projectId);
-      projectName = project?.name;
+      const project = await db.query.projects.findFirst({
+        where: eq(schema.projects.id, monitor.projectId),
+        columns: { name: true },
+      });
+      projectName = project?.name ?? projectName;
     }
 
     // Check if alerts are enabled
@@ -56,11 +71,12 @@ export class MonitorAlertService {
     }
 
     // Get notification providers
-    const providers = await db
+    const providers = (await db
       .select({
         id: schema.notificationProviders.id,
         type: schema.notificationProviders.type,
         config: schema.notificationProviders.config,
+        projectId: schema.notificationProviders.projectId,
       })
       .from(schema.notificationProviders)
       .innerJoin(
@@ -70,9 +86,29 @@ export class MonitorAlertService {
           schema.notificationProviders.id,
         ),
       )
-      .where(eq(schema.monitorNotificationSettings.monitorId, monitorId));
+      .where(
+        and(
+          eq(schema.monitorNotificationSettings.monitorId, monitorId),
+          eq(schema.notificationProviders.isEnabled, true),
+        ),
+      )) as ProviderRow[];
 
-    if (!providers || providers.length === 0) {
+    const decryptedProviders = providers.map(
+      (provider): NotificationProvider => {
+        const decryptedConfig = decryptNotificationProviderConfig(
+          provider.config,
+          provider.projectId ?? undefined,
+        );
+
+        return {
+          id: provider.id,
+          type: provider.type,
+          config: decryptedConfig,
+        };
+      },
+    );
+
+    if (decryptedProviders.length === 0) {
       this.logger.log(
         `[NOTIFY] No notification providers configured for monitor ${monitorId}`,
       );
@@ -166,49 +202,43 @@ export class MonitorAlertService {
     };
 
     this.logger.log(
-      `[NOTIFY] Sending ${notificationType} notifications to ${providers.length} providers`,
+      `[NOTIFY] Sending ${notificationType} notifications to ${decryptedProviders.length} providers`,
     );
 
-    const { success: successCount, failed: failedCount } =
+    const deliveryResults =
       await this.notificationService.sendNotificationToMultipleProviders(
-        providers as NotificationProvider[],
+        decryptedProviders,
         notificationPayload,
       );
+
+    const successCount = deliveryResults.success;
+    const failedCount = deliveryResults.failed;
 
     this.logger.log(
       `[NOTIFY] Notification results: ${successCount} success, ${failedCount} failed`,
     );
 
-    let alertStatus: 'sent' | 'failed' | 'pending' = 'pending';
-    let errorMessage: string | undefined;
+    if (deliveryResults.results.length > 0) {
+      const historyRecords = deliveryResults.results.map((result) => ({
+        type: notificationType as AlertType,
+        message: notificationPayload.message,
+        target: monitor.name,
+        targetType: 'monitor',
+        monitorId: monitor.id,
+        provider: result.provider.id,
+        status: result.success ? ('sent' as const) : ('failed' as const),
+        errorMessage: result.error,
+        sentAt: new Date(),
+      }));
 
-    if (successCount > 0 && failedCount === 0) {
-      alertStatus = 'sent';
-    } else if (successCount === 0 && failedCount > 0) {
-      alertStatus = 'failed';
-      errorMessage = `All ${failedCount} notifications failed`;
-    } else if (successCount > 0 && failedCount > 0) {
-      alertStatus = 'sent';
-      errorMessage = `${failedCount} of ${providers.length} notifications failed`;
+      await db.insert(schema.alertHistory).values(historyRecords);
     }
-
-    await db.insert(schema.alertHistory).values({
-      type: notificationType as AlertType,
-      message: notificationPayload.message,
-      target: monitor.name,
-      targetType: 'monitor',
-      monitorId: monitor.id,
-      provider: providers.map((p) => p.type).join(', '),
-      status: alertStatus,
-      errorMessage,
-      sentAt: new Date(),
-    });
   }
 
   async sendSslExpirationNotification(
     monitorId: string,
     reason: string,
-    metadata: any = {},
+    metadata: Record<string, unknown> = {},
   ) {
     this.logger.log(
       `[SSL-NOTIFY] SSL expiration notification for monitor ${monitorId}`,
@@ -217,9 +247,9 @@ export class MonitorAlertService {
     const db = this.dbService.db;
 
     // Get monitor details
-    const monitor = await db.query.monitors.findFirst({
+    const monitor = (await db.query.monitors.findFirst({
       where: eq(schema.monitors.id, monitorId),
-    });
+    })) as typeof schema.monitors.$inferSelect | undefined;
 
     if (!monitor) {
       this.logger.error(`[SSL-NOTIFY] Monitor not found: ${monitorId}`);
@@ -229,8 +259,11 @@ export class MonitorAlertService {
     // Get project information
     let projectName: string | undefined;
     if (monitor.projectId) {
-      const project = await this.dbService.getProjectById(monitor.projectId);
-      projectName = project?.name;
+      const project = await db.query.projects.findFirst({
+        where: eq(schema.projects.id, monitor.projectId),
+        columns: { name: true },
+      });
+      projectName = project?.name ?? projectName;
     }
 
     // Check if SSL alerts are enabled
@@ -245,11 +278,12 @@ export class MonitorAlertService {
     }
 
     // Get notification providers
-    const providers = await db
+    const providers = (await db
       .select({
         id: schema.notificationProviders.id,
         type: schema.notificationProviders.type,
         config: schema.notificationProviders.config,
+        projectId: schema.notificationProviders.projectId,
       })
       .from(schema.notificationProviders)
       .innerJoin(
@@ -259,9 +293,29 @@ export class MonitorAlertService {
           schema.notificationProviders.id,
         ),
       )
-      .where(eq(schema.monitorNotificationSettings.monitorId, monitorId));
+      .where(
+        and(
+          eq(schema.monitorNotificationSettings.monitorId, monitorId),
+          eq(schema.notificationProviders.isEnabled, true),
+        ),
+      )) as ProviderRow[];
 
-    if (!providers || providers.length === 0) {
+    const decryptedProviders = providers.map(
+      (provider): NotificationProvider => {
+        const decryptedConfig = decryptNotificationProviderConfig(
+          provider.config,
+          provider.projectId ?? undefined,
+        );
+
+        return {
+          id: provider.id,
+          type: provider.type,
+          config: decryptedConfig,
+        };
+      },
+    );
+
+    if (decryptedProviders.length === 0) {
       this.logger.log(
         `[SSL-NOTIFY] No notification providers configured for monitor ${monitorId}`,
       );
@@ -286,7 +340,7 @@ export class MonitorAlertService {
     const dashboardUrl = `${baseUrl}/monitors/${monitor.id}`;
 
     const notificationPayload: NotificationPayload = {
-      type: 'ssl_expiring' as any,
+      type: 'ssl_expiring',
       title: `SSL Certificate Warning - ${monitor.name}`,
       message:
         monitor.alertConfig.customMessage ||
@@ -317,42 +371,36 @@ export class MonitorAlertService {
     };
 
     this.logger.log(
-      `[SSL-NOTIFY] Sending SSL expiration notifications to ${providers.length} providers`,
+      `[SSL-NOTIFY] Sending SSL expiration notifications to ${decryptedProviders.length} providers`,
     );
 
-    const { success: successCount, failed: failedCount } =
+    const deliveryResults =
       await this.notificationService.sendNotificationToMultipleProviders(
-        providers as NotificationProvider[],
+        decryptedProviders,
         notificationPayload,
       );
+
+    const successCount = deliveryResults.success;
+    const failedCount = deliveryResults.failed;
 
     this.logger.log(
       `[SSL-NOTIFY] Notification results: ${successCount} success, ${failedCount} failed`,
     );
 
-    let alertStatus: 'sent' | 'failed' | 'pending' = 'pending';
-    let errorMessage: string | undefined;
+    if (deliveryResults.results.length > 0) {
+      const historyRecords = deliveryResults.results.map((result) => ({
+        type: 'ssl_expiring' as AlertType,
+        message: notificationPayload.message,
+        target: monitor.name,
+        targetType: 'monitor',
+        monitorId: monitor.id,
+        provider: result.provider.id,
+        status: result.success ? ('sent' as const) : ('failed' as const),
+        errorMessage: result.error,
+        sentAt: new Date(),
+      }));
 
-    if (successCount > 0 && failedCount === 0) {
-      alertStatus = 'sent';
-    } else if (successCount === 0 && failedCount > 0) {
-      alertStatus = 'failed';
-      errorMessage = `All ${failedCount} notifications failed`;
-    } else if (successCount > 0 && failedCount > 0) {
-      alertStatus = 'sent';
-      errorMessage = `${failedCount} of ${providers.length} notifications failed`;
+      await db.insert(schema.alertHistory).values(historyRecords);
     }
-
-    await db.insert(schema.alertHistory).values({
-      type: 'ssl_expiring' as AlertType,
-      message: notificationPayload.message,
-      target: monitor.name,
-      targetType: 'monitor',
-      monitorId: monitor.id,
-      provider: providers.map((p) => p.type).join(', '),
-      status: alertStatus,
-      errorMessage,
-      sentAt: new Date(),
-    });
   }
 }

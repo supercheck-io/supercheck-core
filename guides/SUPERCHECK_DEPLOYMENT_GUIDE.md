@@ -253,8 +253,7 @@ S3_TEST_BUCKET_NAME=supercheck-test-artifacts
 S3_FORCE_PATH_STYLE=true
 
 # Security
-CREDENTIAL_ENCRYPTION_KEY=your-credential-encryption-key
-VARIABLES_ENCRYPTION_KEY=your-64-character-encryption-key
+SECRET_ENCRYPTION_KEY=your-64-character-secret-encryption-key
 
 # Email Configuration
 SMTP_HOST=smtp.resend.com

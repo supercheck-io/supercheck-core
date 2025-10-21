@@ -17,6 +17,7 @@ interface NotificationProviderData {
   type: NotificationProviderType;
   config: NotificationProviderConfig;
   enabled: boolean;
+  maskedFields?: string[];
 }
 
 interface AlertConfig {
@@ -109,7 +110,7 @@ export function EditAlertWizard({ providerId, initialData }: EditAlertWizardProp
         },
         body: JSON.stringify({
           id: providerId,
-          name: data.config.name,
+          name: (data.config as Record<string, unknown>).name,
           type: data.type,
           config: data.config,
           enabled: providerData.enabled,

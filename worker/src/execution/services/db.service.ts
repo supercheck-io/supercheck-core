@@ -16,6 +16,7 @@ import {
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { ReportMetadata } from '../interfaces'; // Import our interface
 import { NotificationProvider } from '../../notification/notification.service';
+import { decryptNotificationProviderConfig } from '../../common/notification-provider-crypto';
 
 // Define a token for the Drizzle provider
 export const DB_PROVIDER_TOKEN = 'DB_DRIZZLE';
@@ -429,6 +430,10 @@ export class DbService implements OnModuleInit {
         );
       }
 
+      whereConditions.push((notificationProviders: any, { eq }: any) =>
+        eq(notificationProviders.isEnabled, true),
+      );
+
       const providers = await this.db.query.notificationProviders.findMany({
         where:
           whereConditions.length > 1
@@ -449,7 +454,10 @@ export class DbService implements OnModuleInit {
       return (providers || []).map((provider) => ({
         id: provider.id,
         type: provider.type,
-        config: provider.config,
+        config: decryptNotificationProviderConfig(
+          provider.config,
+          provider.projectId ?? undefined,
+        ),
       }));
     } catch (error) {
       this.logger.error(
@@ -469,11 +477,16 @@ export class DbService implements OnModuleInit {
     status: AlertStatus,
     message: string,
     errorMessage?: string,
+    jobNameOverride?: string,
   ): Promise<void> {
     try {
-      // Get the actual job name - no need for RBAC filtering here since we're just getting the name
-      const job = (await this.getJobById(jobId)) as { name?: string } | null;
-      const jobName = job?.name || `Job ${jobId}`;
+      let jobName = jobNameOverride;
+
+      if (!jobName) {
+        // Get the actual job name - no need for RBAC filtering here since we're just getting the name
+        const job = (await this.getJobById(jobId)) as { name?: string } | null;
+        jobName = job?.name || `Job ${jobId}`;
+      }
 
       await this.db.insert(alertHistory).values({
         jobId,

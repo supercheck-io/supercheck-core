@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/utils/db";
-import { alertHistory, jobs, monitors } from "@/db/schema/schema";
+import { alertHistory, jobs, monitors, notificationProviders } from "@/db/schema/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
 import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
@@ -55,13 +55,19 @@ export async function GET() {
           message: alertHistory.message,
           status: alertHistory.status,
           timestamp: alertHistory.sentAt,
-          notificationProvider: alertHistory.provider,
+          providerId: alertHistory.provider,
+          providerName: notificationProviders.name,
+          providerType: notificationProviders.type,
           errorMessage: alertHistory.errorMessage,
           jobName: jobs.name,
           monitorName: sql`null`,
         })
         .from(alertHistory)
         .innerJoin(jobs, eq(alertHistory.jobId, jobs.id))
+        .leftJoin(
+          notificationProviders,
+          sql`${notificationProviders.id}::text = ${alertHistory.provider}`
+        )
         .where(and(
           eq(jobs.organizationId, organizationId),
           eq(jobs.projectId, project.id)
@@ -84,13 +90,19 @@ export async function GET() {
           message: alertHistory.message,
           status: alertHistory.status,
           timestamp: alertHistory.sentAt,
-          notificationProvider: alertHistory.provider,
+          providerId: alertHistory.provider,
+          providerName: notificationProviders.name,
+          providerType: notificationProviders.type,
           errorMessage: alertHistory.errorMessage,
           jobName: sql`null`,
           monitorName: monitors.name,
         })
         .from(alertHistory)
         .innerJoin(monitors, eq(alertHistory.monitorId, monitors.id))
+        .leftJoin(
+          notificationProviders,
+          sql`${notificationProviders.id}::text = ${alertHistory.provider}`
+        )
         .where(and(
           eq(monitors.organizationId, organizationId),
           eq(monitors.projectId, project.id)
@@ -121,7 +133,11 @@ export async function GET() {
         message: item.message,
         status: item.status,
         timestamp: item.timestamp,
-        notificationProvider: item.notificationProvider,
+        notificationProvider:
+          item.providerName ||
+          item.providerType ||
+          item.providerId ||
+          'Unknown',
         metadata: {
           errorMessage: item.errorMessage,
         },

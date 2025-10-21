@@ -363,23 +363,19 @@ export class JobExecutionProcessor extends WorkerHost {
 
       // Save alert history with proper status handling
       try {
-        // Determine the correct status for each provider
-        const alertStatus: AlertStatus =
-          notificationResults.success > 0 ? 'sent' : 'failed';
-        const alertErrorMessage =
-          notificationResults.failed > 0
-            ? `${notificationResults.failed} of ${providers.length} notifications failed`
-            : undefined;
+        for (const result of notificationResults.results) {
+          const status: AlertStatus = result.success ? 'sent' : 'failed';
 
-        // Save alert history for this notification batch
-        await this.dbService.saveAlertHistory(
-          jobIdForLookup, // Use originalJobId for database storage
-          alertType as AlertType,
-          providers.map((p: { type: string }) => p.type).join(', '),
-          alertStatus,
-          payload.message,
-          alertErrorMessage,
-        );
+          await this.dbService.saveAlertHistory(
+            jobIdForLookup,
+            alertType as AlertType,
+            result.provider.id,
+            status,
+            payload.message,
+            result.error,
+            job.name,
+          );
+        }
       } catch (historyError) {
         this.logger.error(
           `Failed to save alert history for job ${jobIdForLookup}: ${(historyError as Error).message}`,

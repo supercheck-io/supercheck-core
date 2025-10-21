@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import {
   CheckCircle2,
@@ -86,6 +86,40 @@ export function PublicStatusPage({
 }: PublicStatusPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const DAYS_PER_PAGE = 7;
+
+  useEffect(() => {
+    if (!statusPage.faviconLogo) {
+      return;
+    }
+
+    const selectors =
+      "link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']";
+    const previousIcons = Array.from(
+      document.head.querySelectorAll<HTMLLinkElement>(selectors)
+    ).map((icon) => icon.cloneNode(true) as HTMLLinkElement);
+
+    document.head
+      .querySelectorAll<HTMLLinkElement>(selectors)
+      .forEach((icon) => icon.remove());
+
+    const createdIcons: HTMLLinkElement[] = [
+      { rel: "icon", href: statusPage.faviconLogo },
+      { rel: "shortcut icon", href: statusPage.faviconLogo },
+      { rel: "apple-touch-icon", href: statusPage.faviconLogo },
+    ].map(({ rel, href }) => {
+      const link = document.createElement("link");
+      link.rel = rel;
+      link.href = href;
+      document.head.appendChild(link);
+      return link;
+    });
+
+    // Reapply previous icons if we ever unmount (e.g. app navigation)
+    return () => {
+      createdIcons.forEach((icon) => icon.remove());
+      previousIcons.forEach((icon) => document.head.appendChild(icon));
+    };
+  }, [statusPage.faviconLogo]);
 
   // Calculate overall system status from components
   const calculateSystemStatus = () => {

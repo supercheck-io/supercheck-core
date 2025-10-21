@@ -95,8 +95,7 @@ They have sensible defaults and can be omitted:
 
 ```env
 # Security Configuration
-CREDENTIAL_ENCRYPTION_KEY=your-credential-encryption-key-change-this-in-production
-VARIABLES_ENCRYPTION_KEY=your-64-character-encryption-key-for-variable-secrets-change-this-in-prod
+SECRET_ENCRYPTION_KEY=your-64-character-secret-encryption-key
 ```
 
 ### Authentication & Authorization
@@ -187,8 +186,7 @@ ENABLE_MOBILE=false
 
 - `REDIS_PASSWORD`
 - `BETTER_AUTH_SECRET`
-- `VARIABLES_ENCRYPTION_KEY`
-- `CREDENTIAL_ENCRYPTION_KEY`
+- `SECRET_ENCRYPTION_KEY`
 - `SMTP_PASSWORD`
 - `OPENAI_API_KEY` (if AI Fix feature is enabled)
 
@@ -272,7 +270,7 @@ Add these to your environment:
 
 ```env
 PLAYGROUND_CLEANUP_ENABLED=true
-CREDENTIAL_ENCRYPTION_KEY=your-key-here
+SECRET_ENCRYPTION_KEY=your-key-here
 OPENAI_API_KEY=your-openai-api-key-here
 ```
 

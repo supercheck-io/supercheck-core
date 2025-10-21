@@ -1,0 +1,647 @@
+---
+title: Team Collaboration & Security
+description: Comprehensive guide to Supercheck's multi-tenant architecture, user management, and security features
+---
+
+import { Tabs, Tab } from "@fumadocs-ui/components/tabs";
+import { Callout } from "@fumadocs-ui/components/callout";
+import { Steps, Step } from "@fumadocs-ui/components/steps";
+import { Card, Cards } from "@fumadocs-ui/components/card";
+
+# Team Collaboration & Security
+
+Supercheck provides enterprise-grade team collaboration features with a robust multi-tenant architecture, comprehensive role-based access control, and advanced security measures to ensure your testing and monitoring workflows are both efficient and secure.
+
+<Tabs items={['Multi-tenant Architecture', 'User Management', 'Role-Based Access Control', 'Security Features']}>
+
+<Tab value="Multi-tenant Architecture">
+
+## Architecture Overview
+
+Supercheck implements a hierarchical multi-tenant architecture designed to support organizations of all sizes, from small teams to large enterprises with complex organizational structures.
+
+### Hierarchy Structure
+
+```
+Organization
+├── Project A
+│   ├── Tests
+│   ├── Jobs
+│   ├── Monitors
+│   ├── Variables
+│   └── Status Pages
+├── Project B
+│   ├── Tests
+│   ├── Jobs
+│   ├── Monitors
+│   ├── Variables
+│   └── Status Pages
+└── Project C
+    ├── Tests
+    ├── Jobs
+    ├── Monitors
+    ├── Variables
+    └── Status Pages
+```
+
+### Organization Management
+
+<Steps>
+<Step>Create Organization Account</Step>
+<Step>Configure Organization Settings</Step>
+<Step>Create Projects for Different Teams</Step>
+<Step>Invite Team Members</Step>
+<Step>Assign Roles and Permissions</Step>
+<Step>Set Up Project Resources</Step>
+</Steps>
+
+### Organization Features
+
+- **Automatic Setup**: New users get default organization and project
+- **Member Invitations**: Invite team members via email with role assignments
+- **Project Organization**: Create projects for different teams or workstreams
+- **Resource Isolation**: Complete data isolation between organizations and projects
+- **Custom Branding**: Organization-level branding and customization options
+
+### Project Management
+
+<Callout type="tip">
+Projects act as containers for your testing and monitoring resources, providing logical separation while maintaining organization-level oversight.
+</Callout>
+
+#### Project Configuration
+
+<Card>
+<CardHeader>
+<CardTitle>Project Setup Example</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  name: "E-commerce Platform",
+  description: "Testing and monitoring for e-commerce platform",
+  organizationId: "org-12345",
+  settings: {
+    timezone: "UTC",
+    defaultAlertChannels: ["email-team", "slack-alerts"],
+    retentionPeriod: "90d",
+    enableAuditLogging: true
+  },
+  resources: {
+    maxTests: 100,
+    maxJobs: 50,
+    maxMonitors: 25,
+    maxVariables: 50,
+    maxStatusPages: 5
+  }
+}
+```
+
+</CardContent>
+</Card>
+
+### Multi-tenant Benefits
+
+- **Data Isolation**: Complete separation of data between organizations
+- **Resource Management**: Efficient resource allocation and utilization
+- **Scalability**: Support for organizations of all sizes
+- **Customization**: Organization-specific configurations and branding
+- **Compliance**: Meet regulatory requirements for data separation
+
+</Tab>
+
+<Tab value="User Management">
+
+## User Roles
+
+Supercheck implements a comprehensive role-based access control system with clearly defined permissions at each level of the hierarchy.
+
+### Role Hierarchy
+
+| Role | Level | Scope | Description |
+|------|-------|-------|-------------|
+| **SUPER_ADMIN** | System | Global | System-wide administration and configuration |
+| **ORG_OWNER** | Organization | Org | Full organization control including deletion |
+| **ORG_ADMIN** | Organization | Org | Organization management without deletion rights |
+| **PROJECT_ADMIN** | Project | Proj | Full project administration and resource management |
+| **PROJECT_EDITOR** | Project | Proj | Create/edit resources without deletion rights |
+| **PROJECT_VIEWER** | Project | Proj | Read-only access to project resources |
+
+### User Onboarding
+
+<Steps>
+<Step>Send Invitation</Step>
+<Step>User Accepts Invitation</Step>
+<Step>User Creates Account</Step>
+<Step>Automatic Organization Assignment</Step>
+<Step>Default Role Assignment</Step>
+<Step>Initial Setup Completion</Step>
+</Steps>
+
+### User Management Features
+
+- **Email Invitations**: Send invitations with role pre-assignments
+- **Bulk Operations**: Invite multiple users simultaneously
+- **Role Assignment**: Assign appropriate roles for access control
+- **Activity Tracking**: Monitor user activity and resource access
+- **Session Management**: Secure session handling and automatic timeout
+
+### User Profile Management
+
+<Card>
+<CardHeader>
+<CardTitle>User Profile Configuration</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  userId: "user-67890",
+  email: "user@example.com",
+  name: "John Doe",
+  avatar: "https://cdn.example.com/avatars/user-67890.jpg",
+  timezone: "America/New_York",
+  language: "en",
+  preferences: {
+    emailNotifications: true,
+    slackNotifications: true,
+    theme: "light",
+    defaultDashboard: "overview"
+  },
+  roles: [
+    {
+      organizationId: "org-12345",
+      projectId: "proj-67890",
+      role: "PROJECT_ADMIN"
+    }
+  ]
+}
+```
+
+</CardContent>
+</Card>
+
+### User Lifecycle Management
+
+#### Account Creation
+
+- **Self-Registration**: Users can create accounts with email verification
+- **Admin Creation**: Administrators can create accounts directly
+- **SSO Integration**: Support for external identity providers
+- **Default Organization**: Automatic organization creation for new users
+
+#### Account Management
+
+- **Profile Updates**: Users can update their profile information
+- **Password Management**: Secure password reset and change workflows
+- **Role Changes**: Administrators can modify user roles
+- **Deactivation**: Soft delete with data retention policies
+
+#### Account Deletion
+
+- **Data Retention**: Configurable retention periods for deleted accounts
+- **Resource Transfer**: Option to transfer resources to other users
+- **Audit Trail**: Complete logging of account deletion activities
+- **Compliance**: GDPR and privacy regulation compliance
+
+</Tab>
+
+<Tab value="Role-Based Access Control">
+
+## Permission System
+
+Supercheck's RBAC system provides granular control over all platform resources with context-aware permission evaluation.
+
+### Permission Matrix
+
+| Resource | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_ADMIN | PROJECT_EDITOR | PROJECT_VIEWER |
+|----------|-------------|-----------|-----------|---------------|----------------|------------------|
+| **Organizations** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Projects** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Tests** | ✅ | ✅ | ✅ | ✅ | ✅ | 👁️ |
+| **Jobs** | ✅ | ✅ | ✅ | ✅ | ✅ | 👁️ |
+| **Monitors** | ✅ | ✅ | ✅ | ✅ | ✅ | 👁️ |
+| **Variables** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Status Pages** | ✅ | ✅ | ✅ | ✅ | ✅ | 👁️ |
+| **Users** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Audit Logs** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+Legend: ✅ = Full Access, 👁️ = View Only, ❌ = No Access
+
+### Permission Types
+
+#### Resource Permissions
+
+- **Create**: Add new resources (tests, jobs, monitors, etc.)
+- **Read**: View resource details and configurations
+- **Update**: Modify existing resources and settings
+- **Delete**: Remove resources and associated data
+- **Execute**: Run tests and trigger job executions
+
+#### Administrative Permissions
+
+- **User Management**: Create, update, and delete user accounts
+- **Role Assignment**: Assign and modify user roles
+- **Organization Settings**: Configure organization-level settings
+- **Project Management**: Create and manage projects
+- **Audit Access**: View audit logs and system activities
+
+### Permission Evaluation
+
+<Callout type="note">
+Permissions are evaluated in the current organization/project context, ensuring users only have access to resources they're authorized to manage.
+</Callout>
+
+#### Permission Check Implementation
+
+```typescript
+// Example permission check function
+function hasPermission(
+  user: User,
+  permission: string,
+  resource: Resource,
+  context: Context
+): boolean {
+  const userRole = getUserRole(user, context);
+  const rolePermissions = ROLE_PERMISSIONS[userRole];
+  
+  // Check if role has the required permission
+  if (!rolePermissions.includes(permission)) {
+    return false;
+  }
+  
+  // Check resource-level permissions
+  if (resource.ownerId !== user.id && !rolePermissions.includes('manage-all')) {
+    return false;
+  }
+  
+  // Check context-specific permissions
+  return checkContextPermissions(user, permission, resource, context);
+}
+
+// Example usage
+const canEditTest = hasPermission(
+  currentUser,
+  "test:update",
+  testResource,
+  projectContext
+);
+
+const canDeleteMonitor = hasPermission(
+  currentUser,
+  "monitor:delete",
+  monitorResource,
+  projectContext
+);
+```
+
+### Role Customization
+
+#### Custom Role Creation
+
+<Card>
+<CardHeader>
+<CardTitle>Custom Role Definition</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  name: "QA Lead",
+  description: "QA team lead with testing oversight",
+  organizationId: "org-12345",
+  permissions: [
+    "test:create",
+    "test:read",
+    "test:update",
+    "test:execute",
+    "test:delete",
+    "job:create",
+    "job:read",
+    "job:update",
+    "job:execute",
+    "monitor:read",
+    "monitor:update",
+    "variable:read",
+    "variable:update"
+  ],
+  restrictions: {
+    canDeleteTests: true,
+    canDeleteJobs: false,
+    maxTestRunsPerDay: 100,
+    canManageTeamMembers: false
+  }
+}
+```
+
+</CardContent>
+</Card>
+
+#### Permission Inheritance
+
+- **Organization Inheritance**: Organization roles inherit project-level permissions
+- **Role Hierarchy**: Higher-level roles include lower-level permissions
+- **Context Awareness**: Permissions evaluated based on current context
+- **Dynamic Updates**: Real-time permission updates on role changes
+
+### Access Control Best Practices
+
+#### Principle of Least Privilege
+
+- Assign minimum necessary permissions for each role
+- Regularly review and update user permissions
+- Implement temporary access for specific tasks
+- Use role-based access for consistent permission management
+
+#### Permission Auditing
+
+- Monitor permission changes and assignments
+- Log all access control decisions
+- Regular security audits of role configurations
+- Automated alerts for suspicious permission changes
+
+</Tab>
+
+<Tab value="Security Features">
+
+## Enterprise-Grade Security
+
+Supercheck implements comprehensive security measures to protect your data, ensure compliance, and maintain system integrity.
+
+### Authentication & Authorization
+
+<Callout type="warning">
+All authentication and authorization operations use secure protocols with industry-standard encryption.
+</Callout>
+
+#### Authentication Methods
+
+- **Email/Password**: Traditional authentication with secure password storage
+- **SSO Integration**: Support for external identity providers (SAML, OAuth2)
+- **Multi-Factor Authentication**: Optional 2FA for enhanced security
+- **API Keys**: Scoped API keys for programmatic access
+- **Session Management**: Secure session handling with automatic timeout
+
+#### Session Security
+
+<Card>
+<CardHeader>
+<CardTitle>Session Configuration</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  sessionSettings: {
+    maxAge: 8 * 60 * 60, // 8 hours
+    updateAge: 60 * 60, // 1 hour
+    rolling: true,
+    secure: true, // HTTPS only
+    httpOnly: true, // Prevent XSS
+    sameSite: "strict", // CSRF protection
+    path: "/",
+    domain: ".yourdomain.com"
+  },
+  security: {
+    maxConcurrentSessions: 3,
+    sessionTimeoutWarning: true,
+    deviceFingerprinting: true,
+    ipWhitelist: ["192.168.1.0/24"]
+  }
+}
+```
+
+</CardContent>
+</Card>
+
+### Data Encryption
+
+#### Encryption at Rest
+
+- **AES-256-GCM**: Industry-standard encryption for sensitive data
+- **Key Management**: Secure key generation and rotation
+- **Database Encryption**: Full database and backup encryption
+- **File Storage**: Encrypted storage for test artifacts and reports
+
+#### Encryption in Transit
+
+- **TLS 1.3**: Latest encryption protocol for all communications
+- **Certificate Management**: Automated certificate renewal and management
+- **End-to-End Encryption**: Secure data transmission across all services
+- **API Security**: Encrypted API communications with proper authentication
+
+### Audit Logging
+
+<Callout type="tip">
+Comprehensive audit logging ensures compliance with regulatory requirements and provides complete visibility into system activities.
+</Callout>
+
+#### Audit Log Categories
+
+| Category | Events Logged | Retention Period |
+|----------|--------------|----------------|
+| **Authentication** | Logins, logouts, password changes | 2 years |
+| **Authorization** | Permission checks, role changes, access denials | 2 years |
+| **Resource Management** | Test/job creation, updates, deletions | 1 year |
+| **System Events** | Configuration changes, system errors | 6 months |
+| **Data Access** | Variable access, secret viewing | 1 year |
+
+#### Audit Log Structure
+
+```typescript
+interface AuditLog {
+  id: string;
+  timestamp: Date;
+  userId: string;
+  action: string;
+  resource: {
+    type: string;
+    id: string;
+    name: string;
+  };
+  context: {
+    organizationId: string;
+    projectId?: string;
+    ipAddress: string;
+    userAgent: string;
+  };
+  result: "success" | "failure" | "partial";
+  details: Record<string, any>;
+}
+```
+
+### Security Monitoring
+
+#### Threat Detection
+
+- **Anomaly Detection**: AI-powered detection of unusual activities
+- **Rate Limiting**: Protection against brute force and DDoS attacks
+- **IP Reputation**: Block malicious IP addresses and ranges
+- **Behavioral Analysis**: Monitor user behavior patterns
+
+#### Security Alerts
+
+<Card>
+<CardHeader>
+<CardTitle>Security Alert Configuration</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  securityAlerts: {
+    failedLoginAttempts: {
+      threshold: 5,
+      timeWindow: "15m",
+      action: "block_ip"
+    },
+    suspiciousActivity: {
+      patterns: [
+        "multiple_failed_logins",
+        "privilege_escalation",
+        "unusual_access_patterns"
+      ],
+      action: "alert_admin"
+    },
+    dataAccess: {
+      sensitiveDataAccess: true,
+      bulkDownloads: true,
+      action: "require_approval"
+    }
+  }
+}
+```
+
+</CardContent>
+</Card>
+
+### Compliance & Standards
+
+#### Regulatory Compliance
+
+- **GDPR**: General Data Protection Regulation compliance
+- **SOC 2**: Service Organization Control 2 compliance
+- **ISO 27001**: Information security management standards
+- **HIPAA**: Healthcare data protection (for healthcare customers)
+
+#### Data Privacy
+
+- **Data Minimization**: Collect only necessary data
+- **Purpose Limitation**: Use data only for stated purposes
+- **Data Retention**: Configurable retention policies
+- **Right to Erasure**: Complete data deletion on request
+
+### Security Best Practices
+
+#### Password Security
+
+- **Strong Password Requirements**: Minimum 12 characters with complexity
+- **Password Hashing**: Argon2id with proper salt and pepper
+- **Password Rotation**: Regular password change requirements
+- **Password History**: Prevent reuse of recent passwords
+
+#### API Security
+
+- **API Authentication**: Secure API key management
+- **Rate Limiting**: Prevent API abuse and attacks
+- **Input Validation**: Comprehensive validation and sanitization
+- **Output Encoding**: Prevent injection attacks
+
+#### Infrastructure Security
+
+- **Network Security**: Firewall configuration and network segmentation
+- **Server Security**: Regular patching and security updates
+- **Container Security**: Secure container configurations
+- **Cloud Security**: Cloud provider security best practices
+
+### Incident Response
+
+#### Incident Management Process
+
+<Steps>
+<Step>Detection: Identify security incident or breach</Step>
+<Step>Assessment: Evaluate incident scope and impact</Step>
+<Step>Containment: Isolate affected systems</Step>
+<Step>Eradication: Remove threat and restore systems</Step>
+<Step>Recovery: Restore normal operations</Step>
+<Step>Lessons Learned: Document and improve processes</Step>
+</Steps>
+
+#### Incident Response Team
+
+- **Security Team**: Core security incident responders
+- **Engineering Team**: Technical support and system restoration
+- **Legal Team**: Compliance and regulatory requirements
+- **Communications**: Stakeholder and customer communications
+
+### Security Resources
+
+#### Security Documentation
+
+- **Security Policies**: Comprehensive security policy documentation
+- **Incident Response Plan**: Detailed incident response procedures
+- **Security Training**: Regular security awareness training
+- **Compliance Reports**: Regular compliance and audit reports
+
+#### Security Tools
+
+- **Vulnerability Scanning**: Regular security vulnerability assessments
+- **Penetration Testing**: Third-party security testing
+- **Security Monitoring**: Real-time security monitoring and alerting
+- **Compliance Tools**: Automated compliance checking and reporting
+
+<Callout type="warning">
+Security is an ongoing process. Regular security reviews, updates, and improvements are essential to maintain system security.
+</Callout>
+
+</Tab>
+</Tabs>
+
+## Best Practices
+
+### Organization Management
+
+- Create logical project structures for different teams
+- Implement proper resource allocation and limits
+- Regularly review organization settings and configurations
+- Maintain clear documentation of organizational structure
+
+### User Management
+
+- Follow principle of least privilege for role assignments
+- Regularly review and update user permissions
+- Implement proper offboarding processes for departing users
+- Monitor user activity for security purposes
+
+### Access Control
+
+- Use role-based access control for consistent permissions
+- Implement regular security audits of role configurations
+- Use temporary access for specific tasks when needed
+- Document all access control decisions and changes
+
+### Security Practices
+
+- Enable multi-factor authentication for all users
+- Regularly update passwords and security settings
+- Monitor security alerts and respond promptly
+- Stay informed about security threats and vulnerabilities
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Permission Errors**: Check user roles and resource ownership
+2. **Access Denied**: Verify user has appropriate permissions
+3. **Session Issues**: Clear browser cache and cookies
+4. **Organization Problems**: Contact system administrator
+
+### Debug Tools
+
+- **Permission Checker**: Verify user permissions for specific resources
+- **Audit Logs**: Review access control decisions and changes
+- **Session Inspector**: Monitor active sessions and security events
+- **User Activity Reports**: Track user actions and resource access
+
+For more information about advanced security features and compliance requirements, see our [Security Documentation](../security-overview).

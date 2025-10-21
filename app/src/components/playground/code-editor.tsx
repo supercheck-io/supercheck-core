@@ -1,6 +1,7 @@
 "use client";
 import { forwardRef, useEffect, useState, useRef } from "react";
 import { MonacoEditorClient } from "./monaco-editor";
+import { MonacoErrorBoundary } from "./monaco-error-boundary";
 import { editor } from "monaco-editor";
 
 // import { Loader2Icon } from "lucide-react";
@@ -43,12 +44,18 @@ const CodeEditor = forwardRef<editor.IStandaloneCodeEditor, CodeEditorProps>(
 
     // Render with a key to force re-mount when needed
     return (
-      <ClientEditor
-        key={forceRenderKey.current}
-        ref={ref}
-        value={value}
-        onChange={onChange}
-      />
+      <MonacoErrorBoundary
+        onError={(error, errorInfo) => {
+          console.error('[Code Editor] Monaco Editor error:', error, errorInfo);
+        }}
+      >
+        <ClientEditor
+          key={forceRenderKey.current}
+          ref={ref}
+          value={value}
+          onChange={onChange}
+        />
+      </MonacoErrorBoundary>
     );
   }
 );

@@ -1,0 +1,1783 @@
+---
+title: Practical Workflows
+description: Step-by-step guides for creating tests, setting up jobs, configuring monitoring, and using AI features
+---
+
+import { Tabs, Tab } from "@fumadocs-ui/components/tabs";
+import { Callout } from "@fumadocs-ui/components/callout";
+import { Steps, Step } from "@fumadocs-ui/components/steps";
+import { Card, Cards } from "@fumadocs-ui/components/card";
+
+# Practical Workflows
+
+This section provides comprehensive, step-by-step guides for common Supercheck workflows. Each workflow includes detailed examples, best practices, and troubleshooting tips to help you get the most out of the platform.
+
+<Tabs items={['Test Creation & Execution', 'Job Automation Setup', 'Monitoring Configuration', 'Variable Management', 'AI Test Fixing']}>
+
+<Tab value="Test Creation & Execution">
+
+## Creating and Running Tests
+
+### Test Creation Workflow
+
+<Steps>
+<Step>Navigate to Tests Section</Step>
+<Step>Click "Create Test" Button</Step>
+<Step>Fill Test Metadata</Step>
+<Step>Write Test Script</Step>
+<Step>Configure Test Settings</Step>
+<Step>Save and Run Test</Step>
+</Steps>
+
+### Step-by-Step Test Creation
+
+#### Step 1: Navigate to Tests
+
+1. Click **Tests** in the sidebar navigation
+2. You'll see the tests list with existing tests (if any)
+3. Click the **"Create Test"** button in the top right
+
+#### Step 2: Fill Test Metadata
+
+<Card>
+<CardHeader>
+<CardTitle>Test Metadata Example</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  title: "User Login Flow Test",
+  description: "Test complete user login functionality including form validation and successful authentication",
+  type: "browser_test",
+  priority: "high",
+  tags: ["authentication", "critical-path", "regression"],
+  estimatedDuration: "2m",
+  environment: "staging"
+}
+```
+
+</CardContent>
+</Card>
+
+#### Step 3: Write Test Script
+
+<Callout type="tip">
+Use the Monaco editor's syntax highlighting and autocomplete features to write efficient test scripts. The editor supports JavaScript/TypeScript with Playwright APIs.
+</Callout>
+
+**Browser Test Example:**
+
+```javascript
+const { test, expect } = require("@playwright/test");
+
+test.describe("User Login Flow", () => {
+  test.beforeEach(async ({ page }) => {
+    // Navigate to login page before each test
+    await page.goto(`${process.env.BASE_URL}/login`);
+  });
+
+  test("successful login with valid credentials", async ({ page }) => {
+    // Fill login form
+    await page.fill('[data-testid="username-input"]', "testuser@example.com");
+    await page.fill('[data-testid="password-input"]', "SecurePassword123!");
+    
+    // Accept terms and conditions
+    await page.check('[data-testid="terms-checkbox"]');
+    
+    // Submit form
+    await page.click('[data-testid="login-button"]');
+    
+    // Wait for navigation and verify success
+    await page.waitForURL("**/dashboard");
+    await expect(page.locator('[data-testid="welcome-message"]')).toBeVisible();
+    await expect(page.locator('[data-testid="user-menu"]')).toContainText("testuser");
+  });
+
+  test("login fails with invalid credentials", async ({ page }) => {
+    // Fill with invalid credentials
+    await page.fill('[data-testid="username-input"]', "invalid@example.com");
+    await page.fill('[data-testid="password-input"]', "WrongPassword");
+    
+    // Submit form
+    await page.click('[data-testid="login-button"]');
+    
+    // Verify error message
+    await expect(page.locator('[data-testid="error-message"]')).toBeVisible();
+    await expect(page.locator('[data-testid="error-message"]')).toContainText(
+      "Invalid username or password"
+    );
+    
+    // Verify still on login page
+    await expect(page).toHaveURL("**/login");
+  });
+
+  test("form validation works correctly", async ({ page }) => {
+    // Test empty form submission
+    await page.click('[data-testid="login-button"]');
+    
+    // Verify validation errors
+    await expect(page.locator('[data-testid="username-error"]')).toBeVisible();
+    await expect(page.locator('[data-testid="password-error"]')).toBeVisible();
+    
+    // Test invalid email format
+    await page.fill('[data-testid="username-input"]', "invalid-email");
+    await page.click('[data-testid="login-button"]');
+    
+    await expect(page.locator('[data-testid="username-error"]')).toContainText(
+      "Please enter a valid email address"
+    );
+  });
+});
+```
+
+**API Test Example:**
+
+```javascript
+const { test, expect } = require("@playwright/test");
+
+test.describe("API Authentication Tests", () => {
+  const baseUrl = process.env.API_BASE_URL;
+  const apiToken = process.env.API_TOKEN;
+
+  test("successful API authentication", async ({ request }) => {
+    const response = await request.post(`${baseUrl}/api/auth/login`, {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiToken}`
+      },
+      data: {
+        email: "test@example.com",
+        password: "testpassword"
+      }
+    });
+
+    expect(response.status()).toBe(200);
+    
+    const data = await response.json();
+    expect(data).toHaveProperty("token");
+    expect(data).toHaveProperty("user");
+    expect(data.user.email).toBe("test@example.com");
+  });
+
+  test("API rejects invalid credentials", async ({ request }) => {
+    const response = await request.post(`${baseUrl}/api/auth/login`, {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiToken}`
+      },
+      data: {
+        email: "invalid@example.com",
+        password: "wrongpassword"
+      }
+    });
+
+    expect(response.status()).toBe(401);
+    
+    const data = await response.json();
+    expect(data).toHaveProperty("error");
+    expect(data.error).toContainText("Invalid credentials");
+  });
+});
+```
+
+#### Step 4: Configure Test Settings
+
+**Test Configuration Options:**
+
+- **Environment**: Select target environment (dev, staging, production)
+- **Browser**: Choose browser type (Chrome, Firefox, Safari)
+- **Viewport**: Set screen dimensions for responsive testing
+- **Timeout**: Configure test execution timeout
+- **Retry Policy**: Set retry attempts for flaky tests
+- **Parallel Execution**: Enable/disable parallel test execution
+
+#### Step 5: Save and Run Test
+
+1. Click **"Save Test"** to save your test configuration
+2. Click **"Run Test"** to execute immediately
+3. Monitor real-time progress in the execution panel
+4. Review detailed results in the test report
+
+### Running Tests
+
+#### Single Test Execution
+
+1. From the tests list, click the **"Run"** button next to your test
+2. Watch the real-time progress indicators
+3. Click **"View Report"** when execution completes
+
+#### Batch Test Execution
+
+1. Select multiple tests using the checkboxes
+2. Click **"Run Selected"** in the bulk actions menu
+3. Choose execution options (parallel, sequential)
+4. Monitor combined execution progress
+
+#### Test Results Analysis
+
+**Test Report Features:**
+
+- **Execution Summary**: Pass/fail status, duration, environment
+- **Detailed Logs**: Step-by-step execution logs with timestamps
+- **Screenshots**: Automatic screenshots on test failures
+- **Video Recordings**: Full test execution videos for debugging
+- **Network Logs**: HTTP request/response details for API tests
+- **Console Logs**: Browser console output and errors
+
+### Advanced Test Features
+
+#### Test Tags and Filtering
+
+```javascript
+// Test with multiple tags
+test.describe("Payment Processing @critical @regression @payment", () => {
+  // Test implementation
+});
+
+// Run tests by tag
+// Command: npx playwright test --grep "@critical"
+```
+
+#### Test Data Management
+
+```javascript
+// Using test fixtures for data management
+import { test as base, expect } from "@playwright/test";
+
+const test = base.extend({
+  testData: async ({}, use) => {
+    const data = {
+      user: {
+        email: "test@example.com",
+        password: "SecurePass123!"
+      },
+      product: {
+        id: "prod-123",
+        name: "Test Product",
+        price: 99.99
+      }
+    };
+    await use(data);
+  }
+});
+
+test("purchase flow with test data", async ({ page, testData }) => {
+  await page.goto("/checkout");
+  await page.fill('[name="email"]', testData.user.email);
+  // ... rest of test implementation
+});
+```
+
+#### Environment Configuration
+
+```javascript
+// Environment-specific configuration
+const environments = {
+  development: {
+    baseUrl: "http://localhost:3000",
+    apiEndpoint: "http://localhost:3001/api",
+    timeout: 30000
+  },
+  staging: {
+    baseUrl: "https://staging.example.com",
+    apiEndpoint: "https://api-staging.example.com",
+    timeout: 60000
+  },
+  production: {
+    baseUrl: "https://example.com",
+    apiEndpoint: "https://api.example.com",
+    timeout: 90000
+  }
+};
+
+const env = environments[process.env.NODE_ENV || "development"];
+```
+
+### Test Best Practices
+
+#### Test Organization
+
+- **Logical Grouping**: Group related tests using describe blocks
+- **Clear Naming**: Use descriptive test names that explain what's being tested
+- **Independent Tests**: Ensure tests can run independently without dependencies
+- **Deterministic Results**: Tests should produce consistent results
+
+#### Test Maintenance
+
+- **Regular Updates**: Keep tests updated with application changes
+- **Code Reviews**: Review test code for quality and best practices
+- **Refactoring**: Regularly refactor test code for maintainability
+- **Documentation**: Document complex test scenarios and setup requirements
+
+#### Performance Considerations
+
+- **Parallel Execution**: Use parallel execution to reduce test time
+- **Test Isolation**: Ensure tests don't interfere with each other
+- **Resource Cleanup**: Clean up test data and resources after execution
+- **Optimized Selectors**: Use efficient CSS selectors for better performance
+
+### Troubleshooting
+
+#### Common Test Issues
+
+1. **Element Not Found**: Check selectors and wait for elements to load
+2. **Timeout Errors**: Increase timeout or improve element waiting strategy
+3. **Flaky Tests**: Implement proper waits and retry mechanisms
+4. **Environment Issues**: Verify test environment is properly configured
+
+#### Debug Tools
+
+- **Playwright Inspector**: Use for interactive debugging
+- **Browser DevTools**: Access browser developer tools during test execution
+- **Network Tab**: Monitor network requests and responses
+- **Console Tab**: Check browser console for errors and warnings
+
+</Tab>
+
+<Tab value="Job Automation Setup">
+
+## Setting Up Automated Jobs
+
+### Job Creation Workflow
+
+<Steps>
+<Step>Navigate to Jobs Section</Step>
+<Step>Click "Create Job" Button</Step>
+<Step>Configure Job Details</Step>
+<Step>Select Tests to Include</Step>
+<Step>Set Up Schedule</Step>
+<Step>Configure Notifications</Step>
+<Step>Save and Activate Job</Step>
+</Steps>
+
+### Step-by-Step Job Configuration
+
+#### Step 1: Navigate to Jobs
+
+1. Click **Jobs** in the sidebar navigation
+2. You'll see existing jobs with their execution status
+3. Click the **"Create Job"** button
+
+#### Step 2: Configure Job Details
+
+<Card>
+<CardHeader>
+<CardTitle>Job Configuration Example</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  name: "Daily Regression Suite",
+  description: "Run all critical regression tests daily at 2 AM",
+  type: "scheduled",
+  priority: "high",
+  environment: "staging",
+  maxRetries: 2,
+  timeoutMinutes: 30,
+  parallelExecution: true,
+  maxConcurrentTests: 5
+}
+```
+
+</CardContent>
+</Card>
+
+#### Step 3: Select Tests
+
+**Test Selection Options:**
+
+- **Manual Selection**: Choose specific tests from the list
+- **Tag-Based Selection**: Include tests with specific tags
+- **Test Type Selection**: Include all tests of certain types
+- **Priority-Based Selection**: Include tests based on priority levels
+
+```javascript
+// Example test selection configuration
+{
+  testSelection: {
+    method: "tags",
+    tags: ["regression", "critical"],
+    excludeTags: ["flaky", "experimental"],
+    includeTypes: ["browser_test", "api_test"],
+    excludeTypes: ["performance_test"]
+  }
+}
+```
+
+#### Step 4: Set Up Schedule
+
+**Cron Schedule Examples:**
+
+```javascript
+// Daily at 2 AM
+schedule: "0 2 * * *"
+
+// Every Monday at 9 AM
+schedule: "0 9 * * 1"
+
+// Every 6 hours
+schedule: "0 */6 * * *"
+
+// Every 15 minutes during business hours
+schedule: "*/15 9-18 * * 1-5"
+
+// First day of every month at midnight
+schedule: "0 0 1 * *"
+```
+
+#### Step 5: Configure Notifications
+
+**Notification Settings:**
+
+```javascript
+{
+  notifications: {
+    onSuccess: {
+      enabled: true,
+      channels: ["email-team", "slack-success"],
+      template: "job-success"
+    },
+    onFailure: {
+      enabled: true,
+      channels: ["email-alerts", "slack-critical", "pagerduty"],
+      template: "job-failure"
+    },
+    onRetry: {
+      enabled: true,
+      channels: ["email-team"],
+      template: "job-retry"
+    }
+  }
+}
+```
+
+### Job Types and Use Cases
+
+#### Manual Jobs
+
+**Use Cases:**
+- On-demand testing before deployments
+- Ad-hoc test execution for debugging
+- One-time test suites for specific scenarios
+
+**Configuration:**
+```javascript
+{
+  name: "Pre-deployment Smoke Test",
+  type: "manual",
+  description: "Run smoke tests before production deployment",
+  tests: ["login-test", "dashboard-test", "api-health"],
+  trigger: "manual"
+}
+```
+
+#### Scheduled Jobs
+
+**Use Cases:**
+- Daily regression testing
+- Weekly performance testing
+- Monthly security testing
+- Hourly health checks
+
+**Configuration:**
+```javascript
+{
+  name: "Daily Health Check",
+  type: "scheduled",
+  schedule: "0 */6 * * *", // Every 6 hours
+  tests: ["api-health", "database-connectivity", "service-status"],
+  environment: "production"
+}
+```
+
+#### Remote Jobs
+
+**Use Cases:**
+- CI/CD pipeline integration
+- External system triggers
+- API-based job execution
+- Webhook-triggered testing
+
+**Configuration:**
+```javascript
+{
+  name: "CI Pipeline Test",
+  type: "remote",
+  description: "Triggered by CI/CD pipeline",
+  tests: ["build-verification", "unit-tests", "integration-tests"],
+  trigger: {
+    type: "webhook",
+    endpoint: "/api/jobs/ci-trigger",
+    authentication: "api-key",
+    allowedIPs: ["192.168.1.0/24"]
+  }
+}
+```
+
+### Advanced Job Features
+
+#### Job Dependencies
+
+```javascript
+{
+  name: "Complete Test Suite",
+  dependencies: {
+    preJobs: ["database-setup", "service-deployment"],
+    postJobs: ["cleanup-tasks", "report-generation"],
+    parallelJobs: ["frontend-tests", "backend-tests"]
+  }
+}
+```
+
+#### Conditional Execution
+
+```javascript
+{
+  name: "Conditional Test Job",
+  conditions: {
+    environment: "staging",
+    timeWindow: {
+      start: "22:00",
+      end: "06:00"
+    },
+    customConditions: [
+      {
+        type: "api_check",
+        endpoint: "/api/system/status",
+        expectedValue: "healthy"
+      }
+    ]
+  }
+}
+```
+
+#### Job Templates
+
+```javascript
+{
+  name: "Regression Test Template",
+  template: true,
+  parameters: [
+    {
+      name: "test_tags",
+      type: "string",
+      required: true,
+      description: "Tags to include in test selection"
+    },
+    {
+      name: "schedule",
+      type: "string",
+      required: false,
+      description: "Cron schedule for job execution"
+    },
+    {
+      name: "notification_channels",
+      type: "array",
+      required: false,
+      description: "Notification channels for job results"
+    }
+  ]
+}
+```
+
+### Job Execution Monitoring
+
+#### Real-time Status Updates
+
+- **Execution Progress**: Real-time progress indicators for test execution
+- **Queue Status**: Current queue position and estimated wait time
+- **Resource Usage**: CPU, memory, and network utilization during execution
+- **Error Tracking**: Real-time error reporting and stack traces
+
+#### Job Execution Reports
+
+**Report Features:**
+- **Executive Summary**: High-level overview with key metrics
+- **Detailed Results**: Individual test results with execution details
+- **Performance Metrics**: Execution time, resource usage, success rates
+- **Trend Analysis**: Historical performance and success rate trends
+- **Comparative Analysis**: Comparison with previous job executions
+
+### Job Optimization
+
+#### Performance Optimization
+
+**Parallel Execution:**
+```javascript
+{
+  parallelExecution: true,
+  maxConcurrentTests: 10,
+  testGroups: [
+    {
+      name: "frontend-tests",
+      tests: ["login", "dashboard", "profile"],
+      parallel: true
+    },
+    {
+      name: "backend-tests",
+      tests: ["api", "database", "auth"],
+      parallel: true
+    }
+  ]
+}
+```
+
+**Resource Management:**
+```javascript
+{
+  resourceLimits: {
+    maxMemory: "4GB",
+    maxCPU: "2 cores",
+    maxExecutionTime: "30m",
+    maxRetries: 3
+  },
+  scaling: {
+    autoScale: true,
+    minInstances: 1,
+    maxInstances: 5,
+    scaleUpThreshold: "80%",
+    scaleDownThreshold: "20%"
+  }
+}
+```
+
+#### Cost Optimization
+
+- **Scheduling Optimization**: Run jobs during off-peak hours
+- **Resource Efficiency**: Use appropriate resource allocation
+- **Test Selection**: Prioritize critical tests for frequent execution
+- **Environment Management**: Use cost-effective environments for testing
+
+### Job Best Practices
+
+#### Job Design
+
+- **Modular Jobs**: Break large jobs into smaller, manageable components
+- **Clear Naming**: Use descriptive job names that explain purpose and scope
+- **Documentation**: Document job purpose, dependencies, and requirements
+- **Version Control**: Track job configuration changes and versions
+
+#### Scheduling Best Practices
+
+- **Off-Peak Hours**: Schedule resource-intensive jobs during off-peak times
+- **Dependency Management**: Consider job dependencies and execution order
+- **Failure Handling**: Implement proper retry and error handling mechanisms
+- **Monitoring**: Set up comprehensive monitoring and alerting
+
+#### Maintenance
+
+- **Regular Reviews**: Periodically review job performance and effectiveness
+- **Updates**: Keep job configurations updated with application changes
+- **Cleanup**: Remove obsolete jobs and unused configurations
+- **Optimization**: Continuously optimize for better performance and cost
+
+### Troubleshooting
+
+#### Common Job Issues
+
+1. **Schedule Failures**: Check cron expression syntax and system time
+2. **Test Failures**: Verify test environment and dependencies
+3. **Timeout Errors**: Increase timeout or optimize test performance
+4. **Resource Issues**: Check resource allocation and system capacity
+
+#### Debug Tools
+
+- **Job Logs**: Detailed execution logs with timestamps and error details
+- **Execution History**: Historical job execution data for analysis
+- **Performance Metrics**: Resource usage and execution time metrics
+- **Alert History**: Historical alert data for pattern analysis
+
+</Tab>
+
+<Tab value="Monitoring Configuration">
+
+## Configuring Monitoring
+
+### Monitor Setup Workflow
+
+<Steps>
+<Step>Navigate to Monitors Section</Step>
+<Step>Click "Create Monitor" Button</Step>
+<Step>Choose Monitor Type</Step>
+<Step>Configure Monitor Settings</Step>
+<Step>Set Up Alert Conditions</Step>
+<Step>Configure Notifications</Step>
+<Step>Test and Activate Monitor</Step>
+</Steps>
+
+### Monitor Types Overview
+
+Supercheck provides 5 different monitoring types to cover all your monitoring needs:
+
+1. **Synthetic Test Monitoring**: Scheduled execution of Playwright tests
+2. **HTTP/HTTPS Request Monitoring**: Advanced web service monitoring
+3. **Website Monitoring**: Simplified web page availability checking
+4. **Network Connectivity (Ping)**: ICMP ping monitoring
+5. **Port Accessibility**: TCP/UDP port monitoring
+
+### Step-by-Step Monitor Configuration
+
+#### Step 1: Choose Monitor Type
+
+<Callout type="tip">
+Select the monitor type that best matches your monitoring requirements. Each type has specific configuration options and use cases.
+</Callout>
+
+#### Step 2: Configure Basic Settings
+
+<Card>
+<CardHeader>
+<CardTitle>Basic Monitor Configuration</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  name: "API Health Check",
+  description: "Monitor API endpoint health and response time",
+  type: "http_request",
+  target: "https://api.example.com/health",
+  frequencyMinutes: 5,
+  timeoutSeconds: 30,
+  enabled: true,
+  tags: ["api", "critical", "health-check"]
+}
+```
+
+</CardContent>
+</Card>
+
+#### Step 3: Configure Monitor-Specific Settings
+
+**HTTP Request Monitor:**
+```javascript
+{
+  type: "http_request",
+  config: {
+    method: "GET",
+    headers: {
+      "Authorization": "Bearer ${API_KEY}",
+      "Content-Type": "application/json",
+      "User-Agent": "Supercheck-Monitor/1.0"
+    },
+    body: null,
+    expectedStatusCodes: "200-299",
+    expectedResponseTime: 2000,
+    followRedirects: true,
+    validateSSL: true,
+    checkKeywords: {
+      present: ["status", "healthy"],
+      absent: ["error", "exception"]
+    }
+  }
+}
+```
+
+**Website Monitor:**
+```javascript
+{
+  type: "website",
+  config: {
+    keywordInBody: "Welcome",
+    keywordInBodyShouldBePresent: true,
+    enableScreenshot: true,
+    screenshotOnFailure: true,
+    enableSSLCheck: true,
+    sslDaysUntilExpirationWarning: 30,
+    checkContentSize: true,
+    minContentSize: 1024,
+    maxRedirects: 5
+  }
+}
+```
+
+**Ping Monitor:**
+```javascript
+{
+  type: "ping_host",
+  config: {
+    pingCount: 3,
+    packetSize: 32,
+    timeoutSeconds: 5,
+    intervalBetweenPings: 1,
+    calculatePacketLoss: true,
+    calculateJitter: true
+  }
+}
+```
+
+**Port Monitor:**
+```javascript
+{
+  type: "port_check",
+  config: {
+    port: 443,
+    protocol: "TCP",
+    timeoutSeconds: 10,
+    sendData: "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n",
+    expectedResponse: "200 OK",
+    enableSSLCheck: true
+  }
+}
+```
+
+#### Step 4: Configure Alert Conditions
+
+**Alert Threshold Configuration:**
+```javascript
+{
+  alertConfig: {
+    failureThreshold: 2,
+    recoveryThreshold: 1,
+    consecutiveFailures: true,
+    smartAlerting: true,
+    maxAlertsPerIncident: 3,
+    alertCooldownMinutes: 15,
+    escalationRules: [
+      {
+        condition: "failure_count > 3",
+        action: "escalate_to_critical",
+        delay: "5m"
+      },
+      {
+        condition: "downtime > 30m",
+        action: "notify_management",
+        delay: "immediate"
+      }
+    ]
+  }
+}
+```
+
+#### Step 5: Configure Notifications
+
+**Notification Channels:**
+```javascript
+{
+  notifications: {
+    channels: [
+      {
+        type: "email",
+        enabled: true,
+        recipients: ["team@example.com", "ops@example.com"],
+        template: "monitor-alert",
+        includeScreenshot: true
+      },
+      {
+        type: "slack",
+        enabled: true,
+        webhook: "https://hooks.slack.com/services/...",
+        channel: "#alerts",
+        username: "Supercheck Monitor",
+        iconEmoji: ":warning:"
+      },
+      {
+        type: "webhook",
+        enabled: true,
+        url: "https://api.example.com/alerts",
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer ${WEBHOOK_TOKEN}"
+        }
+      }
+    ],
+    templates: {
+      failure: "monitor-failure",
+      recovery: "monitor-recovery",
+      escalation: "monitor-escalation"
+    }
+  }
+}
+```
+
+### Advanced Monitor Features
+
+#### Monitor Groups
+
+```javascript
+{
+  name: "E-commerce Platform Monitoring",
+  type: "group",
+  monitors: [
+    "website-homepage",
+    "api-checkout",
+    "payment-gateway",
+    "database-connectivity",
+    "cdn-status"
+  ],
+  groupConfig: {
+    aggregationMethod: "worst_status",
+    alertIfAnyMonitorFails: true,
+    alertIfAllMonitorsFail: true,
+    recoveryCondition: "all_monitors_healthy"
+  }
+}
+```
+
+#### Dependency Chains
+
+```javascript
+{
+  name: "Application Stack Monitoring",
+  dependencies: {
+    preConditions: ["database-healthy", "cache-healthy"],
+    postConditions: ["application-healthy"],
+    parallelMonitors: ["frontend-status", "backend-status"]
+  },
+  dependencyConfig: {
+    failFast: true,
+    continueOnDependencyFailure: false,
+    alertOnDependencyFailure: true
+  }
+}
+```
+
+#### Custom Metrics
+
+```javascript
+{
+  name: "Performance Metrics Monitor",
+  type: "custom_metrics",
+  config: {
+    metrics: [
+      {
+        name: "response_time",
+        type: "histogram",
+        thresholds: [
+          { value: 1000, severity: "warning" },
+          { value: 2000, severity: "critical" }
+        ]
+      },
+      {
+        name: "error_rate",
+        type: "percentage",
+        thresholds: [
+          { value: 1, severity: "warning" },
+          { value: 5, severity: "critical" }
+        ]
+      },
+      {
+        name: "uptime",
+        type: "percentage",
+        thresholds: [
+          { value: 99.9, severity: "warning" },
+          { value: 99.0, severity: "critical" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Monitor Best Practices
+
+#### Monitor Design
+
+- **Clear Naming**: Use descriptive names that explain what's being monitored
+- **Appropriate Frequency**: Balance monitoring frequency with system load
+- **Meaningful Alerts**: Configure alerts that provide actionable information
+- **Documentation**: Document monitor purpose and configuration details
+
+#### Alert Configuration
+
+- **Threshold Settings**: Set appropriate thresholds to reduce alert fatigue
+- **Escalation Rules**: Implement proper escalation procedures
+- **Notification Channels**: Use multiple channels for reliable delivery
+- **Smart Alerting**: Implement intelligent alert limiting and grouping
+
+#### Performance Optimization
+
+- **Check Efficiency**: Optimize monitor checks for minimal resource usage
+- **Geographic Distribution**: Use multiple locations for global monitoring
+- **Caching**: Implement caching for expensive monitor operations
+- **Parallel Execution**: Run multiple monitors concurrently when possible
+
+### Monitor Maintenance
+
+#### Regular Reviews
+
+- **Performance Analysis**: Review monitor performance and effectiveness
+- **Threshold Adjustments**: Adjust thresholds based on historical data
+- **Configuration Updates**: Keep monitor configurations updated with changes
+- **Alert Optimization**: Optimize alert rules and notification channels
+
+#### Monitor Lifecycle
+
+- **Creation**: Follow proper monitor creation procedures
+- **Testing**: Thoroughly test monitor configurations
+- **Deployment**: Deploy monitors to production environment
+- **Retirement**: Remove obsolete or unused monitors
+
+### Troubleshooting
+
+#### Common Monitor Issues
+
+1. **False Positives**: Adjust thresholds and conditions to reduce false alerts
+2. **Configuration Errors**: Verify monitor settings and target accessibility
+3. **Network Issues**: Check network connectivity and firewall settings
+4. **Performance Problems**: Optimize monitor check frequency and complexity
+
+#### Debug Tools
+
+- **Monitor Logs**: Detailed execution logs with timestamps and error details
+- **Health Status**: Monitor system health and performance metrics
+- **Alert History**: Historical alert data for pattern analysis
+- **Network Tools**: Use network diagnostic tools for connectivity issues
+
+</Tab>
+
+<Tab value="Variable Management">
+
+## Managing Variables and Secrets
+
+### Variable Creation Workflow
+
+<Steps>
+<Step>Navigate to Variables Section</Step>
+<Step>Click "Add Variable" Button</Step>
+<Step>Configure Variable Details</Step>
+<Step>Set Variable Value</Step>
+<Step>Mark as Secret (if needed)</Step>
+<Step>Save Variable</Step>
+</Steps>
+
+### Variable Types
+
+#### Regular Variables
+
+Regular variables store configuration values, URLs, and other non-sensitive data that can be safely shared across tests and jobs.
+
+**Use Cases:**
+- Application URLs and endpoints
+- Configuration values and settings
+- Test data and parameters
+- Environment-specific values
+
+#### Secret Variables
+
+Secret variables store sensitive data like passwords, API keys, and tokens with AES-256-GCM encryption.
+
+**Use Cases:**
+- Database credentials
+- API keys and tokens
+- Passwords and authentication data
+- Private certificates and keys
+
+### Step-by-Step Variable Creation
+
+#### Step 1: Navigate to Variables
+
+1. Click **Variables** in the sidebar navigation
+2. You'll see existing variables with their types and descriptions
+3. Click the **"Add Variable"** button
+
+#### Step 2: Configure Variable Details
+
+<Card>
+<CardHeader>
+<CardTitle>Variable Configuration Example</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  key: "API_BASE_URL",
+  value: "https://api.staging.example.com",
+  type: "regular",
+  description: "Base URL for API endpoints in staging environment",
+  tags: ["api", "staging", "configuration"],
+  environment: "staging",
+  encrypted: false
+}
+```
+
+</CardContent>
+</Card>
+
+#### Step 3: Set Variable Value
+
+**Variable Value Examples:**
+
+```javascript
+// Regular variables
+{
+  "API_BASE_URL": "https://api.example.com",
+  "API_TIMEOUT": "30000",
+  "MAX_RETRIES": "3",
+  "BROWSER_HEADLESS": "true",
+  "TEST_USER_EMAIL": "test@example.com"
+}
+
+// Secret variables
+{
+  "DATABASE_PASSWORD": "SecurePassword123!",
+  "API_KEY": "sk-1234567890abcdef",
+  "JWT_SECRET": "your-jwt-secret-here",
+  "SSL_CERTIFICATE": "-----BEGIN CERTIFICATE-----..."
+}
+```
+
+#### Step 4: Mark as Secret
+
+<Callout type="warning">
+Always mark sensitive variables as secrets to ensure they're encrypted at rest and masked in logs and console output.
+</Callout>
+
+**Security Features:**
+- AES-256-GCM encryption for all secret values
+- Automatic masking in logs and console output
+- Access control based on user roles and permissions
+- Audit logging for all secret access and changes
+
+### Variable Usage in Tests
+
+#### Accessing Variables
+
+```javascript
+// Regular variables
+const baseUrl = getVariable("API_BASE_URL");
+const timeout = getVariable("API_TIMEOUT", { default: 30000 });
+const maxRetries = getVariable("MAX_RETRIES", { required: true });
+
+// Secret variables
+const dbPassword = getSecret("DATABASE_PASSWORD");
+const apiKey = getSecret("API_KEY", { required: true });
+const jwtSecret = getSecret("JWT_SECRET");
+
+// Using variables in test code
+await page.goto(`${baseUrl}/login`);
+await page.setExtraHTTPHeaders({
+  Authorization: `Bearer ${apiKey}`,
+  "X-API-Timeout": timeout.toString(),
+});
+```
+
+#### Variable Resolution
+
+```javascript
+// Variable resolution with fallbacks
+const config = {
+  baseUrl: getVariable("API_BASE_URL") || "https://api.example.com",
+  timeout: parseInt(getVariable("API_TIMEOUT", { default: "30000" })),
+  retries: parseInt(getVariable("MAX_RETRIES", { default: "3" })),
+  user: {
+    email: getVariable("TEST_USER_EMAIL") || "test@example.com",
+    password: getSecret("TEST_USER_PASSWORD") || "defaultpassword"
+  }
+};
+```
+
+#### Environment-Specific Variables
+
+```javascript
+// Environment-specific variable resolution
+const environment = process.env.NODE_ENV || "development";
+
+const environmentConfig = {
+  development: {
+    baseUrl: getVariable("DEV_API_BASE_URL"),
+    database: getVariable("DEV_DATABASE_URL"),
+    debug: true
+  },
+  staging: {
+    baseUrl: getVariable("STAGING_API_BASE_URL"),
+    database: getVariable("STAGING_DATABASE_URL"),
+    debug: false
+  },
+  production: {
+    baseUrl: getVariable("PROD_API_BASE_URL"),
+    database: getVariable("PROD_DATABASE_URL"),
+    debug: false
+  }
+};
+
+const config = environmentConfig[environment];
+```
+
+### Advanced Variable Features
+
+#### Variable Groups
+
+```javascript
+{
+  groupName: "Database Configuration",
+  variables: [
+    {
+      key: "DATABASE_URL",
+      value: "postgresql://localhost:5432/supercheck",
+      type: "regular"
+    },
+    {
+      key: "DATABASE_PASSWORD",
+      value: "SecurePassword123!",
+      type: "secret"
+    },
+    {
+      key: "DATABASE_POOL_SIZE",
+      value: "10",
+      type: "regular"
+    }
+  ]
+}
+```
+
+#### Variable Templates
+
+```javascript
+{
+  templateName: "API Configuration",
+  variables: [
+    {
+      key: "API_BASE_URL",
+      type: "regular",
+      required: true,
+      description: "Base URL for API endpoints"
+    },
+    {
+      key: "API_KEY",
+      type: "secret",
+      required: true,
+      description: "API authentication key"
+    },
+    {
+      key: "API_VERSION",
+      type: "regular",
+      required: false,
+      defaultValue: "v1",
+      description: "API version"
+    }
+  ]
+}
+```
+
+#### Variable Validation
+
+```javascript
+{
+  key: "API_TIMEOUT",
+  value: "30000",
+  validation: {
+    type: "number",
+    min: 1000,
+    max: 300000,
+    required: true,
+    pattern: "^\\d+$"
+  },
+  errorMessage: "API timeout must be a number between 1000 and 300000 milliseconds"
+}
+```
+
+### Variable Security
+
+#### Access Control
+
+```javascript
+{
+  key: "SENSITIVE_API_KEY",
+  value: "sk-1234567890abcdef",
+  type: "secret",
+  accessControl: {
+    roles: ["PROJECT_ADMIN", "PROJECT_EDITOR"],
+    environments: ["staging", "production"],
+    ipWhitelist: ["192.168.1.0/24"],
+    timeRestrictions: {
+      start: "09:00",
+      end: "17:00"
+    }
+  }
+}
+```
+
+#### Audit Logging
+
+```javascript
+// Variable access audit log
+{
+  timestamp: "2024-01-15T10:30:00Z",
+  userId: "user-12345",
+  action: "variable_access",
+  variableKey: "DATABASE_PASSWORD",
+  variableType: "secret",
+  context: {
+    testId: "test-67890",
+    jobId: "job-abc123",
+    environment: "staging"
+  },
+  result: "success"
+}
+```
+
+### Variable Best Practices
+
+#### Security Practices
+
+- **Use Secrets for Sensitive Data**: Always mark passwords, API keys, and tokens as secrets
+- **Regular Rotation**: Periodically update secret values
+- **Access Control**: Limit secret access to authorized team members
+- **Audit Logging**: Monitor variable access and changes
+
+#### Organization Practices
+
+- **Clear Naming**: Use descriptive variable names that explain purpose
+- **Documentation**: Document variable purpose and usage
+- **Grouping**: Organize related variables into logical groups
+- **Version Control**: Track variable changes and versions
+
+#### Development Practices
+
+- **Environment Separation**: Use different variables for different environments
+- **Default Values**: Provide sensible defaults for optional variables
+- **Validation**: Implement proper variable validation
+- **Error Handling**: Handle missing or invalid variables gracefully
+
+### Variable Management Tools
+
+#### CLI Tools
+
+```bash
+# List all variables
+npx supercheck variables list
+
+# Get variable value
+npx supercheck variables get API_BASE_URL
+
+# Set variable value
+npx supercheck variables set API_BASE_URL=https://api.example.com
+
+# Delete variable
+npx supercheck variables delete API_BASE_URL
+
+# Import variables from file
+npx supercheck variables import --file variables.json
+```
+
+#### API Integration
+
+```javascript
+// List variables
+GET /api/variables
+
+// Get variable
+GET /api/variables/{key}
+
+// Create variable
+POST /api/variables
+{
+  "key": "API_BASE_URL",
+  "value": "https://api.example.com",
+  "type": "regular",
+  "description": "Base URL for API endpoints"
+}
+
+// Update variable
+PUT /api/variables/{key}
+{
+  "value": "https://new-api.example.com",
+  "description": "Updated base URL"
+}
+
+// Delete variable
+DELETE /api/variables/{key}
+```
+
+### Troubleshooting
+
+#### Common Variable Issues
+
+1. **Variable Not Found**: Check variable key spelling and existence
+2. **Access Denied**: Verify user has appropriate permissions
+3. **Decryption Errors**: Check secret encryption and access keys
+4. **Type Mismatches**: Ensure variable type matches expected format
+
+#### Debug Tools
+
+- **Variable Inspector**: View variable values and metadata
+- **Access Logs**: Review variable access and change history
+- **Validation Reports**: Check variable validation results
+- **Security Audit**: Review variable access patterns and permissions
+
+</Tab>
+
+<Tab value="AI Test Fixing">
+
+## Using AI to Fix Tests
+
+### AI Fix Workflow
+
+<Steps>
+<Step>Identify Failed Test</Step>
+<Step>Review Test Failure Details</Step>
+<Step>Trigger AI Fix Analysis</Step>
+<Step>Review AI Analysis and Suggestions</Step>
+<Step>Apply Suggested Changes</Step>
+<Step>Run Fixed Test</Step>
+<Step>Verify Fix Success</Step>
+</Steps>
+
+### AI Fix Features Overview
+
+Supercheck's AI-powered test fixing uses OpenAI GPT-4o-mini to analyze test failures and suggest code modifications:
+
+- **Error Analysis**: Automatic classification of test failures
+- **Code Generation**: AI suggests fixes for common issues
+- **Security Validation**: Comprehensive safety checks for generated code
+- **Rich Diff Viewer**: Visual comparison of original and fixed code
+- **Context Awareness**: AI understands test context and framework
+
+### Step-by-Step AI Fix Process
+
+#### Step 1: Identify Failed Test
+
+1. Navigate to **Tests** section
+2. Find test with failure status
+3. Click on test to view detailed results
+4. Review error messages and stack traces
+
+#### Step 2: Trigger AI Fix
+
+<Callout type="tip">
+AI Fix works best with common test failures like selector issues, timing problems, and configuration errors. Complex logic issues may require manual intervention.
+</Callout>
+
+1. From the test results page, click **"AI Fix"** button
+2. AI will analyze the test failure and error context
+3. Wait for AI analysis to complete (usually 10-30 seconds)
+
+#### Step 3: Review AI Analysis
+
+**AI Analysis Components:**
+- **Error Classification**: Type of failure (selector, timeout, assertion, etc.)
+- **Root Cause Analysis**: Why the test failed
+- **Fix Strategy**: Approach to fix the issue
+- **Confidence Score**: AI's confidence in the suggested fix
+
+#### Step 4: Review Suggested Changes
+
+**Diff Viewer Features:**
+- **Side-by-Side Comparison**: Original vs. suggested code
+- **Syntax Highlighting**: Clear visualization of changes
+- **Line Numbers**: Easy reference for specific changes
+- **Change Summary**: High-level overview of modifications
+
+#### Step 5: Apply Changes
+
+1. Review each suggested change carefully
+2. Use checkboxes to select/deselect specific changes
+3. Click **"Apply Selected Changes"** to update test
+4. Review updated test code before execution
+
+#### Step 6: Verify Fix
+
+1. Click **"Run Test"** to execute fixed test
+2. Monitor test execution progress
+3. Review test results to confirm fix success
+4. If needed, iterate with additional AI fixes
+
+### AI Fix Examples
+
+#### Example 1: Selector Issues
+
+**Before AI Fix:**
+```javascript
+test("login functionality", async ({ page }) => {
+  await page.goto("https://app.com/login");
+  await page.fill("#username", "testuser");
+  await page.fill("#password", "password");
+  await page.click("#submit");
+  // Test fails - element not found
+});
+```
+
+**AI Analysis:**
+```
+Error: Element not found: #submit
+Root Cause: Selector #submit doesn't match actual HTML
+Confidence: 95%
+Fix Strategy: Update selector to match actual button element
+```
+
+**After AI Fix:**
+```javascript
+test("login functionality", async ({ page }) => {
+  await page.goto("https://app.com/login");
+  await page.fill('[name="username"]', "testuser");
+  await page.fill('[name="password"]', "password");
+  await page.click('[type="submit"]');
+  // AI fix: Updated selector to match actual HTML
+});
+```
+
+#### Example 2: Timing Issues
+
+**Before AI Fix:**
+```javascript
+test("page loads correctly", async ({ page }) => {
+  await page.goto("https://app.com/dashboard");
+  const element = page.locator(".welcome-message");
+  await expect(element).toBeVisible();
+  // Test fails - element not loaded yet
+});
+```
+
+**AI Analysis:**
+```
+Error: Element not visible
+Root Cause: Race condition - element loads after test check
+Confidence: 90%
+Fix Strategy: Add explicit wait for element visibility
+```
+
+**After AI Fix:**
+```javascript
+test("page loads correctly", async ({ page }) => {
+  await page.goto("https://app.com/dashboard");
+  const element = page.locator(".welcome-message");
+  await expect(element).toBeVisible({ timeout: 10000 });
+  // AI fix: Added explicit timeout for element visibility
+});
+```
+
+#### Example 3: Assertion Issues
+
+**Before AI Fix:**
+```javascript
+test("API response validation", async ({ request }) => {
+  const response = await request.get("/api/users");
+  expect(response.status()).toBe(200);
+  expect(response.data.length).toBeGreaterThan(0);
+  // Test fails - response.data is not an array
+});
+```
+
+**AI Analysis:**
+```
+Error: expect(response.data.length).toBeGreaterThan(0)
+Root Cause: response.data is an object, not an array
+Confidence: 85%
+Fix Strategy: Update assertion to handle object response
+```
+
+**After AI Fix:**
+```javascript
+test("API response validation", async ({ request }) => {
+  const response = await request.get("/api/users");
+  expect(response.status()).toBe(200);
+  expect(response.data).toHaveProperty("users");
+  expect(response.data.users).toBeInstanceOf(Array);
+  expect(response.data.users.length).toBeGreaterThan(0);
+  // AI fix: Updated assertion to handle object structure
+});
+```
+
+### AI Security Features
+
+#### Input Validation
+
+<Callout type="warning">
+All AI inputs are validated and sanitized before processing to ensure security and prevent injection attacks.
+</Callout>
+
+**Security Measures:**
+- **Input Sanitization**: Remove potentially harmful code from inputs
+- **Context Validation**: Ensure AI operates within authorized scope
+- **Output Filtering**: Filter generated code for security issues
+- **Permission Checks**: Verify user has authorization to modify tests
+
+#### Code Safety Checks
+
+**Security Validation:**
+```javascript
+// AI-generated code security checks
+const securityChecks = {
+  noEval: true,           // Prevent eval() usage
+  noInnerHtml: true,     // Prevent innerHTML usage
+  noDangerousAPIs: true, // Prevent dangerous API calls
+  noExternalRequests: true, // Prevent external network requests
+  noFileSystemAccess: true // Prevent file system access
+};
+```
+
+#### Output Validation
+
+**Validation Process:**
+1. **Syntax Check**: Ensure generated code is syntactically correct
+2. **Security Scan**: Check for common security vulnerabilities
+3. **Framework Compliance**: Verify code follows Playwright best practices
+4. **Test Safety**: Ensure code doesn't compromise test integrity
+
+### AI Fix Limitations
+
+#### Supported Fix Types
+
+- **Selector Issues**: CSS selector problems and element not found errors
+- **Timing Issues**: Race conditions and element loading problems
+- **Assertion Issues**: Incorrect assertions and validation problems
+- **Configuration Issues**: Test configuration and setup problems
+- **Simple Logic Errors**: Basic programming mistakes and typos
+
+#### Unsupported Fix Types
+
+- **Complex Logic Issues**: Multi-step logic problems requiring domain knowledge
+- **Framework Limitations**: Issues requiring framework changes
+- **External Dependencies**: Problems with external services or APIs
+- **Performance Issues**: Complex performance optimization needs
+- **Security Vulnerabilities**: Security issues requiring expert analysis
+
+### AI Fix Best Practices
+
+#### Before Using AI Fix
+
+- **Review Test Context**: Understand what the test is supposed to do
+- **Check Error Messages**: Analyze error details for clues
+- **Consider Alternatives**: Evaluate if manual fix might be better
+- **Backup Test Code**: Save original test before applying changes
+
+#### During AI Fix Process
+
+- **Review Suggestions Carefully**: Don't blindly accept all AI suggestions
+- **Test Incrementally**: Apply changes one at a time when possible
+- **Verify Each Change**: Ensure each modification improves the test
+- **Document Changes**: Add comments explaining AI-generated changes
+
+#### After AI Fix
+
+- **Test Thoroughly**: Run tests multiple times to ensure consistency
+- **Review Code Quality**: Ensure code follows best practices
+- **Update Documentation**: Document any changes to test behavior
+- **Monitor Performance**: Check if fixes impact test execution time
+
+### AI Fix Configuration
+
+#### AI Settings
+
+```javascript
+{
+  aiFix: {
+    enabled: true,
+    model: "gpt-4o-mini",
+    maxTokens: 2000,
+    temperature: 0.1,
+    confidenceThreshold: 0.8,
+    autoApply: false,
+    securityLevel: "high"
+  }
+}
+```
+
+#### Custom Prompts
+
+```javascript
+{
+  customPrompts: {
+    analyzeFailure: "Analyze this test failure and suggest specific code modifications to fix it. Focus on the root cause and provide a practical solution.",
+    generateFix: "Generate the exact code changes needed to fix this test. Ensure the code follows Playwright best practices and maintains test integrity.",
+    validateFix: "Review the suggested fix for potential security issues and ensure it doesn't introduce new problems."
+  }
+}
+```
+
+### Troubleshooting AI Fix
+
+#### Common AI Fix Issues
+
+1. **AI Suggestions Don't Work**: Manual intervention may be required
+2. **Security Blocks**: AI may refuse to modify certain code patterns
+3. **Context Issues**: AI may not understand complex test scenarios
+4. **Quality Concerns**: Generated code may not meet quality standards
+
+#### Debug Tools
+
+- **AI Analysis Logs**: Review AI reasoning and decision process
+- **Fix History**: Track AI fix success rates and patterns
+- **Quality Metrics**: Monitor code quality of AI-generated fixes
+- **Security Audit**: Review security implications of AI changes
+
+</Tab>
+</Tabs>
+
+## Workflow Integration
+
+### End-to-End Example
+
+Here's how these workflows integrate in a real-world scenario:
+
+1. **Create Test**: Write a comprehensive test for user registration
+2. **Add Variables**: Store test data and configuration in variables
+3. **Create Job**: Set up automated job to run test daily
+4. **Configure Monitoring**: Monitor test execution and job performance
+5. **Use AI Fix**: Automatically fix test failures when they occur
+6. **Team Collaboration**: Share resources with team members
+
+### Workflow Automation
+
+#### Automated Test Pipeline
+
+```javascript
+// Example automated workflow
+{
+  name: "Complete Test Pipeline",
+  triggers: ["code_push", "schedule"],
+  steps: [
+    {
+      name: "run_tests",
+      action: "execute_tests",
+      tests: ["unit-tests", "integration-tests", "e2e-tests"],
+      variables: ["test_config", "api_credentials"]
+    },
+    {
+      name: "analyze_results",
+      action: "ai_analyze_failures",
+      condition: "tests_failed"
+    },
+    {
+      name: "apply_fixes",
+      action: "apply_ai_fixes",
+      condition: "ai_fixes_available"
+    },
+    {
+      name: "rerun_tests",
+      action: "execute_tests",
+      condition: "fixes_applied"
+    }
+  ]
+}
+```
+
+### Best Practices Summary
+
+#### Test Management
+
+- Write clear, maintainable tests with good documentation
+- Use variables for configuration and test data
+- Implement proper error handling and retry mechanisms
+- Regularly review and update test suites
+
+#### Job Automation
+
+- Create logical job groupings for different test types
+- Use appropriate scheduling to balance resource usage
+- Implement proper alerting and notification systems
+- Monitor job performance and optimize as needed
+
+#### Monitoring Configuration
+
+- Choose appropriate monitor types for different services
+- Set meaningful thresholds to reduce alert fatigue
+- Use multiple notification channels for reliability
+- Regularly review and update monitor configurations
+
+#### Variable Management
+
+- Use secrets for all sensitive data
+- Implement proper access control and audit logging
+- Regularly rotate and update variable values
+- Document variable purposes and usage patterns
+
+#### AI Integration
+
+- Use AI fix for common, straightforward issues
+- Review AI suggestions carefully before applying
+- Monitor AI fix success rates and effectiveness
+- Combine AI fixes with manual expertise for complex issues

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { notificationProviders, notificationProvidersInsertSchema, alertHistory } from "@/db/schema/schema";
-import { desc, eq, and, like } from "drizzle-orm";
+import { notificationProviders, notificationProvidersInsertSchema, alertHistory, type PlainNotificationProviderConfig } from "@/db/schema/schema";
+import { desc, eq, and, sql } from "drizzle-orm";
 import { hasPermission } from '@/lib/rbac/middleware';
 import { requireProjectContext } from '@/lib/project-context';
 import { logAuditEvent } from '@/lib/audit-logger';
+import { decryptNotificationProviderConfig, encryptNotificationProviderConfig, sanitizeConfigForClient } from "@/lib/notification-providers/crypto";
+import { validateProviderConfig } from "@/lib/notification-providers/validation";
+import type { NotificationProviderType } from "@/db/schema/schema";
 
 export async function GET() {
   try {
@@ -41,19 +44,27 @@ export async function GET() {
     // Enhance providers with last used information
     const enhancedProviders = await Promise.all(
       providers.map(async (provider) => {
-        // Check for both exact match and partial match since alert history stores joined provider types
+        const configContext = provider.projectId ?? undefined;
+        const decryptedConfig = decryptNotificationProviderConfig(
+          provider.config,
+          configContext ?? undefined
+        );
+        const { sanitizedConfig, maskedFields } = sanitizeConfigForClient(
+          provider.type as NotificationProviderType,
+          decryptedConfig
+        );
+
         const lastAlert = await db
           .select({ sentAt: alertHistory.sentAt })
           .from(alertHistory)
-          .where(
-            // Use safe LIKE operator to find provider type within comma-separated list
-            like(alertHistory.provider, `%${provider.type}%`)
-          )
+          .where(sql`alert_history.provider = ${provider.id}::text`)
           .orderBy(desc(alertHistory.sentAt))
           .limit(1);
 
         return {
           ...provider,
+          config: sanitizedConfig,
+          maskedFields,
           lastUsed: lastAlert[0]?.sentAt || null,
         };
       })
@@ -115,12 +126,37 @@ export async function POST(req: NextRequest) {
 
     const newProviderData = validationResult.data;
 
+    const plainConfig = (newProviderData.config ??
+      {}) as Record<string, unknown>;
+
+    try {
+      validateProviderConfig(
+        newProviderData.type as NotificationProviderType,
+        plainConfig
+      );
+    } catch (validationError) {
+      return NextResponse.json(
+        {
+          error:
+            validationError instanceof Error
+              ? validationError.message
+              : "Invalid notification provider configuration",
+        },
+        { status: 400 }
+      );
+    }
+
+    const encryptedConfig = encryptNotificationProviderConfig(
+      plainConfig as PlainNotificationProviderConfig,
+      targetProjectId
+    );
+
     const [insertedProvider] = await db
       .insert(notificationProviders)
       .values({
         name: newProviderData.name!,
         type: newProviderData.type!,
-        config: newProviderData.config!,
+        config: encryptedConfig,
         organizationId: newProviderData.organizationId,
         projectId: newProviderData.projectId,
         createdByUserId: newProviderData.createdByUserId,
@@ -143,7 +179,23 @@ export async function POST(req: NextRequest) {
       success: true
     });
 
-    return NextResponse.json(insertedProvider, { status: 201 });
+    const decryptedConfig = decryptNotificationProviderConfig(
+      insertedProvider.config,
+      targetProjectId
+    );
+    const { sanitizedConfig, maskedFields } = sanitizeConfigForClient(
+      insertedProvider.type as NotificationProviderType,
+      decryptedConfig
+    );
+
+    return NextResponse.json(
+      {
+        ...insertedProvider,
+        config: sanitizedConfig,
+        maskedFields,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error creating notification provider:", error);
     return NextResponse.json(

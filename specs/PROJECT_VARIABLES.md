@@ -118,7 +118,7 @@ flowchart TD
 
 - **Professional UI**: Table-based interface matching org admin patterns
 - **Secure API**: Complete CRUD operations with validation
-- **Encryption**: AES-256-GCM with project-specific keys
+- **Encryption**: AES-128-GCM with project-specific context
 - **RBAC Integration**: Role-based access control
 - **Type Safety**: Full TypeScript implementation
 
@@ -378,7 +378,7 @@ export const projectVariables = pgTable(
       onDelete: "cascade",
     }),
     key: varchar("key", { length: 255 }).notNull(),
-    value: text("value").notNull(), // Encrypted using AES-256-GCM
+    value: text("value").notNull(), // Encrypted using AES-128-GCM
     encryptedValue: text("encrypted_value"), // Base64 encrypted value
     isSecret: boolean("is_secret").default(false),
     description: text("description"),
@@ -394,20 +394,10 @@ export const projectVariables = pgTable(
 
 #### **Encryption Implementation**
 
-- **Algorithm**: AES-256-GCM for authenticated encryption
-- **Key Derivation**: PBKDF2 with project-specific salt
-- **Key Management**: Per-project encryption keys stored in secure key store
-- **Environment Variables**: Master key from `VARIABLES_ENCRYPTION_KEY`
-
-#### **Key Storage Strategy**
-
-```typescript
-// Environment-based master key
-VARIABLES_ENCRYPTION_KEY = your - 256 - bit - master - key;
-
-// Project-specific derived keys
-const projectKey = deriveKey(masterKey, projectId, salt);
-```
+- **Algorithm**: AES-128-GCM for authenticated encryption
+- **Key Derivation**: HKDF-SHA256 with project-specific context
+- **Key Management**: Derived per project in-memory (no at-rest key storage)
+- **Environment Variables**: Master key provided via `SECRET_ENCRYPTION_KEY`
 
 ### **Access Control & RBAC Implementation** (Centralized Permission Model):
 
@@ -533,7 +523,7 @@ const executionContext = {
 
 ### **✅ Phase 2 Complete**: Security & Access Control
 
-- ✅ AES-256-GCM encryption implementation
+- ✅ AES-128-GCM encryption implementation
 - ✅ RBAC integration for variable management
 - ✅ Audit logging for variable operations
 - ✅ Secure variable resolution in worker processes
@@ -642,7 +632,7 @@ const canViewSecrets = await canViewSecretVariableInProject(userId, projectId)
 ### **Security Excellence**
 
 1. **Zero Client Exposure**: Secrets never transmitted to browser
-2. **Enterprise Encryption**: AES-256-GCM with project-specific keys
+2. **Enterprise Encryption**: AES-128-GCM with project-specific context
 3. **Role-Based Access**: Comprehensive RBAC integration with organization context
 4. **Audit Trail**: Complete operation tracking
 5. **Input Validation**: Server and client-side validation

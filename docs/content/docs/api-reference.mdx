@@ -1,0 +1,1926 @@
+---
+title: API Reference
+description: Complete API reference documentation for Supercheck platform including endpoints, authentication, examples, and SDKs
+---
+
+import { Tabs, Tab } from "@fumadocs-ui/components/tabs";
+import { Callout } from "@fumadocs-ui/components/callout";
+import { Steps, Step } from "@fumadocs-ui/components/steps";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@fumadocs-ui/components/card";
+
+# API Reference
+
+The Supercheck API provides comprehensive programmatic access to all platform features. This reference documentation covers all available endpoints, authentication methods, and usage examples.
+
+<Callout type="tip">
+The Supercheck API follows RESTful principles with JSON responses, proper HTTP status codes, and comprehensive error handling. All API requests should be made to `https://api.supercheck.io/v1`.
+</Callout>
+
+## API Overview
+
+### Base URL
+
+```
+Production: https://api.supercheck.io/v1
+Staging: https://api-staging.supercheck.io/v1
+Development: http://localhost:3001/api/v1
+```
+
+### Authentication
+
+Supercheck API supports multiple authentication methods:
+
+#### API Key Authentication
+
+```http
+Authorization: Bearer YOUR_API_KEY
+```
+
+#### Session-Based Authentication
+
+```http
+Cookie: session_id=your-session-id
+```
+
+### Error Handling
+
+The API uses standard HTTP status codes and returns detailed error information:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid request parameters",
+    "details": {
+      "field": "title",
+      "reason": "Required field is missing"
+    }
+  },
+  "timestamp": "2024-01-15T10:30:00Z",
+  "requestId": "req-123456789"
+}
+```
+
+### Rate Limiting
+
+API requests are rate limited based on your subscription plan:
+
+| Plan | Requests/Minute | Requests/Hour | Concurrent Requests |
+|-------|----------------|---------------|-------------------|
+| Free | 60 | 1,000 | 5 |
+| Pro | 300 | 10,000 | 20 |
+| Enterprise | 1,000 | 100,000 | 100 |
+
+Rate limit headers are included in responses:
+
+```http
+X-RateLimit-Limit: 300
+X-RateLimit-Remaining: 295
+X-RateLimit-Reset: 1642694400
+```
+
+## Authentication Endpoints
+
+### Generate API Key
+
+Generate a new API key for programmatic access.
+
+**Endpoint:** `POST /api/auth/api-keys`
+
+**Request Body:**
+```json
+{
+  "name": "My API Key",
+  "description": "API key for CI/CD integration",
+  "scopes": ["tests:read", "tests:write", "jobs:execute"],
+  "expiresAt": "2024-12-31T23:59:59Z"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "key-123456789",
+  "name": "My API Key",
+  "apiKey": "sk-1234567890abcdef",
+  "scopes": ["tests:read", "tests:write", "jobs:execute"],
+  "createdAt": "2024-01-15T10:30:00Z",
+  "expiresAt": "2024-12-31T23:59:59Z",
+  "lastUsedAt": null
+}
+```
+
+### List API Keys
+
+List all API keys associated with your account.
+
+**Endpoint:** `GET /api/auth/api-keys`
+
+**Response:**
+```json
+{
+  "apiKeys": [
+    {
+      "id": "key-123456789",
+      "name": "My API Key",
+      "scopes": ["tests:read", "tests:write", "jobs:execute"],
+      "createdAt": "2024-01-15T10:30:00Z",
+      "expiresAt": "2024-12-31T23:59:59Z",
+      "lastUsedAt": "2024-01-15T11:00:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 5
+  }
+}
+```
+
+### Revoke API Key
+
+Revoke an API key to disable access.
+
+**Endpoint:** `DELETE /api/auth/api-keys/{keyId}`
+
+**Response:** `204 No Content`
+
+## Test Management Endpoints
+
+### List Tests
+
+Retrieve a list of all tests in your project.
+
+**Endpoint:** `GET /api/tests`
+
+**Query Parameters:**
+- `page` (integer): Page number (default: 1)
+- `limit` (integer): Items per page (default: 20)
+- `search` (string): Search term
+- `type` (string): Filter by test type
+- `status` (string): Filter by test status
+- `tags` (string): Filter by tags (comma-separated)
+
+**Response:**
+```json
+{
+  "tests": [
+    {
+      "id": "test-123456789",
+      "title": "User Login Test",
+      "description": "Test user login functionality",
+      "type": "browser_test",
+      "status": "active",
+      "tags": ["authentication", "critical"],
+      "priority": "high",
+      "createdAt": "2024-01-15T10:30:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z",
+      "lastRunAt": "2024-01-15T09:00:00Z",
+      "lastRunStatus": "passed"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 45
+  }
+}
+```
+
+### Get Test
+
+Retrieve detailed information about a specific test.
+
+**Endpoint:** `GET /api/tests/{testId}`
+
+**Response:**
+```json
+{
+  "id": "test-123456789",
+  "title": "User Login Test",
+  "description": "Test user login functionality",
+  "type": "browser_test",
+  "status": "active",
+  "tags": ["authentication", "critical"],
+  "priority": "high",
+  "script": "const { test, expect } = require('@playwright/test');\n\ntest('user can login', async ({ page }) => {\n  await page.goto('https://example.com/login');\n  await page.fill('#username', 'testuser');\n  await page.fill('#password', 'password');\n  await page.click('#submit');\n  await expect(page.locator('.welcome')).toBeVisible();\n});",
+  "environment": "staging",
+  "timeout": 30000,
+  "retries": 2,
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:30:00Z",
+  "lastRunAt": "2024-01-15T09:00:00Z",
+  "lastRunStatus": "passed",
+  "statistics": {
+    "totalRuns": 156,
+    "passedRuns": 148,
+    "failedRuns": 8,
+    "averageDuration": 45.5,
+    "last30Days": {
+      "runs": 30,
+      "passed": 28,
+      "failed": 2,
+      "successRate": 93.3
+    }
+  }
+}
+```
+
+### Create Test
+
+Create a new test in your project.
+
+**Endpoint:** `POST /api/tests`
+
+**Request Body:**
+```json
+{
+  "title": "API Test",
+  "description": "Test created via API",
+  "type": "api_test",
+  "script": "const { test, expect } = require('@playwright/test');\n\ntest('API health check', async ({ request }) => {\n  const response = await request.get('https://api.example.com/health');\n  expect(response.status()).toBe(200);\n  const data = await response.json();\n  expect(data.status).toBe('healthy');\n});",
+  "environment": "staging",
+  "timeout": 30000,
+  "retries": 2,
+  "tags": ["api", "automated"],
+  "priority": "high"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "test-987654321",
+  "title": "API Test",
+  "description": "Test created via API",
+  "type": "api_test",
+  "status": "active",
+  "tags": ["api", "automated"],
+  "priority": "high",
+  "environment": "staging",
+  "timeout": 30000,
+  "retries": 2,
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:00:00Z"
+}
+```
+
+### Update Test
+
+Update an existing test.
+
+**Endpoint:** `PUT /api/tests/{testId}`
+
+**Request Body:**
+```json
+{
+  "title": "Updated API Test",
+  "description": "Updated test description",
+  "script": "const { test, expect } = require('@playwright/test');\n\ntest('API health check', async ({ request }) => {\n  const response = await request.get('https://api.example.com/health');\n  expect(response.status()).toBe(200);\n  const data = await response.json();\n  expect(data.status).toBe('healthy');\n  expect(data.timestamp).toBeDefined();\n});",
+  "tags": ["api", "automated", "updated"]
+}
+```
+
+**Response:**
+```json
+{
+  "id": "test-987654321",
+  "title": "Updated API Test",
+  "description": "Updated test description",
+  "type": "api_test",
+  "status": "active",
+  "tags": ["api", "automated", "updated"],
+  "priority": "high",
+  "environment": "staging",
+  "timeout": 30000,
+  "retries": 2,
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:30:00Z"
+}
+```
+
+### Delete Test
+
+Delete a test from your project.
+
+**Endpoint:** `DELETE /api/tests/{testId}`
+
+**Response:** `204 No Content`
+
+### Run Test
+
+Execute a test and get the results.
+
+**Endpoint:** `POST /api/tests/{testId}/run`
+
+**Request Body:**
+```json
+{
+  "environment": "staging",
+  "variables": {
+    "API_BASE_URL": "https://api-staging.example.com",
+    "API_KEY": "staging-api-key"
+  },
+  "options": {
+    "timeout": 30000,
+    "retries": 2,
+    "parallel": false
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "executionId": "exec-123456789",
+  "testId": "test-987654321",
+  "status": "running",
+  "startedAt": "2024-01-15T11:30:00Z",
+  "estimatedDuration": "2m",
+  "environment": "staging",
+  "variables": {
+    "API_BASE_URL": "https://api-staging.example.com",
+    "API_KEY": "staging-api-key"
+  }
+}
+```
+
+### Get Test Results
+
+Get the results of a test execution.
+
+**Endpoint:** `GET /api/tests/{testId}/results/{executionId}`
+
+**Response:**
+```json
+{
+  "executionId": "exec-123456789",
+  "testId": "test-987654321",
+  "status": "completed",
+  "result": "passed",
+  "startedAt": "2024-01-15T11:30:00Z",
+  "completedAt": "2024-01-15T11:32:15Z",
+  "duration": 135000,
+  "environment": "staging",
+  "steps": [
+    {
+      "step": 1,
+      "name": "Navigate to URL",
+      "status": "passed",
+      "duration": 45000,
+      "error": null
+    },
+    {
+      "step": 2,
+      "name": "Fill login form",
+      "status": "passed",
+      "duration": 30000,
+      "error": null
+    },
+    {
+      "step": 3,
+      "name": "Submit form",
+      "status": "passed",
+      "duration": 25000,
+      "error": null
+    },
+    {
+      "step": 4,
+      "name": "Verify success",
+      "status": "passed",
+      "duration": 35000,
+      "error": null
+    }
+  ],
+  "screenshots": [
+    {
+      "step": 4,
+      "url": "https://example.com/dashboard",
+      "filename": "screenshot-1.png",
+      "path": "/screenshots/exec-123456789/screenshot-1.png"
+    }
+  ],
+  "logs": [
+    {
+      "timestamp": "2024-01-15T11:30:05Z",
+      "level": "info",
+      "message": "Starting test execution"
+    },
+    {
+      "timestamp": "2024-01-15T11:30:10Z",
+      "level": "info",
+      "message": "Navigating to https://example.com/login"
+    },
+    {
+      "timestamp": "2024-01-15T11:31:15Z",
+      "level": "info",
+      "message": "Test completed successfully"
+    }
+  ]
+}
+```
+
+## Job Management Endpoints
+
+### List Jobs
+
+Retrieve a list of all jobs in your project.
+
+**Endpoint:** `GET /api/jobs`
+
+**Query Parameters:**
+- `page` (integer): Page number (default: 1)
+- `limit` (integer): Items per page (default: 20)
+- `search` (string): Search term
+- `status` (string): Filter by job status
+- `schedule` (string): Filter by schedule type
+
+**Response:**
+```json
+{
+  "jobs": [
+    {
+      "id": "job-123456789",
+      "name": "Daily Regression Suite",
+      "description": "Run all critical tests daily",
+      "status": "active",
+      "schedule": "0 2 * * *",
+      "nextRun": "2024-01-16T02:00:00Z",
+      "lastRun": "2024-01-15T02:00:00Z",
+      "lastRunStatus": "passed",
+      "createdAt": "2024-01-15T10:30:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 15
+  }
+}
+```
+
+### Get Job
+
+Retrieve detailed information about a specific job.
+
+**Endpoint:** `GET /api/jobs/{jobId}`
+
+**Response:**
+```json
+{
+  "id": "job-123456789",
+  "name": "Daily Regression Suite",
+  "description": "Run all critical tests daily",
+  "status": "active",
+  "schedule": "0 2 * * *",
+  "nextRun": "2024-01-16T02:00:00Z",
+  "lastRun": "2024-01-15T02:00:00Z",
+  "lastRunStatus": "passed",
+  "tests": [
+    {
+      "id": "test-123456789",
+      "title": "User Login Test",
+      "type": "browser_test"
+    },
+    {
+      "id": "test-987654321",
+      "title": "API Health Check",
+      "type": "api_test"
+    }
+  ],
+  "environment": "staging",
+  "notifications": {
+    "onSuccess": ["email-team"],
+    "onFailure": ["email-alerts", "slack-critical"]
+  },
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:30:00Z",
+  "statistics": {
+    "totalRuns": 30,
+    "passedRuns": 28,
+    "failedRuns": 2,
+    "averageDuration": 1800.5,
+    "last30Days": {
+      "runs": 30,
+      "passed": 28,
+      "failed": 2,
+      "successRate": 93.3
+    }
+  }
+}
+```
+
+### Create Job
+
+Create a new job in your project.
+
+**Endpoint:** `POST /api/jobs`
+
+**Request Body:**
+```json
+{
+  "name": "API-created Job",
+  "description": "Job created via API",
+  "tests": ["test-123456789", "test-987654321"],
+  "schedule": "0 2 * * *",
+  "environment": "staging",
+  "notifications": {
+    "onSuccess": ["email-team"],
+    "onFailure": ["email-alerts", "slack-critical"]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "job-987654321",
+  "name": "API-created Job",
+  "description": "Job created via API",
+  "status": "active",
+  "schedule": "0 2 * * *",
+  "nextRun": "2024-01-16T02:00:00Z",
+  "tests": [
+    {
+      "id": "test-123456789",
+      "title": "User Login Test",
+      "type": "browser_test"
+    },
+    {
+      "id": "test-987654321",
+      "title": "API Health Check",
+      "type": "api_test"
+    }
+  ],
+  "environment": "staging",
+  "notifications": {
+    "onSuccess": ["email-team"],
+    "onFailure": ["email-alerts", "slack-critical"]
+  },
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:00:00Z"
+}
+```
+
+### Update Job
+
+Update an existing job.
+
+**Endpoint:** `PUT /api/jobs/{jobId}`
+
+**Request Body:**
+```json
+{
+  "name": "Updated Job",
+  "description": "Updated job description",
+  "schedule": "0 3 * * *",
+  "notifications": {
+    "onSuccess": ["email-team", "slack-success"],
+    "onFailure": ["email-alerts", "slack-critical"]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "job-987654321",
+  "name": "Updated Job",
+  "description": "Updated job description",
+  "status": "active",
+  "schedule": "0 3 * * *",
+  "nextRun": "2024-01-16T03:00:00Z",
+  "tests": [
+    {
+      "id": "test-123456789",
+      "title": "User Login Test",
+      "type": "browser_test"
+    },
+    {
+      "id": "test-987654321",
+      "title": "API Health Check",
+      "type": "api_test"
+    }
+  ],
+  "environment": "staging",
+  "notifications": {
+    "onSuccess": ["email-team", "slack-success"],
+    "onFailure": ["email-alerts", "slack-critical"]
+  },
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:30:00Z"
+}
+```
+
+### Delete Job
+
+Delete a job from your project.
+
+**Endpoint:** `DELETE /api/jobs/{jobId}`
+
+**Response:** `204 No Content`
+
+### Run Job
+
+Execute a job and get the results.
+
+**Endpoint:** `POST /api/jobs/{jobId}/run`
+
+**Request Body:**
+```json
+{
+  "environment": "staging",
+  "variables": {
+    "API_BASE_URL": "https://api-staging.example.com",
+    "API_KEY": "staging-api-key"
+  },
+  "options": {
+    "timeout": 30000,
+    "retries": 2,
+    "parallel": true
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "executionId": "exec-123456789",
+  "jobId": "job-987654321",
+  "status": "running",
+  "startedAt": "2024-01-15T11:30:00Z",
+  "estimatedDuration": "5m",
+  "environment": "staging",
+  "variables": {
+    "API_BASE_URL": "https://api-staging.example.com",
+    "API_KEY": "staging-api-key"
+  },
+  "tests": [
+    {
+      "testId": "test-123456789",
+      "executionId": "exec-123456790",
+      "status": "running",
+      "startedAt": "2024-01-15T11:30:00Z"
+    },
+    {
+      "testId": "test-987654321",
+      "executionId": "exec-123456791",
+      "status": "pending",
+      "startedAt": null
+    }
+  ]
+}
+```
+
+### Get Job Results
+
+Get the results of a job execution.
+
+**Endpoint:** `GET /api/jobs/{jobId}/results/{executionId}`
+
+**Response:**
+```json
+{
+  "executionId": "exec-123456789",
+  "jobId": "job-987654321",
+  "status": "completed",
+  "result": "passed",
+  "startedAt": "2024-01-15T11:30:00Z",
+  "completedAt": "2024-01-15T11:35:00Z",
+  "duration": 300000,
+  "environment": "staging",
+  "summary": {
+    "totalTests": 2,
+    "passedTests": 2,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "successRate": 100.0
+  },
+  "testResults": [
+    {
+      "testId": "test-123456789",
+      "executionId": "exec-123456790",
+      "status": "completed",
+      "result": "passed",
+      "startedAt": "2024-01-15T11:30:00Z",
+      "completedAt": "2024-01-15T11:32:15Z",
+      "duration": 135000,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Navigate to URL",
+          "status": "passed",
+          "duration": 45000,
+          "error": null
+        },
+        {
+          "step": 2,
+          "name": "Fill login form",
+          "status": "passed",
+          "duration": 30000,
+          "error": null
+        },
+        {
+          "step": 3,
+          "name": "Submit form",
+          "status": "passed",
+          "duration": 25000,
+          "error": null
+        },
+        {
+          "step": 4,
+          "name": "Verify success",
+          "status": "passed",
+          "duration": 35000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "testId": "test-987654321",
+      "executionId": "exec-123456791",
+      "status": "completed",
+      "result": "passed",
+      "startedAt": "2024-01-15T11:32:15Z",
+      "completedAt": "2024-01-15T11:35:00Z",
+      "duration": 165000,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Make API request",
+          "status": "passed",
+          "duration": 50000,
+          "error": null
+        },
+        {
+          "step": 2,
+          "name": "Verify response",
+          "status": "passed",
+          "duration": 15000,
+          "error": null
+        },
+        {
+          "step": 3,
+          "name": "Check response data",
+          "status": "passed",
+          "duration": 100000,
+          "error": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Monitor Management Endpoints
+
+### List Monitors
+
+Retrieve a list of all monitors in your project.
+
+**Endpoint:** `GET /api/monitors`
+
+**Query Parameters:**
+- `page` (integer): Page number (default: 1)
+- `limit` (integer): Items per page (default: 20)
+- `search` (string): Search term
+- `type` (string): Filter by monitor type
+- `status` (string): Filter by monitor status
+
+**Response:**
+```json
+{
+  "monitors": [
+    {
+      "id": "monitor-123456789",
+      "name": "API Health Check",
+      "type": "http_request",
+      "target": "https://api.example.com/health",
+      "status": "active",
+      "frequencyMinutes": 5,
+      "lastCheck": "2024-01-15T11:30:00Z",
+      "lastStatus": "operational",
+      "createdAt": "2024-01-15T10:30:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 25
+  }
+}
+```
+
+### Get Monitor
+
+Retrieve detailed information about a specific monitor.
+
+**Endpoint:** `GET /api/monitors/{monitorId}`
+
+**Response:**
+```json
+{
+  "id": "monitor-123456789",
+  "name": "API Health Check",
+  "type": "http_request",
+  "target": "https://api.example.com/health",
+  "status": "active",
+  "frequencyMinutes": 5,
+  "config": {
+    "method": "GET",
+    "expectedStatusCodes": "200-299",
+    "timeoutSeconds": 30,
+    "headers": {
+      "Authorization": "Bearer ${API_KEY}",
+      "User-Agent": "Supercheck-Monitor/1.0"
+    }
+  },
+  "alertConfig": {
+    "failureThreshold": 2,
+    "recoveryThreshold": 1,
+    "notificationChannels": ["email-alerts", "slack-critical"]
+  },
+  "lastCheck": "2024-01-15T11:30:00Z",
+  "lastStatus": "operational",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:30:00Z",
+  "statistics": {
+    "totalChecks": 8640,
+    "successfulChecks": 8625,
+    "failedChecks": 15,
+    "uptime": 99.83,
+    "last30Days": {
+      "checks": 8640,
+      "successful": 8625,
+      "failed": 15,
+      "uptime": 99.83
+    }
+  }
+}
+```
+
+### Create Monitor
+
+Create a new monitor in your project.
+
+**Endpoint:** `POST /api/monitors`
+
+**Request Body:**
+```json
+{
+  "name": "API Monitor",
+  "type": "http_request",
+  "target": "https://api.example.com/health",
+  "frequencyMinutes": 5,
+  "config": {
+    "method": "GET",
+    "expectedStatusCodes": "200-299",
+    "timeoutSeconds": 30,
+    "headers": {
+      "Authorization": "Bearer ${API_KEY}",
+      "User-Agent": "Supercheck-Monitor/1.0"
+    }
+  },
+  "alertConfig": {
+    "failureThreshold": 2,
+    "recoveryThreshold": 1,
+    "notificationChannels": ["email-alerts", "slack-critical"]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "monitor-987654321",
+  "name": "API Monitor",
+  "type": "http_request",
+  "target": "https://api.example.com/health",
+  "status": "active",
+  "frequencyMinutes": 5,
+  "config": {
+    "method": "GET",
+    "expectedStatusCodes": "200-299",
+    "timeoutSeconds": 30,
+    "headers": {
+      "Authorization": "Bearer ${API_KEY}",
+      "User-Agent": "Supercheck-Monitor/1.0"
+    }
+  },
+  "alertConfig": {
+    "failureThreshold": 2,
+    "recoveryThreshold": 1,
+    "notificationChannels": ["email-alerts", "slack-critical"]
+  },
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:00:00Z"
+}
+```
+
+### Update Monitor
+
+Update an existing monitor.
+
+**Endpoint:** `PUT /api/monitors/{monitorId}`
+
+**Request Body:**
+```json
+{
+  "name": "Updated API Monitor",
+  "frequencyMinutes": 3,
+  "config": {
+    "method": "GET",
+    "expectedStatusCodes": "200-299",
+    "timeoutSeconds": 20
+  },
+  "alertConfig": {
+    "failureThreshold": 3,
+    "recoveryThreshold": 2,
+    "notificationChannels": ["email-alerts", "slack-critical", "webhook-alerts"]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "monitor-987654321",
+  "name": "Updated API Monitor",
+  "type": "http_request",
+  "target": "https://api.example.com/health",
+  "status": "active",
+  "frequencyMinutes": 3,
+  "config": {
+    "method": "GET",
+    "expectedStatusCodes": "200-299",
+    "timeoutSeconds": 20,
+    "headers": {
+      "Authorization": "Bearer ${API_KEY}",
+      "User-Agent": "Supercheck-Monitor/1.0"
+    }
+  },
+  "alertConfig": {
+    "failureThreshold": 3,
+    "recoveryThreshold": 2,
+    "notificationChannels": ["email-alerts", "slack-critical", "webhook-alerts"]
+  },
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:30:00Z"
+}
+```
+
+### Delete Monitor
+
+Delete a monitor from your project.
+
+**Endpoint:** `DELETE /api/monitors/{monitorId}`
+
+**Response:** `204 No Content`
+
+### Test Monitor
+
+Execute a monitor check and get the results.
+
+**Endpoint:** `POST /api/monitors/{monitorId}/test`
+
+**Response:**
+```json
+{
+  "monitorId": "monitor-987654321",
+  "status": "operational",
+  "responseTime": 150,
+  "statusCode": 200,
+  "checkedAt": "2024-01-15T11:30:00Z",
+  "config": {
+    "method": "GET",
+    "expectedStatusCodes": "200-299",
+    "timeoutSeconds": 30
+  },
+  "result": {
+    "success": true,
+    "message": "Monitor check passed",
+    "details": {
+      "responseTime": 150,
+      "statusCode": 200,
+      "contentLength": 1024,
+      "headers": {
+        "content-type": "application/json",
+        "server": "nginx/1.20.1"
+      }
+    }
+  }
+}
+```
+
+## Variable Management Endpoints
+
+### List Variables
+
+Retrieve a list of all variables in your project.
+
+**Endpoint:** `GET /api/variables`
+
+**Query Parameters:**
+- `page` (integer): Page number (default: 1)
+- `limit` (integer): Items per page (default: 20)
+- `search` (string): Search term
+- `type` (string): Filter by variable type (regular, secret)
+- `encrypted` (boolean): Filter by encryption status
+
+**Response:**
+```json
+{
+  "variables": [
+    {
+      "id": "var-123456789",
+      "key": "API_BASE_URL",
+      "value": "https://api.example.com",
+      "type": "regular",
+      "encrypted": false,
+      "description": "Base URL for API endpoints",
+      "createdAt": "2024-01-15T10:30:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 15
+  }
+}
+```
+
+### Get Variable
+
+Retrieve detailed information about a specific variable.
+
+**Endpoint:** `GET /api/variables/{variableId}`
+
+**Response:**
+```json
+{
+  "id": "var-123456789",
+  "key": "API_BASE_URL",
+  "value": "https://api.example.com",
+  "type": "regular",
+  "encrypted": false,
+  "description": "Base URL for API endpoints",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:30:00Z",
+  "accessLog": [
+    {
+      "timestamp": "2024-01-15T11:00:00Z",
+      "userId": "user-123456789",
+      "action": "read",
+      "ipAddress": "192.168.1.100"
+    }
+  ]
+}
+```
+
+### Create Variable
+
+Create a new variable in your project.
+
+**Endpoint:** `POST /api/variables`
+
+**Request Body:**
+```json
+{
+  "key": "DATABASE_URL",
+  "value": "postgresql://user:password@localhost:5432/supercheck",
+  "type": "regular",
+  "encrypted": false,
+  "description": "Database connection string"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "var-987654321",
+  "key": "DATABASE_URL",
+  "value": "postgresql://user:password@localhost:5432/supercheck",
+  "type": "regular",
+  "encrypted": false,
+  "description": "Database connection string",
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:00:00Z"
+}
+```
+
+### Create Secret Variable
+
+Create a new secret variable in your project.
+
+**Endpoint:** `POST /api/variables`
+
+**Request Body:**
+```json
+{
+  "key": "API_KEY",
+  "value": "sk-1234567890abcdef",
+  "type": "secret",
+  "encrypted": true,
+  "description": "API authentication key"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "var-987654322",
+  "key": "API_KEY",
+  "value": "sk-1234567890abcdef",
+  "type": "secret",
+  "encrypted": true,
+  "description": "API authentication key",
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:00:00Z"
+}
+```
+
+### Update Variable
+
+Update an existing variable.
+
+**Endpoint:** `PUT /api/variables/{variableId}`
+
+**Request Body:**
+```json
+{
+  "value": "https://api-staging.example.com",
+  "description": "Staging API base URL"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "var-987654321",
+  "key": "API_BASE_URL",
+  "value": "https://api-staging.example.com",
+  "type": "regular",
+  "encrypted": false,
+  "description": "Staging API base URL",
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:30:00Z"
+}
+```
+
+### Delete Variable
+
+Delete a variable from your project.
+
+**Endpoint:** `DELETE /api/variables/{variableId}`
+
+**Response:** `204 No Content`
+
+## Status Page Endpoints
+
+### List Status Pages
+
+Retrieve a list of all status pages in your project.
+
+**Endpoint:** `GET /api/status-pages`
+
+**Query Parameters:**
+- `page` (integer): Page number (default: 1)
+- `limit` (integer): Items per page (default: 20)
+- `search` (string): Search term
+- `status` (string): Filter by status page status
+
+**Response:**
+```json
+{
+  "statusPages": [
+    {
+      "id": "status-123456789",
+      "name": "Main Status Page",
+      "headline": "Supercheck Service Status",
+      "description": "Real-time status of Supercheck services",
+      "url": "https://status.supercheck.io",
+      "status": "active",
+      "createdAt": "2024-01-15T10:30:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 5
+  }
+}
+```
+
+### Get Status Page
+
+Retrieve detailed information about a specific status page.
+
+**Endpoint:** `GET /api/status-pages/{statusPageId}`
+
+**Response:**
+```json
+{
+  "id": "status-123456789",
+  "name": "Main Status Page",
+  "headline": "Supercheck Service Status",
+  "description": "Real-time status of Supercheck services",
+  "url": "https://status.supercheck.io",
+  "status": "active",
+  "components": [
+    {
+      "id": "comp-123456789",
+      "name": "API Service",
+      "description": "Main API service",
+      "monitorId": "monitor-123456789",
+      "status": "operational",
+      "lastCheck": "2024-01-15T11:30:00Z"
+    },
+    {
+      "id": "comp-987654321",
+      "name": "Database",
+      "description": "Primary database",
+      "monitorId": "monitor-987654321",
+      "status": "operational",
+      "lastCheck": "2024-01-15T11:30:00Z"
+    }
+  ],
+  "branding": {
+    "logo": "https://cdn.example.com/logo.png",
+    "colors": {
+      "primary": "#3b82f6",
+      "secondary": "#10b981",
+      "success": "#22c55e",
+      "warning": "#f59e0b",
+      "error": "#ef4444"
+    }
+  },
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+### Create Status Page
+
+Create a new status page in your project.
+
+**Endpoint:** `POST /api/status-pages`
+
+**Request Body:**
+```json
+{
+  "name": "API Status Page",
+  "headline": "API Service Status",
+  "description": "Real-time status of API services",
+  "components": [
+    {
+      "name": "API Service",
+      "description": "Main API service",
+      "monitorId": "monitor-123456789"
+    },
+    {
+      "name": "Database",
+      "description": "Primary database",
+      "monitorId": "monitor-987654321"
+    }
+  ],
+  "branding": {
+    "logo": "https://cdn.example.com/logo.png",
+    "colors": {
+      "primary": "#3b82f6",
+      "secondary": "#10b981",
+      "success": "#22c55e",
+      "warning": "#f59e0b",
+      "error": "#ef4444"
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "status-987654321",
+  "name": "API Status Page",
+  "headline": "API Service Status",
+  "description": "Real-time status of API services",
+  "url": "https://status-987654321.supercheck.io",
+  "status": "active",
+  "components": [
+    {
+      "id": "comp-123456789",
+      "name": "API Service",
+      "description": "Main API service",
+      "monitorId": "monitor-123456789",
+      "status": "operational",
+      "lastCheck": "2024-01-15T11:30:00Z"
+    },
+    {
+      "id": "comp-987654321",
+      "name": "Database",
+      "description": "Primary database",
+      "monitorId": "monitor-987654321",
+      "status": "operational",
+      "lastCheck": "2024-01-15T11:30:00Z"
+    }
+  ],
+  "branding": {
+    "logo": "https://cdn.example.com/logo.png",
+    "colors": {
+      "primary": "#3b82f6",
+      "secondary": "#10b981",
+      "success": "#22c55e",
+      "warning": "#f59e0b",
+      "error": "#ef4444"
+    }
+  },
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:00:00Z"
+}
+```
+
+### Update Status Page
+
+Update an existing status page.
+
+**Endpoint:** `PUT /api/status-pages/{statusPageId}`
+
+**Request Body:**
+```json
+{
+  "name": "Updated Status Page",
+  "headline": "Updated Service Status",
+  "description": "Updated description",
+  "branding": {
+    "logo": "https://cdn.example.com/new-logo.png",
+    "colors": {
+      "primary": "#1e40af",
+      "secondary": "#059669",
+      "success": "#16a34a",
+      "warning": "#d97706",
+      "error": "#dc2626"
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "status-987654321",
+  "name": "Updated Status Page",
+  "headline": "Updated Service Status",
+  "description": "Updated description",
+  "url": "https://status-987654321.supercheck.io",
+  "status": "active",
+  "components": [
+    {
+      "id": "comp-123456789",
+      "name": "API Service",
+      "description": "Main API service",
+      "monitorId": "monitor-123456789",
+      "status": "operational",
+      "lastCheck": "2024-01-15T11:30:00Z"
+    },
+    {
+      "id": "comp-987654321",
+      "name": "Database",
+      "description": "Primary database",
+      "monitorId": "monitor-987654321",
+      "status": "operational",
+      "lastCheck": "2024-01-15T11:30:00Z"
+    }
+  ],
+  "branding": {
+    "logo": "https://cdn.example.com/new-logo.png",
+    "colors": {
+      "primary": "#1e40af",
+      "secondary": "#059669",
+      "success": "#16a34a",
+      "warning": "#d97706",
+      "error": "#dc2626"
+    }
+  },
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:30:00Z"
+}
+```
+
+### Delete Status Page
+
+Delete a status page from your project.
+
+**Endpoint:** `DELETE /api/status-pages/{statusPageId}`
+
+**Response:** `204 No Content`
+
+## System Endpoints
+
+### Health Check
+
+Check the health status of the Supercheck API.
+
+**Endpoint:** `GET /api/health`
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T11:30:00Z",
+  "version": "1.0.0",
+  "components": {
+    "api": {
+      "status": "healthy",
+      "responseTime": 50,
+      "lastCheck": "2024-01-15T11:30:00Z"
+    },
+    "database": {
+      "status": "healthy",
+      "responseTime": 25,
+      "lastCheck": "2024-01-15T11:30:00Z"
+    },
+    "redis": {
+      "status": "healthy",
+      "responseTime": 10,
+      "lastCheck": "2024-01-15T11:30:00Z"
+    },
+    "queue": {
+      "status": "healthy",
+      "responseTime": 15,
+      "lastCheck": "2024-01-15T11:30:00Z"
+    }
+  }
+}
+```
+
+### System Status
+
+Get detailed system status information.
+
+**Endpoint:** `GET /api/status`
+
+**Response:**
+```json
+{
+  "status": "operational",
+  "timestamp": "2024-01-15T11:30:00Z",
+  "version": "1.0.0",
+  "uptime": 99.95,
+  "performance": {
+    "responseTime": {
+      "average": 45,
+      "p95": 120,
+      "p99": 200
+    },
+    "throughput": {
+      "requests_per_second": 1000,
+      "peak_requests_per_second": 1500
+    },
+    "errorRate": {
+      "average": 0.05,
+      "p95": 0.1,
+      "p99": 0.2
+    }
+  },
+  "resources": {
+    "cpu": {
+      "usage": 45.5,
+      "limit": 80.0
+    },
+    "memory": {
+      "usage": 60.2,
+      "limit": 80.0
+    },
+    "disk": {
+      "usage": 30.8,
+      "limit": 80.0
+    }
+  },
+  "services": {
+    "api": {
+      "status": "operational",
+      "instances": 3,
+      "healthy_instances": 3
+    },
+    "worker": {
+      "status": "operational",
+      "instances": 5,
+      "healthy_instances": 5
+    },
+    "database": {
+      "status": "operational",
+      "instances": 1,
+      "healthy_instances": 1
+    },
+    "redis": {
+      "status": "operational",
+      "instances": 1,
+      "healthy_instances": 1
+    }
+  }
+}
+```
+
+### Metrics
+
+Get system metrics and performance data.
+
+**Endpoint:** `GET /api/metrics`
+
+**Query Parameters:**
+- `type` (string): Metric type (performance, usage, errors)
+- `timeRange` (string): Time range (1h, 24h, 7d, 30d)
+- `granularity` (string): Data granularity (1m, 5m, 1h, 1d)
+
+**Response:**
+```json
+{
+  "metrics": {
+    "performance": [
+      {
+        "timestamp": "2024-01-15T11:30:00Z",
+        "response_time": 45,
+        "throughput": 1000,
+        "error_rate": 0.05
+      }
+    ],
+    "usage": [
+      {
+        "timestamp": "2024-01-15T11:30:00Z",
+        "active_tests": 156,
+        "active_jobs": 25,
+        "active_monitors": 45,
+        "total_users": 1250
+      }
+    ],
+    "errors": [
+      {
+        "timestamp": "2024-01-15T11:30:00Z",
+        "error_count": 5,
+        "error_types": [
+          "validation_error": 2,
+          "timeout_error": 2,
+          "authentication_error": 1
+        ]
+      }
+    ]
+  }
+}
+```
+
+## Webhooks
+
+### Webhook Configuration
+
+Configure webhooks to receive real-time notifications about events.
+
+**Endpoint:** `POST /api/webhooks`
+
+**Request Body:**
+```json
+{
+  "name": "CI/CD Webhook",
+  "url": "https://api.example.com/webhooks/supercheck",
+  "events": ["test.completed", "job.completed", "monitor.alert"],
+  "secret": "webhook-secret-key",
+  "active": true
+}
+```
+
+**Response:**
+```json
+{
+  "id": "webhook-123456789",
+  "name": "CI/CD Webhook",
+  "url": "https://api.example.com/webhooks/supercheck",
+  "events": ["test.completed", "job.completed", "monitor.alert"],
+  "secret": "webhook-secret-key",
+  "active": true,
+  "createdAt": "2024-01-15T11:00:00Z",
+  "updatedAt": "2024-01-15T11:00:00Z"
+}
+```
+
+### Webhook Events
+
+Webhook payload structure for different events:
+
+**Test Completed Event:**
+```json
+{
+  "event": "test.completed",
+  "timestamp": "2024-01-15T11:30:00Z",
+  "data": {
+    "testId": "test-123456789",
+    "executionId": "exec-123456789",
+    "status": "completed",
+    "result": "passed",
+    "duration": 135000,
+    "environment": "staging"
+  }
+}
+```
+
+**Job Completed Event:**
+```json
+{
+  "event": "job.completed",
+  "timestamp": "2024-01-15T11:30:00Z",
+  "data": {
+    "jobId": "job-123456789",
+    "executionId": "exec-123456789",
+    "status": "completed",
+    "result": "passed",
+    "duration": 300000,
+    "summary": {
+      "totalTests": 2,
+      "passedTests": 2,
+      "failedTests": 0,
+      "successRate": 100.0
+    }
+  }
+}
+```
+
+**Monitor Alert Event:**
+```json
+{
+  "event": "monitor.alert",
+  "timestamp": "2024-01-15T11:30:00Z",
+  "data": {
+    "monitorId": "monitor-123456789",
+    "name": "API Health Check",
+    "status": "critical",
+    "message": "API service is down",
+    "checkedAt": "2024-01-15T11:30:00Z",
+    "responseTime": null,
+    "statusCode": null
+  }
+}
+```
+
+## SDKs
+
+### JavaScript/TypeScript SDK
+
+Installation:
+```bash
+npm install @supercheck/api
+```
+
+Usage:
+```javascript
+import { SupercheckAPI } from '@supercheck/api';
+
+const client = new SupercheckAPI({
+  apiKey: 'your-api-key',
+  baseURL: 'https://api.supercheck.io/v1'
+});
+
+// Create test
+const test = await client.tests.create({
+  title: 'API Test',
+  script: 'test("example", async () => {});'
+});
+
+// Run test
+const execution = await client.tests.run(test.id);
+
+// Get results
+const results = await client.tests.getResults(execution.executionId);
+```
+
+### Python SDK
+
+Installation:
+```bash
+pip install supercheck-api
+```
+
+Usage:
+```python
+from supercheck import SupercheckAPI
+
+client = SupercheckAPI(
+    api_key='your-api-key',
+    base_url='https://api.supercheck.io/v1'
+)
+
+# Create test
+test = client.tests.create({
+    'title': 'API Test',
+    'script': 'test("example", async () => {}):'
+})
+
+# Run test
+execution = client.tests.run(test.id)
+
+# Get results
+results = client.tests.get_results(execution.execution_id)
+```
+
+### Go SDK
+
+Installation:
+```bash
+go get github.com/supercheck/go-sdk
+```
+
+Usage:
+```go
+package main
+
+import (
+    "github.com/supercheck/go-sdk"
+)
+
+func main() {
+    client := supercheck.NewClient("your-api-key", "https://api.supercheck.io/v1")
+    
+    // Create test
+    test, err := client.Tests.Create(supercheck.Test{
+        Title: "API Test",
+        Script: "test(\"example\", async () => {})",
+    })
+    
+    if err != nil {
+        panic(err)
+    }
+    
+    // Run test
+    execution, err := client.Tests.Run(test.ID)
+    
+    if err != nil {
+        panic(err)
+    }
+    
+    // Get results
+    results, err := client.Tests.GetResults(execution.ExecutionID)
+    
+    if err != nil {
+        panic(err)
+    }
+}
+```
+
+## API Examples
+
+### CI/CD Integration
+
+**GitHub Actions Example:**
+```yaml
+name: Supercheck Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Supercheck Tests
+        run: |
+          curl -X POST "https://api.supercheck.io/v1/jobs/github-actions/run" \
+            -H "Authorization: Bearer ${{ secrets.SUPERCHECK_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "environment": "ci",
+              "variables": {
+                "COMMIT_SHA": "${{ github.sha }}",
+                "BRANCH": "${{ github.ref }}"
+              }
+            }'
+```
+
+**Jenkins Pipeline Example:**
+```groovy
+pipeline {
+  agent any
+  stages {
+    stage('Test') {
+      steps {
+        sh '''
+          curl -X POST "https://api.supercheck.io/v1/jobs/jenkins/run" \
+            -H "Authorization: Bearer ${SUPERCHECK_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"environment": "jenkins"}'
+        '''
+      }
+    }
+  }
+}
+```
+
+### Monitoring Integration
+
+**Prometheus Integration:**
+```javascript
+// Export Supercheck metrics to Prometheus
+const supercheckMetrics = await fetch('/api/metrics/export', {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  }
+});
+
+const prometheusFormat = convertToPrometheusFormat(await supercheckMetrics.json());
+```
+
+**Grafana Dashboard Integration:**
+```javascript
+// Fetch Supercheck data for Grafana dashboard
+const dashboardData = await fetch('/api/dashboard/data', {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  }
+});
+```
+
+## Error Handling
+
+### Common Error Codes
+
+| Status Code | Description | Solution |
+|------------|-------------|----------|
+| 400 | Bad Request | Check request format and parameters |
+| 401 | Unauthorized | Check API key and authentication |
+| 403 | Forbidden | Check user permissions |
+| 404 | Not Found | Check resource ID and URL |
+| 429 | Too Many Requests | Check rate limits and implement backoff |
+| 500 | Internal Server Error | Contact support |
+
+### Error Response Format
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid request parameters",
+    "details": {
+      "field": "title",
+      "reason": "Required field is missing"
+    }
+  },
+  "timestamp": "2024-01-15T10:30:00Z",
+  "requestId": "req-123456789"
+}
+```
+
+### Rate Limit Handling
+
+```javascript
+// Handle rate limits with exponential backoff
+async function makeAPICall(url, options, retries = 3) {
+  try {
+    const response = await fetch(url, options);
+    
+    if (response.status === 429) {
+      const resetTime = parseInt(response.headers.get('X-RateLimit-Reset'));
+      const waitTime = resetTime - Date.now();
+      
+      if (retries > 0) {
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        return makeAPICall(url, options, retries - 1);
+      }
+    }
+    
+    return response;
+  } catch (error) {
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return makeAPICall(url, options, retries - 1);
+    }
+    throw error;
+  }
+}
+```
+
+## API Changelog
+
+### Version 1.0.0 (2024-01-15)
+
+#### New Features
+- Initial API release
+- Test management endpoints
+- Job management endpoints
+- Monitor management endpoints
+- Variable management endpoints
+- Status page endpoints
+- System endpoints
+- Webhooks support
+
+#### Breaking Changes
+- None
+
+### Version 1.1.0 (Planned)
+
+#### Planned Features
+- Advanced filtering options
+- Batch operations
+- Real-time streaming endpoints
+- Enhanced error handling
+- Performance optimizations
+
+---
+
+For more information about the Supercheck API, please refer to our [API documentation](https://docs.supercheck.io/api) or contact our [support team](mailto:support@supercheck.io).

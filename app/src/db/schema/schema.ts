@@ -655,41 +655,44 @@ export const testTags = pgTable(
   })
 );
 
+type SecretEnvelope = {
+  encrypted: true;
+  version: 1;
+  payload: string;
+  context?: string;
+};
+
 export type NotificationProviderType =
   | "email"
   | "slack"
   | "webhook"
   | "telegram"
   | "discord";
-/**
- * Holds the configuration details for different notification provider types.
- */
-export type NotificationProviderConfig = {
+
+export type PlainNotificationProviderConfig = {
   name?: string;
   isDefault?: boolean;
-
-  // Email configuration - simplified field using environment variables for SMTP
   emails?: string;
-
-  // Slack configuration
   webhookUrl?: string;
   channel?: string;
-
-  // Webhook configuration
   url?: string;
   method?: "GET" | "POST" | "PUT";
   headers?: Record<string, string>;
   bodyTemplate?: string;
-
-  // Telegram configuration
   botToken?: string;
   chatId?: string;
-
-  // Discord configuration
   discordWebhookUrl?: string;
-
   [key: string]: unknown;
 };
+
+export type EncryptedNotificationProviderConfig = SecretEnvelope;
+
+/**
+ * Holds the configuration details for different notification provider types.
+ */
+export type NotificationProviderConfig =
+  | (PlainNotificationProviderConfig & { encrypted?: false })
+  | EncryptedNotificationProviderConfig;
 
 /**
  * Configures different channels for sending alerts (e.g., email, Slack).
@@ -979,7 +982,7 @@ export type IncidentStatus =
   | "resolved"
   | "scheduled";
 export type IncidentImpact = "none" | "minor" | "major" | "critical";
-export type SubscriberMode = "email" | "sms" | "webhook";
+export type SubscriberMode = "email" | "webhook";
 
 /**
  * Stores status page configurations with UUID-based subdomains
@@ -1010,7 +1013,6 @@ export const statusPages = pgTable("status_pages", {
   allowPageSubscribers: boolean("allow_page_subscribers").default(true),
   allowIncidentSubscribers: boolean("allow_incident_subscribers").default(true),
   allowEmailSubscribers: boolean("allow_email_subscribers").default(true),
-  allowSmsSubscribers: boolean("allow_sms_subscribers").default(false),
   allowWebhookSubscribers: boolean("allow_webhook_subscribers").default(true),
   notificationsFromEmail: varchar("notifications_from_email", { length: 255 }),
   notificationsEmailFooter: text("notifications_email_footer"),
@@ -1246,8 +1248,6 @@ export const statusPageSubscribers = pgTable("status_page_subscribers", {
     .notNull()
     .references(() => statusPages.id, { onDelete: "cascade" }),
   email: varchar("email", { length: 255 }),
-  phoneNumber: varchar("phone_number", { length: 50 }),
-  phoneCountry: varchar("phone_country", { length: 2 }).default("US"),
   endpoint: varchar("endpoint", { length: 500 }),
   mode: varchar("mode", { length: 50 }).$type<SubscriberMode>().notNull(),
   skipConfirmationNotification: boolean(
@@ -1258,6 +1258,10 @@ export const statusPageSubscribers = pgTable("status_page_subscribers", {
   verifiedAt: timestamp("verified_at"),
   verificationToken: varchar("verification_token", { length: 255 }),
   unsubscribeToken: varchar("unsubscribe_token", { length: 255 }),
+  // Webhook delivery tracking
+  webhookFailures: integer("webhook_failures").default(0),
+  webhookLastAttemptAt: timestamp("webhook_last_attempt_at"),
+  webhookLastError: text("webhook_last_error"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

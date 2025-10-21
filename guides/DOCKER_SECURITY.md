@@ -49,8 +49,7 @@ These **MUST** be changed in production:
 ```env
 # Authentication & Encryption
 BETTER_AUTH_SECRET=your-super-secret-key-change-this-in-production
-CREDENTIAL_ENCRYPTION_KEY=your-credential-encryption-key-change-this-in-production
-VARIABLES_ENCRYPTION_KEY=your-64-character-encryption-key-for-variable-secrets-change-this-in-prod
+SECRET_ENCRYPTION_KEY=your-64-character-secret-encryption-key
 
 # Database
 POSTGRES_PASSWORD=your-secure-database-password

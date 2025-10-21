@@ -28,7 +28,7 @@ export class AlertService {
     targetType: "monitor" | "job";
     monitorId?: string;
     jobId?: string;
-    provider: string;
+    providerId: string;
     status: AlertStatus;
     errorMessage?: string;
   }): Promise<void> {
@@ -40,7 +40,7 @@ export class AlertService {
         targetType: alertData.targetType,
         monitorId: alertData.monitorId || null,
         jobId: alertData.jobId || null,
-        provider: alertData.provider,
+        provider: alertData.providerId,
         status: alertData.status,
         errorMessage: alertData.errorMessage || null,
         sentAt: new Date(),

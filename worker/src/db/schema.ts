@@ -655,41 +655,44 @@ export const testTags = pgTable(
   }),
 );
 
+type SecretEnvelope = {
+  encrypted: true;
+  version: 1;
+  payload: string;
+  context?: string;
+};
+
 export type NotificationProviderType =
   | 'email'
   | 'slack'
   | 'webhook'
   | 'telegram'
   | 'discord';
-/**
- * Holds the configuration details for different notification provider types.
- */
-export type NotificationProviderConfig = {
+
+export type PlainNotificationProviderConfig = {
   name?: string;
   isDefault?: boolean;
-
-  // Email configuration - simplified field using environment variables for SMTP
   emails?: string;
-
-  // Slack configuration
   webhookUrl?: string;
   channel?: string;
-
-  // Webhook configuration
   url?: string;
   method?: 'GET' | 'POST' | 'PUT';
   headers?: Record<string, string>;
   bodyTemplate?: string;
-
-  // Telegram configuration
   botToken?: string;
   chatId?: string;
-
-  // Discord configuration
   discordWebhookUrl?: string;
-
   [key: string]: unknown;
 };
+
+export type EncryptedNotificationProviderConfig = SecretEnvelope;
+
+/**
+ * Holds the configuration details for different notification provider types.
+ */
+export type NotificationProviderConfig =
+  | (PlainNotificationProviderConfig & { encrypted?: false })
+  | EncryptedNotificationProviderConfig;
 
 /**
  * Configures different channels for sending alerts (e.g., email, Slack).

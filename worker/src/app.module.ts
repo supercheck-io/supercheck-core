@@ -17,13 +17,34 @@ import { HealthModule } from './health/health.module';
     }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        connection: {
-          host: configService.get<string>('REDIS_HOST', 'localhost'),
-          port: configService.get<number>('REDIS_PORT', 6379),
-          password: configService.get<string>('REDIS_PASSWORD'),
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const tlsEnabled =
+          configService.get<string>('REDIS_TLS_ENABLED', 'false') === 'true';
+        const redisPassword = configService.get<string>('REDIS_PASSWORD');
+        const redisUsername = configService.get<string>('REDIS_USERNAME');
+
+        return {
+          connection: {
+            host: configService.get<string>('REDIS_HOST', 'localhost'),
+            port: configService.get<number>('REDIS_PORT', 6379),
+            password: redisPassword,
+            username: redisUsername,
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false,
+            retryStrategy: (attempt: number) =>
+              Math.min(1000 * Math.pow(2, attempt), 10000),
+            tls: tlsEnabled
+              ? {
+                  rejectUnauthorized:
+                    configService.get<string>(
+                      'REDIS_TLS_REJECT_UNAUTHORIZED',
+                      'true',
+                    ) !== 'false',
+                }
+              : undefined,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
     ExecutionModule,

@@ -9,9 +9,12 @@
 - [Key Components](#key-components)
 - [Error Handling and Recovery](#error-handling-and-recovery)
 - [Playground Cleanup System](#playground-cleanup-system)
+- [Monitor Execution System](#monitor-execution-system)
 - [Configuration Options](#configuration-options)
 - [Start Services Quick Reference](#start-services-quick-reference)
 - [Implementation Details](#implementation-details)
+- [Production Best Practices](#production-best-practices)
+- [Review and Recommendations](#review-and-recommendations)
 
 This document explains the comprehensive end-to-end flow of test execution and job processing in Supercheck, including queue management, parallel execution, capacity limits, and reporting mechanisms for both single tests and multi-test jobs.
 
@@ -49,6 +52,9 @@ flowchart TB
         D1[Redis]
         D2[BullMQ]
         D3[Playground Cleanup Queue]
+        D4[Monitor Execution Queue]
+        D5[Job Scheduler Queue]
+        D6[Monitor Scheduler Queue]
     end
 
     subgraph "Worker Service"
@@ -57,6 +63,9 @@ flowchart TB
         E3[Report Generation]
         E4[Enhanced Validation Service]
         E5[General Validation Service]
+        E6[Monitor Execution Service]
+        E7[Job Scheduler Service]
+        E8[Monitor Scheduler Service]
     end
 
     subgraph "Background Services"
@@ -79,6 +88,9 @@ flowchart TB
     C2 -->|Queue Job| D2
     D2 <-->|Store Jobs| D1
     D2 -->|Process Jobs| E1
+    D4 -->|Process Monitor Checks| E6
+    D5 -->|Schedule Jobs| E7
+    D6 -->|Schedule Monitors| E8
     E1 -->|Validate Monitor Config| E4
     E4 -->|Validation Response| E1
     E1 -->|Execute Tests| E2
@@ -296,6 +308,9 @@ The application uses BullMQ with Redis for job queuing:
 
   - `test-execution`: For single test executions
   - `job-execution`: For running multiple tests as part of a job
+  - `monitor-execution`: For monitor checks triggered by schedulers
+  - `job-scheduler`: For cron-driven job scheduling
+  - `monitor-scheduler`: For cron-driven monitor scheduling
   - `playground-cleanup`: For scheduled cleanup of old playground test reports
 
 - **Benefits**:
@@ -318,6 +333,8 @@ The NestJS worker service processes queued jobs:
   - `S3Service`: Handles artifact uploads to S3/MinIO
   - `DbService`: Manages database operations
   - `RedisService`: Handles real-time status updates and connection management
+  - `QueueStatusService`: Manages Bull queue event listeners for monitoring
+  - `MonitorService`: Handles monitor execution and alerting
   - `PlaygroundCleanupService`: Manages scheduled S3 cleanup with batch processing (1000 objects per batch) using BullMQ Worker
 
 ### 3. Report Storage and Retrieval
@@ -523,7 +540,7 @@ docker run -d --name minio-supercheck -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_U
 The system uses BullMQ with the following configuration:
 
 ```typescript
-// Default job options with TTL settings
+// Default job options with TTL settings (consistent across app and worker)
 const defaultJobOptions = {
   removeOnComplete: { count: 500, age: 24 * 3600 }, // Keep completed jobs for 24 hours (500 max)
   removeOnFail: { count: 1000, age: 7 * 24 * 3600 }, // Keep failed jobs for 7 days (1000 max)
@@ -540,6 +557,23 @@ const queueSettings = {
     maxDataPoints: 60, // Limit metrics storage to 60 data points
     collectDurations: true,
   },
+};
+
+// Redis connection configuration (consistent across app and worker)
+const redisOptions = {
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  password: process.env.REDIS_PASSWORD,
+  username: process.env.REDIS_USERNAME,
+  maxRetriesPerRequest: null, // Required for BullMQ
+  enableReadyCheck: false, // Avoid ready check for client connection
+  retryStrategy: (times: number) => {
+    const delay = Math.min(times * 100, 3000); // Exponential backoff capped at 3s
+    return delay;
+  },
+  tls: process.env.REDIS_TLS_ENABLED === 'true' ? {
+    rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== 'false',
+  } : undefined,
 };
 ```
 

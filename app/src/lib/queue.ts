@@ -581,10 +581,11 @@ export async function closeQueue(): Promise<void> {
  * Set capacity limit for running tests through Redis
  */
 export async function setRunCapacityLimit(limit: number): Promise<void> {
-  const redis = await getRedisConnection();
+  const sharedRedis = await getRedisConnection();
+  const redis = sharedRedis.duplicate();
+
   try {
     await redis.set(RUNNING_CAPACITY_LIMIT_KEY, String(limit));
-    // Set running capacity limit
   } finally {
     await redis.quit();
   }
@@ -594,10 +595,11 @@ export async function setRunCapacityLimit(limit: number): Promise<void> {
  * Set capacity limit for queued tests through Redis
  */
 export async function setQueueCapacityLimit(limit: number): Promise<void> {
-  const redis = await getRedisConnection();
+  const sharedRedis = await getRedisConnection();
+  const redis = sharedRedis.duplicate();
+
   try {
     await redis.set(QUEUE_CAPACITY_LIMIT_KEY, String(limit));
-    // Set queue capacity limit
   } finally {
     await redis.quit();
   }

@@ -42,12 +42,12 @@ type StatusPage = {
   timezone: string | null;
   allowPageSubscribers: boolean | null;
   allowEmailSubscribers: boolean | null;
-  allowSmsSubscribers: boolean | null;
   allowWebhookSubscribers: boolean | null;
   allowIncidentSubscribers: boolean | null;
   notificationsFromEmail: string | null;
   notificationsEmailFooter: string | null;
-  hiddenFromSearch: boolean | null;
+  customDomain: string | null;
+  customDomainVerified: boolean | null;
   cssBodyBackgroundColor: string | null;
   cssFontColor: string | null;
   cssGreens: string | null;

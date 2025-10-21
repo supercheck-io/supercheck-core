@@ -17,19 +17,23 @@ const updateSettingsSchema = z.object({
   supportUrl: z.string().url().optional().or(z.literal("")),
   timezone: z.string().optional(),
 
+  // Custom domain
+  customDomain: z
+    .string()
+    .max(255)
+    .regex(/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/, "Invalid domain format")
+    .optional()
+    .or(z.literal("")),
+
   // Subscriber settings
   allowPageSubscribers: z.boolean().optional(),
   allowEmailSubscribers: z.boolean().optional(),
-  allowSmsSubscribers: z.boolean().optional(),
   allowWebhookSubscribers: z.boolean().optional(),
   allowIncidentSubscribers: z.boolean().optional(),
 
   // Notification settings
   notificationsFromEmail: z.string().email().optional().or(z.literal("")),
   notificationsEmailFooter: z.string().optional(),
-
-  // Display settings
-  hiddenFromSearch: z.boolean().optional(),
 
   // Branding colors (hex codes)
   cssBodyBackgroundColor: z
