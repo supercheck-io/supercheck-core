@@ -3,11 +3,6 @@ title: Practical Workflows
 description: Step-by-step guides for creating tests, setting up jobs, configuring monitoring, and using AI features
 ---
 
-import { Tabs, Tab } from "@fumadocs-ui/components/tabs";
-import { Callout } from "@fumadocs-ui/components/callout";
-import { Steps, Step } from "@fumadocs-ui/components/steps";
-import { Card, Cards } from "@fumadocs-ui/components/card";
-
 # Practical Workflows
 
 This section provides comprehensive, step-by-step guides for common Supercheck workflows. Each workflow includes detailed examples, best practices, and troubleshooting tips to help you get the most out of the platform.
@@ -21,12 +16,12 @@ This section provides comprehensive, step-by-step guides for common Supercheck w
 ### Test Creation Workflow
 
 <Steps>
-<Step>Navigate to Tests Section</Step>
-<Step>Click "Create Test" Button</Step>
-<Step>Fill Test Metadata</Step>
-<Step>Write Test Script</Step>
-<Step>Configure Test Settings</Step>
-<Step>Save and Run Test</Step>
+  <Step>Navigate to Tests Section</Step>
+  <Step>Click "Create Test" Button</Step>
+  <Step>Fill Test Metadata</Step>
+  <Step>Write Test Script</Step>
+  <Step>Configure Test Settings</Step>
+  <Step>Save and Run Test</Step>
 </Steps>
 
 ### Step-by-Step Test Creation
@@ -63,7 +58,9 @@ This section provides comprehensive, step-by-step guides for common Supercheck w
 #### Step 3: Write Test Script
 
 <Callout type="tip">
-Use the Monaco editor's syntax highlighting and autocomplete features to write efficient test scripts. The editor supports JavaScript/TypeScript with Playwright APIs.
+  Use the Monaco editor's syntax highlighting and autocomplete features to write
+  efficient test scripts. The editor supports JavaScript/TypeScript with
+  Playwright APIs.
 </Callout>
 
 **Browser Test Example:**
@@ -81,33 +78,35 @@ test.describe("User Login Flow", () => {
     // Fill login form
     await page.fill('[data-testid="username-input"]', "testuser@example.com");
     await page.fill('[data-testid="password-input"]', "SecurePassword123!");
-    
+
     // Accept terms and conditions
     await page.check('[data-testid="terms-checkbox"]');
-    
+
     // Submit form
     await page.click('[data-testid="login-button"]');
-    
+
     // Wait for navigation and verify success
     await page.waitForURL("**/dashboard");
     await expect(page.locator('[data-testid="welcome-message"]')).toBeVisible();
-    await expect(page.locator('[data-testid="user-menu"]')).toContainText("testuser");
+    await expect(page.locator('[data-testid="user-menu"]')).toContainText(
+      "testuser"
+    );
   });
 
   test("login fails with invalid credentials", async ({ page }) => {
     // Fill with invalid credentials
     await page.fill('[data-testid="username-input"]', "invalid@example.com");
     await page.fill('[data-testid="password-input"]', "WrongPassword");
-    
+
     // Submit form
     await page.click('[data-testid="login-button"]');
-    
+
     // Verify error message
     await expect(page.locator('[data-testid="error-message"]')).toBeVisible();
     await expect(page.locator('[data-testid="error-message"]')).toContainText(
       "Invalid username or password"
     );
-    
+
     // Verify still on login page
     await expect(page).toHaveURL("**/login");
   });
@@ -115,15 +114,15 @@ test.describe("User Login Flow", () => {
   test("form validation works correctly", async ({ page }) => {
     // Test empty form submission
     await page.click('[data-testid="login-button"]');
-    
+
     // Verify validation errors
     await expect(page.locator('[data-testid="username-error"]')).toBeVisible();
     await expect(page.locator('[data-testid="password-error"]')).toBeVisible();
-    
+
     // Test invalid email format
     await page.fill('[data-testid="username-input"]', "invalid-email");
     await page.click('[data-testid="login-button"]');
-    
+
     await expect(page.locator('[data-testid="username-error"]')).toContainText(
       "Please enter a valid email address"
     );
@@ -144,16 +143,16 @@ test.describe("API Authentication Tests", () => {
     const response = await request.post(`${baseUrl}/api/auth/login`, {
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiToken}`
+        Authorization: `Bearer ${apiToken}`,
       },
       data: {
         email: "test@example.com",
-        password: "testpassword"
-      }
+        password: "testpassword",
+      },
     });
 
     expect(response.status()).toBe(200);
-    
+
     const data = await response.json();
     expect(data).toHaveProperty("token");
     expect(data).toHaveProperty("user");
@@ -164,16 +163,16 @@ test.describe("API Authentication Tests", () => {
     const response = await request.post(`${baseUrl}/api/auth/login`, {
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiToken}`
+        Authorization: `Bearer ${apiToken}`,
       },
       data: {
         email: "invalid@example.com",
-        password: "wrongpassword"
-      }
+        password: "wrongpassword",
+      },
     });
 
     expect(response.status()).toBe(401);
-    
+
     const data = await response.json();
     expect(data).toHaveProperty("error");
     expect(data.error).toContainText("Invalid credentials");
@@ -250,16 +249,16 @@ const test = base.extend({
     const data = {
       user: {
         email: "test@example.com",
-        password: "SecurePass123!"
+        password: "SecurePass123!",
       },
       product: {
         id: "prod-123",
         name: "Test Product",
-        price: 99.99
-      }
+        price: 99.99,
+      },
     };
     await use(data);
-  }
+  },
 });
 
 test("purchase flow with test data", async ({ page, testData }) => {
@@ -277,18 +276,18 @@ const environments = {
   development: {
     baseUrl: "http://localhost:3000",
     apiEndpoint: "http://localhost:3001/api",
-    timeout: 30000
+    timeout: 30000,
   },
   staging: {
     baseUrl: "https://staging.example.com",
     apiEndpoint: "https://api-staging.example.com",
-    timeout: 60000
+    timeout: 60000,
   },
   production: {
     baseUrl: "https://example.com",
     apiEndpoint: "https://api.example.com",
-    timeout: 90000
-  }
+    timeout: 90000,
+  },
 };
 
 const env = environments[process.env.NODE_ENV || "development"];
@@ -342,13 +341,13 @@ const env = environments[process.env.NODE_ENV || "development"];
 ### Job Creation Workflow
 
 <Steps>
-<Step>Navigate to Jobs Section</Step>
-<Step>Click "Create Job" Button</Step>
-<Step>Configure Job Details</Step>
-<Step>Select Tests to Include</Step>
-<Step>Set Up Schedule</Step>
-<Step>Configure Notifications</Step>
-<Step>Save and Activate Job</Step>
+  <Step>Navigate to Jobs Section</Step>
+  <Step>Click "Create Job" Button</Step>
+  <Step>Configure Job Details</Step>
+  <Step>Select Tests to Include</Step>
+  <Step>Set Up Schedule</Step>
+  <Step>Configure Notifications</Step>
+  <Step>Save and Activate Job</Step>
 </Steps>
 
 ### Step-by-Step Job Configuration
@@ -412,19 +411,19 @@ const env = environments[process.env.NODE_ENV || "development"];
 
 ```javascript
 // Daily at 2 AM
-schedule: "0 2 * * *"
+schedule: "0 2 * * *";
 
 // Every Monday at 9 AM
-schedule: "0 9 * * 1"
+schedule: "0 9 * * 1";
 
 // Every 6 hours
-schedule: "0 */6 * * *"
+schedule: "0 */6 * * *";
 
 // Every 15 minutes during business hours
-schedule: "*/15 9-18 * * 1-5"
+schedule: "*/15 9-18 * * 1-5";
 
 // First day of every month at midnight
-schedule: "0 0 1 * *"
+schedule: "0 0 1 * *";
 ```
 
 #### Step 5: Configure Notifications
@@ -458,11 +457,13 @@ schedule: "0 0 1 * *"
 #### Manual Jobs
 
 **Use Cases:**
+
 - On-demand testing before deployments
 - Ad-hoc test execution for debugging
 - One-time test suites for specific scenarios
 
 **Configuration:**
+
 ```javascript
 {
   name: "Pre-deployment Smoke Test",
@@ -476,12 +477,14 @@ schedule: "0 0 1 * *"
 #### Scheduled Jobs
 
 **Use Cases:**
+
 - Daily regression testing
 - Weekly performance testing
 - Monthly security testing
 - Hourly health checks
 
 **Configuration:**
+
 ```javascript
 {
   name: "Daily Health Check",
@@ -495,12 +498,14 @@ schedule: "0 0 1 * *"
 #### Remote Jobs
 
 **Use Cases:**
+
 - CI/CD pipeline integration
 - External system triggers
 - API-based job execution
 - Webhook-triggered testing
 
 **Configuration:**
+
 ```javascript
 {
   name: "CI Pipeline Test",
@@ -594,6 +599,7 @@ schedule: "0 0 1 * *"
 #### Job Execution Reports
 
 **Report Features:**
+
 - **Executive Summary**: High-level overview with key metrics
 - **Detailed Results**: Individual test results with execution details
 - **Performance Metrics**: Execution time, resource usage, success rates
@@ -605,6 +611,7 @@ schedule: "0 0 1 * *"
 #### Performance Optimization
 
 **Parallel Execution:**
+
 ```javascript
 {
   parallelExecution: true,
@@ -625,6 +632,7 @@ schedule: "0 0 1 * *"
 ```
 
 **Resource Management:**
+
 ```javascript
 {
   resourceLimits: {
@@ -698,13 +706,13 @@ schedule: "0 0 1 * *"
 ### Monitor Setup Workflow
 
 <Steps>
-<Step>Navigate to Monitors Section</Step>
-<Step>Click "Create Monitor" Button</Step>
-<Step>Choose Monitor Type</Step>
-<Step>Configure Monitor Settings</Step>
-<Step>Set Up Alert Conditions</Step>
-<Step>Configure Notifications</Step>
-<Step>Test and Activate Monitor</Step>
+  <Step>Navigate to Monitors Section</Step>
+  <Step>Click "Create Monitor" Button</Step>
+  <Step>Choose Monitor Type</Step>
+  <Step>Configure Monitor Settings</Step>
+  <Step>Set Up Alert Conditions</Step>
+  <Step>Configure Notifications</Step>
+  <Step>Test and Activate Monitor</Step>
 </Steps>
 
 ### Monitor Types Overview
@@ -722,7 +730,8 @@ Supercheck provides 5 different monitoring types to cover all your monitoring ne
 #### Step 1: Choose Monitor Type
 
 <Callout type="tip">
-Select the monitor type that best matches your monitoring requirements. Each type has specific configuration options and use cases.
+  Select the monitor type that best matches your monitoring requirements. Each
+  type has specific configuration options and use cases.
 </Callout>
 
 #### Step 2: Configure Basic Settings
@@ -752,6 +761,7 @@ Select the monitor type that best matches your monitoring requirements. Each typ
 #### Step 3: Configure Monitor-Specific Settings
 
 **HTTP Request Monitor:**
+
 ```javascript
 {
   type: "http_request",
@@ -776,6 +786,7 @@ Select the monitor type that best matches your monitoring requirements. Each typ
 ```
 
 **Website Monitor:**
+
 ```javascript
 {
   type: "website",
@@ -794,6 +805,7 @@ Select the monitor type that best matches your monitoring requirements. Each typ
 ```
 
 **Ping Monitor:**
+
 ```javascript
 {
   type: "ping_host",
@@ -809,6 +821,7 @@ Select the monitor type that best matches your monitoring requirements. Each typ
 ```
 
 **Port Monitor:**
+
 ```javascript
 {
   type: "port_check",
@@ -826,6 +839,7 @@ Select the monitor type that best matches your monitoring requirements. Each typ
 #### Step 4: Configure Alert Conditions
 
 **Alert Threshold Configuration:**
+
 ```javascript
 {
   alertConfig: {
@@ -854,6 +868,7 @@ Select the monitor type that best matches your monitoring requirements. Each typ
 #### Step 5: Configure Notifications
 
 **Notification Channels:**
+
 ```javascript
 {
   notifications: {
@@ -1035,12 +1050,12 @@ Select the monitor type that best matches your monitoring requirements. Each typ
 ### Variable Creation Workflow
 
 <Steps>
-<Step>Navigate to Variables Section</Step>
-<Step>Click "Add Variable" Button</Step>
-<Step>Configure Variable Details</Step>
-<Step>Set Variable Value</Step>
-<Step>Mark as Secret (if needed)</Step>
-<Step>Save Variable</Step>
+  <Step>Navigate to Variables Section</Step>
+  <Step>Click "Add Variable" Button</Step>
+  <Step>Configure Variable Details</Step>
+  <Step>Set Variable Value</Step>
+  <Step>Mark as Secret (if needed)</Step>
+  <Step>Save Variable</Step>
 </Steps>
 
 ### Variable Types
@@ -1050,6 +1065,7 @@ Select the monitor type that best matches your monitoring requirements. Each typ
 Regular variables store configuration values, URLs, and other non-sensitive data that can be safely shared across tests and jobs.
 
 **Use Cases:**
+
 - Application URLs and endpoints
 - Configuration values and settings
 - Test data and parameters
@@ -1060,6 +1076,7 @@ Regular variables store configuration values, URLs, and other non-sensitive data
 Secret variables store sensitive data like passwords, API keys, and tokens with AES-256-GCM encryption.
 
 **Use Cases:**
+
 - Database credentials
 - API keys and tokens
 - Passwords and authentication data
@@ -1122,10 +1139,12 @@ Secret variables store sensitive data like passwords, API keys, and tokens with 
 #### Step 4: Mark as Secret
 
 <Callout type="warning">
-Always mark sensitive variables as secrets to ensure they're encrypted at rest and masked in logs and console output.
+  Always mark sensitive variables as secrets to ensure they're encrypted at rest
+  and masked in logs and console output.
 </Callout>
 
 **Security Features:**
+
 - AES-256-GCM encryption for all secret values
 - Automatic masking in logs and console output
 - Access control based on user roles and permissions
@@ -1164,8 +1183,8 @@ const config = {
   retries: parseInt(getVariable("MAX_RETRIES", { default: "3" })),
   user: {
     email: getVariable("TEST_USER_EMAIL") || "test@example.com",
-    password: getSecret("TEST_USER_PASSWORD") || "defaultpassword"
-  }
+    password: getSecret("TEST_USER_PASSWORD") || "defaultpassword",
+  },
 };
 ```
 
@@ -1179,18 +1198,18 @@ const environmentConfig = {
   development: {
     baseUrl: getVariable("DEV_API_BASE_URL"),
     database: getVariable("DEV_DATABASE_URL"),
-    debug: true
+    debug: true,
   },
   staging: {
     baseUrl: getVariable("STAGING_API_BASE_URL"),
     database: getVariable("STAGING_DATABASE_URL"),
-    debug: false
+    debug: false,
   },
   production: {
     baseUrl: getVariable("PROD_API_BASE_URL"),
     database: getVariable("PROD_DATABASE_URL"),
-    debug: false
-  }
+    debug: false,
+  },
 };
 
 const config = environmentConfig[environment];
@@ -1407,13 +1426,13 @@ DELETE /api/variables/{key}
 ### AI Fix Workflow
 
 <Steps>
-<Step>Identify Failed Test</Step>
-<Step>Review Test Failure Details</Step>
-<Step>Trigger AI Fix Analysis</Step>
-<Step>Review AI Analysis and Suggestions</Step>
-<Step>Apply Suggested Changes</Step>
-<Step>Run Fixed Test</Step>
-<Step>Verify Fix Success</Step>
+  <Step>Identify Failed Test</Step>
+  <Step>Review Test Failure Details</Step>
+  <Step>Trigger AI Fix Analysis</Step>
+  <Step>Review AI Analysis and Suggestions</Step>
+  <Step>Apply Suggested Changes</Step>
+  <Step>Run Fixed Test</Step>
+  <Step>Verify Fix Success</Step>
 </Steps>
 
 ### AI Fix Features Overview
@@ -1438,7 +1457,9 @@ Supercheck's AI-powered test fixing uses OpenAI GPT-4o-mini to analyze test fail
 #### Step 2: Trigger AI Fix
 
 <Callout type="tip">
-AI Fix works best with common test failures like selector issues, timing problems, and configuration errors. Complex logic issues may require manual intervention.
+  AI Fix works best with common test failures like selector issues, timing
+  problems, and configuration errors. Complex logic issues may require manual
+  intervention.
 </Callout>
 
 1. From the test results page, click **"AI Fix"** button
@@ -1448,6 +1469,7 @@ AI Fix works best with common test failures like selector issues, timing problem
 #### Step 3: Review AI Analysis
 
 **AI Analysis Components:**
+
 - **Error Classification**: Type of failure (selector, timeout, assertion, etc.)
 - **Root Cause Analysis**: Why the test failed
 - **Fix Strategy**: Approach to fix the issue
@@ -1456,6 +1478,7 @@ AI Fix works best with common test failures like selector issues, timing problem
 #### Step 4: Review Suggested Changes
 
 **Diff Viewer Features:**
+
 - **Side-by-Side Comparison**: Original vs. suggested code
 - **Syntax Highlighting**: Clear visualization of changes
 - **Line Numbers**: Easy reference for specific changes
@@ -1480,6 +1503,7 @@ AI Fix works best with common test failures like selector issues, timing problem
 #### Example 1: Selector Issues
 
 **Before AI Fix:**
+
 ```javascript
 test("login functionality", async ({ page }) => {
   await page.goto("https://app.com/login");
@@ -1491,6 +1515,7 @@ test("login functionality", async ({ page }) => {
 ```
 
 **AI Analysis:**
+
 ```
 Error: Element not found: #submit
 Root Cause: Selector #submit doesn't match actual HTML
@@ -1499,6 +1524,7 @@ Fix Strategy: Update selector to match actual button element
 ```
 
 **After AI Fix:**
+
 ```javascript
 test("login functionality", async ({ page }) => {
   await page.goto("https://app.com/login");
@@ -1512,6 +1538,7 @@ test("login functionality", async ({ page }) => {
 #### Example 2: Timing Issues
 
 **Before AI Fix:**
+
 ```javascript
 test("page loads correctly", async ({ page }) => {
   await page.goto("https://app.com/dashboard");
@@ -1522,6 +1549,7 @@ test("page loads correctly", async ({ page }) => {
 ```
 
 **AI Analysis:**
+
 ```
 Error: Element not visible
 Root Cause: Race condition - element loads after test check
@@ -1530,6 +1558,7 @@ Fix Strategy: Add explicit wait for element visibility
 ```
 
 **After AI Fix:**
+
 ```javascript
 test("page loads correctly", async ({ page }) => {
   await page.goto("https://app.com/dashboard");
@@ -1542,6 +1571,7 @@ test("page loads correctly", async ({ page }) => {
 #### Example 3: Assertion Issues
 
 **Before AI Fix:**
+
 ```javascript
 test("API response validation", async ({ request }) => {
   const response = await request.get("/api/users");
@@ -1552,6 +1582,7 @@ test("API response validation", async ({ request }) => {
 ```
 
 **AI Analysis:**
+
 ```
 Error: expect(response.data.length).toBeGreaterThan(0)
 Root Cause: response.data is an object, not an array
@@ -1560,6 +1591,7 @@ Fix Strategy: Update assertion to handle object response
 ```
 
 **After AI Fix:**
+
 ```javascript
 test("API response validation", async ({ request }) => {
   const response = await request.get("/api/users");
@@ -1576,10 +1608,12 @@ test("API response validation", async ({ request }) => {
 #### Input Validation
 
 <Callout type="warning">
-All AI inputs are validated and sanitized before processing to ensure security and prevent injection attacks.
+  All AI inputs are validated and sanitized before processing to ensure security
+  and prevent injection attacks.
 </Callout>
 
 **Security Measures:**
+
 - **Input Sanitization**: Remove potentially harmful code from inputs
 - **Context Validation**: Ensure AI operates within authorized scope
 - **Output Filtering**: Filter generated code for security issues
@@ -1588,20 +1622,22 @@ All AI inputs are validated and sanitized before processing to ensure security a
 #### Code Safety Checks
 
 **Security Validation:**
+
 ```javascript
 // AI-generated code security checks
 const securityChecks = {
-  noEval: true,           // Prevent eval() usage
-  noInnerHtml: true,     // Prevent innerHTML usage
+  noEval: true, // Prevent eval() usage
+  noInnerHtml: true, // Prevent innerHTML usage
   noDangerousAPIs: true, // Prevent dangerous API calls
   noExternalRequests: true, // Prevent external network requests
-  noFileSystemAccess: true // Prevent file system access
+  noFileSystemAccess: true, // Prevent file system access
 };
 ```
 
 #### Output Validation
 
 **Validation Process:**
+
 1. **Syntax Check**: Ensure generated code is syntactically correct
 2. **Security Scan**: Check for common security vulnerabilities
 3. **Framework Compliance**: Verify code follows Playwright best practices

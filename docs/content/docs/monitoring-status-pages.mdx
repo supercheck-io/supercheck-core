@@ -3,33 +3,29 @@ title: Monitoring & Status Pages
 description: Comprehensive guide to Supercheck's monitoring system and public status pages
 ---
 
-import { Tabs, Tab } from "@fumadocs-ui/components/tabs";
-import { Callout } from "@fumadocs-ui/components/callout";
-import { Steps, Step } from "@fumadocs-ui/components/steps";
-import { Card, Cards } from "@fumadocs-ui/components/card";
-
 # Monitoring & Status Pages
 
 Supercheck provides a comprehensive monitoring system with 5 different monitoring types and public-facing status pages for transparent service health communication.
 
 <Tabs items={['Monitoring System', 'Setting Up Monitors', 'Alerts & Notifications', 'Status Pages', 'Real-time Updates']}>
 
-<Tab value="Monitoring System">
+<Tab value="Monitoring System" >
 
 ## Monitoring Types
 
 Supercheck supports 5 different monitoring types to cover all your infrastructure and application monitoring needs:
 
-| Monitor Type | Description | Use Cases |
-|-------------|-------------|-----------|
-| **Synthetic Test** | Scheduled execution of Playwright tests | E2E workflows, critical user journeys |
-| **HTTP/HTTPS Request** | Advanced web service monitoring | API health checks, service endpoints |
-| **Website Monitoring** | Simplified web page availability | Site uptime, content verification |
-| **Network Ping** | ICMP ping monitoring | Server connectivity, network latency |
-| **Port Accessibility** | TCP/UDP port monitoring | Service availability, firewall testing |
+| Monitor Type           | Description                             | Use Cases                              |
+| ---------------------- | --------------------------------------- | -------------------------------------- |
+| **Synthetic Test**     | Scheduled execution of Playwright tests | E2E workflows, critical user journeys  |
+| **HTTP/HTTPS Request** | Advanced web service monitoring         | API health checks, service endpoints   |
+| **Website Monitoring** | Simplified web page availability        | Site uptime, content verification      |
+| **Network Ping**       | ICMP ping monitoring                    | Server connectivity, network latency   |
+| **Port Accessibility** | TCP/UDP port monitoring                 | Service availability, firewall testing |
 
 <Callout type="tip">
-All monitor types support configurable check frequencies, alert thresholds, and multiple notification channels.
+  All monitor types support configurable check frequencies, alert thresholds,
+  and multiple notification channels.
 </Callout>
 
 ## Monitoring Architecture
@@ -57,12 +53,12 @@ The monitoring system is built on a robust architecture that ensures:
 ## Creating Monitors
 
 <Steps>
-<Step>Navigate to **Monitors** in the sidebar</Step>
-<Step>Click **"Create Monitor"** button</Step>
-<Step>Choose appropriate monitor type</Step>
-<Step>Configure monitor settings and target</Step>
-<Step>Set up check frequency and alert thresholds</Step>
-<Step>Test configuration and activate monitoring</Step>
+  <Step>Navigate to **Monitors** in the sidebar</Step>
+  <Step>Click **"Create Monitor"** button</Step>
+  <Step>Choose appropriate monitor type</Step>
+  <Step>Configure monitor settings and target</Step>
+  <Step>Set up check frequency and alert thresholds</Step>
+  <Step>Test configuration and activate monitoring</Step>
 </Steps>
 
 ## Monitor Configuration Examples
@@ -257,12 +253,12 @@ Supercheck provides comprehensive alerting capabilities with multiple notificati
 
 ### Alert Types
 
-| Alert Type | Description | Trigger Condition |
-|-----------|-------------|-----------------|
-| **Failure Alert** | Service is down or performing poorly | Consecutive failures exceed threshold |
-| **Recovery Alert** | Service has recovered after failure | Successful checks exceed recovery threshold |
-| **Degradation Alert** | Service performance is degraded | Response time or error rate thresholds |
-| **SSL Expiry Alert** | SSL certificate is expiring | Days until expiration below warning threshold |
+| Alert Type            | Description                          | Trigger Condition                             |
+| --------------------- | ------------------------------------ | --------------------------------------------- |
+| **Failure Alert**     | Service is down or performing poorly | Consecutive failures exceed threshold         |
+| **Recovery Alert**    | Service has recovered after failure  | Successful checks exceed recovery threshold   |
+| **Degradation Alert** | Service performance is degraded      | Response time or error rate thresholds        |
+| **SSL Expiry Alert**  | SSL certificate is expiring          | Days until expiration below warning threshold |
 
 ### Notification Channels
 
@@ -272,13 +268,13 @@ Supercheck provides comprehensive alerting capabilities with multiple notificati
 </CardHeader>
 <CardContent>
 
-| Channel | Configuration | Use Cases |
-|---------|-------------|-----------|
-| **Email** | SMTP settings, recipient lists | Formal notifications, audit trails |
-| **Slack** | Webhook URL, channel configuration | Team collaboration, real-time alerts |
-| **Webhooks** | Custom HTTP endpoints | Integration with monitoring systems |
-| **Discord** | Bot token, channel IDs | Community notifications |
-| **Telegram** | Bot token, chat IDs | Mobile notifications |
+| Channel      | Configuration                      | Use Cases                            |
+| ------------ | ---------------------------------- | ------------------------------------ |
+| **Email**    | SMTP settings, recipient lists     | Formal notifications, audit trails   |
+| **Slack**    | Webhook URL, channel configuration | Team collaboration, real-time alerts |
+| **Webhooks** | Custom HTTP endpoints              | Integration with monitoring systems  |
+| **Discord**  | Bot token, channel IDs             | Community notifications              |
+| **Telegram** | Bot token, chat IDs                | Mobile notifications                 |
 
 </CardContent>
 </Card>
@@ -286,17 +282,18 @@ Supercheck provides comprehensive alerting capabilities with multiple notificati
 ### Alert Workflow
 
 <Steps>
-<Step>Monitor performs scheduled check</Step>
-<Step>System evaluates check results against thresholds</Step>
-<Step>Alert conditions are met (failure/recovery)</Step>
-<Step>Notifications sent via configured channels</Step>
-<Step>Alert history recorded for audit purposes</Step>
+  <Step>Monitor performs scheduled check</Step>
+  <Step>System evaluates check results against thresholds</Step>
+  <Step>Alert conditions are met (failure/recovery)</Step>
+  <Step>Notifications sent via configured channels</Step>
+  <Step>Alert history recorded for audit purposes</Step>
 </Steps>
 
 ### Alert Management
 
 <Callout type="warning">
-Smart alert limiting prevents notification spam by limiting failure alerts to 3 per incident and consolidating recovery notifications.
+  Smart alert limiting prevents notification spam by limiting failure alerts to
+  3 per incident and consolidating recovery notifications.
 </Callout>
 
 ### Alert Examples
@@ -306,17 +303,17 @@ Smart alert limiting prevents notification spam by limiting failure alerts to 3 
 ```html
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <title>Monitor Alert: {{monitorName}}</title>
-</head>
-<body>
+  </head>
+  <body>
     <h2>{{alertType}} Alert</h2>
     <p><strong>Monitor:</strong> {{monitorName}}</p>
     <p><strong>Target:</strong> {{target}}</p>
     <p><strong>Status:</strong> {{status}}</p>
     <p><strong>Time:</strong> {{timestamp}}</p>
     <p><strong>Details:</strong> {{details}}</p>
-</body>
+  </body>
 </html>
 ```
 
@@ -415,13 +412,13 @@ Status Page
 ## Creating Status Pages
 
 <Steps>
-<Step>Navigate to **Communicate** → **Status Pages**</Step>
-<Step>Click **"Create Status Page"** button</Step>
-<Step>Configure basic page settings</Step>
-<Step>Set up service components</Step>
-<Step>Configure branding and appearance</Step>
-<Step>Set up subscriber notifications</Step>
-<Step>Publish page to make it publicly accessible</Step>
+  <Step>Navigate to **Communicate** → **Status Pages**</Step>
+  <Step>Click **"Create Status Page"** button</Step>
+  <Step>Configure basic page settings</Step>
+  <Step>Set up service components</Step>
+  <Step>Configure branding and appearance</Step>
+  <Step>Set up subscriber notifications</Step>
+  <Step>Publish page to make it publicly accessible</Step>
 </Steps>
 
 ### Status Page Configuration
@@ -492,30 +489,31 @@ Status Page
 - **Production**: `https://[uuid].supercheck.io`
 
 <Callout type="tip">
-Status pages use UUID-based subdomains to ensure unique access and prevent conflicts.
+  Status pages use UUID-based subdomains to ensure unique access and prevent
+  conflicts.
 </Callout>
 
 ## Incident Management
 
 ### Incident Types
 
-| Incident Type | Severity | Description |
-|--------------|---------|-------------|
-| **Outage** | Critical | Service completely unavailable |
-| **Degradation** | Warning | Service available with reduced performance |
-| **Maintenance** | Info | Scheduled maintenance window |
-| **Investigation** | Info | Issue being investigated |
+| Incident Type     | Severity | Description                                |
+| ----------------- | -------- | ------------------------------------------ |
+| **Outage**        | Critical | Service completely unavailable             |
+| **Degradation**   | Warning  | Service available with reduced performance |
+| **Maintenance**   | Info     | Scheduled maintenance window               |
+| **Investigation** | Info     | Issue being investigated                   |
 
 ### Incident Workflow
 
 <Steps>
-<Step>Detect service issue or planned maintenance</Step>
-<Step>Create incident in status page admin</Step>
-<Step>Set incident severity and description</Step>
-<Step>Update affected components</Step>
-<Step>Communicate with stakeholders</Step>
-<Step>Monitor resolution progress</Step>
-<Step>Resolve incident and update status</Step>
+  <Step>Detect service issue or planned maintenance</Step>
+  <Step>Create incident in status page admin</Step>
+  <Step>Set incident severity and description</Step>
+  <Step>Update affected components</Step>
+  <Step>Communicate with stakeholders</Step>
+  <Step>Monitor resolution progress</Step>
+  <Step>Resolve incident and update status</Step>
 </Steps>
 
 ## Subscriber Management
@@ -709,23 +707,23 @@ eventSource.addEventListener("alert-triggered", (event) => {
 
 ### SSE Event Types
 
-| Event Type | Description | Data Payload |
-|-----------|-------------|-------------|
-| `test-started` | Test execution has begun | `{ testId, testName, timestamp }` |
-| `test-completed` | Test execution finished | `{ testId, result, duration, timestamp }` |
-| `test-progress` | Test progress update | `{ testId, progress, currentStep, timestamp }` |
-| `job-started` | Job execution started | `{ jobId, jobName, testCount, timestamp }` |
-| `job-completed` | Job execution finished | `{ jobId, result, summary, timestamp }` |
-| `monitor-check` | Monitor check completed | `{ monitorId, status, responseTime, timestamp }` |
-| `alert-triggered` | Alert condition met | `{ monitorId, alertType, message, timestamp }` |
-| `queue-update` | Queue status changed | `{ queueType, capacity, currentLoad, timestamp }` |
+| Event Type        | Description              | Data Payload                                      |
+| ----------------- | ------------------------ | ------------------------------------------------- |
+| `test-started`    | Test execution has begun | `{ testId, testName, timestamp }`                 |
+| `test-completed`  | Test execution finished  | `{ testId, result, duration, timestamp }`         |
+| `test-progress`   | Test progress update     | `{ testId, progress, currentStep, timestamp }`    |
+| `job-started`     | Job execution started    | `{ jobId, jobName, testCount, timestamp }`        |
+| `job-completed`   | Job execution finished   | `{ jobId, result, summary, timestamp }`           |
+| `monitor-check`   | Monitor check completed  | `{ monitorId, status, responseTime, timestamp }`  |
+| `alert-triggered` | Alert condition met      | `{ monitorId, alertType, message, timestamp }`    |
+| `queue-update`    | Queue status changed     | `{ queueType, capacity, currentLoad, timestamp }` |
 
 ### Frontend Integration
 
 #### React Hook for SSE
 
 ```javascript
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 
 function useSSE(url, eventHandlers = {}) {
   const [isConnected, setIsConnected] = useState(false);
@@ -763,12 +761,12 @@ function useSSE(url, eventHandlers = {}) {
 // Usage example
 function TestStatus({ testId }) {
   const eventHandlers = {
-    'test-progress': (data) => {
-      console.log('Test progress:', data.progress);
+    "test-progress": (data) => {
+      console.log("Test progress:", data.progress);
     },
-    'test-completed': (data) => {
-      console.log('Test completed:', data.result);
-    }
+    "test-completed": (data) => {
+      console.log("Test completed:", data.result);
+    },
   };
 
   const { isConnected } = useSSE(
@@ -778,7 +776,7 @@ function TestStatus({ testId }) {
 
   return (
     <div>
-      <p>Status: {isConnected ? 'Connected' : 'Disconnected'}</p>
+      <p>Status: {isConnected ? "Connected" : "Disconnected"}</p>
     </div>
   );
 }
@@ -787,7 +785,8 @@ function TestStatus({ testId }) {
 ### SSE Security Considerations
 
 <Callout type="warning">
-SSE connections require proper authentication and authorization to ensure secure real-time updates.
+  SSE connections require proper authentication and authorization to ensure
+  secure real-time updates.
 </Callout>
 
 #### Authentication Headers
@@ -796,10 +795,10 @@ SSE connections require proper authentication and authorization to ensure secure
 // SSE connection with authentication
 const eventSource = new EventSource("/api/events", {
   headers: {
-    'Authorization': `Bearer ${token}`,
-    'X-Organization-ID': organizationId,
-    'X-Project-ID': projectId
-  }
+    Authorization: `Bearer ${token}`,
+    "X-Organization-ID": organizationId,
+    "X-Project-ID": projectId,
+  },
 });
 ```
 
@@ -810,20 +809,20 @@ const eventSource = new EventSource("/api/events", {
 const rateLimiter = new Map();
 
 function handleSSEConnection(req, res) {
-  const clientId = req.headers['x-client-id'];
+  const clientId = req.headers["x-client-id"];
   const connectionCount = rateLimiter.get(clientId) || 0;
 
   if (connectionCount > MAX_CONNECTIONS_PER_CLIENT) {
-    return res.status(429).json({ error: 'Too many connections' });
+    return res.status(429).json({ error: "Too many connections" });
   }
 
   rateLimiter.set(clientId, connectionCount + 1);
 
   // Set up SSE connection
-  const eventSource = new EventSource('/api/events');
-  
+  const eventSource = new EventSource("/api/events");
+
   // Handle connection cleanup
-  req.on('close', () => {
+  req.on("close", () => {
     const currentCount = rateLimiter.get(clientId) || 0;
     rateLimiter.set(clientId, currentCount - 1);
   });
@@ -861,7 +860,7 @@ class SSEConnectionPool {
 
   createConnection(url, eventHandlers) {
     const eventSource = new EventSource(url);
-    
+
     Object.entries(eventHandlers).forEach(([eventType, handler]) => {
       eventSource.addEventListener(eventType, (event) => {
         const data = JSON.parse(event.data);
@@ -889,7 +888,7 @@ class SSEMessageBatcher {
 
   addMessage(message) {
     this.messages.push(message);
-    
+
     if (this.messages.length >= this.batchSize) {
       this.flush();
     } else if (!this.flushTimer) {
@@ -901,12 +900,12 @@ class SSEMessageBatcher {
     if (this.messages.length === 0) return;
 
     const batch = {
-      type: 'batch',
+      type: "batch",
       messages: this.messages,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
-    this.clients.forEach(client => {
+    this.clients.forEach((client) => {
       client.write(`data: ${JSON.stringify(batch)}\n\n`);
     });
 
@@ -955,3 +954,7 @@ class SSEMessageBatcher {
 - Monitor for unusual connection patterns
 
 For more information about implementing SSE in your applications, see our [API Reference](../api-reference) documentation.
+
+</Tab>
+
+</Tabs>

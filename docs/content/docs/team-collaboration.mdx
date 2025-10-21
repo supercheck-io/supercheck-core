@@ -3,11 +3,6 @@ title: Team Collaboration & Security
 description: Comprehensive guide to Supercheck's multi-tenant architecture, user management, and security features
 ---
 
-import { Tabs, Tab } from "@fumadocs-ui/components/tabs";
-import { Callout } from "@fumadocs-ui/components/callout";
-import { Steps, Step } from "@fumadocs-ui/components/steps";
-import { Card, Cards } from "@fumadocs-ui/components/card";
-
 # Team Collaboration & Security
 
 Supercheck provides enterprise-grade team collaboration features with a robust multi-tenant architecture, comprehensive role-based access control, and advanced security measures to ensure your testing and monitoring workflows are both efficient and secure.
@@ -47,12 +42,12 @@ Organization
 ### Organization Management
 
 <Steps>
-<Step>Create Organization Account</Step>
-<Step>Configure Organization Settings</Step>
-<Step>Create Projects for Different Teams</Step>
-<Step>Invite Team Members</Step>
-<Step>Assign Roles and Permissions</Step>
-<Step>Set Up Project Resources</Step>
+  <Step>Create Organization Account</Step>
+  <Step>Configure Organization Settings</Step>
+  <Step>Create Projects for Different Teams</Step>
+  <Step>Invite Team Members</Step>
+  <Step>Assign Roles and Permissions</Step>
+  <Step>Set Up Project Resources</Step>
 </Steps>
 
 ### Organization Features
@@ -66,7 +61,8 @@ Organization
 ### Project Management
 
 <Callout type="tip">
-Projects act as containers for your testing and monitoring resources, providing logical separation while maintaining organization-level oversight.
+  Projects act as containers for your testing and monitoring resources,
+  providing logical separation while maintaining organization-level oversight.
 </Callout>
 
 #### Project Configuration
@@ -119,24 +115,24 @@ Supercheck implements a comprehensive role-based access control system with clea
 
 ### Role Hierarchy
 
-| Role | Level | Scope | Description |
-|------|-------|-------|-------------|
-| **SUPER_ADMIN** | System | Global | System-wide administration and configuration |
-| **ORG_OWNER** | Organization | Org | Full organization control including deletion |
-| **ORG_ADMIN** | Organization | Org | Organization management without deletion rights |
-| **PROJECT_ADMIN** | Project | Proj | Full project administration and resource management |
-| **PROJECT_EDITOR** | Project | Proj | Create/edit resources without deletion rights |
-| **PROJECT_VIEWER** | Project | Proj | Read-only access to project resources |
+| Role               | Level        | Scope  | Description                                         |
+| ------------------ | ------------ | ------ | --------------------------------------------------- |
+| **SUPER_ADMIN**    | System       | Global | System-wide administration and configuration        |
+| **ORG_OWNER**      | Organization | Org    | Full organization control including deletion        |
+| **ORG_ADMIN**      | Organization | Org    | Organization management without deletion rights     |
+| **PROJECT_ADMIN**  | Project      | Proj   | Full project administration and resource management |
+| **PROJECT_EDITOR** | Project      | Proj   | Create/edit resources without deletion rights       |
+| **PROJECT_VIEWER** | Project      | Proj   | Read-only access to project resources               |
 
 ### User Onboarding
 
 <Steps>
-<Step>Send Invitation</Step>
-<Step>User Accepts Invitation</Step>
-<Step>User Creates Account</Step>
-<Step>Automatic Organization Assignment</Step>
-<Step>Default Role Assignment</Step>
-<Step>Initial Setup Completion</Step>
+  <Step>Send Invitation</Step>
+  <Step>User Accepts Invitation</Step>
+  <Step>User Creates Account</Step>
+  <Step>Automatic Organization Assignment</Step>
+  <Step>Default Role Assignment</Step>
+  <Step>Initial Setup Completion</Step>
 </Steps>
 
 ### User Management Features
@@ -215,17 +211,17 @@ Supercheck's RBAC system provides granular control over all platform resources w
 
 ### Permission Matrix
 
-| Resource | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_ADMIN | PROJECT_EDITOR | PROJECT_VIEWER |
-|----------|-------------|-----------|-----------|---------------|----------------|------------------|
-| **Organizations** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Projects** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **Tests** | ✅ | ✅ | ✅ | ✅ | ✅ | 👁️ |
-| **Jobs** | ✅ | ✅ | ✅ | ✅ | ✅ | 👁️ |
-| **Monitors** | ✅ | ✅ | ✅ | ✅ | ✅ | 👁️ |
-| **Variables** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Status Pages** | ✅ | ✅ | ✅ | ✅ | ✅ | 👁️ |
-| **Users** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Audit Logs** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Resource          | SUPER_ADMIN | ORG_OWNER | ORG_ADMIN | PROJECT_ADMIN | PROJECT_EDITOR | PROJECT_VIEWER |
+| ----------------- | ----------- | --------- | --------- | ------------- | -------------- | -------------- |
+| **Organizations** | ✅          | ✅        | ✅        | ❌            | ❌             | ❌             |
+| **Projects**      | ✅          | ✅        | ✅        | ✅            | ❌             | ❌             |
+| **Tests**         | ✅          | ✅        | ✅        | ✅            | ✅             | 👁️             |
+| **Jobs**          | ✅          | ✅        | ✅        | ✅            | ✅             | 👁️             |
+| **Monitors**      | ✅          | ✅        | ✅        | ✅            | ✅             | 👁️             |
+| **Variables**     | ✅          | ✅        | ✅        | ✅            | ✅             | ❌             |
+| **Status Pages**  | ✅          | ✅        | ✅        | ✅            | ✅             | 👁️             |
+| **Users**         | ✅          | ✅        | ✅        | ❌            | ❌             | ❌             |
+| **Audit Logs**    | ✅          | ✅        | ✅        | ❌            | ❌             | ❌             |
 
 Legend: ✅ = Full Access, 👁️ = View Only, ❌ = No Access
 
@@ -250,7 +246,8 @@ Legend: ✅ = Full Access, 👁️ = View Only, ❌ = No Access
 ### Permission Evaluation
 
 <Callout type="note">
-Permissions are evaluated in the current organization/project context, ensuring users only have access to resources they're authorized to manage.
+  Permissions are evaluated in the current organization/project context,
+  ensuring users only have access to resources they're authorized to manage.
 </Callout>
 
 #### Permission Check Implementation
@@ -265,17 +262,17 @@ function hasPermission(
 ): boolean {
   const userRole = getUserRole(user, context);
   const rolePermissions = ROLE_PERMISSIONS[userRole];
-  
+
   // Check if role has the required permission
   if (!rolePermissions.includes(permission)) {
     return false;
   }
-  
+
   // Check resource-level permissions
-  if (resource.ownerId !== user.id && !rolePermissions.includes('manage-all')) {
+  if (resource.ownerId !== user.id && !rolePermissions.includes("manage-all")) {
     return false;
   }
-  
+
   // Check context-specific permissions
   return checkContextPermissions(user, permission, resource, context);
 }
@@ -372,7 +369,8 @@ Supercheck implements comprehensive security measures to protect your data, ensu
 ### Authentication & Authorization
 
 <Callout type="warning">
-All authentication and authorization operations use secure protocols with industry-standard encryption.
+  All authentication and authorization operations use secure protocols with
+  industry-standard encryption.
 </Callout>
 
 #### Authentication Methods
@@ -434,18 +432,19 @@ All authentication and authorization operations use secure protocols with indust
 ### Audit Logging
 
 <Callout type="tip">
-Comprehensive audit logging ensures compliance with regulatory requirements and provides complete visibility into system activities.
+  Comprehensive audit logging ensures compliance with regulatory requirements
+  and provides complete visibility into system activities.
 </Callout>
 
 #### Audit Log Categories
 
-| Category | Events Logged | Retention Period |
-|----------|--------------|----------------|
-| **Authentication** | Logins, logouts, password changes | 2 years |
-| **Authorization** | Permission checks, role changes, access denials | 2 years |
-| **Resource Management** | Test/job creation, updates, deletions | 1 year |
-| **System Events** | Configuration changes, system errors | 6 months |
-| **Data Access** | Variable access, secret viewing | 1 year |
+| Category                | Events Logged                                   | Retention Period |
+| ----------------------- | ----------------------------------------------- | ---------------- |
+| **Authentication**      | Logins, logouts, password changes               | 2 years          |
+| **Authorization**       | Permission checks, role changes, access denials | 2 years          |
+| **Resource Management** | Test/job creation, updates, deletions           | 1 year           |
+| **System Events**       | Configuration changes, system errors            | 6 months         |
+| **Data Access**         | Variable access, secret viewing                 | 1 year           |
 
 #### Audit Log Structure
 
@@ -560,12 +559,12 @@ interface AuditLog {
 #### Incident Management Process
 
 <Steps>
-<Step>Detection: Identify security incident or breach</Step>
-<Step>Assessment: Evaluate incident scope and impact</Step>
-<Step>Containment: Isolate affected systems</Step>
-<Step>Eradication: Remove threat and restore systems</Step>
-<Step>Recovery: Restore normal operations</Step>
-<Step>Lessons Learned: Document and improve processes</Step>
+  <Step>Detection: Identify security incident or breach</Step>
+  <Step>Assessment: Evaluate incident scope and impact</Step>
+  <Step>Containment: Isolate affected systems</Step>
+  <Step>Eradication: Remove threat and restore systems</Step>
+  <Step>Recovery: Restore normal operations</Step>
+  <Step>Lessons Learned: Document and improve processes</Step>
 </Steps>
 
 #### Incident Response Team
@@ -592,7 +591,8 @@ interface AuditLog {
 - **Compliance Tools**: Automated compliance checking and reporting
 
 <Callout type="warning">
-Security is an ongoing process. Regular security reviews, updates, and improvements are essential to maintain system security.
+  Security is an ongoing process. Regular security reviews, updates, and
+  improvements are essential to maintain system security.
 </Callout>
 
 </Tab>
