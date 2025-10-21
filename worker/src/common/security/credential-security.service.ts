@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import crypto from 'node:crypto';
+import * as crypto from 'node:crypto';
 import {
   decryptJson,
   encryptJson,

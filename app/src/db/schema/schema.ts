@@ -1009,7 +1009,6 @@ export const statusPages = pgTable("status_pages", {
   pageDescription: text("page_description"),
   headline: varchar("headline", { length: 255 }),
   supportUrl: varchar("support_url", { length: 500 }),
-  hiddenFromSearch: boolean("hidden_from_search").default(false),
   allowPageSubscribers: boolean("allow_page_subscribers").default(true),
   allowIncidentSubscribers: boolean("allow_incident_subscribers").default(true),
   allowEmailSubscribers: boolean("allow_email_subscribers").default(true),

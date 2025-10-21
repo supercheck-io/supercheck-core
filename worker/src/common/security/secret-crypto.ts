@@ -1,4 +1,4 @@
-import crypto from 'node:crypto';
+import * as crypto from 'node:crypto';
 
 const KEY_ENV = 'SECRET_ENCRYPTION_KEY';
 const RAW_KEY_LENGTH = 32;

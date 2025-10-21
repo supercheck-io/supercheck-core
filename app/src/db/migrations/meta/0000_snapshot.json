@@ -1,5 +1,5 @@
 {
-  "id": "7bb7f894-5886-4804-8762-2e0e5ef7a114",
+  "id": "47ad24bd-4dca-435f-b4a7-56a262e914c3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3550,19 +3550,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "phone_number": {
-          "name": "phone_number",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone_country": {
-          "name": "phone_country",
-          "type": "varchar(2)",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'US'"
-        },
         "endpoint": {
           "name": "endpoint",
           "type": "varchar(500)",
@@ -3609,6 +3596,25 @@
         "unsubscribe_token": {
           "name": "unsubscribe_token",
           "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "webhook_failures": {
+          "name": "webhook_failures",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "webhook_last_attempt_at": {
+          "name": "webhook_last_attempt_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "webhook_last_error": {
+          "name": "webhook_last_error",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -3714,13 +3720,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "hidden_from_search": {
-          "name": "hidden_from_search",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
         "allow_page_subscribers": {
           "name": "allow_page_subscribers",
           "type": "boolean",
@@ -3741,13 +3740,6 @@
           "primaryKey": false,
           "notNull": false,
           "default": true
-        },
-        "allow_sms_subscribers": {
-          "name": "allow_sms_subscribers",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
         },
         "allow_webhook_subscribers": {
           "name": "allow_webhook_subscribers",

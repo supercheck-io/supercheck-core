@@ -131,9 +131,6 @@ CREATE TABLE status_pages (
   notifications_from_email VARCHAR(255),
   notifications_email_footer TEXT,
 
-  -- Display Settings
-  hidden_from_search BOOLEAN DEFAULT FALSE,
-
   -- Branding & Customization (42 fields total)
   css_body_background_color VARCHAR(7) DEFAULT '#ffffff',
   css_font_color VARCHAR(7) DEFAULT '#333333',
