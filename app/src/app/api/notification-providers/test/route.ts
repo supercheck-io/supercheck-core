@@ -35,12 +35,13 @@ export async function POST(req: NextRequest) {
 async function testEmailConnection(config: NotificationProviderConfig) {
   try {
     // Validate emails field (new format)
-    if (!config.emails || !config.emails.trim()) {
+    const typedConfig = config as Record<string, unknown>;
+    if (!typedConfig.emails || !(typedConfig.emails as string).trim()) {
       throw new Error("At least one email address is required");
     }
 
     // Validate email format
-    const emailList = config.emails.split(',').map(email => email.trim()).filter(email => email);
+    const emailList = (typedConfig.emails as string).split(',').map(email => email.trim()).filter(email => email);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     
     for (const email of emailList) {
@@ -145,18 +146,19 @@ async function testSMTPConnection(testEmail: string): Promise<{ success: boolean
 
 async function testSlackConnection(config: NotificationProviderConfig) {
   try {
-    if (!config.webhookUrl) {
+    const typedConfig = config as Record<string, unknown>;
+    if (!typedConfig.webhookUrl) {
       throw new Error("Webhook URL is required");
     }
 
-    const response = await fetch(config.webhookUrl, {
+    const response = await fetch(typedConfig.webhookUrl as string, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         text: "Test message from Supercheck - Connection test successful!",
-        channel: config.channel,
+        channel: typedConfig.channel,
       }),
     });
 
@@ -175,21 +177,22 @@ async function testSlackConnection(config: NotificationProviderConfig) {
 
 async function testWebhookConnection(config: NotificationProviderConfig) {
   try {
-    if (!config.url) {
+    const typedConfig = config as Record<string, unknown>;
+    if (!typedConfig.url) {
       throw new Error("URL is required");
     }
 
-    const method = config.method || 'POST';
+    const method = (typedConfig.method as string) || 'POST';
     const headers = {
       'Content-Type': 'application/json',
-      ...config.headers,
+      ...(typedConfig.headers as Record<string, string>),
     };
 
-    const body = config.bodyTemplate 
-      ? config.bodyTemplate.replace(/\{\{.*?\}\}/g, 'test-value')
+    const body = typedConfig.bodyTemplate
+      ? (typedConfig.bodyTemplate as string).replace(/\{\{.*?\}\}/g, 'test-value')
       : JSON.stringify({ test: true, message: "Connection test from Supercheck" });
 
-    const response = await fetch(config.url, {
+    const response = await fetch(typedConfig.url as string, {
       method,
       headers,
       body: method !== 'GET' ? body : undefined,
@@ -210,18 +213,19 @@ async function testWebhookConnection(config: NotificationProviderConfig) {
 
 async function testTelegramConnection(config: NotificationProviderConfig) {
   try {
-    if (!config.botToken || !config.chatId) {
+    const typedConfig = config as Record<string, unknown>;
+    if (!typedConfig.botToken || !typedConfig.chatId) {
       throw new Error("Bot token and chat ID are required");
     }
 
-    const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`;
+    const url = `https://api.telegram.org/bot${typedConfig.botToken}/sendMessage`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        chat_id: config.chatId,
+        chat_id: typedConfig.chatId,
         text: "Test message from Supercheck - Connection test successful!",
       }),
     });
@@ -242,11 +246,12 @@ async function testTelegramConnection(config: NotificationProviderConfig) {
 
 async function testDiscordConnection(config: NotificationProviderConfig) {
   try {
-    if (!config.discordWebhookUrl) {
+    const typedConfig = config as Record<string, unknown>;
+    if (!typedConfig.discordWebhookUrl) {
       throw new Error("Discord webhook URL is required");
     }
 
-    const response = await fetch(config.discordWebhookUrl, {
+    const response = await fetch(typedConfig.discordWebhookUrl as string, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

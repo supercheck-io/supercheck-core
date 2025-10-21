@@ -13,6 +13,7 @@ import { requireProjectContext } from "@/lib/project-context";
 import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { eq } from "drizzle-orm";
+import { sendIncidentNotifications } from "./send-incident-notifications";
 
 const createIncidentSchema = z.object({
   statusPageId: z.string().uuid(),
@@ -159,6 +160,15 @@ export async function createIncident(data: CreateIncidentData) {
         },
         success: true,
       });
+
+      // Send notification emails to subscribers (async, non-blocking)
+      if (validatedData.deliverNotifications) {
+        sendIncidentNotifications(result.id, validatedData.statusPageId).catch(
+          (error) => {
+            console.error("Failed to send incident notifications:", error);
+          }
+        );
+      }
 
       // Revalidate the status page
       revalidatePath(`/status-pages/${validatedData.statusPageId}`);

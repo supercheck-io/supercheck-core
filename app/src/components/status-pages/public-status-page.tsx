@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle2,
   AlertCircle,
@@ -87,6 +86,40 @@ export function PublicStatusPage({
 }: PublicStatusPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const DAYS_PER_PAGE = 7;
+
+  useEffect(() => {
+    if (!statusPage.faviconLogo) {
+      return;
+    }
+
+    const selectors =
+      "link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']";
+    const previousIcons = Array.from(
+      document.head.querySelectorAll<HTMLLinkElement>(selectors)
+    ).map((icon) => icon.cloneNode(true) as HTMLLinkElement);
+
+    document.head
+      .querySelectorAll<HTMLLinkElement>(selectors)
+      .forEach((icon) => icon.remove());
+
+    const createdIcons: HTMLLinkElement[] = [
+      { rel: "icon", href: statusPage.faviconLogo },
+      { rel: "shortcut icon", href: statusPage.faviconLogo },
+      { rel: "apple-touch-icon", href: statusPage.faviconLogo },
+    ].map(({ rel, href }) => {
+      const link = document.createElement("link");
+      link.rel = rel;
+      link.href = href;
+      document.head.appendChild(link);
+      return link;
+    });
+
+    // Reapply previous icons if we ever unmount (e.g. app navigation)
+    return () => {
+      createdIcons.forEach((icon) => icon.remove());
+      previousIcons.forEach((icon) => document.head.appendChild(icon));
+    };
+  }, [statusPage.faviconLogo]);
 
   // Calculate overall system status from components
   const calculateSystemStatus = () => {
@@ -581,44 +614,83 @@ export function PublicStatusPage({
                           {isSameDay(date, new Date()) ? " today" : ""}.
                         </p>
                       ) : (
-                        <div className="space-y-0">
-                          {dayIncidents.map((incident) => (
-                            <Link
-                              key={incident.id}
-                              href={`/status-pages/${statusPage.id}/public/incidents/${incident.id}`}
-                              className="block py-3 group"
-                            >
-                              <div className="flex items-start justify-between mb-1">
-                                <h4 className="font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                  {incident.name}
-                                </h4>
-                                <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs"
-                                  >
-                                    {incident.impact}
-                                  </Badge>
-                                  <Badge
-                                    variant={
-                                      incident.status === "resolved"
-                                        ? "default"
-                                        : "outline"
-                                    }
-                                    className="text-xs"
-                                  >
-                                    {incident.status}
-                                  </Badge>
-                                </div>
-                              </div>
+                        <div className="space-y-3">
+                          {dayIncidents.map((incident) => {
+                            // Status color mapping for badges
+                            const getStatusColor = (status: IncidentStatus) => {
+                              switch (status) {
+                                case "resolved":
+                                  return "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100";
+                                case "investigating":
+                                case "identified":
+                                case "monitoring":
+                                  return "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100";
+                                case "scheduled":
+                                  return "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-100";
+                                default:
+                                  return "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100";
+                              }
+                            };
 
-                              {incident.latestUpdate && (
-                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                                  {incident.latestUpdate.body}
-                                </p>
-                              )}
-                            </Link>
-                          ))}
+                            // Impact badge color mapping
+                            const getImpactBadgeColor = (impact: IncidentImpact) => {
+                              switch (impact) {
+                                case "critical":
+                                  return "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100";
+                                case "major":
+                                  return "bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-100";
+                                case "minor":
+                                  return "bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-100";
+                                default:
+                                  return "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100";
+                              }
+                            };
+
+                            return (
+                              <Link
+                                key={incident.id}
+                                href={`/status-pages/${statusPage.id}/public/incidents/${incident.id}`}
+                                className="block px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-900 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                      {incident.name}
+                                    </h4>
+                                    {incident.latestUpdate && (
+                                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mt-1">
+                                        {incident.latestUpdate.body}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                                    <span
+                                      className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${getImpactBadgeColor(
+                                        incident.impact
+                                      )}`}
+                                    >
+                                      {incident.impact.charAt(0).toUpperCase() +
+                                        incident.impact.slice(1)}
+                                    </span>
+                                    <span
+                                      className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${getStatusColor(
+                                        incident.status
+                                      )}`}
+                                    >
+                                      {incident.status
+                                        .split("_")
+                                        .map(
+                                          (word) =>
+                                            word.charAt(0).toUpperCase() +
+                                            word.slice(1)
+                                        )
+                                        .join(" ")}
+                                    </span>
+                                  </div>
+                                </div>
+                              </Link>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, hasPermission } from '@/lib/rbac/middleware';
-import { Role } from '@/lib/rbac/permissions';
+import { requireAuth } from '@/lib/rbac/middleware';
+import { getUserProjectRole } from '@/lib/session';
 import { db } from '@/utils/db';
 import { monitors } from '@/db/schema/schema';
 import { eq } from 'drizzle-orm';
@@ -11,14 +11,14 @@ export async function GET(
 ) {
   const params = await context.params;
   const { id } = params;
-  
+
   if (!id) {
     return NextResponse.json({ error: "Monitor ID is required" }, { status: 400 });
   }
 
   try {
-    await requireAuth();
-    
+    const { userId } = await requireAuth();
+
     // Find the monitor to get project and organization IDs
     const monitor = await db.query.monitors.findFirst({
       where: eq(monitors.id, id),
@@ -39,28 +39,8 @@ export async function GET(
       );
     }
 
-    // Check if user has permission to view monitors
-    const hasViewPermission = await hasPermission('monitor', 'view', {
-      organizationId: monitor.organizationId,
-      projectId: monitor.projectId
-    });
-
-    if (!hasViewPermission) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      );
-    }
-
-    // Get user's effective role for the response
-    const hasDeletePermission = await hasPermission('monitor', 'delete', {
-      organizationId: monitor.organizationId,
-      projectId: monitor.projectId
-    });
-
-    // If user can delete monitors, they have management permissions (PROJECT_ADMIN or higher)
-    // Otherwise they only have view permissions (PROJECT_VIEWER or PROJECT_EDITOR without delete)
-    const userRole = hasDeletePermission ? Role.PROJECT_ADMIN : Role.PROJECT_VIEWER;
+    // Get the user's actual role for this project
+    const userRole = await getUserProjectRole(userId, monitor.organizationId, monitor.projectId);
 
     return NextResponse.json({
       success: true,

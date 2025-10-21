@@ -1,0 +1,385 @@
+---
+title: Core Platform Features
+description: Comprehensive guide to Supercheck's core testing, automation, and AI-powered features
+---
+
+# Core Platform Features
+
+Supercheck provides a comprehensive suite of features for end-to-end testing, automation, and AI-powered test management. This guide covers the core platform features that enable teams to build robust testing and monitoring workflows.
+
+<Tabs items={['Test Management', 'Job Automation', 'Project Variables', 'AI-Powered Test Fixing']}>
+
+<Tab value="Test Management">
+
+## Test Types
+
+Supercheck supports multiple test types to cover all your testing needs:
+
+| Test Type          | Description                               | Use Cases                                |
+| ------------------ | ----------------------------------------- | ---------------------------------------- |
+| **Browser Tests**  | Full browser automation with Playwright   | UI testing, E2E workflows, user journeys |
+| **API Tests**      | RESTful API testing and validation        | API contracts, integration testing       |
+| **Database Tests** | Database connection and query testing     | Data integrity, performance testing      |
+| **Custom Tests**   | Custom test scripts with full flexibility | Specialized testing requirements         |
+
+<Callout type="tip">
+  All test types support parallel execution and can be included in automated job
+  workflows.
+</Callout>
+
+## Creating Tests
+
+<Steps>
+  <Step> Navigate to **Tests** → **Create Test**</Step>
+  <Step> Fill in test metadata (title, description, type)</Step>
+  <Step>
+    {" "}
+    Write your test script in the Monaco editor with syntax highlighting
+  </Step>
+  <Step> Save and run immediately or add to a job</Step>
+</Steps>
+
+### Test Script Examples
+
+<details>
+<summary>Browser Test Example</summary>
+
+```javascript
+const { test, expect } = require("@playwright/test");
+
+test("user registration flow", async ({ page }) => {
+  await page.goto("https://your-app.com/register");
+
+  // Fill registration form
+  await page.fill('[name="username"]', "newuser");
+  await page.fill('[name="email"]', "user@example.com");
+  await page.fill('[name="password"]', "SecurePass123!");
+  await page.fill('[name="confirmPassword"]', "SecurePass123!");
+
+  // Accept terms and submit
+  await page.check('[name="terms"]');
+  await page.click('[type="submit"]');
+
+  // Verify successful registration
+  await expect(page.locator(".success-message")).toContain(
+    "Registration successful"
+  );
+});
+```
+
+</details>
+
+<details>
+<summary>API Test Example</summary>
+
+```javascript
+const { test, expect } = require("@playwright/test");
+
+test("API health check", async ({ request }) => {
+  const response = await request.get(`${getVariable("API_BASE_URL")}/health`);
+
+  expect(response.status()).toBe(200);
+
+  const data = await response.json();
+  expect(data.status).toBe("healthy");
+  expect(data.timestamp).toBeDefined();
+});
+```
+
+</details>
+
+## Test Execution
+
+- **Immediate Execution**: Run tests on-demand from the playground
+- **Job Integration**: Include tests in automated job workflows
+- **Parallel Processing**: Multiple tests can run simultaneously
+- **Real-time Updates**: Watch progress via status indicators and SSE updates
+
+<Callout type="note">
+  Tests automatically access project variables and secrets during execution,
+  making them highly configurable and secure.
+</Callout>
+
+</Tab>
+
+<Tab value="Job Automation">
+
+## Job Types
+
+Supercheck supports three main job types for different automation scenarios:
+
+| Job Type           | Description                                 | Trigger Method       |
+| ------------------ | ------------------------------------------- | -------------------- |
+| **Manual Jobs**    | Triggered on-demand by users                | Manual click in UI   |
+| **Scheduled Jobs** | Automated execution based on cron schedules | Time-based triggers  |
+| **Remote Jobs**    | Triggered via API calls using API keys      | API/webhook triggers |
+
+## Creating Jobs
+
+<Steps>
+  <Step> Navigate to **Jobs** → **Create Job**</Step>
+  <Step> Configure basic job settings (name, description)</Step>
+  <Step>Select tests to include in the job</Step>
+  <Step>Set up scheduling or trigger configuration</Step>
+  <Step>Configure alert settings for notifications</Step>
+</Steps>
+
+### Job Configuration
+
+<Card>
+<CardHeader>
+<CardTitle>Basic Job Setup</CardTitle>
+</CardHeader>
+<CardContent>
+
+```javascript
+{
+  name: "Daily Smoke Tests",
+  description: "Run critical smoke tests every day",
+  tests: ["login-test", "dashboard-test", "api-health"],
+  schedule: "0 6 * * *", // 6 AM daily
+  alertConfig: {
+    alertOnFailure: true,
+    alertOnRecovery: true,
+    notificationProviders: ["email-team", "slack-alerts"]
+  }
+}
+```
+
+</CardContent>
+</Card>
+
+### Advanced Job Features
+
+- **Cron Scheduling**: Flexible scheduling with cron expressions
+- **Variable Resolution**: Tests automatically access project variables
+- **Alert Configuration**: Set up notifications for job outcomes
+- **Priority Management**: Set job priority for queue processing
+
+<details>
+<summary>Cron Scheduling Examples</summary>
+
+```bash
+# Every day at 2 AM
+0 2 * * *
+
+# Every Monday at 9 AM
+0 9 * * 1
+
+# Every 6 hours
+0 */6 * * *
+
+# Every 15 minutes during business hours (9 AM - 6 PM)
+*/15 9-18 * * 1-5
+```
+
+</details>
+
+## Job Execution Flow
+
+1. **Job Creation**: Define job with tests and schedule
+2. **Queue Processing**: Jobs added to execution queue
+3. **Parallel Execution**: Tests run concurrently when possible
+4. **Result Aggregation**: Combined report with all test results
+5. **Notification Delivery**: Alerts sent based on job outcome
+
+</Tab>
+
+<Tab value="Project Variables">
+
+## Variable Types
+
+Supercheck provides two types of variables to manage your configuration and sensitive data:
+
+| Variable Type         | Description                          | Use Cases                                  |
+| --------------------- | ------------------------------------ | ------------------------------------------ |
+| **Regular Variables** | Plain text configuration values      | URLs, timeouts, configuration parameters   |
+| **Secret Variables**  | AES-256-GCM encrypted sensitive data | API keys, passwords, authentication tokens |
+
+## Managing Variables
+
+<Steps>
+  <Step> Navigate to **Variables** in the sidebar</Step>
+  <Step> Click **"Add Variable"** button</Step>
+  <Step>Configure variable settings</Step>
+  <Step>Save variable</Step>
+</Steps>
+
+### Variable Configuration
+
+- **Key**: Variable name (e.g., `API_BASE_URL`)
+- **Value**: Variable content
+- **Secret**: Mark as secret for encryption
+- **Description**: Team documentation
+
+### Using Variables in Tests
+
+<details>
+<summary>Variable Access Examples</summary>
+
+```javascript
+// Regular variables for configuration
+const databaseUrl = getVariable("DATABASE_URL");
+const apiTimeout = getVariable("API_TIMEOUT", { default: 30000 });
+
+// Secret variables for sensitive data
+const dbPassword = getSecret("DATABASE_PASSWORD");
+const apiKey = getSecret("API_KEY", { required: true });
+
+// Use variables in test code
+await page.goto(databaseUrl);
+await page.setExtraHTTPHeaders({
+  Authorization: `Bearer ${apiKey}`,
+  "X-API-Timeout": apiTimeout.toString(),
+});
+```
+
+</details>
+
+## Security Features
+
+<Card>
+<CardHeader>
+<CardTitle>Enterprise-Grade Security</CardTitle>
+</CardHeader>
+<CardContent>
+
+- **AES-256-GCM Encryption**: All secrets encrypted at rest
+- **Access Control**: Role-based permissions for variable management
+- **Audit Logging**: Complete tracking of variable changes
+- **Runtime Protection**: Secrets masked in logs and console output
+
+</CardContent>
+</Card>
+
+<Callout type="warning">
+  Always mark passwords, API keys, and tokens as secrets to ensure proper
+  encryption and protection.
+</Callout>
+
+</Tab>
+
+<Tab value="AI-Powered Test Fixing">
+
+## AI Features
+
+Supercheck integrates OpenAI GPT-4o-mini for intelligent test repair:
+
+- **Error Analysis**: Automatic classification of test failures
+- **Code Generation**: AI suggests fixes for common issues
+- **Security Validation**: Comprehensive safety checks for generated code
+- **Rich Diff Viewer**: Visual comparison of original and fixed code
+
+## Using AI Fix
+
+<Steps>
+  <Step>Identify failed test in test results</Step>
+  <Step>Click **"AI Fix"** button on failed test</Step>
+  <Step>Review AI analysis and suggested fixes</Step>
+  <Step>Apply changes in the Monaco diff viewer</Step>
+  <Step>Run test again to verify the solution</Step>
+</Steps>
+
+### AI Fix Example
+
+<details>
+<summary>Before AI Fix</summary>
+
+```javascript
+test("login functionality", async ({ page }) => {
+  await page.goto("https://app.com/login");
+  await page.fill("#username", "testuser");
+  await page.fill("#password", "password");
+  await page.click("#submit");
+  // Test fails - element not found
+});
+```
+
+</details>
+
+<details>
+<summary>After AI Fix</summary>
+
+```javascript
+test("login functionality", async ({ page }) => {
+  await page.goto("https://app.com/login");
+  await page.fill('[name="username"]', "testuser");
+  await page.fill('[name="password"]', "password");
+  await page.click('[type="submit"]');
+  // AI fix: Updated selector to match actual HTML
+});
+```
+
+</details>
+
+## AI Security
+
+<Card>
+<CardHeader>
+<CardTitle>AI Security Features</CardTitle>
+</CardHeader>
+<CardContent>
+
+- **Input Sanitization**: All inputs validated before processing
+- **Code Safety Checks**: Generated code scanned for security issues
+- **Output Validation**: Fixes validated before application
+- **Audit Trail**: Complete logging of AI interactions
+
+</CardContent>
+</Card>
+
+<Callout type="tip">
+  The AI system maintains a complete audit trail of all interactions for
+  compliance and security purposes.
+</Callout>
+
+</Tab>
+</Tabs>
+
+## Best Practices
+
+### Test Management
+
+- Organize tests with meaningful titles and descriptions
+- Use tags to categorize tests by functionality
+- Set appropriate priority levels for scheduling
+- Regularly review and update test scripts
+
+### Job Automation
+
+- Group related tests into logical jobs
+- Use descriptive naming conventions
+- Set appropriate alert thresholds
+- Monitor job execution patterns
+
+### Variable Management
+
+- Use descriptive variable names
+- Document variable purposes
+- Regularly rotate secret values
+- Limit access to sensitive variables
+
+### AI Usage
+
+- Review AI-generated code before applying
+- Use AI as a starting point, not final solution
+- Maintain code quality standards
+- Document AI-assisted fixes
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Test Failures**: Check test environment and dependencies
+2. **Variable Resolution**: Verify variable names and scopes
+3. **Job Scheduling**: Confirm cron expressions and time zones
+4. **AI Fix Limitations**: AI may not solve complex architectural issues
+
+### Debug Tools
+
+- **Test Reports**: Detailed Playwright reports with screenshots
+- **System Logs**: Comprehensive logging for troubleshooting
+- **Variable Inspector**: View variable values and scopes
+- **Job History**: Track job execution patterns
+
+For more advanced features and API integration, see our [Advanced Features](./advanced-features) documentation.

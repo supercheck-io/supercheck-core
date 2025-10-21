@@ -42,10 +42,16 @@ import {
 } from "@/components/ui/popover";
 
 // Component for value with popover on truncation
-function ValueWithPopover({ value, isSecret, isVisible }: { value: string; isSecret: boolean; isVisible: boolean }) {
+function ValueWithPopover({ value, isSecret, isVisible, decryptedValue }: { value?: string; isSecret: boolean; isVisible: boolean; decryptedValue?: string }) {
   const [isOpen, setIsOpen] = useState(false);
-  const displayValue = isSecret && !isVisible ? '*'.repeat(Math.min(value?.length || 12, 16)) : value;
-  const isTruncated = displayValue.length > 25;
+
+  // Handle undefined or null values
+  const safeValue = value || "";
+  // Use decryptedValue when visible and available, otherwise show masked or plain value
+  const displayValue = isSecret && isVisible && decryptedValue
+    ? decryptedValue
+    : (isSecret && !isVisible ? '*'.repeat(Math.min(safeValue.length || 12, 16)) : safeValue);
+  const isTruncated = (displayValue || "").length > 25;
 
   if (!isTruncated) {
     return (
@@ -167,14 +173,17 @@ export const columns: ColumnDef<Variable>[] = [
       const variable = row.original;
       const meta = table.options.meta as {
         secretVisibility?: { [key: string]: boolean };
+        decryptedValues?: { [key: string]: string };
       };
       const isVisible = meta?.secretVisibility?.[variable.id] || false;
+      const decryptedValue = meta?.decryptedValues?.[variable.id];
 
       return (
-        <ValueWithPopover 
-          value={value} 
-          isSecret={isSecretBool} 
+        <ValueWithPopover
+          value={value}
+          isSecret={isSecretBool}
           isVisible={isVisible}
+          decryptedValue={decryptedValue}
         />
       );
     },
@@ -265,6 +274,7 @@ export const columns: ColumnDef<Variable>[] = [
         canManage?: boolean;
         canCreateEdit?: boolean;
         canDelete?: boolean;
+        canViewSecrets?: boolean;
         onDeleteVariable?: (id: string) => void;
         onEditVariable?: (variable: Variable) => void;
         secretVisibility?: { [key: string]: boolean };
@@ -275,8 +285,9 @@ export const columns: ColumnDef<Variable>[] = [
         setEditDialogState?: (id: string, open: boolean) => void;
       };
       const canManage = meta?.canManage || false;
-      const canCreateEdit = meta?.canCreateEdit || false; 
+      const canCreateEdit = meta?.canCreateEdit || false;
       const canDelete = meta?.canDelete || false;
+      const canViewSecrets = meta?.canViewSecrets || false;
       const isSecret = row.getValue("isSecret") as string;
       const isSecretBool = isSecret === "true";
       const editDialogOpen = meta?.editDialogState?.[variable.id] || false;
@@ -323,9 +334,9 @@ export const columns: ColumnDef<Variable>[] = [
             <DropdownMenuContent align="end">
               {isSecretBool && (
                 <DropdownMenuItem
-                  onClick={canManage ? () => meta?.onToggleSecretVisibility?.(variable.id) : undefined}
-                  disabled={!canManage}
-                  className={!canManage ? "opacity-50 cursor-not-allowed" : ""}
+                  onClick={canViewSecrets ? () => meta?.onToggleSecretVisibility?.(variable.id) : undefined}
+                  disabled={!canViewSecrets}
+                  className={!canViewSecrets ? "opacity-50 cursor-not-allowed" : ""}
                 >
                   {meta?.secretVisibility?.[variable.id] ? (
                     <>

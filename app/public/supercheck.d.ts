@@ -653,7 +653,7 @@ declare function getVariable<T = string>(
 /**
  * Retrieves a project secret value with enterprise-grade security protection.
  * 
- * Project secrets are encrypted at rest using AES-256 encryption and are designed
+ * Project secrets are encrypted at rest using AES-128 encryption and are designed
  * for sensitive values such as passwords, API keys, tokens, and database credentials.
  * The returned value is protected from accidental exposure through logging, serialization,
  * and inspection while maintaining full compatibility with APIs that require the actual value.
@@ -711,7 +711,7 @@ declare function getVariable<T = string>(
  * ```
  * 
  * @security
- * - Secrets are encrypted using AES-256-GCM with project-specific keys
+ * - Secrets are encrypted using AES-128-GCM with project-specific context
  * - Protected from console.log(), JSON.stringify(), and util.inspect()
  * - Returns "[SECRET]" for any string coercion or inspection
  * - Actual values only accessible through valueOf() or direct API usage

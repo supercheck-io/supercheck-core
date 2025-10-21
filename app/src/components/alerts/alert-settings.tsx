@@ -472,7 +472,7 @@ export function AlertSettings({
                                 <IconComponent className={`h-4 w-4 ${providerConfig.color}`} />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm truncate">{provider.config.name as string}</p>
+                                <p className="font-medium text-sm truncate">{(provider.config as Record<string, unknown>).name as string}</p>
                                 <p className="text-xs text-muted-foreground capitalize truncate">
                                   {provider.type}
                                 </p>

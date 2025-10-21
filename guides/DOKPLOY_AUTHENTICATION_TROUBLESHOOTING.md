@@ -284,8 +284,7 @@ SMTP_SECURE=false
 SMTP_FROM_EMAIL=notifications@your-domain.com
 
 # === SECURITY (REQUIRED) ===
-CREDENTIAL_ENCRYPTION_KEY=your-64-character-hex-key
-VARIABLES_ENCRYPTION_KEY=your-64-character-hex-key
+SECRET_ENCRYPTION_KEY=your-64-character-hex-key
 
 # === APP CONFIGURATION ===
 NODE_ENV=production

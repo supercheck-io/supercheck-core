@@ -1,0 +1,1284 @@
+---
+title: Quick Reference
+description: Quick reference guide for Supercheck platform including keyboard shortcuts, common commands, configuration examples, and troubleshooting tips
+---
+
+# Quick Reference
+
+This quick reference guide provides essential information for using the Supercheck platform efficiently, including keyboard shortcuts, common commands, configuration examples, and troubleshooting tips.
+
+<Callout type="tip">
+  Bookmark this page for quick access to commonly used commands, shortcuts, and
+  configuration examples while working with Supercheck.
+</Callout>
+
+## Keyboard Shortcuts
+
+### Global Shortcuts
+
+| Action            | Windows/Linux | macOS     | Description             |
+| ----------------- | ------------- | --------- | ----------------------- |
+| **Search**        | `Ctrl + F`    | `Cmd + F` | Open global search      |
+| **Help**          | `F1`          | `F1`      | Open help documentation |
+| **Settings**      | `Ctrl + ,`    | `Cmd + ,` | Open settings           |
+| **Dashboard**     | `Ctrl + D`    | `Cmd + D` | Go to dashboard         |
+| **Notifications** | `Ctrl + N`    | `Cmd + N` | Open notifications      |
+
+### Test Management Shortcuts
+
+| Action             | Windows/Linux   | macOS          | Description            |
+| ------------------ | --------------- | -------------- | ---------------------- |
+| **Create Test**    | `Ctrl + T`      | `Cmd + T`      | Create new test        |
+| **Save Test**      | `Ctrl + S`      | `Cmd + S`      | Save current test      |
+| **Run Test**       | `Ctrl + Enter`  | `Cmd + Enter`  | Run current test       |
+| **Duplicate Test** | `Ctrl + D`      | `Cmd + D`      | Duplicate current test |
+| **Delete Test**    | `Ctrl + Delete` | `Cmd + Delete` | Delete selected test   |
+
+### Job Management Shortcuts
+
+| Action           | Windows/Linux          | macOS                 | Description       |
+| ---------------- | ---------------------- | --------------------- | ----------------- |
+| **Create Job**   | `Ctrl + J`             | `Cmd + J`             | Create new job    |
+| **Run Job**      | `Ctrl + Shift + Enter` | `Cmd + Shift + Enter` | Run selected job  |
+| **Schedule Job** | `Ctrl + Shift + S`     | `Cmd + Shift + S`     | Schedule job      |
+| **Edit Job**     | `Ctrl + E`             | `Cmd + E`             | Edit selected job |
+
+### Monitor Management Shortcuts
+
+| Action             | Windows/Linux      | macOS             | Description           |
+| ------------------ | ------------------ | ----------------- | --------------------- |
+| **Create Monitor** | `Ctrl + M`         | `Cmd + M`         | Create new monitor    |
+| **Test Monitor**   | `Ctrl + Shift + T` | `Cmd + Shift + T` | Test selected monitor |
+| **Enable/Disable** | `Ctrl + Shift + E` | `Cmd + Shift + E` | Toggle monitor status |
+
+### Editor Shortcuts
+
+| Action             | Windows/Linux      | macOS             | Description         |
+| ------------------ | ------------------ | ----------------- | ------------------- |
+| **Undo**           | `Ctrl + Z`         | `Cmd + Z`         | Undo last action    |
+| **Redo**           | `Ctrl + Y`         | `Cmd + Y`         | Redo last action    |
+| **Cut**            | `Ctrl + X`         | `Cmd + X`         | Cut selected text   |
+| **Copy**           | `Ctrl + C`         | `Cmd + C`         | Copy selected text  |
+| **Paste**          | `Ctrl + V`         | `Cmd + V`         | Paste text          |
+| **Find**           | `Ctrl + F`         | `Cmd + F`         | Find text           |
+| **Replace**        | `Ctrl + H`         | `Cmd + H`         | Find and replace    |
+| **Format Code**    | `Ctrl + Shift + F` | `Cmd + Shift + F` | Format code         |
+| **Toggle Comment** | `Ctrl + /`         | `Cmd + /`         | Toggle line comment |
+
+## Common Commands
+
+### CLI Commands
+
+#### Test Management
+
+```bash
+# List all tests
+supercheck tests list
+
+# Create new test
+supercheck tests create --title "API Test" --type "api"
+
+# Run specific test
+supercheck tests run --id "test-123456789"
+
+# Run tests by tag
+supercheck tests run --tags "critical,smoke"
+
+# Delete test
+supercheck tests delete --id "test-123456789"
+
+# Export tests
+supercheck tests export --format "json" --output "tests.json"
+
+# Import tests
+supercheck tests import --format "json" --input "tests.json"
+```
+
+#### Job Management
+
+```bash
+# List all jobs
+supercheck jobs list
+
+# Create new job
+supercheck jobs create --name "Daily Tests" --tests "test-1,test-2" --schedule "0 2 * * *"
+
+# Run job
+supercheck jobs run --id "job-123456789"
+
+# Schedule job
+supercheck jobs schedule --id "job-123456789" --cron "0 2 * * *"
+
+# Delete job
+supercheck jobs delete --id "job-123456789"
+
+# Get job status
+supercheck jobs status --id "job-123456789"
+```
+
+#### Monitor Management
+
+```bash
+# List all monitors
+supercheck monitors list
+
+# Create new monitor
+supercheck monitors create --name "API Monitor" --type "http" --target "https://api.example.com/health"
+
+# Test monitor
+supercheck monitors test --id "monitor-123456789"
+
+# Enable monitor
+supercheck monitors enable --id "monitor-123456789"
+
+# Disable monitor
+supercheck monitors disable --id "monitor-123456789"
+
+# Delete monitor
+supercheck monitors delete --id "monitor-123456789"
+```
+
+#### Variable Management
+
+```bash
+# List all variables
+supercheck variables list
+
+# Create variable
+supercheck variables create --key "API_URL" --value "https://api.example.com"
+
+# Create secret
+supercheck variables create --key "API_KEY" --value "secret-key" --secret
+
+# Update variable
+supercheck variables update --key "API_URL" --value "https://api-staging.example.com"
+
+# Delete variable
+supercheck variables delete --key "API_URL"
+```
+
+#### Status Page Management
+
+```bash
+# List all status pages
+supercheck status-pages list
+
+# Create status page
+supercheck status-pages create --name "Service Status" --url "status.example.com"
+
+# Update status page
+supercheck status-pages update --id "status-123456789" --name "Updated Status"
+
+# Delete status page
+supercheck status-pages delete --id "status-123456789"
+```
+
+### API Commands
+
+#### Authentication
+
+```bash
+# Generate API key
+curl -X POST "https://api.supercheck.io/v1/auth/api-keys" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My API Key",
+    "scopes": ["tests:read", "tests:write", "jobs:execute"]
+  }'
+
+# List API keys
+curl -X GET "https://api.supercheck.io/v1/auth/api-keys" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Revoke API key
+curl -X DELETE "https://api.supercheck.io/v1/auth/api-keys/{keyId}" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+#### Test Management
+
+```bash
+# List tests
+curl -X GET "https://api.supercheck.io/v1/tests" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Create test
+curl -X POST "https://api.supercheck.io/v1/tests" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "API Test",
+    "type": "api_test",
+    "script": "const { test, expect } = require(\"@playwright/test\");\n\ntest(\"API test\", async () => {\n  console.log(\"Test passed\");\n});"
+  }'
+
+# Run test
+curl -X POST "https://api.supercheck.io/v1/tests/{testId}/run" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "environment": "staging",
+    "variables": {
+      "API_BASE_URL": "https://api-staging.example.com"
+    }
+  }'
+
+# Get test results
+curl -X GET "https://api.supercheck.io/v1/tests/{testId}/results/{executionId}" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+#### Job Management
+
+```bash
+# List jobs
+curl -X GET "https://api.supercheck.io/v1/jobs" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Create job
+curl -X POST "https://api.supercheck.io/v1/jobs" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Daily Tests",
+    "tests": ["test-1", "test-2"],
+    "schedule": "0 2 * * *"
+  }'
+
+# Run job
+curl -X POST "https://api.supercheck.io/v1/jobs/{jobId}/run" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "environment": "staging",
+    "variables": {
+      "API_BASE_URL": "https://api-staging.example.com"
+    }
+  }'
+
+# Get job results
+curl -X GET "https://api.supercheck.io/v1/jobs/{jobId}/results/{executionId}" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Configuration Examples
+
+### Test Configuration
+
+#### Browser Test Configuration
+
+```javascript
+// test-config.js
+module.exports = {
+  title: "User Login Test",
+  description: "Test user login functionality",
+  type: "browser_test",
+  environment: "staging",
+  timeout: 30000,
+  retries: 2,
+  tags: ["authentication", "critical"],
+  priority: "high",
+  script: `
+    const { test, expect } = require("@playwright/test");
+
+    test("user can login", async ({ page }) => {
+      await page.goto("${API_BASE_URL}/login");
+      await page.fill('[name="username"]', "testuser");
+      await page.fill('[name="password"]', "password123");
+      await page.click('[type="submit"]');
+      
+      await expect(page.locator(".welcome-message")).toBeVisible();
+    });
+  `,
+  variables: {
+    API_BASE_URL: "https://staging.example.com",
+    USERNAME: "testuser",
+    PASSWORD: "password123",
+  },
+};
+```
+
+#### API Test Configuration
+
+```javascript
+// api-test-config.js
+module.exports = {
+  title: "API Health Check",
+  description: "Test API health endpoint",
+  type: "api_test",
+  environment: "staging",
+  timeout: 15000,
+  retries: 1,
+  tags: ["api", "health"],
+  priority: "high",
+  script: `
+    const { test, expect } = require("@playwright/test");
+
+    test("API health check", async ({ request }) => {
+      const response = await request.get("${API_BASE_URL}/health", {
+        headers: {
+          "Authorization": "Bearer ${API_KEY}",
+          "Content-Type": "application/json"
+        }
+      });
+
+      expect(response.status()).toBe(200);
+      
+      const data = await response.json();
+      expect(data.status).toBe("healthy");
+      expect(data.timestamp).toBeDefined();
+    });
+  `,
+  variables: {
+    API_BASE_URL: "https://api-staging.example.com",
+    API_KEY: "staging-api-key",
+  },
+};
+```
+
+### Job Configuration
+
+#### Daily Regression Job
+
+```javascript
+// daily-regression-job.js
+module.exports = {
+  name: "Daily Regression Suite",
+  description: "Run all critical tests daily",
+  schedule: "0 2 * * *", // 2 AM daily
+  environment: "staging",
+  tests: [
+    "user-login-test",
+    "user-registration-test",
+    "api-health-check",
+    "dashboard-load-test",
+  ],
+  notifications: {
+    onSuccess: ["email-team", "slack-success"],
+    onFailure: ["email-alerts", "slack-critical", "webhook-alerts"],
+  },
+  variables: {
+    API_BASE_URL: "https://api-staging.example.com",
+    API_KEY: "staging-api-key",
+    USERNAME: "testuser",
+    PASSWORD: "password123",
+  },
+  options: {
+    timeout: 30000,
+    retries: 2,
+    parallel: true,
+    maxConcurrent: 5,
+  },
+};
+```
+
+#### CI/CD Integration Job
+
+```javascript
+// cicd-job.js
+module.exports = {
+  name: "CI/CD Pipeline Test",
+  description: "Run tests triggered by CI/CD pipeline",
+  schedule: "manual", // Manual trigger only
+  environment: "ci",
+  tests: [
+    "build-validation-test",
+    "unit-tests",
+    "integration-tests",
+    "e2e-tests",
+  ],
+  notifications: {
+    onSuccess: ["webhook-ci-success"],
+    onFailure: ["webhook-ci-failure", "email-dev-team"],
+  },
+  variables: {
+    BUILD_NUMBER: "${BUILD_NUMBER}",
+    COMMIT_SHA: "${COMMIT_SHA}",
+    BRANCH: "${BRANCH}",
+    API_BASE_URL: "https://api-ci.example.com",
+    API_KEY: "ci-api-key",
+  },
+  options: {
+    timeout: 60000,
+    retries: 0,
+    parallel: true,
+    maxConcurrent: 10,
+  },
+};
+```
+
+### Monitor Configuration
+
+#### HTTP Monitor Configuration
+
+```javascript
+// http-monitor-config.js
+module.exports = {
+  name: "API Health Monitor",
+  type: "http_request",
+  target: "https://api.example.com/health",
+  frequencyMinutes: 5,
+  config: {
+    method: "GET",
+    expectedStatusCodes: "200-299",
+    timeoutSeconds: 30,
+    headers: {
+      Authorization: "Bearer ${API_KEY}",
+      "User-Agent": "Supercheck-Monitor/1.0",
+    },
+    body: null,
+    followRedirects: true,
+    validateSSL: true,
+  },
+  alertConfig: {
+    failureThreshold: 2,
+    recoveryThreshold: 1,
+    notificationChannels: ["email-alerts", "slack-critical"],
+    alertOnFailure: true,
+    alertOnRecovery: true,
+    alertOnDegradation: true,
+  },
+  variables: {
+    API_KEY: "monitoring-api-key",
+  },
+};
+```
+
+#### Website Monitor Configuration
+
+```javascript
+// website-monitor-config.js
+module.exports = {
+  name: "Main Website Monitor",
+  type: "website",
+  target: "https://example.com",
+  frequencyMinutes: 1,
+  config: {
+    keywordInBody: "Welcome",
+    keywordInBodyShouldBePresent: true,
+    enableSslCheck: true,
+    sslDaysUntilExpirationWarning: 30,
+    timeoutSeconds: 10,
+    followRedirects: true,
+    userAgent: "Supercheck-Monitor/1.0",
+  },
+  alertConfig: {
+    failureThreshold: 1,
+    recoveryThreshold: 1,
+    notificationChannels: ["email-alerts", "slack-critical"],
+    alertOnFailure: true,
+    alertOnRecovery: true,
+    alertOnDegradation: true,
+  },
+};
+```
+
+#### Ping Monitor Configuration
+
+```javascript
+// ping-monitor-config.js
+module.exports = {
+  name: "Server Connectivity Monitor",
+  type: "ping_host",
+  target: "192.168.1.100",
+  frequencyMinutes: 1,
+  config: {
+    pingCount: 3,
+    timeoutSeconds: 5,
+    packetSize: 32,
+    intervalSeconds: 1,
+  },
+  alertConfig: {
+    failureThreshold: 2,
+    recoveryThreshold: 1,
+    notificationChannels: ["email-alerts", "slack-critical"],
+    alertOnFailure: true,
+    alertOnRecovery: true,
+    alertOnDegradation: true,
+  },
+};
+```
+
+### Variable Configuration
+
+#### Regular Variables
+
+```javascript
+// regular-variables.js
+module.exports = {
+  API_BASE_URL: {
+    value: "https://api.example.com",
+    description: "Base URL for API endpoints",
+    environment: "all",
+  },
+  API_TIMEOUT: {
+    value: "30000",
+    description: "API request timeout in milliseconds",
+    environment: "all",
+  },
+  BROWSER_HEADLESS: {
+    value: "true",
+    description: "Run browser tests in headless mode",
+    environment: "ci",
+  },
+  PARALLEL_WORKERS: {
+    value: "5",
+    description: "Number of parallel test workers",
+    environment: "ci",
+  },
+};
+```
+
+#### Secret Variables
+
+```javascript
+// secret-variables.js
+module.exports = {
+  API_KEY: {
+    value: "sk-1234567890abcdef",
+    description: "API authentication key",
+    encrypted: true,
+    environment: "all",
+  },
+  DATABASE_PASSWORD: {
+    value: "secure-password-123",
+    description: "Database connection password",
+    encrypted: true,
+    environment: "all",
+  },
+  JWT_SECRET: {
+    value: "jwt-secret-key-456",
+    description: "JWT token signing secret",
+    encrypted: true,
+    environment: "all",
+  },
+  ENCRYPTION_KEY: {
+    value: "encryption-key-789",
+    description: "Data encryption key",
+    encrypted: true,
+    environment: "all",
+  },
+};
+```
+
+## Troubleshooting Tips
+
+### Common Issues and Solutions
+
+#### Test Execution Issues
+
+**Issue: Test fails with timeout error**
+
+```bash
+# Solution: Increase timeout
+curl -X PUT "https://api.supercheck.io/v1/tests/{testId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timeout": 60000
+  }'
+```
+
+**Issue: Test fails with authentication error**
+
+```bash
+# Solution: Check API key and permissions
+curl -X GET "https://api.supercheck.io/v1/auth/api-keys" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Update API key with correct scopes
+curl -X PUT "https://api.supercheck.io/v1/auth/api-keys/{keyId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scopes": ["tests:read", "tests:write", "jobs:execute"]
+  }'
+```
+
+**Issue: Test fails with variable resolution error**
+
+```bash
+# Solution: Check variable exists and is accessible
+curl -X GET "https://api.supercheck.io/v1/variables" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Create missing variable
+curl -X POST "https://api.supercheck.io/v1/variables" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "MISSING_VARIABLE",
+    "value": "variable-value",
+    "type": "regular"
+  }'
+```
+
+#### Job Execution Issues
+
+**Issue: Job fails with queue full error**
+
+```bash
+# Solution: Check queue status and capacity
+curl -X GET "https://api.supercheck.io/v1/status" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Wait for queue to clear and retry
+curl -X POST "https://api.supercheck.io/v1/jobs/{jobId}/run" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "options": {
+      "retry": true,
+      "retryDelay": 60000
+    }
+  }'
+```
+
+**Issue: Job fails with variable resolution error**
+
+```bash
+# Solution: Check job variables
+curl -X GET "https://api.supercheck.io/v1/jobs/{jobId}" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Update job with correct variables
+curl -X PUT "https://api.supercheck.io/v1/jobs/{jobId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "variables": {
+      "API_BASE_URL": "https://api-staging.example.com",
+      "API_KEY": "staging-api-key"
+    }
+  }'
+```
+
+#### Monitor Issues
+
+**Issue: Monitor shows false positive alerts**
+
+```bash
+# Solution: Adjust alert thresholds
+curl -X PUT "https://api.supercheck.io/v1/monitors/{monitorId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alertConfig": {
+      "failureThreshold": 3,
+      "recoveryThreshold": 2
+    }
+  }'
+```
+
+**Issue: Monitor fails with SSL certificate error**
+
+```bash
+# Solution: Update SSL configuration
+curl -X PUT "https://api.supercheck.io/v1/monitors/{monitorId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "config": {
+      "validateSSL": false,
+      "sslDaysUntilExpirationWarning": 60
+    }
+  }'
+```
+
+#### Performance Issues
+
+**Issue: Slow test execution**
+
+```bash
+# Solution: Optimize test configuration
+curl -X PUT "https://api.supercheck.io/v1/tests/{testId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timeout": 15000,
+    "retries": 1,
+    "environment": "staging"
+  }'
+```
+
+**Issue: High memory usage**
+
+```bash
+# Solution: Check system status and optimize
+curl -X GET "https://api.supercheck.io/v1/status" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Reduce parallel execution
+curl -X PUT "https://api.supercheck.io/v1/jobs/{jobId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "options": {
+      "maxConcurrent": 3
+    }
+  }'
+```
+
+### Debug Commands
+
+#### Test Debugging
+
+```bash
+# Run test with debug output
+curl -X POST "https://api.supercheck.io/v1/tests/{testId}/run" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "options": {
+      "debug": true,
+      "verbose": true
+    }
+  }'
+
+# Get detailed test results
+curl -X GET "https://api.supercheck.io/v1/tests/{testId}/results/{executionId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+#### Job Debugging
+
+```bash
+# Run job with debug output
+curl -X POST "https://api.supercheck.io/v1/jobs/{jobId}/run" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "options": {
+      "debug": true,
+      "verbose": true
+    }
+  }'
+
+# Get detailed job results
+curl -X GET "https://api.supercheck.io/v1/jobs/{jobId}/results/{executionId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+#### Monitor Debugging
+
+```bash
+# Test monitor with debug output
+curl -X POST "https://api.supercheck.io/v1/monitors/{monitorId}/test" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "options": {
+      "debug": true,
+      "verbose": true
+    }
+  }'
+
+# Get monitor status and history
+curl -X GET "https://api.supercheck.io/v1/monitors/{monitorId}" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+### Performance Optimization
+
+#### Test Optimization
+
+```javascript
+// Optimized test configuration
+const optimizedTest = {
+  timeout: 15000, // Reduce timeout
+  retries: 1, // Reduce retries
+  parallel: true, // Enable parallel execution
+  environment: "staging", // Use staging environment
+  variables: {
+    API_BASE_URL: "https://api-staging.example.com",
+    API_KEY: "staging-api-key",
+  },
+  options: {
+    headless: true, // Use headless browser
+    devtools: false, // Disable devtools
+    slowMo: 0, // Remove delays
+  },
+};
+```
+
+#### Job Optimization
+
+```javascript
+// Optimized job configuration
+const optimizedJob = {
+  name: "Optimized Job",
+  tests: ["test-1", "test-2", "test-3"],
+  schedule: "0 2 * * *",
+  environment: "staging",
+  variables: {
+    API_BASE_URL: "https://api-staging.example.com",
+    API_KEY: "staging-api-key",
+  },
+  options: {
+    timeout: 30000,
+    retries: 1,
+    parallel: true,
+    maxConcurrent: 3, // Limit concurrent tests
+    failFast: true, // Stop on first failure
+    bail: true, // Stop job on test failure
+  },
+};
+```
+
+#### Monitor Optimization
+
+```javascript
+// Optimized monitor configuration
+const optimizedMonitor = {
+  name: "Optimized Monitor",
+  type: "http_request",
+  target: "https://api.example.com/health",
+  frequencyMinutes: 5, // Optimal frequency
+  config: {
+    method: "GET",
+    expectedStatusCodes: "200-299",
+    timeoutSeconds: 10, // Reduce timeout
+    headers: {
+      Authorization: "Bearer ${API_KEY}",
+      "User-Agent": "Supercheck-Monitor/1.0",
+    },
+  },
+  alertConfig: {
+    failureThreshold: 2, // Optimal threshold
+    recoveryThreshold: 1,
+    notificationChannels: ["email-alerts"],
+    alertOnFailure: true,
+    alertOnRecovery: true,
+  },
+};
+```
+
+## Environment Variables
+
+### System Environment Variables
+
+```bash
+# Database Configuration
+DATABASE_URL=postgresql://user:password@localhost:5432/supercheck
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=supercheck
+DATABASE_USER=supercheck
+DATABASE_PASSWORD=password
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# S3 Configuration
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_REGION=us-east-1
+S3_BUCKET_NAME=supercheck-assets
+S3_ENDPOINT=https://s3.amazonaws.com
+
+# API Configuration
+API_BASE_URL=https://api.supercheck.io
+API_VERSION=v1
+API_TIMEOUT=30000
+API_RETRIES=3
+
+# Authentication
+JWT_SECRET=your-jwt-secret
+SESSION_SECRET=your-session-secret
+ENCRYPTION_KEY=your-encryption-key
+
+# Monitoring
+MONITORING_ENABLED=true
+METRICS_ENABLED=true
+LOG_LEVEL=info
+
+# Queue Configuration
+QUEUE_REDIS_URL=redis://localhost:6379
+QUEUE_MAX_CONCURRENT=10
+QUEUE_TIMEOUT=300000
+
+# Email Configuration
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=noreply@example.com
+SMTP_PASSWORD=smtp-password
+SMTP_FROM=noreply@example.com
+SMTP_FROM_NAME=Supercheck
+
+# Slack Configuration
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+SLACK_CHANNEL=#alerts
+SLACK_USERNAME=Supercheck
+
+# Webhook Configuration
+WEBHOOK_SECRET=your-webhook-secret
+WEBHOOK_TIMEOUT=10000
+```
+
+### Application Environment Variables
+
+```bash
+# Application Configuration
+NODE_ENV=production
+PORT=3000
+HOST=0.0.0.0
+
+# Next.js Configuration
+NEXT_PUBLIC_APP_URL=https://app.supercheck.io
+NEXT_PUBLIC_API_URL=https://api.supercheck.io
+NEXT_PUBLIC_WS_URL=wss://api.supercheck.io
+
+# Development Configuration
+DEV_MODE=false
+DEBUG=false
+VERBOSE=false
+
+# Testing Configuration
+TEST_TIMEOUT=30000
+TEST_RETRIES=2
+TEST_PARALLEL=true
+TEST_HEADLESS=true
+
+# Performance Configuration
+MAX_CONCURRENT_TESTS=5
+MAX_CONCURRENT_JOBS=3
+MAX_CONCURRENT_MONITORS=10
+
+# Security Configuration
+CORS_ORIGIN=https://app.supercheck.io
+RATE_LIMIT_WINDOW=900000
+RATE_LIMIT_MAX=1000
+```
+
+## Cron Expressions
+
+### Common Cron Schedules
+
+```bash
+# Every minute
+* * * * *
+
+# Every 5 minutes
+*/5 * * * *
+
+# Every hour at minute 0
+0 * * * *
+
+# Every day at 2 AM
+0 2 * * *
+
+# Every Monday at 9 AM
+0 9 * * 1
+
+# Every weekday at 9 AM
+0 9 * * 1-5
+
+# Every weekend at 10 AM
+0 10 * * 0,6
+
+# Every 6 hours
+0 */6 * * *
+
+# Every 12 hours at midnight and noon
+0 0,12 * * *
+
+# Every month on the 1st at midnight
+0 0 1 * *
+
+# Every quarter on the 1st at midnight
+0 0 1 1,4,7,10
+
+# Every year on January 1st at midnight
+0 0 1 1 *
+```
+
+### Advanced Cron Schedules
+
+```bash
+# Every 15 minutes during business hours (9 AM - 6 PM)
+*/15 9-18 * * 1-5
+
+# Every 30 minutes during off-hours (6 PM - 9 AM)
+*/30 18-9 * * *
+
+# Every 2 hours on weekends
+0 */2 * * 0,6
+
+# Every day at 6 AM, 12 PM, and 6 PM
+0 6,12,18 * * *
+
+# Every Monday, Wednesday, Friday at 9 AM
+0 9 * * 1,3,5
+
+# Last day of every month at 11 PM
+0 23 28-31 * *
+
+# First Monday of every month at 9 AM
+0 9 1-7 * 1
+
+# Every 5 minutes on weekdays, every 15 minutes on weekends
+*/5 9-18 * * 1-5
+*/15 19-8 * * 0,6
+
+# Every hour during peak hours (9 AM - 5 PM), every 2 hours off-peak
+0 9-17 * * *
+0 */2 18-8 * *
+```
+
+## Regular Expressions
+
+### Common Patterns
+
+```javascript
+// Email validation
+const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+// URL validation
+const urlRegex =
+  /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/;
+
+// Phone number validation
+const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+
+// IPv4 address validation
+const ipv4Regex =
+  /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+
+// IPv6 address validation
+const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+
+// UUID validation
+const uuidRegex =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{4}-[89ab][0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+// Password validation (8+ chars, uppercase, lowercase, number, special char)
+const passwordRegex =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+// Test name validation
+const testNameRegex = /^[a-zA-Z0-9\s_-]{3,50}$/;
+
+// Monitor name validation
+const monitorNameRegex = /^[a-zA-Z0-9\s_-]{3,50}$/;
+
+// Variable key validation
+const variableKeyRegex = /^[A-Z_][A-Z0-9_]*$/;
+
+// API key validation
+const apiKeyRegex = /^sk-[a-zA-Z0-9]{24,}$/;
+
+// Cron expression validation
+const cronRegex =
+  /^(\*|[0-5]|\*\/[0-9]+)\s+(\*|[0-9]|\*\/[0-9]+)\s+(\*|[1-9]|\*\/[0-9]+|\*|[1-9][0-2])\s(\*|[1-9]|\*\/[0-9]+|\*|[1-9][0-2])\s(\*|[0-6]|\*\/[0-9]+|\*|[0-6])$/;
+```
+
+### Text Processing Patterns
+
+```javascript
+// Extract URLs from text
+const urlRegex =
+  /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g;
+
+// Extract email addresses from text
+const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+// Extract phone numbers from text
+const phoneRegex = /\+?[1-9]\d{1,14}/g;
+
+// Extract IP addresses from text
+const ipRegex =
+  /(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(?:(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4})/g;
+
+// Extract UUIDs from text
+const uuidRegex =
+  /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{4}-[89ab][0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
+
+// Extract API keys from text
+const apiKeyRegex = /sk-[a-zA-Z0-9]{24,}/g;
+
+// Extract test IDs from text
+const testIdRegex = /test-[a-zA-Z0-9]{9}/g;
+
+// Extract job IDs from text
+const jobIdRegex = /job-[a-zA-Z0-9]{9}/g;
+
+// Extract monitor IDs from text
+const monitorIdRegex = /monitor-[a-zA-Z0-9]{9}/g;
+
+// Extract execution IDs from text
+const executionIdRegex = /exec-[a-zA-Z0-9]{9}/g;
+```
+
+## File Formats
+
+### Test File Formats
+
+#### JSON Test Configuration
+
+```json
+{
+  "title": "API Test",
+  "description": "Test API endpoints",
+  "type": "api_test",
+  "environment": "staging",
+  "timeout": 30000,
+  "retries": 2,
+  "tags": ["api", "automated"],
+  "priority": "high",
+  "script": "const { test, expect } = require('@playwright/test');\n\ntest('API test', async ({ request }) => {\n  const response = await request.get('${API_BASE_URL}/health');\n  expect(response.status()).toBe(200);\n  const data = await response.json();\n  expect(data.status).toBe('healthy');\n});",
+  "variables": {
+    "API_BASE_URL": "https://api-staging.example.com",
+    "API_KEY": "staging-api-key"
+  }
+}
+```
+
+#### YAML Test Configuration
+
+```yaml
+title: API Test
+description: Test API endpoints
+type: api_test
+environment: staging
+timeout: 30000
+retries: 2
+tags:
+  - api
+  - automated
+priority: high
+script: |
+  const { test, expect } = require('@playwright/test');
+
+  test('API test', async ({ request }) => {
+    const response = await request.get('${API_BASE_URL}/health');
+    expect(response.status()).toBe(200);
+    const data = await response.json();
+    expect(data.status).toBe('healthy');
+  });
+variables:
+  API_BASE_URL: https://api-staging.example.com
+  API_KEY: staging-api-key
+```
+
+### Job File Formats
+
+#### JSON Job Configuration
+
+```json
+{
+  "name": "Daily Tests",
+  "description": "Run all critical tests daily",
+  "schedule": "0 2 * * *",
+  "environment": "staging",
+  "tests": ["test-123456789", "test-987654321"],
+  "notifications": {
+    "onSuccess": ["email-team"],
+    "onFailure": ["email-alerts", "slack-critical"]
+  },
+  "variables": {
+    "API_BASE_URL": "https://api-staging.example.com",
+    "API_KEY": "staging-api-key"
+  },
+  "options": {
+    "timeout": 30000,
+    "retries": 2,
+    "parallel": true,
+    "maxConcurrent": 5
+  }
+}
+```
+
+#### YAML Job Configuration
+
+```yaml
+name: Daily Tests
+description: Run all critical tests daily
+schedule: "0 2 * * *"
+environment: staging
+tests:
+  - test-123456789
+  - test-987654321
+notifications:
+  onSuccess:
+    - email-team
+  onFailure:
+    - email-alerts
+    - slack-critical
+variables:
+  API_BASE_URL: https://api-staging.example.com
+  API_KEY: staging-api-key
+options:
+  timeout: 30000
+  retries: 2
+  parallel: true
+  maxConcurrent: 5
+```
+
+### Monitor File Formats
+
+#### JSON Monitor Configuration
+
+```json
+{
+  "name": "API Health Monitor",
+  "type": "http_request",
+  "target": "https://api.example.com/health",
+  "frequencyMinutes": 5,
+  "config": {
+    "method": "GET",
+    "expectedStatusCodes": "200-299",
+    "timeoutSeconds": 30,
+    "headers": {
+      "Authorization": "Bearer ${API_KEY}",
+      "User-Agent": "Supercheck-Monitor/1.0"
+    }
+  },
+  "alertConfig": {
+    "failureThreshold": 2,
+    "recoveryThreshold": 1,
+    "notificationChannels": ["email-alerts", "slack-critical"],
+    "alertOnFailure": true,
+    "alertOnRecovery": true
+  },
+  "variables": {
+    "API_KEY": "monitoring-api-key"
+  }
+}
+```
+
+#### YAML Monitor Configuration
+
+```yaml
+name: API Health Monitor
+type: http_request
+target: https://api.example.com/health
+frequencyMinutes: 5
+config:
+  method: GET
+  expectedStatusCodes: "200-299"
+  timeoutSeconds: 30
+  headers:
+    Authorization: "Bearer ${API_KEY}"
+    User-Agent: "Supercheck-Monitor/1.0"
+alertConfig:
+  failureThreshold: 2
+  recoveryThreshold: 1
+  notificationChannels:
+    - email-alerts
+    - slack-critical
+  alertOnFailure: true
+  alertOnRecovery: true
+variables:
+  API_KEY: monitoring-api-key
+```
+
+---
+
+This quick reference guide provides essential information for using the Supercheck platform efficiently. For more detailed information, please refer to our comprehensive documentation or contact our support team.

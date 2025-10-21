@@ -5,7 +5,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Redis } from 'ioredis';
+import { Redis, RedisOptions } from 'ioredis';
 import { Queue, QueueEvents } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { JOB_EXECUTION_QUEUE, TEST_EXECUTION_QUEUE } from '../constants';
@@ -37,6 +37,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private redisClient: Redis;
   private jobQueueEvents: QueueEvents;
   private testQueueEvents: QueueEvents;
+  private jobQueueEventsConnection: Redis;
+  private testQueueEventsConnection: Redis;
+  private readonly redisOptions: RedisOptions;
   private cleanupInterval: NodeJS.Timeout;
 
   constructor(
@@ -48,15 +51,33 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const host = this.configService.get<string>('REDIS_HOST', 'localhost');
     const port = this.configService.get<number>('REDIS_PORT', 6379);
     const password = this.configService.get<string>('REDIS_PASSWORD');
+    const username = this.configService.get<string>('REDIS_USERNAME');
+    const tlsEnabled =
+      this.configService.get<string>('REDIS_TLS_ENABLED', 'false') === 'true';
 
-    this.logger.log(`Initializing Redis connection to ${host}:${port}`);
-
-    this.redisClient = new Redis({
+    this.redisOptions = {
       host,
       port,
       password: password || undefined,
+      username,
       maxRetriesPerRequest: null,
-    });
+      enableReadyCheck: false,
+      retryStrategy: (attempt: number) =>
+        Math.min(1000 * Math.pow(2, attempt), 10000),
+      tls: tlsEnabled
+        ? {
+            rejectUnauthorized:
+              this.configService.get<string>(
+                'REDIS_TLS_REJECT_UNAUTHORIZED',
+                'true',
+              ) !== 'false',
+          }
+        : undefined,
+    };
+
+    this.logger.log(`Initializing Redis connection to ${host}:${port}`);
+
+    this.redisClient = new Redis(this.redisOptions);
 
     this.redisClient.on('error', (err) =>
       this.logger.error('Redis Error:', err),
@@ -118,13 +139,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   private initializeQueueListeners() {
     // Set up QueueEvents for job queue
+    this.jobQueueEventsConnection = new Redis(this.redisOptions);
+    this.testQueueEventsConnection = new Redis(this.redisOptions);
+
+    this.jobQueueEventsConnection.on('error', (error) =>
+      this.logger.error('Job QueueEvents connection error:', error),
+    );
+    this.testQueueEventsConnection.on('error', (error) =>
+      this.logger.error('Test QueueEvents connection error:', error),
+    );
+
     this.jobQueueEvents = new QueueEvents(JOB_EXECUTION_QUEUE, {
-      connection: this.jobQueue.opts.connection,
+      connection: this.jobQueueEventsConnection,
     });
 
     // Set up QueueEvents for test queue
     this.testQueueEvents = new QueueEvents(TEST_EXECUTION_QUEUE, {
-      connection: this.testQueue.opts.connection,
+      connection: this.testQueueEventsConnection,
     });
 
     // Job queue event listeners - only for logging and monitoring
@@ -307,6 +338,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     if (this.testQueueEvents) {
       await this.testQueueEvents.close();
+    }
+
+    if (this.jobQueueEventsConnection) {
+      await this.jobQueueEventsConnection.quit();
+    }
+
+    if (this.testQueueEventsConnection) {
+      await this.testQueueEventsConnection.quit();
     }
 
     // Close Redis connection

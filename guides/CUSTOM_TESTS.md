@@ -945,7 +945,7 @@ test('IoT device management system testing', async ({ page, request }) => {
     dataTypes: ['device_configurations', 'sensor_data', 'alert_rules', 'user_settings'],
     backupSize: faker.number.int({ min: 10240, max: 1048576 }), // 10KB to 1MB
     compression: 'gzip',
-    encryption: 'AES-256'
+    encryption: 'AES-128'
   };
   
   const backupResponse = await request.post('https://httpbin.org/post', {

@@ -58,10 +58,12 @@ export function hasPermission(
 
     case Role.PROJECT_EDITOR:
       // Editors can create and edit but cannot delete any resources in assigned projects
-      if (["test", "job", "monitor", "status_page"].includes(resource)) {
+      if (["test", "job", "status_page"].includes(resource)) {
         result = ["view", "create", "update", "run", "trigger"].includes(
           action
         );
+      } else if (resource === "monitor") {
+        result = ["view", "create", "update", "manage"].includes(action); // Can manage (pause/resume) monitors
       } else if (resource === "tag") {
         result = ["view", "create", "update"].includes(action); // Cannot delete tags
       } else if (resource === "run") {
@@ -147,10 +149,10 @@ export function canCreateTests(role: Role): boolean {
 }
 
 /**
- * Check if user can edit monitors
+ * Check if user can edit monitors (includes update and manage actions like pause/resume)
  */
 export function canEditMonitors(role: Role): boolean {
-  return hasPermission(role, "monitor", "update");
+  return hasPermission(role, "monitor", "update") || hasPermission(role, "monitor", "manage");
 }
 
 /**
@@ -167,12 +169,6 @@ export function canCreateMonitors(role: Role): boolean {
   return hasPermission(role, "monitor", "create");
 }
 
-/**
- * Check if user can manage monitors
- */
-export function canManageMonitors(role: Role): boolean {
-  return hasPermission(role, "monitor", "manage");
-}
 
 /**
  * Check if user can manage organization

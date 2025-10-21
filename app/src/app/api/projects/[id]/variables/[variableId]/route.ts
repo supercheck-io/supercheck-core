@@ -1,46 +1,195 @@
 import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { db } from "@/utils/db";
+import { auth } from "@/utils/auth";
 import { projectVariables, projects } from "@/db/schema/schema";
 import { eq, and } from "drizzle-orm";
-import { withVariablePermission } from "@/lib/rbac/permission-middleware";
+import {
+  canUpdateVariableInProject,
+  canDeleteVariableInProject,
+  canViewSecretVariableInProject,
+} from "@/lib/rbac/middleware";
 import { updateVariableSchema } from "@/lib/validations/variable";
 import { encryptValue, decryptValue } from "@/lib/encryption";
 import { z } from "zod";
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; variableId: string }> }
+) {
+  try {
+    const resolvedParams = await params;
+    const projectId = resolvedParams.id;
+    const variableId = resolvedParams.variableId;
+
+    // Get authenticated user
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const userId = session.user.id;
+
+    // Get project info for organization ID
+    const project = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+
+    if (!project.length) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get the variable
+    const [variable] = await db
+      .select()
+      .from(projectVariables)
+      .where(
+        and(
+          eq(projectVariables.id, variableId),
+          eq(projectVariables.projectId, projectId)
+        )
+      );
+
+    if (!variable) {
+      return NextResponse.json(
+        { error: "Variable not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if user can view secret values using centralized function
+    const canViewSecrets = await canViewSecretVariableInProject(
+      userId,
+      projectId
+    );
+
+    // Return variable with decrypted value if permitted
+    if (variable.isSecret) {
+      if (canViewSecrets && variable.encryptedValue) {
+        try {
+          const decryptedValue = decryptValue(variable.encryptedValue, projectId);
+          return NextResponse.json({
+            success: true,
+            data: {
+              id: variable.id,
+              projectId: variable.projectId,
+              key: variable.key,
+              value: decryptedValue, // Return decrypted value
+              isSecret: variable.isSecret,
+              description: variable.description,
+              createdByUserId: variable.createdByUserId,
+              createdAt: variable.createdAt,
+              updatedAt: variable.updatedAt,
+            },
+          });
+        } catch (error) {
+          console.error("Failed to decrypt value:", error);
+          return NextResponse.json(
+            { error: "Failed to decrypt secret value" },
+            { status: 500 }
+          );
+        }
+      } else {
+        // User can't view secrets, return encrypted placeholder
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: variable.id,
+            projectId: variable.projectId,
+            key: variable.key,
+            value: "[ENCRYPTED]", // Don't expose encrypted value
+            isSecret: variable.isSecret,
+            description: variable.description,
+            createdByUserId: variable.createdByUserId,
+            createdAt: variable.createdAt,
+            updatedAt: variable.updatedAt,
+          },
+        });
+      }
+    } else {
+      // Regular variable, return as is
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: variable.id,
+          projectId: variable.projectId,
+          key: variable.key,
+          value: variable.value,
+          isSecret: variable.isSecret,
+          description: variable.description,
+          createdByUserId: variable.createdByUserId,
+          createdAt: variable.createdAt,
+          updatedAt: variable.updatedAt,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Error fetching variable:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; variableId: string }> }
 ) {
-  return withVariablePermission(
-    "update",
-    (req) => {
-      const url = new URL(req.url);
-      return url.pathname.split("/projects/")[1]?.split("/")[0] || "";
-    },
-    { auditAction: "variable_update" }
-  )(request, async () => {
-    let projectId: string | undefined;
-    let variableId: string | undefined;
-    let project: { id: string; organizationId: string }[] = [];
+  try {
+    const resolvedParams = await params;
+    const projectId = resolvedParams.id;
+    const variableId = resolvedParams.variableId;
+
+    // Get authenticated user
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const userId = session.user.id;
+
+    // Get project info for organization ID
+    const project = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+
+    if (!project.length) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check permission to update variables using centralized function
+    const canUpdate = await canUpdateVariableInProject(userId, projectId);
+    if (!canUpdate) {
+      return NextResponse.json(
+        { error: "Insufficient permissions to update variables" },
+        { status: 403 }
+      );
+    }
 
     try {
-      const resolvedParams = await params;
-      projectId = resolvedParams.id;
-      variableId = resolvedParams.variableId;
-
-      // Get project info for organization ID
-      project = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, projectId))
-        .limit(1);
-
-      if (!project.length) {
-        return NextResponse.json(
-          { error: "Project not found" },
-          { status: 404 }
-        );
-      }
 
       // Check if variable exists and belongs to the project
       const [existingVariable] = await db
@@ -182,77 +331,93 @@ export async function PUT(
         { status: 500 }
       );
     }
-  });
+  } catch (error) {
+    console.error("Error updating project variable:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; variableId: string }> }
 ) {
-  return withVariablePermission(
-    "delete",
-    (req) => {
-      const url = new URL(req.url);
-      return url.pathname.split("/projects/")[1]?.split("/")[0] || "";
-    },
-    { auditAction: "variable_delete" }
-  )(request, async () => {
-    let projectId: string | undefined;
-    let variableId: string | undefined;
-    let project: { id: string; organizationId: string }[] = [];
+  try {
+    const resolvedParams = await params;
+    const projectId = resolvedParams.id;
+    const variableId = resolvedParams.variableId;
 
-    try {
-      const resolvedParams = await params;
-      projectId = resolvedParams.id;
-      variableId = resolvedParams.variableId;
+    // Get authenticated user
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
-      // Get project info for organization ID
-      project = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, projectId))
-        .limit(1);
-
-      if (!project.length) {
-        return NextResponse.json(
-          { error: "Project not found" },
-          { status: 404 }
-        );
-      }
-
-      // Check if variable exists and belongs to the project
-      const [existingVariable] = await db
-        .select()
-        .from(projectVariables)
-        .where(
-          and(
-            eq(projectVariables.id, variableId),
-            eq(projectVariables.projectId, projectId)
-          )
-        );
-
-      if (!existingVariable) {
-        return NextResponse.json(
-          { error: "Variable not found" },
-          { status: 404 }
-        );
-      }
-
-      // Delete the variable
-      await db
-        .delete(projectVariables)
-        .where(eq(projectVariables.id, variableId));
-
-      return NextResponse.json({
-        success: true,
-        message: "Variable deleted successfully",
-      });
-    } catch (error) {
-      console.error("Error deleting project variable:", error);
+    if (!session) {
       return NextResponse.json(
-        { error: "Internal server error" },
-        { status: 500 }
+        { error: "Authentication required" },
+        { status: 401 }
       );
     }
-  });
+
+    const userId = session.user.id;
+
+    // Get project info for organization ID
+    const project = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+
+    if (!project.length) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check permission to delete variables using centralized function
+    const canDelete = await canDeleteVariableInProject(userId, projectId);
+    if (!canDelete) {
+      return NextResponse.json(
+        { error: "Insufficient permissions to delete variables" },
+        { status: 403 }
+      );
+    }
+
+    // Check if variable exists and belongs to the project
+    const [existingVariable] = await db
+      .select()
+      .from(projectVariables)
+      .where(
+        and(
+          eq(projectVariables.id, variableId),
+          eq(projectVariables.projectId, projectId)
+        )
+      );
+
+    if (!existingVariable) {
+      return NextResponse.json(
+        { error: "Variable not found" },
+        { status: 404 }
+      );
+    }
+
+    // Delete the variable
+    await db
+      .delete(projectVariables)
+      .where(eq(projectVariables.id, variableId));
+
+    return NextResponse.json({
+      success: true,
+      message: "Variable deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting project variable:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
 }

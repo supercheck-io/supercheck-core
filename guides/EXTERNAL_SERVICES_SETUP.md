@@ -306,8 +306,7 @@ Edit `.env` with your external service credentials. See `.env.external.example` 
 - Redis connection details
 - S3/storage credentials
 - BETTER_AUTH_SECRET (generate with: `openssl rand -hex 32`)
-- CREDENTIAL_ENCRYPTION_KEY (generate with: `openssl rand -hex 32`)
-- VARIABLES_ENCRYPTION_KEY (generate with: `openssl rand -hex 32`)
+- SECRET_ENCRYPTION_KEY (generate with: `openssl rand -hex 32`)
 - SMTP credentials for notifications
 - APP_DOMAIN and ACME_EMAIL for SSL certificates
 

@@ -22,5 +22,11 @@ export const docs = defineDocs({
 export default defineConfig({
   mdxOptions: {
     // MDX options
+    remarkPlugins: [
+      // Add any remark plugins here if needed
+    ],
+    rehypePlugins: [
+      // Add any rehype plugins here if needed
+    ],
   },
 });

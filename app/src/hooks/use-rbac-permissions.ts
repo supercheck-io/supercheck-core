@@ -8,10 +8,10 @@
 import { useMemo } from 'react';
 import { useProjectContext } from './use-project-context';
 import { normalizeRole } from '@/lib/rbac/role-normalizer';
-import { 
-  canCreateTests, 
-  canEditTests, 
-  canDeleteTests, 
+import {
+  canCreateTests,
+  canEditTests,
+  canDeleteTests,
   canRunTests,
   canCreateJobs,
   canEditJobs,
@@ -20,7 +20,6 @@ import {
   canCreateMonitors,
   canEditMonitors,
   canDeleteMonitors,
-  canManageMonitors,
   canManageOrganization,
   canDeleteOrganization,
   canInviteMembers,
@@ -52,7 +51,6 @@ export interface RBACPermissions {
   canCreateMonitor: boolean;
   canEditMonitor: boolean;
   canDeleteMonitor: boolean;
-  canManageMonitor: boolean;
 
   // Organization permissions
   canManageOrg: boolean;
@@ -102,7 +100,6 @@ export function useRBACPermissions(): RBACPermissions {
         canCreateMonitor: false,
         canEditMonitor: false,
         canDeleteMonitor: false,
-        canManageMonitor: false,
         canManageOrg: false,
         canDeleteOrg: false,
         canInviteMember: false,
@@ -134,7 +131,6 @@ export function useRBACPermissions(): RBACPermissions {
         canCreateMonitor: false,
         canEditMonitor: false,
         canDeleteMonitor: false,
-        canManageMonitor: false,
         canManageOrg: false,
         canDeleteOrg: false,
         canInviteMember: false,
@@ -173,7 +169,6 @@ export function useRBACPermissions(): RBACPermissions {
       canCreateMonitor: canCreateMonitors(normalizedRole),
       canEditMonitor: canEditMonitors(normalizedRole),
       canDeleteMonitor: canDeleteMonitors(normalizedRole),
-      canManageMonitor: canManageMonitors(normalizedRole),
 
       // Organization permissions
       canManageOrg: canManageOrganization(normalizedRole),
@@ -222,8 +217,8 @@ export function useJobPermissions() {
 }
 
 export function useMonitorPermissions() {
-  const { canCreateMonitor, canEditMonitor, canDeleteMonitor, canManageMonitor, isLoading, hasError } = useRBACPermissions();
-  return { canCreateMonitor, canEditMonitor, canDeleteMonitor, canManageMonitor, isLoading, hasError };
+  const { canCreateMonitor, canEditMonitor, canDeleteMonitor, isLoading, hasError } = useRBACPermissions();
+  return { canCreateMonitor, canEditMonitor, canDeleteMonitor, isLoading, hasError };
 }
 
 export function useOrganizationPermissions() {

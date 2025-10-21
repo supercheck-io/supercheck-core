@@ -136,11 +136,13 @@ export class ExecutionService implements OnModuleDestroy {
       900000, // 15 minutes default
     );
 
-    // Set max concurrent executions: configurable via env var with sensible default
-    this.maxConcurrentExecutions = this.configService.get<number>(
-      'MAX_CONCURRENT_EXECUTIONS',
-      1, // Default to 1 for backward compatibility
-    );
+    const maxConcurrencyRaw =
+      this.configService.get<string>('MAX_CONCURRENT_EXECUTIONS') ??
+      process.env.MAX_CONCURRENT_EXECUTIONS;
+    const parsedConcurrency = Number.parseInt(maxConcurrencyRaw ?? '', 10);
+    this.maxConcurrentExecutions = Number.isFinite(parsedConcurrency)
+      ? Math.max(1, parsedConcurrency)
+      : 5; // Default to 5 concurrent executions if not provided
 
     // Determine Playwright config path
     const configPath = path.join(process.cwd(), 'playwright.config.js');

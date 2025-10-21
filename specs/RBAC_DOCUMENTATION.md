@@ -379,7 +379,7 @@ PROJECT_VIEWER (Project-specific Role - Read Only)
 | Project Members       | ✅          | ✅        | ✅        | ✅ (assigned projects) | 👁️ (assigned projects) | 👁️ (assigned projects) |
 | Jobs                  | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
 | Tests                 | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
-| Monitors              | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
+| Monitors              | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️🎮 (assigned projects) | 👁️ (assigned projects) |
 | Runs                  | ✅          | ✅        | ✅        | ✅ (assigned projects) | 👁️ (assigned projects) | 👁️ (assigned projects) |
 | API Keys              | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | ❌                     |
 | Notifications         | ✅          | ✅        | ✅        | ✅ (assigned projects) | ✏️ (assigned projects) | 👁️ (assigned projects) |
@@ -389,7 +389,7 @@ PROJECT_VIEWER (Project-specific Role - Read Only)
 | Variable Delete       | ✅          | ✅        | ✅        | ✅ (assigned projects) | ❌                     | ❌                     |
 | Secret Values View    | ✅          | ✅        | ✅        | ✅ (assigned projects) | ❌                     | ❌                     |
 
-Legend: ✅ = Full Access, ✏️ = Create/Edit Only (no delete), 👁️ = View Only, ❌ = No Access
+Legend: ✅ = Full Access, ✏️ = Create/Edit Only (no delete), ✏️🎮 = Create/Edit/Manage (no delete), 👁️ = View Only, ❌ = No Access
 
 ### Permission Matrix Diagram
 
@@ -702,6 +702,7 @@ API routes use Better Auth middleware for authentication and permission validati
 | **Monitor Management**           |
 | monitor:create                   | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
 | monitor:update                   | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
+| monitor:manage                   | ✅          | ✅        | ✅        | ✅              | ✅               | ❌             |
 | monitor:delete                   | ✅          | ✅        | ✅        | ✅              | ❌               | ❌             |
 | monitor:view                     | ✅          | ✅        | ✅        | ✅              | ✅               | ✅             |
 | **Run Management**               |
@@ -940,6 +941,70 @@ await revokeSuperAdmin(targetUserId, revokerUserId);
 
 ---
 
+## Organization-Aware Variable Permissions (Latest Update - Oct 2025)
+
+### **Centralized Permission Functions Implementation**
+
+Following RBAC best practices, all variable permissions have been centralized in `middleware.ts` with organization-aware context:
+
+```typescript
+// middleware.ts - Lines 208-325
+export async function canCreateVariableInProject(userId: string, projectId: string): Promise<boolean>
+export async function canUpdateVariableInProject(userId: string, projectId: string): Promise<boolean>
+export async function canDeleteVariableInProject(userId: string, projectId: string): Promise<boolean>
+export async function canViewSecretVariableInProject(userId: string, projectId: string): Promise<boolean>
+```
+
+**Design Benefits:**
+1. **Single Source of Truth**: All variable permissions in one place
+2. **DRY Principle**: No code duplication across endpoints
+3. **Organization Context**: Each function validates organization before permission check
+4. **Type-Safe**: Using Role enum instead of magic strings
+5. **Maintainable**: Permission logic isolated and reusable
+
+**How It Works:**
+Each function:
+- Takes `userId` and `projectId` as parameters
+- Queries database for organization context from project
+- Calls `getUserOrgRole(userId, organizationId)` with proper organization context
+- Returns boolean based on role checks
+- Prevents context loss between endpoints
+
+**API Endpoint Usage:**
+```typescript
+// All endpoints use centralized functions - no inline permission checks
+
+// GET /api/projects/[id]/variables
+const canCreate = await canCreateVariableInProject(userId, projectId)
+const canDelete = await canDeleteVariableInProject(userId, projectId)
+
+// POST /api/projects/[id]/variables
+const canCreate = await canCreateVariableInProject(userId, projectId)
+
+// PUT /api/projects/[id]/variables/[variableId]
+const canUpdate = await canUpdateVariableInProject(userId, projectId)
+
+// DELETE /api/projects/[id]/variables/[variableId]
+const canDelete = await canDeleteVariableInProject(userId, projectId)
+
+// POST /api/projects/[id]/variables/[variableId]/decrypt
+const canViewSecrets = await canViewSecretVariableInProject(userId, projectId)
+```
+
+**Updated Role Permissions for Secrets:**
+
+| Role | Create | Update | Delete | View Secrets |
+|------|--------|--------|--------|--------------|
+| **ORG_OWNER** | ✅ | ✅ | ✅ | ✅ |
+| **ORG_ADMIN** | ✅ | ✅ | ✅ | ✅ |
+| **PROJECT_ADMIN** | ✅ | ✅ | ✅ | ✅ |
+| **PROJECT_EDITOR** | ✅ | ✅ | ❌ | ✅ |
+| **PROJECT_VIEWER** | ❌ | ❌ | ❌ | ❌ |
+
+PROJECT_EDITOR permissions upgraded to view secrets (can use in tests), but still cannot delete.
+
+---
+
 ## Conclusion
 
 The Better Auth RBAC integration provides a **production-ready, enterprise-grade** permission system that combines the power of Better Auth's admin and organization plugins with custom project-level permissions. This hybrid approach offers:
@@ -951,10 +1016,11 @@ The Better Auth RBAC integration provides a **production-ready, enterprise-grade
 - **Session Security**: Automatic invalidation on role changes prevents privilege retention
 - **Developer Experience**: Excellent TypeScript support and intuitive APIs
 - **Scalability**: Supports complex permission hierarchies and multi-tenant architectures
-- **Maintainability**: Centralized middleware with reduced custom code
+- **Maintainability**: Centralized middleware with reduced custom code + organization-aware permissions
 - **Feature Rich**: Comprehensive admin and organization management
 - **Audit Trail**: Complete logging of all security-relevant events
 - **Future Proof**: Easy to extend with additional Better Auth plugins
+- **DRY Architecture**: Centralized permission functions prevent code duplication
 
 **Production Deployment**:
 

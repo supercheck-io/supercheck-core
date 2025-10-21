@@ -19,8 +19,6 @@ import {
   Trash2,
   Activity,
   Link as LinkIcon,
-  Group,
-  FolderPlus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,7 +26,6 @@ import { toast } from "sonner";
 import { getComponents } from "@/actions/get-components";
 import { deleteComponent } from "@/actions/delete-component";
 import { ComponentFormDialog } from "./component-form-dialog";
-import { ComponentGroupFormDialog } from "./component-group-form-dialog";
 
 type ComponentStatus =
   | "operational"
@@ -45,7 +42,6 @@ type Component = {
   status: ComponentStatus;
   monitorId: string | null;
   monitorIds: string[];
-  componentGroupId: string | null;
   showcase: boolean;
   onlyShowIfDegraded: boolean;
   position: number;
@@ -71,22 +67,16 @@ type Monitor = {
   type: string;
 };
 
-type ComponentGroup = {
-  id: string;
-  name: string;
-  description: string | null;
-};
-
 type ComponentsTabProps = {
+  canUpdate: boolean;
   statusPageId: string;
   monitors: Monitor[];
-  componentGroups: ComponentGroup[];
 };
 
 export function ComponentsTab({
+  canUpdate,
   statusPageId,
   monitors,
-  componentGroups,
 }: ComponentsTabProps) {
   const [components, setComponents] = useState<Component[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,8 +88,6 @@ export function ComponentsTab({
   const [deletingComponent, setDeletingComponent] = useState<Component | null>(
     null
   );
-  const [isGroupFormOpen, setIsGroupFormOpen] = useState(false);
-  const [showGroupsSection, setShowGroupsSection] = useState(false);
 
   const loadComponents = useCallback(async () => {
     try {
@@ -218,22 +206,6 @@ export function ComponentsTab({
     );
   }
 
-  // Group components by componentGroupId
-  const groupedComponents = components.reduce((acc, component) => {
-    const groupId = component.componentGroupId || "ungrouped";
-    if (!acc[groupId]) {
-      acc[groupId] = [];
-    }
-    acc[groupId].push(component);
-    return acc;
-  }, {} as Record<string, Component[]>);
-
-  // Get group name for a groupId
-  const getGroupName = (groupId: string) => {
-    if (groupId === "ungrouped") return "Ungrouped Components";
-    const group = componentGroups.find((g) => g.id === groupId);
-    return group ? group.name : "Unknown Group";
-  };
 
   return (
     <>
@@ -247,74 +219,13 @@ export function ComponentsTab({
               </p>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowGroupsSection(!showGroupsSection)}
-              >
-                <Group className="h-4 w-4 mr-2" />
-                {showGroupsSection ? "Hide" : "Manage"} Groups
-              </Button>
-              <Button onClick={handleAddComponent}>
+              <Button onClick={handleAddComponent} disabled={!canUpdate} title={!canUpdate ? "You don't have permission to add components" : ""}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Component
               </Button>
             </div>
           </div>
 
-          {/* Component Groups Section */}
-          {showGroupsSection && (
-            <div className="mb-6 p-4 bg-muted/30 rounded-lg border">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <Group className="h-4 w-4" />
-                  Component Groups
-                </h4>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsGroupFormOpen(true)}
-                >
-                  <FolderPlus className="h-3.5 w-3.5 mr-1.5" />
-                  Add Group
-                </Button>
-              </div>
-              {componentGroups.length === 0 ? (
-                <div className="text-center py-6 px-4 bg-background/50 rounded-md border border-dashed">
-                  <Group className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                  <p className="text-xs text-muted-foreground">
-                    No groups created yet
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-2 md:grid-cols-3">
-                  {componentGroups.map((group) => (
-                    <div
-                      key={group.id}
-                      className="p-3 bg-background rounded-md border hover:border-primary/50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium text-sm truncate flex-1">
-                          {group.name}
-                        </div>
-                        <Badge variant="secondary" className="text-xs ml-2">
-                          {
-                            components.filter(
-                              (c) => c.componentGroupId === group.id
-                            ).length
-                          }
-                        </Badge>
-                      </div>
-                      {group.description && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                          {group.description}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {components.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed rounded-lg">
@@ -323,110 +234,90 @@ export function ComponentsTab({
               <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
                 Add components to represent the different parts of your service
               </p>
-              <Button onClick={handleAddComponent}>
+              <Button onClick={handleAddComponent} disabled={!canUpdate} title={!canUpdate ? "You don't have permission to add components" : ""}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Your First Component
               </Button>
             </div>
           ) : (
-            <div className="space-y-6">
-              {Object.entries(groupedComponents).map(
-                ([groupId, groupComponents]) => (
-                  <div key={groupId} className="space-y-3">
-                    {/* Group Header */}
-                    {groupId !== "ungrouped" && (
-                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground border-b pb-2">
-                        <Group className="h-4 w-4" />
-                        <span>{getGroupName(groupId)}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {groupComponents.length}
-                        </Badge>
-                      </div>
+            <div className="space-y-3">
+              {components.map((component) => (
+                <div
+                  key={component.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:border-primary transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-1">
+                      <Activity className="h-4 w-4 text-muted-foreground" />
+                      <h4 className="font-semibold">
+                        {component.name}
+                      </h4>
+                      <Badge
+                        className={`${getStatusBadgeColor(
+                          component.status
+                        )} text-xs`}
+                      >
+                        {getStatusLabel(component.status)}
+                      </Badge>
+                    </div>
+                    {component.description && (
+                      <p className="text-sm text-muted-foreground ml-7 mb-2">
+                        {component.description}
+                      </p>
                     )}
-
-                    {/* Components in this group */}
-                    <div className="space-y-3">
-                      {groupComponents.map((component) => (
-                        <div
-                          key={component.id}
-                          className="flex items-center justify-between p-4 border rounded-lg hover:border-primary transition-colors"
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-1">
-                              <Activity className="h-4 w-4 text-muted-foreground" />
-                              <h4 className="font-semibold">
-                                {component.name}
-                              </h4>
-                              <Badge
-                                className={`${getStatusBadgeColor(
-                                  component.status
-                                )} text-xs`}
-                              >
-                                {getStatusLabel(component.status)}
-                              </Badge>
-                            </div>
-                            {component.description && (
-                              <p className="text-sm text-muted-foreground ml-7 mb-2">
-                                {component.description}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-3 ml-7 flex-wrap">
-                              {component.monitors &&
-                              component.monitors.length > 0 ? (
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs text-muted-foreground">
-                                    Monitors:
-                                  </span>
-                                  {component.monitors.map((monitor) => (
-                                    <Badge
-                                      key={monitor.id}
-                                      variant="outline"
-                                      className="text-xs gap-1"
-                                    >
-                                      <LinkIcon className="h-3 w-3" />
-                                      <span>{monitor.name}</span>
-                                    </Badge>
-                                  ))}
-                                </div>
-                              ) : component.monitor ? (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs gap-1"
-                                >
-                                  <LinkIcon className="h-3 w-3" />
-                                  <span>{component.monitor.name}</span>
-                                </Badge>
-                              ) : null}
-                              {component.showcase && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Visible on status page
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditComponent(component)}
+                    <div className="flex items-center gap-3 ml-7 flex-wrap">
+                      {component.monitors &&
+                      component.monitors.length > 0 ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-muted-foreground">
+                            Monitors:
+                          </span>
+                          {component.monitors.map((monitor) => (
+                            <Badge
+                              key={monitor.id}
+                              variant="outline"
+                              className="text-xs gap-1"
                             >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteClick(component)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                              <LinkIcon className="h-3 w-3" />
+                              <span>{monitor.name}</span>
+                            </Badge>
+                          ))}
                         </div>
-                      ))}
+                      ) : component.monitor ? (
+                        <Badge
+                          variant="outline"
+                          className="text-xs gap-1"
+                        >
+                          <LinkIcon className="h-3 w-3" />
+                          <span>{component.monitor.name}</span>
+                        </Badge>
+                      ) : null}
+                      {component.showcase && (
+                        <Badge variant="secondary" className="text-xs">
+                          Visible on status page
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                )
-              )}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditComponent(component)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteClick(component)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
@@ -438,18 +329,7 @@ export function ComponentsTab({
         statusPageId={statusPageId}
         component={editingComponent}
         monitors={monitors}
-        componentGroups={componentGroups}
         onSuccess={loadComponents}
-      />
-
-      <ComponentGroupFormDialog
-        open={isGroupFormOpen}
-        onOpenChange={setIsGroupFormOpen}
-        statusPageId={statusPageId}
-        onSuccess={() => {
-          // Reload the page to refresh component groups
-          window.location.reload();
-        }}
       />
 
       <AlertDialog

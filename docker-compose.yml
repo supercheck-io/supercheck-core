@@ -19,7 +19,7 @@ x-common-env: &common-env # Database Configuration
 
   # Status Page Domain Configuration
   STATUS_PAGE_BASE_DOMAIN: ${STATUS_PAGE_BASE_DOMAIN:-localhost}
-  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-your-super-secret-auth-key-change-this-in-production}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-CHANGE_THIS_GENERATE_32_CHAR_HEX}
   NODE_ENV: ${NODE_ENV:-production}
   RUNNING_CAPACITY: ${RUNNING_CAPACITY:-6} # Optimized for 4-core server: 4 workers × 1.5 jobs per worker
   QUEUED_CAPACITY: ${QUEUED_CAPACITY:-50}
@@ -78,8 +78,7 @@ x-common-env: &common-env # Database Configuration
   PLAYGROUND_CLEANUP_MAX_AGE_HOURS: ${PLAYGROUND_CLEANUP_MAX_AGE_HOURS:-24}
 
   # Security Configuration
-  CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-your-credential-encryption-key-change-this-in-production}
-  VARIABLES_ENCRYPTION_KEY: ${VARIABLES_ENCRYPTION_KEY:-your-64-character-encryption-key-for-variable-secrets-change-this-in-prod}
+  SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:-CHANGE_THIS_GENERATE_32_CHAR_HEX}
 
   # Better Auth Admin Configuration
   MAX_PROJECTS_PER_ORG: ${MAX_PROJECTS_PER_ORG:-10}

@@ -4,6 +4,7 @@ import type { editor } from "monaco-editor";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Maximize2, X } from "lucide-react";
+import { useMonacoPerformance } from "./use-monaco-performance";
 
 interface MonacoEditorProps {
   value: string;
@@ -25,6 +26,31 @@ export const MonacoEditorClient = memo(
       const styleSheetRef = useRef<HTMLStyleElement | null>(null);
       const isInitialized = useRef(false);
       const [showFullscreen, setShowFullscreen] = useState(false);
+
+      // Performance monitoring hook - enables automatic performance tracking
+      useMonacoPerformance(editorInstanceRef.current);
+
+      // Handle keyboard navigation for fullscreen
+      useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+          if (showFullscreen && event.key === 'Escape') {
+            setShowFullscreen(false);
+          }
+        };
+
+        if (showFullscreen) {
+          document.addEventListener('keydown', handleKeyDown);
+          // Prevent body scroll when fullscreen is open
+          document.body.style.overflow = 'hidden';
+        } else {
+          document.body.style.overflow = '';
+        }
+
+        return () => {
+          document.removeEventListener('keydown', handleKeyDown);
+          document.body.style.overflow = '';
+        };
+      }, [showFullscreen]);
 
       // Update editor theme when app theme changes
       useEffect(() => {
@@ -241,7 +267,36 @@ export const MonacoEditorClient = memo(
       // Cleanup function to dispose of providers when component unmounts
       useEffect(() => {
         return () => {
-          // Monaco will handle cleanup automatically when the editor is disposed
+          // Dispose of editor instances to prevent memory leaks
+          if (editorInstanceRef.current) {
+            try {
+              editorInstanceRef.current.dispose();
+            } catch (error) {
+              console.warn('[Monaco Editor] Error disposing main editor:', error);
+            }
+            editorInstanceRef.current = null;
+          }
+          if (fullscreenEditorRef.current) {
+            try {
+              fullscreenEditorRef.current.dispose();
+            } catch (error) {
+              console.warn('[Monaco Editor] Error disposing fullscreen editor:', error);
+            }
+            fullscreenEditorRef.current = null;
+          }
+          
+          // Clean up custom styles
+          if (styleSheetRef.current && styleSheetRef.current.parentNode) {
+            try {
+              styleSheetRef.current.parentNode.removeChild(styleSheetRef.current);
+            } catch (error) {
+              console.warn('[Monaco Editor] Error removing styles:', error);
+            }
+            styleSheetRef.current = null;
+          }
+          
+          // Reset initialization flag
+          isInitialized.current = false;
         };
       }, []);
 
@@ -314,16 +369,27 @@ export const MonacoEditorClient = memo(
         <>
           <div
             className="flex flex-1 w-full relative overflow-hidden border border-border rounded-bl-lg monaco-wrapper"
+            role="application"
+            aria-label="Code editor"
+            aria-describedby="editor-help"
           >
             {/* Fullscreen button */}
             <div className="absolute top-2 right-2 z-10">
-              <Button 
+              <Button
                 size="sm"
                 className="cursor-pointer flex items-center gap-1 bg-secondary hover:bg-secondary/90"
                 onClick={() => setShowFullscreen(true)}
+                aria-label="Open editor in fullscreen mode"
+                title="Open editor in fullscreen mode"
               >
                 <Maximize2 className="h-4 w-4 text-secondary-foreground" />
               </Button>
+            </div>
+
+            {/* Screen reader help text */}
+            <div id="editor-help" className="sr-only">
+              Code editor with JavaScript/TypeScript support. Use Tab to navigate,
+              Ctrl+Space for autocomplete, and Ctrl+/ for comments.
             </div>
 
             <Editor
@@ -335,6 +401,7 @@ export const MonacoEditorClient = memo(
               className="w-full overflow-hidden"
               beforeMount={beforeMount}
               onMount={handleEditorMount}
+              aria-label="TypeScript code editor"
               options={{
                 minimap: { enabled: false },
                 fontSize: 13.5,
@@ -382,20 +449,27 @@ export const MonacoEditorClient = memo(
 
           {/* Manual fullscreen implementation */}
           {showFullscreen && (
-            <div className="fixed inset-0 z-50 bg-card/80 backdrop-blur-sm">
+            <div
+              className="fixed inset-0 z-50 bg-card/80 backdrop-blur-sm"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="fullscreen-editor-title"
+            >
               <div className="fixed inset-8 bg-card rounded-lg shadow-lg flex flex-col overflow-hidden border">
                 <div className="p-4 border-b flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="h-7 w-7" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="96" height="96" viewBox="0 0 48 48">
+                    <svg className="h-7 w-7" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="96" height="96" viewBox="0 0 48 48" aria-hidden="true">
                       <path fill="#ffd600" d="M6,42V6h36v36H6z"></path>
                       <path fill="#000001" d="M29.538 32.947c.692 1.124 1.444 2.201 3.037 2.201 1.338 0 2.04-.665 2.04-1.585 0-1.101-.726-1.492-2.198-2.133l-.807-.344c-2.329-.988-3.878-2.226-3.878-4.841 0-2.41 1.845-4.244 4.728-4.244 2.053 0 3.528.711 4.592 2.573l-2.514 1.607c-.553-.988-1.151-1.377-2.078-1.377-.946 0-1.545.597-1.545 1.377 0 .964.6 1.354 1.985 1.951l.807.344C36.452 29.645 38 30.839 38 33.523 38 36.415 35.716 38 32.65 38c-2.999 0-4.702-1.505-5.65-3.368L29.538 32.947zM17.952 33.029c.506.906 1.275 1.603 2.381 1.603 1.058 0 1.667-.418 1.667-2.043V22h3.333v11.101c0 3.367-1.953 4.899-4.805 4.899-2.577 0-4.437-1.746-5.195-3.368L17.952 33.029z"></path>
                     </svg>
-                    <h2 className="text-xl font-semibold">Editor</h2>
+                    <h2 id="fullscreen-editor-title" className="text-xl font-semibold">Fullscreen Editor</h2>
                   </div>
-                  <Button 
+                  <Button
                     className="cursor-pointer bg-secondary hover:bg-secondary/90"
                     size="sm"
                     onClick={() => setShowFullscreen(false)}
+                    aria-label="Close fullscreen editor"
+                    title="Close fullscreen editor (Escape)"
                   >
                     <X className="h-4 w-4 text-secondary-foreground" />
                   </Button>
@@ -410,6 +484,7 @@ export const MonacoEditorClient = memo(
                     className="w-full h-full"
                     beforeMount={beforeMount}
                     onMount={handleFullscreenEditorMount}
+                    aria-label="Fullscreen TypeScript code editor"
                     options={{
                       minimap: { enabled: true }, // Enable minimap in fullscreen
                       fontSize: 14,

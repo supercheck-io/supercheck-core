@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
-import { AlertType, NotificationProviderType } from '../db/schema';
+import {
+  AlertType,
+  NotificationProviderType,
+  PlainNotificationProviderConfig,
+} from '../db/schema';
 
 // Utility function to safely get error message
 function getErrorMessage(error: unknown): string {
@@ -21,7 +25,7 @@ function getErrorStack(error: unknown): string | undefined {
 export interface NotificationProvider {
   id: string;
   type: NotificationProviderType;
-  config: Record<string, any>;
+  config: PlainNotificationProviderConfig;
 }
 
 // Specific provider configuration interfaces for better type safety
@@ -390,46 +394,68 @@ export class NotificationService {
   async sendNotificationToMultipleProviders(
     providers: NotificationProvider[],
     payload: NotificationPayload,
-  ): Promise<{ success: number; failed: number }> {
+  ): Promise<{
+    success: number;
+    failed: number;
+    results: Array<{
+      provider: NotificationProvider;
+      success: boolean;
+      error?: string;
+    }>;
+  }> {
     if (!providers || providers.length === 0) {
       this.logger.warn('No providers to send notifications to');
-      return { success: 0, failed: 0 };
+      return { success: 0, failed: 0, results: [] };
     }
 
     this.logger.log(`Sending notifications to ${providers.length} providers`);
 
-    const results = await Promise.allSettled(
+    const settledResults = await Promise.allSettled(
       providers.map((provider) => this.sendNotification(provider, payload)),
     );
 
-    const success = results.filter(
-      (result) => result.status === 'fulfilled' && result.value,
-    ).length;
-    const failed = results.length - success;
+    const detailedResults = settledResults.map((result, index) => {
+      const provider = providers[index];
+
+      if (result.status === 'fulfilled') {
+        const success = Boolean(result.value);
+        return {
+          provider,
+          success,
+          error: success ? undefined : 'Notification send returned false',
+        };
+      }
+
+      return {
+        provider,
+        success: false,
+        error: getErrorMessage(result.reason),
+      };
+    });
+
+    const success = detailedResults.filter((entry) => entry.success).length;
+    const failed = detailedResults.length - success;
 
     this.logger.log(`Notification sent: ${success} success, ${failed} failed`);
 
     // Log detailed results for debugging
-    results.forEach((result, index) => {
-      const provider = providers[index];
-      if (result.status === 'fulfilled') {
-        if (result.value) {
-          this.logger.debug(
-            `Provider ${provider.id} (${provider.type}): Success`,
-          );
-        } else {
-          this.logger.warn(
-            `Provider ${provider.id} (${provider.type}): Failed to send`,
-          );
-        }
-      } else {
-        this.logger.error(
-          `Provider ${provider.id} (${provider.type}): Error - ${result.reason}`,
+    detailedResults.forEach((entry) => {
+      if (entry.success) {
+        this.logger.debug(
+          `Provider ${entry.provider.id} (${entry.provider.type}): Success`,
         );
+        return;
       }
+
+      const errorMessage = entry.error
+        ? ` - ${entry.error}`
+        : ' - delivery failed';
+      this.logger.warn(
+        `Provider ${entry.provider.id} (${entry.provider.type}): Failed${errorMessage}`,
+      );
     });
 
-    return { success, failed };
+    return { success, failed, results: detailedResults };
   }
 
   private async sendEmailNotification(

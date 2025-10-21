@@ -265,18 +265,44 @@ export async function getUserProjects(
         )
       );
 
-    // For PROJECT_ADMIN and PROJECT_EDITOR - check which projects they have specific access to
-    if (orgRole === Role.PROJECT_ADMIN || orgRole === Role.PROJECT_EDITOR) {
-      const { projectMembers } = await import("@/db/schema/schema");
+    // Get user's project-specific roles
+    const { projectMembers } = await import("@/db/schema/schema");
+    const projectRolesData = await db
+      .select({
+        projectId: projectMembers.projectId,
+        role: projectMembers.role,
+      })
+      .from(projectMembers)
+      .where(eq(projectMembers.userId, userId));
 
-      const assignedProjectIds = await db
-        .select({ projectId: projectMembers.projectId })
-        .from(projectMembers)
-        .where(eq(projectMembers.userId, userId));
+    const projectRolesMap = new Map(
+      projectRolesData.map((p) => [p.projectId, p.role])
+    );
 
-      const assignedIds = new Set(assignedProjectIds.map((p) => p.projectId));
+    // Return projects with correct role for each
+    return projectsData.map((project) => {
+      let projectRole: Role;
 
-      return projectsData.map((project) => ({
+      // For org-wide roles (ORG_OWNER, ORG_ADMIN), use org role for all projects
+      if (orgRole === Role.ORG_OWNER || orgRole === Role.ORG_ADMIN) {
+        projectRole = orgRole;
+      } else {
+        // For all other cases, use the actual project-specific role from project_members table
+        const dbProjectRole = projectRolesMap.get(project.id);
+        if (dbProjectRole) {
+          projectRole = convertRoleToUnified(dbProjectRole);
+        } else {
+          // No project-specific role found
+          // If orgRole is a project role (happens when member table has project-level role), use it
+          if (orgRole === Role.PROJECT_EDITOR || orgRole === Role.PROJECT_ADMIN) {
+            projectRole = orgRole;
+          } else {
+            projectRole = Role.PROJECT_VIEWER;
+          }
+        }
+      }
+
+      return {
         id: project.id,
         name: project.name,
         slug: project.slug || undefined,
@@ -285,27 +311,10 @@ export async function getUserProjects(
         isDefault: project.isDefault,
         status: project.status as "active" | "archived" | "deleted",
         createdAt: project.createdAt || new Date(),
-        // PROJECT_ADMIN/PROJECT_EDITOR gets viewer access to all projects, admin/editor access to assigned ones
-        role: assignedIds.has(project.id) ? orgRole : Role.PROJECT_VIEWER,
+        role: projectRole,
         isActive: false,
-      }));
-    }
-
-    // For other roles (ORG_OWNER, ORG_ADMIN, PROJECT_VIEWER) - use their org role for all projects
-    return projectsData.map((project) => ({
-      id: project.id,
-      name: project.name,
-      slug: project.slug || undefined,
-      description: project.description || undefined,
-      organizationId: project.organizationId,
-      isDefault: project.isDefault,
-      status: project.status as "active" | "archived" | "deleted",
-      createdAt: project.createdAt || new Date(),
-      role: orgRole,
-      isActive: false,
-    }));
-
-    return [];
+      };
+    });
   } catch (error) {
     console.error("Error getting user projects:", error);
     return [];

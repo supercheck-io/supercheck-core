@@ -29,12 +29,10 @@ BETTER_AUTH_SECRET=$(generate_hex 16)
 echo "   BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET"
 echo ""
 
-# Generate Encryption Keys
-echo "2. Generating Encryption Keys..."
-VARIABLES_ENCRYPTION_KEY=$(generate_hex 32)
-CREDENTIAL_ENCRYPTION_KEY=$(generate_hex 32)
-echo "   VARIABLES_ENCRYPTION_KEY=$VARIABLES_ENCRYPTION_KEY"
-echo "   CREDENTIAL_ENCRYPTION_KEY=$CREDENTIAL_ENCRYPTION_KEY"
+# Generate Encryption Key
+echo "2. Generating Secret Encryption Key..."
+SECRET_ENCRYPTION_KEY=$(generate_hex 32)
+echo "   SECRET_ENCRYPTION_KEY=$SECRET_ENCRYPTION_KEY"
 echo ""
 
 # Generate secure passwords for external services
@@ -57,9 +55,8 @@ cat > .env.dokploy << EOF
 # Better Auth Secret
 BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET
 
-# Encryption Keys
-VARIABLES_ENCRYPTION_KEY=$VARIABLES_ENCRYPTION_KEY
-CREDENTIAL_ENCRYPTION_KEY=$CREDENTIAL_ENCRYPTION_KEY
+# Secret Encryption Key
+SECRET_ENCRYPTION_KEY=$SECRET_ENCRYPTION_KEY
 
 # =============================================================================
 # EXTERNAL DATABASE CONFIGURATION - REQUIRED
@@ -182,8 +179,7 @@ Supercheck Dokploy Secrets - Generated on $(date)
 ==================================================
 
 BETTER_AUTH_SECRET: $BETTER_AUTH_SECRET
-VARIABLES_ENCRYPTION_KEY: $VARIABLES_ENCRYPTION_KEY
-CREDENTIAL_ENCRYPTION_KEY: $CREDENTIAL_ENCRYPTION_KEY
+SECRET_ENCRYPTION_KEY: $SECRET_ENCRYPTION_KEY
 
 Database Password: $DB_PASSWORD
 Redis Password: $REDIS_PASSWORD

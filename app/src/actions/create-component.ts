@@ -15,7 +15,6 @@ const createComponentSchema = z.object({
   statusPageId: z.string().uuid(),
   name: z.string().min(1, "Name is required").max(255),
   description: z.string().optional(),
-  componentGroupId: z.string().uuid().optional().nullable(),
   monitorIds: z.array(z.string().uuid()).optional(),
   status: z
     .enum([
@@ -77,7 +76,6 @@ export async function createComponent(data: CreateComponentData) {
           statusPageId: validatedData.statusPageId,
           name: validatedData.name,
           description: validatedData.description || null,
-          componentGroupId: validatedData.componentGroupId || null,
           status: validatedData.status,
           showcase: validatedData.showcase,
           onlyShowIfDegraded: validatedData.onlyShowIfDegraded,

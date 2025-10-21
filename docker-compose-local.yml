@@ -11,8 +11,7 @@
 version: "3.8"
 
 # YAML anchors for shared configuration
-x-common-env: &common-env
-  # Database Configuration
+x-common-env: &common-env # Database Configuration
   DATABASE_URL: postgresql://postgres:postgres@postgres:5432/supercheck
   DB_HOST: postgres
   DB_PORT: 5432
@@ -33,7 +32,7 @@ x-common-env: &common-env
   APP_URL: http://localhost:3000
   STATUS_PAGE_DOMAIN: supercheck.io
   BETTER_AUTH_URL: http://localhost:3000
-  BETTER_AUTH_SECRET: your-super-secret-auth-key-change-this-in-production
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-CHANGE_THIS_GENERATE_32_CHAR_HEX}
   NODE_ENV: development
   RUNNING_CAPACITY: 3
   QUEUED_CAPACITY: 10
@@ -91,8 +90,7 @@ x-common-env: &common-env
   PLAYGROUND_CLEANUP_MAX_AGE_HOURS: 24
 
   # Security Configuration
-  CREDENTIAL_ENCRYPTION_KEY: your-credential-encryption-key-change-this-in-production
-  VARIABLES_ENCRYPTION_KEY: your-64-character-encryption-key-for-variable-secrets-change-this-in-prod
+  SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:-CHANGE_THIS_GENERATE_32_CHAR_HEX}
 
   # Better Auth Admin Configuration
   MAX_PROJECTS_PER_ORG: 10

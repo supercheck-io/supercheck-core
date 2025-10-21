@@ -124,6 +124,14 @@ const notificationProviderSchema = z.object({
   message: "Required fields are missing for the selected provider type",
 });
 
+const MASKED_FIELD_LABELS: Record<string, string> = {
+  webhookUrl: "Webhook URL",
+  url: "Target URL",
+  headers: "Headers",
+  botToken: "Bot Token",
+  discordWebhookUrl: "Discord Webhook URL",
+};
+
 type FormValues = z.infer<typeof notificationProviderSchema>;
 
 interface NotificationProviderFormProps {
@@ -132,6 +140,7 @@ interface NotificationProviderFormProps {
   initialData?: {
     type: NotificationProviderType;
     config: NotificationProviderConfig;
+    maskedFields?: string[];
   };
 }
 
@@ -139,22 +148,26 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
+  const maskedFields = initialData?.maskedFields ?? [];
+  const friendlyMaskedFields =
+    maskedFields.map((field) => MASKED_FIELD_LABELS[field] ?? field);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(notificationProviderSchema),
     defaultValues: initialData ? {
       type: initialData.type,
       config: {
-        name: initialData.config.name || "",
-        emails: initialData.config.emails || "",
-        webhookUrl: initialData.config.webhookUrl || "",
-        channel: initialData.config.channel || "",
-        url: initialData.config.url || "",
-        method: initialData.config.method || "POST",
-        headers: initialData.config.headers || {},
-        bodyTemplate: initialData.config.bodyTemplate || "",
-        botToken: initialData.config.botToken || "",
-        chatId: initialData.config.chatId || "",
-        discordWebhookUrl: initialData.config.discordWebhookUrl || "",
+        name: ((initialData.config as Record<string, unknown>).name as string) || "",
+        emails: ((initialData.config as Record<string, unknown>).emails as string) || "",
+        webhookUrl: ((initialData.config as Record<string, unknown>).webhookUrl as string) || "",
+        channel: ((initialData.config as Record<string, unknown>).channel as string) || "",
+        url: ((initialData.config as Record<string, unknown>).url as string) || "",
+        method: ((initialData.config as Record<string, unknown>).method as "GET" | "POST" | "PUT") || "POST",
+        headers: ((initialData.config as Record<string, unknown>).headers as Record<string, string>) || {},
+        bodyTemplate: ((initialData.config as Record<string, unknown>).bodyTemplate as string) || "",
+        botToken: ((initialData.config as Record<string, unknown>).botToken as string) || "",
+        chatId: ((initialData.config as Record<string, unknown>).chatId as string) || "",
+        discordWebhookUrl: ((initialData.config as Record<string, unknown>).discordWebhookUrl as string) || "",
       },
     } : {
       type: "email",
@@ -234,6 +247,13 @@ export function NotificationProviderForm({ onSuccess, onCancel, initialData }: N
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-full">
+        {maskedFields.length > 0 && (
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            Sensitive fields ({friendlyMaskedFields.join(
+              ", "
+            )}) are hidden for security. Please re-enter them to keep this channel active.
+          </div>
+        )}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}

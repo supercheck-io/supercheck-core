@@ -46,10 +46,11 @@ export function DataTableRowActions<TData>({
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const { currentProject } = useProjectContext();
-  
-  // Check permissions using project context (same as toolbar approach)
-  const hasEditPermission = currentProject?.userRole ? canEditMonitors(normalizeRole(currentProject.userRole)) : false;
-  const hasDeletePermission = currentProject?.userRole ? canDeleteMonitors(normalizeRole(currentProject.userRole)) : false;
+
+  // Check permissions using project context (same as jobs/tests approach)
+  const userRole = currentProject?.userRole ? normalizeRole(currentProject.userRole) : null;
+  const hasEditPermission = userRole ? canEditMonitors(userRole) : false;
+  const hasDeletePermission = userRole ? canDeleteMonitors(userRole) : false;
   
   // Use safeParse instead of parse to handle validation errors
   const parsedMonitor = monitorSchema.safeParse(row.original);

@@ -1,7 +1,7 @@
 # Status Pages - Complete Specification & Implementation Guide
 
-**Version:** 2.5
-**Last Updated:** 2025-10-19
+**Version:** 2.6
+**Last Updated:** 2025-10-20
 **Status:** Phase 3 Complete ✅ - Production Ready 🚀
 
 ---
@@ -130,9 +130,6 @@ CREATE TABLE status_pages (
   -- Notification Settings
   notifications_from_email VARCHAR(255),
   notifications_email_footer TEXT,
-
-  -- Display Settings
-  hidden_from_search BOOLEAN DEFAULT FALSE,
 
   -- Branding & Customization (42 fields total)
   css_body_background_color VARCHAR(7) DEFAULT '#ffffff',
@@ -683,6 +680,7 @@ class StatusAggregationService {
 
 - **Verification Emails**: Clean, responsive email templates for subscription verification
 - **Welcome Emails**: Confirmation emails with subscription details
+- **Incident Notification Emails**: Professional HTML templates with impact-based colors
 - **HTML & Text Versions**: Support for both HTML and plain text email clients
 - **Dynamic Branding**: Automatically uses the status page's branding and domain
 - **Professional Design**: Modern, accessible email templates with proper headers
@@ -696,9 +694,16 @@ class StatusAggregationService {
    - Auto-generated verification URL with 24-hour expiry
 
 2. **Welcome Email Template**
+
    - Subject: `You're now subscribed to ${statusPageName}`
    - Features: Subscription confirmation, notification types list, direct links
    - Includes unsubscribe link and status page access
+
+3. **Incident Notification Email Template**
+   - Subject: `[${impact}] ${incidentName} - ${status}`
+   - Features: Impact-based colored headers, status and timestamp display
+   - Affected services list, call-to-action button, unsubscribe link
+   - Professional HTML design with plain text fallback
 
 #### 13. Asset Upload Service
 
@@ -733,6 +738,23 @@ status-pages/{statusPageId}/{uploadType}/{uniqueId}.{extension}
 4. Upload directly to S3 with proper caching headers
 5. Store S3 reference in database
 6. Return proxy URL for immediate display
+
+#### 14. Incident Notification Service
+
+- [`send-incident-notifications.ts`](app/src/actions/send-incident-notifications.ts) - Email notification service for incidents
+
+**Key Features:**
+
+- **Automatic Notifications**: Sends emails when incidents are created or updated
+- **Verified Subscribers Only**: Only sends to verified subscribers (verifiedAt NOT NULL)
+- **Respects Settings**: Honors deliverNotifications flag and allowEmailSubscribers setting
+- **Parallel Delivery**: Non-blocking async email delivery with error handling
+- **Published Status Pages Only**: Only works on published status pages
+
+**Integration Points:**
+
+- [`create-incident.ts`](app/src/actions/create-incident.ts) - Triggers incident creation emails
+- [`update-incident-status.ts`](app/src/actions/update-incident-status.ts) - Triggers status update emails
 
 ---
 
@@ -862,6 +884,60 @@ status-pages/{statusPageId}/{uploadType}/{uniqueId}.{extension}
 - Export functionality with date formatting
 - Confirmation dialogs for destructive actions
 
+### 8. Incident Notification System
+
+#### Email Notification Service
+
+- [`send-incident-notifications.ts`](app/src/actions/send-incident-notifications.ts) - Core notification service
+
+**Key Features:**
+
+- **Automatic Notifications**: Sends emails when incidents are created or status changes
+- **Verified Subscribers Only**: Only sends to verified subscribers (verifiedAt NOT NULL)
+- **Respects Settings**: Honors deliverNotifications flag and allowEmailSubscribers setting
+- **Parallel Delivery**: Non-blocking async email delivery with error handling
+- **Published Status Pages Only**: Only works on published status pages
+
+#### Email Templates
+
+- [`status-page-emails.ts`](app/src/lib/email-templates/status-page-emails.ts) - Professional email templates
+
+**Incident Notification Template:**
+
+- Professional HTML design with impact-based colored headers
+- Status and timestamp display
+- Affected services list
+- Call-to-action button
+- Unsubscribe link
+- Plain text fallback for accessibility
+
+**Impact Badge Colors:**
+
+- 🔴 Critical → Red header
+- 🟠 Major → Orange header
+- 🟡 Minor → Amber header
+- ⚫ None → Gray header
+
+**Status Badge Colors:**
+
+- 🟢 Resolved → Green
+- 🔵 Investigating/Identified/Monitoring → Blue
+- 🟣 Scheduled → Purple
+
+#### Integration Points
+
+- [`create-incident.ts`](app/src/actions/create-incident.ts) - Triggers incident creation emails
+- [`update-incident-status.ts`](app/src/actions/update-incident-status.ts) - Triggers status update emails
+
+#### Security & Best Practices
+
+- Only verified subscribers receive emails
+- Only works on published status pages
+- Respects user notification preferences
+- No sensitive data in logs
+- SMTP authentication with environment variables
+- TLS support with proper error handling
+
 ### 8. Public-Facing Components
 
 **Location:** `/app/src/components/status-pages/`
@@ -878,6 +954,9 @@ status-pages/{statusPageId}/{uploadType}/{uniqueId}.{extension}
 - Custom branding support (colors, logos)
 - Responsive design with dark mode support
 - SEO optimization with metadata generation
+- Professional incident cards with subtle gray backgrounds
+- Color-focused badges only (Impact and Status badges)
+- Hover effects for better interactivity
 
 #### Public Incident Detail ([`public-incident-detail.tsx`](app/src/components/status-pages/public-incident-detail.tsx))
 
@@ -894,12 +973,11 @@ status-pages/{statusPageId}/{uploadType}/{uniqueId}.{extension}
 
 **Features:**
 
-- Multi-channel subscription options (Email, Slack, Webhook, RSS)
-- Email subscription with verification workflow
-- Tab-based interface for different subscription types
+- Email-only subscription interface (simplified from multi-channel)
+- Clean, professional form design
+- Error toast notifications for unpublished status pages
 - Success state with confirmation message
 - Loading states and error handling
-- reCAPTCHA integration mention for security
 
 **Routes:**
 
@@ -1109,7 +1187,7 @@ canManageStatusPages(role: Role): boolean
 - [x] Added aggregation methods and failure thresholds for multi-monitor components
 - [x] Successfully applied migrations to database
 
-#### Server Actions (20/20 Complete)
+#### Server Actions (21/21 Complete)
 
 - [x] `create-status-page.ts` - Create new status pages with UUID subdomain generation
 - [x] `get-status-pages.ts` - List all status pages for organization
@@ -1121,6 +1199,7 @@ canManageStatusPages(role: Role): boolean
 - [x] Incident management (5 actions including get-incident-detail)
 - [x] Subscriber management (4 actions)
 - [x] `publish-status-page.ts` - Publish/unpublish status pages
+- [x] `send-incident-notifications.ts` - Automatic email notifications for incidents
 
 #### Frontend Components (13/13 Complete)
 
@@ -1181,9 +1260,19 @@ canManageStatusPages(role: Role): boolean
 
 - [x] Professional verification email template
 - [x] Welcome email template with subscription details
+- [x] Incident notification email template with impact-based colors
 - [x] HTML and plain text versions
 - [x] Dynamic branding integration
 - [x] Automated verification workflow
+
+#### Incident Notification System
+
+- [x] Automatic email notifications for incident creation
+- [x] Automatic email notifications for incident status updates
+- [x] Verified subscriber filtering
+- [x] Parallel email delivery with error handling
+- [x] Published status page validation
+- [x] Professional email templates with impact-based styling
 
 ### 🚧 In Progress (Phase 4)
 
@@ -1208,11 +1297,12 @@ canManageStatusPages(role: Role): boolean
 ### 📊 Progress Metrics
 
 - **Database Schema**: 100% complete (14/14 tables)
-- **Server Actions**: 100% complete (22/22 planned)
+- **Server Actions**: 100% complete (23/23 planned)
 - **Core UI**: 100% complete (15/15 components)
 - **Public Features**: 100% complete (subdomain routing + public pages + subscriptions + email templates)
 - **Asset Management**: 100% complete (upload service + S3 integration)
 - **Performance**: 100% complete (caching + rate limiting + connection pooling)
+- **Incident Notifications**: 100% complete (automatic email delivery + professional templates)
 - **Overall Progress**: ~100% complete (Phase 3)
 
 ---
@@ -1925,6 +2015,7 @@ environment:
 
 | Version | Date       | Changes                                                            |
 | ------- | ---------- | ------------------------------------------------------------------ |
+| 2.6     | 2025-10-20 | Added incident notification system and UI refinements              |
 | 2.5     | 2025-10-19 | Critical middleware fixes, production deployment guide, Traefik v3 |
 | 2.4     | 2025-10-16 | Enhanced middleware with caching, email templates, asset uploads   |
 | 2.3     | 2025-10-13 | Simplified component-monitor associations (multiple monitors only) |

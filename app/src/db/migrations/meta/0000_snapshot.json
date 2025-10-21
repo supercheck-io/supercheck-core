@@ -1,5 +1,5 @@
 {
-  "id": "24a63fb7-2eeb-4bb2-9b61-b309daa4a8d0",
+  "id": "47ad24bd-4dca-435f-b4a7-56a262e914c3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -811,12 +811,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "component_group_id": {
-          "name": "component_group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "update_status": {
           "name": "update_status",
           "type": "varchar(50)",
@@ -867,19 +861,6 @@
           "tableTo": "user",
           "columnsFrom": [
             "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "incident_templates_component_group_id_status_page_component_groups_id_fk": {
-          "name": "incident_templates_component_group_id_status_page_component_groups_id_fk",
-          "tableFrom": "incident_templates",
-          "tableTo": "status_page_component_groups",
-          "columnsFrom": [
-            "component_group_id"
           ],
           "columnsTo": [
             "id"
@@ -3085,78 +3066,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.status_page_component_groups": {
-      "name": "status_page_component_groups",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "status_page_id": {
-          "name": "status_page_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "status_page_component_groups_status_page_id_status_pages_id_fk": {
-          "name": "status_page_component_groups_status_page_id_status_pages_id_fk",
-          "tableFrom": "status_page_component_groups",
-          "tableTo": "status_pages",
-          "columnsFrom": [
-            "status_page_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.status_page_component_monitors": {
       "name": "status_page_component_monitors",
       "schema": "",
@@ -3312,12 +3221,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "component_group_id": {
-          "name": "component_group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "varchar(255)",
@@ -3412,19 +3315,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "status_page_components_component_group_id_status_page_component_groups_id_fk": {
-          "name": "status_page_components_component_group_id_status_page_component_groups_id_fk",
-          "tableFrom": "status_page_components",
-          "tableTo": "status_page_component_groups",
-          "columnsFrom": [
-            "component_group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -3660,19 +3550,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "phone_number": {
-          "name": "phone_number",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone_country": {
-          "name": "phone_country",
-          "type": "varchar(2)",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'US'"
-        },
         "endpoint": {
           "name": "endpoint",
           "type": "varchar(500)",
@@ -3719,6 +3596,25 @@
         "unsubscribe_token": {
           "name": "unsubscribe_token",
           "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "webhook_failures": {
+          "name": "webhook_failures",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "webhook_last_attempt_at": {
+          "name": "webhook_last_attempt_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "webhook_last_error": {
+          "name": "webhook_last_error",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -3824,13 +3720,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "hidden_from_search": {
-          "name": "hidden_from_search",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
         "allow_page_subscribers": {
           "name": "allow_page_subscribers",
           "type": "boolean",
@@ -3851,13 +3740,6 @@
           "primaryKey": false,
           "notNull": false,
           "default": true
-        },
-        "allow_sms_subscribers": {
-          "name": "allow_sms_subscribers",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
         },
         "allow_webhook_subscribers": {
           "name": "allow_webhook_subscribers",

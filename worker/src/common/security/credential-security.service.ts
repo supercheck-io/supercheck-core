@@ -1,5 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
+import {
+  decryptJson,
+  encryptJson,
+  isSecretEnvelope,
+  type SecretEnvelope,
+} from './secret-crypto';
 
 export interface CredentialData {
   type: 'basic' | 'bearer' | 'api-key';
@@ -11,105 +17,33 @@ export interface CredentialData {
   rotationDate?: Date;
 }
 
-export interface EncryptedCredential {
-  encrypted: string;
-  iv: string;
-  tag: string;
-  algorithm: string;
-  keyId: string;
-}
+export type EncryptedCredential = SecretEnvelope;
 
 @Injectable()
 export class CredentialSecurityService {
   private readonly logger = new Logger(CredentialSecurityService.name);
-  private readonly algorithm: 'aes-256-gcm' = 'aes-256-gcm';
-  private readonly keyLength = 32; // 256 bits
 
-  // 🔴 CRITICAL: Credential encryption and rotation
-
-  /**
-   * Generate a secure encryption key
-   */
-  private generateKey(): Buffer {
-    return crypto.randomBytes(this.keyLength);
-  }
-
-  /**
-   * Get encryption key from environment or generate new one
-   */
-  private getEncryptionKey(keyId?: string): Buffer {
-    // In production, this should come from a secure key management service
-    const envKey = process.env.CREDENTIAL_ENCRYPTION_KEY;
-    if (envKey) {
-      return Buffer.from(envKey, 'hex');
-    }
-
-    // For development/testing - generate a key (NOT for production)
-    this.logger.warn(
-      'Using generated encryption key - NOT suitable for production',
-    );
-    return this.generateKey();
-  }
-
-  /**
-   * Encrypt credential data
-   */
   encryptCredential(
     credential: CredentialData,
-    keyId: string = 'default',
+    context: string = 'credential',
   ): EncryptedCredential {
     try {
-      const key = this.getEncryptionKey(keyId);
-      const iv = crypto.randomBytes(16);
-
-      const cipher = crypto.createCipheriv(this.algorithm, key, iv);
-      const gcmCipher = cipher;
-      gcmCipher.setAAD(Buffer.from(keyId));
-
-      const serializedCredential = JSON.stringify(credential);
-
-      let encrypted = gcmCipher.update(serializedCredential, 'utf8', 'hex');
-      encrypted += gcmCipher.final('hex');
-
-      const tag = gcmCipher.getAuthTag();
-
-      return {
-        encrypted,
-        iv: iv.toString('hex'),
-        tag: tag.toString('hex'),
-        algorithm: this.algorithm,
-        keyId,
-      };
+      return encryptJson(credential, { context });
     } catch (error) {
       this.logger.error('Credential encryption failed:', error);
       throw new Error('Failed to encrypt credential');
     }
   }
 
-  /**
-   * Decrypt credential data
-   */
   decryptCredential(encryptedData: EncryptedCredential): CredentialData {
     try {
-      const key = this.getEncryptionKey(encryptedData.keyId);
-      const decipher = crypto.createDecipheriv(
-        encryptedData.algorithm,
-        key,
-        Buffer.from(encryptedData.iv, 'hex'),
-      );
-      const gcmDecipher = decipher as crypto.DecipherGCM;
+      if (!isSecretEnvelope(encryptedData)) {
+        throw new Error('Unsupported credential payload format');
+      }
 
-      gcmDecipher.setAAD(Buffer.from(encryptedData.keyId));
-      gcmDecipher.setAuthTag(Buffer.from(encryptedData.tag, 'hex'));
-
-      let decrypted = gcmDecipher.update(
-        encryptedData.encrypted,
-        'hex',
-        'utf8',
-      );
-      decrypted += gcmDecipher.final('utf8');
-
-      return JSON.parse(decrypted);
+      return decryptJson<CredentialData>(encryptedData, {
+        context: encryptedData.context ?? 'credential',
+      });
     } catch (error) {
       this.logger.error('Credential decryption failed:', error);
       throw new Error('Failed to decrypt credential');

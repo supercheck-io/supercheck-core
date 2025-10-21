@@ -30,6 +30,7 @@ type NotificationProvider = {
   updatedAt?: string;
   lastUsed?: string;
   isInUse?: boolean;
+  maskedFields?: string[];
 };
 
 export default function AlertsPage() {
@@ -73,6 +74,7 @@ export default function AlertsPage() {
             createdAt: provider.createdAt,
             updatedAt: provider.updatedAt,
             lastUsed: provider.lastUsed,
+            maskedFields: provider.maskedFields || [],
           }));
           setProviders(transformedData);
         } else {
@@ -113,7 +115,7 @@ export default function AlertsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: (newProvider.config as NotificationProviderConfig)?.name || `New ${newProvider.type} Channel`,
+          name: (newProvider.config as Record<string, unknown>)?.name || `New ${newProvider.type} Channel`,
           type: newProvider.type,
           config: newProvider.config,
         }),
@@ -156,7 +158,7 @@ export default function AlertsPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            name: (updatedProvider.config as NotificationProviderConfig)?.name || editingProvider.name,
+            name: (updatedProvider.config as Record<string, unknown>)?.name || editingProvider.name,
             type: updatedProvider.type,
             config: updatedProvider.config,
           }),
@@ -335,7 +337,7 @@ export default function AlertsPage() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete Notification Channel</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Are you sure you want to delete &quot;{(deletingProvider?.config.name as string) || deletingProvider?.type}&quot;? 
+                            Are you sure you want to delete &quot;{((deletingProvider?.config as Record<string, unknown>)?.name as string) || deletingProvider?.type}&quot;? 
                             <br/>
                             <br/>
                            <strong>Note: </strong> This action cannot be undone. Make sure this channel is not being used by any monitors or jobs.
