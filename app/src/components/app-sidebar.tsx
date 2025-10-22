@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   CalendarClock,
   ChartColumn,
-  NotepadText,
   Globe,
   BellRing,
   SquarePlus,
@@ -13,7 +12,6 @@ import {
   FileIcon,
   Code,
   BookOpenText,
-  // History,
   Plus,
   Chrome,
   ArrowLeftRight,
@@ -26,6 +24,7 @@ import {
   UserCog,
   Tally4,
   type LucideIcon,
+  RefreshCw,
 } from "lucide-react";
 import { PlaywrightLogo } from "@/components/logo/playwright-logo";
 
@@ -45,37 +44,8 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 
-// This is sample data.
+// Sidebar navigation data
 const data = {
-  user: {
-    name: "test user",
-    email: "test@example.com",
-    avatar: "https://ui-avatars.com/api/?name=Test+User&background=random",
-  },
-  projects: [
-    {
-      name: "ABC",
-    },
-    {
-      name: "DEF",
-    },
-    {
-      name: "GHI",
-    },
-    {
-      name: "JKL",
-    },
-    {
-      name: "MNO",
-    },
-    {
-      name: "PQR",
-    },
-    {
-      name: "STU",
-    },
-  ],
-
   Communicate: [
     {
       title: "Dashboard",
@@ -143,7 +113,7 @@ const data = {
     {
       title: "Runs",
       url: "/runs",
-      icon: NotepadText,
+      icon: RefreshCw,
     },
     {
       title: "Variables",

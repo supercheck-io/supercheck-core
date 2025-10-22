@@ -137,7 +137,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.17
+    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.26
     expose:
       - "3000"
     environment:
@@ -215,7 +215,7 @@ services:
 
   # Worker (NestJS Runner) - Minimal resource limits for maximum test compatibility
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.17
+    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.26
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)
