@@ -39,8 +39,6 @@ type StatusPage = {
   allowEmailSubscribers: boolean | null;
   allowWebhookSubscribers: boolean | null;
   allowIncidentSubscribers: boolean | null;
-  notificationsFromEmail: string | null;
-  notificationsEmailFooter: string | null;
   customDomain: string | null;
   customDomainVerified: boolean | null;
   cssBodyBackgroundColor: string | null;
@@ -91,11 +89,6 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
     statusPage.allowEmailSubscribers ?? true
   );
 
-  // Notification settings
-  const [notificationsFromEmail, setNotificationsFromEmail] = useState(
-    statusPage.notificationsFromEmail || ""
-  );
-
   // Branding colors
   const [cssGreens, setCssGreens] = useState(statusPage.cssGreens || "#2ecc71");
   const [cssYellows, setCssYellows] = useState(
@@ -120,7 +113,6 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
         customDomain: customDomain || undefined,
         allowPageSubscribers,
         allowEmailSubscribers,
-        notificationsFromEmail: notificationsFromEmail || undefined,
         cssGreens,
         cssYellows,
         cssOranges,
@@ -272,7 +264,7 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
           ) : (
             <RotateCcw className="h-4 w-4 mr-2" />
           )}
-          Reset to Defaults
+          Reset Branding to Defaults
         </Button>
       </div>
 
@@ -377,7 +369,7 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
         </CardHeader>
         <CardContent>
           <div className="grid gap-8 md:grid-cols-2">
-            {/* Left Column: Custom Domain & Subscriptions */}
+            {/* Left Column: Custom Domain */}
             <div className="space-y-6">
               {/* Custom Domain */}
               <div className="space-y-3">
@@ -496,7 +488,10 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
                   </div>
                 )}
               </div>
+            </div>
 
+            {/* Right Column: Subscriptions */}
+            <div className="space-y-6">
               {/* Subscription Settings */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Subscriptions</Label>
@@ -531,30 +526,6 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
                     />
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Right Column: Notification Settings */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Notifications</Label>
-              <div className="space-y-2">
-                <Label
-                  htmlFor="notifications-from"
-                  className="text-xs font-medium text-muted-foreground"
-                >
-                  From Email Address
-                </Label>
-                <Input
-                  id="notifications-from"
-                  type="email"
-                  value={notificationsFromEmail}
-                  onChange={(e) => setNotificationsFromEmail(e.target.value)}
-                  placeholder="notifications@example.com"
-                  disabled={!canUpdate}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Email address shown as sender for incident notifications
-                </p>
               </div>
             </div>
           </div>

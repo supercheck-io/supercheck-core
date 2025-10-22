@@ -26,32 +26,31 @@ export class EmailService {
 
   private async sendViaSMTP(options: EmailOptions): Promise<{ success: boolean; message: string; error?: string }> {
     try {
-      // Use environment variables for SMTP configuration
-      const smtpConfig = {
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        user: process.env.SMTP_USER,
-        password: process.env.SMTP_PASSWORD,
-        secure: process.env.SMTP_SECURE === 'true',
-        fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
-      };
+      // SMTP configuration from environment variables
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPassword = process.env.SMTP_PASSWORD;
+      const smtpSecure = process.env.SMTP_SECURE === 'true';
+      const fromEmail = process.env.SMTP_FROM_EMAIL;
 
-      // Check if SMTP is configured
-      if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.password) {
+      // Validate SMTP configuration
+      if (!smtpHost || !smtpUser || !smtpPassword || !fromEmail) {
         return {
           success: false,
           message: '',
-          error: 'SMTP not configured (missing environment variables)'
+          error: 'SMTP not configured (missing environment variables: SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL)'
         };
       }
 
+      // Create SMTP transporter
       const transporter = nodemailer.createTransport({
-        host: smtpConfig.host,
-        port: smtpConfig.port,
-        secure: smtpConfig.secure,
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
         auth: {
-          user: smtpConfig.user,
-          pass: smtpConfig.password,
+          user: smtpUser,
+          pass: smtpPassword,
         },
         tls: {
           rejectUnauthorized: false,
@@ -60,9 +59,9 @@ export class EmailService {
         greetingTimeout: 5000,
       });
 
-      // Send email
+      // Send email with configured from address
       await transporter.sendMail({
-        from: smtpConfig.fromEmail,
+        from: fromEmail,
         to: options.to,
         subject: options.subject,
         text: options.text,

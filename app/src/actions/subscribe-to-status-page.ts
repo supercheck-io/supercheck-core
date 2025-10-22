@@ -9,7 +9,6 @@ import { revalidatePath } from "next/cache";
 import { EmailService } from "@/lib/email-service";
 import { getVerificationEmailTemplate } from "@/lib/email-templates/status-page-emails";
 import { generateWebhookSecret } from "@/lib/webhook-utils";
-import { generateProxyUrl } from "@/lib/asset-proxy";
 
 const subscribeSchema = z.union([
   // Email subscription
@@ -39,21 +38,18 @@ async function sendVerificationEmail(params: {
   statusPageName: string;
   verificationToken: string;
   subdomain: string;
-  statusPageLogo?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const emailService = EmailService.getInstance();
 
     // Construct verification URL
-    // In production, this should use the actual domain
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const verificationUrl = `${baseUrl}/status-pages/verify/${params.verificationToken}`;
+    const verificationUrl = `${baseUrl}/status/verify/${params.verificationToken}`;
 
     const emailTemplate = getVerificationEmailTemplate({
       email: params.email,
       statusPageName: params.statusPageName,
       verificationUrl,
-      statusPageLogo: params.statusPageLogo,
     });
 
     const result = await emailService.sendEmail({
@@ -192,7 +188,6 @@ async function handleEmailSubscription(
         statusPageName: (statusPage.headline as string) || (statusPage.name as string),
         verificationToken: newVerificationToken,
         subdomain: statusPage.subdomain as string,
-        statusPageLogo: statusPage.transactionalLogo ? generateProxyUrl(statusPage.transactionalLogo as string) : null,
       });
 
       if (!emailResult.success) {
@@ -245,7 +240,6 @@ async function handleEmailSubscription(
     statusPageName: (statusPage.headline as string) || (statusPage.name as string),
     verificationToken,
     subdomain: statusPage.subdomain as string,
-    statusPageLogo: statusPage.transactionalLogo ? generateProxyUrl(statusPage.transactionalLogo as string) : null,
   });
 
   if (!emailResult.success) {
@@ -253,7 +247,7 @@ async function handleEmailSubscription(
   }
 
   // Revalidate the public page
-  revalidatePath(`/status-pages/${statusPage.id as string}/public`);
+  revalidatePath(`/status/${statusPage.id as string}`);
 
   return {
     success: true,
@@ -335,7 +329,7 @@ async function handleWebhookSubscription(
     // }
 
     // Revalidate the public page
-    revalidatePath(`/status-pages/${statusPage.id as string}/public`);
+    revalidatePath(`/status/${statusPage.id as string}`);
 
     return {
       success: true,

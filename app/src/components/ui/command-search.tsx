@@ -19,6 +19,7 @@ import {
   ChevronsLeftRightEllipsis,
   EthernetPort,
   Variable,
+  Tally4,
 } from "lucide-react";
 import { PlaywrightLogo } from "@/components/logo/playwright-logo";
 
@@ -61,6 +62,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
         runs: "/runs",
         variables: "/variables",
         alerts: "/alerts",
+        "status-pages": "/status-pages",
 
         // Create Actions
         "create-monitor-http": "/monitors/create?type=http_request",
@@ -153,6 +155,10 @@ export function CommandSearch({ className }: CommandSearchProps) {
                 <CommandItem onSelect={() => handleCommand("alerts")}>
                   <BellRing className="mr-2 h-4 w-4 !text-amber-600" />
                   <span>Alerts</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleCommand("status-pages")}>
+                  <Tally4 className="mr-2 h-4 w-4 !text-green-600" />
+                  <span>Status Pages</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("tests")}>
                   <Code className="mr-2 h-4 w-4 !text-blue-600" />

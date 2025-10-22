@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -44,6 +45,8 @@ type PublicIncidentDetailProps = {
   incident: Incident;
   idOrSubdomain: string;
   faviconLogo?: string | null;
+  transactionalLogo?: string | null;
+  statusPageHeadline?: string | null;
   isPublicView?: boolean;
 };
 
@@ -51,6 +54,8 @@ export function PublicIncidentDetail({
   incident,
   idOrSubdomain,
   faviconLogo,
+  transactionalLogo,
+  statusPageHeadline,
   isPublicView = false,
 }: PublicIncidentDetailProps) {
   useStatusPageFavicon(faviconLogo);
@@ -72,8 +77,25 @@ export function PublicIncidentDetail({
     }
   };
 
+  const getImpactColor = (impact: IncidentImpact) => {
+    switch (impact) {
+      case "critical":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+      case "major":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
+      case "minor":
+        return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
+    }
+  };
+
   const formatStatus = (status: IncidentStatus) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const formatImpact = (impact: IncidentImpact) => {
+    return impact.charAt(0).toUpperCase() + impact.slice(1);
   };
 
   const statusPageName =
@@ -87,9 +109,24 @@ export function PublicIncidentDetail({
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
       <div className="max-w-4xl mx-auto px-6 py-8">
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-          {incident.name}
-        </h1>
+        {transactionalLogo && (
+          <Image
+            src={transactionalLogo}
+            alt={statusPageHeadline || "Status Page"}
+            width={200}
+            height={64}
+            className="h-16 mb-4 object-contain object-left"
+            unoptimized
+          />
+        )}
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100">
+            {incident.name}
+          </h1>
+          <Badge className={`${getImpactColor(incident.impact)} text-sm px-3 py-1.5 font-semibold whitespace-nowrap`}>
+            {formatImpact(incident.impact)} Impact
+          </Badge>
+        </div>
 
         <p className="text-gray-600 dark:text-gray-400 text-lg">
           Incident Report for {statusPageName}

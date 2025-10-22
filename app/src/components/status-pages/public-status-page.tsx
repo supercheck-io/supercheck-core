@@ -355,10 +355,14 @@ export function PublicStatusPage({
         {/* Tooltip positioned below the bar */}
         {hoveredDay !== null && (
           <div
-            className="absolute top-full left-0 mt-3 px-4 py-3 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-md shadow-xl z-50 min-w-[200px] max-w-[300px]"
+            className="absolute top-full left-0 mt-3 px-4 py-3 bg-gray-900 dark:bg-gray-800 text-white rounded-md shadow-xl z-50"
             style={{
               left: `${(hoveredDay / data.length) * 100}%`,
               transform: "translateX(-50%)",
+              minWidth: "200px",
+              maxWidth: "700px",
+              width: "auto",
+              fontSize: "13px",
             }}
           >
             <div className="font-semibold mb-2">
@@ -381,7 +385,7 @@ export function PublicStatusPage({
                     <div className="font-medium text-white">
                       {incident.name}
                     </div>
-                    <div className="text-xs text-gray-400 mt-0.5">
+                    <div className="text-xs text-gray-400 mt-0.5" style={{ whiteSpace: "nowrap" }}>
                       Impact:{" "}
                       <span
                         className={

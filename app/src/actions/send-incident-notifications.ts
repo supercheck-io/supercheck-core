@@ -11,7 +11,6 @@ import { eq, and } from "drizzle-orm";
 import { EmailService } from "@/lib/email-service";
 import { getIncidentNotificationEmailTemplate } from "@/lib/email-templates/status-page-emails";
 import { format } from "date-fns";
-import { generateProxyUrl } from "@/lib/asset-proxy";
 
 /**
  * Send incident notification emails to all verified subscribers
@@ -21,6 +20,10 @@ export async function sendIncidentNotifications(
   incidentId: string,
   statusPageId: string
 ) {
+  console.log(
+    `[Incident Notifications] STARTED sending notifications for incident ${incidentId} on status page ${statusPageId}`
+  );
+
   try {
     console.log(
       `[Incident Notifications] Sending notifications for incident ${incidentId} on status page ${statusPageId}`
@@ -106,8 +109,16 @@ export async function sendIncidentNotifications(
       ),
     });
 
+    console.log(
+      `[Incident Notifications] Found ${subscribers.length} total email subscribers (verified and unverified)`
+    );
+
     // Filter verified subscribers (have verifiedAt timestamp)
     const verifiedSubscribers = subscribers.filter((s) => s.verifiedAt !== null);
+
+    console.log(
+      `[Incident Notifications] Found ${verifiedSubscribers.length} verified email subscribers`
+    );
 
     if (verifiedSubscribers.length === 0) {
       console.log(
@@ -127,14 +138,14 @@ export async function sendIncidentNotifications(
     // Construct notification URLs
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
-    const statusPageUrl = `${baseUrl}/status-pages/${statusPageId}/public`;
+    const statusPageUrl = `${baseUrl}/status/${statusPageId}`;
 
-    // Build email parameters
+    // Build email parameters template (per-subscriber unsubscribe URL will be added when sending)
     const formatIncidentTimestamp = (date: Date | null) => {
       return date ? format(date, "PPpp") : "Just now";
     };
 
-    const emailParams = {
+    const emailParamsTemplate = {
       statusPageName: statusPage.name,
       statusPageUrl,
       incidentName: incident.name,
@@ -143,8 +154,6 @@ export async function sendIncidentNotifications(
       incidentDescription: incident.body || "No additional details provided.",
       affectedComponents,
       updateTimestamp: formatIncidentTimestamp(incident.createdAt),
-      unsubscribeUrl: `${baseUrl}/status-pages/${statusPageId}/public/unsubscribe`, // Placeholder - implement unsubscribe action
-      statusPageLogo: statusPage.transactionalLogo ? generateProxyUrl(statusPage.transactionalLogo as string) : null,
     };
 
     // Send emails to all subscribers
@@ -158,9 +167,18 @@ export async function sendIncidentNotifications(
           console.warn(
             `[Incident Notifications] Subscriber ${subscriber.id} has no email address`
           );
-          failureCount++;
-          return;
+          return { success: false };
         }
+
+        // Use per-subscriber unsubscribe token
+        const unsubscribeUrl = subscriber.unsubscribeToken
+          ? `${baseUrl}/status/unsubscribe/${subscriber.unsubscribeToken}`
+          : "";
+
+        const emailParams = {
+          ...emailParamsTemplate,
+          unsubscribeUrl,
+        };
 
         const { subject, text, html } =
           getIncidentNotificationEmailTemplate(emailParams);
@@ -176,24 +194,31 @@ export async function sendIncidentNotifications(
           console.log(
             `[Incident Notifications] Email sent successfully to ${subscriber.email}`
           );
-          successCount++;
+          return { success: true };
         } else {
           console.error(
             `[Incident Notifications] Failed to send email to ${subscriber.email}: ${result.error}`
           );
-          failureCount++;
+          return { success: false };
         }
       } catch (error) {
         console.error(
           `[Incident Notifications] Error sending email to subscriber:`,
           error
         );
-        failureCount++;
+        return { success: false };
       }
     });
 
-    // Wait for all emails to be sent
-    await Promise.allSettled(sendPromises);
+    // Wait for all emails to be sent and count results
+    const results = await Promise.allSettled(sendPromises);
+    results.forEach((result) => {
+      if (result.status === "fulfilled" && result.value?.success) {
+        successCount++;
+      } else {
+        failureCount++;
+      }
+    });
 
     const message =
       failureCount === 0

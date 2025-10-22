@@ -7,7 +7,6 @@ type VerificationEmailParams = {
   email: string;
   statusPageName: string;
   verificationUrl: string;
-  statusPageLogo?: string | null;
 };
 
 export function getVerificationEmailTemplate(params: VerificationEmailParams): {
@@ -15,7 +14,7 @@ export function getVerificationEmailTemplate(params: VerificationEmailParams): {
   text: string;
   html: string;
 } {
-  const { statusPageName, verificationUrl, statusPageLogo } = params;
+  const { statusPageName, verificationUrl } = params;
 
   const subject = `Verify your subscription to ${statusPageName}`;
 
@@ -51,11 +50,6 @@ Powered by Supercheck
           <!-- Header -->
           <tr>
             <td style="padding: 40px 40px 32px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px 8px 0 0;">
-              ${statusPageLogo ? `
-                <div style="margin-bottom: 16px;">
-                  <img src="${statusPageLogo}" alt="${statusPageName}" style="max-width: 120px; max-height: 48px; width: auto; height: auto;" />
-                </div>
-              ` : ''}
               <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">
                 Verify Your Subscription
               </h1>
@@ -104,8 +98,11 @@ Powered by Supercheck
 
           <!-- Footer -->
           <tr>
-            <td style="padding: 24px 40px; text-align: center; background: #f9fafb; border-radius: 0 0 8px 8px;">
-              <p style="margin: 0; color: #6b7280; font-size: 14px;">
+            <td style="padding: 24px 40px; text-align: center; background: #f9fafb; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0 0 8px; color: #6b7280; font-size: 13px; line-height: 1.5;">
+                This email was sent because you subscribed to status updates from <strong>${statusPageName}</strong>.
+              </p>
+              <p style="margin: 0; color: #9ca3af; font-size: 12px;">
                 Powered by <a href="https://${getBaseDomain()}" style="color: #667eea; text-decoration: none;">Supercheck</a>
               </p>
             </td>
@@ -125,7 +122,6 @@ type WelcomeEmailParams = {
   statusPageName: string;
   statusPageUrl: string;
   unsubscribeUrl: string;
-  statusPageLogo?: string | null;
 };
 
 export function getWelcomeEmailTemplate(params: WelcomeEmailParams): {
@@ -133,7 +129,7 @@ export function getWelcomeEmailTemplate(params: WelcomeEmailParams): {
   text: string;
   html: string;
 } {
-  const { statusPageName, statusPageUrl, unsubscribeUrl, statusPageLogo } = params;
+  const { statusPageName, statusPageUrl, unsubscribeUrl } = params;
 
   const subject = `You're now subscribed to ${statusPageName}`;
 
@@ -171,15 +167,9 @@ Powered by Supercheck
           <!-- Header -->
           <tr>
             <td style="padding: 40px 40px 32px; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 8px 8px 0 0;">
-              ${statusPageLogo ? `
-                <div style="margin-bottom: 16px;">
-                  <img src="${statusPageLogo}" alt="${statusPageName}" style="max-width: 120px; max-height: 48px; width: auto; height: auto;" />
-                </div>
-              ` : `
-                <div style="width: 48px; height: 48px; background: #ffffff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-                  <span style="color: #10b981; font-size: 24px;">✓</span>
-                </div>
-              `}
+              <div style="width: 48px; height: 48px; background: #ffffff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                <span style="color: #10b981; font-size: 24px;">✓</span>
+              </div>
               <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">
                 You're All Set!
               </h1>
@@ -222,12 +212,12 @@ Powered by Supercheck
 
           <!-- Footer -->
           <tr>
-            <td style="padding: 24px 40px; text-align: center; background: #f9fafb; border-radius: 0 0 8px 8px;">
-              <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px;">
-                Powered by <a href="https://${getBaseDomain()}" style="color: #667eea; text-decoration: none;">Supercheck</a>
+            <td style="padding: 24px 40px; text-align: center; background: #f9fafb; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0 0 8px; color: #6b7280; font-size: 13px; line-height: 1.5;">
+                You're now subscribed to <strong>${statusPageName}</strong> status updates
               </p>
               <p style="margin: 0; color: #9ca3af; font-size: 12px;">
-                <a href="${unsubscribeUrl}" style="color: #9ca3af; text-decoration: none;">Unsubscribe from these emails</a>
+                <a href="${unsubscribeUrl}" style="color: #9ca3af; text-decoration: none;">Unsubscribe</a> • Powered by <a href="https://${getBaseDomain()}" style="color: #9ca3af; text-decoration: none;">Supercheck</a>
               </p>
             </td>
           </tr>
@@ -252,7 +242,6 @@ type IncidentNotificationEmailParams = {
   affectedComponents: string[];
   updateTimestamp: string;
   unsubscribeUrl: string;
-  statusPageLogo?: string | null;
 };
 
 export function getIncidentNotificationEmailTemplate(
@@ -272,7 +261,6 @@ export function getIncidentNotificationEmailTemplate(
     affectedComponents,
     updateTimestamp,
     unsubscribeUrl,
-    statusPageLogo,
   } = params;
 
   // Determine colors based on impact
@@ -359,15 +347,9 @@ Powered by Supercheck
           <!-- Header -->
           <tr>
             <td style="padding: 32px 40px; text-align: center; background: ${colors.headerBg}; border-radius: 8px 8px 0 0;">
-              ${statusPageLogo ? `
-                <div style="margin-bottom: 16px;">
-                  <img src="${statusPageLogo}" alt="${statusPageName}" style="max-width: 120px; max-height: 48px; width: auto; height: auto;" />
-                </div>
-              ` : `
-                <div style="width: 48px; height: 48px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-                  <span style="color: #ffffff; font-size: 24px;">⚠️</span>
-                </div>
-              `}
+              <div style="margin-bottom: 12px;">
+                <span style="color: #ffffff; font-size: 32px;">⚠️</span>
+              </div>
               <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600;">
                 ${statusPageName}
               </h1>
@@ -426,26 +408,32 @@ Powered by Supercheck
               ${componentsHtml}
 
               <!-- CTA Button -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 32px 0;">
+              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 32px 0 24px;">
                 <tr>
                   <td align="center">
-                    <a href="${statusPageUrl}" style="display: inline-block; padding: 12px 32px; background: #667eea; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 15px;">
-                      View Status Page
+                    <a href="${statusPageUrl}" style="display: inline-block; padding: 14px 40px; background: #667eea; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                      View Full Status
                     </a>
                   </td>
                 </tr>
               </table>
+
+              <p style="margin: 0; color: #6b7280; font-size: 13px; text-align: center;">
+                <a href="${statusPageUrl}" style="color: #667eea; text-decoration: none;">
+                  View this incident and others on our status page
+                </a>
+              </p>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
             <td style="padding: 24px 40px; text-align: center; background: #f9fafb; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
-              <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px;">
-                Powered by <a href="https://${getBaseDomain()}" style="color: #667eea; text-decoration: none;">Supercheck</a>
+              <p style="margin: 0 0 8px; color: #6b7280; font-size: 13px; line-height: 1.5;">
+                Incident notification from <strong>${statusPageName}</strong> status page
               </p>
               <p style="margin: 0; color: #9ca3af; font-size: 12px;">
-                <a href="${unsubscribeUrl}" style="color: #9ca3af; text-decoration: none;">Unsubscribe from these emails</a>
+                <a href="${unsubscribeUrl}" style="color: #9ca3af; text-decoration: none;">Unsubscribe</a> • Powered by <a href="https://${getBaseDomain()}" style="color: #9ca3af; text-decoration: none;">Supercheck</a>
               </p>
             </td>
           </tr>
