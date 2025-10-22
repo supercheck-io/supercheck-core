@@ -13,7 +13,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "next-themes";
-import { Moon, Sun, User } from "lucide-react";
+import { Moon, Sun, User, Monitor } from "lucide-react";
 import { useProjectContext } from "@/hooks/use-project-context";
 
 export function NavUser() {
@@ -85,11 +85,15 @@ export function NavUser() {
           <DropdownMenuSeparator />
         )}
         <DropdownMenuLabel className="text-xs text-muted-foreground">Theme</DropdownMenuLabel>
-        <DropdownMenuItem onClick={() => setTheme("dark")}> 
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          <span className="mr-2 flex items-center"><Monitor className="h-4 w-4 mr-2" />System</span>
+          <span className="ml-auto">{theme === "system" && <span className="inline-block w-2 h-2 rounded-full bg-primary" />}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
           <span className="mr-2 flex items-center"><Moon className="h-4 w-4 mr-2" />Dark</span>
           <span className="ml-auto">{theme === "dark" && <span className="inline-block w-2 h-2 rounded-full bg-primary" />}</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("light")}> 
+        <DropdownMenuItem onClick={() => setTheme("light")}>
           <span className="mr-2 flex items-center"><Sun className="h-4 w-4 mr-2" />Light</span>
           <span className="ml-auto">{theme === "light" && <span className="inline-block w-2 h-2 rounded-full bg-primary" />}</span>
         </DropdownMenuItem>
