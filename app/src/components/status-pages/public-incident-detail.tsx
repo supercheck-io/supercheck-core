@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
+import { useStatusPageFavicon } from "./use-status-page-favicon";
 
 type IncidentStatus =
   | "investigating"
@@ -42,12 +43,18 @@ type Incident = {
 type PublicIncidentDetailProps = {
   incident: Incident;
   idOrSubdomain: string;
+  faviconLogo?: string | null;
+  isPublicView?: boolean;
 };
 
 export function PublicIncidentDetail({
   incident,
   idOrSubdomain,
+  faviconLogo,
+  isPublicView = false,
 }: PublicIncidentDetailProps) {
+  useStatusPageFavicon(faviconLogo);
+
   const getStatusColor = (status: IncidentStatus) => {
     switch (status) {
       case "resolved":
@@ -71,6 +78,10 @@ export function PublicIncidentDetail({
 
   const statusPageName =
     incident.statusPage?.headline || incident.statusPage?.name || "Status Page";
+  const statusPageId = incident.statusPage?.id || idOrSubdomain;
+  const statusPageHref = isPublicView
+    ? `/status/${idOrSubdomain}`
+    : `/status-pages/${statusPageId}/public`;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -168,7 +179,7 @@ export function PublicIncidentDetail({
 
         {/* Back to Status Button */}
         <div className="mt-12 pt-8">
-          <Link href={`/status/${idOrSubdomain}`}>
+          <Link href={statusPageHref}>
             <Button variant="outline" size="lg">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Current Status

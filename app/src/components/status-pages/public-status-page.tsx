@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import {
   CheckCircle2,
@@ -14,6 +14,7 @@ import {
 import { format, subDays, startOfDay, isSameDay } from "date-fns";
 import { SubscribeDialog } from "./subscribe-dialog";
 import Link from "next/link";
+import { useStatusPageFavicon } from "./use-status-page-favicon";
 
 type ComponentStatus =
   | "operational"
@@ -78,6 +79,7 @@ type PublicStatusPageProps = {
   components: Component[];
   incidents: Incident[];
   idOrSubdomain: string;
+  isPublicView?: boolean;
 };
 
 export function PublicStatusPage({
@@ -85,49 +87,12 @@ export function PublicStatusPage({
   components,
   incidents,
   idOrSubdomain,
+  isPublicView = false,
 }: PublicStatusPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const DAYS_PER_PAGE = 7;
 
-  useEffect(() => {
-    if (!statusPage.faviconLogo) {
-      return;
-    }
-
-    // Add cache-busting timestamp to force browser to refetch favicon
-    const cacheBuster = `?v=${Date.now()}`;
-    const faviconUrl = `${statusPage.faviconLogo}${cacheBuster}`;
-
-    const selectors =
-      "link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']";
-    const previousIcons = Array.from(
-      document.head.querySelectorAll<HTMLLinkElement>(selectors)
-    ).map((icon) => icon.cloneNode(true) as HTMLLinkElement);
-
-    document.head
-      .querySelectorAll<HTMLLinkElement>(selectors)
-      .forEach((icon) => icon.remove());
-
-    const createdIcons: HTMLLinkElement[] = [
-      { rel: "icon", href: faviconUrl },
-      { rel: "shortcut icon", href: faviconUrl },
-      { rel: "apple-touch-icon", href: faviconUrl },
-    ].map(({ rel, href }) => {
-      const link = document.createElement("link");
-      link.rel = rel;
-      link.href = href;
-      // Add type attribute for better browser support
-      link.type = "image/png";
-      document.head.appendChild(link);
-      return link;
-    });
-
-    // Reapply previous icons if we ever unmount (e.g. app navigation)
-    return () => {
-      createdIcons.forEach((icon) => icon.remove());
-      previousIcons.forEach((icon) => document.head.appendChild(icon));
-    };
-  }, [statusPage.faviconLogo]);
+  useStatusPageFavicon(statusPage.faviconLogo);
 
   // Calculate overall system status from components
   const calculateSystemStatus = () => {
@@ -654,10 +619,14 @@ export function PublicStatusPage({
                               }
                             };
 
+                            const incidentLinkBase = isPublicView
+                              ? `/status/${idOrSubdomain}/incidents`
+                              : `/status-pages/${statusPage.id}/public/incidents`;
+
                             return (
                               <Link
                                 key={incident.id}
-                                href={`/status/${idOrSubdomain}/incidents/${incident.id}`}
+                                href={`${incidentLinkBase}/${incident.id}`}
                                 className="block px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-900 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800"
                               >
                                 <div className="flex items-start justify-between gap-3">

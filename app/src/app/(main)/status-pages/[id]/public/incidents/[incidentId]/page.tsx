@@ -32,6 +32,7 @@ export default async function IncidentDetailPage({
       <PublicIncidentDetail
         incident={result.incident}
         idOrSubdomain={resolvedParams.id}
+        isPublicView={false}
       />
     </>
   );

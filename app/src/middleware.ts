@@ -108,12 +108,21 @@ export function middleware(request: NextRequest) {
   const subdomain = extractSubdomain(hostname);
   if (subdomain) {
     const url = request.nextUrl.clone();
-    const newPath =
-      pathname === "/"
-        ? `/status/${subdomain}`
-        : `/status/${subdomain}${pathname}`;
-    url.pathname = newPath;
 
+    if (pathname === "/") {
+      url.pathname = `/status/${subdomain}`;
+      const response = NextResponse.rewrite(url);
+      addSecurityHeaders(response);
+      return response;
+    }
+
+    if (pathname.startsWith(`/status/${subdomain}`)) {
+      const response = NextResponse.next();
+      addSecurityHeaders(response);
+      return response;
+    }
+
+    url.pathname = `/status/${subdomain}${pathname}`;
     const response = NextResponse.rewrite(url);
     addSecurityHeaders(response);
     return response;
@@ -123,10 +132,20 @@ export function middleware(request: NextRequest) {
   // Custom domains will be validated against database in the route handler
   if (mainAppHostname && isCustomDomain(hostname, mainAppHostname)) {
     const url = request.nextUrl.clone();
-    const newPath =
-      pathname === "/" ? `/status/_custom/${hostname}` : `/status/_custom/${hostname}${pathname}`;
-    url.pathname = newPath;
+    if (pathname === "/") {
+      url.pathname = `/status/_custom/${hostname}`;
+      const response = NextResponse.rewrite(url);
+      addSecurityHeaders(response);
+      return response;
+    }
 
+    if (pathname.startsWith(`/status/_custom/${hostname}`)) {
+      const response = NextResponse.next();
+      addSecurityHeaders(response);
+      return response;
+    }
+
+    url.pathname = `/status/_custom/${hostname}${pathname}`;
     const response = NextResponse.rewrite(url);
     addSecurityHeaders(response);
     return response;

@@ -96,6 +96,7 @@ export default async function PublicStatusPagePage({
       components={componentsResult.components}
       incidents={incidentsResult.incidents}
       idOrSubdomain={resolvedParams.id}
+      isPublicView
     />
   );
 }

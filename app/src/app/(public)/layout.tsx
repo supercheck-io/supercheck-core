@@ -36,20 +36,18 @@ export default function PublicLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className="antialiased"
-        style={
-          {
-            fontFamily: systemFonts.sans.join(", "),
-            "--font-geist-sans": systemFonts.sans.join(", "),
-            "--font-geist-mono": systemFonts.mono.join(", "),
-          } as React.CSSProperties
-        }
-        suppressHydrationWarning
-      >
-        {children}
-      </body>
-    </html>
+    <div
+      className="antialiased"
+      style={
+        {
+          fontFamily: systemFonts.sans.join(", "),
+          "--font-geist-sans": systemFonts.sans.join(", "),
+          "--font-geist-mono": systemFonts.mono.join(", "),
+        } as React.CSSProperties
+      }
+      suppressHydrationWarning
+    >
+      {children}
+    </div>
   );
 }

@@ -134,8 +134,8 @@ export async function GET() {
         status: item.status,
         timestamp: item.timestamp,
         notificationProvider:
-          item.providerName ||
           item.providerType ||
+          item.providerName ||
           item.providerId ||
           'Unknown',
         metadata: {

@@ -101,6 +101,8 @@ export default async function PublicIncidentDetailPage({
     <PublicIncidentDetail
       incident={result.incident}
       idOrSubdomain={resolvedParams.id}
+      faviconLogo={statusPage.faviconLogo}
+      isPublicView
     />
   );
 }
