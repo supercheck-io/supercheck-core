@@ -13,7 +13,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Loader2, Save, RotateCcw, Info, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -73,7 +79,9 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
   const [supportUrl, setSupportUrl] = useState(statusPage.supportUrl || "");
 
   // Custom domain
-  const [customDomain, setCustomDomain] = useState(statusPage.customDomain || "");
+  const [customDomain, setCustomDomain] = useState(
+    statusPage.customDomain || ""
+  );
 
   // Subscriber settings
   const [allowPageSubscribers, setAllowPageSubscribers] = useState(
@@ -255,7 +263,9 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
           size="sm"
           onClick={handleResetBranding}
           disabled={isResetting || !canUpdate}
-          title={!canUpdate ? "You don't have permission to reset branding" : ""}
+          title={
+            !canUpdate ? "You don't have permission to reset branding" : ""
+          }
         >
           {isResetting ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -380,57 +390,77 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
                   </div>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                      >
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                         <Info className="h-4 w-4 text-muted-foreground" />
-                        <span className="sr-only">Custom domain setup instructions</span>
+                        <span className="sr-only">
+                          Custom domain setup instructions
+                        </span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-96" align="end">
                       <div className="space-y-4">
                         <div>
-                          <h4 className="font-medium mb-2">How to set up a custom domain</h4>
+                          <h4 className="font-medium mb-2">
+                            How to set up a custom domain
+                          </h4>
                           <p className="text-sm text-muted-foreground mb-4">
-                            Follow these steps to use your own domain for your status page:
+                            Follow these steps to use your own domain for your
+                            status page:
                           </p>
                         </div>
 
                         <div className="space-y-3">
                           <div className="flex gap-3">
                             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-                              <span className="text-xs font-medium text-blue-600 dark:text-blue-300">1</span>
+                              <span className="text-xs font-medium text-blue-600 dark:text-blue-300">
+                                1
+                              </span>
                             </div>
                             <div>
-                              <p className="text-sm font-medium">Enter your domain</p>
+                              <p className="text-sm font-medium">
+                                Enter your domain
+                              </p>
                               <p className="text-xs text-muted-foreground">
-                                e.g., <code className="bg-muted px-1 py-0.5 rounded">status.yourcompany.com</code>
+                                e.g.,{" "}
+                                <code className="bg-muted px-1 py-0.5 rounded">
+                                  status.yourcompany.com
+                                </code>
                               </p>
                             </div>
                           </div>
 
                           <div className="flex gap-3">
                             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-                              <span className="text-xs font-medium text-blue-600 dark:text-blue-300">2</span>
+                              <span className="text-xs font-medium text-blue-600 dark:text-blue-300">
+                                2
+                              </span>
                             </div>
                             <div>
-                              <p className="text-sm font-medium">Add CNAME record</p>
+                              <p className="text-sm font-medium">
+                                Add CNAME record
+                              </p>
                               <p className="text-xs text-muted-foreground">
-                                Point to: <code className="bg-muted px-1 py-0.5 rounded">supercheck.io</code>
+                                Point to:{" "}
+                                <code className="bg-muted px-1 py-0.5 rounded">
+                                  supercheck.io
+                                </code>
                               </p>
                             </div>
                           </div>
 
                           <div className="flex gap-3">
                             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-                              <span className="text-xs font-medium text-blue-600 dark:text-blue-300">3</span>
+                              <span className="text-xs font-medium text-blue-600 dark:text-blue-300">
+                                3
+                              </span>
                             </div>
                             <div>
-                              <p className="text-sm font-medium">Wait for DNS propagation</p>
+                              <p className="text-sm font-medium">
+                                Wait for DNS propagation
+                              </p>
                               <p className="text-xs text-muted-foreground">
-                                Usually 15-30 minutes. We&apos;ll verify automatically.
+                                Usually 15-30 minutes. We&apos;ll verify
+                                automatically.
                               </p>
                             </div>
                           </div>
@@ -438,7 +468,8 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
 
                         <div className="pt-2 border-t">
                           <p className="text-xs text-muted-foreground">
-                            💡 Need help? Visit our DNS setup guide or contact support.
+                            Need help? Visit our DNS setup guide or contact
+                            support.
                           </p>
                         </div>
                       </div>
@@ -452,12 +483,13 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
                   disabled={!canUpdate}
                   className="font-mono text-sm"
                 />
-                {statusPage.customDomainVerified && customDomain === statusPage.customDomain && (
-                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-2 rounded">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Domain verified and active
-                  </div>
-                )}
+                {statusPage.customDomainVerified &&
+                  customDomain === statusPage.customDomain && (
+                    <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-2 rounded">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Domain verified and active
+                    </div>
+                  )}
                 {!statusPage.customDomainVerified && customDomain && (
                   <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950 p-2 rounded">
                     ⏳ Waiting for DNS verification...
@@ -471,7 +503,9 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors">
                     <div className="space-y-0.5">
-                      <p className="text-sm font-medium">Allow Page Subscriptions</p>
+                      <p className="text-sm font-medium">
+                        Allow Page Subscriptions
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         Let users subscribe for updates
                       </p>
@@ -504,7 +538,10 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
             <div className="space-y-3">
               <Label className="text-sm font-medium">Notifications</Label>
               <div className="space-y-2">
-                <Label htmlFor="notifications-from" className="text-xs font-medium text-muted-foreground">
+                <Label
+                  htmlFor="notifications-from"
+                  className="text-xs font-medium text-muted-foreground"
+                >
                   From Email Address
                 </Label>
                 <Input
@@ -569,7 +606,9 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
                   className="mt-2"
                   disabled={isUploadingLogo || !canUpdate}
                   asChild
-                  title={!canUpdate ? "You don't have permission to upload" : ""}
+                  title={
+                    !canUpdate ? "You don't have permission to upload" : ""
+                  }
                 >
                   <span className="cursor-pointer">
                     {isUploadingLogo ? (
@@ -623,7 +662,9 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
                   className="mt-2"
                   disabled={isUploadingFavicon || !canUpdate}
                   asChild
-                  title={!canUpdate ? "You don't have permission to upload" : ""}
+                  title={
+                    !canUpdate ? "You don't have permission to upload" : ""
+                  }
                 >
                   <span className="cursor-pointer">
                     {isUploadingFavicon ? (
@@ -764,7 +805,11 @@ export function SettingsTab({ statusPage, canUpdate }: SettingsTabProps) {
 
       {/* Save Button */}
       <div className="flex justify-end pt-4 border-t">
-        <Button onClick={handleSave} disabled={isSaving || !canUpdate} title={!canUpdate ? "You don't have permission to save settings" : ""}>
+        <Button
+          onClick={handleSave}
+          disabled={isSaving || !canUpdate}
+          title={!canUpdate ? "You don't have permission to save settings" : ""}
+        >
           {isSaving ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
           ) : (

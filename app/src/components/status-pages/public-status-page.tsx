@@ -415,34 +415,32 @@ export function PublicStatusPage({
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800">
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              {statusPage.transactionalLogo && (
-                <Image
-                  src={statusPage.transactionalLogo}
-                  alt={statusPage.headline || statusPage.name}
-                  width={200}
-                  height={64}
-                  className="h-16 mb-4 object-contain object-left"
-                  unoptimized
-                />
-              )}
-              <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
-                {statusPage.headline || statusPage.name}
-              </h1>
-              {statusPage.pageDescription && (
-                <p className="text-gray-600 dark:text-gray-400 mt-2">
-                  {statusPage.pageDescription}
-                </p>
-              )}
-            </div>
-            <SubscribeDialog
-              statusPageId={statusPage.id}
-              statusPageName={statusPage.headline || statusPage.name}
-            />
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            {statusPage.transactionalLogo && (
+              <Image
+                src={statusPage.transactionalLogo}
+                alt={statusPage.headline || statusPage.name}
+                width={200}
+                height={64}
+                className="h-16 mb-4 object-contain object-left"
+                unoptimized
+              />
+            )}
+            <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
+              {statusPage.headline || statusPage.name}
+            </h1>
+            {statusPage.pageDescription && (
+              <p className="text-gray-600 dark:text-gray-400 mt-2">
+                {statusPage.pageDescription}
+              </p>
+            )}
           </div>
+          <SubscribeDialog
+            statusPageId={statusPage.id}
+            statusPageName={statusPage.headline || statusPage.name}
+          />
         </div>
       </div>
 
@@ -606,7 +604,9 @@ export function PublicStatusPage({
                             };
 
                             // Impact badge color mapping
-                            const getImpactBadgeColor = (impact: IncidentImpact) => {
+                            const getImpactBadgeColor = (
+                              impact: IncidentImpact
+                            ) => {
                               switch (impact) {
                                 case "critical":
                                   return "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100";
@@ -627,7 +627,7 @@ export function PublicStatusPage({
                               <Link
                                 key={incident.id}
                                 href={`${incidentLinkBase}/${incident.id}`}
-                                className="block px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-900 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                className="block px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-950 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-900"
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="flex-1 min-w-0">

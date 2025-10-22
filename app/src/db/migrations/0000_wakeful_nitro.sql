@@ -445,6 +445,7 @@ CREATE TABLE "status_page_subscribers" (
 	"verified_at" timestamp,
 	"verification_token" varchar(255),
 	"unsubscribe_token" varchar(255),
+	"webhook_secret" varchar(255),
 	"webhook_failures" integer DEFAULT 0,
 	"webhook_last_attempt_at" timestamp,
 	"webhook_last_error" text,

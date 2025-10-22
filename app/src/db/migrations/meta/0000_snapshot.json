@@ -1,5 +1,5 @@
 {
-  "id": "4f4810ad-3802-46fa-b0e7-5c6fcb08d8e8",
+  "id": "41f448a1-46fa-4077-8844-406b715eef41",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3595,6 +3595,12 @@
         },
         "unsubscribe_token": {
           "name": "unsubscribe_token",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "webhook_secret": {
+          "name": "webhook_secret",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false

@@ -1255,7 +1255,8 @@ export const statusPageSubscribers = pgTable('status_page_subscribers', {
   verifiedAt: timestamp('verified_at'),
   verificationToken: varchar('verification_token', { length: 255 }),
   unsubscribeToken: varchar('unsubscribe_token', { length: 255 }),
-  // Webhook delivery tracking
+  // Webhook security and delivery tracking
+  webhookSecret: varchar('webhook_secret', { length: 255 }),
   webhookFailures: integer('webhook_failures').default(0),
   webhookLastAttemptAt: timestamp('webhook_last_attempt_at'),
   webhookLastError: text('webhook_last_error'),

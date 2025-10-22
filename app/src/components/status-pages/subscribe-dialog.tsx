@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, CheckCircle2, Mail, Webhook } from "lucide-react";
 import { subscribeToStatusPage } from "@/actions/subscribe-to-status-page";
 import { toast } from "sonner";
@@ -75,7 +76,8 @@ export function SubscribeDialog({
       } else {
         toast.error("Subscription failed", {
           description:
-            result.message || "Unable to complete subscription. Please try again.",
+            result.message ||
+            "Unable to complete subscription. Please try again.",
         });
       }
     } catch (error) {
@@ -129,7 +131,8 @@ export function SubscribeDialog({
       } else {
         toast.error("Webhook subscription failed", {
           description:
-            result.message || "Unable to complete subscription. Please try again.",
+            result.message ||
+            "Unable to complete subscription. Please try again.",
         });
       }
     } catch (error) {
@@ -145,11 +148,7 @@ export function SubscribeDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {trigger || (
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium">
-            SUBSCRIBE TO UPDATES
-          </Button>
-        )}
+        {trigger || <Button>SUBSCRIBE TO UPDATES</Button>}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -161,7 +160,9 @@ export function SubscribeDialog({
         {isSuccess ? (
           <div className="py-8 text-center">
             <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Subscription Successful!</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              Subscription Successful!
+            </h3>
             <p className="text-muted-foreground">
               {mode === "email"
                 ? "Please check your email to verify your subscription."
@@ -171,38 +172,31 @@ export function SubscribeDialog({
         ) : (
           <div className="w-full space-y-4">
             {/* Subscription Mode Tabs */}
-            <div className="flex gap-2 border-b">
-              <button
-                onClick={() => setMode("email")}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  mode === "email"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Mail className="h-4 w-4" />
-                Email
-              </button>
-              <button
-                onClick={() => setMode("webhook")}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  mode === "webhook"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Webhook className="h-4 w-4" />
-                Webhook
-              </button>
-            </div>
+            <Tabs
+              value={mode}
+              onValueChange={(value) => setMode(value as SubscriptionMode)}
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="email" className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Email
+                </TabsTrigger>
+                <TabsTrigger
+                  value="webhook"
+                  className="flex items-center gap-2"
+                >
+                  <Webhook className="h-4 w-4" />
+                  Webhook
+                </TabsTrigger>
+              </TabsList>
 
-            {/* Email Subscription Tab */}
-            {mode === "email" && (
-              <div className="space-y-4">
-                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                  <p className="text-sm text-blue-900 dark:text-blue-100">
-                    Get email notifications whenever <strong>{statusPageName}</strong>{" "}
-                    creates, updates or resolves an incident.
+              {/* Email Subscription Tab */}
+              <TabsContent value="email" className="space-y-4 mt-6">
+                <div className="bg-muted/50 border border-border rounded-lg p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Get email notifications whenever{" "}
+                    <strong>{statusPageName}</strong> creates, updates or
+                    resolves an incident.
                   </p>
                 </div>
 
@@ -222,13 +216,14 @@ export function SubscribeDialog({
                       required
                     />
                     <p className="text-xs text-muted-foreground">
-                      We&apos;ll send you a verification link before activating your subscription.
+                      We&apos;ll send you a verification link before activating
+                      your subscription.
                     </p>
                   </div>
 
                   <Button
                     type="submit"
-                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                    className="w-full h-11"
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
@@ -241,22 +236,23 @@ export function SubscribeDialog({
                     )}
                   </Button>
                 </form>
-              </div>
-            )}
+              </TabsContent>
 
-            {/* Webhook Subscription Tab */}
-            {mode === "webhook" && (
-              <div className="space-y-4">
-                <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                  <p className="text-sm text-amber-900 dark:text-amber-100">
-                    Receive incident notifications as JSON webhooks. Perfect for automation
-                    and integrations.
+              {/* Webhook Subscription Tab */}
+              <TabsContent value="webhook" className="space-y-4 mt-6">
+                <div className="bg-muted/50 border border-border rounded-lg p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Receive incident notifications as JSON webhooks. Perfect for
+                    automation and integrations.
                   </p>
                 </div>
 
                 <form onSubmit={handleWebhookSubscribe} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="webhook-url" className="text-base font-medium">
+                    <Label
+                      htmlFor="webhook-url"
+                      className="text-base font-medium"
+                    >
                       Webhook URL
                     </Label>
                     <Input
@@ -272,7 +268,10 @@ export function SubscribeDialog({
                     <p className="text-xs text-muted-foreground">
                       {webhookUrl && (
                         <>
-                          Preview: <code className="bg-muted px-2 py-1 rounded">{maskWebhookEndpoint(webhookUrl)}</code>
+                          Preview:{" "}
+                          <code className="bg-muted px-2 py-1 rounded">
+                            {maskWebhookEndpoint(webhookUrl)}
+                          </code>
                         </>
                       )}
                       {!webhookUrl && "Must be a valid HTTPS URL"}
@@ -280,7 +279,10 @@ export function SubscribeDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="webhook-description" className="text-base font-medium">
+                    <Label
+                      htmlFor="webhook-description"
+                      className="text-base font-medium"
+                    >
                       Description (optional)
                     </Label>
                     <Textarea
@@ -298,19 +300,21 @@ export function SubscribeDialog({
                     </p>
                   </div>
 
-                  <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 space-y-2">
-                    <h4 className="text-sm font-medium">What you&apos;ll receive:</h4>
+                  <div className="bg-muted/30 border border-border rounded-lg p-3 space-y-2">
+                    <h4 className="text-sm font-medium">
+                      What you&apos;ll receive:
+                    </h4>
                     <ul className="text-xs text-muted-foreground space-y-1">
                       <li>✓ JSON payload with incident details</li>
-                      <li>✓ HMAC-SHA256 signature verification</li>
                       <li>✓ Automatic retries on failure</li>
+                      <li>✓ HMAC-SHA256 signature verification</li>
                       <li>✓ Event timestamps for tracking</li>
                     </ul>
                   </div>
 
                   <Button
                     type="submit"
-                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                    className="w-full h-11"
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
@@ -323,8 +327,8 @@ export function SubscribeDialog({
                     )}
                   </Button>
                 </form>
-              </div>
-            )}
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </DialogContent>

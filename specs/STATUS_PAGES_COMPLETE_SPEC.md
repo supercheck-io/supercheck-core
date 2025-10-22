@@ -1,7 +1,7 @@
 # Status Pages - Complete Specification & Implementation Guide
 
-**Version:** 2.6
-**Last Updated:** 2025-10-20
+**Version:** 2.7
+**Last Updated:** 2025-10-22
 **Status:** Phase 3 Complete ✅ - Production Ready 🚀
 
 ---
@@ -424,7 +424,7 @@ CREATE TABLE incident_template_components (
 
 #### 9. `status_page_subscribers`
 
-Email/SMS/webhook subscribers.
+Email/SMS/webhook subscribers with webhook secret storage.
 
 ```sql
 CREATE TABLE status_page_subscribers (
@@ -438,6 +438,12 @@ CREATE TABLE status_page_subscribers (
   endpoint VARCHAR(500),  -- For webhook subscribers
 
   mode VARCHAR(50) NOT NULL,  -- email | sms | webhook
+
+  -- Webhook Security
+  webhook_secret VARCHAR(255),  -- HMAC secret for webhook signature verification
+  webhook_failures INTEGER DEFAULT 0,  -- Failure counter
+  webhook_last_error TEXT,  -- Last error message
+  webhook_last_attempt_at TIMESTAMP,  -- Last delivery attempt timestamp
 
   -- Verification & Status
   verified_at TIMESTAMP,
@@ -618,10 +624,11 @@ Deletes a status page and all related data via database cascade.
 
 #### 8. Subscription System
 
-- [`subscribe-to-status-page.ts`](app/src/actions/subscribe-to-status-page.ts) - Handle new subscriptions
+- [`subscribe-to-status-page.ts`](app/src/actions/subscribe-to-status-page.ts) - Handle new subscriptions (email and webhook)
 - [`verify-subscriber.ts`](app/src/actions/verify-subscriber.ts) - Verify email subscriptions
 - [`unsubscribe-from-status-page.ts`](app/src/actions/unsubscribe-from-status-page.ts) - Handle unsubscribes
 - [`get-status-page-subscribers.ts`](app/src/actions/get-status-page-subscribers.ts) - List subscribers with stats
+- [`test-webhook.ts`](app/src/actions/test-webhook.ts) - Test webhook endpoints
 
 ### Settings and Publishing
 
@@ -1187,7 +1194,7 @@ canManageStatusPages(role: Role): boolean
 - [x] Added aggregation methods and failure thresholds for multi-monitor components
 - [x] Successfully applied migrations to database
 
-#### Server Actions (21/21 Complete)
+#### Server Actions (23/23 Complete)
 
 - [x] `create-status-page.ts` - Create new status pages with UUID subdomain generation
 - [x] `get-status-pages.ts` - List all status pages for organization
@@ -1200,6 +1207,8 @@ canManageStatusPages(role: Role): boolean
 - [x] Subscriber management (4 actions)
 - [x] `publish-status-page.ts` - Publish/unpublish status pages
 - [x] `send-incident-notifications.ts` - Automatic email notifications for incidents
+- [x] `send-webhook-notifications.ts` - Automatic webhook notifications for incidents
+- [x] `test-webhook.ts` - Webhook testing endpoint
 
 #### Frontend Components (13/13 Complete)
 
@@ -2045,6 +2054,8 @@ environment:
 - [x] Public status page display
 - [x] Subdomain routing in production
 - [x] Publish/unpublish workflow
+- [x] Email subscriber notifications
+- [x] Webhook subscriber notifications with HMAC-SHA256 security
 
 ### Security ✅
 
@@ -2077,5 +2088,5 @@ environment:
 
 ---
 
-**Status:** 🚀 PRODUCTION READY - Phase 3 Complete
+**Status:** 🚀 PRODUCTION READY - Phase 3 Complete with Webhook Notifications
 **Next Phase:** Advanced Analytics & Enterprise Features (Phase 4)

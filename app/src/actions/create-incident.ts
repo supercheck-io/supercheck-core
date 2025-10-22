@@ -14,6 +14,7 @@ import { requirePermissions } from "@/lib/rbac/middleware";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { eq } from "drizzle-orm";
 import { sendIncidentNotifications } from "./send-incident-notifications";
+import { sendWebhookNotifications } from "./send-webhook-notifications";
 
 const createIncidentSchema = z.object({
   statusPageId: z.string().uuid(),
@@ -161,11 +162,19 @@ export async function createIncident(data: CreateIncidentData) {
         success: true,
       });
 
-      // Send notification emails to subscribers (async, non-blocking)
+      // Send notifications to subscribers (both email and webhooks, async, non-blocking)
       if (validatedData.deliverNotifications) {
+        // Send email notifications
         sendIncidentNotifications(result.id, validatedData.statusPageId).catch(
           (error) => {
-            console.error("Failed to send incident notifications:", error);
+            console.error("Failed to send incident email notifications:", error);
+          }
+        );
+
+        // Send webhook notifications
+        sendWebhookNotifications(result.id, validatedData.statusPageId).catch(
+          (error) => {
+            console.error("Failed to send incident webhook notifications:", error);
           }
         );
       }

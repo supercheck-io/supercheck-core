@@ -315,6 +315,7 @@ async function handleWebhookSubscription(
         endpoint: data.endpoint as string,
         mode: "webhook",
         unsubscribeToken,
+        webhookSecret, // Persist the webhook secret for HMAC verification
         skipConfirmationNotification: false,
         verifiedAt: new Date(), // Webhooks are immediately verified
         createdAt: new Date(),

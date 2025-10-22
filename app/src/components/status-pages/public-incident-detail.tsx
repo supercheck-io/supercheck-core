@@ -86,16 +86,14 @@ export function PublicIncidentDetail({
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-900">
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-            {incident.name}
-          </h1>
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+          {incident.name}
+        </h1>
 
-          <p className="text-gray-600 dark:text-gray-400 text-lg">
-            Incident Report for {statusPageName}
-          </p>
-        </div>
+        <p className="text-gray-600 dark:text-gray-400 text-lg">
+          Incident Report for {statusPageName}
+        </p>
       </div>
 
       {/* Main Content */}
