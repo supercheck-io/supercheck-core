@@ -57,6 +57,8 @@ import {
 } from "lucide-react";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { MonitorTypesPopover } from "./monitor-types-popover";
+import { LocationConfigSection } from "./location-config-section";
+import { DEFAULT_LOCATION_CONFIG, LocationConfig } from "@/lib/location-service";
 
 import {
   Card,
@@ -420,6 +422,9 @@ export function MonitorForm({
       recoveryThreshold: 1,
       customMessage: "" as string,
     }
+  );
+  const [locationConfig, setLocationConfig] = useState<LocationConfig>(
+    (initialConfig?.locationConfig as LocationConfig) || DEFAULT_LOCATION_CONFIG
   );
   const [showAlerts, setShowAlerts] = useState(false);
   const [monitorData, setMonitorData] = useState<Record<
@@ -898,7 +903,14 @@ export function MonitorForm({
     setIsSubmitting(true);
 
     try {
-      const saveData = includeAlerts ? { ...apiData, alertConfig } : apiData;
+      // Include locationConfig in config object
+      const configWithLocation = {
+        ...apiData.config,
+        locationConfig,
+      };
+      const saveData = includeAlerts
+        ? { ...apiData, config: configWithLocation, alertConfig }
+        : { ...apiData, config: configWithLocation };
       const endpoint = editMode ? `/api/monitors/${id}` : "/api/monitors";
       const method = editMode ? "PUT" : "POST";
 
@@ -2191,6 +2203,15 @@ export function MonitorForm({
                   </div>
                 </div>
               )}
+
+              {/* Multi-Location Configuration */}
+              <div className="pt-4">
+                <LocationConfigSection
+                  value={locationConfig}
+                  onChange={setLocationConfig}
+                  disabled={isSubmitting}
+                />
+              </div>
 
               <div className="flex justify-end space-x-4">
                 <Button

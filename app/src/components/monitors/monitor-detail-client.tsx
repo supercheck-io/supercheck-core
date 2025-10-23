@@ -66,6 +66,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ResponseTimeBarChart } from "@/components/monitors/response-time-line-chart";
 import { AvailabilityBarChart } from "./AvailabilityBarChart";
+import { LocationStatusGrid } from "./location-status-grid";
 import {
   MonitorStatus as DBMoniotorStatusType,
   MonitorResultStatus as DBMonitorResultStatusType,
@@ -955,6 +956,11 @@ export function MonitorDetailClient({
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* Multi-Location Status Grid */}
+      <div className="mb-6">
+        <LocationStatusGrid monitorId={monitor.id} days={7} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
