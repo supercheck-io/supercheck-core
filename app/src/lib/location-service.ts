@@ -1,0 +1,238 @@
+import {
+  MONITORING_LOCATIONS,
+  MonitoringLocation,
+  LocationMetadata,
+  LocationConfig,
+} from "@/db/schema/schema";
+
+/**
+ * Location metadata for all available monitoring locations.
+ * Includes display names, regions, and geographic coordinates.
+ */
+export const LOCATION_METADATA: Record<MonitoringLocation, LocationMetadata> = {
+  [MONITORING_LOCATIONS.US_EAST]: {
+    code: MONITORING_LOCATIONS.US_EAST,
+    name: "US East",
+    region: "N. Virginia",
+    coordinates: { lat: 38.9072, lon: -77.0369 },
+    flag: "🇺🇸",
+  },
+  [MONITORING_LOCATIONS.US_WEST]: {
+    code: MONITORING_LOCATIONS.US_WEST,
+    name: "US West",
+    region: "Oregon",
+    coordinates: { lat: 45.5231, lon: -122.6765 },
+    flag: "🇺🇸",
+  },
+  [MONITORING_LOCATIONS.EU_WEST]: {
+    code: MONITORING_LOCATIONS.EU_WEST,
+    name: "EU West",
+    region: "Ireland",
+    coordinates: { lat: 53.3498, lon: -6.2603 },
+    flag: "🇪🇺",
+  },
+  [MONITORING_LOCATIONS.EU_CENTRAL]: {
+    code: MONITORING_LOCATIONS.EU_CENTRAL,
+    name: "EU Central",
+    region: "Frankfurt",
+    coordinates: { lat: 50.1109, lon: 8.6821 },
+    flag: "🇪🇺",
+  },
+  [MONITORING_LOCATIONS.ASIA_PACIFIC]: {
+    code: MONITORING_LOCATIONS.ASIA_PACIFIC,
+    name: "Asia Pacific",
+    region: "Singapore",
+    coordinates: { lat: 1.3521, lon: 103.8198 },
+    flag: "🇸🇬",
+  },
+  [MONITORING_LOCATIONS.SOUTH_AMERICA]: {
+    code: MONITORING_LOCATIONS.SOUTH_AMERICA,
+    name: "South America",
+    region: "São Paulo",
+    coordinates: { lat: -23.5505, lon: -46.6333 },
+    flag: "🇧🇷",
+  },
+};
+
+/**
+ * Default location configuration for new monitors.
+ */
+export const DEFAULT_LOCATION_CONFIG: LocationConfig = {
+  enabled: false,
+  locations: [MONITORING_LOCATIONS.US_EAST],
+  threshold: 50, // Majority must be up
+  strategy: "majority",
+};
+
+/**
+ * Get all available monitoring locations.
+ */
+export function getAllLocations(): LocationMetadata[] {
+  return Object.values(LOCATION_METADATA);
+}
+
+/**
+ * Get metadata for a specific location.
+ */
+export function getLocationMetadata(
+  location: MonitoringLocation
+): LocationMetadata | undefined {
+  return LOCATION_METADATA[location];
+}
+
+/**
+ * Get display name for a location.
+ */
+export function getLocationDisplayName(location: MonitoringLocation): string {
+  return LOCATION_METADATA[location]?.name || location;
+}
+
+/**
+ * Validate location configuration.
+ */
+export function validateLocationConfig(
+  config: Partial<LocationConfig>
+): { valid: boolean; error?: string } {
+  if (!config) {
+    return { valid: false, error: "Location config is required" };
+  }
+
+  if (config.enabled && (!config.locations || config.locations.length === 0)) {
+    return {
+      valid: false,
+      error: "At least one location must be selected when enabled",
+    };
+  }
+
+  if (config.locations) {
+    for (const location of config.locations) {
+      if (!LOCATION_METADATA[location]) {
+        return { valid: false, error: `Invalid location: ${location}` };
+      }
+    }
+  }
+
+  if (
+    config.threshold !== undefined &&
+    (config.threshold < 0 || config.threshold > 100)
+  ) {
+    return {
+      valid: false,
+      error: "Threshold must be between 0 and 100",
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Calculate the overall status based on location results and threshold.
+ */
+export function calculateAggregatedStatus(
+  locationStatuses: Record<MonitoringLocation, boolean>,
+  config: LocationConfig
+): "up" | "down" | "partial" {
+  const locations = config.locations || [];
+  if (locations.length === 0) {
+    return "down";
+  }
+
+  const upCount = locations.filter(
+    (loc) => locationStatuses[loc] === true
+  ).length;
+  const totalCount = locations.length;
+  const upPercentage = (upCount / totalCount) * 100;
+
+  // Apply strategy
+  switch (config.strategy) {
+    case "all":
+      return upCount === totalCount ? "up" : "down";
+    case "any":
+      return upCount > 0 ? "up" : "down";
+    case "majority":
+      return upPercentage >= 50 ? "up" : "down";
+    case "custom":
+    default:
+      if (upPercentage >= config.threshold) {
+        return "up";
+      } else if (upCount > 0) {
+        return "partial";
+      } else {
+        return "down";
+      }
+  }
+}
+
+/**
+ * Get the effective locations for a monitor (handles legacy and multi-location configs).
+ */
+export function getEffectiveLocations(
+  config?: LocationConfig | null
+): MonitoringLocation[] {
+  if (!config || !config.enabled) {
+    // Single location mode - use default primary location
+    return [MONITORING_LOCATIONS.US_EAST];
+  }
+
+  return config.locations || [MONITORING_LOCATIONS.US_EAST];
+}
+
+/**
+ * Get simulated delay for a location (for testing without real distributed infrastructure).
+ * This adds realistic latency based on geographic distance.
+ */
+export function getSimulatedLocationDelay(
+  location: MonitoringLocation
+): number {
+  // Simulated network delays in milliseconds
+  const delays: Record<MonitoringLocation, number> = {
+    [MONITORING_LOCATIONS.US_EAST]: 50,
+    [MONITORING_LOCATIONS.US_WEST]: 80,
+    [MONITORING_LOCATIONS.EU_WEST]: 100,
+    [MONITORING_LOCATIONS.EU_CENTRAL]: 90,
+    [MONITORING_LOCATIONS.ASIA_PACIFIC]: 150,
+    [MONITORING_LOCATIONS.SOUTH_AMERICA]: 120,
+  };
+
+  return delays[location] || 50;
+}
+
+/**
+ * Format location status for display.
+ */
+export function formatLocationStatus(
+  isUp: boolean,
+  responseTimeMs?: number | null
+): string {
+  if (!isUp) {
+    return "Down";
+  }
+
+  if (responseTimeMs !== null && responseTimeMs !== undefined) {
+    return `${responseTimeMs}ms`;
+  }
+
+  return "Up";
+}
+
+/**
+ * Get location health percentage based on recent results.
+ */
+export function calculateLocationHealth(
+  totalChecks: number,
+  upChecks: number
+): number {
+  if (totalChecks === 0) return 0;
+  return Math.round((upChecks / totalChecks) * 100);
+}
+
+/**
+ * Determine the color class for a location based on its health.
+ */
+export function getLocationHealthColor(healthPercentage: number): string {
+  if (healthPercentage >= 99) return "text-green-600 bg-green-100";
+  if (healthPercentage >= 95) return "text-green-600 bg-green-50";
+  if (healthPercentage >= 90) return "text-yellow-600 bg-yellow-100";
+  if (healthPercentage >= 80) return "text-orange-600 bg-orange-100";
+  return "text-red-600 bg-red-100";
+}

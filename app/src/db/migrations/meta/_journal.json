@@ -8,6 +8,13 @@
       "when": 1761121305974,
       "tag": "0000_wakeful_nitro",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1761239510122,
+      "tag": "0001_next_amphibian",
+      "breakpoints": true
     }
   ]
 }

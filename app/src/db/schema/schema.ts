@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   boolean,
   unique,
+  index,
 } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 
@@ -454,6 +455,41 @@ export type MonitorStatus =
   | "error";
 
 /**
+ * Available monitoring locations for multi-location monitoring.
+ */
+export const MONITORING_LOCATIONS = {
+  US_EAST: "us-east",
+  US_WEST: "us-west",
+  EU_WEST: "eu-west",
+  EU_CENTRAL: "eu-central",
+  ASIA_PACIFIC: "asia-pacific",
+  SOUTH_AMERICA: "south-america",
+} as const;
+
+export type MonitoringLocation = typeof MONITORING_LOCATIONS[keyof typeof MONITORING_LOCATIONS];
+
+/**
+ * Location metadata including display name and geographic information.
+ */
+export type LocationMetadata = {
+  code: MonitoringLocation;
+  name: string;
+  region: string;
+  coordinates?: { lat: number; lon: number };
+  flag?: string;
+};
+
+/**
+ * Configuration for multi-location monitoring.
+ */
+export type LocationConfig = {
+  enabled: boolean;
+  locations: MonitoringLocation[];
+  threshold: number; // Percentage (0-100) of locations that must be up for overall "up" status
+  strategy?: "all" | "majority" | "any" | "custom"; // Aggregation strategy
+};
+
+/**
  * Defines the configuration for a monitor, with settings specific to its type.
  */
 export type MonitorConfig = {
@@ -483,7 +519,8 @@ export type MonitorConfig = {
   daysUntilExpirationWarning?: number;
   checkRevocation?: boolean;
   timeoutSeconds?: number;
-  regions?: string[];
+  regions?: string[]; // @deprecated - use locationConfig instead
+  locationConfig?: LocationConfig; // Multi-location monitoring configuration
   retryStrategy?: {
     maxRetries: number;
     backoffFactor: number;
@@ -562,29 +599,41 @@ export type MonitorResultDetails = {
 /**
  * Stores the results of each monitor check.
  */
-export const monitorResults = pgTable("monitor_results", {
-  id: uuid("id")
-    .primaryKey()
-    .$defaultFn(() => sql`uuidv7()`),
-  monitorId: uuid("monitor_id")
-    .notNull()
-    .references(() => monitors.id, { onDelete: "cascade" }),
-  checkedAt: timestamp("checked_at").notNull().defaultNow(),
-  status: varchar("status", { length: 50 })
-    .$type<MonitorResultStatus>()
-    .notNull(),
-  responseTimeMs: integer("response_time_ms"),
-  details: jsonb("details").$type<MonitorResultDetails>(),
-  isUp: boolean("is_up").notNull(),
-  isStatusChange: boolean("is_status_change").notNull().default(false),
-  consecutiveFailureCount: integer("consecutive_failure_count")
-    .notNull()
-    .default(0),
-  alertsSentForFailure: integer("alerts_sent_for_failure").notNull().default(0),
-  // For synthetic monitors - store test execution metadata
-  testExecutionId: text("test_execution_id"), // Unique execution ID (for accessing reports)
-  testReportS3Url: text("test_report_s3_url"), // Full S3 URL to the report
-});
+export const monitorResults = pgTable(
+  "monitor_results",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => sql`uuidv7()`),
+    monitorId: uuid("monitor_id")
+      .notNull()
+      .references(() => monitors.id, { onDelete: "cascade" }),
+    checkedAt: timestamp("checked_at").notNull().defaultNow(),
+    location: varchar("location", { length: 50 })
+      .$type<MonitoringLocation>()
+      .notNull()
+      .default("us-east"), // Default location for backward compatibility
+    status: varchar("status", { length: 50 })
+      .$type<MonitorResultStatus>()
+      .notNull(),
+    responseTimeMs: integer("response_time_ms"),
+    details: jsonb("details").$type<MonitorResultDetails>(),
+    isUp: boolean("is_up").notNull(),
+    isStatusChange: boolean("is_status_change").notNull().default(false),
+    consecutiveFailureCount: integer("consecutive_failure_count")
+      .notNull()
+      .default(0),
+    alertsSentForFailure: integer("alerts_sent_for_failure").notNull().default(0),
+    // For synthetic monitors - store test execution metadata
+    testExecutionId: text("test_execution_id"), // Unique execution ID (for accessing reports)
+    testReportS3Url: text("test_report_s3_url"), // Full S3 URL to the report
+  },
+  (table) => ({
+    // Composite index for efficient location-based queries
+    monitorLocationIdx: index("monitor_results_monitor_location_checked_idx")
+      .on(table.monitorId, table.location, table.checkedAt),
+  })
+);
 
 /**
  * A table for tags that can be applied to monitors for organization and filtering.
