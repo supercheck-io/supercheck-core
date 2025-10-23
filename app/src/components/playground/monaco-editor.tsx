@@ -16,7 +16,7 @@ export const MonacoEditorClient = memo(
   forwardRef<editor.IStandaloneCodeEditor, MonacoEditorProps>(
     ({ value, onChange }, ref) => {
       const monaco = useMonaco();
-      const { theme } = useTheme();
+      const { resolvedTheme } = useTheme();
       const editorInstanceRef = useRef<editor.IStandaloneCodeEditor | null>(
         null
       );
@@ -55,10 +55,10 @@ export const MonacoEditorClient = memo(
       // Update editor theme when app theme changes
       useEffect(() => {
         if (monaco) {
-          const editorTheme = theme === 'dark' ? 'vs-dark' : 'warm-light';
+          const editorTheme = resolvedTheme === 'dark' ? 'vs-dark' : 'warm-light';
           monaco.editor.setTheme(editorTheme);
         }
-      }, [theme, monaco]);
+      }, [resolvedTheme, monaco]);
 
       // Configure Monaco once when it's available
       useEffect(() => {
@@ -397,7 +397,7 @@ export const MonacoEditorClient = memo(
               defaultLanguage="typescript"
               value={value}
               onChange={handleEditorChange}
-              theme={theme === 'dark' ? 'vs-dark' : 'warm-light'}
+              theme={resolvedTheme === 'dark' ? 'vs-dark' : 'warm-light'}
               className="w-full overflow-hidden"
               beforeMount={beforeMount}
               onMount={handleEditorMount}
@@ -480,7 +480,7 @@ export const MonacoEditorClient = memo(
                     defaultLanguage="typescript"
                     value={value}
                     onChange={handleEditorChange}
-                    theme={theme === 'dark' ? 'vs-dark' : 'warm-light'}
+                    theme={resolvedTheme === 'dark' ? 'vs-dark' : 'warm-light'}
                     className="w-full h-full"
                     beforeMount={beforeMount}
                     onMount={handleFullscreenEditorMount}

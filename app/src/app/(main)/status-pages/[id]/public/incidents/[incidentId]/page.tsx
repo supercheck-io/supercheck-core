@@ -1,4 +1,5 @@
 import { getIncidentDetail } from "@/actions/get-incident-detail";
+import { getStatusPage } from "@/actions/get-status-page";
 import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
 import { PublicIncidentDetail } from "@/components/status-pages/public-incident-detail";
 import { redirect } from "next/navigation";
@@ -15,6 +16,7 @@ export default async function IncidentDetailPage({
 }: IncidentDetailPageProps) {
   const resolvedParams = await params;
   const result = await getIncidentDetail(resolvedParams.incidentId);
+  const statusPageResult = await getStatusPage(resolvedParams.id);
 
   if (!result.success || !result.incident) {
     redirect(`/status-pages/${resolvedParams.id}/public`);
@@ -32,6 +34,8 @@ export default async function IncidentDetailPage({
       <PublicIncidentDetail
         incident={result.incident}
         idOrSubdomain={resolvedParams.id}
+        transactionalLogo={statusPageResult.success ? statusPageResult.statusPage?.transactionalLogo : undefined}
+        statusPageHeadline={statusPageResult.success ? statusPageResult.statusPage?.headline : undefined}
         isPublicView={false}
       />
     </>

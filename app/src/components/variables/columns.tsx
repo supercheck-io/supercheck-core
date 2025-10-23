@@ -398,10 +398,7 @@ export const columns: ColumnDef<Variable>[] = [
               open={editDialogOpen}
               onOpenChange={(open) => meta?.setEditDialogState?.(variable.id, open)}
               projectId={meta.projectId}
-              variable={{
-                ...variable,
-                isSecret: variable.isSecret === "true"
-              }}
+              variable={variable}
               onSuccess={() => {
                 meta.onSuccess?.();
                 meta?.setEditDialogState?.(variable.id, false);

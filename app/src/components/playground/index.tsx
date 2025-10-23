@@ -83,16 +83,6 @@ const Playground: React.FC<PlaygroundProps> = ({
     fetchUserId();
   }, []);
 
-  // Debug logging
-  if (currentProject?.userRole) {
-    console.log(
-      "Playground permissions:",
-      currentProject.userRole,
-      "→",
-      userCanRunTests ? "CAN" : "CANNOT",
-      "run tests"
-    );
-  }
 
   const [activeTab, setActiveTab] = useState<string>("editor");
   const [isRunning, setIsRunning] = useState(false);
@@ -378,8 +368,6 @@ const Playground: React.FC<PlaygroundProps> = ({
   useEffect(() => {
     if (initialTestData) {
       // If we have initial test data from the server, use it
-      console.log("Using initial test data:", initialTestData);
-
       // Update the initial form values to match the loaded test
       setInitialFormValues({
         title: initialTestData.title,
@@ -426,9 +414,6 @@ const Playground: React.FC<PlaygroundProps> = ({
 
   const validateForm = () => {
     try {
-      console.log("Validating form with testCase:", testCase);
-      console.log("Current editor content length:", editorContent.length);
-
       // Before validation, ensure script field is synced with code field
       // and handle null description
       const validationData = {
@@ -436,8 +421,6 @@ const Playground: React.FC<PlaygroundProps> = ({
         script: editorContent,
         description: testCase.description || "", // Convert null to empty string for validation
       };
-
-      console.log("Validation data:", validationData);
 
       const newErrors: Record<string, string> = {};
 
@@ -532,11 +515,6 @@ const Playground: React.FC<PlaygroundProps> = ({
     setIsRunning(true);
 
     try {
-      console.log("Sending test data to API:", {
-        id: testId,
-        script: editorContent,
-      });
-
       // Execute the test by sending the current script content to the API
       const res = await fetch(`/api/test`, {
         method: "POST",
@@ -551,8 +529,6 @@ const Playground: React.FC<PlaygroundProps> = ({
 
       // Parse the response
       const result = await res.json();
-
-      console.log("API response:", result);
 
       // If we successfully started a test and got back the needed test info
       if (res.ok && result.testId && result.reportUrl) {
@@ -570,10 +546,6 @@ const Playground: React.FC<PlaygroundProps> = ({
         setActiveTab("report");
 
         // Set up Server-Sent Events (SSE) to get real-time status updates
-        console.log(
-          "Setting up SSE connection to:",
-          `/api/test-status/events/${result.testId}`
-        );
         const eventSource = new EventSource(
           `/api/test-status/events/${result.testId}`
         );
@@ -584,7 +556,6 @@ const Playground: React.FC<PlaygroundProps> = ({
           try {
             const data = JSON.parse(event.data);
             if (data) {
-              console.log("SSE event:", data);
 
               // Check if data includes status field
               if (data.status) {
@@ -621,9 +592,6 @@ const Playground: React.FC<PlaygroundProps> = ({
                     const apiUrl = `/api/test-results/${
                       result.testId
                     }/report/index.html?t=${Date.now()}&forceIframe=true`;
-                    console.log(
-                      `Test ${normalizedStatus}: Setting report URL to API path: ${apiUrl}`
-                    );
                     setReportUrl(apiUrl); // Use the relative API path
 
                     // Always stay on report tab and ensure we're viewing the report
@@ -699,9 +667,6 @@ const Playground: React.FC<PlaygroundProps> = ({
               const apiUrl = `/api/test-results/${
                 result.testId
               }/report/index.html?t=${Date.now()}&forceIframe=true`;
-              console.log(
-                `SSE error fallback: Setting report URL to API path: ${apiUrl}`
-              );
               setReportUrl(apiUrl); // Use the relative API path
               setActiveTab("report");
             } else {
@@ -777,7 +742,6 @@ const Playground: React.FC<PlaygroundProps> = ({
   ) => {
     // Use errorAnalysis for debugging purposes
     if (_errorAnalysis && process.env.NODE_ENV === "development") {
-      console.log("Error analysis for guidance:", _errorAnalysis);
     }
     setGuidanceMessage(guidance);
     setShowGuidanceModal(true);

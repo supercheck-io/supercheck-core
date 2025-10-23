@@ -72,7 +72,7 @@ export function UnsubscribeContent({ token }: { token: string }) {
   if (loadingState === "loading") {
     return (
       <div className="text-center py-12">
-        <Loader2 className="h-16 w-16 text-blue-600 mx-auto mb-4 animate-spin" />
+        <Loader2 className="h-16 w-16 text-muted-foreground mx-auto mb-4 animate-spin" />
         <h2 className="text-2xl font-semibold mb-2">Loading...</h2>
         <p className="text-muted-foreground">Please wait while we load your subscription details.</p>
       </div>
@@ -109,7 +109,7 @@ export function UnsubscribeContent({ token }: { token: string }) {
         </p>
         {subscriber?.statusPageId && (
           <Button asChild variant="outline">
-            <Link href={`/status-pages/${subscriber.statusPageId}/public`}>
+            <Link href={`/status/${subscriber.statusPageId}`}>
               View Status Page
             </Link>
           </Button>
@@ -143,25 +143,25 @@ export function UnsubscribeContent({ token }: { token: string }) {
   return (
     <div className="max-w-2xl mx-auto py-8">
       <div className="text-center mb-8">
-        <Mail className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+        <Mail className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Unsubscribe from Updates</h2>
         <p className="text-muted-foreground">
           Are you sure you want to unsubscribe from notifications?
         </p>
       </div>
 
-      <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 mb-6">
         <div className="flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
           <div className="text-sm">
-            <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">
+            <p className="font-medium mb-1">
               Subscription Details
             </p>
-            <p className="text-blue-800 dark:text-blue-200">
+            <p className="text-muted-foreground">
               <strong>Email:</strong> {subscriber?.email}
             </p>
             {subscriber?.statusPage && (
-              <p className="text-blue-800 dark:text-blue-200">
+              <p className="text-muted-foreground">
                 <strong>Status Page:</strong> {subscriber.statusPage.name}
               </p>
             )}
@@ -205,16 +205,12 @@ export function UnsubscribeContent({ token }: { token: string }) {
         </Button>
         {subscriber?.statusPageId && (
           <Button asChild variant="outline" size="lg">
-            <Link href={`/status-pages/${subscriber.statusPageId}/public`}>
+            <Link href={`/status/${subscriber.statusPageId}`}>
               Keep Subscription
             </Link>
           </Button>
         )}
       </div>
-
-      <p className="text-xs text-muted-foreground text-center mt-6">
-        After unsubscribing, your data will be removed from our system within 30 days.
-      </p>
     </div>
   );
 }

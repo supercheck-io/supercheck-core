@@ -31,10 +31,6 @@ const updateSettingsSchema = z.object({
   allowWebhookSubscribers: z.boolean().optional(),
   allowIncidentSubscribers: z.boolean().optional(),
 
-  // Notification settings
-  notificationsFromEmail: z.string().email().optional().or(z.literal("")),
-  notificationsEmailFooter: z.string().optional(),
-
   // Branding colors (hex codes)
   cssBodyBackgroundColor: z
     .string()

@@ -37,7 +37,7 @@ export function VerifySubscriberContent({ token }: { token: string }) {
   if (status === "loading") {
     return (
       <div className="text-center py-12">
-        <Loader2 className="h-16 w-16 text-blue-600 mx-auto mb-4 animate-spin" />
+        <Loader2 className="h-16 w-16 text-muted-foreground mx-auto mb-4 animate-spin" />
         <h2 className="text-2xl font-semibold mb-2">
           Verifying your subscription...
         </h2>

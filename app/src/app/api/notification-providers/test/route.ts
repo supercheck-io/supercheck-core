@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
 import { type NotificationProviderConfig } from "@/db/schema/schema";
+import { EmailService } from "@/lib/email-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -79,51 +79,10 @@ async function testEmailConnection(config: NotificationProviderConfig) {
 
 async function testSMTPConnection(testEmail: string): Promise<{ success: boolean; message: string; error: string }> {
   try {
-    // Use environment variables for SMTP configuration
-    const smtpConfig = {
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      user: process.env.SMTP_USER,
-      password: process.env.SMTP_PASSWORD,
-      secure: process.env.SMTP_SECURE === 'true',
-      fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
-    };
+    // Use centralized EmailService
+    const emailService = EmailService.getInstance();
 
-    // Check if SMTP is configured
-    if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.password) {
-      return {
-        success: false,
-        message: '',
-        error: 'SMTP not configured (missing environment variables)'
-      };
-    }
-
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.secure,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.password,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 5000,
-    });
-
-    // Verify the connection with timeout
-    await Promise.race([
-      transporter.verify(),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Connection timeout after 10 seconds")), 10000)
-      )
-    ]);
-
-    // Test sending email
-    await transporter.sendMail({
-      from: smtpConfig.fromEmail,
+    const result = await emailService.sendEmail({
       to: testEmail,
       subject: 'Supercheck - SMTP Test Email',
       text: 'This is a test email to verify your SMTP configuration is working correctly.',
@@ -131,9 +90,9 @@ async function testSMTPConnection(testEmail: string): Promise<{ success: boolean
     });
 
     return {
-      success: true,
-      message: 'SMTP connection successful',
-      error: ''
+      success: result.success,
+      message: result.message,
+      error: result.error || ''
     };
   } catch (error) {
     return {

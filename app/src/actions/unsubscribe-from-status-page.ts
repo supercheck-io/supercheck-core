@@ -48,7 +48,8 @@ export async function unsubscribeFromStatusPage(token: string) {
       })
       .where(eq(statusPageSubscribers.id, subscriber.id));
 
-    // Revalidate paths
+    // Revalidate both public and internal paths
+    revalidatePath(`/status/${subscriber.statusPageId}`);
     revalidatePath(`/status-pages/${subscriber.statusPageId}/public`);
 
     return {

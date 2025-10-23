@@ -23,8 +23,15 @@ export async function GET(
       return NextResponse.json({ error: "No path provided" }, { status: 400 });
     }
 
-    // Use the shared S3 proxy utility
-    const response = await fetchFromS3(BUCKET_NAME, s3Key);
+    // Determine if this is a favicon asset (needs cache-busting)
+    const isFavicon = s3Key.includes("/favicon/");
+
+    // Use the shared S3 proxy utility with appropriate cache control
+    const response = await fetchFromS3(BUCKET_NAME, s3Key, {
+      cacheControl: isFavicon
+        ? "public, max-age=0, must-revalidate" // No cache for favicons - they change frequently
+        : undefined, // Use default 1-year cache for other assets
+    });
 
     // Convert Response to NextResponse
     const headers: Record<string, string> = {};

@@ -43,24 +43,14 @@ export function ReportViewer({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const fullscreenIframeRef = useRef<HTMLIFrameElement>(null);
 
-  console.log("--- REPORT VIEWER RENDERING ---", {
-    reportUrl,
-    isRunning,
-    isReportLoading,
-    iframeError,
-    isValidationError,
-  });
-
   // Update URL when prop changes
   useEffect(() => {
-    console.log("ReportViewer: reportUrl changed:", reportUrl);
     if (reportUrl) {
       // Always ensure we have a timestamp parameter to prevent caching issues
       const finalUrl = reportUrl.includes("?")
         ? `${reportUrl}&t=${Date.now()}`
         : `${reportUrl}?t=${Date.now()}`;
 
-      console.log("ReportViewer: Setting currentReportUrl to:", finalUrl);
       setCurrentReportUrl(finalUrl);
       setIsReportLoading(true);
       setIframeError(false);
@@ -72,14 +62,7 @@ export function ReportViewer({
       fetch(finalUrl, { method: "HEAD" })
         .then((response) => {
           if (!response.ok) {
-            console.log(
-              "ReportViewer: Report URL returned status:",
-              response.status
-            );
             if (response.status === 404) {
-              console.log(
-                "ReportViewer: Report not found (404), setting error state"
-              );
               setIsReportLoading(false);
               setIframeError(true);
               setReportError("The test report could not be found.");
@@ -97,7 +80,6 @@ export function ReportViewer({
           // Don't call onReportError here to prevent redirect loops
         });
     } else {
-      console.log("ReportViewer: reportUrl is null or empty");
       setCurrentReportUrl(null);
     }
   }, [reportUrl]);
@@ -184,16 +166,11 @@ export function ReportViewer({
   // Safety timeout to prevent loading state from getting stuck
   useEffect(() => {
     if (isReportLoading) {
-      console.log("ReportViewer: Setting safety timeout for report loading");
       const safetyTimeout = setTimeout(() => {
-        console.log(
-          "ReportViewer: Safety timeout triggered - report still loading after timeout"
-        );
         setIsReportLoading(false);
 
         // If the iframe failed silently, set error state
         if (currentReportUrl && !iframeError) {
-          console.log("ReportViewer: Setting iframe error due to timeout");
           setIframeError(true);
           setReportError(
             "Report loading timed out. The report server might be unreachable."
@@ -202,7 +179,6 @@ export function ReportViewer({
       }, 10000); // 10 second timeout
 
       return () => {
-        console.log("ReportViewer: Clearing safety timeout");
         clearTimeout(safetyTimeout);
       };
     }
@@ -213,12 +189,10 @@ export function ReportViewer({
     if (isReportLoading && currentReportUrl) {
       // Set a shorter timeout for initial retry
       const retryTimeout = setTimeout(() => {
-        console.log("ReportViewer: Attempting auto-retry of report loading");
         // Add timestamp to force reload and bypass cache
         const refreshedUrl = `${
           currentReportUrl.split("?")[0]
         }?retry=true&t=${Date.now()}`;
-        console.log("ReportViewer: Auto-retrying with URL:", refreshedUrl);
         setCurrentReportUrl(refreshedUrl);
       }, 5000); // 5 second timeout before retry
 
@@ -266,7 +240,6 @@ export function ReportViewer({
 
   // Loading state when the test is running - prioritize this check
   if (isRunning) {
-    console.log("ReportViewer: Test is running, showing running state");
     return (
       <div className={containerClassName}>
         <div className="w-full h-full flex items-center justify-center bg-card">
@@ -283,9 +256,6 @@ export function ReportViewer({
 
   // Empty state when no report is available - check this after isRunning
   if (!currentReportUrl && !isRunning) {
-    console.log(
-      "ReportViewer: No reportUrl and not running, showing empty state"
-    );
     return (
       <div className={containerClassName}>
         <div className="w-full h-full flex items-center justify-center bg-card">
@@ -304,8 +274,6 @@ export function ReportViewer({
 
   // Error state - only show if it's not a validation error
   if (iframeError && !isRunning && !isValidationError) {
-    console.log("ReportViewer: Showing error state:", reportError, timeoutInfo);
-
     // Show timeout-specific error page if timeout detected
     if (timeoutInfo?.isTimeout) {
       return (
@@ -334,7 +302,6 @@ export function ReportViewer({
   }
 
   // Main report iframe with loading state
-  console.log("ReportViewer: Rendering iframe with URL:", currentReportUrl);
   return (
     <div className={containerClassName}>
       {isReportLoading && (
@@ -372,10 +339,6 @@ export function ReportViewer({
             }}
             title="Report"
             onLoad={(e) => {
-              console.log(
-                "ReportViewer: iframe onLoad triggered for URL:",
-                currentReportUrl
-              );
               const iframe = e.target as HTMLIFrameElement;
               try {
                 // Verify we can access the contentWindow - if not, it's likely a CORS issue
@@ -397,21 +360,12 @@ export function ReportViewer({
                   const bodyText =
                     iframe.contentWindow.document.body.textContent;
                   const pageTitle = iframe.contentDocument?.title || "";
-                  console.log(
-                    "ReportViewer: iframe content body text:",
-                    bodyText.substring(0, 100) +
-                      (bodyText.length > 100 ? "..." : "")
-                  );
-                  console.log("ReportViewer: iframe title:", pageTitle);
 
                   // Check for validation error page - allow these to display normally
                   if (
                     pageTitle.includes("Validation Error") ||
                     bodyText.includes("Test Validation Failed")
                   ) {
-                    console.log(
-                      "ReportViewer: Validation error page detected - displaying content"
-                    );
                     setIsValidationError(true);
                     setIframeError(false);
                     setIsReportLoading(false);
@@ -447,20 +401,12 @@ export function ReportViewer({
                         errorData.details ||
                         errorData.error ||
                         "Unknown error";
-                      console.log(
-                        "ReportViewer: Error in iframe content:",
-                        errorMessage
-                      );
 
                       // Check if this is a timeout error based on the API response
                       if (
                         errorData.timeoutInfo &&
                         errorData.timeoutInfo.isTimeout
                       ) {
-                        console.log(
-                          "ReportViewer: Timeout error detected from API:",
-                          errorData.timeoutInfo
-                        );
                         setTimeoutInfo(errorData.timeoutInfo);
                       } else {
                         setReportError(errorMessage);
@@ -478,9 +424,6 @@ export function ReportViewer({
                 }
 
                 // Always clear loading state, even if we think there might be an issue
-                console.log(
-                  "ReportViewer: Load complete, clearing loading state"
-                );
                 setIsReportLoading(false);
               } catch (loadError) {
                 console.error(

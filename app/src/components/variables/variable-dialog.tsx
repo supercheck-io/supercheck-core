@@ -16,15 +16,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Variable, Info } from "lucide-react";
+import { Shield, Variable as VariableIcon, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Variable } from "./schema";
 
-interface Variable {
-  id: string;
+interface VariableFormData {
+  id?: string;
   key: string;
-  value?: string;
+  value: string;
+  description: string;
   isSecret: boolean;
-  description?: string;
 }
 
 interface VariableDialogProps {
@@ -42,7 +43,7 @@ export function VariableDialog({
   variable,
   onSuccess
 }: VariableDialogProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<VariableFormData>({
     key: '',
     value: '',
     description: '',
@@ -68,7 +69,9 @@ export function VariableDialog({
               key: data.data.key,
               value: data.data.value || '', // Decrypted value from API
               description: data.data.description || '',
-              isSecret: data.data.isSecret
+              isSecret: typeof data.data.isSecret === 'string'
+                ? data.data.isSecret === 'true'
+                : data.data.isSecret
             });
           } else {
             // Fallback to prop data if API fails
@@ -76,7 +79,9 @@ export function VariableDialog({
               key: variable.key,
               value: variable.value || '',
               description: variable.description || '',
-              isSecret: variable.isSecret
+              isSecret: typeof variable.isSecret === 'string'
+                ? variable.isSecret === 'true'
+                : variable.isSecret
             });
           }
         } catch (error) {
@@ -86,7 +91,9 @@ export function VariableDialog({
             key: variable.key,
             value: variable.value || '',
             description: variable.description || '',
-            isSecret: variable.isSecret
+            isSecret: typeof variable.isSecret === 'string'
+              ? variable.isSecret === 'true'
+              : variable.isSecret
           });
         }
       };
@@ -152,6 +159,7 @@ export function VariableDialog({
       if (data.success) {
         toast.success(isEditing ? "Variable updated successfully" : "Variable created successfully");
         onSuccess();
+        onOpenChange(false);
       } else {
         if (data.details && Array.isArray(data.details)) {
           // Handle validation errors from server
@@ -188,7 +196,7 @@ export function VariableDialog({
               {formData.isSecret ? (
                 <Shield className="h-5 w-5 text-red-500" />
               ) : (
-                <Variable className="h-5 w-5 text-blue-500" />
+                <VariableIcon className="h-5 w-5 text-blue-500" />
               )}
               {isEditing ? 'Edit Variable' : 'Add Variable'}
             </DialogTitle>

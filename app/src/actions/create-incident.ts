@@ -163,7 +163,15 @@ export async function createIncident(data: CreateIncidentData) {
       });
 
       // Send notifications to subscribers (both email and webhooks, async, non-blocking)
+      console.log(
+        `[Create Incident] deliverNotifications flag: ${validatedData.deliverNotifications}`
+      );
+
       if (validatedData.deliverNotifications) {
+        console.log(
+          `[Create Incident] Triggering incident notifications for incident ${result.id}`
+        );
+
         // Send email notifications
         sendIncidentNotifications(result.id, validatedData.statusPageId).catch(
           (error) => {
@@ -176,6 +184,10 @@ export async function createIncident(data: CreateIncidentData) {
           (error) => {
             console.error("Failed to send incident webhook notifications:", error);
           }
+        );
+      } else {
+        console.log(
+          `[Create Incident] Skipping notifications for incident ${result.id} - deliverNotifications is false`
         );
       }
 

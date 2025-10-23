@@ -12,7 +12,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertCircle, Plus, MessageSquare, Trash2, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Plus, Pencil, Trash2, CheckCircle2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Component } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -59,6 +60,8 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [deletingIncident, setDeletingIncident] = useState<Incident | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(3);
 
   const loadIncidents = useCallback(async () => {
     try {
@@ -67,6 +70,7 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
 
       if (result.success) {
         setIncidents(result.incidents as Incident[]);
+        setCurrentPage(1);
       } else {
         console.error('Failed to fetch incidents:', result.message);
         toast.error("Failed to load incidents", {
@@ -154,13 +158,39 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
     }
   };
 
+  // Pagination calculations
+  const totalPages = Math.ceil(incidents.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedIncidents = incidents.slice(startIndex, startIndex + itemsPerPage);
+
   if (loading) {
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
+          <div className="space-y-2 animate-pulse">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 bg-muted rounded"></div>
+              <div key={i} className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4 bg-muted rounded" />
+                      <div className="h-4 w-32 bg-muted rounded" />
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="h-5 w-20 bg-muted rounded" />
+                      <div className="h-5 w-20 bg-muted rounded" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="h-3 w-48 bg-muted rounded" />
+                      <div className="h-3 w-40 bg-muted rounded" />
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <div className="h-8 w-8 bg-muted rounded" />
+                    <div className="h-8 w-8 bg-muted rounded" />
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         </CardContent>
@@ -171,121 +201,190 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
   return (
     <Card>
       <CardContent className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold">Incidents</h3>
-          <p className="text-sm text-muted-foreground">
-            Manage incidents to communicate service disruptions
-          </p>
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-lg font-semibold">Incidents</h3>
+            <p className="text-xs text-muted-foreground">
+              Manage incidents to communicate service disruptions
+            </p>
+          </div>
+          <Button onClick={() => setIsCreateDialogOpen(true)} disabled={components.length === 0} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Incident
+          </Button>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} disabled={components.length === 0}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Incident
-        </Button>
-      </div>
 
-      {components.length === 0 && (
-        <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
-            You need to create components before you can create incidents.
-          </p>
-        </div>
-      )}
+        {components.length === 0 && (
+          <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <p className="text-xs text-yellow-800 dark:text-yellow-200">
+              You need to create components before you can create incidents.
+            </p>
+          </div>
+        )}
 
-      {incidents.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed rounded-lg">
-          <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-          <h4 className="text-lg font-semibold mb-2">No incidents reported</h4>
-          <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
-            {components.length === 0
-              ? "Create components first, then create incidents to communicate service disruptions"
-              : "Create incidents to communicate service disruptions to your users"}
-          </p>
-          {components.length > 0 && (
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create First Incident
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {incidents.map((incident) => (
-            <div
-              key={incident.id}
-              className="border rounded-lg p-4 hover:border-primary transition-colors"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertCircle className="h-5 w-5 text-muted-foreground" />
-                    <h4 className="font-semibold text-lg">{incident.name}</h4>
-                  </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge className={`${getStatusBadgeColor(incident.status)} text-xs`}>
-                      {incident.status.replace(/_/g, ' ')}
-                    </Badge>
-                    <Badge className={`${getImpactBadgeColor(incident.impact)} text-xs`}>
-                      {incident.impact} impact
-                    </Badge>
-                  </div>
-                  {incident.latestUpdate && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      {incident.latestUpdate.body}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                    <span>
-                      {incident.affectedComponentsCount} component{incident.affectedComponentsCount !== 1 ? 's' : ''} affected
-                    </span>
-                    {incident.createdAt && (
-                      <span>
-                        Created {formatDistanceToNow(new Date(incident.createdAt), { addSuffix: true })}
-                      </span>
-                    )}
-                    {incident.resolvedAt && (
-                      <span className="text-green-600">
-                        Resolved {formatDistanceToNow(new Date(incident.resolvedAt), { addSuffix: true })}
-                      </span>
-                    )}
+        {incidents.length === 0 ? (
+          <div className="text-center py-8 border-2 border-dashed rounded-lg">
+            <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-3" />
+            <h4 className="text-base font-semibold mb-1">No incidents reported</h4>
+            <p className="text-xs text-muted-foreground mb-4 max-w-sm mx-auto">
+              {components.length === 0
+                ? "Create components first, then create incidents to communicate service disruptions"
+                : "Create incidents to communicate service disruptions to your users"}
+            </p>
+            {components.length > 0 && (
+              <Button onClick={() => setIsCreateDialogOpen(true)} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Create First Incident
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              {paginatedIncidents.map((incident) => (
+                <div
+                  key={incident.id}
+                  className="border rounded-lg p-3 hover:shadow-md transition-all duration-200 hover:bg-muted/30"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-8 mb-1">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <h4 className="font-semibold text-sm truncate">{incident.name}</h4>
+                        </div>
+                        {incident.affectedComponents && incident.affectedComponents.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {incident.affectedComponents.map((component) => (
+                              <Badge key={component.id} variant="secondary" className="text-xs px-2 py-0.5 flex items-center gap-1">
+                                <Component className="h-3 w-3" />
+                                {component.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <Badge className={`${getStatusBadgeColor(incident.status)} text-xs px-2 py-0.5`}>
+                          {incident.status.replace(/_/g, ' ')}
+                        </Badge>
+                        <Badge className={`${getImpactBadgeColor(incident.impact)} text-xs px-2 py-0.5`}>
+                          {incident.impact}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-0.5">
+                        {incident.latestUpdate && (
+                          <p className="truncate">{incident.latestUpdate.body}</p>
+                        )}
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {incident.createdAt && (
+                            <span>Created {formatDistanceToNow(new Date(incident.createdAt), { addSuffix: true })}</span>
+                          )}
+                          {incident.resolvedAt && (
+                            <span className="text-green-600 dark:text-green-400">Resolved {formatDistanceToNow(new Date(incident.resolvedAt), { addSuffix: true })}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUpdateClick(incident)}
+                        className="h-8 w-8 p-0"
+                        title="Edit incident"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteClick(incident)}
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                        title="Delete incident"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleUpdateClick(incident)}
-                  >
-                    <MessageSquare className="h-4 w-4 mr-1" />
-                    Update
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteClick(incident)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {incidents.length > 0 && (
+              <div className="flex items-center justify-between mt-4 px-2">
+                <div className="flex-1 text-sm text-muted-foreground">
+                  Total {incidents.length} incidents
+                </div>
+                <div className="flex items-center space-x-6 lg:space-x-8">
+                  <div className="flex items-center space-x-2">
+                    <p className="text-sm">Rows per page</p>
+                    <Select
+                      value={`${itemsPerPage}`}
+                      onValueChange={(value) => {
+                        setItemsPerPage(Number(value));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[70px]">
+                        <span>{itemsPerPage}</span>
+                      </SelectTrigger>
+                      <SelectContent side="top">
+                        {[5, 10, 25, 50].map((pageSize) => (
+                          <SelectItem key={pageSize} value={`${pageSize}`}>
+                            {pageSize}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex w-[100px] items-center justify-center text-sm">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      className="hidden h-8 w-8 p-0 lg:flex"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      <span className="sr-only">Go to first page</span>
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <span className="sr-only">Go to previous page</span>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <span className="sr-only">Go to next page</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="hidden h-8 w-8 p-0 lg:flex"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      <span className="sr-only">Go to last page</span>
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-
-              {incident.affectedComponents && incident.affectedComponents.length > 0 && (
-                <div className="mt-3 pt-3 border-t">
-                  <p className="text-xs text-muted-foreground mb-2">Affected components:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {incident.affectedComponents.map((component) => (
-                      <Badge key={component.id} variant="secondary" className="text-xs">
-                        {component.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+            )}
+          </>
+        )}
       </CardContent>
 
       <IncidentFormDialog

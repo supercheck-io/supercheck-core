@@ -102,7 +102,10 @@ export function encryptSecret(
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv('aes-128-gcm', key, iv);
 
-  const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const ciphertext = Buffer.concat([
+    cipher.update(value, 'utf8'),
+    cipher.final(),
+  ]);
   const tag = cipher.getAuthTag();
 
   const payload = encodeEnvelope({

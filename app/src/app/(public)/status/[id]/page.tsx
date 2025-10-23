@@ -68,11 +68,39 @@ export async function generateMetadata({
     };
   }
 
+  // Build favicon links with cache-busting if custom favicon is configured
+  // Use updatedAt timestamp for stable cache-busting that only changes when status page is updated
+  const cacheBuster = statusPage.updatedAt
+    ? new Date(statusPage.updatedAt).getTime()
+    : Date.now();
+
+  const icons = statusPage.faviconLogo
+    ? {
+        icon: [
+          {
+            url: `${statusPage.faviconLogo}?v=${cacheBuster}`,
+            type: "image/png",
+          },
+        ],
+        shortcut: [
+          {
+            url: `${statusPage.faviconLogo}?v=${cacheBuster}`,
+            type: "image/png",
+          },
+        ],
+        apple: [
+          {
+            url: `${statusPage.faviconLogo}?v=${cacheBuster}`,
+            type: "image/png",
+          },
+        ],
+      }
+    : undefined;
+
   return {
     title: statusPage.headline || statusPage.name,
     description: statusPage.pageDescription || undefined,
-    // Remove favicon from metadata to let client-side useEffect handle it
-    // This prevents conflicts and allows cache-busting to work properly
+    icons,
   };
 }
 

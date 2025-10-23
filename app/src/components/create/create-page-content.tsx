@@ -8,7 +8,8 @@ import {
   Zap,
   Variable,
   Shield,
-  Bell
+  Bell,
+  Tally4,
 } from "lucide-react";
 import { monitorTypes } from "@/components/monitors/data";
 import { types } from "@/components/tests/data";
@@ -53,14 +54,22 @@ export function CreatePageContent() {
 
   const variableTypes = [
     {
-      icon: <Variable size={20} className="text-green-500" />,
+      icon: <Variable size={20} className="text-cyan-500" />,
       title: "Variable",
       onClick: () => router.push("/variables"),
     },
     {
-      icon: <Shield size={20} className="text-purple-500" />,
+      icon: <Shield size={20} className="text-red-500" />,
       title: "Secret",
       onClick: () => router.push("/variables?filter=secrets"),
+    },
+  ];
+
+  const statusPageTypes = [
+    {
+      icon: <Tally4 size={20} className="text-green-600" />,
+      title: "Status Page",
+      onClick: () => router.push("/status-pages"),
     },
   ];
 
@@ -73,15 +82,15 @@ export function CreatePageContent() {
   ];
 
   return (
-    <div className="mx-auto p-4 mt-5">
+    <div className="mx-auto p-4 mt-3">
       <div className="mb-2 pl-1">
-        <h2 className="text-lg font-semibold">Create New Test</h2>
-        <p className="text-muted-foreground text-sm mt-1">
+        <h2 className="text-base font-semibold">Create New Test</h2>
+        <p className="text-muted-foreground text-xs mt-1">
           Select the type of test you want to create
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {testTypes.map((testType) => (
           <CreateCard
             key={testType.scriptType || testType.title}
@@ -94,19 +103,19 @@ export function CreatePageContent() {
                 ? handleScriptSelection(testType.scriptType as ScriptType)
                 : undefined
             }
-            className={
-              testType.title === "Record" ? "border-dashed" : ""
-            }
+            className={testType.title === "Record" ? "border-dashed" : ""}
           />
         ))}
       </div>
 
-      <div className="mt-8 mb-2 pl-1">
-        <h2 className="text-lg font-semibold">Create New Job</h2>
-        <p className="text-muted-foreground text-sm mt-1"> Configure a new automated or manual job</p>
+      <div className="mt-5 mb-2 pl-1">
+        <h2 className="text-base font-semibold">Create New Job</h2>
+        <p className="text-muted-foreground text-xs mt-1">
+          Configure a new automated or manual job
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {jobTypes.map((jobType) => (
           <CreateCard
             key={jobType.title}
@@ -117,12 +126,14 @@ export function CreatePageContent() {
         ))}
       </div>
 
-      <div className="mt-8 mb-2 pl-1">
-        <h2 className="text-lg font-semibold">Create New Monitor</h2>
-        <p className="text-muted-foreground text-sm mt-1">Select the type of uptime monitor you want to create</p>
+      <div className="mt-5 mb-2 pl-1">
+        <h2 className="text-base font-semibold">Create New Monitor</h2>
+        <p className="text-muted-foreground text-xs mt-1">
+          Select the type of uptime monitor you want to create
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {monitorTypes.map((monitorType) => {
           const IconComponent = monitorType.icon;
           return (
@@ -130,18 +141,40 @@ export function CreatePageContent() {
               key={monitorType.value}
               icon={<IconComponent size={20} className={monitorType.color} />}
               title={monitorType.label}
-              onClick={() => router.push(`/monitors/create?type=${monitorType.value}`)}
+              onClick={() =>
+                router.push(`/monitors/create?type=${monitorType.value}`)
+              }
             />
           );
         })}
       </div>
 
-      <div className="mt-8 mb-2 pl-1">
-        <h2 className="text-lg font-semibold">Create Variables & Secrets</h2>
-        <p className="text-muted-foreground text-sm mt-1">Configure environment variables and secure secrets</p>
+      <div className="mt-5 mb-2 pl-1">
+        <h2 className="text-base font-semibold">Create Status Page</h2>
+        <p className="text-muted-foreground text-xs mt-1">
+          Create and manage public status pages for your services
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        {statusPageTypes.map((statusPageType) => (
+          <CreateCard
+            key={statusPageType.title}
+            icon={statusPageType.icon}
+            title={statusPageType.title}
+            onClick={statusPageType.onClick}
+          />
+        ))}
+      </div>
+
+      <div className="mt-5 mb-2 pl-1">
+        <h2 className="text-base font-semibold">Create Variables & Secrets</h2>
+        <p className="text-muted-foreground text-xs mt-1">
+          Configure environment variables and secure secrets
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {variableTypes.map((variableType) => (
           <CreateCard
             key={variableType.title}
@@ -152,12 +185,16 @@ export function CreatePageContent() {
         ))}
       </div>
 
-      <div className="mt-8 mb-2 pl-1">
-        <h2 className="text-lg font-semibold">Create Notification Provider</h2>
-        <p className="text-muted-foreground text-sm mt-1">Configure alert notifications and view delivery history</p>
+      <div className="mt-5 mb-2 pl-1">
+        <h2 className="text-base font-semibold">
+          Create Notification Provider
+        </h2>
+        <p className="text-muted-foreground text-xs mt-1">
+          Configure alert notifications and view delivery history
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-2">
         {notificationTypes.map((notificationType) => (
           <CreateCard
             key={notificationType.title}
@@ -167,7 +204,6 @@ export function CreatePageContent() {
           />
         ))}
       </div>
-
     </div>
   );
 }

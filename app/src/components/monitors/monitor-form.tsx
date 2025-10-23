@@ -570,22 +570,8 @@ export function MonitorForm({
 
   // Reset form when URL params change (for monitor type)
   useEffect(() => {
-    console.log("URL change detected:", {
-      urlType,
-      currentFormType: type,
-      editMode,
-      hasInitialData: !!initialData,
-    });
-
     // Always reset form when URL type changes, unless we're in edit mode
     if (!editMode && urlType && urlType !== type) {
-      console.log(
-        "Resetting form for monitor type change:",
-        type,
-        "->",
-        urlType
-      );
-
       // Create fresh default values for the new monitor type
       const newDefaults: FormValues = {
         ...creationDefaultValues,
@@ -595,15 +581,12 @@ export function MonitorForm({
       // Reset form completely
       form.reset(newDefaults);
       setFormChanged(false);
-
-      console.log("Form reset completed for type:", urlType);
     }
   }, [urlType, type, editMode, initialData, form]);
 
   // Handle initial form setup when component first mounts
   useEffect(() => {
     if (!editMode && !initialData && urlType) {
-      console.log("Initial form setup for type:", urlType);
       const initialDefaults: FormValues = {
         ...creationDefaultValues,
         type: urlType,
@@ -615,10 +598,6 @@ export function MonitorForm({
   // Initialize form with initialData in edit mode
   useEffect(() => {
     if (editMode && initialData) {
-      console.log(
-        "Resetting form with initial data for edit mode:",
-        initialData
-      );
       form.reset(initialData);
     }
   }, [editMode, initialData, form]);
@@ -654,25 +633,6 @@ export function MonitorForm({
         const currentBool = Boolean(currentVal);
         const defaultBool = Boolean(defaultVal);
         const changed = currentBool !== defaultBool;
-        console.log(`[FORM_DEBUG] Boolean field comparison for ${key}:`, {
-          currentVal,
-          defaultVal,
-          currentBool,
-          defaultBool,
-          changed,
-        });
-
-        // Debug boolean fields specifically - SSL and other important booleans
-        if (
-          key === "websiteConfig_enableSslCheck" ||
-          key.includes("_enable") ||
-          key.includes("_should")
-        ) {
-          console.log(
-            "[FORM_DEBUG] Important boolean field change detection:",
-            { key, currentVal, defaultVal, currentBool, defaultBool, changed }
-          );
-        }
 
         return changed;
       }
@@ -682,28 +642,7 @@ export function MonitorForm({
         const currentNum = Number(currentVal) || 0;
         const defaultNum = Number(defaultVal) || 0;
         const changed = currentNum !== defaultNum;
-        console.log(`[FORM_DEBUG] Number field comparison for ${key}:`, {
-          currentVal,
-          defaultVal,
-          currentNum,
-          defaultNum,
-          changed,
-        });
         return changed;
-      }
-
-      // Debug SSL-related fields and interval field specifically
-      if (
-        key === "websiteConfig_sslDaysUntilExpirationWarning" ||
-        key === "websiteConfig_enableSslCheck" ||
-        key === "interval"
-      ) {
-        console.log("[FORM_DEBUG] Important field change detection:", {
-          key,
-          currentVal,
-          defaultVal,
-          changed: currentVal !== defaultVal,
-        });
       }
 
       const changed = currentVal !== defaultVal;
@@ -746,32 +685,10 @@ export function MonitorForm({
       : hasChanged || alertChanged;
 
     setFormChanged(Boolean(isFormReady));
-
-    // Debug form change detection
-    console.log("[FORM_DEBUG] Form change detection:", {
-      isNewMonitor,
-      hasRequiredFields,
-      hasChanged,
-      alertChanged,
-      isFormReady,
-      formChanged: Boolean(isFormReady),
-      watchedValues: JSON.stringify(watchedValues, null, 2),
-    });
   }, [watchedValues, initialData, editMode, alertConfig, initialAlertConfig]);
 
   async function onSubmit(data: FormValues) {
     setIsSubmitting(true);
-
-    // Debug: Log form data to see what's being submitted
-    console.log("[FORM_DEBUG] Form submission data:", data);
-    console.log(
-      "[FORM_DEBUG] SSL Check Enabled:",
-      data.websiteConfig_enableSslCheck
-    );
-    console.log(
-      "[FORM_DEBUG] SSL Days Warning:",
-      data.websiteConfig_sslDaysUntilExpirationWarning
-    );
 
     // Convert form data to API format
     const apiData = {
@@ -901,17 +818,9 @@ export function MonitorForm({
       if (sslCheckEnabled) {
         apiData.config.sslDaysUntilExpirationWarning =
           data.websiteConfig_sslDaysUntilExpirationWarning || 30;
-        console.log("[FORM_DEBUG] SSL Config enabled:", {
-          enableSslCheck: apiData.config.enableSslCheck,
-          sslDaysUntilExpirationWarning:
-            apiData.config.sslDaysUntilExpirationWarning,
-        });
       } else {
         // When SSL is disabled, still set the field explicitly but remove the warning days to clean up config
         delete apiData.config.sslDaysUntilExpirationWarning;
-        console.log("[FORM_DEBUG] SSL Config disabled:", {
-          enableSslCheck: apiData.config.enableSslCheck,
-        });
       }
     } else if (data.type === "port_check") {
       apiData.config = {
@@ -959,13 +868,6 @@ export function MonitorForm({
 
       // For creation mode, check if we should show alerts or save directly
       if (!editMode && !hideAlerts && searchParams.get("tab") === "alerts") {
-        console.log(
-          "[FORM_DEBUG] Creation mode: storing monitor data for alerts step"
-        );
-        console.log(
-          "[FORM_DEBUG] API Data to store:",
-          JSON.stringify(apiData, null, 2)
-        );
         setMonitorData({ formData: data, apiData });
         setShowAlerts(true);
         setIsSubmitting(false);
@@ -999,11 +901,6 @@ export function MonitorForm({
       const saveData = includeAlerts ? { ...apiData, alertConfig } : apiData;
       const endpoint = editMode ? `/api/monitors/${id}` : "/api/monitors";
       const method = editMode ? "PUT" : "POST";
-
-      console.log("[FORM_DEBUG] Saving to API:");
-      console.log("[FORM_DEBUG] Endpoint:", endpoint);
-      console.log("[FORM_DEBUG] Method:", method);
-      console.log("[FORM_DEBUG] Save Data:", JSON.stringify(saveData, null, 2));
 
       const response = await fetch(endpoint, {
         method,
@@ -1096,20 +993,12 @@ export function MonitorForm({
         "apiData" in monitorData
           ? (monitorData as { apiData: Record<string, unknown> }).apiData
           : monitorData;
-      console.log(
-        "[FORM_DEBUG] Final submit with monitor data:",
-        JSON.stringify(apiDataToSave, null, 2)
-      );
       await handleDirectSave(apiDataToSave, true);
     } else if (editMode && id) {
       // If we're just updating alerts for an existing monitor without form data changes
       const alertOnlyData = {
         alertConfig: alertConfig,
       };
-      console.log(
-        "[FORM_DEBUG] Alert-only update:",
-        JSON.stringify(alertOnlyData, null, 2)
-      );
       await handleDirectSave(alertOnlyData, true);
     }
   }
@@ -1970,13 +1859,6 @@ export function MonitorForm({
                                   <Switch
                                     checked={field.value}
                                     onCheckedChange={(checked) => {
-                                      console.log(
-                                        "[FORM_DEBUG] SSL Check field changed:",
-                                        {
-                                          oldValue: field.value,
-                                          newValue: checked,
-                                        }
-                                      );
                                       field.onChange(checked);
                                     }}
                                   />
@@ -2007,14 +1889,6 @@ export function MonitorForm({
                                         const newValue = e.target.value
                                           ? parseInt(e.target.value)
                                           : 30;
-                                        console.log(
-                                          "[FORM_DEBUG] SSL Days field changed:",
-                                          {
-                                            oldValue: field.value,
-                                            newValue,
-                                            inputValue: e.target.value,
-                                          }
-                                        );
                                         field.onChange(newValue);
                                       }}
                                     />

@@ -135,28 +135,25 @@ export default function Variables() {
   };
 
   const handleSuccess = async () => {
-    // Refresh variables
-    if (currentProjectId) {
-      safeSetIsLoading(true);
-      try {
-        const response = await fetch(`/api/projects/${currentProjectId}/variables`);
-        const data = await response.json();
-        if (data.success) {
-          // Transform data to ensure faceted filtering works correctly
-          const transformedVariables = (data.data || []).map((variable: VariableApiResponse): Variable => ({
-            ...variable,
-            isSecret: String(variable.isSecret) // Convert boolean to string for faceted filtering
-          }));
-          safeSetVariables(transformedVariables);
-          setCanCreateEdit(data.canCreateEdit || false);
-          setCanDelete(data.canDelete || false);
-          setCanViewSecrets(data.canViewSecrets || false);
-        }
-      } catch (error) {
-        console.error('Error refreshing variables:', error);
-      } finally {
-        safeSetIsLoading(false);
+    // Fetch fresh data from server after successful form submission
+    if (!currentProjectId) return;
+
+    try {
+      const response = await fetch(`/api/projects/${currentProjectId}/variables`);
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        const transformedVariables = (data.data || []).map((variable: VariableApiResponse): Variable => ({
+          ...variable,
+          isSecret: String(variable.isSecret)
+        }));
+        safeSetVariables(transformedVariables);
+        setCanCreateEdit(data.canCreateEdit || false);
+        setCanDelete(data.canDelete || false);
+        setCanViewSecrets(data.canViewSecrets || false);
       }
+    } catch (error) {
+      console.error('Error refreshing variables:', error);
     }
   };
 

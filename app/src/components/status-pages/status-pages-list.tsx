@@ -27,7 +27,6 @@ import {
   ExternalLink,
   Settings,
   Trash2,
-  Globe,
   Copy,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -272,7 +271,7 @@ export default function StatusPagesList() {
           {statusPages.map((page) => (
             <div
               key={page.id}
-              className="border rounded-lg p-4 hover:border-primary transition-colors"
+              className="border rounded-lg p-4 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
@@ -292,7 +291,7 @@ export default function StatusPagesList() {
 
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Globe className="h-4 w-4 flex-shrink-0" />
+                  <Tally4 className="h-4 w-4 flex-shrink-0 !text-green-600" />
                   <code className="text-xs bg-muted px-2 py-1 rounded truncate flex-1">
                     {page.subdomain}.{getBaseDomain()}
                   </code>

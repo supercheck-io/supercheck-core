@@ -74,8 +74,8 @@ export class S3Service implements OnModuleInit {
       5000,
     );
 
-    this.logger.log(
-      `Initializing S3 client: endpoint=${this.s3Endpoint}, job bucket=${this.jobBucketName}, test bucket=${this.testBucketName}, monitor bucket=${this.monitorBucketName}, status bucket=${this.statusBucketName}, region=${region}`,
+    this.logger.debug(
+      `S3 initialized with buckets: job=${this.jobBucketName}, test=${this.testBucketName}, monitor=${this.monitorBucketName}, status=${this.statusBucketName}`,
     );
 
     this.s3Client = new S3Client({
@@ -88,31 +88,17 @@ export class S3Service implements OnModuleInit {
   }
 
   async onModuleInit() {
-    this.logger.log(
-      'S3Service onModuleInit() called - starting bucket initialization',
-    );
     try {
       // Ensure all buckets exist
-      this.logger.log(`Ensuring job bucket exists: ${this.jobBucketName}`);
       await this.ensureBucketExists(this.jobBucketName);
-
-      this.logger.log(`Ensuring test bucket exists: ${this.testBucketName}`);
       await this.ensureBucketExists(this.testBucketName);
-
-      this.logger.log(
-        `Ensuring monitor bucket exists: ${this.monitorBucketName}`,
-      );
       await this.ensureBucketExists(this.monitorBucketName);
-
-      this.logger.log(
-        `Ensuring status bucket exists: ${this.statusBucketName}`,
-      );
       await this.ensureBucketExists(this.statusBucketName);
 
-      this.logger.log('S3Service bucket initialization completed successfully');
+      this.logger.log('S3 buckets initialized successfully');
     } catch (error) {
       this.logger.error(
-        `S3Service onModuleInit() failed: ${getErrorMessage(error)}`,
+        `S3 bucket initialization failed: ${getErrorMessage(error)}`,
         getErrorStack(error),
       );
       // Don't throw - let the service continue even if bucket creation fails
@@ -162,7 +148,6 @@ export class S3Service implements OnModuleInit {
   }
 
   async ensureBucketExists(bucketName: string): Promise<void> {
-    this.logger.debug(`Checking if bucket exists: ${bucketName}`);
     try {
       await this.withRetry(
         () =>
@@ -171,16 +156,12 @@ export class S3Service implements OnModuleInit {
           ),
         `Check bucket ${bucketName} existence`,
       );
-      this.logger.log(`Bucket '${bucketName}' already exists.`);
     } catch (error: unknown) {
       const awsError = error as { name?: string; Code?: string };
       if (
         awsError?.name === 'NoSuchBucket' ||
         awsError?.Code === 'NoSuchBucket'
       ) {
-        this.logger.warn(
-          `Bucket '${bucketName}' does not exist. Attempting to create...`,
-        );
         try {
           await this.withRetry(
             () =>
@@ -189,7 +170,6 @@ export class S3Service implements OnModuleInit {
               ),
             `Create bucket ${bucketName}`,
           );
-          this.logger.log(`Bucket '${bucketName}' created successfully.`);
         } catch (createError: unknown) {
           // Handle the case where bucket was created by another process
           const createAwsError = createError as {
@@ -207,9 +187,7 @@ export class S3Service implements OnModuleInit {
               'Your previous request to create the named bucket succeeded',
             )
           ) {
-            this.logger.log(
-              `Bucket '${bucketName}' already exists (created by another process).`,
-            );
+            // Bucket already exists, which is fine
           } else {
             this.logger.error(
               `Failed to create bucket '${bucketName}': ${getErrorMessage(createError)}`,
@@ -307,13 +285,10 @@ export class S3Service implements OnModuleInit {
       throw err;
     }
 
-    // List directory contents to debug
+    // Check directory contents
     let files: string[] = [];
     try {
       files = await fs.readdir(localDirPath);
-      this.logger.log(
-        `[S3 UPLOAD] Directory contents (${files.length} items): ${files.join(', ')}`,
-      );
 
       if (files.length === 0) {
         this.logger.warn(
@@ -336,7 +311,6 @@ export class S3Service implements OnModuleInit {
           ),
         `Check bucket ${targetBucket} before upload`,
       );
-      this.logger.log(`[S3 UPLOAD] Verified bucket '${targetBucket}' exists.`);
     } catch (error) {
       this.logger.warn(
         `[S3 UPLOAD] Bucket '${targetBucket}' verification failed, attempting to create it: ${getErrorMessage(error)}`,
