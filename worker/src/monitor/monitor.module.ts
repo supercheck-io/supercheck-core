@@ -13,6 +13,7 @@ import { EnhancedValidationService } from '../common/validation/enhanced-validat
 import { CredentialSecurityService } from '../common/security/credential-security.service';
 import { StandardizedErrorHandler } from '../common/errors/standardized-error-handler';
 import { ResourceManagerService } from '../common/resources/resource-manager.service';
+import { LocationModule } from '../common/location/location.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ResourceManagerService } from '../common/resources/resource-manager.ser
     DbModule,
     NotificationModule,
     ExecutionModule,
+    LocationModule,
   ],
   providers: [
     MonitorService,

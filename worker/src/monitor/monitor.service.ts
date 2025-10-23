@@ -31,6 +31,12 @@ import {
   ErrorContext,
 } from '../common/errors/standardized-error-handler';
 import { ResourceManagerService } from '../common/resources/resource-manager.service';
+import {
+  LocationService,
+  MonitoringLocation,
+  LocationConfig,
+  MONITORING_LOCATIONS,
+} from '../common/location/location.service';
 
 // Placeholder for actual execution libraries (axios, ping, net, dns, playwright-runner)
 
@@ -282,10 +288,12 @@ export class MonitorService {
     private readonly errorHandler: StandardizedErrorHandler,
     private readonly resourceManager: ResourceManagerService,
     private readonly executionService: ExecutionService,
+    private readonly locationService: LocationService,
   ) {}
 
   async executeMonitor(
     jobData: MonitorJobDataDto,
+    location: MonitoringLocation = MONITORING_LOCATIONS.US_EAST,
   ): Promise<MonitorExecutionResult | null> {
     // Removed log - only log warnings, errors, and status changes
 
@@ -301,6 +309,7 @@ export class MonitorService {
         );
         return {
           monitorId: jobData.monitorId,
+          location,
           status: 'error',
           checkedAt: new Date(),
           responseTimeMs: undefined,
@@ -494,12 +503,22 @@ export class MonitorService {
       }
     }
 
+    // Add simulated location delay for realistic multi-location behavior
+    const locationDelay = this.locationService.getSimulatedLocationDelay(location);
+    if (locationDelay > 0 && responseTimeMs !== undefined) {
+      responseTimeMs += locationDelay;
+    }
+
     const result: MonitorExecutionResult = {
       monitorId: jobData.monitorId,
+      location,
       status,
       checkedAt: new Date(),
       responseTimeMs,
-      details,
+      details: {
+        ...details,
+        location: this.locationService.getLocationDisplayName(location),
+      },
       isUp,
       error: executionError,
       testExecutionId,
@@ -510,6 +529,131 @@ export class MonitorService {
     // The processor will handle sending this result back to the Next.js app.
     // Removed log - only log status changes below in saveMonitorResult
     return result;
+  }
+
+  /**
+   * Execute monitor from multiple locations if multi-location monitoring is enabled.
+   * Returns array of results, one for each location.
+   */
+  async executeMonitorWithLocations(
+    jobData: MonitorJobDataDto,
+  ): Promise<MonitorExecutionResult[]> {
+    const monitor = await this.dbService.db.query.monitors.findFirst({
+      where: (monitors, { eq }) => eq(monitors.id, jobData.monitorId),
+    });
+
+    if (!monitor) {
+      this.logger.warn(
+        `Monitor ${jobData.monitorId} not found, returning single default location result`,
+      );
+      const result = await this.executeMonitor(jobData);
+      return result ? [result] : [];
+    }
+
+    // Get effective locations from monitor configuration
+    const config = monitor.config as LocationConfig | null;
+    const locations = this.locationService.getEffectiveLocations(config);
+
+    this.logger.debug(
+      `Executing monitor ${jobData.monitorId} from ${locations.length} location(s): ${locations.join(', ')}`,
+    );
+
+    // Execute from all locations in parallel
+    const results = await Promise.all(
+      locations.map((location) => this.executeMonitor(jobData, location)),
+    );
+
+    // Filter out null results (paused monitors)
+    return results.filter((r) => r !== null) as MonitorExecutionResult[];
+  }
+
+  /**
+   * Save results from multiple locations and calculate aggregated status.
+   */
+  async saveMonitorResults(results: MonitorExecutionResult[]): Promise<void> {
+    if (results.length === 0) {
+      this.logger.warn('No results to save');
+      return;
+    }
+
+    const monitorId = results[0].monitorId;
+    const monitor = await this.getMonitorById(monitorId);
+
+    if (!monitor) {
+      this.logger.warn(`Monitor ${monitorId} not found, skipping save`);
+      return;
+    }
+
+    // Save all location results in parallel
+    await Promise.all(
+      results.map((result) => this.saveMonitorResultToDb(result)),
+    );
+
+    // Calculate aggregated status
+    const config = monitor.config as LocationConfig | null;
+    const locationStatuses: Record<MonitoringLocation, boolean> = {};
+
+    results.forEach((result) => {
+      locationStatuses[result.location as MonitoringLocation] = result.isUp;
+    });
+
+    // Determine overall status based on threshold
+    let overallStatus: 'up' | 'down' = 'down';
+    if (config && config.enabled && config.locations && config.locations.length > 0) {
+      const aggregatedStatus = this.locationService.calculateAggregatedStatus(
+        locationStatuses,
+        config,
+      );
+      overallStatus = aggregatedStatus === 'partial' ? 'up' : aggregatedStatus;
+
+      this.logger.debug(
+        `Aggregated status for monitor ${monitorId}: ${aggregatedStatus} (${Object.values(locationStatuses).filter(Boolean).length}/${results.length} locations up)`,
+      );
+    } else {
+      // Single location mode - use the first result
+      overallStatus = results[0].isUp ? 'up' : 'down';
+    }
+
+    // Update monitor status with aggregated result
+    const previousStatus = monitor.status;
+    const checkedAt = results[0].checkedAt;
+
+    await this.updateMonitorStatus(monitorId, overallStatus, checkedAt);
+
+    // Handle alerts based on aggregated status
+    const currentStatus = overallStatus;
+    if (previousStatus !== currentStatus) {
+      this.logger.log(
+        `Monitor ${monitorId} status changed: ${previousStatus} -> ${currentStatus}`,
+      );
+
+      // Send alerts if configured
+      if (monitor.alertConfig?.enabled) {
+        const type = currentStatus === 'up' ? 'recovery' : 'failure';
+        const reason =
+          type === 'failure'
+            ? `Monitor is down in ${results.filter((r) => !r.isUp).length}/${results.length} locations`
+            : 'Monitor has recovered';
+
+        const avgResponseTime =
+          results.reduce((sum, r) => sum + (r.responseTimeMs || 0), 0) /
+          results.length;
+
+        await this.monitorAlertService.sendNotification(
+          monitorId,
+          type,
+          reason,
+          {
+            responseTime: avgResponseTime,
+            locationResults: results.map((r) => ({
+              location: r.location,
+              isUp: r.isUp,
+              responseTime: r.responseTimeMs,
+            })),
+          },
+        );
+      }
+    }
   }
 
   async saveMonitorResult(resultData: MonitorExecutionResult): Promise<void> {
@@ -1941,6 +2085,7 @@ export class MonitorService {
 
       await this.dbService.db.insert(schema.monitorResults).values({
         monitorId: resultData.monitorId,
+        location: resultData.location,
         checkedAt: resultData.checkedAt,
         status: resultData.status,
         responseTimeMs: resultData.responseTimeMs,

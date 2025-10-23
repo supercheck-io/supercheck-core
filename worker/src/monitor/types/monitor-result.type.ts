@@ -8,6 +8,7 @@ export { MonitorResultStatus, MonitorResultDetails };
 
 export type MonitorExecutionResult = {
   monitorId: string;
+  location: string; // Monitoring location (e.g., 'us-east', 'eu-west')
   status: MonitorResultStatus;
   checkedAt: Date;
   responseTimeMs?: number;

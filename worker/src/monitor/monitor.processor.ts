@@ -18,11 +18,11 @@ export class MonitorProcessor extends WorkerHost {
   }
 
   async process(
-    job: Job<MonitorJobDataDto, MonitorExecutionResult | null, string>,
-  ): Promise<MonitorExecutionResult | null> {
+    job: Job<MonitorJobDataDto, MonitorExecutionResult[], string>,
+  ): Promise<MonitorExecutionResult[]> {
     if (job.name === EXECUTE_MONITOR_JOB_NAME) {
-      // Removed log - only log errors and important events
-      return this.monitorService.executeMonitor(job.data);
+      // Execute monitor from configured locations (single or multiple)
+      return this.monitorService.executeMonitorWithLocations(job.data);
     }
 
     this.logger.warn(
@@ -32,16 +32,17 @@ export class MonitorProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('completed')
-  onCompleted(job: Job, result: MonitorExecutionResult) {
-    // Removed log - only log errors and important events
-    if (result) {
-      // Debug: Log the result object to see what BullMQ is passing
-      if (result.testExecutionId) {
+  onCompleted(job: Job, results: MonitorExecutionResult[]) {
+    // Save all location results with aggregation
+    if (results && results.length > 0) {
+      // Debug: Log synthetic test results if present
+      const syntheticResults = results.filter((r) => r.testExecutionId);
+      if (syntheticResults.length > 0) {
         this.logger.log(
-          `[PROCESSOR] Monitor result has testExecutionId: ${result.testExecutionId}, testReportS3Url: ${result.testReportS3Url}`,
+          `[PROCESSOR] Saving ${syntheticResults.length} synthetic test result(s) from ${results.length} location(s)`,
         );
       }
-      void this.monitorService.saveMonitorResult(result);
+      void this.monitorService.saveMonitorResults(results);
     }
   }
 
