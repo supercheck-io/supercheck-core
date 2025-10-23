@@ -20,11 +20,12 @@ export async function GET(
   const page = parseInt(searchParams.get('page') || '1', 10);
   const limit = parseInt(searchParams.get('limit') || '10', 10);
   const dateFilter = searchParams.get('date'); // YYYY-MM-DD format
+  const locationFilter = searchParams.get('location'); // Optional location filter
 
   // Validate pagination parameters
   if (page < 1 || limit < 1 || limit > 100) {
-    return NextResponse.json({ 
-      error: "Invalid pagination parameters. Page must be >= 1, limit must be 1-100" 
+    return NextResponse.json({
+      error: "Invalid pagination parameters. Page must be >= 1, limit must be 1-100"
     }, { status: 400 });
   }
 
@@ -76,14 +77,21 @@ export async function GET(
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
 
-    // Build where condition
-    const whereCondition = dateFilter
-      ? and(
-          eq(monitorResults.monitorId, id),
-          gte(monitorResults.checkedAt, new Date(dateFilter + 'T00:00:00.000Z')),
-          lte(monitorResults.checkedAt, new Date(dateFilter + 'T23:59:59.999Z'))
-        )
-      : eq(monitorResults.monitorId, id);
+    // Build where condition with optional date and location filters
+    const conditions = [eq(monitorResults.monitorId, id)];
+
+    if (dateFilter) {
+      conditions.push(
+        gte(monitorResults.checkedAt, new Date(dateFilter + 'T00:00:00.000Z')),
+        lte(monitorResults.checkedAt, new Date(dateFilter + 'T23:59:59.999Z'))
+      );
+    }
+
+    if (locationFilter) {
+      conditions.push(eq(monitorResults.location, locationFilter));
+    }
+
+    const whereCondition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     // Get total count for pagination metadata
     const [{ count: totalCount }] = await db
