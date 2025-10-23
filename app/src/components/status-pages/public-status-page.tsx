@@ -14,7 +14,6 @@ import {
 import { format, subDays, startOfDay, isSameDay } from "date-fns";
 import { SubscribeDialog } from "./subscribe-dialog";
 import Link from "next/link";
-import { useStatusPageFavicon } from "./use-status-page-favicon";
 
 type ComponentStatus =
   | "operational"
@@ -91,8 +90,6 @@ export function PublicStatusPage({
 }: PublicStatusPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const DAYS_PER_PAGE = 7;
-
-  useStatusPageFavicon(statusPage.faviconLogo);
 
   // Calculate overall system status from components
   const calculateSystemStatus = () => {
