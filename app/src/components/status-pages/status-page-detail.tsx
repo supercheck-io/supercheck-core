@@ -199,7 +199,7 @@ export function StatusPageDetail({
               </p>
             )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-3">
-              <Tally4 className="h-4 w-4 flex-shrink-0" />
+              <Tally4 className="h-4 w-4 flex-shrink-0 !text-green-600" />
               <span className="font-mono text-sm">
                 {getStatusPageUrl(statusPage.subdomain)}
               </span>
@@ -226,7 +226,9 @@ export function StatusPageDetail({
                 size="sm"
                 onClick={handleUnpublish}
                 disabled={isPublishing || !canUpdate}
-                title={!canUpdate ? "You don't have permission to unpublish" : ""}
+                title={
+                  !canUpdate ? "You don't have permission to unpublish" : ""
+                }
               >
                 {isPublishing ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -236,7 +238,12 @@ export function StatusPageDetail({
                 Unpublish
               </Button>
             ) : (
-              <Button size="sm" onClick={handlePublish} disabled={isPublishing || !canUpdate} title={!canUpdate ? "You don't have permission to publish" : ""}>
+              <Button
+                size="sm"
+                onClick={handlePublish}
+                disabled={isPublishing || !canUpdate}
+                title={!canUpdate ? "You don't have permission to publish" : ""}
+              >
                 {isPublishing ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (

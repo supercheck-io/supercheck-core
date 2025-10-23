@@ -345,7 +345,7 @@ export function SubscribersTab({ statusPageId }: SubscribersTabProps) {
 
             {/* Pagination Controls */}
             {filteredSubscribers.length > 0 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t px-2">
+              <div className="flex items-center justify-between mt-4 px-2">
                 <div className="flex-1 text-sm text-muted-foreground">
                   Total {filteredSubscribers.length} subscribers
                 </div>

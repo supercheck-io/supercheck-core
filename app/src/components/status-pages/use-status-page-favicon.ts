@@ -34,7 +34,12 @@ export function useStatusPageFavicon(faviconLogo?: string | null) {
       return null;
     }
 
-    const cacheBuster = `v=${Date.now()}`;
+    // Use multiple cache-busting techniques:
+    // 1. Current timestamp for uniqueness
+    // 2. Random component to prevent aggressive caching
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    const cacheBuster = `v=${timestamp}-${random}`;
     const separator = faviconLogo.includes("?") ? "&" : "?";
     return `${faviconLogo}${separator}${cacheBuster}`;
   }, [faviconLogo]);

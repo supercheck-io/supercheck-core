@@ -244,13 +244,25 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
               {paginatedIncidents.map((incident) => (
                 <div
                   key={incident.id}
-                  className="border rounded-lg p-3 hover:border-primary transition-colors hover:bg-muted/30"
+                  className="border rounded-lg p-3 hover:shadow-md transition-all duration-200 hover:bg-muted/30"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <h4 className="font-semibold text-sm truncate">{incident.name}</h4>
+                      <div className="flex items-center gap-8 mb-1">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <h4 className="font-semibold text-sm truncate">{incident.name}</h4>
+                        </div>
+                        {incident.affectedComponents && incident.affectedComponents.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {incident.affectedComponents.map((component) => (
+                              <Badge key={component.id} variant="secondary" className="text-xs px-2 py-0.5 flex items-center gap-1">
+                                <Component className="h-3 w-3" />
+                                {component.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <Badge className={`${getStatusBadgeColor(incident.status)} text-xs px-2 py-0.5`}>
@@ -265,7 +277,6 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
                           <p className="truncate">{incident.latestUpdate.body}</p>
                         )}
                         <div className="flex items-center gap-3 flex-wrap">
-                          <span>{incident.affectedComponentsCount} component{incident.affectedComponentsCount !== 1 ? 's' : ''}</span>
                           {incident.createdAt && (
                             <span>Created {formatDistanceToNow(new Date(incident.createdAt), { addSuffix: true })}</span>
                           )}
@@ -274,16 +285,6 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
                           )}
                         </div>
                       </div>
-                      {incident.affectedComponents && incident.affectedComponents.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {incident.affectedComponents.map((component) => (
-                            <Badge key={component.id} variant="secondary" className="text-xs px-2 py-0.5 flex items-center gap-1">
-                              <Component className="h-3 w-3" />
-                              {component.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       <Button
@@ -312,7 +313,7 @@ export function IncidentsTab({ statusPageId, components }: IncidentsTabProps) {
 
             {/* Pagination Controls */}
             {incidents.length > 0 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t px-2">
+              <div className="flex items-center justify-between mt-4 px-2">
                 <div className="flex-1 text-sm text-muted-foreground">
                   Total {incidents.length} incidents
                 </div>

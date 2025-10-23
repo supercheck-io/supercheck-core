@@ -11,7 +11,6 @@ import {
   LaptopMinimal,
   ChartColumn,
   CalendarClock,
-  NotepadText,
   Chrome,
   ArrowLeftRight,
   Database,
@@ -20,6 +19,7 @@ import {
   EthernetPort,
   Variable,
   Tally4,
+  RefreshCw,
 } from "lucide-react";
 import { PlaywrightLogo } from "@/components/logo/playwright-logo";
 
@@ -169,7 +169,7 @@ export function CommandSearch({ className }: CommandSearchProps) {
                   <span>Jobs</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("runs")}>
-                  <NotepadText className="mr-2 h-4 w-4 !text-teal-600" />
+                  <RefreshCw className="mr-2 h-4 w-4 !text-teal-600" />
                   <span>Runs</span>
                 </CommandItem>
                 <CommandItem onSelect={() => handleCommand("variables")}>

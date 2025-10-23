@@ -272,7 +272,7 @@ export function ComponentsTab({
                 {paginatedComponents.map((component) => (
                   <div
                     key={component.id}
-                    className="border rounded-lg p-3 hover:border-primary transition-colors hover:bg-muted/30"
+                    className="border rounded-lg p-3 hover:shadow-md transition-all duration-200 hover:bg-muted/30"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -352,7 +352,7 @@ export function ComponentsTab({
 
               {/* Pagination Controls */}
               {components.length > 0 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t px-2">
+                <div className="flex items-center justify-between mt-4 px-2">
                   <div className="flex-1 text-sm text-muted-foreground">
                     Total {components.length} components
                   </div>

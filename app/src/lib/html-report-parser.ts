@@ -235,19 +235,8 @@ export class HTMLReportParser {
 
     // Enhanced body text parsing for common Playwright error patterns - MORE AGGRESSIVE
     if (errors.length === 0) {
-      console.log(
-        "[HTML Parser Debug] No errors found via selectors, parsing body text aggressively"
-      );
       const bodyText = document.body?.textContent || "";
       const innerHTML = document.body?.innerHTML || "";
-      console.log("[HTML Parser Debug] Body text length:", bodyText.length);
-      console.log("[HTML Parser Debug] Body HTML length:", innerHTML.length);
-
-      // Log a sample of the body text to understand content structure
-      console.log(
-        "[HTML Parser Debug] Body text sample (first 1000 chars):",
-        bodyText.substring(0, 1000)
-      );
 
       // Check if it's a proper Playwright report by looking for structural elements
       const playwrightStructure = {
@@ -267,11 +256,6 @@ export class HTMLReportParser {
           bodyText.toLowerCase().includes("playwright") &&
           bodyText.toLowerCase().includes("report"),
       };
-
-      console.log(
-        "[HTML Parser Debug] Playwright structure analysis:",
-        playwrightStructure
-      );
 
       // More comprehensive error patterns for Playwright reports
       const errorPatterns = [
@@ -313,21 +297,12 @@ export class HTMLReportParser {
       ];
 
       let foundError = false;
-      let matchedPattern = "";
       for (const pattern of errorPatterns) {
         if (pattern.test(bodyText)) {
           foundError = true;
-          matchedPattern = pattern.toString();
           break;
         }
       }
-
-      console.log(
-        "[HTML Parser Debug] Found error pattern:",
-        foundError,
-        "Pattern:",
-        matchedPattern
-      );
 
       // Even more aggressive - check for any test failure indicators
       if (!foundError) {
@@ -343,10 +318,6 @@ export class HTMLReportParser {
         for (const indicator of failureIndicators) {
           if (bodyText.includes(indicator)) {
             foundError = true;
-            console.log(
-              "[HTML Parser Debug] Found failure indicator:",
-              indicator
-            );
             break;
           }
         }
@@ -359,10 +330,6 @@ export class HTMLReportParser {
       ) {
         // Try to extract specific error lines more aggressively
         const lines = bodyText.split("\n");
-        console.log(
-          "[HTML Parser Debug] Total lines to analyze:",
-          lines.length
-        );
 
         const errorLines = lines.filter((line) => {
           const trimmed = line.trim();
@@ -383,15 +350,6 @@ export class HTMLReportParser {
               /toBe/i.test(trimmed))
           );
         });
-
-        console.log(
-          "[HTML Parser Debug] Found error lines:",
-          errorLines.length
-        );
-        console.log(
-          "[HTML Parser Debug] Sample error lines:",
-          errorLines.slice(0, 3)
-        );
 
         // Extract multiple error messages if available
         if (errorLines.length > 0) {
@@ -414,10 +372,6 @@ export class HTMLReportParser {
         } else {
           // Last resort - create a general error from body text
           const fallbackMessage = this.extractFallbackErrorMessage(bodyText);
-          console.log(
-            "[HTML Parser Debug] Using fallback error message:",
-            fallbackMessage
-          );
 
           errors.push({
             message: fallbackMessage,
@@ -427,17 +381,12 @@ export class HTMLReportParser {
           });
         }
       } else {
-        console.log("[HTML Parser Debug] No error patterns found in body text");
-
         // Ultimate fallback - if it's a Playwright report but we can't find errors,
         // check if it's a JavaScript-heavy report that needs DOM parsing
         if (
           playwrightStructure.hasScript &&
           playwrightStructure.hasPlaywrightTitle
         ) {
-          console.log(
-            "[HTML Parser Debug] Detected JavaScript-heavy Playwright report, trying script content extraction"
-          );
 
           // Try to extract from script tags that might contain test data
           const scriptElements = document.querySelectorAll("script");
@@ -455,11 +404,6 @@ export class HTMLReportParser {
           });
 
           if (scriptContent.length > 100) {
-            console.log(
-              "[HTML Parser Debug] Found script content with test data, length:",
-              scriptContent.length
-            );
-
             // Parse the script content for error information
             const scriptErrorMessage =
               this.extractErrorFromScript(scriptContent);
@@ -482,10 +426,6 @@ export class HTMLReportParser {
             innerHTML.includes("failed") ||
             innerHTML.includes("error"))
         ) {
-          console.log(
-            "[HTML Parser Debug] Forcing generic error for detected failure"
-          );
-
           errors.push({
             message:
               "Test failed - specific error details not extracted from HTML report",
@@ -500,10 +440,6 @@ export class HTMLReportParser {
       }
     }
 
-    console.log(
-      "[HTML Parser Debug] Final extracted errors count:",
-      errors.length
-    );
     return errors;
   }
 

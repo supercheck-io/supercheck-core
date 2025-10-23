@@ -107,8 +107,7 @@ const formatDateTime = (dateTimeInput?: string | Date): string => {
         ? parseISO(dateTimeInput)
         : dateTimeInput;
     return formatDistanceToNow(date, { addSuffix: true });
-  } catch (error) {
-    console.warn("Failed to format date:", dateTimeInput, error);
+  } catch {
     return "Invalid date";
   }
 };
@@ -182,12 +181,6 @@ export function MonitorDetailClient({
   // Function to fetch paginated results
   const fetchPaginatedResults = useCallback(
     async (page: number, dateFilter?: Date) => {
-      console.log(
-        "[Monitor Results] Fetching page:",
-        page,
-        "with date filter:",
-        dateFilter
-      );
       setIsLoadingResults(true);
       try {
         const params = new URLSearchParams({
@@ -205,12 +198,6 @@ export function MonitorDetailClient({
         );
         if (response.ok) {
           const data = await response.json();
-          console.log("[Monitor Results] API Response:", data);
-          console.log("[Monitor Results] First result:", data.data[0]);
-          console.log(
-            "[Monitor Results] First result details:",
-            data.data[0]?.details
-          );
           setPaginatedTableResults(data.data);
           setPaginationMeta(data.pagination);
         } else {
@@ -224,9 +211,6 @@ export function MonitorDetailClient({
     },
     [monitor.id, resultsPerPage]
   );
-
-  console.log("[MonitorDetailClient] Initial Monitor Prop:", initialMonitor);
-  console.log("[MonitorDetailClient] Monitor Results:", monitor.recentResults);
 
   // Fetch user permissions for this monitor
   useEffect(() => {
@@ -252,19 +236,11 @@ export function MonitorDetailClient({
   }, [monitor.id]);
 
   useEffect(() => {
-    console.log(
-      "[MonitorDetailClient] useEffect - initialMonitor changed:",
-      initialMonitor
-    );
     if (
       initialMonitor &&
       initialMonitor.recentResults &&
       !Array.isArray(initialMonitor.recentResults)
     ) {
-      console.warn(
-        "[MonitorDetailClient] initialMonitor.recentResults is not an array. Current value:",
-        initialMonitor.recentResults
-      );
       setMonitor({ ...initialMonitor, recentResults: [] });
     } else {
       setMonitor(initialMonitor);
@@ -277,8 +253,6 @@ export function MonitorDetailClient({
   useEffect(() => {
     fetchPaginatedResults(currentPage, selectedDate);
   }, [currentPage, selectedDate, fetchPaginatedResults]);
-
-  console.log("[MonitorDetailClient] Current Monitor State:", monitor);
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -351,13 +325,7 @@ export function MonitorDetailClient({
   // Note: Filtering is now handled server-side in the paginated API
 
   const responseTimeData = useMemo(() => {
-    console.log(
-      "[ResponseTimeData] Processing monitor results:",
-      monitor.recentResults
-    );
-
     if (!monitor.recentResults || monitor.recentResults.length === 0) {
-      console.log("[ResponseTimeData] No results available");
       return [];
     }
 
@@ -379,7 +347,6 @@ export function MonitorDetailClient({
       })
       .reverse(); // Show chronologically (oldest first)
 
-    console.log("[ResponseTimeData] Final chart data:", chartData);
     return chartData;
   }, [monitor.recentResults]);
 
@@ -477,22 +444,10 @@ export function MonitorDetailClient({
       : "down"
     : monitor.status;
 
-  console.log("[MonitorDetailClient] Latest Result:", latestResult);
-  console.log(
-    "[MonitorDetailClient] Current Actual Status:",
-    currentActualStatus
-  );
-
   const statusInfo = monitorStatuses.find(
     (s) => s.value === currentActualStatus
   );
   const monitorTypeInfo = monitorTypes.find((t) => t.value === monitor.type);
-
-  console.log("[MonitorDetailClient] Status Info (for display):", statusInfo);
-  console.log(
-    "[MonitorDetailClient] Monitor Type Info (for icon):",
-    monitorTypeInfo
-  );
 
   const currentResponseTime =
     latestResult &&
@@ -520,34 +475,23 @@ export function MonitorDetailClient({
 
   // Extract SSL certificate info for website monitors
   const sslCertificateInfo = useMemo(() => {
-    console.log("[SSL Debug] Monitor type:", monitor.type);
-    console.log("[SSL Debug] Monitor config:", monitor.config);
-    console.log("[SSL Debug] Recent results:", monitor.recentResults);
-
     if (monitor.type !== "website") {
-      console.log("[SSL Debug] Not a website monitor, skipping SSL check");
       return null;
     }
 
     // Check if SSL checking is currently enabled in monitor config
     const sslCheckEnabled = monitor.config?.enableSslCheck;
-    console.log("[SSL Debug] SSL Check enabled in config:", sslCheckEnabled);
 
     if (!sslCheckEnabled) {
-      console.log(
-        "[SSL Debug] SSL checking is disabled in monitor config, not showing SSL info"
-      );
       return null;
     }
 
     if (!monitor.recentResults || monitor.recentResults.length === 0) {
-      console.log("[SSL Debug] No recent results available");
       return null;
     }
 
     // Find the most recent result with SSL certificate data
     const resultWithSsl = monitor.recentResults.find((r) => {
-      console.log("[SSL Debug] Checking result:", r.id, "Details:", r.details);
       return (
         r.details &&
         typeof r.details === "object" &&
@@ -556,20 +500,16 @@ export function MonitorDetailClient({
       );
     });
 
-    console.log("[SSL Debug] Result with SSL:", resultWithSsl);
-
     if (
       !resultWithSsl ||
       !resultWithSsl.details ||
       !("sslCertificate" in resultWithSsl.details)
     ) {
-      console.log("[SSL Debug] No SSL certificate data found");
       return null;
     }
 
     const sslCert = resultWithSsl.details
       .sslCertificate as DBMonitorResultDetailsType["sslCertificate"];
-    console.log("[SSL Debug] SSL Certificate data:", sslCert);
 
     if (!sslCert) {
       return null;
@@ -583,10 +523,6 @@ export function MonitorDetailClient({
       subject: sslCert.subject,
     };
   }, [monitor.type, monitor.recentResults, monitor.config]);
-
-  // Debug alert configuration
-  console.log("[Alert Debug] Monitor alertConfig:", monitor.alertConfig);
-  console.log("[Alert Debug] Alert enabled:", monitor.alertConfig?.enabled);
 
   // Use pagination metadata from API
   const totalPages = paginationMeta?.totalPages || 0;
@@ -1182,12 +1118,6 @@ export function MonitorDetailClient({
                                     if (runTestId) {
                                       // Use API proxy route like playground does
                                       const apiUrl = `/api/test-results/${runTestId}/report/index.html?t=${Date.now()}&forceIframe=true`;
-                                      console.log(
-                                        "[Monitor Report] Opening report for run:",
-                                        runTestId,
-                                        "API URL:",
-                                        apiUrl
-                                      );
                                       setSelectedReportUrl(apiUrl);
                                       setReportModalOpen(true);
                                     } else {

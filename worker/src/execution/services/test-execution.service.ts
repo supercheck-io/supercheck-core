@@ -373,8 +373,6 @@ const { chromium } = require('@playwright/test');
 async function launchBrowserWithRetry(maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(\`Browser launch attempt \${attempt}/\${maxRetries}...\`);
-
       const browser = await chromium.launch({
         headless: true,
         args: [
@@ -401,7 +399,6 @@ async function launchBrowserWithRetry(maxRetries = 3) {
         timeout: 30000, // 30 second timeout for browser launch
       });
 
-      console.log('Browser launched successfully');
       return browser;
     } catch (error) {
       console.error(\`Browser launch attempt \${attempt} failed: \${error.message}\`);
@@ -412,7 +409,6 @@ async function launchBrowserWithRetry(maxRetries = 3) {
 
       // Exponential backoff: 1s, 2s, 4s
       const delay = Math.pow(2, attempt - 1) * 1000;
-      console.log(\`Retrying in \${delay}ms...\`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }

@@ -20,15 +20,7 @@ export async function sendIncidentNotifications(
   incidentId: string,
   statusPageId: string
 ) {
-  console.log(
-    `[Incident Notifications] STARTED sending notifications for incident ${incidentId} on status page ${statusPageId}`
-  );
-
   try {
-    console.log(
-      `[Incident Notifications] Sending notifications for incident ${incidentId} on status page ${statusPageId}`
-    );
-
     // Fetch incident details
     const incident = await db.query.incidents.findFirst({
       where: eq(incidents.id, incidentId),
@@ -47,9 +39,6 @@ export async function sendIncidentNotifications(
 
     // Check if notifications should be sent
     if (!incident.deliverNotifications) {
-      console.log(
-        `[Incident Notifications] Notifications disabled for incident ${incidentId}`
-      );
       return {
         success: true,
         message: "Notifications disabled for this incident",
@@ -75,9 +64,6 @@ export async function sendIncidentNotifications(
 
     // Check if email subscriptions are enabled
     if (!statusPage.allowEmailSubscribers) {
-      console.log(
-        `[Incident Notifications] Email subscriptions disabled for status page ${statusPageId}`
-      );
       return {
         success: true,
         message: "Email subscriptions not enabled for this status page",
@@ -109,31 +95,16 @@ export async function sendIncidentNotifications(
       ),
     });
 
-    console.log(
-      `[Incident Notifications] Found ${subscribers.length} total email subscribers (verified and unverified)`
-    );
-
     // Filter verified subscribers (have verifiedAt timestamp)
     const verifiedSubscribers = subscribers.filter((s) => s.verifiedAt !== null);
 
-    console.log(
-      `[Incident Notifications] Found ${verifiedSubscribers.length} verified email subscribers`
-    );
-
     if (verifiedSubscribers.length === 0) {
-      console.log(
-        `[Incident Notifications] No verified email subscribers for status page ${statusPageId}`
-      );
       return {
         success: true,
         message: "No verified subscribers to notify",
         sentCount: 0,
       };
     }
-
-    console.log(
-      `[Incident Notifications] Found ${verifiedSubscribers.length} verified subscribers`
-    );
 
     // Construct notification URLs
     const baseUrl =
@@ -191,9 +162,6 @@ export async function sendIncidentNotifications(
         });
 
         if (result.success) {
-          console.log(
-            `[Incident Notifications] Email sent successfully to ${subscriber.email}`
-          );
           return { success: true };
         } else {
           console.error(
@@ -224,8 +192,6 @@ export async function sendIncidentNotifications(
       failureCount === 0
         ? `Successfully sent ${successCount} notification emails`
         : `Sent ${successCount} emails successfully, ${failureCount} failed`;
-
-    console.log(`[Incident Notifications] ${message}`);
 
     return {
       success: failureCount === 0,

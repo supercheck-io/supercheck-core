@@ -531,14 +531,8 @@ export class ExecutionService implements OnModuleDestroy {
         const outputDir = path.join(runDir, `report-${testId.substr(0, 8)}`);
 
         if (existsSync(outputDir)) {
-          this.logger.log(
-            `[${testId}] Checking for HTML report in output directory: ${outputDir}`,
-          );
           try {
             const reportFiles = await fs.readdir(outputDir);
-            this.logger.log(
-              `[${testId}] Found files in output directory: ${reportFiles.join(', ')}`,
-            );
 
             // Look for index.html in the output directory
             if (reportFiles.includes('index.html')) {
@@ -676,17 +670,11 @@ export class ExecutionService implements OnModuleDestroy {
         const outputDir = path.join(runDir, `report-${testId.substr(0, 8)}`);
 
         if (existsSync(outputDir)) {
-          this.logger.log(
-            `[${testId}] Checking for HTML report in output directory: ${outputDir}`,
-          );
           try {
             const reportFiles = await fs.readdir(outputDir);
 
             // Look for index.html in the output directory
             if (reportFiles.includes('index.html')) {
-              this.logger.log(
-                `[${testId}] Found index.html in output directory for failure case, uploading report from ${outputDir}`,
-              );
               reportFound = true;
 
               try {
@@ -699,9 +687,6 @@ export class ExecutionService implements OnModuleDestroy {
                   testBucket,
                   executionId,
                   entityType,
-                );
-                this.logger.log(
-                  `[${testId}] Error report/artifacts uploaded to S3 prefix: ${s3ReportKeyPrefix}`,
                 );
 
                 // Clean up local report directory after successful upload
@@ -746,9 +731,6 @@ export class ExecutionService implements OnModuleDestroy {
                 testBucket,
                 executionId,
                 entityType,
-              );
-              this.logger.log(
-                `[${testId}] Error report/artifacts uploaded from default location to S3 prefix: ${s3ReportKeyPrefix}`,
               );
               reportFound = true;
 
@@ -1003,19 +985,10 @@ export class ExecutionService implements OnModuleDestroy {
       let reportFound = false;
 
       if (existsSync(reportDir)) {
-        this.logger.log(
-          `[${runId}] Checking for HTML report in output directory: ${reportDir}`,
-        );
         const reportFiles = await fs.readdir(reportDir);
-        this.logger.log(
-          `[${runId}] Found files in output directory: ${reportFiles.join(', ')}`,
-        );
 
         // Look for index.html in the output directory
         if (reportFiles.includes('index.html')) {
-          this.logger.log(
-            `[${runId}] Found index.html in output directory, uploading report from ${reportDir}`,
-          );
           reportFound = true;
 
           try {
@@ -1053,9 +1026,6 @@ export class ExecutionService implements OnModuleDestroy {
         const playwrightReportDir = path.join(runDir, 'pw-report');
 
         if (existsSync(playwrightReportDir)) {
-          this.logger.log(
-            `[${runId}] Found HTML report in default location: ${playwrightReportDir}`,
-          );
           try {
             // Process the report files to fix trace URLs before uploading
             await this._processReportFilesForS3(playwrightReportDir, runId);
@@ -1343,11 +1313,6 @@ export class ExecutionService implements OnModuleDestroy {
       // Add unique output dir for this execution - using consistent naming across job and test
       const outputDir = path.join(runDir, `report-${executionId}`);
       args.push(`--output=${outputDir}`);
-
-      this.logger.log(
-        `Running Playwright directly with command: ${command} ${args.join(' ')} and env vars:`,
-        envVars,
-      );
 
       // Execute the command with environment variables, ensuring correct CWD
       const execResult = await this._executeCommand(command, args, {
