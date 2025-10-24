@@ -180,14 +180,15 @@ export default function EditMonitorPage({ params }: { params: Promise<{ id: stri
   return (
     <div>
       <PageBreadcrumbs items={breadcrumbs} />
-      <MonitorForm 
-        initialData={formData} 
-        editMode={true} 
+      <MonitorForm
+        initialData={formData}
+        editMode={true}
         id={id}
         monitorType={formType}
         title={`Edit ${monitorTypeInfo?.label || 'Monitor'}`}
         description={`Update ${monitor.name} configuration`}
         alertConfig={monitor.alertConfig}
+        initialConfig={monitor.config}
       />
     </div>
   );

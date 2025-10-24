@@ -28,6 +28,9 @@ interface ResponseTimeChartDataPoint {
     fullDate?: string;
     isUp?: boolean;
     status?: string;
+    locationCode?: string | null;
+    locationName?: string | null;
+    locationFlag?: string | null;
 }
 
 interface ProcessedDataPoint extends ResponseTimeChartDataPoint {
@@ -59,6 +62,15 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
       <div className="bg-background border rounded-lg p-3 shadow-lg text-sm min-w-[160px]">
         <p className="font-medium mb-2 text-center">{displayDate}</p>
         <div className="space-y-1">
+          {(data.locationName || data.locationCode) && (
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Location:</span>
+              <span className="ml-3 font-medium text-right">
+                {data.locationFlag ? `${data.locationFlag} ` : ""}
+                {data.locationName || data.locationCode}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Status:</span>
             <div className="flex items-center">

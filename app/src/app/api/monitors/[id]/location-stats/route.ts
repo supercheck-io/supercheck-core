@@ -1,9 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/utils/db";
-import { monitors, monitorResults } from "@/db/schema/schema";
+import {
+  monitors,
+  monitorResults,
+} from "@/db/schema/schema";
 import { eq, and, gte, sql, desc } from "drizzle-orm";
-import { requireAuth, hasPermission, getUserOrgRole } from "@/lib/rbac/middleware";
+import {
+  requireAuth,
+  hasPermission,
+  getUserOrgRole,
+} from "@/lib/rbac/middleware";
 import { isSuperAdmin } from "@/lib/admin";
+import type {
+  MonitorResultStatus,
+  MonitoringLocation,
+} from "@/db/schema/schema";
+
+type LocationSummary = {
+  location: MonitoringLocation;
+  totalChecks: number;
+  upChecks: number;
+  uptimePercentage: number;
+  avgResponseTime: number | null;
+  minResponseTime: number | null;
+  maxResponseTime: number | null;
+};
+
+type LatestMonitorResult = {
+  location: MonitoringLocation;
+  checkedAt: Date | null;
+  status: MonitorResultStatus;
+  isUp: boolean;
+  responseTimeMs: number | null;
+};
 
 /**
  * GET /api/monitors/[id]/location-stats
@@ -105,8 +134,8 @@ export async function GET(
       .groupBy(monitorResults.location);
 
     // Calculate uptime percentage for each location
-    const stats = locationStats.map((stat) => ({
-      location: stat.location,
+    const stats: LocationSummary[] = locationStats.map((stat) => ({
+      location: stat.location as MonitoringLocation,
       totalChecks: Number(stat.totalChecks),
       upChecks: Number(stat.upChecks),
       uptimePercentage:
@@ -133,18 +162,35 @@ export async function GET(
       .limit(100); // Get enough to cover all locations
 
     // Group by location to get the latest for each
-    const latestByLocation: Record<string, any> = {};
+    const latestByLocation = new Map<MonitoringLocation, LatestMonitorResult>();
     for (const result of latestResults) {
-      if (!latestByLocation[result.location]) {
-        latestByLocation[result.location] = result;
+      const location = result.location as MonitoringLocation;
+      if (!latestByLocation.has(location)) {
+        latestByLocation.set(location, {
+          location,
+          checkedAt: result.checkedAt,
+          status: result.status as MonitorResultStatus,
+          isUp: result.isUp,
+          responseTimeMs: result.responseTimeMs,
+        });
       }
     }
 
     // Merge stats with latest results
-    const enrichedStats = stats.map((stat) => ({
-      ...stat,
-      latest: latestByLocation[stat.location] || null,
-    }));
+    const enrichedStats = stats.map((stat) => {
+      const latest = latestByLocation.get(stat.location);
+      return {
+        ...stat,
+        latest: latest
+          ? {
+              ...latest,
+              checkedAt: latest.checkedAt
+                ? latest.checkedAt.toISOString()
+                : null,
+            }
+          : null,
+      };
+    });
 
     return NextResponse.json({
       success: true,

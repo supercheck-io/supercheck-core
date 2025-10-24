@@ -66,7 +66,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ResponseTimeBarChart } from "@/components/monitors/response-time-line-chart";
 import { AvailabilityBarChart } from "./AvailabilityBarChart";
-import { LocationStatusGrid } from "./location-status-grid";
+import { LocationFilterDropdown } from "./location-filter-dropdown";
 import {
   MonitorStatus as DBMoniotorStatusType,
   MonitorResultStatus as DBMonitorResultStatusType,
@@ -77,6 +77,8 @@ import Link from "next/link";
 import { CheckIcon } from "@/components/logo/supercheck-logo";
 import { Home } from "lucide-react";
 import { TruncatedTextWithTooltip } from "@/components/ui/truncated-text-with-tooltip";
+import { getLocationMetadata } from "@/lib/location-service";
+import type { MonitoringLocation } from "@/lib/location-service";
 
 export interface MonitorResultItem {
   id: string;
@@ -89,6 +91,7 @@ export interface MonitorResultItem {
   isStatusChange: boolean;
   testExecutionId?: string | null;
   testReportS3Url?: string | null;
+  location?: MonitoringLocation | null;
 }
 
 export type MonitorWithResults = Monitor & {
@@ -165,6 +168,11 @@ export function MonitorDetailClient({
   const [selectedReportUrl, setSelectedReportUrl] = useState<string | null>(
     null
   );
+  const [selectedLocation, setSelectedLocation] =
+    useState<"all" | MonitoringLocation>("all");
+  const [availableLocations, setAvailableLocations] = useState<
+    MonitoringLocation[]
+  >([]);
   const resultsPerPage = 10;
 
   // Copy to clipboard handler
@@ -181,7 +189,11 @@ export function MonitorDetailClient({
 
   // Function to fetch paginated results
   const fetchPaginatedResults = useCallback(
-    async (page: number, dateFilter?: Date) => {
+    async (
+      page: number,
+      dateFilter?: Date,
+      locationFilter?: "all" | MonitoringLocation
+    ) => {
       setIsLoadingResults(true);
       try {
         const params = new URLSearchParams({
@@ -192,6 +204,11 @@ export function MonitorDetailClient({
         // Add date filter if selected
         if (dateFilter) {
           params.append("date", dateFilter.toISOString().split("T")[0]);
+        }
+
+        // Add location filter if selected and not "all"
+        if (locationFilter && locationFilter !== "all") {
+          params.append("location", locationFilter);
         }
 
         const response = await fetch(
@@ -250,10 +267,47 @@ export function MonitorDetailClient({
     fetchPaginatedResults(1);
   }, [initialMonitor, fetchPaginatedResults]);
 
-  // Load paginated results when page changes
+  // Extract available locations from chart + paginated data
   useEffect(() => {
-    fetchPaginatedResults(currentPage, selectedDate);
-  }, [currentPage, selectedDate, fetchPaginatedResults]);
+    const locationSet = new Set<MonitoringLocation>();
+    if (monitor.recentResults && monitor.recentResults.length > 0) {
+      monitor.recentResults.forEach((result) => {
+        if (result.location) {
+          locationSet.add(result.location);
+        }
+      });
+    }
+    if (paginatedTableResults && paginatedTableResults.length > 0) {
+      paginatedTableResults.forEach((result) => {
+        if (result.location) {
+          locationSet.add(result.location);
+        }
+      });
+    }
+    const locations = Array.from(locationSet);
+    setAvailableLocations((prev) => {
+      if (
+        prev.length === locations.length &&
+        prev.every((loc) => locations.includes(loc))
+      ) {
+        return prev;
+      }
+      return locations;
+    });
+
+    if (
+      selectedLocation !== "all" &&
+      locations.length > 0 &&
+      !locations.includes(selectedLocation)
+    ) {
+      setSelectedLocation("all");
+    }
+  }, [monitor.recentResults, paginatedTableResults, selectedLocation]);
+
+  // Load paginated results when page, date, or location changes
+  useEffect(() => {
+    fetchPaginatedResults(currentPage, selectedDate, selectedLocation);
+  }, [currentPage, selectedDate, selectedLocation, fetchPaginatedResults]);
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -330,13 +384,17 @@ export function MonitorDetailClient({
       return [];
     }
 
-    // Use all available results for charts (already limited server-side)
-    const recentResults = monitor.recentResults || [];
+    // Filter by location if selected
+    const filteredResults =
+      selectedLocation === "all"
+        ? monitor.recentResults
+        : monitor.recentResults.filter((r) => r.location === selectedLocation);
 
-    const chartData = recentResults
+    const chartData = filteredResults
       .map((r) => {
         const date =
           typeof r.checkedAt === "string" ? parseISO(r.checkedAt) : r.checkedAt;
+        const metadata = r.location ? getLocationMetadata(r.location) : undefined;
 
         return {
           name: format(date, "HH:mm"), // Show only time (HH:MM) for cleaner x-axis
@@ -344,12 +402,15 @@ export function MonitorDetailClient({
           fullDate: format(date, "MMM dd, HH:mm"), // Keep full date for tooltips
           isUp: r.isUp, // Keep status for conditional styling
           status: r.status,
+          locationCode: r.location ?? null,
+          locationName: metadata?.name ?? null,
+          locationFlag: metadata?.flag ?? null,
         };
       })
       .reverse(); // Show chronologically (oldest first)
 
     return chartData;
-  }, [monitor.recentResults]);
+  }, [monitor.recentResults, selectedLocation]);
 
   // Calculate uptime and average response time from recent results
   const calculatedMetrics = useMemo(() => {
@@ -366,14 +427,20 @@ export function MonitorDetailClient({
     const last24Hours = subHours(now, 24);
     const last30Days = subDays(now, 30);
 
+    // Filter by location first if selected
+    const locationFilteredResults =
+      selectedLocation === "all"
+        ? monitor.recentResults
+        : monitor.recentResults.filter((r) => r.location === selectedLocation);
+
     // Filter results by time period
-    const results24h = monitor.recentResults.filter((r) => {
+    const results24h = locationFilteredResults.filter((r) => {
       const resultDate =
         typeof r.checkedAt === "string" ? parseISO(r.checkedAt) : r.checkedAt;
       return resultDate >= last24Hours;
     });
 
-    const results30d = monitor.recentResults.filter((r) => {
+    const results30d = locationFilteredResults.filter((r) => {
       const resultDate =
         typeof r.checkedAt === "string" ? parseISO(r.checkedAt) : r.checkedAt;
       return resultDate >= last30Days;
@@ -433,7 +500,7 @@ export function MonitorDetailClient({
       avgResponse30d:
         avgResponse30dMs !== null ? `${avgResponse30dMs} ms` : "N/A",
     };
-  }, [monitor.recentResults]);
+  }, [monitor.recentResults, selectedLocation]);
 
   const latestResult =
     monitor.recentResults && monitor.recentResults.length > 0
@@ -457,22 +524,39 @@ export function MonitorDetailClient({
       ? `${latestResult.responseTimeMs} ms`
       : "N/A";
 
-  // Prepare data for AvailabilityBarChart
+  // Prepare data for AvailabilityBarChart (single location or filtered)
   const availabilityTimelineData = useMemo(() => {
-    if (!monitor.recentResults || monitor.recentResults.length === 0) return [];
+    if (!monitor.recentResults || monitor.recentResults.length === 0) {
+      return [];
+    }
 
-    // Show all available checks (already limited server-side)
-    return (monitor.recentResults || [])
-      .map((r) => ({
-        timestamp: (typeof r.checkedAt === "string"
-          ? parseISO(r.checkedAt)
-          : r.checkedAt
-        ).getTime(),
-        status: (r.isUp ? 1 : 0) as 0 | 1,
-        label: r.status,
-      }))
+    const filteredResults =
+      selectedLocation === "all"
+        ? monitor.recentResults
+        : monitor.recentResults.filter((r) => r.location === selectedLocation);
+
+    return filteredResults
+      .map((r) => {
+        const timestamp =
+          typeof r.checkedAt === "string"
+            ? parseISO(r.checkedAt)
+            : r.checkedAt;
+        const locationCode = r.location ?? null;
+        const locationMetadata = locationCode
+          ? getLocationMetadata(locationCode)
+          : undefined;
+
+        return {
+          timestamp: timestamp.getTime(),
+          status: (r.isUp ? 1 : 0) as 0 | 1,
+          label: r.status,
+          locationCode,
+          locationName: locationMetadata?.name ?? null,
+          locationFlag: locationMetadata?.flag ?? null,
+        };
+      })
       .reverse();
-  }, [monitor.recentResults]);
+  }, [monitor.recentResults, selectedLocation]);
 
   // Extract SSL certificate info for website monitors
   const sslCertificateInfo = useMemo(() => {
@@ -853,6 +937,7 @@ export function MonitorDetailClient({
           </div>
         </div>
 
+        {/* Location Filter */}
         <div className="grid gap-4 mt-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 m-2">
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
@@ -958,21 +1043,24 @@ export function MonitorDetailClient({
         </div>
       </div>
 
-      {/* Multi-Location Status Grid */}
-      <div className="mb-6">
-        <LocationStatusGrid monitorId={monitor.id} days={7} />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* For all monitors, show charts and results in two columns */}
-        <div className="flex flex-col space-y-6 ">
-          {/* Availability Chart */}
-          <div className="flex-1">
-            <AvailabilityBarChart
-              data={availabilityTimelineData}
-              monitorType={monitor.type}
-            />
-          </div>
+          <div className="flex flex-col space-y-6">
+            <div className="flex-1">
+              <AvailabilityBarChart
+                data={availabilityTimelineData}
+                headerActions={
+                  availableLocations.length > 1 ? (
+                    <LocationFilterDropdown
+                      selectedLocation={selectedLocation}
+                      availableLocations={availableLocations}
+                      onLocationChange={setSelectedLocation}
+                      className="w-[200px]"
+                    />
+                  ) : undefined
+                }
+              />
+            </div>
 
           {/* Response Time Chart */}
           <div className="flex-1 -mt-2">
@@ -1062,6 +1150,12 @@ export function MonitorDetailClient({
                       </th>
                       <th
                         scope="col"
+                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-40"
+                      >
+                        Location
+                      </th>
+                      <th
+                        scope="col"
                         className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-44"
                       >
                         Response Time (ms)
@@ -1079,7 +1173,7 @@ export function MonitorDetailClient({
                       // Professional loading state with background
                       <tr>
                         <td
-                          colSpan={monitor.type === "synthetic_test" ? 5 : 4}
+                          colSpan={monitor.type === "synthetic_test" ? 6 : 5}
                           className="text-center relative"
                           style={{ height: "320px" }}
                         >
@@ -1098,81 +1192,138 @@ export function MonitorDetailClient({
                       </tr>
                     ) : paginatedTableResults &&
                       paginatedTableResults.length > 0 ? (
-                      paginatedTableResults.map((result) => (
-                        <tr key={result.id} className="hover:bg-muted/25">
-                          <td className="px-4 py-[11.5px] whitespace-nowrap text-sm">
-                            <SimpleStatusIcon isUp={result.isUp} />
-                          </td>
-                          <td className="px-4 py-[11.5px] whitespace-nowrap text-sm text-muted-foreground">
-                            {formatDateTime(result.checkedAt)}
-                          </td>
-                          <td className="px-4 py-[11.5px] whitespace-nowrap text-sm text-muted-foreground">
-                            {result.responseTimeMs !== null &&
-                            result.responseTimeMs !== undefined
-                              ? result.responseTimeMs
-                              : "N/A"}
-                          </td>
-                          {monitor.type === "synthetic_test" && (
-                            <td className="px-4 py-[11.5px] whitespace-nowrap text-sm">
-                              {result.details?.reportUrl ? (
-                                <div
-                                  className="cursor-pointer inline-flex items-center justify-center"
-                                  onClick={() => {
-                                    // Use testExecutionId directly from database
-                                    const runTestId = result.testExecutionId;
+                      paginatedTableResults.map((result) => {
+                        const locationMetadata = result.location
+                          ? getLocationMetadata(result.location)
+                          : null;
+                        const syntheticReportAvailable =
+                          monitor.type === "synthetic_test" &&
+                          Boolean(
+                            result.details?.reportUrl || result.testReportS3Url
+                          );
+                        const syntheticReportError =
+                          monitor.type === "synthetic_test"
+                            ? (() => {
+                                const detail = result.details;
+                                if (!detail) return undefined;
+                                const primaryMessage =
+                                  typeof detail.errorMessage === "string" &&
+                                  detail.errorMessage.trim().length > 0
+                                    ? detail.errorMessage.trim()
+                                    : undefined;
+                                if (primaryMessage) return primaryMessage;
+                                const executionErrors =
+                                  typeof detail.executionErrors === "string" &&
+                                  detail.executionErrors.trim().length > 0
+                                    ? detail.executionErrors.trim()
+                                    : undefined;
+                                if (executionErrors) return executionErrors;
+                                const executionSummary =
+                                  typeof detail.executionSummary === "string" &&
+                                  detail.executionSummary.trim().length > 0
+                                    ? detail.executionSummary.trim()
+                                    : undefined;
+                                return executionSummary;
+                              })()
+                            : undefined;
 
-                                    if (runTestId) {
-                                      // Use API proxy route like playground does
-                                      const apiUrl = `/api/test-results/${runTestId}/report/index.html?t=${Date.now()}&forceIframe=true`;
-                                      setSelectedReportUrl(apiUrl);
-                                      setReportModalOpen(true);
-                                    } else {
-                                      console.error(
-                                        "[Monitor Report] No testExecutionId in monitor result:",
-                                        result.id
-                                      );
-                                      toast.error("No report available", {
-                                        description:
-                                          "This monitor run doesn't have a report",
-                                      });
+                        return (
+                          <tr key={result.id} className="hover:bg-muted/25">
+                            <td className="px-4 py-[11.5px] whitespace-nowrap text-sm">
+                              <SimpleStatusIcon isUp={result.isUp} />
+                            </td>
+                            <td className="px-4 py-[11.5px] whitespace-nowrap text-sm text-muted-foreground">
+                              {formatDateTime(result.checkedAt)}
+                            </td>
+                            <td className="px-4 py-[11.5px] whitespace-nowrap text-sm text-muted-foreground">
+                              {locationMetadata ? (
+                                <span className="flex items-center gap-2">
+                                  {locationMetadata.flag && (
+                                    <span>{locationMetadata.flag}</span>
+                                  )}
+                                  <span>{locationMetadata.name}</span>
+                                </span>
+                              ) : result.location ? (
+                                result.location
+                              ) : (
+                                "N/A"
+                              )}
+                            </td>
+                            <td className="px-4 py-[11.5px] whitespace-nowrap text-sm text-muted-foreground">
+                              {result.responseTimeMs !== null &&
+                              result.responseTimeMs !== undefined
+                                ? result.responseTimeMs
+                                : "N/A"}
+                            </td>
+                            {monitor.type === "synthetic_test" && (
+                              <td className="px-4 py-[11.5px] whitespace-nowrap text-sm">
+                                {syntheticReportAvailable ? (
+                                  <div
+                                    className="cursor-pointer inline-flex items-center justify-center"
+                                    onClick={() => {
+                                      // Use testExecutionId directly from database
+                                      const runTestId = result.testExecutionId;
+
+                                      if (runTestId) {
+                                        // Use API proxy route like playground does
+                                        const apiUrl = `/api/test-results/${runTestId}/report/index.html?t=${Date.now()}&forceIframe=true`;
+                                        setSelectedReportUrl(apiUrl);
+                                        setReportModalOpen(true);
+                                      } else {
+                                        console.error(
+                                          "[Monitor Report] No testExecutionId in monitor result:",
+                                          result.id
+                                        );
+                                        toast.error("No report available", {
+                                          description:
+                                            "This monitor run doesn't have a report",
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <PlaywrightLogo className="h-4 w-4  hover:opacity-80 transition-opacity" />{" "}
+                                  </div>
+                                ) : syntheticReportError ? (
+                                  <TruncatedTextWithTooltip
+                                    text={`Report unavailable: ${syntheticReportError}`}
+                                    className="text-muted-foreground text-xs"
+                                    maxWidth="180px"
+                                    maxLength={40}
+                                  />
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">
+                                    N/A
+                                  </span>
+                                )}
+                              </td>
+                            )}
+                            {monitor.type !== "synthetic_test" && (
+                              <td className="px-4 py-[11.5px] text-sm text-muted-foreground">
+                                {result.isUp ? (
+                                  <span className="text-muted-foreground text-xs">
+                                    N/A
+                                  </span>
+                                ) : (
+                                  <TruncatedTextWithTooltip
+                                    text={
+                                      result.details?.errorMessage ||
+                                      "Check failed"
                                     }
-                                  }}
-                                >
-                                  <PlaywrightLogo className="h-4 w-4  hover:opacity-80 transition-opacity" />{" "}
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">
-                                  N/A
-                                </span>
-                              )}
-                            </td>
-                          )}
-                          {monitor.type !== "synthetic_test" && (
-                            <td className="px-4 py-[11.5px] text-sm text-muted-foreground">
-                              {result.isUp ? (
-                                <span className="text-muted-foreground text-xs">
-                                  N/A
-                                </span>
-                              ) : (
-                                <TruncatedTextWithTooltip
-                                  text={
-                                    result.details?.errorMessage ||
-                                    "Check failed"
-                                  }
-                                  className="text-muted-foreground text-xs"
-                                  maxWidth="150px"
-                                  maxLength={30}
-                                />
-                              )}
-                            </td>
-                          )}
-                        </tr>
-                      ))
+                                    className="text-muted-foreground text-xs"
+                                    maxWidth="150px"
+                                    maxLength={30}
+                                  />
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })
                     ) : (
                       // Empty state
                       <tr>
                         <td
-                          colSpan={monitor.type === "synthetic_test" ? 5 : 4}
+                          colSpan={monitor.type === "synthetic_test" ? 6 : 5}
                           className="px-4 py-16 text-center"
                         >
                           <div className="text-center space-y-3">

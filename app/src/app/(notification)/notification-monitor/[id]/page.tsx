@@ -71,6 +71,9 @@ async function getMonitorDetailsDirectly(id: string): Promise<MonitorWithResults
       details: r.details,
       isUp: r.isUp,
       isStatusChange: r.isStatusChange,
+      testExecutionId: r.testExecutionId ?? undefined,
+      testReportS3Url: r.testReportS3Url ?? undefined,
+      location: r.location ?? null,
     }));
     
     const frequencyMinutes = monitor.frequencyMinutes ?? 0;

@@ -4,6 +4,8 @@ import { monitors, monitorResults } from "@/db/schema/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { requireAuth, hasPermission, getUserOrgRole } from '@/lib/rbac/middleware';
 import { isSuperAdmin } from '@/lib/admin';
+import { isMonitoringLocation } from "@/lib/location-service";
+import type { MonitoringLocation } from "@/lib/location-service";
 
 export async function GET(
   request: NextRequest,
@@ -20,7 +22,12 @@ export async function GET(
   const page = parseInt(searchParams.get('page') || '1', 10);
   const limit = parseInt(searchParams.get('limit') || '10', 10);
   const dateFilter = searchParams.get('date'); // YYYY-MM-DD format
-  const locationFilter = searchParams.get('location'); // Optional location filter
+  const locationParam = searchParams.get("location"); // Optional location filter
+  const locationFilter: MonitoringLocation | null = isMonitoringLocation(
+    locationParam
+  )
+    ? (locationParam as MonitoringLocation)
+    : null;
 
   // Validate pagination parameters
   if (page < 1 || limit < 1 || limit > 100) {

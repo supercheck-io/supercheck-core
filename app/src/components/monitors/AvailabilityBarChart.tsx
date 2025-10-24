@@ -1,20 +1,59 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { format } from "date-fns";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Cell,
+  Tooltip,
+} from "recharts";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { ChartContainer } from "@/components/ui/chart";
 
 interface AvailabilityDataPoint {
   timestamp: number;
   status: 0 | 1; // 0 for down, 1 for up
   label?: string;
+  locationCode?: string | null;
+  locationName?: string | null;
+  locationFlag?: string | null;
 }
 
 interface AvailabilityBarChartProps {
   data: AvailabilityDataPoint[];
-  monitorType?: string;
+  headerActions?: React.ReactNode;
 }
+
+type ProcessedAvailabilityPoint = {
+  name: string;
+  status: "up" | "down";
+  fill: string;
+  value: number;
+  locationCode: string | null;
+  locationName: string | null;
+  locationFlag: string | null;
+  timestamp: number;
+  formattedDate: string;
+};
+
+type ChartMouseState = {
+  isTooltipActive?: boolean;
+  activePayload?: Array<{ payload?: ProcessedAvailabilityPoint } | undefined>;
+  activeCoordinate?: { x: number; y: number };
+  chartX?: number;
+  chartY?: number;
+};
 
 const chartConfig = {
   up: {
@@ -27,28 +66,47 @@ const chartConfig = {
   },
 };
 
-export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
-  // console.log("[AvailabilityBarChart] Received data:", JSON.stringify(data, null, 2)); // Keep for now if user still has issues
-  const [visibleBars, setVisibleBars] = React.useState(0);
+export function AvailabilityBarChart({
+  data,
+  headerActions,
+}: AvailabilityBarChartProps) {
+  const [tooltipState, setTooltipState] = React.useState<{
+    left: number;
+    top: number;
+    payload: ProcessedAvailabilityPoint;
+  } | null>(null);
+  const chartRef = React.useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = React.useCallback((state: ChartMouseState) => {
+    if (!chartRef.current) {
+      return;
+    }
+
+    const activePayload = state?.activePayload?.[0]?.payload as
+      | ProcessedAvailabilityPoint
+      | undefined;
+    const activeCoordinate = state?.activeCoordinate;
+
+    if (!activePayload || !activeCoordinate) {
+      setTooltipState(null);
+      return;
+    }
+
+    const left = activeCoordinate.x ?? state?.chartX ?? 0;
+    const top = (activeCoordinate.y ?? state?.chartY ?? 0) + 12;
+
+    setTooltipState({
+      left,
+      top,
+      payload: activePayload,
+    });
+  }, []);
 
   React.useEffect(() => {
-    if (!data || data.length === 0) return;
-    
-    let currentBar = 0;
-    const interval = setInterval(() => {
-      currentBar++;
-      setVisibleBars(currentBar);
-      
-      if (currentBar >= data.length) {
-        clearInterval(interval);
-      }
-    },20); // 20ms delay between each bar
-
-    return () => clearInterval(interval);
+    setTooltipState(null);
   }, [data]);
 
   if (!data || data.length === 0) {
-    // console.log("[AvailabilityBarChart] No data or empty data array."); // Keep for now
     return (
       <Card className="shadow-sm flex flex-col min-h-[220px]">
         <CardHeader className="pb-4">
@@ -72,99 +130,137 @@ export function AvailabilityBarChart({ data }: AvailabilityBarChartProps) {
     );
   }
 
-  const processedData = data.slice(0, visibleBars).map((item, index) => ({
-    name: `Run ${index + 1}`, 
-    status: item.status === 1 ? "up" : "down",
-    fill: item.status === 1 ? chartConfig.up.color : chartConfig.down.color,
-    hoverFill: item.status === 1 ? "#16a34a" : "#dc2626", // Darker colors for hover
-    value: 1, // All bars will have the same height conceptually
-  }));
+  const processedData: ProcessedAvailabilityPoint[] = data.map((item, index) => {
+    const timestamp = item.timestamp;
+    const formattedDate = Number.isFinite(timestamp)
+      ? format(new Date(timestamp), "MMM dd, HH:mm")
+      : "";
+    return {
+      name: `Run ${index + 1}`,
+      status: item.status === 1 ? "up" : "down",
+      fill: item.status === 1 ? chartConfig.up.color : chartConfig.down.color,
+      value: 1,
+      locationCode: item.locationCode ?? null,
+      locationName: item.locationName ?? null,
+      locationFlag: item.locationFlag ?? null,
+      timestamp,
+      formattedDate,
+    };
+  });
 
-  // console.log("[AvailabilityBarChart] Processed data:", JSON.stringify(processedData, null, 2)); // Keep for now
-
-
-
-  // Description for monitor type
   const getDescription = () => {
     return `Status of latest individual checks (${data.length} data points)`;
   };
 
   return (
     <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold">Availability Overview</CardTitle>
-        <CardDescription>
-          {getDescription()}
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-2">
+        <div>
+          <CardTitle className="text-lg font-semibold">Availability Overview</CardTitle>
+          <CardDescription>{getDescription()}</CardDescription>
+        </div>
+        {headerActions ? (
+          <div className="flex-shrink-0">{headerActions}</div>
+        ) : null}
       </CardHeader>
-      <CardContent className="p-2 pt-0 h-[132px]"> {/* Adjusted height, remove padding top from content if header has enough */}
-        <ChartContainer config={chartConfig} className="w-full h-full -mt-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={processedData}
-              margin={{
-                top: 5, // Add some top margin for space from header
-                right: 5,
-                left: 5,
-                bottom: 5,
+      <CardContent className="relative p-2 pt-0 h-[132px]">
+        <div
+          className="relative h-full w-full"
+          ref={chartRef}
+          onMouseLeave={() => setTooltipState(null)}
+        >
+          <ChartContainer config={chartConfig} className="w-full h-full -mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={processedData}
+                margin={{
+                  top: 5,
+                  right: 5,
+                  left: 5,
+                  bottom: 5,
+                }}
+                barSize={Math.max(8, Math.min(20, Math.floor(800 / data.length)))}
+                barCategoryGap="2%"
+                onMouseMove={handleMouseMove}
+                onMouseLeave={() => setTooltipState(null)}
+              >
+                <CartesianGrid vertical={false} horizontal={false} strokeDasharray="3 3" />
+                <XAxis dataKey="name" type="category" hide />
+                <YAxis type="number" hide />
+                <Tooltip cursor={false} content={() => null} allowEscapeViewBox={{ x: true, y: true }} />
+                <Bar dataKey="value" radius={1}>
+                  {processedData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.fill}
+                      style={{ transition: "all 0.15s ease" }}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+          {tooltipState ? (
+            <div
+              className="pointer-events-none absolute z-20 -translate-x-1/2"
+              style={{
+                left: Math.min(
+                  Math.max(tooltipState.left, 20),
+                  (chartRef.current?.clientWidth ?? 0) - 20
+                ),
+                top: Math.min(
+                  Math.max(tooltipState.top, 12),
+                  (chartRef.current?.clientHeight ?? 0) - 12
+                ),
               }}
-              barSize={Math.max(8, Math.min(20, Math.floor(800 / data.length)))} // Dynamic bar size based on data count
-              barCategoryGap="2%" // Tighter spacing for better density
             >
-              <CartesianGrid vertical={false} horizontal={false} strokeDasharray="3 3" /> {/* Grid lines are already hidden */}
-              <XAxis dataKey="name" type="category" hide /> 
-              <YAxis type="number" hide /> {/* Y-axis still hidden as values are constant for height */}
-              <Tooltip
-                cursor={{ 
-                  fill: "rgba(0,0,0,0.1)", 
-                  stroke: "rgba(0,0,0,0.1)",
-                  strokeWidth: 1,
-                  strokeDasharray: "none"
-                }}
-                offset={10}
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const point = payload[0].payload;
-                    const originalDataItemIndex = processedData.findIndex(p => p.name === point.name);
-                    const originalDataItem = data[originalDataItemIndex];
-                    const date = originalDataItem ? new Date(originalDataItem.timestamp) : null;
-                    const formattedTime = date ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit'}) : point.name;
-                    const formattedDate = date ? date.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
-
-                    return (
-                      <div className="bg-background border rounded-lg p-3 shadow-lg text-sm min-w-[140px] z-50">
-                        <p className="font-medium mb-2 text-center">{formattedDate} {formattedTime}</p>
-                        <div className="flex items-center justify-center">
-                          <div className={`w-3 h-3 rounded-full mr-2`} style={{ backgroundColor: point.fill }}></div>
-                          <span className="font-medium">{point.status === "up" ? "Up" : "Down"}</span>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Bar 
-                dataKey="value" 
-                radius={1}
-                onMouseEnter={() => {
-                  // This will be handled by the cursor prop in Tooltip
-                }}
-              > 
-                {processedData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.fill}
-                    style={{ 
-                      transition: 'all 0.2s ease'
-                    }}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+              <div className="min-w-[200px] max-w-[260px] rounded-lg border border-border bg-background/95 p-3 text-sm shadow-xl backdrop-blur">
+                <p className="mb-2 text-center font-medium text-foreground">
+                  {tooltipState.payload.formattedDate ||
+                    format(new Date(tooltipState.payload.timestamp), "MMM dd, HH:mm")}
+                </p>
+                <div className="space-y-1">
+                  {(tooltipState.payload.locationName ||
+                    tooltipState.payload.locationCode) && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Location:</span>
+                      <span className="ml-3 font-medium text-right text-foreground">
+                        {tooltipState.payload.locationFlag
+                          ? `${tooltipState.payload.locationFlag} `
+                          : ""}
+                        {tooltipState.payload.locationName ||
+                          tooltipState.payload.locationCode ||
+                          "Check"}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Status:</span>
+                    <div className="ml-3 flex items-center">
+                      <span
+                        className={`mr-2 inline-flex h-2 w-2 rounded-full ${
+                          tooltipState.payload.status === "up"
+                            ? "bg-green-500"
+                            : "bg-red-500"
+                        }`}
+                      />
+                      <span
+                        className={`font-medium ${
+                          tooltipState.payload.status === "up"
+                            ? "text-green-500"
+                            : "text-red-500"
+                        }`}
+                      >
+                        {tooltipState.payload.status === "up" ? "Up" : "Down"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );
-} 
+}

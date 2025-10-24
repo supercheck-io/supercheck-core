@@ -34,7 +34,6 @@ import { ResourceManagerService } from '../common/resources/resource-manager.ser
 import {
   LocationService,
   MonitoringLocation,
-  LocationConfig,
   MONITORING_LOCATIONS,
 } from '../common/location/location.service';
 
@@ -504,7 +503,8 @@ export class MonitorService {
     }
 
     // Add simulated location delay for realistic multi-location behavior
-    const locationDelay = this.locationService.getSimulatedLocationDelay(location);
+    const locationDelay =
+      this.locationService.getSimulatedLocationDelay(location);
     if (locationDelay > 0 && responseTimeMs !== undefined) {
       responseTimeMs += locationDelay;
     }
@@ -550,9 +550,16 @@ export class MonitorService {
       return result ? [result] : [];
     }
 
-    // Get effective locations from monitor configuration
-    const config = monitor.config as LocationConfig | null;
-    const locations = this.locationService.getEffectiveLocations(config);
+    const monitorConfig = (monitor.config as MonitorConfig | null) ?? null;
+    const locationConfig = monitorConfig?.locationConfig ?? null;
+    const locations =
+      this.locationService.getEffectiveLocations(locationConfig);
+
+    // Ensure the job data includes the latest monitor configuration (including synthetic metadata)
+    const resolvedJobData: MonitorJobDataDto = {
+      ...jobData,
+      config: jobData.config ?? monitorConfig ?? undefined,
+    };
 
     this.logger.debug(
       `Executing monitor ${jobData.monitorId} from ${locations.length} location(s): ${locations.join(', ')}`,
@@ -560,11 +567,13 @@ export class MonitorService {
 
     // Execute from all locations in parallel
     const results = await Promise.all(
-      locations.map((location) => this.executeMonitor(jobData, location)),
+      locations.map((location) =>
+        this.executeMonitor(resolvedJobData, location),
+      ),
     );
 
     // Filter out null results (paused monitors)
-    return results.filter((r) => r !== null) as MonitorExecutionResult[];
+    return results.filter((r) => r !== null);
   }
 
   /**
@@ -590,19 +599,29 @@ export class MonitorService {
     );
 
     // Calculate aggregated status
-    const config = monitor.config as LocationConfig | null;
-    const locationStatuses: Record<MonitoringLocation, boolean> = {};
+    const monitorConfig = (monitor.config as MonitorConfig | null) ?? null;
+    const locationConfig = monitorConfig?.locationConfig ?? null;
 
-    results.forEach((result) => {
-      locationStatuses[result.location as MonitoringLocation] = result.isUp;
-    });
+    // Build location statuses map from results
+    const locationStatuses = results.reduce(
+      (acc, result) => {
+        acc[result.location] = result.isUp;
+        return acc;
+      },
+      {} as Record<MonitoringLocation, boolean>,
+    );
 
     // Determine overall status based on threshold
     let overallStatus: 'up' | 'down' = 'down';
-    if (config && config.enabled && config.locations && config.locations.length > 0) {
+    if (
+      locationConfig &&
+      locationConfig.enabled &&
+      locationConfig.locations &&
+      locationConfig.locations.length > 0
+    ) {
       const aggregatedStatus = this.locationService.calculateAggregatedStatus(
         locationStatuses,
-        config,
+        locationConfig,
       );
       overallStatus = aggregatedStatus === 'partial' ? 'up' : aggregatedStatus;
 

@@ -48,6 +48,7 @@ import {
   ChevronRight,
   Shield,
   BellIcon,
+  Globe,
   Check,
   ChevronsUpDown,
   Chrome,
@@ -58,7 +59,8 @@ import {
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { MonitorTypesPopover } from "./monitor-types-popover";
 import { LocationConfigSection } from "./location-config-section";
-import { DEFAULT_LOCATION_CONFIG, LocationConfig } from "@/lib/location-service";
+import { DEFAULT_LOCATION_CONFIG } from "@/lib/location-service";
+import type { LocationConfig } from "@/lib/location-service";
 
 import {
   Card,
@@ -385,6 +387,7 @@ interface MonitorFormProps {
   onSave?: (data: Record<string, unknown>) => void;
   onCancel?: () => void;
   alertConfig?: AlertConfiguration | null; // Use proper type
+  initialConfig?: Record<string, unknown> | null; // Monitor config including locationConfig
 }
 
 export function MonitorForm({
@@ -398,6 +401,7 @@ export function MonitorForm({
   onSave,
   onCancel,
   alertConfig: initialAlertConfig,
+  initialConfig,
 }: MonitorFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -423,10 +427,12 @@ export function MonitorForm({
       customMessage: "" as string,
     }
   );
-  const [locationConfig, setLocationConfig] = useState<LocationConfig>(
-    (initialConfig?.locationConfig as LocationConfig) || DEFAULT_LOCATION_CONFIG
-  );
+
   const [showAlerts, setShowAlerts] = useState(false);
+  const [showLocationSettings, setShowLocationSettings] = useState(false);
+  const [locationConfig, setLocationConfig] = useState<LocationConfig>(
+    () => (initialConfig?.locationConfig as LocationConfig) || DEFAULT_LOCATION_CONFIG
+  );
   const [monitorData, setMonitorData] = useState<Record<
     string,
     unknown
@@ -546,12 +552,29 @@ export function MonitorForm({
         ...monitorData,
       });
     }
-  }, [monitorData, form, getDefaultValues]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monitorData]);
 
   const type = form.watch("type");
   const httpMethod = form.watch("httpConfig_method");
   const authType = form.watch("httpConfig_authType");
   const expectedStatusCodes = form.watch("httpConfig_expectedStatusCodes");
+
+  useEffect(() => {
+    if (type !== "synthetic_test" || isLoadingTests) {
+      return;
+    }
+
+    const currentTestId = form.getValues("syntheticConfig_testId");
+    if (!currentTestId || selectedTest?.id === currentTestId) {
+      return;
+    }
+
+    const matchedTest = tests.find((test) => test.id === currentTestId);
+    if (matchedTest) {
+      setSelectedTest(matchedTest);
+    }
+  }, [form, isLoadingTests, selectedTest, tests, type]);
 
   // Auto-adjust interval when switching to synthetic monitor
   useEffect(() => {
@@ -562,7 +585,8 @@ export function MonitorForm({
         form.setValue("interval", "300");
       }
     }
-  }, [type, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
 
   // Keep custom-status-code UI state in sync with the field value
   useEffect(() => {
@@ -587,7 +611,8 @@ export function MonitorForm({
       form.reset(newDefaults);
       setFormChanged(false);
     }
-  }, [urlType, type, editMode, initialData, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlType, type, editMode, initialData]);
 
   // Handle initial form setup when component first mounts
   useEffect(() => {
@@ -598,14 +623,16 @@ export function MonitorForm({
       };
       form.reset(initialDefaults);
     }
-  }, [editMode, initialData, urlType, form]); // Run when these values change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode, initialData, urlType]); // Run when these values change
 
   // Initialize form with initialData in edit mode
   useEffect(() => {
     if (editMode && initialData) {
       form.reset(initialData);
     }
-  }, [editMode, initialData, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode, initialData]);
 
   const targetPlaceholders: Record<FormValues["type"], string> = {
     http_request: "e.g., https://example.com or https://api.example.com/health",
@@ -615,82 +642,14 @@ export function MonitorForm({
     synthetic_test: "Select a test to monitor",
   };
 
-  const watchedValues = form.watch();
-
-  // useEffect to update formChanged state when form values change from defaults
+  // Track form changes - using direct form.formState access to avoid infinite loops
   useEffect(() => {
-    const defaultForComparison = initialData || creationDefaultValues;
-    const hasChanged = Object.keys(watchedValues).some((key) => {
-      // Ensure the key exists on both objects before comparison
-      if (!(key in watchedValues) || !(key in defaultForComparison)) {
-        return false;
-      }
-      const currentVal = watchedValues[key as keyof FormValues];
-      const defaultVal = defaultForComparison[key as keyof FormValues];
-
-      // Handle cases where one value might be undefined and the other an empty string for certain fields
-      if (currentVal === undefined && defaultVal === "") return false;
-      if (currentVal === "" && defaultVal === undefined) return false;
-      if (currentVal === undefined && defaultVal === undefined) return false;
-
-      // Handle boolean fields - ensure proper comparison
-      if (typeof currentVal === "boolean" || typeof defaultVal === "boolean") {
-        const currentBool = Boolean(currentVal);
-        const defaultBool = Boolean(defaultVal);
-        const changed = currentBool !== defaultBool;
-
-        return changed;
-      }
-
-      // Handle number fields - ensure proper comparison
-      if (typeof currentVal === "number" || typeof defaultVal === "number") {
-        const currentNum = Number(currentVal) || 0;
-        const defaultNum = Number(defaultVal) || 0;
-        const changed = currentNum !== defaultNum;
-        return changed;
-      }
-
-      const changed = currentVal !== defaultVal;
-      return changed;
+    // Only track changes after initial mount to avoid false positives
+    const subscription = form.watch(() => {
+      setFormChanged(true);
     });
-
-    // Check if alert configuration has changed
-    const initialAlert = initialAlertConfig || {
-      enabled: false,
-      notificationProviders: [],
-      alertOnFailure: true,
-      alertOnRecovery: true,
-      alertOnSslExpiration: false,
-      failureThreshold: 1,
-      recoveryThreshold: 1,
-      customMessage: "",
-    };
-
-    const alertChanged =
-      alertConfig.enabled !== initialAlert.enabled ||
-      JSON.stringify(alertConfig.notificationProviders?.sort()) !==
-        JSON.stringify(initialAlert.notificationProviders?.sort()) ||
-      alertConfig.alertOnFailure !== initialAlert.alertOnFailure ||
-      alertConfig.alertOnRecovery !== initialAlert.alertOnRecovery ||
-      alertConfig.alertOnSslExpiration !== initialAlert.alertOnSslExpiration ||
-      alertConfig.failureThreshold !== initialAlert.failureThreshold ||
-      alertConfig.recoveryThreshold !== initialAlert.recoveryThreshold ||
-      alertConfig.customMessage !== initialAlert.customMessage;
-
-    // For new monitors (not edit mode), consider the form changed if required fields are filled
-    const isNewMonitor = !editMode && !initialData;
-    const hasRequiredFields =
-      watchedValues.name &&
-      watchedValues.name.trim() !== "" &&
-      watchedValues.target &&
-      watchedValues.target.trim() !== "";
-
-    const isFormReady = isNewMonitor
-      ? hasRequiredFields
-      : hasChanged || alertChanged;
-
-    setFormChanged(Boolean(isFormReady));
-  }, [watchedValues, initialData, editMode, alertConfig, initialAlertConfig]);
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   async function onSubmit(data: FormValues) {
     setIsSubmitting(true);
@@ -855,6 +814,9 @@ export function MonitorForm({
       };
     }
 
+    // Add location config to all monitor types
+    apiData.config.locationConfig = locationConfig;
+
     try {
       // If onSave callback is provided (wizard mode), pass the form data and API data
       if (onSave) {
@@ -903,14 +865,9 @@ export function MonitorForm({
     setIsSubmitting(true);
 
     try {
-      // Include locationConfig in config object
-      const configWithLocation = {
-        ...apiData.config,
-        locationConfig,
-      };
       const saveData = includeAlerts
-        ? { ...apiData, config: configWithLocation, alertConfig }
-        : { ...apiData, config: configWithLocation };
+        ? { ...apiData, alertConfig }
+        : apiData;
       const endpoint = editMode ? `/api/monitors/${id}` : "/api/monitors";
       const method = editMode ? "PUT" : "POST";
 
@@ -1005,14 +962,69 @@ export function MonitorForm({
         "apiData" in monitorData
           ? (monitorData as { apiData: Record<string, unknown> }).apiData
           : monitorData;
+
+      // Add location config to the saved data
+      if (!apiDataToSave.config) {
+        apiDataToSave.config = {};
+      }
+      (apiDataToSave.config as Record<string, unknown>).locationConfig = locationConfig;
+
       await handleDirectSave(apiDataToSave, true);
     } else if (editMode && id) {
-      // If we're just updating alerts for an existing monitor without form data changes
-      const alertOnlyData = {
+      // If we're just updating alerts/locations for an existing monitor without form data changes
+      const updateData = {
         alertConfig: alertConfig,
+        config: {
+          locationConfig: locationConfig,
+        },
       };
-      await handleDirectSave(alertOnlyData, true);
+      await handleDirectSave(updateData, true);
     }
+  }
+
+  if (showLocationSettings) {
+    return (
+      <div className="space-y-4 p-4 min-h-[calc(100vh-8rem)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Location Settings{" "}
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                Optional
+              </span>
+            </CardTitle>
+            <CardDescription>
+              Configure multi-location monitoring for better reliability and global coverage
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <LocationConfigSection
+              value={locationConfig}
+              onChange={setLocationConfig}
+              disabled={isSubmitting}
+            />
+            <div className="flex justify-end space-x-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowLocationSettings(false)}
+                disabled={isSubmitting}
+              >
+                Back
+              </Button>
+              <Button
+                onClick={handleFinalSubmit}
+                disabled={isSubmitting || !formChanged}
+                className="flex items-center"
+              >
+                <SaveIcon className="mr-2 h-4 w-4" />
+                {isSubmitting ? "Updating..." : "Update Monitor"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   if (showAlerts) {
@@ -1103,21 +1115,38 @@ export function MonitorForm({
             </CardDescription>
           </div>
           {editMode && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                // Set up monitor data and show alerts
-                const currentFormData = form.getValues();
-                setMonitorData({ formData: currentFormData, apiData: {} });
-                setShowAlerts(true);
-              }}
-              disabled={isSubmitting}
-              className="flex items-center gap-2"
-            >
-              <BellIcon className="h-4 w-4" />
-              Configure Alerts
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  // Set up monitor data and show location settings
+                  const currentFormData = form.getValues();
+                  setMonitorData({ formData: currentFormData, apiData: {} });
+                  setShowLocationSettings(true);
+                }}
+                disabled={isSubmitting}
+                className="flex items-center gap-2"
+              >
+                <Globe className="h-4 w-4" />
+                Configure Locations
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  // Set up monitor data and show alerts
+                  const currentFormData = form.getValues();
+                  setMonitorData({ formData: currentFormData, apiData: {} });
+                  setShowAlerts(true);
+                }}
+                disabled={isSubmitting}
+                className="flex items-center gap-2"
+              >
+                <BellIcon className="h-4 w-4" />
+                Configure Alerts
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1158,25 +1187,30 @@ export function MonitorForm({
                                   variant="outline"
                                   role="combobox"
                                   aria-expanded={testSelectorOpen}
-                                  className={cn(
-                                    "w-full justify-between",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                  disabled={isLoadingTests}
-                                >
+                                className={cn(
+                                  "w-full justify-between",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                                disabled={isLoadingTests}
+                              >
                                   {field.value ? (
-                                    <div className="flex items-center gap-2">
-                                      {getTestTypeIcon(
-                                        selectedTest?.type || "browser"
-                                      )}
-                                      <span className="truncate">
-                                        {selectedTest?.title.substring(0, 84)}
-                                        {selectedTest?.title &&
-                                          selectedTest.title.length > 84 && (
+                                    selectedTest ? (
+                                      <div className="flex items-center gap-2">
+                                        {getTestTypeIcon(selectedTest.type)}
+                                        <span className="truncate">
+                                          {selectedTest.title.substring(0, 84)}
+                                          {selectedTest.title.length > 84 && (
                                             <span>...</span>
                                           )}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="truncate text-left">
+                                        {isLoadingTests
+                                          ? "Loading selected test..."
+                                          : `Test ID: ${field.value}`}
                                       </span>
-                                    </div>
+                                    )
                                   ) : isLoadingTests ? (
                                     "Loading tests..."
                                   ) : (
@@ -2203,15 +2237,6 @@ export function MonitorForm({
                   </div>
                 </div>
               )}
-
-              {/* Multi-Location Configuration */}
-              <div className="pt-4">
-                <LocationConfigSection
-                  value={locationConfig}
-                  onChange={setLocationConfig}
-                  disabled={isSubmitting}
-                />
-              </div>
 
               <div className="flex justify-end space-x-4">
                 <Button

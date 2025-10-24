@@ -8,11 +8,11 @@ import { Globe, TrendingUp, TrendingDown, Activity, Clock } from "lucide-react";
 import {
   getLocationMetadata,
   getLocationHealthColor,
-  calculateLocationHealth,
 } from "@/lib/location-service";
+import type { MonitoringLocation } from "@/lib/location-service";
 
 interface LocationStat {
-  location: string;
+  location: MonitoringLocation;
   totalChecks: number;
   upChecks: number;
   uptimePercentage: number;
@@ -20,12 +20,17 @@ interface LocationStat {
   minResponseTime: number | null;
   maxResponseTime: number | null;
   latest: {
-    checkedAt: string;
+    checkedAt: string | null;
     status: string;
     isUp: boolean;
     responseTimeMs: number | null;
   } | null;
 }
+
+type LocationStatsResponse = {
+  success: boolean;
+  data: LocationStat[];
+};
 
 interface LocationStatusGridProps {
   monitorId: string;
@@ -54,7 +59,7 @@ export function LocationStatusGrid({
           throw new Error("Failed to fetch location statistics");
         }
 
-        const data = await response.json();
+        const data: LocationStatsResponse = await response.json();
         setStats(data.data || []);
       } catch (err) {
         console.error("Error fetching location stats:", err);
@@ -135,7 +140,7 @@ export function LocationStatusGrid({
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {stats.map((stat) => {
-            const metadata = getLocationMetadata(stat.location as any);
+            const metadata = getLocationMetadata(stat.location);
             const healthColor = getLocationHealthColor(stat.uptimePercentage);
             const isUp = stat.latest?.isUp || false;
 

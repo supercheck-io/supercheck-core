@@ -3,18 +3,24 @@
 import React, { useState } from "react";
 import { MonitorForm } from "./monitor-form";
 import { AlertSettings } from "@/components/alerts/alert-settings";
+import { LocationConfigSection } from "./location-config-section";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { MonitorType, AlertConfig } from "@/db/schema/schema";
 import { FormValues } from "./monitor-form";
+import { DEFAULT_LOCATION_CONFIG } from "@/lib/location-service";
+import type { LocationConfig } from "@/lib/location-service";
+
+type WizardStep = "monitor" | "location" | "alerts";
 
 export function MonitorCreationWizard() {
   const router = useRouter();
-  const [showAlerts, setShowAlerts] = useState(false);
+  const [currentStep, setCurrentStep] = useState<WizardStep>("monitor");
   const [monitorData, setMonitorData] = useState<FormValues | undefined>(undefined);
   const [apiData, setApiData] = useState<Record<string, unknown> | undefined>(undefined);
+  const [locationConfig, setLocationConfig] = useState<LocationConfig>(DEFAULT_LOCATION_CONFIG);
   const [alertConfig, setAlertConfig] = useState<AlertConfig>({
     enabled: false,
     notificationProviders: [],
@@ -38,15 +44,23 @@ export function MonitorCreationWizard() {
   const handleMonitorNext = (data: Record<string, unknown>) => {
     // Extract form data and API data from the passed object
     const { formData, apiData: monitorApiData } = data as { formData: FormValues; apiData: Record<string, unknown> };
-    
+
     // Store the form data for state persistence and API data for creation
     setMonitorData(formData);
     setApiData(monitorApiData);
-    setShowAlerts(true);
+    setCurrentStep("location");
   };
 
-  const handleBack = () => {
-    setShowAlerts(false);
+  const handleLocationNext = () => {
+    setCurrentStep("alerts");
+  };
+
+  const handleBackFromLocation = () => {
+    setCurrentStep("monitor");
+  };
+
+  const handleBackFromAlerts = () => {
+    setCurrentStep("location");
   };
 
   const handleCancel = () => {
@@ -89,12 +103,19 @@ export function MonitorCreationWizard() {
     }
 
     try {
+      // Include location config in the monitor config
+      const configWithLocation = {
+        ...(apiData?.config || {}),
+        locationConfig,
+      };
+
       const finalData = {
         ...apiData,
+        config: configWithLocation,
         alertConfig: alertConfig,
       };
-      
-      console.log("Creating monitor with alerts:", finalData);
+
+      console.log("Creating monitor with location and alerts:", finalData);
       
       // Create monitor via API
       const response = await fetch('/api/monitors', {
@@ -132,7 +153,8 @@ export function MonitorCreationWizard() {
     }
   };
 
-  if (!showAlerts) {
+  // Step 1: Monitor Configuration
+  if (currentStep === "monitor") {
     return (
       <div className="space-y-4">
         <MonitorForm
@@ -149,11 +171,52 @@ export function MonitorCreationWizard() {
     );
   }
 
+  // Step 2: Location Configuration
+  if (currentStep === "location") {
+    return (
+      <div className="space-y-6 p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Location Settings{" "}
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                Optional
+              </span>
+            </CardTitle>
+            <CardDescription>
+              Configure multi-location monitoring for better reliability and global coverage
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <LocationConfigSection
+              value={locationConfig}
+              onChange={setLocationConfig}
+            />
+            <div className="flex justify-end gap-4 pt-4">
+              <Button variant="outline" onClick={handleBackFromLocation}>
+                Back
+              </Button>
+              <Button onClick={handleLocationNext}>
+                Next: Alerts
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Step 3: Alert Configuration
   return (
     <div className="space-y-6 p-4">
       <Card>
         <CardHeader>
-          <CardTitle>Alert Settings <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Optional</span></CardTitle>
+          <CardTitle>
+            Alert Settings{" "}
+            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              Optional
+            </span>
+          </CardTitle>
           <CardDescription>
             Configure notifications for this monitor
           </CardDescription>
@@ -161,27 +224,29 @@ export function MonitorCreationWizard() {
         <CardContent className="space-y-6">
           <AlertSettings
             value={alertConfig}
-            onChange={(config) => setAlertConfig({
-              enabled: config.enabled,
-              notificationProviders: config.notificationProviders,
-              alertOnFailure: config.alertOnFailure,
-              alertOnRecovery: config.alertOnRecovery || false,
-              alertOnSslExpiration: config.alertOnSslExpiration || false,
-              failureThreshold: config.failureThreshold,
-              recoveryThreshold: config.recoveryThreshold,
-              customMessage: config.customMessage,
-            })}
+            onChange={(config) =>
+              setAlertConfig({
+                enabled: config.enabled,
+                notificationProviders: config.notificationProviders,
+                alertOnFailure: config.alertOnFailure,
+                alertOnRecovery: config.alertOnRecovery || false,
+                alertOnSslExpiration: config.alertOnSslExpiration || false,
+                failureThreshold: config.failureThreshold,
+                recoveryThreshold: config.recoveryThreshold,
+                customMessage: config.customMessage,
+              })
+            }
             context="monitor"
             monitorType={monitorData?.type || type}
-            sslCheckEnabled={monitorData?.type === 'website' && !!monitorData?.websiteConfig_enableSslCheck}
+            sslCheckEnabled={
+              monitorData?.type === "website" && !!monitorData?.websiteConfig_enableSslCheck
+            }
           />
-          <div className="flex justify-end gap-6 pt-4">
-            <Button variant="outline" onClick={handleBack}>
+          <div className="flex justify-end gap-4 pt-4">
+            <Button variant="outline" onClick={handleBackFromAlerts}>
               Back
             </Button>
-            <Button onClick={handleCreateMonitor}>
-              Create Monitor
-            </Button>
+            <Button onClick={handleCreateMonitor}>Create Monitor</Button>
           </div>
         </CardContent>
       </Card>

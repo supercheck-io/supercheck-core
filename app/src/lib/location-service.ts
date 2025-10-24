@@ -1,9 +1,13 @@
-import {
-  MONITORING_LOCATIONS,
+import { MONITORING_LOCATIONS } from "@/db/schema/schema";
+import type {
   MonitoringLocation,
   LocationMetadata,
   LocationConfig,
 } from "@/db/schema/schema";
+
+// Re-export key pieces for UI usage
+export { MONITORING_LOCATIONS };
+export type { MonitoringLocation, LocationConfig };
 
 /**
  * Location metadata for all available monitoring locations.
@@ -54,6 +58,10 @@ export const LOCATION_METADATA: Record<MonitoringLocation, LocationMetadata> = {
   },
 };
 
+const ALL_MONITORING_LOCATIONS = Object.values(
+  MONITORING_LOCATIONS
+) as MonitoringLocation[];
+
 /**
  * Default location configuration for new monitors.
  */
@@ -85,6 +93,15 @@ export function getLocationMetadata(
  */
 export function getLocationDisplayName(location: MonitoringLocation): string {
   return LOCATION_METADATA[location]?.name || location;
+}
+
+export function isMonitoringLocation(
+  value: unknown
+): value is MonitoringLocation {
+  if (typeof value !== "string") {
+    return false;
+  }
+  return ALL_MONITORING_LOCATIONS.includes(value as MonitoringLocation);
 }
 
 /**

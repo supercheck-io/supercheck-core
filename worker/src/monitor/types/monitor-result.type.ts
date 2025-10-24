@@ -1,14 +1,18 @@
 // Type for the result of a single monitor execution
 // This should align with the 'monitor_results' table in schema.ts
 
-import { MonitorResultStatus, MonitorResultDetails } from '../../db/schema';
+import {
+  MonitorResultStatus,
+  MonitorResultDetails,
+  MonitoringLocation,
+} from '../../db/schema';
 
 // Re-export types for compatibility
-export { MonitorResultStatus, MonitorResultDetails };
+export { MonitorResultStatus, MonitorResultDetails, MonitoringLocation };
 
 export type MonitorExecutionResult = {
   monitorId: string;
-  location: string; // Monitoring location (e.g., 'us-east', 'eu-west')
+  location: MonitoringLocation; // Monitoring location (e.g., 'us-east', 'eu-west')
   status: MonitorResultStatus;
   checkedAt: Date;
   responseTimeMs?: number;

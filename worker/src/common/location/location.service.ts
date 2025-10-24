@@ -110,9 +110,10 @@ export class LocationService {
   /**
    * Validate location configuration.
    */
-  validateLocationConfig(
-    config: Partial<LocationConfig>,
-  ): { valid: boolean; error?: string } {
+  validateLocationConfig(config: Partial<LocationConfig>): {
+    valid: boolean;
+    error?: string;
+  } {
     if (!config) {
       return { valid: false, error: 'Location config is required' };
     }
