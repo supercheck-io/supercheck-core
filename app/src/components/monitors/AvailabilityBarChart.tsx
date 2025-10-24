@@ -76,6 +76,23 @@ export function AvailabilityBarChart({
     payload: ProcessedAvailabilityPoint;
   } | null>(null);
   const chartRef = React.useRef<HTMLDivElement>(null);
+  const [visibleBars, setVisibleBars] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!data || data.length === 0) return;
+
+    let currentBar = 0;
+    const interval = setInterval(() => {
+      currentBar++;
+      setVisibleBars(currentBar);
+
+      if (currentBar >= data.length) {
+        clearInterval(interval);
+      }
+    }, 20); // 20ms delay between each bar
+
+    return () => clearInterval(interval);
+  }, [data]);
 
   const handleMouseMove = React.useCallback((state: ChartMouseState) => {
     if (!chartRef.current) {
@@ -102,10 +119,6 @@ export function AvailabilityBarChart({
     });
   }, []);
 
-  React.useEffect(() => {
-    setTooltipState(null);
-  }, [data]);
-
   if (!data || data.length === 0) {
     return (
       <Card className="shadow-sm flex flex-col min-h-[220px]">
@@ -130,23 +143,25 @@ export function AvailabilityBarChart({
     );
   }
 
-  const processedData: ProcessedAvailabilityPoint[] = data.map((item, index) => {
-    const timestamp = item.timestamp;
-    const formattedDate = Number.isFinite(timestamp)
-      ? format(new Date(timestamp), "MMM dd, HH:mm")
-      : "";
-    return {
-      name: `Run ${index + 1}`,
-      status: item.status === 1 ? "up" : "down",
-      fill: item.status === 1 ? chartConfig.up.color : chartConfig.down.color,
-      value: 1,
-      locationCode: item.locationCode ?? null,
-      locationName: item.locationName ?? null,
-      locationFlag: item.locationFlag ?? null,
-      timestamp,
-      formattedDate,
-    };
-  });
+  const processedData: ProcessedAvailabilityPoint[] = data
+    .slice(0, visibleBars)
+    .map((item, index) => {
+      const timestamp = item.timestamp;
+      const formattedDate = Number.isFinite(timestamp)
+        ? format(new Date(timestamp), "MMM dd, HH:mm")
+        : "";
+      return {
+        name: `Run ${index + 1}`,
+        status: item.status === 1 ? "up" : "down",
+        fill: item.status === 1 ? chartConfig.up.color : chartConfig.down.color,
+        value: 1,
+        locationCode: item.locationCode ?? null,
+        locationName: item.locationName ?? null,
+        locationFlag: item.locationFlag ?? null,
+        timestamp,
+        formattedDate,
+      };
+    });
 
   const getDescription = () => {
     return `Status of latest individual checks (${data.length} data points)`;
@@ -193,7 +208,9 @@ export function AvailabilityBarChart({
                     <Cell
                       key={`cell-${index}`}
                       fill={entry.fill}
-                      style={{ transition: "all 0.15s ease" }}
+                      style={{
+                        transition: "fill 0.2s ease",
+                      }}
                     />
                   ))}
                 </Bar>
