@@ -4,6 +4,7 @@ import {
   TestRunStatus,
   ReportType,
   MonitorType,
+  MonitoringLocation,
 } from '../db/schema';
 
 // Result of a single test execution
@@ -89,4 +90,7 @@ export interface MonitorJobData {
   frequencyMinutes?: number;
   jobData?: any;
   retryLimit?: number;
+  executionLocation?: MonitoringLocation;
+  expectedLocations?: MonitoringLocation[];
+  executionGroupId?: string;
 }

@@ -255,48 +255,52 @@ export async function deleteJob(jobId: string): Promise<JobDeletionResult> {
         // Continue with other cleanup even if unscheduling fails
       }
 
-      // S3 cleanup - delete all report files from S3
+      // S3 cleanup - run asynchronously (fire-and-forget) to avoid blocking the response
       if (
         transactionResult.reportsToDelete &&
         transactionResult.reportsToDelete.length > 0
       ) {
-        try {
-          console.log(
-            `[DELETE_JOB] Starting S3 cleanup for ${transactionResult.reportsToDelete.length} reports...`
-          );
-          const s3Service = createS3CleanupService();
+        console.log(
+          `[DELETE_JOB] Scheduling S3 cleanup for ${transactionResult.reportsToDelete.length} reports (background)...`
+        );
 
-          // Convert reports to S3 deletion format
-          const s3DeletionInputs: ReportDeletionInput[] =
-            transactionResult.reportsToDelete.map((report) => ({
-              reportPath: report.reportPath || undefined,
-              s3Url: report.s3Url || undefined,
-              entityId: report.entityId,
-              entityType: report.entityType,
-            }));
+        // Run S3 cleanup in background without awaiting
+        void (async () => {
+          try {
+            const s3Service = createS3CleanupService();
 
-          const s3Result = await s3Service.deleteReports(s3DeletionInputs);
+            // Convert reports to S3 deletion format
+            const s3DeletionInputs: ReportDeletionInput[] =
+              transactionResult.reportsToDelete!.map((report) => ({
+                reportPath: report.reportPath || undefined,
+                s3Url: report.s3Url || undefined,
+                entityId: report.entityId,
+                entityType: report.entityType,
+              }));
 
-          if (s3Result.success) {
-            console.log(
-              `[DELETE_JOB] S3 cleanup successful: ${s3Result.deletedObjects.length} objects deleted`
-            );
-          } else {
-            console.warn(
-              `[DELETE_JOB] S3 cleanup partially failed: ${s3Result.deletedObjects.length} succeeded, ${s3Result.failedObjects.length} failed`
-            );
-            for (const failed of s3Result.failedObjects) {
-              console.warn(
-                `[DELETE_JOB] S3 deletion failed for ${failed.key}: ${failed.error}`
+            const s3Result = await s3Service.deleteReports(s3DeletionInputs);
+
+            if (s3Result.success) {
+              console.log(
+                `[DELETE_JOB] Background S3 cleanup successful: ${s3Result.deletedObjects.length} objects deleted`
               );
+            } else {
+              console.warn(
+                `[DELETE_JOB] Background S3 cleanup partially failed: ${s3Result.deletedObjects.length} succeeded, ${s3Result.failedObjects.length} failed`
+              );
+              for (const failed of s3Result.failedObjects) {
+                console.warn(
+                  `[DELETE_JOB] S3 deletion failed for ${failed.key}: ${failed.error}`
+                );
+              }
             }
+          } catch (s3Error) {
+            console.error(
+              "[DELETE_JOB] Background S3 cleanup error:",
+              s3Error
+            );
           }
-        } catch (s3Error) {
-          console.error(
-            "[DELETE_JOB] S3 cleanup failed (job still deleted):",
-            s3Error
-          );
-        }
+        })();
       } else {
         console.log("[DELETE_JOB] No S3 reports to clean up");
       }

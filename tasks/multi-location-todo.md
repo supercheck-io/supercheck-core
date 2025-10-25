@@ -119,7 +119,7 @@ Implement multi-location monitoring capabilities similar to Checkly, allowing mo
 ## Technical Decisions
 
 ### Location Strategy
-- **Simulated Locations (Phase 1):** Initially simulate different locations with configurable delays
+- **Removed Simulated Phase:** Early plan to emulate locations locally has been deprecated; system now runs without artificial delays.
   - This allows full UI/UX implementation without infrastructure
   - Easy to test and validate logic
   - Can be replaced with real distributed workers later
@@ -191,7 +191,7 @@ Successfully implemented a comprehensive multi-location monitoring system that a
 2. **Location Services**
    - App and Worker location services with complete metadata
    - Aggregation strategies: all, majority, any, custom threshold
-   - Simulated geographic delays (50-150ms)
+   - Real geographic latency captured by regional workers (no artificial delay)
    - Health calculation and color coding helpers
 
 3. **Worker Multi-Location Execution**

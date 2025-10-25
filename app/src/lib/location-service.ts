@@ -21,20 +21,6 @@ export const LOCATION_METADATA: Record<MonitoringLocation, LocationMetadata> = {
     coordinates: { lat: 38.9072, lon: -77.0369 },
     flag: "🇺🇸",
   },
-  [MONITORING_LOCATIONS.US_WEST]: {
-    code: MONITORING_LOCATIONS.US_WEST,
-    name: "US West",
-    region: "Oregon",
-    coordinates: { lat: 45.5231, lon: -122.6765 },
-    flag: "🇺🇸",
-  },
-  [MONITORING_LOCATIONS.EU_WEST]: {
-    code: MONITORING_LOCATIONS.EU_WEST,
-    name: "EU West",
-    region: "Ireland",
-    coordinates: { lat: 53.3498, lon: -6.2603 },
-    flag: "🇪🇺",
-  },
   [MONITORING_LOCATIONS.EU_CENTRAL]: {
     code: MONITORING_LOCATIONS.EU_CENTRAL,
     name: "EU Central",
@@ -49,14 +35,8 @@ export const LOCATION_METADATA: Record<MonitoringLocation, LocationMetadata> = {
     coordinates: { lat: 1.3521, lon: 103.8198 },
     flag: "🇸🇬",
   },
-  [MONITORING_LOCATIONS.SOUTH_AMERICA]: {
-    code: MONITORING_LOCATIONS.SOUTH_AMERICA,
-    name: "South America",
-    region: "São Paulo",
-    coordinates: { lat: -23.5505, lon: -46.6333 },
-    flag: "🇧🇷",
-  },
 };
+
 
 const ALL_MONITORING_LOCATIONS = Object.values(
   MONITORING_LOCATIONS
@@ -192,26 +172,6 @@ export function getEffectiveLocations(
   }
 
   return config.locations || [MONITORING_LOCATIONS.US_EAST];
-}
-
-/**
- * Get simulated delay for a location (for testing without real distributed infrastructure).
- * This adds realistic latency based on geographic distance.
- */
-export function getSimulatedLocationDelay(
-  location: MonitoringLocation
-): number {
-  // Simulated network delays in milliseconds
-  const delays: Record<MonitoringLocation, number> = {
-    [MONITORING_LOCATIONS.US_EAST]: 50,
-    [MONITORING_LOCATIONS.US_WEST]: 80,
-    [MONITORING_LOCATIONS.EU_WEST]: 100,
-    [MONITORING_LOCATIONS.EU_CENTRAL]: 90,
-    [MONITORING_LOCATIONS.ASIA_PACIFIC]: 150,
-    [MONITORING_LOCATIONS.SOUTH_AMERICA]: 120,
-  };
-
-  return delays[location] || 50;
 }
 
 /**

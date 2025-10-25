@@ -1,5 +1,15 @@
+import crypto from "crypto";
 import { Queue, QueueEvents } from "bullmq";
 import Redis, { RedisOptions } from "ioredis";
+import type {
+  LocationConfig,
+  MonitorConfig,
+  MonitoringLocation,
+} from "@/db/schema/schema";
+import {
+  getEffectiveLocations,
+  isMonitoringLocation,
+} from "./location-service";
 
 // Interfaces matching those in the worker service
 export interface TestExecutionTask {
@@ -36,6 +46,9 @@ export interface MonitorJobData {
   target: string;
   config?: unknown; // Using unknown for config for now, can be refined with shared MonitorConfig type
   frequencyMinutes?: number;
+  executionLocation?: MonitoringLocation;
+  executionGroupId?: string;
+  expectedLocations?: MonitoringLocation[];
 }
 
 // Interface for Monitor Execution Result (mirroring type in runner)
@@ -82,6 +95,9 @@ let monitorExecutionEvents: QueueEvents | null = null;
 
 // Store initialization promise to prevent race conditions
 let initPromise: Promise<void> | null = null;
+
+const MULTI_LOCATION_DISTRIBUTED =
+  (process.env.MULTI_LOCATION_DISTRIBUTED || "").toLowerCase() === "true";
 
 // Queue event subscription type
 export type JobType = "test" | "job"; // Removed 'healthCheck'
@@ -615,6 +631,48 @@ export async function addMonitorExecutionJobToQueue(
 
   try {
     const { monitorExecutionQueue } = await getQueues();
+
+    if (MULTI_LOCATION_DISTRIBUTED) {
+      const monitorConfig = (task.config as MonitorConfig | undefined) ?? undefined;
+      const locationConfig = (monitorConfig?.locationConfig as LocationConfig | null) ?? null;
+      const effectiveLocations = getEffectiveLocations(locationConfig);
+
+      const expectedLocations = Array.from(
+        new Set(
+          effectiveLocations.filter((location) => isMonitoringLocation(location))
+        )
+      ) as MonitoringLocation[];
+
+      const executionGroupId = `${task.monitorId}-${Date.now()}-${crypto
+        .randomBytes(6)
+        .toString("hex")}`;
+
+      const locationsToSchedule =
+        expectedLocations.length > 0 ? expectedLocations : getEffectiveLocations(null);
+
+      await Promise.all(
+        locationsToSchedule.map((location) =>
+          monitorExecutionQueue.add(
+            "executeMonitorJob",
+            {
+              ...task,
+              executionLocation: location,
+              executionGroupId,
+              expectedLocations: locationsToSchedule,
+            },
+            {
+              jobId: `${task.monitorId}:${executionGroupId}:${location}`,
+              removeOnComplete: true,
+              removeOnFail: { count: 10 },
+              priority: 1,
+            }
+          )
+        )
+      );
+
+      return executionGroupId;
+    }
+
     const job = await monitorExecutionQueue.add(
       "executeMonitorJob", // Use the correct job name that the processor expects
       task,

@@ -145,47 +145,66 @@ export async function deleteMonitor(
         // Continue with other cleanup even if unscheduling fails
       }
 
-      // S3 cleanup - delete all report files from S3
+      // S3 cleanup - run asynchronously (fire-and-forget) to avoid blocking the response
       if (
         transactionResult.reportsToDelete &&
         transactionResult.reportsToDelete.length > 0
       ) {
-        try {
-          console.log(
-            `[DELETE_MONITOR] Starting S3 cleanup for ${transactionResult.reportsToDelete.length} reports...`
-          );
-          const s3Service = createS3CleanupService();
+        console.log(
+          `[DELETE_MONITOR] Scheduling S3 cleanup for ${transactionResult.reportsToDelete.length} reports (background)...`
+        );
 
-          // Delete each report from S3
-          const s3DeletionResults = {
-            success: true,
-            deletedObjects: [] as string[],
-            failedObjects: [] as { key: string; error: string }[],
-          };
+        // Run S3 cleanup in background without awaiting
+        void (async () => {
+          try {
+            const s3Service = createS3CleanupService();
+            const s3DeletionResults = {
+              success: true,
+              deletedObjects: [] as string[],
+              failedObjects: [] as { key: string; error: string }[],
+            };
 
-          for (const report of transactionResult.reportsToDelete) {
-            try {
-              if (report.testReportS3Url) {
-                // Extract the directory path from S3 URL
-                // URL format: http://localhost:9000/playwright-test-artifacts/TEST_ID-EXECUTION_ID/report/index.html
-                // We need to delete the entire TEST_ID-EXECUTION_ID/ directory
-                const url = new URL(report.testReportS3Url);
-                const pathParts = url.pathname.split("/").filter(Boolean);
+            for (const report of transactionResult.reportsToDelete!) {
+              try {
+                if (report.testReportS3Url) {
+                  // Extract the directory path from S3 URL
+                  const url = new URL(report.testReportS3Url);
+                  const pathParts = url.pathname.split("/").filter(Boolean);
 
-                if (pathParts.length > 1) {
-                  // pathParts = ['playwright-test-artifacts', 'TEST_ID-EXECUTION_ID', 'report', 'index.html']
-                  // We want 'TEST_ID-EXECUTION_ID' which is pathParts[1]
-                  const executionDir = pathParts[1]; // e.g., '0919b158-cb47-4421-842d-a880683559d2-59ecd077'
+                  if (pathParts.length > 1) {
+                    const executionDir = pathParts[1];
+                    console.log(
+                      `[DELETE_MONITOR] Deleting S3 directory: ${executionDir}/`
+                    );
+
+                    const result = await s3Service.deleteReports([
+                      {
+                        reportPath: executionDir,
+                        entityId: monitorId,
+                        entityType: "monitor",
+                      },
+                    ]);
+
+                    if (result.success) {
+                      s3DeletionResults.deletedObjects.push(
+                        ...result.deletedObjects
+                      );
+                    } else {
+                      s3DeletionResults.failedObjects.push(
+                        ...result.failedObjects
+                      );
+                      s3DeletionResults.success = false;
+                    }
+                  }
+                } else if (report.testExecutionId) {
                   console.log(
-                    `[DELETE_MONITOR] Deleting S3 directory: ${executionDir}/`
+                    `[DELETE_MONITOR] Attempting to delete report for execution ID: ${report.testExecutionId}`
                   );
-
-                  // Delete the entire directory by using reportPath
                   const result = await s3Service.deleteReports([
                     {
-                      reportPath: executionDir, // This will trigger directory expansion in S3 service
+                      reportPath: report.testExecutionId,
                       entityId: monitorId,
-                      entityType: "monitor", // Synthetic monitors use monitor bucket
+                      entityType: "monitor",
                     },
                   ]);
 
@@ -194,72 +213,44 @@ export async function deleteMonitor(
                       ...result.deletedObjects
                     );
                   } else {
-                    s3DeletionResults.failedObjects.push(
-                      ...result.failedObjects
-                    );
+                    s3DeletionResults.failedObjects.push(...result.failedObjects);
                     s3DeletionResults.success = false;
                   }
                 }
-              } else if (report.testExecutionId) {
-                // If we only have execution ID, try to delete by path pattern
-                console.log(
-                  `[DELETE_MONITOR] Attempting to delete report for execution ID: ${report.testExecutionId}`
+              } catch (reportError) {
+                const errorMsg =
+                  reportError instanceof Error
+                    ? reportError.message
+                    : String(reportError);
+                console.error(
+                  `[DELETE_MONITOR] Error deleting report ${report.id}:`,
+                  errorMsg
                 );
-                const result = await s3Service.deleteReports([
-                  {
-                    reportPath: report.testExecutionId,
-                    entityId: monitorId,
-                    entityType: "monitor",
-                  },
-                ]);
-
-                if (result.success) {
-                  s3DeletionResults.deletedObjects.push(
-                    ...result.deletedObjects
-                  );
-                } else {
-                  s3DeletionResults.failedObjects.push(...result.failedObjects);
-                  s3DeletionResults.success = false;
-                }
+                s3DeletionResults.failedObjects.push({
+                  key:
+                    report.testReportS3Url || report.testExecutionId || report.id,
+                  error: errorMsg,
+                });
+                s3DeletionResults.success = false;
               }
-            } catch (reportError) {
-              const errorMsg =
-                reportError instanceof Error
-                  ? reportError.message
-                  : String(reportError);
-              console.error(
-                `[DELETE_MONITOR] Error deleting report ${report.id}:`,
-                errorMsg
-              );
-              s3DeletionResults.failedObjects.push({
-                key:
-                  report.testReportS3Url || report.testExecutionId || report.id,
-                error: errorMsg,
-              });
-              s3DeletionResults.success = false;
             }
-          }
 
-          if (s3DeletionResults.success) {
-            console.log(
-              `[DELETE_MONITOR] S3 cleanup successful: ${s3DeletionResults.deletedObjects.length} objects deleted`
-            );
-          } else {
-            console.warn(
-              `[DELETE_MONITOR] S3 cleanup partially failed: ${s3DeletionResults.deletedObjects.length} succeeded, ${s3DeletionResults.failedObjects.length} failed`
-            );
-            for (const failed of s3DeletionResults.failedObjects) {
+            if (s3DeletionResults.success) {
+              console.log(
+                `[DELETE_MONITOR] Background S3 cleanup successful: ${s3DeletionResults.deletedObjects.length} objects deleted`
+              );
+            } else {
               console.warn(
-                `[DELETE_MONITOR] S3 deletion failed for ${failed.key}: ${failed.error}`
+                `[DELETE_MONITOR] Background S3 cleanup partially failed: ${s3DeletionResults.deletedObjects.length} succeeded, ${s3DeletionResults.failedObjects.length} failed`
               );
             }
+          } catch (s3Error) {
+            console.error(
+              "[DELETE_MONITOR] Background S3 cleanup error:",
+              s3Error
+            );
           }
-        } catch (s3Error) {
-          console.error(
-            "[DELETE_MONITOR] S3 cleanup failed (monitor still deleted):",
-            s3Error
-          );
-        }
+        })();
       } else {
         console.log("[DELETE_MONITOR] No S3 reports to clean up");
       }

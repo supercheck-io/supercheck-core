@@ -121,21 +121,47 @@ export function AvailabilityBarChart({
 
   if (!data || data.length === 0) {
     return (
-      <Card className="shadow-sm flex flex-col min-h-[220px]">
+      <Card className="shadow-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">Availability Overview</CardTitle>
-          <CardDescription className="text-sm">Availability status for monitor checks.</CardDescription>
+          <CardTitle className="text-lg font-semibold">
+            Availability Overview
+          </CardTitle>
+          <CardDescription className="text-sm">
+            Availability status for monitor checks.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-center flex-1">
-          <div className="text-center space-y-3 py-6">
-            <div className="w-16 h-16 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
-              <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <CardContent
+          className="p-4 pt-2"
+          style={{
+            height: "120px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div className="text-center space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
+              <svg
+                className="w-6 h-6 text-muted-foreground"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
             <div>
-              <p className="text-muted-foreground font-medium">No Availability Data</p>
-              <p className="text-sm text-muted-foreground mt-1">Availability status will appear here after the first check.</p>
+              <p className="text-muted-foreground text-sm font-medium">
+                No Availability Data
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Availability status will appear here after the first check.
+              </p>
             </div>
           </div>
         </CardContent>
@@ -169,22 +195,24 @@ export function AvailabilityBarChart({
 
   return (
     <Card className="shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-2">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
         <div>
-          <CardTitle className="text-lg font-semibold">Availability Overview</CardTitle>
+          <CardTitle className="text-lg font-semibold mb-2">
+            Availability Overview
+          </CardTitle>
           <CardDescription>{getDescription()}</CardDescription>
         </div>
         {headerActions ? (
           <div className="flex-shrink-0">{headerActions}</div>
         ) : null}
       </CardHeader>
-      <CardContent className="relative p-2 pt-0 h-[132px]">
+      <CardContent className="relative p-3 h-[120px]">
         <div
           className="relative h-full w-full"
           ref={chartRef}
           onMouseLeave={() => setTooltipState(null)}
         >
-          <ChartContainer config={chartConfig} className="w-full h-full -mt-4">
+          <ChartContainer config={chartConfig} className="w-full h-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={processedData}
@@ -194,15 +222,26 @@ export function AvailabilityBarChart({
                   left: 5,
                   bottom: 5,
                 }}
-                barSize={Math.max(8, Math.min(20, Math.floor(800 / data.length)))}
+                barSize={Math.max(
+                  8,
+                  Math.min(20, Math.floor(800 / data.length))
+                )}
                 barCategoryGap="2%"
                 onMouseMove={handleMouseMove}
                 onMouseLeave={() => setTooltipState(null)}
               >
-                <CartesianGrid vertical={false} horizontal={false} strokeDasharray="3 3" />
+                <CartesianGrid
+                  vertical={false}
+                  horizontal={false}
+                  strokeDasharray="3 3"
+                />
                 <XAxis dataKey="name" type="category" hide />
                 <YAxis type="number" hide />
-                <Tooltip cursor={false} content={() => null} allowEscapeViewBox={{ x: true, y: true }} />
+                <Tooltip
+                  cursor={false}
+                  content={() => null}
+                  allowEscapeViewBox={{ x: true, y: true }}
+                />
                 <Bar dataKey="value" radius={1}>
                   {processedData.map((entry, index) => (
                     <Cell
@@ -234,7 +273,10 @@ export function AvailabilityBarChart({
               <div className="min-w-[200px] max-w-[260px] rounded-lg border border-border bg-background/95 p-3 text-sm shadow-xl backdrop-blur">
                 <p className="mb-2 text-center font-medium text-foreground">
                   {tooltipState.payload.formattedDate ||
-                    format(new Date(tooltipState.payload.timestamp), "MMM dd, HH:mm")}
+                    format(
+                      new Date(tooltipState.payload.timestamp),
+                      "MMM dd, HH:mm"
+                    )}
                 </p>
                 <div className="space-y-1">
                   {(tooltipState.payload.locationName ||

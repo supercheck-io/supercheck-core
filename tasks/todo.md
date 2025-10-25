@@ -1,12 +1,54 @@
--# In-Progress: Polish Multi-Location Monitor Detail UI
+# Plan: Multi-Location Env Cleanup
+
+## Tasks
+- [x] Identify all environment and stack files referencing legacy multi-location variables
+- [x] Replace legacy keys (`MULTI_LOCATION_ENABLED`, `LOCATION_WORKER_STRATEGY`, `LOCATION_EXECUTION_TIMEOUT_MS`, `ENABLE_LOCATION_DELAY`) with supported values (`MULTI_LOCATION_DISTRIBUTED`, `WORKER_LOCATION` where applicable)
+- [x] Ensure docker compose/stack definitions propagate the updated variables consistently
+- [x] Update `.env` templates with guidance for distributed mode and per-worker configuration
+- [x] Verify documentation references align with the new variable set
+- [x] Summarize changes and validation notes in review
+
+## Review
+- Added `MULTI_LOCATION_DISTRIBUTED` guidance to `.env.hetzner.example`, `.env.example`, `app/.env.example`, and `worker/.env.example`, making `WORKER_LOCATION` per worker explicit.
+- Confirmed Docker stack inherits the new toggle via shared `common-env` and each worker advertises its region without legacy keys.
+- Documentation already references the updated toggle, so no additional doc changes were required.
+
+# Plan: Remove Simulated Delays
+
+## Tasks
+- [x] Eliminate simulated location delay logic from app and worker code paths
+- [x] Update documentation to reflect real latency only (no simulated mode)
+- [x] Clean up references in internal task docs to avoid confusion
+- [x] Summarize verification notes in review
+
+## Review
+- Removed simulated delay helpers from app (`app/src/lib/location-service.ts`) and worker (`worker/src/monitor/monitor.service.ts`, `worker/src/common/location/location.service.ts`) so response times reflect real latency only.
+- Updated documentation (specs, testing guide, infrastructure guide, change summary) to describe sequential local execution and distributed per-region workers without artificial delays.
+- Refreshed internal task notes to clarify local fallback behavior.
+- Verification: worker build previously validated; UI/worker tests not rerun for this config-only change.
+
+# Plan: Trim Supported Locations
+
+## Tasks
+- [x] Update shared location constants to only expose `us-east`, `eu-central`, and `asia-pacific`
+- [x] Align metadata, type definitions, and defaults across app/worker/schema with the reduced list
+- [x] Refresh docs and templates referencing deprecated regions
+- [x] Summarize verification notes in review
+
+## Review
+- Schema constants and location metadata across app/worker now expose only `us-east`, `eu-central`, and `asia-pacific`; related deployment templates (`.env.hetzner.example`, `docker-stack-swarm-hetzner.yml`) were pruned to match.
+- Documentation (specs, testing guide, infrastructure guide) now references the supported locations and removes legacy options.
+- Verification: type definitions compile cleanly; no additional automated tests executed for these structural updates.
+
+# In-Progress: Polish Multi-Location Monitor Detail UI
 -
--## Tasks
+## Tasks
 -[x] Restore multi-location availability chart styling (original height, contained bars, remove legend)
 -[x] Reintroduce rich tooltip with location details for availability bars
 -[x] Ensure location filter dropdown is visible and fed by both chart and paginated results data
 -[x] Verify response time chart and results table respect the location filter
 -
--## Review
+## Review
 -Availability chart now matches the original card height, keeps bars within bounds via a responsive SVG viewBox, and removes the redundant legend.
 -Hovering bars shows a popover identical to the old experience but enriched with per-location name, region, status, response time, and timestamp.
 -Location dropdown pulls from both chart data and paginated results, so multi-location monitors always reveal the filter (and the chart/table honor it).
@@ -133,7 +175,7 @@ location: MonitoringLocation; // Monitoring location
 No special configuration needed. The multi-location monitoring feature:
 - **Default behavior**: Single location (us-east) for backward compatibility
 - **Opt-in**: Enable multi-location per monitor via the UI toggle
-- **Simulated delays**: Geographic latency is simulated for realistic testing without distributed infrastructure
+- **Local fallback**: Without regional workers, all locations execute sequentially on a single worker (no artificial delay)
 - **Works anywhere**: No need for multiple servers or regions during development
 
 ---
@@ -310,7 +352,7 @@ useEffect(() => {
 The multi-location monitoring works out of the box:
 - **Default**: Single location (us-east) for backward compatibility
 - **Opt-in**: Enable per monitor via UI
-- **Simulated**: Geographic delays simulated for testing
+- **Local fallback**: Sequential execution on a single worker without regional infrastructure
 - **No infrastructure**: Works without distributed servers
 # Plan: Availability Tooltip & Synthetic Monitor Improvements
 

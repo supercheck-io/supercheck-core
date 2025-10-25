@@ -91,7 +91,7 @@ export interface MonitorResultItem {
   isStatusChange: boolean;
   testExecutionId?: string | null;
   testReportS3Url?: string | null;
-  location?: MonitoringLocation | null;
+  location?: MonitoringLocation | string | null;
 }
 
 export type MonitorWithResults = Monitor & {
@@ -168,11 +168,10 @@ export function MonitorDetailClient({
   const [selectedReportUrl, setSelectedReportUrl] = useState<string | null>(
     null
   );
-  const [selectedLocation, setSelectedLocation] =
-    useState<"all" | MonitoringLocation>("all");
-  const [availableLocations, setAvailableLocations] = useState<
-    MonitoringLocation[]
-  >([]);
+  const [selectedLocation, setSelectedLocation] = useState<"all" | string>(
+    "all"
+  );
+  const [availableLocations, setAvailableLocations] = useState<string[]>([]);
   const resultsPerPage = 10;
 
   // Copy to clipboard handler
@@ -192,7 +191,7 @@ export function MonitorDetailClient({
     async (
       page: number,
       dateFilter?: Date,
-      locationFilter?: "all" | MonitoringLocation
+      locationFilter?: "all" | string
     ) => {
       setIsLoadingResults(true);
       try {
@@ -269,7 +268,7 @@ export function MonitorDetailClient({
 
   // Extract available locations from chart + paginated data
   useEffect(() => {
-    const locationSet = new Set<MonitoringLocation>();
+    const locationSet = new Set<string>();
     if (monitor.recentResults && monitor.recentResults.length > 0) {
       monitor.recentResults.forEach((result) => {
         if (result.location) {
@@ -284,21 +283,31 @@ export function MonitorDetailClient({
         }
       });
     }
-    const locations = Array.from(locationSet);
+
+    const orderedLocations = Array.from(locationSet).sort((a, b) => {
+      const priority = ["us-east", "eu-central", "asia-pacific"];
+      const indexA = priority.indexOf(a);
+      const indexB = priority.indexOf(b);
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
     setAvailableLocations((prev) => {
       if (
-        prev.length === locations.length &&
-        prev.every((loc) => locations.includes(loc))
+        prev.length === orderedLocations.length &&
+        prev.every((loc, index) => orderedLocations[index] === loc)
       ) {
         return prev;
       }
-      return locations;
+      return orderedLocations;
     });
 
     if (
       selectedLocation !== "all" &&
-      locations.length > 0 &&
-      !locations.includes(selectedLocation)
+      orderedLocations.length > 0 &&
+      !orderedLocations.includes(selectedLocation)
     ) {
       setSelectedLocation("all");
     }
@@ -394,7 +403,9 @@ export function MonitorDetailClient({
       .map((r) => {
         const date =
           typeof r.checkedAt === "string" ? parseISO(r.checkedAt) : r.checkedAt;
-        const metadata = r.location ? getLocationMetadata(r.location) : undefined;
+        const metadata = r.location
+          ? getLocationMetadata(r.location as MonitoringLocation)
+          : undefined;
 
         return {
           name: format(date, "HH:mm"), // Show only time (HH:MM) for cleaner x-axis
@@ -502,10 +513,17 @@ export function MonitorDetailClient({
     };
   }, [monitor.recentResults, selectedLocation]);
 
-  const latestResult =
+  // Get latest result filtered by selected location
+  const filteredLatestResults =
     monitor.recentResults && monitor.recentResults.length > 0
-      ? monitor.recentResults[0]
-      : null;
+      ? selectedLocation === "all"
+        ? monitor.recentResults
+        : monitor.recentResults.filter((r) => r.location === selectedLocation)
+      : [];
+
+  const latestResult =
+    filteredLatestResults.length > 0 ? filteredLatestResults[0] : null;
+
   const currentActualStatus = latestResult
     ? latestResult.isUp
       ? "up"
@@ -538,12 +556,10 @@ export function MonitorDetailClient({
     return filteredResults
       .map((r) => {
         const timestamp =
-          typeof r.checkedAt === "string"
-            ? parseISO(r.checkedAt)
-            : r.checkedAt;
+          typeof r.checkedAt === "string" ? parseISO(r.checkedAt) : r.checkedAt;
         const locationCode = r.location ?? null;
         const locationMetadata = locationCode
-          ? getLocationMetadata(locationCode)
+          ? getLocationMetadata(locationCode as MonitoringLocation)
           : undefined;
 
         return {
@@ -959,18 +975,6 @@ export function MonitorDetailClient({
 
           <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
             <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
-              <Activity className="h-5 w-5 text-blue-500" />
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Response Time
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4 px-4">
-              <div className="text-xl font-semibold">{currentResponseTime}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
-            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
               <Clock className="h-5 w-5 text-purple-500" />
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Interval
@@ -982,6 +986,18 @@ export function MonitorDetailClient({
                   ? `${monitor.frequencyMinutes}m`
                   : "N/A"}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 h-22">
+            <CardHeader className="flex flex-row items-center justify-start space-x-2 pb-1 pt-3 px-4">
+              <Activity className="h-5 w-5 text-blue-500" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Response Time
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4 px-4">
+              <div className="text-xl font-semibold">{currentResponseTime}</div>
             </CardContent>
           </Card>
 
@@ -1045,25 +1061,25 @@ export function MonitorDetailClient({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* For all monitors, show charts and results in two columns */}
-          <div className="flex flex-col space-y-6">
-            <div className="flex-1">
-              <AvailabilityBarChart
-                data={availabilityTimelineData}
-                headerActions={
-                  availableLocations.length > 1 ? (
-                    <LocationFilterDropdown
-                      selectedLocation={selectedLocation}
-                      availableLocations={availableLocations}
-                      onLocationChange={setSelectedLocation}
-                      className="w-[200px]"
-                    />
-                  ) : undefined
-                }
-              />
-            </div>
+        <div className="flex flex-col gap-4">
+          <div>
+            <AvailabilityBarChart
+              data={availabilityTimelineData}
+              headerActions={
+                availableLocations.length > 1 ? (
+                  <LocationFilterDropdown
+                    selectedLocation={selectedLocation}
+                    availableLocations={availableLocations}
+                    onLocationChange={setSelectedLocation}
+                    className="w-[200px]"
+                  />
+                ) : undefined
+              }
+            />
+          </div>
 
           {/* Response Time Chart */}
-          <div className="flex-1 -mt-2">
+          <div>
             <ResponseTimeBarChart data={responseTimeData} />
           </div>
         </div>
@@ -1131,7 +1147,7 @@ export function MonitorDetailClient({
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0 flex-1 flex flex-col">
-            <div className="flex-1 overflow-y-auto" style={{ height: "400px" }}>
+            <div className="w-full overflow-hidden">
               <div className="w-full">
                 <table className="w-full divide-y divide-border">
                   <thead className="bg-background sticky top-0 z-10 border-b">
@@ -1156,7 +1172,7 @@ export function MonitorDetailClient({
                       </th>
                       <th
                         scope="col"
-                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-44"
+                        className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-60"
                       >
                         Response Time (ms)
                       </th>
@@ -1194,7 +1210,9 @@ export function MonitorDetailClient({
                       paginatedTableResults.length > 0 ? (
                       paginatedTableResults.map((result) => {
                         const locationMetadata = result.location
-                          ? getLocationMetadata(result.location)
+                          ? getLocationMetadata(
+                              result.location as MonitoringLocation
+                            )
                           : null;
                         const syntheticReportAvailable =
                           monitor.type === "synthetic_test" &&
@@ -1235,13 +1253,17 @@ export function MonitorDetailClient({
                             <td className="px-4 py-[11.5px] whitespace-nowrap text-sm text-muted-foreground">
                               {formatDateTime(result.checkedAt)}
                             </td>
-                            <td className="px-4 py-[11.5px] whitespace-nowrap text-sm text-muted-foreground">
+                            <td className="px-4 py-[11.5px] whitespace-nowrap text-xs text-muted-foreground">
                               {locationMetadata ? (
-                                <span className="flex items-center gap-2">
+                                <span className="flex items-center gap-1">
                                   {locationMetadata.flag && (
-                                    <span>{locationMetadata.flag}</span>
+                                    <span className="text-[16px]">
+                                      {locationMetadata.flag}
+                                    </span>
                                   )}
-                                  <span>{locationMetadata.name}</span>
+                                  <span className="font-medium">
+                                    {locationMetadata.name}
+                                  </span>
                                 </span>
                               ) : result.location ? (
                                 result.location
@@ -1287,7 +1309,7 @@ export function MonitorDetailClient({
                                   <TruncatedTextWithTooltip
                                     text={`Report unavailable: ${syntheticReportError}`}
                                     className="text-muted-foreground text-xs"
-                                    maxWidth="180px"
+                                    maxWidth="90px"
                                     maxLength={40}
                                   />
                                 ) : (
@@ -1328,8 +1350,18 @@ export function MonitorDetailClient({
                         >
                           <div className="text-center space-y-3">
                             <div className="w-16 h-16 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
-                              <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                              <svg
+                                className="w-8 h-8 text-muted-foreground"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                                />
                               </svg>
                             </div>
                             <div>
@@ -1337,7 +1369,8 @@ export function MonitorDetailClient({
                                 No check results available
                               </p>
                               <p className="text-sm text-muted-foreground mt-1">
-                                Check results will appear here once monitoring begins.
+                                Check results will appear here once monitoring
+                                begins.
                               </p>
                             </div>
                           </div>
@@ -1351,7 +1384,8 @@ export function MonitorDetailClient({
             {!isLoadingResults &&
               paginatedTableResults &&
               paginatedTableResults.length > 0 &&
-              paginationMeta && (
+              paginationMeta &&
+              totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t flex-shrink-0 bg-card rounded-b-lg">
                   <div className="text-sm text-muted-foreground">
                     Page {currentPage} of {totalPages}

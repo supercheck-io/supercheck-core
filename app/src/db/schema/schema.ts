@@ -459,11 +459,8 @@ export type MonitorStatus =
  */
 export const MONITORING_LOCATIONS = {
   US_EAST: "us-east",
-  US_WEST: "us-west",
-  EU_WEST: "eu-west",
   EU_CENTRAL: "eu-central",
   ASIA_PACIFIC: "asia-pacific",
-  SOUTH_AMERICA: "south-america",
 } as const;
 
 export type MonitoringLocation = typeof MONITORING_LOCATIONS[keyof typeof MONITORING_LOCATIONS];

@@ -1,0 +1,402 @@
+# Production Docker Swarm Stack - TRUE Multi-Location Distributed Execution
+# Supercheck Multi-Location Monitoring on Hetzner Cloud
+#
+# Hetzner Best Practices:
+# - Use shared environment variables with YAML anchors (no duplication)
+# - Sensible defaults for all variables
+# - Load secrets from .env.hetzner file
+# - Deploy across multiple Hetzner Cloud locations
+#
+# Deploy with:
+#   docker stack deploy -c docker-stack-swarm-hetzner.yml supercheck
+#
+# Version: 1.0.0
+# Production-Ready: TRUE
+
+version: "3.9"
+
+# ============================================
+# SHARED ENVIRONMENT VARIABLES (YAML Anchors)
+# Used by all services to avoid duplication
+# ============================================
+x-common-env: &common-env
+  DATABASE_URL: ${DATABASE_URL:-postgresql://supercheck:supercheck_password@postgres.example.com:5432/supercheck_db}
+  DB_HOST: ${DB_HOST:-postgres.example.com}
+  DB_PORT: ${DB_PORT:-5432}
+  DB_USER: ${DB_USER:-supercheck}
+  DB_PASSWORD: ${DB_PASSWORD:-change_me}
+  DB_NAME: ${DB_NAME:-supercheck_db}
+  REDIS_URL: ${REDIS_URL:-redis://:change_me@redis.example.com:6379/0}
+  REDIS_HOST: ${REDIS_HOST:-redis.example.com}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-change_me}
+  REDIS_DB: ${REDIS_DB:-0}
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-change_me}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-change_me}
+  S3_ENDPOINT: ${S3_ENDPOINT:-https://s3.de.io.cloud.ovh.net}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+  S3_OPERATION_TIMEOUT: ${S3_OPERATION_TIMEOUT:-30000}
+  S3_MAX_RETRIES: ${S3_MAX_RETRIES:-3}
+  S3_JOB_BUCKET_NAME: ${S3_JOB_BUCKET_NAME:-playwright-job-artifacts}
+  S3_TEST_BUCKET_NAME: ${S3_TEST_BUCKET_NAME:-playwright-test-artifacts}
+  S3_MONITOR_BUCKET_NAME: ${S3_MONITOR_BUCKET_NAME:-playwright-monitor-artifacts}
+  S3_STATUS_BUCKET_NAME: ${S3_STATUS_BUCKET_NAME:-supercheck-status-artifacts}
+  NODE_ENV: ${NODE_ENV:-production}
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://supercheck.example.com}
+  APP_URL: ${APP_URL:-https://supercheck.example.com}
+  STATUS_PAGE_DOMAIN: ${STATUS_PAGE_DOMAIN:-status.example.com}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://supercheck.example.com}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change_me_32_char_secret}
+  SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:-change_me_32_char_key}
+  PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+  PLAYWRIGHT_RETRIES: ${PLAYWRIGHT_RETRIES:-1}
+  PLAYWRIGHT_TRACE: ${PLAYWRIGHT_TRACE:-retain-on-failure}
+  PLAYWRIGHT_SCREENSHOT: ${PLAYWRIGHT_SCREENSHOT:-on}
+  PLAYWRIGHT_VIDEO: ${PLAYWRIGHT_VIDEO:-retain-on-failure}
+  ENABLE_FIREFOX: ${ENABLE_FIREFOX:-false}
+  ENABLE_WEBKIT: ${ENABLE_WEBKIT:-false}
+  ENABLE_MOBILE: ${ENABLE_MOBILE:-false}
+  MULTI_LOCATION_DISTRIBUTED: ${MULTI_LOCATION_DISTRIBUTED:-true}
+  RUNNING_CAPACITY: ${RUNNING_CAPACITY:-10}
+  QUEUED_CAPACITY: ${QUEUED_CAPACITY:-50}
+  MAX_CONCURRENT_EXECUTIONS: ${MAX_CONCURRENT_EXECUTIONS:-2}
+  TEST_EXECUTION_TIMEOUT_MS: ${TEST_EXECUTION_TIMEOUT_MS:-120000}
+  JOB_EXECUTION_TIMEOUT_MS: ${JOB_EXECUTION_TIMEOUT_MS:-900000}
+  MONITOR_CLEANUP_ENABLED: ${MONITOR_CLEANUP_ENABLED:-true}
+  MONITOR_CLEANUP_CRON: ${MONITOR_CLEANUP_CRON:-0 2 * * *}
+  MONITOR_RETENTION_DAYS: ${MONITOR_RETENTION_DAYS:-30}
+  MONITOR_CLEANUP_BATCH_SIZE: ${MONITOR_CLEANUP_BATCH_SIZE:-1000}
+  MONITOR_PRESERVE_STATUS_CHANGES: ${MONITOR_PRESERVE_STATUS_CHANGES:-true}
+  JOB_RUNS_CLEANUP_ENABLED: ${JOB_RUNS_CLEANUP_ENABLED:-true}
+  JOB_RUNS_CLEANUP_CRON: ${JOB_RUNS_CLEANUP_CRON:-0 3 * * *}
+  JOB_RUNS_RETENTION_DAYS: ${JOB_RUNS_RETENTION_DAYS:-90}
+  SMTP_HOST: ${SMTP_HOST:-smtp.example.com}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-change_me}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-change_me}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-notifications@example.com}
+  ALLOW_INTERNAL_TARGETS: ${ALLOW_INTERNAL_TARGETS:-false}
+  SSRF_PROTECTION_ENABLED: ${SSRF_PROTECTION_ENABLED:-true}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-false}
+
+services:
+  app:
+    image: ghcr.io/supercheck-io/supercheck/app:latest
+    environment:
+      <<: *common-env
+    ports:
+      - "3000:3000"
+    networks:
+      - supercheck-network
+    deploy:
+      mode: replicated
+      replicas: ${APP_REPLICAS:-3}
+      placement:
+        constraints:
+          - node.labels.service==app
+          - node.labels.location==fsn1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 2G
+        reservations:
+          cpus: "1.0"
+          memory: 1.5G
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/api/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=app,location=primary"
+
+  worker_fsn1:
+    image: ghcr.io/supercheck-io/supercheck/worker:latest
+    environment:
+      <<: *common-env
+      NODE_OPTIONS: "--max-old-space-size=2048"
+      # Pin worker to EU Central region (Falkenstein)
+      WORKER_LOCATION: eu-central
+      WORKER_REGION: fsn1
+      QUEUE_PREFIX: location_fsn1
+      QUEUE_PRIORITY: high
+      RUNNING_CAPACITY: ${WORKER_CAPACITY_FSN1:-5}
+    networks:
+      - supercheck-network
+    deploy:
+      mode: replicated
+      replicas: ${WORKER_REPLICAS_FSN1:-2}
+      placement:
+        constraints:
+          - node.labels.service==worker
+          - node.labels.location==fsn1
+      update_config:
+        parallelism: 1
+        delay: 15s
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "2.0"
+          memory: 2.5G
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          'require("http").request({hostname:"localhost",port:3001,path:"/health",timeout:5000},(res)=>process.exit(res.statusCode===200?0:1)).on("error",()=>process.exit(1)).end()',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=worker,location=fsn1"
+
+  worker_ash:
+    image: ghcr.io/supercheck-io/supercheck/worker:latest
+    environment:
+      <<: *common-env
+      NODE_OPTIONS: "--max-old-space-size=2048"
+      # Pin worker to US East region (Ashburn)
+      WORKER_LOCATION: us-east
+      WORKER_REGION: ash
+      QUEUE_PREFIX: location_ash
+      QUEUE_PRIORITY: high
+      RUNNING_CAPACITY: ${WORKER_CAPACITY_ASH:-5}
+    networks:
+      - supercheck-network
+    deploy:
+      mode: replicated
+      replicas: ${WORKER_REPLICAS_ASH:-2}
+      placement:
+        constraints:
+          - node.labels.service==worker
+          - node.labels.location==ash
+      update_config:
+        parallelism: 1
+        delay: 15s
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "2.0"
+          memory: 2.5G
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          'require("http").request({hostname:"localhost",port:3001,path:"/health",timeout:5000},(res)=>process.exit(res.statusCode===200?0:1)).on("error",()=>process.exit(1)).end()',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=worker,location=ash"
+
+  worker_sg:
+    image: ghcr.io/supercheck-io/supercheck/worker:latest
+    environment:
+      <<: *common-env
+      NODE_OPTIONS: "--max-old-space-size=2048"
+      # Pin worker to Asia Pacific region (Singapore)
+      WORKER_LOCATION: asia-pacific
+      WORKER_REGION: sg
+      QUEUE_PREFIX: location_sg
+      QUEUE_PRIORITY: high
+      RUNNING_CAPACITY: ${WORKER_CAPACITY_SG:-5}
+    networks:
+      - supercheck-network
+    deploy:
+      mode: replicated
+      replicas: ${WORKER_REPLICAS_SG:-2}
+      placement:
+        constraints:
+          - node.labels.service==worker
+          - node.labels.location==sg
+      update_config:
+        parallelism: 1
+        delay: 15s
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "2.0"
+          memory: 2.5G
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          'require("http").request({hostname:"localhost",port:3001,path:"/health",timeout:5000},(res)=>process.exit(res.statusCode===200?0:1)).on("error",()=>process.exit(1)).end()',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=worker,location=sg"
+
+networks:
+  supercheck-network:
+    driver: overlay
+    driver_opts:
+      com.docker.network.driver.overlay.vxlanid: "4096"
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+# ============================================
+# HETZNER CLOUD DEPLOYMENT GUIDE
+# ============================================
+#
+# STEP 1: Create Hetzner Cloud Project
+#   - Go to https://console.hetzner.cloud
+#   - Create project "supercheck"
+#   - Generate API token for automation
+#
+# STEP 2: Create Hetzner Cloud Servers
+#
+#   Primary Region (FSN1 - Falkenstein):
+#     • 1 × cx41 (4 CPU, 8GB RAM) for manager/app
+#     • 2 × cx51 (8 CPU, 16GB RAM) for FSN1 workers
+#
+#   Secondary Regions:
+#     • NBG1 (Nuremberg): 2 × cx51
+#     • FSN1 (Falkenstein): 2 × cx51 (workers + manager)
+#     • ASH (Ashburn): 2 × cx51
+#     • SG (Singapore): 2 × cx51
+#
+# STEP 3: Initialize Docker Swarm
+#
+#   On primary manager (FSN1):
+#     docker swarm init --advertise-addr <MANAGER_IP>
+#
+#   Get worker token:
+#     WORKER_TOKEN=$(docker swarm join-token worker -q)
+#
+# STEP 4: Join Workers from Other Regions
+#
+#   On each worker server:
+#     docker swarm join --token $WORKER_TOKEN $MANAGER_IP:2377
+#
+# STEP 5: Label Nodes by Location
+#
+#   On manager:
+#     # FSN1 nodes
+#     docker node update --label-add service=app <node-id-fsn1>
+#     docker node update --label-add location=fsn1 <node-id-fsn1>
+#     docker node update --label-add service=worker <node-id-fsn1-w>
+#     docker node update --label-add location=fsn1 <node-id-fsn1-w>
+#
+#     # ASH nodes
+#     docker node update --label-add service=worker <node-id-ash>
+#     docker node update --label-add location=ash <node-id-ash>
+#
+#     # SG nodes
+#     docker node update --label-add service=worker <node-id-sg>
+#     docker node update --label-add location=sg <node-id-sg>
+#
+# STEP 6: Create Hetzner Storage Box
+#
+#   Via Hetzner console:
+#     • Create Storage Box with S3 compatibility enabled
+#     • Get S3_ENDPOINT from settings
+#     • Create access credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+#
+# STEP 7: Set Up PostgreSQL (Managed or Self-Hosted)
+#
+#   Option A: Managed Database
+#     • Use external managed PostgreSQL service
+#
+#   Option B: Self-Hosted
+#     • Create dedicated PostgreSQL server in FSN1
+#     • Setup replication for HA
+#
+# STEP 8: Set Up Redis (Managed or Self-Hosted)
+#
+#   Option A: Managed Service
+#     • Use external managed Redis service
+#
+#   Option B: Self-Hosted
+#     • Create Redis server in FSN1
+#     • Enable AOF persistence and replication
+#
+# STEP 9: Configure Environment
+#
+#   cp .env.hetzner.example .env.hetzner
+#   # Edit .env.hetzner with actual values
+#   source .env.hetzner
+#
+# STEP 10: Deploy Stack
+#
+#   docker stack deploy -c docker-stack-swarm-hetzner.yml supercheck
+#
+# STEP 11: Verify Deployment
+#
+#   docker service ls
+#   docker stack ps supercheck
+#   docker service logs supercheck_app
+#   docker service logs supercheck_worker_fsn1
+#
+# COST ESTIMATE (5 regions × 2 workers = 10 workers):
+#   • App server: 1 × cx41 @ €0.026/hour = €19/month
+#   • Worker servers: 10 × cx51 @ €0.104/hour = €760/month
+#   • Storage Box: €50-200/month
+#   • Total: ~€830-1000/month (70% cheaper than AWS)

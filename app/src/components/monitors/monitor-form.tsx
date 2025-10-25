@@ -48,13 +48,13 @@ import {
   ChevronRight,
   Shield,
   BellIcon,
-  Globe,
   Check,
   ChevronsUpDown,
   Chrome,
   ArrowLeftRight,
   Database,
   SquareFunction,
+  MapPin,
 } from "lucide-react";
 import { AlertSettings } from "@/components/alerts/alert-settings";
 import { MonitorTypesPopover } from "./monitor-types-popover";
@@ -388,6 +388,7 @@ interface MonitorFormProps {
   onCancel?: () => void;
   alertConfig?: AlertConfiguration | null; // Use proper type
   initialConfig?: Record<string, unknown> | null; // Monitor config including locationConfig
+  setMonitorData?: (data: Record<string, unknown>) => void; // For wizard state management
 }
 
 export function MonitorForm({
@@ -402,6 +403,7 @@ export function MonitorForm({
   onCancel,
   alertConfig: initialAlertConfig,
   initialConfig,
+  setMonitorData,
 }: MonitorFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -415,28 +417,26 @@ export function MonitorForm({
   const [isAuthSectionOpen, setIsAuthSectionOpen] = useState(false);
   const [isKeywordSectionOpen, setIsKeywordSectionOpen] = useState(false);
   const [isCustomStatusCode, setIsCustomStatusCode] = useState(false);
-  const [alertConfig, setAlertConfig] = useState(
-    initialAlertConfig || {
-      enabled: false,
-      notificationProviders: [] as string[],
-      alertOnFailure: true,
-      alertOnRecovery: true,
-      alertOnSslExpiration: false,
-      failureThreshold: 1,
-      recoveryThreshold: 1,
-      customMessage: "" as string,
-    }
-  );
+  // Store initial alert config for change detection
+  const initialAlertConfigValue = initialAlertConfig || {
+    enabled: false,
+    notificationProviders: [] as string[],
+    alertOnFailure: true,
+    alertOnRecovery: true,
+    alertOnSslExpiration: false,
+    failureThreshold: 1,
+    recoveryThreshold: 1,
+    customMessage: "" as string,
+  };
+
+  const [alertConfig, setAlertConfig] = useState(initialAlertConfigValue);
 
   const [showAlerts, setShowAlerts] = useState(false);
   const [showLocationSettings, setShowLocationSettings] = useState(false);
-  const [locationConfig, setLocationConfig] = useState<LocationConfig>(
-    () => (initialConfig?.locationConfig as LocationConfig) || DEFAULT_LOCATION_CONFIG
-  );
-  const [monitorData, setMonitorData] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+
+  // Store initial configs for change detection
+  const initialLocationConfig = (initialConfig?.locationConfig as LocationConfig) || DEFAULT_LOCATION_CONFIG;
+  const [locationConfig, setLocationConfig] = useState<LocationConfig>(initialLocationConfig);
   const [tests, setTests] = useState<
     Array<{ id: string; title: string; type: string }>
   >([]);
@@ -447,6 +447,19 @@ export function MonitorForm({
     type: string;
   } | null>(null);
   const [testSelectorOpen, setTestSelectorOpen] = useState(false);
+
+  // Helper functions to detect changes
+  const hasLocationConfigChanged = (): boolean => {
+    return JSON.stringify(locationConfig) !== JSON.stringify(initialLocationConfig);
+  };
+
+  const hasAlertConfigChanged = (): boolean => {
+    return JSON.stringify(alertConfig) !== JSON.stringify(initialAlertConfigValue);
+  };
+
+  const hasAnyConfigChanged = (): boolean => {
+    return formChanged || hasLocationConfigChanged() || hasAlertConfigChanged();
+  };
 
   // Get current monitor type from URL params if not provided as prop
   const urlType = searchParams.get("type") as FormValues["type"];
@@ -467,6 +480,7 @@ export function MonitorForm({
   useEffect(() => {
     const fetchTests = async () => {
       if (currentMonitorType !== "synthetic_test") {
+        setTests([]);
         return;
       }
 
@@ -478,17 +492,6 @@ export function MonitorForm({
         }
         const data = await response.json();
         setTests(data);
-
-        // If fromTest param is provided, pre-select it
-        if (fromTestId) {
-          const test = data.find(
-            (t: { id: string; title: string; type: string }) =>
-              t.id === fromTestId
-          );
-          if (test) {
-            setSelectedTest(test);
-          }
-        }
       } catch (error) {
         console.error("Error fetching tests:", error);
         toast.error("Failed to load tests");
@@ -498,7 +501,7 @@ export function MonitorForm({
     };
 
     void fetchTests();
-  }, [currentMonitorType, fromTestId]);
+  }, [currentMonitorType]);
 
   // Create default values based on monitor type if provided
   const getDefaultValues = useCallback((): FormValues => {
@@ -544,37 +547,48 @@ export function MonitorForm({
     },
   });
 
-  // Handle monitor data changes (needs `form` to be initialized first)
-  useEffect(() => {
-    if (monitorData) {
-      form.reset({
-        ...getDefaultValues(),
-        ...monitorData,
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monitorData]);
 
   const type = form.watch("type");
+  const syntheticTestId = form.watch("syntheticConfig_testId");
   const httpMethod = form.watch("httpConfig_method");
   const authType = form.watch("httpConfig_authType");
   const expectedStatusCodes = form.watch("httpConfig_expectedStatusCodes");
 
+  // Keep selectedTest in sync when syntheticTestId changes or tests load
   useEffect(() => {
-    if (type !== "synthetic_test" || isLoadingTests) {
+    if (type !== "synthetic_test") {
+      setSelectedTest(null);
       return;
     }
 
-    const currentTestId = form.getValues("syntheticConfig_testId");
-    if (!currentTestId || selectedTest?.id === currentTestId) {
+    // If tests are still loading or not available, exit early
+    if (isLoadingTests || tests.length === 0) {
       return;
     }
 
-    const matchedTest = tests.find((test) => test.id === currentTestId);
-    if (matchedTest) {
-      setSelectedTest(matchedTest);
+    // Get testId from form (prefer watch value, fallback to direct read for reliability)
+    const testId = syntheticTestId || form.getValues("syntheticConfig_testId");
+
+    // If testId was cleared, clear selectedTest
+    if (!testId) {
+      setSelectedTest(null);
+      return;
     }
-  }, [form, isLoadingTests, selectedTest, tests, type]);
+
+    // Sync selectedTest when testId changes
+    if (selectedTest?.id !== testId) {
+      const matchedTest = tests.find((test) => test.id === testId);
+      if (matchedTest) {
+        setSelectedTest(matchedTest);
+      } else {
+        // Test not found in list, but we have a testId - this shouldn't happen
+        // but let's be defensive and not clear selectedTest if we already have one
+        console.warn(`Test with ID ${testId} not found in available tests`);
+      }
+    }
+    // NOTE: Intentionally not including selectedTest in dependencies to avoid loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, syntheticTestId, isLoadingTests, tests]);
 
   // Auto-adjust interval when switching to synthetic monitor
   useEffect(() => {
@@ -630,9 +644,17 @@ export function MonitorForm({
   useEffect(() => {
     if (editMode && initialData) {
       form.reset(initialData);
+
+      // For synthetic monitors, also sync selectedTest after form reset
+      if (initialData.type === "synthetic_test" && initialData.syntheticConfig_testId && tests.length > 0) {
+        const matchedTest = tests.find((test) => test.id === initialData.syntheticConfig_testId);
+        if (matchedTest) {
+          setSelectedTest(matchedTest);
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editMode, initialData]);
+  }, [editMode, initialData, tests]);
 
   const targetPlaceholders: Record<FormValues["type"], string> = {
     http_request: "e.g., https://example.com or https://api.example.com/health",
@@ -642,14 +664,10 @@ export function MonitorForm({
     synthetic_test: "Select a test to monitor",
   };
 
-  // Track form changes - using direct form.formState access to avoid infinite loops
+  // Track form changes using react-hook-form's built-in dirty state
   useEffect(() => {
-    // Only track changes after initial mount to avoid false positives
-    const subscription = form.watch(() => {
-      setFormChanged(true);
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
+    setFormChanged(form.formState.isDirty);
+  }, [form.formState.isDirty]);
 
   async function onSubmit(data: FormValues) {
     setIsSubmitting(true);
@@ -835,7 +853,9 @@ export function MonitorForm({
 
       // For creation mode, check if we should show alerts or save directly
       if (!editMode && !hideAlerts && searchParams.get("tab") === "alerts") {
-        setMonitorData({ formData: data, apiData });
+        if (setMonitorData) {
+          setMonitorData({ formData: data, apiData });
+        }
         setShowAlerts(true);
         setIsSubmitting(false);
         return;
@@ -865,9 +885,7 @@ export function MonitorForm({
     setIsSubmitting(true);
 
     try {
-      const saveData = includeAlerts
-        ? { ...apiData, alertConfig }
-        : apiData;
+      const saveData = includeAlerts ? { ...apiData, alertConfig } : apiData;
       const endpoint = editMode ? `/api/monitors/${id}` : "/api/monitors";
       const method = editMode ? "PUT" : "POST";
 
@@ -956,26 +974,14 @@ export function MonitorForm({
       }
     }
 
-    if (monitorData) {
-      // Extract apiData from monitorData object if it contains both formData and apiData
-      const apiDataToSave =
-        "apiData" in monitorData
-          ? (monitorData as { apiData: Record<string, unknown> }).apiData
-          : monitorData;
-
-      // Add location config to the saved data
-      if (!apiDataToSave.config) {
-        apiDataToSave.config = {};
-      }
-      (apiDataToSave.config as Record<string, unknown>).locationConfig = locationConfig;
-
-      await handleDirectSave(apiDataToSave, true);
-    } else if (editMode && id) {
-      // If we're just updating alerts/locations for an existing monitor without form data changes
+    // Save alerts and/or location config
+    // IMPORTANT: Merge with existing config to preserve fields like testId
+    if (editMode && id) {
       const updateData = {
         alertConfig: alertConfig,
         config: {
-          locationConfig: locationConfig,
+          ...(initialConfig || {}), // Preserve existing config fields
+          locationConfig: locationConfig, // Override only locationConfig
         },
       };
       await handleDirectSave(updateData, true);
@@ -994,7 +1000,8 @@ export function MonitorForm({
               </span>
             </CardTitle>
             <CardDescription>
-              Configure multi-location monitoring for better reliability and global coverage
+              Configure multi-location monitoring for better reliability and
+              global coverage
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -1014,7 +1021,7 @@ export function MonitorForm({
               </Button>
               <Button
                 onClick={handleFinalSubmit}
-                disabled={isSubmitting || !formChanged}
+                disabled={isSubmitting || !hasAnyConfigChanged()}
                 className="flex items-center"
               >
                 <SaveIcon className="mr-2 h-4 w-4" />
@@ -1074,7 +1081,7 @@ export function MonitorForm({
               </Button>
               <Button
                 onClick={handleFinalSubmit}
-                disabled={isSubmitting || !formChanged}
+                disabled={isSubmitting || !hasAnyConfigChanged()}
                 className="flex items-center"
               >
                 <SaveIcon className="mr-2 h-4 w-4" />
@@ -1119,27 +1126,17 @@ export function MonitorForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  // Set up monitor data and show location settings
-                  const currentFormData = form.getValues();
-                  setMonitorData({ formData: currentFormData, apiData: {} });
-                  setShowLocationSettings(true);
-                }}
+                onClick={() => setShowLocationSettings(true)}
                 disabled={isSubmitting}
                 className="flex items-center gap-2"
               >
-                <Globe className="h-4 w-4" />
+                <MapPin className="h-4 w-4" />
                 Configure Locations
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  // Set up monitor data and show alerts
-                  const currentFormData = form.getValues();
-                  setMonitorData({ formData: currentFormData, apiData: {} });
-                  setShowAlerts(true);
-                }}
+                onClick={() => setShowAlerts(true)}
                 disabled={isSubmitting}
                 className="flex items-center gap-2"
               >
@@ -1187,13 +1184,15 @@ export function MonitorForm({
                                   variant="outline"
                                   role="combobox"
                                   aria-expanded={testSelectorOpen}
-                                className={cn(
-                                  "w-full justify-between",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                                disabled={isLoadingTests}
-                              >
-                                  {field.value ? (
+                                  className={cn(
+                                    "w-full justify-between",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                  disabled={isLoadingTests}
+                                >
+                                  {isLoadingTests ? (
+                                    "Loading tests..."
+                                  ) : field.value ? (
                                     selectedTest ? (
                                       <div className="flex items-center gap-2">
                                         {getTestTypeIcon(selectedTest.type)}
@@ -1206,13 +1205,12 @@ export function MonitorForm({
                                       </div>
                                     ) : (
                                       <span className="truncate text-left">
-                                        {isLoadingTests
-                                          ? "Loading selected test..."
-                                          : `Test ID: ${field.value}`}
+                                        {`Test ID: ${field.value.substring(0, 50)}`}
+                                        {field.value.length > 50 && (
+                                          <span>...</span>
+                                        )}
                                       </span>
                                     )
-                                  ) : isLoadingTests ? (
-                                    "Loading tests..."
                                   ) : (
                                     "Choose a test to monitor"
                                   )}

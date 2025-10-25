@@ -15,7 +15,7 @@ import type {
   monitorResultsSelectSchema,
 } from '../db/schema';
 import type { z } from 'zod';
-import { eq, desc } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { MonitorAlertService } from './services/monitor-alert.service';
 import { ValidationService } from '../common/validation/validation.service';
 import {
@@ -502,13 +502,6 @@ export class MonitorService {
       }
     }
 
-    // Add simulated location delay for realistic multi-location behavior
-    const locationDelay =
-      this.locationService.getSimulatedLocationDelay(location);
-    if (locationDelay > 0 && responseTimeMs !== undefined) {
-      responseTimeMs += locationDelay;
-    }
-
     const result: MonitorExecutionResult = {
       monitorId: jobData.monitorId,
       location,
@@ -550,7 +543,7 @@ export class MonitorService {
       return result ? [result] : [];
     }
 
-    const monitorConfig = (monitor.config as MonitorConfig | null) ?? null;
+    const monitorConfig = monitor.config ?? null;
     const locationConfig = monitorConfig?.locationConfig ?? null;
     const locations =
       this.locationService.getEffectiveLocations(locationConfig);
@@ -579,7 +572,10 @@ export class MonitorService {
   /**
    * Save results from multiple locations and calculate aggregated status.
    */
-  async saveMonitorResults(results: MonitorExecutionResult[]): Promise<void> {
+  async saveMonitorResults(
+    results: MonitorExecutionResult[],
+    options?: { persisted?: boolean },
+  ): Promise<void> {
     if (results.length === 0) {
       this.logger.warn('No results to save');
       return;
@@ -594,12 +590,14 @@ export class MonitorService {
     }
 
     // Save all location results in parallel
-    await Promise.all(
-      results.map((result) => this.saveMonitorResultToDb(result)),
-    );
+    if (!options?.persisted) {
+      await Promise.all(
+        results.map((result) => this.saveMonitorResultToDb(result)),
+      );
+    }
 
     // Calculate aggregated status
-    const monitorConfig = (monitor.config as MonitorConfig | null) ?? null;
+    const monitorConfig = monitor.config ?? null;
     const locationConfig = monitorConfig?.locationConfig ?? null;
 
     // Build location statuses map from results
@@ -673,6 +671,115 @@ export class MonitorService {
         );
       }
     }
+  }
+
+  async saveDistributedMonitorResult(
+    result: MonitorExecutionResult,
+    options: {
+      executionGroupId?: string;
+      expectedLocations?: MonitoringLocation[];
+    },
+  ): Promise<void> {
+    const executionGroupId = options.executionGroupId;
+    const expectedLocations =
+      options.expectedLocations && options.expectedLocations.length > 0
+        ? Array.from(new Set(options.expectedLocations))
+        : undefined;
+
+    const persistedResult: MonitorExecutionResult =
+      executionGroupId || expectedLocations
+        ? {
+            ...result,
+            details: {
+              ...(result.details ?? {}),
+              ...(executionGroupId ? { executionGroupId } : {}),
+              ...(expectedLocations ? { expectedLocations } : {}),
+            },
+          }
+        : result;
+
+    await this.saveMonitorResultToDb(persistedResult);
+
+    if (!executionGroupId) {
+      await this.saveMonitorResults([persistedResult], { persisted: true });
+      return;
+    }
+
+    const monitor = await this.getMonitorById(result.monitorId);
+    if (!monitor) {
+      return;
+    }
+
+    const monitorConfig = monitor.config ?? null;
+    const locationConfig = monitorConfig?.locationConfig ?? null;
+    const expected =
+      expectedLocations && expectedLocations.length > 0
+        ? expectedLocations
+        : this.locationService.getEffectiveLocations(locationConfig);
+
+    const groupRows = await this.dbService.db
+      .select({
+        monitorId: schema.monitorResults.monitorId,
+        location: schema.monitorResults.location,
+        status: schema.monitorResults.status,
+        checkedAt: schema.monitorResults.checkedAt,
+        responseTimeMs: schema.monitorResults.responseTimeMs,
+        details: schema.monitorResults.details,
+        isUp: schema.monitorResults.isUp,
+        testExecutionId: schema.monitorResults.testExecutionId,
+        testReportS3Url: schema.monitorResults.testReportS3Url,
+      })
+      .from(schema.monitorResults)
+      .where(
+        and(
+          eq(schema.monitorResults.monitorId, result.monitorId),
+          sql`(${schema.monitorResults.details} ->> 'executionGroupId') = ${executionGroupId}`,
+        ),
+      )
+      .orderBy(desc(schema.monitorResults.checkedAt));
+
+    const latestByLocation = new Map<
+      MonitoringLocation,
+      (typeof groupRows)[number]
+    >();
+
+    for (const row of groupRows) {
+      const rowLocation = row.location as MonitoringLocation;
+      if (!latestByLocation.has(rowLocation)) {
+        latestByLocation.set(rowLocation, row);
+      }
+    }
+
+    if (latestByLocation.size < expected.length) {
+      return;
+    }
+
+    const aggregatedResults: MonitorExecutionResult[] = expected
+      .map((location) => latestByLocation.get(location))
+      .filter(
+        (
+          row,
+        ): row is (typeof groupRows)[number] & {
+          location: MonitoringLocation;
+        } => Boolean(row),
+      )
+      .map((row) => ({
+        monitorId: row.monitorId,
+        location: row.location as MonitoringLocation,
+        status: row.status,
+        checkedAt: row.checkedAt,
+        responseTimeMs: row.responseTimeMs ?? undefined,
+        details: row.details ?? undefined,
+        isUp: row.isUp,
+        testExecutionId: row.testExecutionId ?? undefined,
+        testReportS3Url: row.testReportS3Url ?? undefined,
+      }));
+
+    if (aggregatedResults.length === 0) {
+      return;
+    }
+
+    await this.saveMonitorResults(aggregatedResults, { persisted: true });
   }
 
   async saveMonitorResult(resultData: MonitorExecutionResult): Promise<void> {

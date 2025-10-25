@@ -129,8 +129,7 @@ else if (editMode && id) {
 **File**: `/docs/MULTI_LOCATION_TESTING.md`
 
 **Created comprehensive guide covering:**
-- How multi-location works locally
-- Simulated geographic delays explanation
+- How multi-location works locally (sequential execution when undeployed)
 - Step-by-step testing instructions
 - All testing scenarios
 - API endpoints for verification
@@ -145,7 +144,7 @@ else if (editMode && id) {
 1. **Create/Edit a monitor**
 2. **Click "Configure Locations"** (in edit mode) or go to Location Settings step (in wizard)
 3. **Toggle ON** "Multi-Location Monitoring"
-4. **Select locations**: us-east, eu-west, asia-pacific, etc.
+4. **Select locations**: us-east, eu-central, asia-pacific
 5. **Choose strategy**: All, Majority, Any, or Custom threshold
 6. **Save and wait for check to run**
 
@@ -174,20 +173,13 @@ docker-compose -f docker-compose-local.yml logs worker --tail 50
 
 Look for multi-location execution logs.
 
-## Simulated Delays (Built-in)
+## Regional Latency
 
-```typescript
-const DELAYS = {
-  'us-east': 0,        // Virginia (base)
-  'us-west': 60,       // California (+60ms)
-  'eu-west': 80,       // Ireland (+80ms)
-  'eu-central': 100,   // Germany (+100ms)
-  'asia-pacific': 150, // Singapore (+150ms)
-  'south-america': 180 // Brazil (+180ms)
-};
-```
+Monitors now rely on real network latency:
 
-**No configuration needed** - delays are automatic!
+- Local development (single worker) executes locations sequentially with near-zero added latency.
+- Production deployments record true per-region latency via dedicated workers in `us-east`, `eu-central`, and `asia-pacific`.
+- Any additional shaping (throttling, artificial delay) must be handled externally if required.
 
 ## API Endpoints
 
@@ -280,14 +272,14 @@ GET /api/monitors/{id}/results?location=us-east&page=1&limit=10
 ## Known Limitations
 
 ### Current
-- 6 predefined locations (covers major regions)
-- Simulated delays (not real distributed workers)
-- Single worker handles all locations
+- 3 predefined locations (`us-east`, `eu-central`, `asia-pacific`)
+- Real geographic latency when regional workers are deployed
+- Local fallback executes locations sequentially on a single worker
 
 ### Future Enhancements (Optional)
 - Add custom locations
-- Deploy actual distributed workers
-- Real geographic delays
+- Expand to additional regions (e.g., australia, south-america)
+- Edge computing integration
 - Edge computing integration
 
 ## Migration Notes

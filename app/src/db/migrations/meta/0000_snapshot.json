@@ -1,5 +1,5 @@
 {
-  "id": "41f448a1-46fa-4077-8844-406b715eef41",
+  "id": "9f265a6e-f47b-44c3-aec4-e61dcbce6537",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1722,6 +1722,13 @@
           "notNull": true,
           "default": "now()"
         },
+        "location": {
+          "name": "location",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'us-east'"
+        },
         "status": {
           "name": "status",
           "type": "varchar(50)",
@@ -1780,7 +1787,35 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "monitor_results_monitor_location_checked_idx": {
+          "name": "monitor_results_monitor_location_checked_idx",
+          "columns": [
+            {
+              "expression": "monitor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "location",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "checked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "monitor_results_monitor_id_monitors_id_fk": {
           "name": "monitor_results_monitor_id_monitors_id_fk",

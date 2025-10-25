@@ -214,6 +214,7 @@ CREATE TABLE "monitor_results" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"monitor_id" uuid NOT NULL,
 	"checked_at" timestamp DEFAULT now() NOT NULL,
+	"location" varchar(50) DEFAULT 'us-east' NOT NULL,
 	"status" varchar(50) NOT NULL,
 	"response_time_ms" integer,
 	"details" jsonb,
@@ -629,6 +630,7 @@ ALTER TABLE "test_tags" ADD CONSTRAINT "test_tags_tag_id_tags_id_fk" FOREIGN KEY
 ALTER TABLE "tests" ADD CONSTRAINT "tests_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tests" ADD CONSTRAINT "tests_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tests" ADD CONSTRAINT "tests_created_by_user_id_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "monitor_results_monitor_location_checked_idx" ON "monitor_results" USING btree ("monitor_id","location","checked_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "postmortems_incident_idx" ON "postmortems" USING btree ("incident_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "reports_entity_type_id_idx" ON "reports" USING btree ("entity_type","entity_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "status_page_metrics_date_component_idx" ON "status_page_metrics" USING btree ("status_page_id","component_id","date");--> statement-breakpoint

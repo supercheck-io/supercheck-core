@@ -1,2 +1,0 @@
-ALTER TABLE "monitor_results" ADD COLUMN "location" varchar(50) DEFAULT 'us-east' NOT NULL;--> statement-breakpoint
-CREATE INDEX "monitor_results_monitor_location_checked_idx" ON "monitor_results" USING btree ("monitor_id","location","checked_at");

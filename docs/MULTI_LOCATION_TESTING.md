@@ -2,36 +2,24 @@
 
 ## Overview
 
-The multi-location monitoring feature allows you to monitor your services from multiple geographic locations. For local development and testing, the system simulates multi-location behavior without requiring actual distributed infrastructure.
+The multi-location monitoring feature executes checks from three strategic regions:
+
+| Region | Worker Location Code |
+|--------|----------------------|
+| US East | `us-east` |
+| EU Central | `eu-central` |
+| Asia Pacific | `asia-pacific` |
 
 ## How It Works Locally
 
-### Simulated Geographic Delays
-
-The worker automatically simulates realistic network delays based on the selected location:
-
-```typescript
-// Simulated delays (in milliseconds) for each location
-const SIMULATED_DELAYS = {
-  'us-east': 0,        // Base location (Virginia, USA)
-  'us-west': 60,       // California, USA (~60ms)
-  'eu-west': 80,       // Ireland (~80ms)
-  'eu-central': 100,   // Frankfurt, Germany (~100ms)
-  'asia-pacific': 150, // Singapore (~150ms)
-  'south-america': 180 // São Paulo, Brazil (~180ms)
-};
-```
-
-### Single Worker Simulates Multiple Locations
+- In distributed deployments (`MULTI_LOCATION_DISTRIBUTED=true`, default), the app enqueues one job per region and geography-specific workers process their matching jobs.
+- In local development (single worker, no `WORKER_LOCATION`), all locations execute sequentially on the same worker **without artificial delays**. The results still carry the correct location code so the UI behaves identically.
 
 When a monitor with multi-location enabled runs:
 
-1. The worker receives the `locationConfig` from the monitor
-2. For each enabled location, it:
-   - Runs the check (HTTP request, ping, etc.)
-   - Adds simulated network delay
-   - Records the result with the location tag
-3. Results are aggregated based on your strategy (All, Majority, Any, Custom)
+1. The worker receives the `locationConfig` from the monitor.
+2. For each enabled location, it runs the check (HTTP request, ping, etc.) and records the result with the location tag.
+3. Results are aggregated based on your strategy (All, Majority, Any, Custom).
 
 ## Testing Multi-Location Monitors
 
@@ -41,7 +29,7 @@ When a monitor with multi-location enabled runs:
 
 2. **In the wizard, go to "Location Settings" step**
    - Toggle "Multi-Location Monitoring" ON
-   - Select multiple locations (e.g., us-east, eu-west, asia-pacific)
+   - Select multiple locations (e.g., us-east, eu-central, asia-pacific)
    - Choose aggregation strategy:
      - **All Locations Up**: Monitor is UP only if ALL locations report UP
      - **Majority Up**: Monitor is UP if >50% locations report UP
@@ -100,14 +88,14 @@ View individual location stats at the bottom of monitor details:
 
 ```yaml
 Configuration:
-  Locations: us-east, eu-west, asia-pacific
+  Locations: us-east, eu-central, asia-pacific
   Strategy: Majority Up (50%)
 
 Expected Result:
   - Monitor status: UP
   - All location bars: Green
   - All location cards: UP status
-  - Avg response varies by location (asia-pacific slowest)
+  - Avg response varies by location (asia-pacific typically slowest)
 ```
 
 ### Scenario 2: Partial Outage
@@ -130,14 +118,10 @@ To simulate:
 
 ## Local Development Environment Variables
 
-No special environment variables needed! The multi-location feature works out of the box:
+No special environment variables are needed. With the default `.env` templates:
 
-```bash
-# No additional config required - these are defaults:
-# - Simulated delays are built-in
-# - No distributed worker setup needed
-# - Works from single machine
-```
+- `MULTI_LOCATION_DISTRIBUTED=false` runs all locations sequentially on the same worker (ideal for local dev).
+- Setting `MULTI_LOCATION_DISTRIBUTED=true` requires workers with explicit `WORKER_LOCATION` values (`us-east`, `eu-central`, `asia-pacific`).
 
 ## Verifying Multi-Location is Working
 
@@ -223,11 +207,11 @@ curl http://localhost:3000/api/monitors/{monitorId}/results?location=us-east
 
 ### All Locations Show Same Response Time?
 
-**This is expected for:**
-- Localhost targets (no real network delay)
-- Very fast responses (<10ms)
+**This is expected when:**
+- Monitoring internal or localhost targets (minimal network latency)
+- All locations execute on the same local worker
 
-**Solution:** Monitor an external service to see delay simulation
+**Tip:** Monitor an external service or deploy regional workers to observe live geographic latency.
 
 ### Location Filter Dropdown Not Showing?
 
@@ -241,27 +225,27 @@ curl http://localhost:3000/api/monitors/{monitorId}/results?location=us-east
 
 | Feature | Local Development | Production |
 |---------|------------------|------------|
-| Geographic delay | Simulated (~60-180ms) | Real network delay |
-| Worker location | Single machine | Distributed workers (optional) |
-| Infrastructure | Docker Compose | Kubernetes/VMs in regions |
-| Cost | Free | Paid (if using distributed workers) |
-| Testing | Fully functional | Real-world accurate |
+| Geographic delay | Sequential execution on single worker (no artificial delay) | Real regional latency via distributed workers |
+| Worker location | Unset (`WORKER_LOCATION` optional) | Explicit `WORKER_LOCATION` per worker (`us-east`, `eu-central`, `asia-pacific`) |
+| Infrastructure | Docker Compose / single server | Docker Swarm, Kubernetes, or VM fleets across regions |
+| Cost | Free | Depends on regional infrastructure |
+| Testing | Functional validation | Real-world accuracy |
 
 ## Next Steps
 
 Once you've tested locally and are ready for production:
 
-1. **Production deployment** works the same way (no changes needed)
-2. **Optional**: Deploy workers in actual regions for real geographic monitoring
-3. **Optional**: Use edge computing platforms (Cloudflare Workers, AWS Lambda@Edge)
+1. Keep `MULTI_LOCATION_DISTRIBUTED=true` (default) in production.
+2. Deploy workers with region-specific `WORKER_LOCATION` values (`us-east`, `eu-central`, `asia-pacific`).
+3. Scale worker replicas per region to handle the desired concurrency.
 
 ## FAQ
 
 **Q: Do I need to deploy workers in different regions?**
-A: No! Local simulation works perfectly for development and even production for most use cases.
+A: Not for basic validation—local sequential execution works without regional infrastructure. Deploy regional workers when you need true latency measurements and redundancy.
 
 **Q: Can I add custom locations?**
-A: Currently, the 6 predefined locations cover major global regions. Custom locations can be added in `/worker/src/db/schema.ts`.
+A: The default distribution covers three strategic regions. You can extend the list by updating `/worker/src/db/schema.ts` and `/worker/src/common/location/location.service.ts`, then redeploy the app and worker.
 
 **Q: What happens if one location is down?**
 A: Based on your aggregation strategy:

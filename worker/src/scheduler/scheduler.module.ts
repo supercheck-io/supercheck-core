@@ -10,11 +10,13 @@ import {
 } from './constants';
 import { DbModule } from '../db/db.module';
 import { MonitorModule } from '../monitor/monitor.module';
+import { LocationModule } from '../common/location/location.module';
 
 @Module({
   imports: [
     DbModule,
     MonitorModule,
+    LocationModule,
     BullModule.registerQueue(
       { name: JOB_SCHEDULER_QUEUE },
       { name: MONITOR_SCHEDULER_QUEUE },

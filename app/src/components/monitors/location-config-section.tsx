@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Globe as GlobeIcon } from "lucide-react";
+import { MapPin } from "lucide-react";
 import {
   MONITORING_LOCATIONS,
   LOCATION_METADATA,
@@ -84,7 +84,10 @@ const LAND_PATHS = LAND_FEATURE_COLLECTION.features
   })
   .filter(Boolean) as Array<{ id: string | number; d: string }>;
 
-function projectLatLng(lat: number, lng: number): { x: number; y: number } | null {
+function projectLatLng(
+  lat: number,
+  lng: number
+): { x: number; y: number } | null {
   const projected = MAP_PROJECTION([lng, lat]);
   if (!projected) {
     return null;
@@ -177,7 +180,7 @@ function LocationConfigSectionComponent({
         >
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
-              <GlobeIcon className="h-5 w-5" />
+              <MapPin className="h-5 w-5" />
               <label
                 htmlFor="multi-location-enabled"
                 className="font-medium cursor-pointer"
@@ -442,7 +445,10 @@ function LocationGlobe({ locations }: { locations: MonitoringLocation[] }) {
           {markers.length} selected
         </span>
       </div>
-      <div ref={containerRef} className="mt-6 flex flex-col items-center flex-1">
+      <div
+        ref={containerRef}
+        className="mt-6 flex flex-col items-center flex-1"
+      >
         <div className="flex w-full max-w-[560px] items-center justify-center">
           <SimpleGlobe size={globeSize} markers={projectedMarkers} />
         </div>
