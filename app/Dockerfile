@@ -78,8 +78,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy migration files and scripts
+# Copy migration files, scripts, and bootstrap admin script
 COPY --from=builder --chown=nextjs:nodejs /app/src/db ./src/db
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/bootstrap-super-admin.ts ./src/lib/bootstrap-super-admin.ts
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/rbac ./src/lib/rbac
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.json ./drizzle.config.json
