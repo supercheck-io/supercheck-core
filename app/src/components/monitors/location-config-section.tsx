@@ -4,7 +4,6 @@ import React from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -139,14 +138,8 @@ function LocationConfigSectionComponent({
     onChange(newConfig);
   };
 
-  const handleThresholdChange = (sliderValue: number[]) => {
-    const currentConfig = value || DEFAULT_LOCATION_CONFIG;
-    const newConfig = { ...currentConfig, threshold: sliderValue[0] };
-    onChange(newConfig);
-  };
-
   const handleStrategyChange = (
-    strategy: "all" | "majority" | "any" | "custom"
+    strategy: "all" | "majority" | "any"
   ) => {
     const currentConfig = value || DEFAULT_LOCATION_CONFIG;
     const newConfig = { ...currentConfig, strategy };
@@ -261,10 +254,10 @@ function LocationConfigSectionComponent({
                       Aggregation Strategy
                     </Label>
                     <Select
-                      value={config.strategy || "custom"}
+                      value={config.strategy || "majority"}
                       onValueChange={(value) =>
                         handleStrategyChange(
-                          value as "all" | "majority" | "any" | "custom"
+                          value as "all" | "majority" | "any"
                         )
                       }
                       disabled={disabled}
@@ -284,41 +277,9 @@ function LocationConfigSectionComponent({
                           Any Location Up - Status is UP if at least one
                           location is up
                         </SelectItem>
-                        <SelectItem value="custom">
-                          Custom Threshold - Set a custom percentage
-                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {/* Threshold Slider (shown for custom strategy) */}
-                  {config.strategy === "custom" && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">
-                          Success Threshold
-                        </Label>
-                        <span className="text-sm text-foreground font-medium">
-                          {config.threshold}%
-                        </span>
-                      </div>
-                      <Slider
-                        value={[config.threshold]}
-                        onValueChange={handleThresholdChange}
-                        min={1}
-                        max={100}
-                        step={1}
-                        disabled={disabled}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Monitor status will be &quot;UP&quot; when at least{" "}
-                        {upRequired} of {selectedLocationCount} location
-                        {selectedLocationCount !== 1 ? "s" : ""} report UP
-                        status
-                      </p>
-                    </div>
-                  )}
 
                   {/* Summary moved here to reduce empty space */}
                   <div className="rounded-lg bg-muted/50 p-4 space-y-2 mt-8">

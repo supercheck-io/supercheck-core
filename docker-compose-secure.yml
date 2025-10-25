@@ -107,6 +107,14 @@ x-common-env: &common-env # Database Configuration
 
   NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-true} # Set to true to enable demo mode
 
+  # Multi-location execution
+  # When true, the app fan-outs monitor jobs per region. For local development we
+  # leave the worker unpinned (`WORKER_LOCATION=local`) so it happily handles all
+  # locations sequentially. In distributed deployments override this value with
+  # one of the supported regions (us-east, eu-central, asia-pacific).
+  MULTI_LOCATION_DISTRIBUTED: ${MULTI_LOCATION_DISTRIBUTED:-false}
+  WORKER_LOCATION: ${WORKER_LOCATION:-local}
+
 services:
   # Traefik Reverse Proxy with HTTPS
   traefik:
@@ -137,7 +145,7 @@ services:
 
   # App (Next.js Frontend) - Handles migrations internally
   app:
-    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.26
+    image: ghcr.io/supercheck-io/supercheck/app:1.1.5-beta.30
     expose:
       - "3000"
     environment:
@@ -215,7 +223,7 @@ services:
 
   # Worker (NestJS Runner) - Minimal resource limits for maximum test compatibility
   worker:
-    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.26
+    image: ghcr.io/supercheck-io/supercheck/worker:1.1.5-beta.30
     environment:
       <<: *common-env
       # Worker-specific configuration (inherits all common env vars)

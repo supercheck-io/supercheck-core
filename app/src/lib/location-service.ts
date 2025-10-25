@@ -140,23 +140,16 @@ export function calculateAggregatedStatus(
   const totalCount = locations.length;
   const upPercentage = (upCount / totalCount) * 100;
 
-  // Apply strategy
-  switch (config.strategy) {
+  // Apply strategy (default to "majority" if not specified)
+  const strategy = config.strategy || "majority";
+  switch (strategy) {
     case "all":
       return upCount === totalCount ? "up" : "down";
     case "any":
       return upCount > 0 ? "up" : "down";
     case "majority":
-      return upPercentage >= 50 ? "up" : "down";
-    case "custom":
     default:
-      if (upPercentage >= config.threshold) {
-        return "up";
-      } else if (upCount > 0) {
-        return "partial";
-      } else {
-        return "down";
-      }
+      return upPercentage >= 50 ? "up" : "down";
   }
 }
 

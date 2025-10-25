@@ -29,7 +29,7 @@ export type LocationConfig = {
   enabled: boolean;
   locations: MonitoringLocation[];
   threshold: number;
-  strategy?: 'all' | 'majority' | 'any' | 'custom';
+  strategy?: 'all' | 'majority' | 'any';
 };
 
 @Injectable()
@@ -159,26 +159,19 @@ export class LocationService {
     const upPercentage = (upCount / totalCount) * 100;
 
     this.logger.debug(
-      `Aggregating status: ${upCount}/${totalCount} locations up (${upPercentage.toFixed(1)}%), threshold: ${config.threshold}%, strategy: ${config.strategy}`,
+      `Aggregating status: ${upCount}/${totalCount} locations up (${upPercentage.toFixed(1)}%), strategy: ${config.strategy}`,
     );
 
-    // Apply strategy
-    switch (config.strategy) {
+    // Apply strategy (default to "majority" if not specified)
+    const strategy = config.strategy || 'majority';
+    switch (strategy) {
       case 'all':
         return upCount === totalCount ? 'up' : 'down';
       case 'any':
         return upCount > 0 ? 'up' : 'down';
       case 'majority':
-        return upPercentage >= 50 ? 'up' : 'down';
-      case 'custom':
       default:
-        if (upPercentage >= config.threshold) {
-          return 'up';
-        } else if (upCount > 0) {
-          return 'partial';
-        } else {
-          return 'down';
-        }
+        return upPercentage >= 50 ? 'up' : 'down';
     }
   }
 }

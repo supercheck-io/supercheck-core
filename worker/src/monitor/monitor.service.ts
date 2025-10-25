@@ -637,39 +637,41 @@ export class MonitorService {
 
     await this.updateMonitorStatus(monitorId, overallStatus, checkedAt);
 
-    // Handle alerts based on aggregated status
+    // Handle alerts based on aggregated status using consolidated alert logic
     const currentStatus = overallStatus;
     if (previousStatus !== currentStatus) {
       this.logger.log(
         `Monitor ${monitorId} status changed: ${previousStatus} -> ${currentStatus}`,
       );
 
-      // Send alerts if configured
-      if (monitor.alertConfig?.enabled) {
-        const type = currentStatus === 'up' ? 'recovery' : 'failure';
-        const reason =
-          type === 'failure'
-            ? `Monitor is down in ${results.filter((r) => !r.isUp).length}/${results.length} locations`
-            : 'Monitor has recovered';
+      // Calculate location summary for alert reason
+      const downCount = results.filter((r) => !r.isUp).length;
+      const upCount = results.length - downCount;
+      const reason =
+        currentStatus === 'down'
+          ? `Monitor is down in ${downCount}/${results.length} locations`
+          : `Monitor has recovered (${upCount}/${results.length} locations up)`;
 
-        const avgResponseTime =
-          results.reduce((sum, r) => sum + (r.responseTimeMs || 0), 0) /
-          results.length;
+      const avgResponseTime =
+        results.reduce((sum, r) => sum + (r.responseTimeMs || 0), 0) /
+        results.length;
 
-        await this.monitorAlertService.sendNotification(
-          monitorId,
-          type,
-          reason,
-          {
-            responseTime: avgResponseTime,
-            locationResults: results.map((r) => ({
-              location: r.location,
-              isUp: r.isUp,
-              responseTime: r.responseTimeMs,
-            })),
-          },
-        );
-      }
+      // Use consolidated alert evaluation method
+      await this.evaluateAndSendAlert({
+        monitorId,
+        monitor,
+        previousStatus,
+        currentStatus,
+        reason,
+        metadata: {
+          responseTime: avgResponseTime,
+          locationResults: results.map((r) => ({
+            location: r.location,
+            isUp: r.isUp,
+            responseTime: r.responseTimeMs,
+          })),
+        },
+      });
     }
   }
 
@@ -797,8 +799,12 @@ export class MonitorService {
         );
 
         const currentStatus = resultData.isUp ? 'up' : 'down';
+        // Status change is only valid if coming from 'up' or 'down' states
+        // Ignore transitions from 'pending' or 'paused' as they're not real state changes
         const isStatusChange =
-          previousStatus !== currentStatus && previousStatus !== 'paused';
+          previousStatus !== currentStatus &&
+          previousStatus !== 'paused' &&
+          previousStatus !== 'pending';
 
         // Only log status changes, not every result
         if (isStatusChange) {
@@ -2253,6 +2259,99 @@ export class MonitorService {
         `Failed to update monitor status for ${monitorId}: ${getErrorMessage(error)}`,
         error instanceof Error ? error.stack : undefined,
       );
+    }
+  }
+
+  /**
+   * Evaluate and send alerts based on status transitions.
+   * Consolidated alert logic for both single and multi-location monitors.
+   * Prevents unnecessary alerts on initial monitor creation (pending → any status).
+   *
+   * @returns Alert action metadata { alertSent: boolean, alertType?: string, alertsSentCount?: number }
+   */
+  private async evaluateAndSendAlert(options: {
+    monitorId: string;
+    monitor: Awaited<ReturnType<typeof this.getMonitorById>>;
+    previousStatus: string;
+    currentStatus: 'up' | 'down';
+    reason: string;
+    metadata: Record<string, unknown>;
+  }): Promise<{ alertSent: boolean; alertType?: string }> {
+    const {
+      monitorId,
+      monitor,
+      previousStatus,
+      currentStatus,
+      reason,
+      metadata,
+    } = options;
+
+    // Don't send alerts if alerts are disabled
+    if (!monitor?.alertConfig?.enabled) {
+      return { alertSent: false };
+    }
+
+    // Don't send alerts for state transitions from 'pending' or 'paused'
+    // These are initial states and should not trigger notifications
+    if (previousStatus === 'pending' || previousStatus === 'paused') {
+      this.logger.debug(
+        `[ALERT] Skipping alert for monitor ${monitorId}: transitioning from ${previousStatus} status (not a real state change)`,
+      );
+      return { alertSent: false };
+    }
+
+    // Only process if there's an actual status change
+    if (previousStatus === currentStatus) {
+      return { alertSent: false };
+    }
+
+    const alertConfig = monitor.alertConfig;
+
+    // Determine alert type based on status transition
+    let shouldSendAlert = false;
+    let alertType: 'recovery' | 'failure' | null = null;
+
+    if (currentStatus === 'up' && previousStatus === 'down') {
+      // Recovery: only alert when status changes from 'down' to 'up'
+      shouldSendAlert = alertConfig?.alertOnRecovery || false;
+      alertType = 'recovery';
+    } else if (currentStatus === 'down' && previousStatus === 'up') {
+      // Failure: only alert when status changes from 'up' to 'down'
+      shouldSendAlert = alertConfig?.alertOnFailure || false;
+      alertType = 'failure';
+    } else if (currentStatus === 'down') {
+      // Monitor is down but wasn't from 'up' state
+      // This handles case where previous state was something other than 'up'/'down'
+      // (e.g., initial check that failed). Don't alert in this case.
+      this.logger.debug(
+        `[ALERT] Not alerting for monitor ${monitorId}: first failure detected (previous status: ${previousStatus})`,
+      );
+      return { alertSent: false };
+    }
+
+    if (!shouldSendAlert || !alertType) {
+      return { alertSent: false };
+    }
+
+    try {
+      this.logger.log(
+        `Sending ${alertType} notification for monitor ${monitorId}`,
+      );
+
+      await this.monitorAlertService.sendNotification(
+        monitorId,
+        alertType,
+        reason,
+        metadata,
+      );
+
+      return { alertSent: true, alertType };
+    } catch (error) {
+      this.logger.error(
+        `Failed to send ${alertType} alert for monitor ${monitorId}: ${getErrorMessage(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return { alertSent: false };
     }
   }
 

@@ -484,7 +484,7 @@ export type LocationConfig = {
   enabled: boolean;
   locations: MonitoringLocation[];
   threshold: number; // Percentage (0-100) of locations that must be up for overall "up" status
-  strategy?: 'all' | 'majority' | 'any' | 'custom'; // Aggregation strategy
+  strategy?: 'all' | 'majority' | 'any'; // Aggregation strategy
 };
 
 /**
